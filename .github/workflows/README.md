@@ -32,23 +32,22 @@ appear here, and every backtick-quoted workflow name in this file must
 correspond to a file on disk. The `scripts/ci/workflow-contracts.test.sh`
 fixture enforces both directions.
 
-| Workflow                | Contract                                          | Trigger surface                                                                                                     | Owner module |
-| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `ci.yml`                | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke       | CICD         |
-| `rust.yml`              | PR + Integration                                  | `pull_request` / `push` to `main`/`dev`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`               | CICD         |
-| `security.yml`          | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` plus weekly `schedule` and `workflow_dispatch`                              | CICD         |
-| `codeql.yml`            | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` plus weekly `schedule`                                                      | CICD         |
-| `napi.yml`              | Integration + Publish                             | `pull_request` / `push` to `main`/`dev` (napi paths) plus `napi-v*` tags                                            | CICD         |
-| `infra.yml`             | PR + Integration                                  | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply       | CICD         |
-| `release-harness.yml`   | PR + Integration                                  | `pull_request` / `push` to `main`/`dev` (release-script paths) plus `workflow_dispatch` — release-command contract  | RELORCH      |
-| `bench.yml`             | Integration                                       | `push` to `main` (release-gate) plus `workflow_dispatch`                                                            | CICD         |
-| `bench-nightly.yml`     | Assurance                                         | `schedule` plus `workflow_dispatch`                                                                                 | CICD         |
-| `ci-nightly.yml`        | Assurance                                         | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node | CICD         |
-| `ci-cost-report.yml`    | Assurance                                         | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics     | CICD         |
-| `release-readiness.yml` | Release candidate                                 | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials        | RELORCH      |
-| `release.yml`           | Publish                                           | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification          | RELORCH      |
-| `pr-base-guard.yml`     | Auxiliary (cutover-blocking guard, to be retired) | `pull_request: [main]` — rejects non-`dev`/`release/*`/`hotfix/*` head refs                                         | OPMODEL      |
-| `labeler.yml`           | Auxiliary (PR labels)                             | `pull_request` (any base) — `actions/labeler` path-based labels                                                     | CICD         |
+| Workflow                | Contract              | Trigger surface                                                                                                     | Owner module |
+| ----------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `ci.yml`                | PR + Integration      | `pull_request` to `main` / `push` to `main` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke   | CICD         |
+| `rust.yml`              | PR + Integration      | `pull_request` to `main` / `push` to `main`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`           | CICD         |
+| `security.yml`          | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule` and `workflow_dispatch`                          | CICD         |
+| `codeql.yml`            | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule`                                                  | CICD         |
+| `napi.yml`              | Integration + Publish | `pull_request` / `push` to `main` (napi paths) plus `napi-v*` tags                                                  | CICD         |
+| `infra.yml`             | PR + Integration      | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply       | CICD         |
+| `release-harness.yml`   | PR + Integration      | `pull_request` / `push` to `main` (release-script paths) plus `workflow_dispatch` — release-command contract        | RELORCH      |
+| `bench.yml`             | Integration           | `push` to `main` (release-gate) plus `workflow_dispatch`                                                            | CICD         |
+| `bench-nightly.yml`     | Assurance             | `schedule` plus `workflow_dispatch`                                                                                 | CICD         |
+| `ci-nightly.yml`        | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node | CICD         |
+| `ci-cost-report.yml`    | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics     | CICD         |
+| `release-readiness.yml` | Release candidate     | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials        | RELORCH      |
+| `release.yml`           | Publish               | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification          | RELORCH      |
+| `labeler.yml`           | Auxiliary (PR labels) | `pull_request` (any base) — `actions/labeler` path-based labels                                                     | CICD         |
 
 ### PR vs Integration push contract
 
@@ -185,13 +184,6 @@ Release-candidate readiness (`release-readiness.yml`, dispatch-only with exact
 SHA validation, no publish credentials) and immutable tag publishing
 (`release.yml`, cargo-dist build + publish + post-publish verify). See
 `plans/modules/release-orchestration.aps.md`.
-
-### `pr-base-guard.yml`
-
-Compatibility-mode guard rejecting `feat/*` / `fix/*` / `docs/*` / `chore/*` PRs
-against `main`. **Cutover-blocking** — to be deleted at `OPMODEL-012` Phase 2.
-See
-[`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md).
 
 ### `labeler.yml`
 

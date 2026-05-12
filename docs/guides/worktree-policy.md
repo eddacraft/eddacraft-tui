@@ -2,8 +2,10 @@
 
 ## Overview
 
-Use worktrees as lightweight execution spaces for active branches. The branch or
-PR is the unit of work; the worktree is only the local workspace.
+Use Worktrunk (`wt`) to manage Git worktrees as lightweight execution spaces for
+active branches. The branch or PR is the unit of work; the worktree is only the
+local workspace. Agents should default to a Worktrunk-managed worktree for every
+non-trivial task and offer cleanup at the end of the task.
 
 Following the OPMODEL-012 cutover on 2026-05-11, `main` is the only permanent
 product anchor. `dev` is retired (see
@@ -26,7 +28,7 @@ git worktree remove ../anvil.dev      # or wherever the dev worktree lives
 
 ## Disposable Worktrees
 
-Create disposable worktrees for active streams only:
+Create Worktrunk-managed worktrees for active streams only:
 
 - `feat/*`
 - `fix/*`
@@ -36,7 +38,8 @@ Create disposable worktrees for active streams only:
 - `hotfix/*`
 - short-lived spikes
 
-Suggested directory pattern:
+Worktrunk computes paths from its configured template. The legacy manual
+directory pattern is:
 
 - `../wt-<branch-slug>`
 
@@ -54,7 +57,8 @@ Examples:
    has an explicit expiry.
 3. Create `hotfix/*` from `main`, or from the latest good tag only for an
    incident where `main` is unreleasable.
-4. Merge completed work into `main`, then remove the worktree.
+4. Merge completed work into `main`, then offer `wt remove` for the worktree and
+   local branch.
 
 ## Why Disposable Is the Default
 
@@ -105,6 +109,17 @@ Remove disposable worktrees when:
 
 Delete merged disposable branches and remove their worktrees on the same day.
 
+Agents should offer `wt remove` at natural finish points:
+
+1. after opening a PR when local iteration is done
+2. after a PR merges
+3. when a branch is abandoned or superseded
+4. when a branch is paused with no near-term next action
+
+Before cleanup, verify the worktree is clean and the branch is either pushed,
+merged, or explicitly approved for deletion. Prefer `wt remove`; use raw Git
+cleanup commands only when Worktrunk cannot express the required recovery path.
+
 ## Review Rhythm
 
 Review open worktrees at least twice a week.
@@ -119,8 +134,9 @@ Check for:
 ## Practical Rule of Thumb
 
 1. Keep `main` as the product anchor.
-2. Open disposable worktrees for active streams from `main`.
-3. Remove them as soon as the stream is merged, replaced, or paused.
+2. Open Worktrunk worktrees for active streams from `main`.
+3. Remove them with `wt remove` as soon as the stream is merged, replaced, or
+   paused.
 4. If a worktree feels permanent, merge, split, or close the stream.
 
 ## Updating an existing clone

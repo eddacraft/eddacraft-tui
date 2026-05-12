@@ -13,7 +13,7 @@ Routing layer for the development lifecycle. Every task follows this sequence �
 do not skip stages.
 
 ```
-APS (Ready) → Branch → Code → Review → PR → Merged → [cleanup] → Released/Shipped
+APS (Ready) → Worktrunk Branch → Code → Review → PR → Merged → cleanup offer → Released/Shipped
 ```
 
 ## Surface inventory
@@ -36,24 +36,26 @@ item for producing the definitive inventory.
 
 ## Stage Map
 
-| Stage               | What                                 | Skill                               | Agent                                        | Command                                 |
-| ------------------- | ------------------------------------ | ----------------------------------- | -------------------------------------------- | --------------------------------------- |
-| **Idea / spec**     | Explore intent, design before code   | `brainstorming`                     | —                                            | —                                       |
-| **Plan**            | Write implementation plan from spec  | `writing-plans`, `planning-council` | `anvil-plan-spec`                            | `/plan`                                 |
-| **Branch**          | Create isolated worktree from `main` | `using-git-worktrees`               | —                                            | —                                       |
-| **Code**            | TDD implementation                   | `test-driven-development`           | `tdd-coach`                                  | `/test`                                 |
-| **Debug**           | Root cause analysis                  | `systematic-debugging`              | `debugger`                                   | `/debug`                                |
-| **Verify**          | Evidence before completion claims    | `verification-before-completion`    | —                                            | —                                       |
-| **Review (pre-PR)** | Risk-tiered Council                  | `council`                           | `council-reviewer` + role-mapped specialists | `/council [quick\|mini\|full] <target>` |
-| **Finish**          | Commit, push, open PR                | `finishing-a-branch`                | —                                            | `/commit`                               |
-| **Address review**  | Resolve PR feedback and CI failures  | `addressing-pr-reviews`             | —                                            | —                                       |
-| **Parallelise**     | Independent tasks concurrently       | `parallel-agents`                   | `autonomous`                                 | `/delegate`                             |
+| Stage               | What                                  | Skill                               | Agent                                        | Command                                 |
+| ------------------- | ------------------------------------- | ----------------------------------- | -------------------------------------------- | --------------------------------------- |
+| **Idea / spec**     | Explore intent, design before code    | `brainstorming`                     | —                                            | —                                       |
+| **Plan**            | Write implementation plan from spec   | `writing-plans`, `planning-council` | `anvil-plan-spec`                            | `/plan`                                 |
+| **Branch**          | Create Worktrunk worktree from `main` | `using-git-worktrees`               | —                                            | `wt switch --create <branch>`           |
+| **Code**            | TDD implementation                    | `test-driven-development`           | `tdd-coach`                                  | `/test`                                 |
+| **Debug**           | Root cause analysis                   | `systematic-debugging`              | `debugger`                                   | `/debug`                                |
+| **Verify**          | Evidence before completion claims     | `verification-before-completion`    | —                                            | —                                       |
+| **Review (pre-PR)** | Risk-tiered Council                   | `council`                           | `council-reviewer` + role-mapped specialists | `/council [quick\|mini\|full] <target>` |
+| **Finish**          | Commit, push, open PR, offer cleanup  | `finishing-a-branch`                | —                                            | `/commit`                               |
+| **Address review**  | Resolve PR feedback and CI failures   | `addressing-pr-reviews`             | —                                            | —                                       |
+| **Parallelise**     | Independent tasks concurrently        | `parallel-agents`                   | `autonomous`                                 | `/delegate`                             |
 
 ## Rules
 
 1. **Always start from APS.** Pick a `Ready` work item in `plans/index.aps.md`.
    Mark it `In Progress` before writing code.
-2. **Branch from `main`.** Hotfixes also branch from `main` (or the latest good
+2. **Use Worktrunk for task branches.** Create task branches with
+   `wt switch --create <branch>` unless the user explicitly asks to continue in
+   the current worktree. Hotfixes also branch from `main` (or the latest good
    tag if `main` is unreleasable). Use the project naming convention (`feat/*`,
    `fix/*`, `docs/*`, `chore/*`).
 3. **Council is the review surface.** Run `/council [quick|mini|full] <target>`
@@ -69,19 +71,29 @@ item for producing the definitive inventory.
    exception `!plans/reviews/post-merge/` keeps these tracked.
 6. **Verify before claiming complete.** Evidence before assertions — use
    `verification-before-completion`.
+7. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
+   abandoned, or paused with no near-term action, ask whether to run `wt remove`
+   for the Worktrunk worktree and local branch if it is safe. Never delete a
+   branch that is unmerged, unpushed, or still needed without explicit user
+   approval.
 
 ## Decision Points
 
 **Starting a new task:** → Check `plans/index.aps.md` for next Ready item →
-`using-git-worktrees` (from `main`) → code
+`using-git-worktrees` via `wt switch --create <branch>` from `main` → code
 
 **Implementation unclear:** → `brainstorming` → `writing-plans` (or
 `planning-council` for multi-persona design) → `using-git-worktrees` → code
 
 **Tests failing unexpectedly:** → `systematic-debugging` before any other action
 
-**About to commit:** → `verification-before-completion` gate → `/council`
-(default `quick`; escalate to `mini`/`full` for risk) → `finishing-a-branch`
+**About to commit or open PR:** → `verification-before-completion` gate →
+`/council` (default `quick`; escalate to `mini`/`full` for risk) →
+`finishing-a-branch`
+
+**After PR open / merge / abandon / pause:** → offer `wt remove`; perform
+cleanup only after confirming the branch is pushed or safely merged, and only
+with user approval for unmerged work
 
 **PR review feedback returned:** → `addressing-pr-reviews` — fix CI first, then
 walk each unresolved thread

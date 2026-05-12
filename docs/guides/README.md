@@ -41,9 +41,10 @@ How-to guides for developers working on Anvil.
 ### Testing & Workflow
 
 - [Testing Guide](testing.md) — Test strategy and practices
-- [Branching Strategy](branching-strategy.md) — Git branching model
+- [Branching Strategy](branching-strategy.md) — Main-first branch, Worktrunk,
+  and cleanup model
 - [Worktree Policy](worktree-policy.md) — How to manage permanent and disposable
-  worktrees
+  worktrees with Worktrunk, including end-of-task cleanup
 - [Git Hook Compatibility Policy](git-hook-compatibility.md) — Baseline and
   rollout policy for file-based and Git 2.54 native config-based hooks
 

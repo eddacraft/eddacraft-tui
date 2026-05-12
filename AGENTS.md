@@ -125,7 +125,7 @@ The `Authored-By:` trailer is added automatically — do not add it manually.
 Every piece of work follows this sequence. Agents must not skip stages.
 
 ```
-APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → Released/Shipped → Complete
+APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → cleanup offer → Released/Shipped → Complete
 ```
 
 ### 1. Start from APS
@@ -134,13 +134,14 @@ APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → 
 - Mark module **In Progress** before touching any code
 - Branch name must reference the APS module: `fix/<module-slug>` or
   `feat/<module-slug>`
-- Create branch from `main`. Hotfixes also branch from `main` (or the latest
-  good tag if `main` is unreleasable). `dev` was retired by OPMODEL-012 on
-  2026-05-11 — see `docs/guides/branching-strategy.md`.
+- Create the task branch and worktree from `main` with Worktrunk
+  (`wt switch --create <branch>`). Hotfixes also branch from `main` (or the
+  latest good tag if `main` is unreleasable). `dev` was retired by OPMODEL-012
+  on 2026-05-11 — see `docs/guides/branching-strategy.md`.
 
 ### 2. Code
 
-- Work in a disposable worktree — see `docs/guides/worktree-policy.md`
+- Work in a Worktrunk-managed worktree — see `docs/guides/worktree-policy.md`
 - Follow TDD: tests before implementation
 - Run `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
   before committing
@@ -169,7 +170,17 @@ APS (Ready) → Branch → Code → Council → PR → Merged → [cleanup] → 
   - Do NOT leave test plans only in the PR description
 - Mark module status **Merged** in the `.aps.md` file when the PR lands.
 
-### 5. Cleanup Agent (automated)
+### 5. Local cleanup offer
+
+- At the end of a task, offer `wt remove` to remove the worktree and delete the
+  local branch when safe.
+- Only clean automatically safe state: clean worktree, branch pushed or merged,
+  and no uncommitted work.
+- Ask before deleting unmerged, unpushed, or still-needed branches. Never delete
+  remote branches unless the user explicitly asks or the PR workflow already
+  did.
+
+### 6. Cleanup Agent (automated)
 
 - Runs on schedule — checks all **Merged** modules
 - Verifies branch merged + CI green → advances to **Released/Shipped** when a

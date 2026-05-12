@@ -3,8 +3,8 @@
 ## Overview
 
 `main` is the only permanent product branch. Normal work branches from `main`
-and normal PRs target `main`. `dev` is retired as a dated compatibility branch
-following the OPMODEL-012 cutover on 2026-05-11.
+with Worktrunk (`wt`), and normal PRs target `main`. `dev` is retired as a dated
+compatibility branch following the OPMODEL-012 cutover on 2026-05-11.
 
 See
 [`plans/specs/2026-05-09-plan-build-release-operating-model.md`](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)
@@ -29,10 +29,56 @@ docs/*  --PR--> main
 chore/* --PR--> main
 ```
 
-1. Create feature, fix, docs, and chore branches from `main`.
-2. Open the PR against `main`.
-3. Required CI checks must pass; review threads must resolve.
-4. Merge — squash, rebase, or merge are all allowed by the `main` ruleset.
+1. Start from the permanent `main` worktree or an equivalent clean `main` clone.
+2. Create the task branch and worktree with `wt switch --create <branch>`.
+3. Do all task work in that Worktrunk-managed worktree, not in the permanent
+   `main` worktree.
+4. Open the PR against `main`.
+5. Required CI checks must pass; review threads must resolve.
+6. Merge — squash, rebase, or merge are all allowed by the `main` ruleset.
+7. After PR open, merge, abandon, or long pause, offer `wt remove` to clean up
+   the Worktrunk worktree and local branch.
+
+Example:
+
+```bash
+git fetch origin --prune
+wt switch --create docs/release-plan-refresh
+```
+
+If a task starts in the wrong place, prefer moving the work into a disposable
+Worktrunk worktree before it grows. Do not reset, delete, or move uncommitted
+work without explicit user approval.
+
+## Cleanup flow
+
+Branch and worktree cleanup is part of finishing a task, but it is still a user
+choice when the work is not safely merged or preserved remotely.
+
+Offer cleanup when any of these happens:
+
+1. A PR is opened and the user is done with local iteration.
+2. A PR is merged.
+3. A branch is abandoned or superseded.
+4. A stream is paused with no near-term next action.
+
+Before removing anything, verify:
+
+1. `git status` is clean in the worktree being removed.
+2. The branch is pushed if the PR is still open.
+3. The branch is merged, or the user explicitly approves deleting unmerged local
+   state.
+
+Safe cleanup command for a merged branch:
+
+```bash
+wt remove
+```
+
+Worktrunk removes the current worktree and deletes the local branch when it is
+safe. Use raw `git branch -D` only when the user explicitly approves deleting an
+unmerged branch. Do not delete remote branches unless the user asks or the
+repository's PR workflow has already closed them.
 
 ## Release flow
 

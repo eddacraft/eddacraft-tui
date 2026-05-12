@@ -146,31 +146,41 @@ testing guidelines, including:
 
 ## Pull Request Process
 
-1. **Create a branch** from `dev` for normal work, or from `main` only for
-   production hotfixes
-2. **Make your changes** following the code standards above
-3. **Run the full test suite**: `pnpm build && pnpm test && pnpm lint`
-4. **Submit a PR** with a clear description of changes
+1. **Create a Worktrunk worktree and branch** from `main` for normal work with
+   `wt switch --create <branch>`. Hotfixes also branch from `main`, or from the
+   latest good tag only when `main` is unreleasable.
+2. **Make your changes** following the code standards above.
+3. **Run the full test suite**: `pnpm build && pnpm test && pnpm lint`.
+4. **Submit a PR** with a clear description of changes.
+5. **Offer or perform local cleanup** once the PR is opened, merged, abandoned,
+   or paused with no near-term next action.
 
 ## Branching and Worktrees
 
-This repository uses a `main`/`dev` model that supports multiple active streams
-in parallel worktrees.
+This repository uses a main-first model with Worktrunk-managed worktrees for
+active streams.
 
-- `main` is the stable release branch.
-- `dev` is the active integration branch.
-- normal feature, fix, docs, and chore branches are created from `dev`.
-- hotfix branches are created from `main` or the active `release/*` branch.
+- `main` is the only permanent product branch and PR target.
+- `dev` is retired as of the OPMODEL-012 cutover.
+- normal feature, fix, docs, and chore branches are created from `main` with
+  `wt switch --create <branch>`.
+- `release/*` branches are exceptional and short-lived when `main` cannot be
+  tagged directly.
+- hotfix branches are created from `main`, or from the latest good tag only when
+  `main` is unreleasable.
 
-Keep `main` and `dev` as the only permanent worktrees. Treat all other worktrees
-as disposable and remove them once the branch is merged, replaced, or paused.
+Keep `main` as the only permanent worktree. Treat all other worktrees as
+Worktrunk-managed task spaces and remove them with `wt remove` once the branch
+is merged, replaced, abandoned, or paused without near-term action. Before
+deleting a branch, confirm the worktree is clean and the branch is merged or
+safely pushed.
 
 Release guidance:
 
-- small releases may promote directly from `dev` to `main`
-- larger releases should use a short-lived `release/*` branch
-- any fix that lands during release stabilisation must be merged back to `dev`
-  immediately after release
+- normal releases tag an exact green `main` SHA
+- use a short-lived `release/*` branch only for exceptional stabilisation
+- merge release hardening back to `main`, tag from `main`, then delete the
+  stabilisation branch
 
 See the detailed guides for the full policy:
 
