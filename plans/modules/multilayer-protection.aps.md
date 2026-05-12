@@ -2,16 +2,17 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 3/17 done |
+| MLP | @aneki | In Progress | 4/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done
-against the v1-narrowed identity scope; MLP-011 shipped a new
-`crates/anvil-config/` library; MLP-013 added the `validation` module
-on top for hard-pinned class rejection. 63 tests green across the
-config crate. This branch is stacked on
-`feat/mlp-011-multi-format-config`; counter reflects MLP-001 (merged)
-plus the two items in this stack. MLP-009 remains the hard release gate
-for `v0.7.0-beta`.)
+against the v1-narrowed identity scope; MLP-011 + MLP-013 shipped via
+`crates/anvil-config/` (multi-format loader + canonical-JSON + hard-pinned
+class rejection; 63 tests green); MLP-002 witness-chain spike shipped a
+new `crates/anvil-witness/` crate (line, genesis, flock-protected writer
+with rollover, verifier with tamper / dropped-line / stray-genesis
+detection; 25 tests green plus an `--ignored` 80-writer stress test).
+MLP-009 remains the hard release gate for `v0.7.0-beta`; ADRs 036–039
+Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
