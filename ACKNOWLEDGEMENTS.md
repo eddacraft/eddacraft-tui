@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 270 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 269 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1052,7 +1052,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `futures-util` | 0.3.32 | MIT License | https://github.com/rust-lang/futures-rs |
 | `hashbrown` | 0.15.5 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.16.1 | MIT License | https://github.com/rust-lang/hashbrown |
-| `hashbrown` | 0.17.0 | MIT License | https://github.com/rust-lang/hashbrown |
+| `hashbrown` | 0.17.1 | MIT License | https://github.com/rust-lang/hashbrown |
 | `utf8parse` | 0.2.2 | MIT License | https://github.com/alacritty/vte |
 | `hyper-rustls` | 0.27.9 | MIT License | https://github.com/rustls/hyper-rustls |
 | `rustls-native-certs` | 0.8.3 | MIT License | https://github.com/rustls/rustls-native-certs |
@@ -1071,7 +1071,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
 | `memoffset` | 0.9.1 | MIT License | https://github.com/Gilnaa/memoffset |
 | `stable_deref_trait` | 1.2.1 | MIT License | https://github.com/storyyeller/stable_deref_trait |
-| `h2` | 0.4.13 | MIT License | https://github.com/hyperium/h2 |
+| `h2` | 0.4.14 | MIT License | https://github.com/hyperium/h2 |
 | `http` | 1.4.0 | MIT License | https://github.com/hyperium/http |
 | `tokio-rustls` | 0.26.4 | MIT License | https://github.com/rustls/tokio-rustls |
 | `signal-hook-mio` | 0.2.5 | MIT License | https://github.com/vorner/signal-hook |
@@ -1100,7 +1100,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tower-layer` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |
 | `tower-service` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |
 | `tower` | 0.5.3 | MIT License | https://github.com/tower-rs/tower |
-| `tower-http` | 0.6.8 | MIT License | https://github.com/tower-rs/tower-http |
+| `tower-http` | 0.6.10 | MIT License | https://github.com/tower-rs/tower-http |
 | `http-body` | 1.0.1 | MIT License | https://github.com/hyperium/http-body |
 | `http-body-util` | 0.1.3 | MIT License | https://github.com/hyperium/http-body |
 | `iana-time-zone` | 0.1.65 | MIT License | https://github.com/strawlab/iana-time-zone |
@@ -1110,7 +1110,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `const-oid` | 0.10.2 | MIT License | https://github.com/RustCrypto/formats |
 | `num_threads` | 0.1.7 | MIT License | https://github.com/jhpratt/num_threads |
 | `crypto-common` | 0.2.1 | MIT License | https://github.com/RustCrypto/traits |
-| `hybrid-array` | 0.4.11 | MIT License | https://github.com/RustCrypto/hybrid-array |
+| `hybrid-array` | 0.4.12 | MIT License | https://github.com/RustCrypto/hybrid-array |
 | `axoasset` | 2.0.1 | MIT License | https://github.com/axodotdev/axoasset |
 | `axoprocess` | 0.2.1 | MIT License | https://github.com/axodotdev/axoprocess |
 | `axotag` | 0.3.0 | MIT License | https://github.com/axodotdev/axotag |
@@ -1144,7 +1144,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.0 | MIT License | https://github.com/krisprice/ipnet |
-| `iri-string` | 0.7.12 | MIT License | https://github.com/lo48576/iri-string |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.16.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
@@ -1161,7 +1160,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `compact_str` | 0.9.0 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
-| `demand` | 2.0.0 | MIT License | https://github.com/jdx/demand |
+| `demand` | 2.0.1 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
@@ -1206,7 +1205,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows_x86_64_msvc` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows_x86_64_msvc` | 0.53.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `tokio-util` | 0.7.18 | MIT License | https://github.com/tokio-rs/tokio |
-| `tokio` | 1.52.1 | MIT License | https://github.com/tokio-rs/tokio |
+| `tokio` | 1.52.3 | MIT License | https://github.com/tokio-rs/tokio |
 | `image` | 0.25.10 | MIT License | https://github.com/image-rs/image |
 | `ident_case` | 1.0.1 | MIT License | https://github.com/TedDriggs/ident_case |
 | `widestring` | 1.2.1 | MIT License | https://github.com/VoidStarKat/widestring-rs |
@@ -1253,7 +1252,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `termcolor` | 1.4.1 | MIT License | https://github.com/BurntSushi/termcolor |
 | `walkdir` | 2.5.0 | MIT License | https://github.com/BurntSushi/walkdir |
 | `nix` | 0.30.1 | MIT License | https://github.com/nix-rust/nix |
-| `nix` | 0.31.2 | MIT License | https://github.com/nix-rust/nix |
+| `nix` | 0.31.3 | MIT License | https://github.com/nix-rust/nix |
 | `strsim` | 0.11.1 | MIT License | https://github.com/rapidfuzz/strsim-rs |
 | `fsevent-sys` | 4.1.0 | MIT License | https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys |
 | `security-framework-sys` | 2.17.0 | MIT License | https://github.com/kornelski/rust-security-framework |
@@ -1288,7 +1287,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `yoke-derive` | 0.8.2 | Unicode License v3 | https://github.com/unicode-org/icu4x |
 | `yoke` | 0.8.2 | Unicode License v3 | https://github.com/unicode-org/icu4x |
 | `zerofrom-derive` | 0.1.7 | Unicode License v3 | https://github.com/unicode-org/icu4x |
-| `zerofrom` | 0.1.7 | Unicode License v3 | https://github.com/unicode-org/icu4x |
+| `zerofrom` | 0.1.8 | Unicode License v3 | https://github.com/unicode-org/icu4x |
 | `zerotrie` | 0.2.4 | Unicode License v3 | https://github.com/unicode-org/icu4x |
 | `zerovec-derive` | 0.11.3 | Unicode License v3 | https://github.com/unicode-org/icu4x |
 | `zerovec` | 0.11.6 | Unicode License v3 | https://github.com/unicode-org/icu4x |
