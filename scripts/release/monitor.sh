@@ -50,6 +50,8 @@ NODE
     [[ -n "$run_id" ]] || fail_usage '--run-url must be a GitHub Actions run URL or run id when --poll is used'
     poll_interval="${ANVIL_RELEASE_MONITOR_POLL_INTERVAL:-15}"
     poll_max="${ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS:-3600}"
+    [[ "$poll_interval" =~ ^[1-9][0-9]*$ ]] || { emit failed '{"workflowRun":null,"state":null,"failedJob":null,"logUrl":null}' "$(failure_json invalid-input 'ANVIL_RELEASE_MONITOR_POLL_INTERVAL must be a positive integer (seconds)' false correct-env)" monitor 'Set ANVIL_RELEASE_MONITOR_POLL_INTERVAL to a positive integer or unset it.'; exit 129; }
+    [[ "$poll_max" =~ ^[1-9][0-9]*$ ]] || { emit failed '{"workflowRun":null,"state":null,"failedJob":null,"logUrl":null}' "$(failure_json invalid-input 'ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS must be a positive integer (seconds)' false correct-env)" monitor 'Set ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS to a positive integer or unset it.'; exit 129; }
     poll_elapsed=0
     while :; do
       run_json="$(gh run view "$run_id" --repo "$repo" --json status,conclusion,url 2>/dev/null || true)"
