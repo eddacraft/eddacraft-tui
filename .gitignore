@@ -53,7 +53,12 @@ Thumbs.db
 
 # Cursor IDE
 .cursor/
-.opencode
+
+# OpenCode — ignore local state, keep tracked skills
+.opencode/*
+!.opencode/skills/
+.opencode/skills/*
+!.opencode/skills/dev-workflow/
 docs/analysis/claude-code-safety-net-review.md
 .anvil/first-run
 .anvil/tutorial-progress.json
