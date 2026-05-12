@@ -90,7 +90,7 @@ find_persisted_readiness_run() {
   node - "$comments_json" "$sha" <<'NODE'
 const [raw, sourceSha] = process.argv.slice(2);
 let bodies = [];
-try { bodies = JSON.parse(raw); } catch (_) { return; }
+try { bodies = JSON.parse(raw); } catch (_) { /* leave bodies empty */ }
 const matches = [];
 for (const body of bodies) {
   if (typeof body !== 'string') continue;
@@ -102,8 +102,7 @@ for (const body of bodies) {
     if (meta && meta.sourceSha === sourceSha && Number.isInteger(meta.runId)) matches.push(meta);
   } catch (_) { /* ignore malformed markers */ }
 }
-if (!matches.length) return;
-process.stdout.write(JSON.stringify(matches[matches.length - 1]));
+if (matches.length) process.stdout.write(JSON.stringify(matches[matches.length - 1]));
 NODE
 }
 
@@ -305,6 +304,7 @@ NODE
 )"
     fi
     if [[ "$readiness_json" == "null" ]]; then
+      dispatch_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       gh workflow run release-readiness.yml --repo "$repo" --ref main \
         --field sourceSha="$source_sha" --field mode=readiness --field channel="$channel" \
         --field expectedReachableFrom=main --field baseBoundary="$base_boundary" \
@@ -313,7 +313,7 @@ NODE
         exit 1
       }
       sleep "${ANVIL_RELEASE_PROMOTE_DISPATCH_SETTLE_SECONDS:-3}"
-      dispatched_run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --event workflow_dispatch --limit 1 --json databaseId,url,createdAt --jq '.[0] // empty' 2>/dev/null || true)"
+      dispatched_run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --event workflow_dispatch --limit 10 --json databaseId,url,createdAt --jq "[.[] | select(.createdAt >= \"$dispatch_started_at\")] | sort_by(.createdAt) | .[0] // empty" 2>/dev/null || true)"
       dispatched_run_id=""
       dispatched_run_url=""
       if [[ -n "$dispatched_run_json" ]]; then
