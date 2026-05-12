@@ -442,6 +442,44 @@ mod tests {
         assert_eq!(assignment.confidence, DetectionConfidence::Low);
     }
 
+    // EATEST-021: When two layers' glob patterns both match the same file,
+    // the assignment must be deterministic — the alphabetically-first layer
+    // name wins, because `Layers` is a `BTreeMap` and iteration order is by
+    // key. Pins behaviour that callers (baseline diffs, violation IDs) rely
+    // on across runs.
+    #[test]
+    fn assign_layer_resolves_multi_match_alphabetically_and_deterministically() {
+        fn build_overlapping_layers(insertion_order: &[&str]) -> Layers {
+            let mut layers = BTreeMap::new();
+            for name in insertion_order {
+                layers.insert(
+                    (*name).into(),
+                    Layer {
+                        patterns: vec!["src/shared/**".into()],
+                        depends_on: vec![],
+                        description: None,
+                    },
+                );
+            }
+            layers
+        }
+
+        // Insertion order must not affect the outcome — alphabetical order
+        // is sourced from the `BTreeMap`'s keys, not how it was constructed.
+        let order_a = build_overlapping_layers(&["zlayer", "mlayer", "alayer"]);
+        let order_b = build_overlapping_layers(&["alayer", "zlayer", "mlayer"]);
+        let order_c = build_overlapping_layers(&["mlayer", "alayer", "zlayer"]);
+
+        for layers in [&order_a, &order_b, &order_c] {
+            let assignment = assign_layer("src/shared/util.ts", layers);
+            assert_eq!(
+                assignment.layer.as_deref(),
+                Some("alayer"),
+                "alphabetically-first layer must win on glob collisions"
+            );
+        }
+    }
+
     #[test]
     fn assign_layers_processes_all_files() {
         let layers = sample_layers();

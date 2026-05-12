@@ -474,6 +474,63 @@ mod tests {
         assert!(!is_existing_violation(&violation, &snapshot));
     }
 
+    // EATEST-019: A baseline whose violation IDs were generated with `line=0`
+    // (pre-line-tracking) must still suppress a current violation at the same
+    // from/to but a real line number. Guards the backward-compat fallback in
+    // `is_existing_violation`.
+    #[test]
+    fn is_existing_violation_matches_legacy_line_zero_baseline() {
+        let legacy_id = create_violation_id("a.ts", "b.ts", 0);
+        let snapshot = BaselineSnapshot {
+            module_count: 1,
+            timestamp: "2026-01-01T00:00:00Z".into(),
+            violations: vec![BaselineViolation {
+                id: legacy_id,
+                from_layer: "x".into(),
+                to_layer: "y".into(),
+                from_file: "a.ts".into(),
+                to_file: "b.ts".into(),
+                import_line: 0,
+                rule: None,
+            }],
+        };
+
+        let current = BoundaryViolation {
+            edge: DependencyEdge {
+                from: "a.ts".into(),
+                to: "b.ts".into(),
+                from_layer: None,
+                to_layer: None,
+                line: 42,
+                import_type: ImportType::Import,
+            },
+            boundary: None,
+            is_new: true,
+            baseline_id: None,
+        };
+
+        assert!(
+            is_existing_violation(&current, &snapshot),
+            "violation at line 42 must match legacy line-0 baseline entry"
+        );
+
+        // Sanity: a different from/to must still not match the legacy baseline.
+        let unrelated = BoundaryViolation {
+            edge: DependencyEdge {
+                from: "c.ts".into(),
+                to: "d.ts".into(),
+                from_layer: None,
+                to_layer: None,
+                line: 42,
+                import_type: ImportType::Import,
+            },
+            boundary: None,
+            is_new: true,
+            baseline_id: None,
+        };
+        assert!(!is_existing_violation(&unrelated, &snapshot));
+    }
+
     #[test]
     fn default_layers_has_five_layers() {
         let layers = create_default_layers();

@@ -167,14 +167,39 @@ pub enum DefinitionValidationError {
     UnsupportedVersion { version: String, expected: String },
 }
 
+/// Extract the leading major number from a `MAJOR[.MINOR[.PATCH]]` version
+/// string. Returns `None` when the leading segment is missing or not a u64.
+fn parse_major_version(version: &str) -> Option<u64> {
+    version.split('.').next()?.parse::<u64>().ok()
+}
+
+/// Check whether a provided schema version is compatible with the supported
+/// one: the leading major number must match. Different majors (or
+/// unparseable input) are rejected.
+///
+/// Project convention — not strict semver: while the current schema is in
+/// the major-0 unstable range, any minor/patch bump is still treated as
+/// non-breaking so user configs survive schema evolution. Real breaking
+/// changes are signalled by bumping the major number.
+pub(crate) fn is_schema_version_compatible(provided: &str) -> bool {
+    match (
+        parse_major_version(provided),
+        parse_major_version(ARCHITECTURE_DEFINITION_VERSION),
+    ) {
+        (Some(p), Some(s)) => p == s,
+        _ => false,
+    }
+}
+
 /// Validate an architecture definition for internal consistency.
 pub fn validate_definition(
     definition: &ArchitectureDefinition,
 ) -> Result<(), Vec<DefinitionValidationError>> {
     let mut errors = Vec::new();
 
-    // Check schema version
-    if definition.schema_version != ARCHITECTURE_DEFINITION_VERSION {
+    // Schema version check: tolerate minor/patch bumps within the same
+    // major so user configs survive non-breaking schema evolution.
+    if !is_schema_version_compatible(&definition.schema_version) {
         errors.push(DefinitionValidationError::UnsupportedVersion {
             version: definition.schema_version.clone(),
             expected: ARCHITECTURE_DEFINITION_VERSION.into(),
@@ -380,5 +405,61 @@ rules: []
     #[test]
     fn rule_severity_defaults_to_error() {
         assert_eq!(RuleSeverity::default(), RuleSeverity::Error);
+    }
+
+    /// EATEST-023: Pins the semver tolerance rule for `schema_version`:
+    /// minor/patch bumps within the same major must validate successfully,
+    /// but any major bump must be rejected. Guards against tightening the
+    /// check back to exact-match (which would break every existing config
+    /// on the next schema patch).
+    #[test]
+    fn validate_definition_accepts_future_minor_or_patch_bump() {
+        fn make_def(version: &str) -> ArchitectureDefinition {
+            ArchitectureDefinition {
+                schema_version: version.into(),
+                template: ArchitectureTemplate::Custom,
+                layers: BTreeMap::new(),
+                bounded_contexts: None,
+                rules: vec![],
+                options: None,
+            }
+        }
+
+        // Future patch bump: same major.minor as current `0.1.0`.
+        assert!(
+            validate_definition(&make_def("0.1.1")).is_ok(),
+            "future patch bump 0.1.1 must validate against expected 0.1.0"
+        );
+
+        // Future minor bump (and a larger one for good measure).
+        assert!(validate_definition(&make_def("0.2.0")).is_ok());
+        assert!(validate_definition(&make_def("0.99.99")).is_ok());
+
+        // Bare major is deliberately accepted — the leading segment parses
+        // as the current major, so `parse_major_version` returns a match.
+        assert!(validate_definition(&make_def("0")).is_ok());
+
+        // Far-future major bump must be rejected. Use a major value high
+        // enough that it cannot collide with the supported major after
+        // routine schema bumps (mirrors `validate_definition_rejects_bad_version`).
+        let errors = validate_definition(&make_def("99.0.0")).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, DefinitionValidationError::UnsupportedVersion { .. })),
+            "major bump 99.0.0 must be rejected"
+        );
+
+        // Unparseable leading major segment must be rejected, not silently
+        // accepted. Inputs where the segment before the first `.` does not
+        // parse as a u64.
+        for bogus in ["", "abc", "x.1.0", "-1.0.0"] {
+            let errs = validate_definition(&make_def(bogus)).unwrap_err();
+            assert!(
+                errs.iter()
+                    .any(|e| matches!(e, DefinitionValidationError::UnsupportedVersion { .. })),
+                "unparseable schema_version {bogus:?} must be rejected"
+            );
+        }
     }
 }

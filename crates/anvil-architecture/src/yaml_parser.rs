@@ -17,6 +17,10 @@ use crate::util::atomic_write;
 /// File name for the architecture definition.
 pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
 
+/// Maximum architecture YAML file size (1 MiB) — guards against
+/// billion-laughs YAML expansion attacks.
+pub(crate) const MAX_YAML_SIZE: u64 = 1024 * 1024;
+
 type LayersRecord = BTreeMap<String, Layer>;
 
 /// Errors that can occur during YAML parsing.
@@ -56,10 +60,6 @@ pub fn architecture_yaml_exists(workspace_root: &Path) -> bool {
 pub fn parse_architecture_definition(
     workspace_root: &Path,
 ) -> Result<ArchitectureDefinition, YamlParseError> {
-    /// Maximum architecture YAML file size (1 MiB) — guards against
-    /// billion-laughs YAML expansion attacks.
-    const MAX_YAML_SIZE: u64 = 1024 * 1024;
-
     let yaml_path = get_architecture_yaml_path(workspace_root);
     let yaml_str = yaml_path.display().to_string();
 
@@ -654,5 +654,65 @@ mod tests {
 
         let result = parse_architecture_definition(tmp.path());
         assert!(matches!(result, Err(YamlParseError::InvalidYaml(_))));
+    }
+
+    // EATEST-020: Verify the 1 MiB ceiling has no off-by-one. References the
+    // module-level `MAX_YAML_SIZE` directly so changes to the production
+    // constant flow through to the boundary tests.
+    #[allow(clippy::cast_possible_truncation)]
+    const TEST_MAX_YAML_SIZE: usize = MAX_YAML_SIZE as usize;
+
+    /// Build YAML content of exactly `size` bytes whose final line is a valid
+    /// `template:` mapping (parseable as `ArchitectureDefinition`).
+    fn build_padded_yaml(size: usize) -> String {
+        let footer = "template: custom\n";
+        assert!(size > footer.len() + 3, "size too small to pad");
+        let comment_bytes = size - footer.len();
+        // "# " + (comment_bytes - 3) filler chars + "\n" = comment_bytes bytes.
+        let mut content = String::with_capacity(size);
+        content.push_str("# ");
+        content.extend(std::iter::repeat_n('a', comment_bytes - 3));
+        content.push('\n');
+        content.push_str(footer);
+        assert_eq!(content.len(), size, "padded yaml must hit exact byte count");
+        content
+    }
+
+    #[test]
+    fn parse_accepts_yaml_at_exact_size_limit() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(ANVIL_DIR);
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        let content = build_padded_yaml(TEST_MAX_YAML_SIZE);
+        std::fs::write(anvil_dir.join(ARCHITECTURE_YAML_FILENAME), &content).unwrap();
+
+        let result = parse_architecture_definition(tmp.path());
+        assert!(
+            result.is_ok(),
+            "yaml of exactly MAX_YAML_SIZE bytes must parse: {:?}",
+            result.err()
+        );
+        let def = result.unwrap();
+        assert_eq!(def.template, ArchitectureTemplate::Custom);
+    }
+
+    #[test]
+    fn parse_rejects_yaml_one_byte_over_size_limit() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(ANVIL_DIR);
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        let content = build_padded_yaml(TEST_MAX_YAML_SIZE + 1);
+        std::fs::write(anvil_dir.join(ARCHITECTURE_YAML_FILENAME), &content).unwrap();
+
+        let result = parse_architecture_definition(tmp.path());
+        match result {
+            Err(YamlParseError::InvalidYaml(msg)) => {
+                assert!(
+                    msg.contains("byte limit"),
+                    "expected size-limit error, got: {msg}"
+                );
+            }
+            other => panic!("expected InvalidYaml size-limit error, got: {other:?}"),
+        }
     }
 }

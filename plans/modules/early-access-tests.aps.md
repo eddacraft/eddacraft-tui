@@ -3,11 +3,11 @@
 
 # Early Access Tests
 
-| Scope  | Owner | Priority | Status |
-| ------ | ----- | -------- | ------ |
-| EATEST | —     | High     | Ready  |
+| Scope  | Owner | Priority | Status      |
+| ------ | ----- | -------- | ----------- |
+| EATEST | —     | High     | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-13
 
 ## Purpose
 
@@ -226,7 +226,7 @@ that would have caught bugs found during council review.
 
 ### EATEST-019 — Legacy line=0 backward-compat in is_existing_violation
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Create a baseline with violations whose IDs were generated with
@@ -237,7 +237,7 @@ that would have caught bugs found during council review.
 
 ### EATEST-020 — YAML size limit boundary test
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Write a file of exactly `MAX_YAML_SIZE` bytes — assert parses.
@@ -247,7 +247,7 @@ that would have caught bugs found during council review.
 
 ### EATEST-021 — Multi-layer file match determinism
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Define two layers whose globs match the same file. Assert which
@@ -257,7 +257,7 @@ that would have caught bugs found during council review.
 
 ### EATEST-022 — merge_violations duplicate ID collision
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Call `merge_violations` with two violations sharing the same ID
@@ -267,7 +267,7 @@ that would have caught bugs found during council review.
 
 ### EATEST-023 — Schema version forward-compat test
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Pass definition with schema_version `0.1.1` (future minor bump),

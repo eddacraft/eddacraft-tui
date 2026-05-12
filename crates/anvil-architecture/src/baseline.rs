@@ -246,6 +246,41 @@ mod tests {
         assert_eq!(merged[2].id, "v3");
     }
 
+    // EATEST-022: When `merge_violations` sees two entries sharing the same
+    // ID but different fields (e.g. different `from_file`), the new-list
+    // entry must win. Pins the precedence semantics callers depend on when
+    // refreshing a baseline.
+    #[test]
+    fn merge_violations_new_wins_on_id_collision() {
+        let existing = vec![BaselineViolation {
+            id: "shared".into(),
+            from_layer: "a".into(),
+            to_layer: "b".into(),
+            from_file: "old_path.ts".into(),
+            to_file: "b.ts".into(),
+            import_line: 1,
+            rule: None,
+        }];
+        let new = vec![BaselineViolation {
+            id: "shared".into(),
+            from_layer: "a".into(),
+            to_layer: "b".into(),
+            from_file: "new_path.ts".into(),
+            to_file: "b.ts".into(),
+            import_line: 9,
+            rule: Some("refreshed".into()),
+        }];
+
+        let merged = merge_violations(&existing, &new);
+        assert_eq!(merged.len(), 1, "ID collision must produce a single entry");
+        assert_eq!(
+            merged[0].from_file, "new_path.ts",
+            "new_violations entry must win on ID collision"
+        );
+        assert_eq!(merged[0].import_line, 9);
+        assert_eq!(merged[0].rule.as_deref(), Some("refreshed"));
+    }
+
     #[test]
     fn find_new_violations_filters_baseline() {
         let current = vec![make_violation("v1"), make_violation("v2")];
