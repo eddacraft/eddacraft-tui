@@ -19,10 +19,9 @@ in this release; the embedded scanner is the correctness-equivalent fallback
 when the daemon is not reachable.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
-`0.4.0-beta`) is retained as a compatibility surface for the broader legacy tool
-catalogue (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`). Use it only when you specifically need
-one of those tools — see [Legacy Node MCP path](#legacy-node-mcp-path).
+`0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,
+resource, and prompt catalogue is frozen historical compatibility material;
+RMCPF tracks which pieces return in Rust.
 
 :::
 
@@ -33,9 +32,8 @@ exposes:
 
 - Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed on
   Unix; embedded fallback otherwise)
-- Current project configuration and status (legacy Node tools)
-- Architecture boundaries and drift snapshots (legacy Node tools)
-- Prompts for architecture review and violation fixes (legacy Node tools)
+- Broader tools, resources, and prompts after RMCPF ports or explicitly retires
+  each frozen legacy contract
 
 ## What `anvil start` Does to Your MCP Config
 
@@ -134,12 +132,11 @@ Add anvil to your MCP configuration:
 }
 ```
 
-The legacy Node.js MCP server remains available for the broader legacy tool
-surface described below, but it is not what `anvil mcp-config` writes for the
-Rust stdio launch path.
-
-For HTTP transport (e.g. remote or multi-client setups), start the HTTP server
-and configure your client to connect via URL:
+HTTP transport for the Rust MCP server is not shipped in this release. RMCPF-021
+owns the decision on whether Streamable HTTP returns with the Rust full port. If
+you maintain a private legacy Node MCP deployment, configure your client to
+connect to that service directly; this is frozen compatibility, not the active
+Anvil setup path.
 
 ```json
 {
@@ -150,22 +147,6 @@ and configure your client to connect via URL:
   }
 }
 ```
-
-Start the server separately:
-
-```bash
-ANVIL_MCP_PORT=3000 npx --package @eddacraft/anvil-mcp-server anvil-mcp-server-http
-```
-
-:::note Node.js version
-
-The MCP server requires **Node.js 18+** and **npm 7+** (for the `--package` flag
-used by `npx`). Run `node --version` and `npm --version` to verify.
-
-:::
-
-Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
-`ANVIL_MCP_HOST` (default: localhost).
 
 ## Available Tools
 
@@ -205,15 +186,16 @@ Windows named-pipe work.
 
 :::
 
-The remaining tools (`anvil_check`, `anvil_gate`, `anvil_fix`, `anvil_suppress`,
-`anvil_status`, `anvil_query_boundary`) live on the legacy Node MCP server — see
-[Legacy Node MCP path](#legacy-node-mcp-path) below.
+The remaining historical tools (`anvil_check`, `anvil_gate`, `anvil_fix`,
+`anvil_suppress`, `anvil_status`, `anvil_query_boundary`) are not exposed by the
+Rust shim today. RMCPF owns their Rust port-or-retire decision.
 
-## Legacy Node MCP path
+## Frozen legacy Node MCP catalogue
 
-The legacy Node MCP server (`@eddacraft/anvil-mcp-server`) remains available for
-the broader legacy tool surface. The Rust shim does not expose these tools
-today; reach for the legacy server only when you specifically need one of them.
+The archived Node MCP server (`@eddacraft/anvil-mcp-server`) carried the broader
+legacy tool surface below. Treat this section as a compatibility inventory for
+RMCPF and existing private deployments, not as active setup guidance. The Rust
+shim does not expose these tools today.
 
 ### Legacy Node MCP Tools
 
@@ -336,6 +318,13 @@ The legacy Node MCP server exposes read-only resources:
 | `anvil://file/{path}/warnings` | Warnings for a specific file (template)       |
 | `anvil://patterns`             | Anti-pattern catalogue                        |
 | `anvil://suppressions`         | Active suppressions with expiry dates         |
+
+These resource names describe the legacy Node surface. The planned Rust MCP
+migration will either port or retire them explicitly. Where resources are
+ported, their data source is the active Rust surface: constraints from
+`anvil export --format mcp-resource`, drift from `anvil drift`, and suppressions
+from the Rust `.anvil/suppressions.json` readers. The archived TypeScript
+`runtime/export` pipeline is historical fixture material only.
 
 ### Legacy Node MCP Agent Loop
 

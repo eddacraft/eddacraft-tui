@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn args_parses_explain() {
-        let w = Wrapper::try_parse_from(["test", "explain", "AP-001"]).unwrap();
+        let w = Wrapper::try_parse_from(["test", "explain", "ARCH-001"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
 

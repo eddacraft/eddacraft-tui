@@ -17,7 +17,7 @@ the TS scanner ecosystem out of multiple packages:
 archive/anvil-ts-scanner/
 ├── README.md                ← this file
 ├── core-antipattern/        ← was packages/anvil/core/src/antipattern/
-│                              (NB: `format/` deliberately left active —
+│                              (NB: `.anvil` compiler deliberately left active —
 │                              see "Carve-out: format/" below)
 ├── core-suppression/        ← was packages/anvil/core/src/suppression/
 ├── runtime-gate/            ← was packages/anvil/runtime/src/gate/
@@ -25,16 +25,16 @@ archive/anvil-ts-scanner/
 └── scanner-parity/          ← was tests/scanner-parity/
 ```
 
-### Carve-out: `format/` stays active
+### Carve-out: `.anvil` compiler stays active
 
-`packages/anvil/core/src/antipattern/format/` was **not** archived. It
+`packages/anvil/core/src/anvil-format/` was **not** archived. It
 holds the `.anvil` source-tree → `patterns/compiled/registry.json`
-compilation pipeline (`format/compile.ts`, `parse.ts`, `sections.ts`,
+compilation pipeline (`compile.ts`, `parse.ts`, `sections.ts`,
 `schemas.ts`). The `patterns:compile` script in
 `packages/anvil/core/package.json` invokes it; the **Rust** scanner
 (`crates/anvil-checks/src/antipattern/registry_loader.rs`) consumes
 its output. Until a Rust-side replacement for the compilation step
-exists, `format/` is load-bearing infrastructure, not part of the
+exists, `anvil-format/` is load-bearing infrastructure, not part of the
 deprecated TS runtime.
 
 Internal imports inside these files (e.g. `@eddacraft/anvil-core/antipattern`,
@@ -63,11 +63,10 @@ Rust binary serves the launch MCP path via `anvil mcp serve --stdio`
 as next-release work; the editor return path is DRVR-003 on the
 intercept daemon (DRVR module).
 
-Drift snapshot/compare and the TS-side `runtime/export` constraint
-collector / formatter pipeline currently have **no active
-replacement** — they were tightly coupled to the archived anti-
-pattern + suppression layers. Reintroducing drift detection (likely
-on the daemon path) is out of scope for this archive.
+Drift snapshot/compare and constraint export now have Rust CLI owners. The
+archived TS-side `runtime/export` collector / formatter pipeline remains frozen
+historical material; TSGAP records the active Rust ownership and RMCPF owns the
+future MCP return path.
 
 ## Use this instead
 

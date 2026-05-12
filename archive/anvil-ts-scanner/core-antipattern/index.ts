@@ -85,7 +85,7 @@ export {
 } from './scanner.js';
 
 // `.anvil` file format (Phase 1: source tree → compiled pattern registry).
-// NOT archived — `format/` lives at `packages/anvil/core/src/antipattern/format/`
+// NOT archived — compiler lives at `packages/anvil/core/src/anvil-format/`
 // because `compile-patterns.ts` is still the sole producer of
 // `patterns/compiled/registry.json` that the Rust scanner consumes. The
 // re-export from this archived index is intentionally removed.

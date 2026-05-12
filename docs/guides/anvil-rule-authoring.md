@@ -4,16 +4,16 @@ This guide walks through adding a new anti-pattern to Anvil's detection
 catalogue. All rules live as `.anvil` files under `patterns/` and are compiled
 into `patterns/compiled/registry.json` by `scripts/compile-patterns`.
 
-`registry.json` is the **contract both scan engines consume**: the Rust scanner
-in `crates/anvil-checks` (authoritative, per [ADR-026]) and the temporary
-TypeScript scanner in `packages/anvil/core/src/antipattern` that still backs a
-small transition window for VSCode and MCP surfaces until the intercept-daemon
-driver cutover lands ([ADR-030]). Authoring a rule means editing the `.anvil`
-source and recompiling the registry — neither engine carries its own
-hand-written pattern table.
+`registry.json` is the **contract the Rust scanner consumes**. The scanner in
+`crates/anvil-checks` is authoritative per [ADR-026]; the TypeScript scanner was
+archived under [ADR-033]. The active TypeScript in
+`packages/anvil/core/src/anvil-format/` is only the `.anvil` source compiler,
+not a scanner runtime. Authoring a rule means editing the `.anvil` source and
+recompiling the registry — the scanner does not carry a separate hand-written
+pattern table.
 
 [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
-[ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
+[ADR-033]: ../../plans/decisions/033-park-ide-mcp-retire-ts-scanner.md
 
 ## Layout
 
@@ -94,7 +94,7 @@ Narrative markdown body. Two paragraphs max:
 - `severity` / `confidence` — consumed by the scanner and gate runner.
 - `spectrum_position` — integer ordering within the family, where `1` is the
   most severe violation and higher numbers are milder variants. Matches the
-  schema contract in `packages/anvil/core/src/antipattern/types.ts`
+  schema contract in `packages/anvil/core/src/anvil-format/schemas.ts`
   (`1 = most severe`). Used by reviewers to reason about escalation.
 - `targets` — which artifact kinds the rule scans. Most source-code rules are
   `[source]`; PR-description rules like the RL family use `[pr-description]` or
@@ -191,13 +191,13 @@ A failing compile step points at the offending file and field; fix and rerun.
 ### Engine compatibility
 
 The Rust scanner uses the `regex` crate (RE2-style: no backtracking, no
-lookaround). The TypeScript scanner uses V8's PCRE-ish engine, which supports
-lookaround. Patterns that rely on lookaround compile fine for the TS engine but
-not under `regex`. The Rust scanner handles this in two steps:
+lookaround). Patterns that rely on lookaround are accepted by the `.anvil`
+compiler but may not compile under `regex`. The Rust scanner handles known
+legacy cases in two steps:
 
 1. `flags: "i"` on the registry entry is honoured by the Rust loader via an
    inline `(?i)` prefix, so `RL-*` and `DD-004` match case-insensitively in both
-   engines (SPG-001).
+   scanner (SPG-001).
 2. Lookaround-bearing rules (DD-001, DD-002, DD-003, GS-001, RL-001, RL-005) are
    translated into a Rust-side post-filter paired with a base regex in
    `crates/anvil-checks/src/antipattern/scanner.rs::prepare_pcre_rewrite`
@@ -205,12 +205,10 @@ not under `regex`. The Rust scanner handles this in two steps:
 
 Any other rule whose pattern fails to compile in the Rust scanner is surfaced by
 `anvil doctor` as a `registry-patterns-compile` warning (SPG-002) — the
-silent-drop path is observable. The parity harness (`pnpm test:scanner-parity`)
-covers every enabled rule with at least one positive and one negative fixture;
-see `tests/scanner-parity/README.md` for the fixture format and the current
-engine-handling map. When possible, rewrite to avoid lookaround; when not
-possible, add a new arm to `prepare_pcre_rewrite` and a pair of fixtures, and
-run both suites to confirm parity.
+silent-drop path is observable. The old TS/Rust parity harness was archived with
+the TypeScript scanner. When possible, rewrite to avoid lookaround; when not
+possible, add a new arm to `prepare_pcre_rewrite` and Rust scanner fixtures for
+the positive and negative cases.
 
 ### Registry integrity
 

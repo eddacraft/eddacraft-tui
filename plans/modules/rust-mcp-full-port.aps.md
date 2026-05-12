@@ -225,7 +225,14 @@ Change status to **Ready** when:
   fit the post-daemon architecture.
 - **Expected Outcome:** Baseline, boundaries, patterns, suppressions, config,
   constraints, drift, and file-warning resources have Rust equivalents or
-  documented retirement.
+  documented retirement. Rust MCP resources must not treat the archived TS
+  `runtime-export` collector as the active contract: `anvil://constraints` is
+  sourced from the Rust CLI constraint exporter
+  (`crates/anvil-cli/src/commands/export.rs`), drift resources are sourced from
+  the Rust drift command/data model (`crates/anvil-cli/src/commands/drift.rs`),
+  and suppressions are sourced from the same active `.anvil/suppressions.json`
+  readers used by Rust CLI surfaces. Archived TS resource shapes are fixture
+  evidence for compatibility review only.
 - **Validation:** Resource listing and read tests match the inventory matrix
 - **Files:** `crates/anvil-cli/src/mcp/resources/`,
   `archive/anvil-mcp-server/src/resources/`
@@ -262,7 +269,9 @@ Change status to **Ready** when:
   without contract surprises.
 - **Expected Outcome:** Fixture-backed compatibility harness runs TS and Rust MCP
   servers side by side; migration docs explain command changes, client config,
-  and known retirements.
+  and known retirements. For resources/prompts, the migration docs must call out
+  the Rust-owned source of truth for constraints, drift, and suppressions rather
+  than pointing users at the archived TS export pipeline.
 - **Validation:** Harness passes for all ported surfaces; docs smoke-tested with
   a clean Cursor and Claude Code config
 - **Files:** `apps/e2e/src/`,

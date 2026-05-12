@@ -10,16 +10,21 @@ owning modules for those surfaces.
 
 # Scanner-Adjacent TS Surface Remediation
 
-| ID    | Owner | Status | Progress |
-| ----- | ----- | ------ | -------- |
-| TSGAP | -     | Ready  | 0/9      |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| TSGAP | -     | In Progress | 8/9      |
 
 ## Purpose
 
 Restore, rehome, or explicitly retire the scanner-adjacent capabilities that
-were archived with TSRET-005 but do not yet have complete active replacements:
-drift snapshots, constraint export APIs, persistent suppressions, anti-pattern
-explanations, stale package exports, and MCP resource/prompt return paths.
+were archived with TSRET-005. Several gaps that were open when this module was
+written have since shipped: core package exports were cleaned, the `.anvil`
+compiler moved to the active `anvil-format` namespace, Rust owns drift
+snapshots/reports, Rust owns constraint export formats, active suppression
+readers filter expired suppressions at their call sites, AP-* explanations are
+explicitly retired until the Rust explain command lands, and RMCPF now maps MCP
+resources to Rust-owned sources. The remaining active work is the final
+consistency audit.
 
 TSRET-005 is complete. This module is the post-archive remediation plan that
 turns the archive from “source removed” into “capability ownership settled”.
@@ -33,24 +38,27 @@ the scanner runtime: it also moved scanner-adjacent TS surfaces into
 formatters, suppression store/service, drift snapshot/compare/reporting, and
 the anti-pattern explainer.
 
-The archive removed active imports, but several capabilities are now partial or
-explicitly absent:
+The archive removed active imports. Current state after the 2026-05-12 shipped
+surface review:
 
-- `packages/anvil/core/package.json` still advertises `./antipattern`,
-  `./suppression`, and `./drift` subpath exports even though those active source
-  trees are gone.
-- `.anvil` compiler code still lives under `packages/anvil/core/src/antipattern/format/`,
-  which is semantically not scanner runtime but is still path-coupled to the
-  archived namespace.
-- Drift snapshot/compare/reporting has a Rust CLI implementation, but no active
-  package API replacement and known lower-fidelity areas.
-- Runtime export collector/formatters were archived; Rust CLI export exists, but
-  there is no active TS package/API replacement.
-- Persistent suppression store/service were archived; Rust has parser authority
-  and local readers, not a reusable store/service owner.
+- `packages/anvil/core/package.json` no longer advertises `./antipattern`,
+  `./suppression`, or `./drift`; only active subpaths such as `./warnings` and
+  `./explain` remain.
+- `.anvil` compiler code now lives under `packages/anvil/core/src/anvil-format/`,
+  which keeps active compiler ownership separate from the archived scanner
+  namespace.
+- Drift snapshot/compare/reporting is Rust CLI owned via
+  `crates/anvil-cli/src/commands/drift.rs`; no active TS package API is planned.
+- Constraint export is Rust CLI owned via
+  `crates/anvil-cli/src/commands/export.rs` for `llms.txt`, MCP-resource, and
+  prompt-fragment formats; no active TS package/API replacement is planned.
+- Persistent suppression store/service semantics are not a shared TS service;
+  active Rust call sites read `.anvil/suppressions.json` directly and filter
+  expired suppressions where needed.
 - The TS anti-pattern explainer was archived at
   `archive/anvil-ts-scanner/core-explain-antipattern.ts`; AP-* explanation
-  capability has not been reimplemented.
+  capability still needs command/docs closure because `RCLI3-015` remains
+  Proposed.
 - MCP resources/prompts that previously depended on TS export/context shapes
   need an explicit Rust/RMCPF return path.
 
@@ -60,9 +68,9 @@ In scope:
 
 - Clean active package exports so they match shipped source.
 - Decouple the `.anvil` compiler from the archived scanner namespace.
-- Decide and implement active ownership for drift snapshots and reports.
-- Decide and implement active ownership for constraint export APIs and formats.
-- Decide and implement active ownership for persistent suppressions.
+- Record shipped active ownership for drift snapshots and reports.
+- Record shipped active ownership for constraint export APIs and formats.
+- Record shipped active ownership for persistent suppressions.
 - Rehome or explicitly retire anti-pattern explanation capability.
 - Align MCP resource/prompt return paths with Rust-owned contracts.
 - Update plans/docs so completed TSRET does not imply missing capabilities are
@@ -95,7 +103,7 @@ Exposes:
 
 Coordinates with:
 
-- `plans/modules/anvil-ts-scanner-retirement.aps.md` - TSRET is historical
+- `plans/archive/modules/anvil-ts-scanner-retirement.aps.md` - TSRET is historical
   closeout context; this module owns post-close capability remediation.
 - `plans/modules/rust-cli-tier2.aps.md` - RCLI2-003 owns active Rust CLI drift
   behaviour.
@@ -113,12 +121,15 @@ Coordinates with:
 - **Expected Outcome:** APS index and TSRET closeout text point to TSGAP as the
   owner for drift/export/suppression/explain/export-contract follow-up work.
 - **Files:** `plans/index.aps.md`,
-  `plans/modules/anvil-ts-scanner-retirement.aps.md`,
+  `plans/archive/modules/anvil-ts-scanner-retirement.aps.md`,
   `plans/modules/scanner-adjacent-ts-retirement.aps.md`
-- **Validation:** `grep -R "TSGAP" plans/index.aps.md plans/modules/anvil-ts-scanner-retirement.aps.md plans/modules/scanner-adjacent-ts-retirement.aps.md`
+- **Validation:** `grep -R "TSGAP" plans/index.aps.md plans/archive/modules/anvil-ts-scanner-retirement.aps.md plans/modules/scanner-adjacent-ts-retirement.aps.md`
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: review confirmed the
+  index, archived TSRET closeout, and this module all point to TSGAP as
+  post-TSRET owner.
 
 ---
 
@@ -134,7 +145,10 @@ Coordinates with:
 - **Validation:** `pnpm --filter @eddacraft/anvil-core build && pnpm --filter @eddacraft/anvil-core test`
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: review confirmed
+  `package.json` exports active `./warnings` and `./explain`; stale `./antipattern`,
+  `./suppression`, and `./drift` subpaths are gone.
 
 ---
 
@@ -145,81 +159,102 @@ Coordinates with:
 - **Expected Outcome:** `patterns:compile` and `patterns:check` use an active
   compiler path whose ownership is documented separately from TS scanner
   runtime.
-- **Files:** `packages/anvil/core/src/antipattern/format/`,
+- **Files:** `packages/anvil/core/src/anvil-format/`,
   `packages/anvil/core/scripts/compile-patterns.ts`,
   `packages/anvil/core/package.json`, `docs/guides/anvil-rule-authoring.md`
-- **Validation:** `pnpm --filter @eddacraft/anvil-core patterns:check`
+- **Validation:** `pnpm --filter @eddacraft/anvil-core build && pnpm --filter @eddacraft/anvil-core test -- src/anvil-format`
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: the compiler module
+  moved to `packages/anvil/core/src/anvil-format/`; `compile-patterns.ts` imports
+  the new path; `pnpm --filter @eddacraft/anvil-core build` and
+  `pnpm --filter @eddacraft/anvil-core test -- src/anvil-format` passed. The old
+  `patterns:check` command reached the moved compiler but still fails on
+  pre-existing AP-prefix warnings that are outside this namespace task.
 
 ---
 
 ### TSGAP-004: Settle drift capability ownership
 
-- **Intent:** Give drift snapshot/compare/reporting an active owner after the TS
-  core drift API archive.
+- **Intent:** Record the active owner for drift snapshot/compare/reporting after
+  the TS core drift API archive.
 - **Expected Outcome:** Drift is either fully owned by Rust CLI/daemon APIs, or
   docs and package exports explicitly state the TS API is retired with no active
   replacement.
 - **Files:** `crates/anvil-cli/src/commands/drift.rs`,
   `packages/anvil/core/src/index.ts`, `packages/anvil/core/package.json`,
   `archive/anvil-ts-scanner/core-drift/`, `docs/`
-- **Validation:** `cargo test -p anvil-cli -- drift`
+- **Validation:** `cargo test -p eddacraft-anvil -- drift`
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: review confirmed
+  `crates/anvil-cli/src/commands/drift.rs` owns snapshot, compare, report, and
+  list; no active TS package API is planned.
 
 ---
 
 ### TSGAP-005: Settle constraint export ownership
 
-- **Intent:** Keep `llms.txt`, MCP-resource, and prompt-fragment export
-  behaviour available without the archived TS runtime export pipeline.
+- **Intent:** Record the active owner for `llms.txt`, MCP-resource, and
+  prompt-fragment export behaviour after the archived TS runtime export pipeline.
 - **Expected Outcome:** Constraint export is either CLI-only with documented
   Rust ownership, or a new active API replaces the archived TS collector and
   formatters.
 - **Files:** `crates/anvil-cli/src/commands/export.rs`,
   `archive/anvil-ts-scanner/runtime-export/`,
   `plans/archive/modules/llms-txt-export.aps.md`, `docs/`
-- **Validation:** `cargo test -p anvil-cli -- export`
+- **Validation:** `cargo test -p eddacraft-anvil -- export`
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: review confirmed
+  `crates/anvil-cli/src/commands/export.rs` owns `llms.txt`, `mcp-resource`,
+  and `prompt-fragment`; no active TS package API is planned.
 
 ---
 
 ### TSGAP-006: Settle persistent suppression ownership
 
-- **Intent:** Decide where `.anvil/suppressions.json` store/service semantics
+- **Intent:** Record where `.anvil/suppressions.json` store/service semantics
   live after the TS suppression stack archive.
 - **Expected Outcome:** Active surfaces have a documented and tested path for
   reading active suppressions; expired suppression handling is explicit.
 - **Files:** `crates/anvil-cli/src/commands/export.rs`,
   `crates/anvil-checks/src/antipattern/scanner.rs`,
   `archive/anvil-ts-scanner/core-suppression/`, `docs/`
-- **Validation:** `cargo test -p anvil-cli -- export`
+- **Validation:** `cargo test -p eddacraft-anvil -- export`
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: review confirmed
+  active Rust call sites read `.anvil/suppressions.json` locally; export filters
+  expired suppressions, and drift/check consume scanner suppression state rather
+  than a shared TS service.
 
 ---
 
 ### TSGAP-007: Restore anti-pattern explanations
 
 - **Intent:** Reintroduce AP-* explanation capability from the Rust catalogue or
-  explicitly retire it until RCLI3-015 lands.
+  explicitly retire it until RCLI3-015 lands; include public-doc cleanup for any
+  stale `anvil explain AP-*` or `anvil policy explain AP-*` claims.
 - **Expected Outcome:** `anvil explain AP-001` has an active source of
   explanation content, or docs state that AP-* explanations are intentionally
   unavailable until the Rust explain command is implemented.
 - **Files:** `packages/anvil/core/src/explain/`,
   `archive/anvil-ts-scanner/core-explain-antipattern.ts`,
   `crates/anvil-cli/src/commands/explain.rs`,
-  `plans/modules/rust-cli-tier3.aps.md`, `docs/`
-- **Validation:** `grep -R "core-explain-antipattern\|RCLI3-015" plans docs packages crates --include="*.md" --include="*.ts" --include="*.rs"`
+  `plans/modules/rust-cli-tier3.aps.md`, `docs/public/anvil/`
+- **Validation:** `grep -R "anvil .*explain AP\|anvil policy explain AP" docs/public/anvil --include="*.md"`
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: public docs no longer
+  claim AP-* policy/explain commands; beta testing now uses `anvil policy
+  explain ARCH-001` and states AP-* explanations are unavailable until the Rust
+  explain command lands. `cargo test -p eddacraft-anvil -- policy` passed.
 
 ---
 
@@ -236,7 +271,12 @@ Coordinates with:
 - **Validation:** `grep -R "runtime-export\|constraints" plans/modules/rust-mcp-full-port.aps.md docs --include="*.md"`
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
+- **Closeout evidence:** Validation passed on 2026-05-12: RMCPF-020 now maps
+  MCP resources to Rust-owned sources (`export.rs`, `drift.rs`, and active
+  suppression readers) and states archived TS `runtime-export` shapes are
+  compatibility evidence only. Public MCP docs carry the same migration note for
+  legacy resources.
 
 ---
 
@@ -253,24 +293,35 @@ Coordinates with:
 - **Validation:** `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test && cargo test --workspace`
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Ready
+- **Status:** In Progress
+- **Progress note:** 2026-05-12 audit pass: active stale compiler namespace
+  references are gone (excluding vendored `node_modules` caches), public AP explain
+  command claims are gone, MCP migration notes point to Rust-owned sources,
+  `pnpm format:check` passed after formatting, `pnpm typecheck` passed, targeted
+  TSGAP tests passed, and `cargo test --workspace` completed successfully. Full
+  `pnpm test` was attempted twice; the first run hit an Nx daemon restart, and
+  the second produced successful Nx target output but exceeded the 10-minute tool
+  timeout before returning. Keep this item open until `pnpm test` exits cleanly
+  or the hanging test runner path is separately resolved.
 
 ## Risks
 
 - **Completed TSRET masks missing capabilities.** The archive is complete, but
-  users may still expect drift/export/explain package APIs that no longer ship.
+  users may still expect explain package/command APIs that no longer ship.
 - **CLI-only replacement is not API parity.** Rust `drift` and `export` commands
-  exist, but TS package APIs may still be expected by active code or downstream
-  consumers.
-- **Compiler namespace drift.** The active `.anvil` compiler still lives under
-  `antipattern/format`, which can confuse ownership after scanner retirement.
+  exist and are now the recorded owners, but TS package APIs may still be
+  expected by downstream consumers.
+- **Compiler namespace drift closed.** The active `.anvil` compiler now lives
+  under `anvil-format`; future drift is ordinary import/doc hygiene.
 - **MCP contract drift.** Future MCP resource work may accidentally treat
   archived TS formatters as active contracts instead of compatibility evidence.
 
 ## Milestones
 
 - **M1:** TSGAP is registered as the post-TSRET remediation owner.
-- **M2:** Core package exports and compiler ownership are consistent.
+- **M2:** Core package exports are clean; compiler ownership moved to the active
+  `anvil-format` namespace.
 - **M3:** Drift, export, suppression, and explain capability decisions are
-  implemented.
+  implemented; AP-* explanations are explicitly retired until the Rust explain
+  command lands.
 - **M4:** MCP return path and final audit confirm no hidden archive dependency.

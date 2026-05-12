@@ -1,15 +1,18 @@
 # @eddacraft/anvil-core
 
-Core domain logic for the Anvil system. Contains schemas, types, analysis
-engines, and validation -- everything that does not require heavy I/O. Some
-modules perform lightweight filesystem operations (provenance, drift snapshots);
-heavy orchestration lives in `@eddacraft/anvil-runtime`.
+Core domain logic for the Anvil system. Contains schemas, types, architecture
+analysis, validation helpers, warning utilities, and the `.anvil` format
+compiler -- everything that does not require heavy I/O. Heavy orchestration
+lives in `@eddacraft/anvil-runtime` and scanner-era flows now live in Rust
+crates and the Rust CLI.
 
 ## Status
 
 Winding down -- the Rust crates (`anvil-kernel`, `anvil-checks`) have replaced
-the performance-critical paths. This package remains in use by the MCP server
-and e2e tests.
+the performance-critical scanner paths. This package remains active for
+architecture analysis, schema/validation utilities, the `.anvil` compiler, and
+tests. The TypeScript MCP server is archived; Rust MCP parity is tracked by
+RMCPF.
 
 ## API Surface
 
@@ -36,7 +39,6 @@ Also re-exports all contracts (schemas, types, events) formerly in
 ## Consumers
 
 - `@eddacraft/anvil-runtime`
-- `@eddacraft/anvil-mcp-server`
 - `@eddacraft/anvil-cli`
 - e2e tests
 

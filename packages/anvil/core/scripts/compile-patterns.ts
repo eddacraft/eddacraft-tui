@@ -23,7 +23,7 @@ import {
   compilePatterns,
   type AnvilCompileIssue,
   type AnvilCompileResult,
-} from '../src/antipattern/format/compile.js';
+} from '../src/anvil-format/compile.js';
 
 interface CliArgs {
   input: string;

@@ -386,11 +386,13 @@ Explore available policies:
 
 ```bash
 anvil policy list
-anvil policy explain AP-003
+anvil policy explain ARCH-001
 ```
 
 Useful feedback includes whether policy names, severity, and explanations match
-the issue you saw in the scan output.
+the issue you saw in the scan output. AP-\* anti-pattern explanations are not a
+policy surface in this release; use the scan output and rule catalogue details
+until the Rust explain command lands.
 
 ### Integrations
 
