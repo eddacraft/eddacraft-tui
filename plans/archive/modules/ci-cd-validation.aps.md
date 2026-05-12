@@ -11,11 +11,11 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 | ---- | ----- | -------- | -------- |
 | CICD | —     | Complete    | 12/12    |
 
-**Spec:** [2026-05-10 CI/CD And Validation Operating Model](../specs/2026-05-10-ci-cd-validation-operating-model.md)
-**Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../specs/2026-05-09-plan-build-release-operating-model.md)
-**Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
-**Review architecture:** [2026-05-09 Council Agent And Skill Change Proposal](../specs/2026-05-09-council-agent-skill-change-proposal.md)
-**Council review:** [2026-05-10 CICD Validation Council Review](../reviews/2026-05-10-cicd-validation-council.md) — converged, no open findings.
+**Spec:** [2026-05-10 CI/CD And Validation Operating Model](../../specs/2026-05-10-ci-cd-validation-operating-model.md)
+**Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../../specs/2026-05-09-plan-build-release-operating-model.md)
+**Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
+**Review architecture:** [2026-05-09 Council Agent And Skill Change Proposal](../../specs/2026-05-09-council-agent-skill-change-proposal.md)
+**Council review:** [2026-05-10 CICD Validation Council Review](../../reviews/2026-05-10-cicd-validation-council.md) — converged, no open findings.
 
 ## Purpose
 
@@ -35,7 +35,7 @@ APS intent -> local deterministic validation -> targeted review -> fast PR CI
 ## Cross-Cutting Convention
 
 This is a cross-cutting module and follows
-[`plans/aps-rules.md#cross-cutting-modules`](../aps-rules.md#cross-cutting-modules).
+[`plans/aps-rules.md#cross-cutting-modules`](../../aps-rules.md#cross-cutting-modules).
 CICD owns CI/CD cost, validation layering, shared classification, local-first
 validation commands, and workflow decomposition. It coordinates with specialist
 modules rather than absorbing their authority.

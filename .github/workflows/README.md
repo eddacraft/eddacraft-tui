@@ -54,7 +54,7 @@ fixture enforces both directions.
 
 The PR contract is intentionally distinct from the integration push contract.
 See
-[CICD-005](../../plans/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
+[CICD-005](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
 
 - PR-only status fillers (`Lint & Format` skip, `Type Check` skip, `Unit Tests`
   skip) do not run on push — they exist to satisfy required-check status on
@@ -70,7 +70,7 @@ See
   the validating job results, and fails the workflow if any required Node-side
   job reports `failure` / `cancelled`. `APS Drift Check` is treated as
   warning-only evidence per
-  [CICD-011](../../plans/modules/ci-cd-validation.aps.md#cicd-011-apsreporelease-drift-checks-in-ci).
+  [CICD-011](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-011-apsreporelease-drift-checks-in-ci).
 - **Rust validation is intentionally not aggregated by `Integration Readiness`**
   — `rust.yml` (`Check`, `Test`, `Clippy`, `Format`, `Hakari verify`,
   `cargo-deny`, `Acknowledgements freshness`, `Cross (target)`) is the
@@ -104,7 +104,7 @@ eliminated, gated, or justified:
 
 Platform matrices (macOS, Windows, Rust cross-compile, NAPI binding) are
 expensive — macOS runners cost 10x, Windows 2x. Per
-[CICD-008](../../plans/modules/ci-cd-validation.aps.md#cicd-008-matrix-and-platform-execution-targeting),
+[CICD-008](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-008-matrix-and-platform-execution-targeting),
 they run only when platform evidence is required:
 
 | Matrix                            | Runs on                                                                                                                                                                                                                                                                                          | Skipped on                                                                         |
@@ -226,5 +226,5 @@ pnpm test:ci-cost
 ## References
 
 - [`plans/specs/2026-05-10-ci-cd-validation-operating-model.md`](../../plans/specs/2026-05-10-ci-cd-validation-operating-model.md)
-- [`plans/modules/ci-cd-validation.aps.md`](../../plans/modules/ci-cd-validation.aps.md)
+- [`plans/archive/modules/ci-cd-validation.aps.md`](../../plans/archive/modules/ci-cd-validation.aps.md)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)

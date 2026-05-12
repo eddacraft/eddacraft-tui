@@ -1,7 +1,7 @@
 # Anvil Release Plan
 
-**Last updated:** 2026-05-11 (post-OPMODEL-012 cutover; current delivery:
-RELORCH complete + remaining CICD)
+**Last updated:** 2026-05-12 (operational substrate complete: OPMODEL +
+RELORCH + CICD all 12/12. `v0.6.2-beta` is the next operational tag.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -23,13 +23,14 @@ substrate that makes future releases repeatable:
   in PR #1417; `main` ruleset id 16217152 enforces 7 required checks, PR review,
   non-FF, and no-delete. `dev` retired, with cutover tagged as
   `dev-retired-2026-05-11`; deletion follow-up #1419 (~2026-07-10).
-- **CI/CD readiness (`CICD`) — In Progress, 8/12.** Path/risk classifier
-  (CICD-002), local validation commands (CICD-003), fast PR validation
-  (CICD-004), coverage cost controls (CICD-006), security/dependency targeting
-  (CICD-007), release-readiness workflow (CICD-009), and cutover readiness
-  (CICD-012) all shipped. Remaining: CICD-005 (integration SHA validation
-  redesign), CICD-008 (matrix targeting), CICD-010 (workflow decomposition),
-  CICD-011 (APS/repo/release drift checks in CI).
+- **CI/CD readiness (`CICD`) — Complete, 12/12.** Cost reporting (CICD-001),
+  path/risk classifier (CICD-002), local validation commands (CICD-003), fast PR
+  validation (CICD-004), integration SHA validation split (CICD-005), coverage
+  cost controls (CICD-006), security/dependency targeting (CICD-007), matrix
+  targeting (CICD-008), release-readiness workflow (CICD-009), workflow contract
+  map + authority audit (CICD-010), APS/repo/release drift checks in CI
+  (CICD-011), and cutover readiness (CICD-012) all shipped. Council follow-ups
+  closed via PR #1442 (issue #1438).
 - **Release orchestration (`RELORCH`) — Complete, 12/12, archived.** The
   deterministic command surface now covers assess, preflight, prepare, promote,
   tag, monitor, verify, closeout, the release-command harness, release-record
@@ -69,7 +70,7 @@ These lanes are all post-cutover and can run in parallel.
 
 | Lane                        | Owner module                                                                                                                                       | Can run now?                                  | Main outputs                                                                         | Blocks                                   |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------- |
-| L3: Release CI/CD readiness | [`OPMODEL-005`](./plans/modules/operating-model-migration.aps.md#opmodel-005-release-readiness-and-candidate-artefact-workflow-design), RELORCH/CI | Yes, after L1 contract shape is stable enough | `.github/workflows/release-readiness.yml`, candidate metadata, exact-SHA validation. | L6, release tags that claim CI readiness |
+| L3: Release CI/CD readiness | [`OPMODEL-005`](./plans/archive/modules/operating-model-migration.aps.md#opmodel-005-release-readiness-and-candidate-artefact-workflow-design), RELORCH/CI | Yes, after L1 contract shape is stable enough | `.github/workflows/release-readiness.yml`, candidate metadata, exact-SHA validation. | L6, release tags that claim CI readiness |
 | L5: Release commands        | [`RELORCH-001..012`](./plans/archive/modules/release-orchestration.aps.md)                                                                         | Complete                                      | `scripts/release/{assess,preflight,prepare,promote,tag,monitor,verify,closeout}.sh`. | Full target `/release` mode              |
 | L7: Main-first cutover      | [`OPMODEL-012`](./plans/archive/modules/operating-model-migration.aps.md#opmodel-012-main-first-cutover-and-dev-retirement)                        | Complete                                      | `main` protected as the integration branch; `dev` retired.                           | —                                        |
 
@@ -92,14 +93,15 @@ cutover.
 
 Once Wave 0 contracts exist, split into independent implementation lanes.
 
-| Work                           | Parallel? | Notes                                                          |
-| ------------------------------ | --------- | -------------------------------------------------------------- |
-| `OPMODEL-010` drift checks     | Complete  | Warning-mode fixtures shipped; CICD-011 tracks CI enforcement. |
-| Release-readiness workflow     | Complete  | Exact-SHA validation and candidate metadata shipped.           |
-| `RELORCH-002` harness          | Complete  | Harness encodes the command JSON and exit-code schema.         |
-| `RELORCH-003` assess           | Complete  | Assessment command shipped.                                    |
-| `RELORCH-004` preflight        | Complete  | Preflight command shipped.                                     |
-| `RELORCH-010` closeout dry-run | Complete  | Closeout command shipped.                                      |
+| Work                           | Parallel? | Notes                                                                                           |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------- |
+| `OPMODEL-010` drift checks     | Complete  | Warning-mode fixtures shipped.                                                                  |
+| `CICD-011` drift checks in CI  | Complete  | Drift script wired into `ci.yml` `aps-drift` (warning-mode, PR-metadata aware); fixture locked. |
+| Release-readiness workflow     | Complete  | Exact-SHA validation and candidate metadata shipped.                                            |
+| `RELORCH-002` harness          | Complete  | Harness encodes the command JSON and exit-code schema.                                          |
+| `RELORCH-003` assess           | Complete  | Assessment command shipped.                                                                     |
+| `RELORCH-004` preflight        | Complete  | Preflight command shipped.                                                                      |
+| `RELORCH-010` closeout dry-run | Complete  | Closeout command shipped.                                                                       |
 
 ### Wave 2: Prove Failure Handling
 
@@ -125,35 +127,27 @@ Do not start until Waves 1 and 2 have produced usable evidence.
 
 ---
 
-## What Can Be Done In Parallel Now
+## `v0.6.2-beta` Cut: Ready to Tag
 
-Start as separate worktrees branched from `main`:
+All operational-substrate work scoped to this release has merged. The cut is the
+**Full operating-model beta** that earlier revisions of this plan described as
+the target — every CICD targeting item, every RELORCH command, and every OPMODEL
+cutover task is now on `main`.
 
-| Track                  | First work item | Why safe in parallel                                                                                                            |
-| ---------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Matrix targeting       | `CICD-008`      | Touches workflow `if:` conditions in non-release jobs; pattern follows shipped CICD-004 / -006 / -007.                          |
-| Workflow decomposition | `CICD-010`      | Mostly `.github/workflows/README.md` and trigger consolidation; conflicts only with CICD-008 if both rewrite the same workflow. |
-| Drift checks in CI     | `CICD-011`      | Extends already-shipped OPMODEL-010 drift script; touches `scripts/ci/` + a workflow job.                                       |
-| Integration SHA split  | `CICD-005`      | Separates merged-SHA release authority from PR feedback after main-first cutover.                                               |
+| Component                             | Status                                                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| OPMODEL main-first cutover            | Shipped — `b6f236e9` (2026-05-11), `main` ruleset 16217152 active.                                                               |
+| RELORCH deterministic command surface | Shipped — `scripts/release/{assess,preflight,prepare,promote,tag,monitor,verify,closeout}.sh` + harness + skill/runbook wire-up. |
+| CICD integration SHA validation split | Shipped — CICD-005, push contract distinct from PR commentary.                                                                   |
+| CICD platform-matrix targeting        | Shipped — CICD-008, `rust.yml` cross-compile gated; saves ~6k-9k billed runner-min/mo.                                           |
+| CICD workflow contract map            | Shipped — CICD-010, `.github/workflows/README.md` + fixture-enforced.                                                            |
+| CICD APS/repo/release drift in CI     | Shipped — CICD-011 + PR-metadata extension + `::warning::` surfacing.                                                            |
 
-Avoid parallelising too early:
-
-- CICD-010 workflow decomposition while CICD-008 matrix targeting is mid-edit on
-  the same workflow — sequence them or carve up files explicitly.
-
----
-
-## Suggested `v0.6.2-beta` Cut
-
-| Pick                      | Include                                                                  | Exclude                                          |
-| ------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
-| Minimum                   | RELORCH command surface plus CICD-011 drift checks.                      | CICD-005/-008/-010.                              |
-| Strong                    | Minimum + CICD-008 matrix targeting.                                     | CICD-005, CICD-010.                              |
-| Full operating-model beta | Strong + CICD-005 integration SHA split + CICD-010 workflow composition. | Daemon-working product slate (separate release). |
-
-**Recommendation:** take the **Minimum** cut once PR #1433 lands and drift
-checks are wired into CI. It gives operators a replayable command-driven release
-loop while keeping broader CI architecture changes in follow-on work.
+**Next operator action:** run `bash scripts/release/assess.sh` against the
+current `main` SHA to confirm replayability. The RELORCH-009 verify gate (the
+last hard gate in the "Hard gates" list above) is satisfied by a successful
+end-to-end replay against `v0.6.1-beta`; once `v0.6.2-beta` ships, the same
+machinery is the replay target for any subsequent operational release.
 
 ---
 
