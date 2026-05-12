@@ -156,7 +156,7 @@ require_cargo_tool_version() {
 }
 
 run_real_command() {
-  local effective_timeout="${GATE_TIMEOUT:-$STEP_TIMEOUT}"
+  local effective_timeout="${ANVIL_RELEASE_GATE_TIMEOUT:-$STEP_TIMEOUT}"
   if declare -F "$1" >/dev/null 2>&1; then
     "$@"
   elif ! command -v "$1" >/dev/null 2>&1; then
@@ -251,7 +251,7 @@ run_gates() {
   run_gate "pnpm-format" "pnpm format" "pnpm format:check" pnpm format:check
   run_gate "pnpm-lint" "pnpm lint" "pnpm lint:check" pnpm lint:check
   run_gate "pnpm-typecheck" "pnpm typecheck" "pnpm typecheck" pnpm typecheck
-  GATE_TIMEOUT="$PNPM_TEST_TIMEOUT" run_gate "pnpm-test" "pnpm test" "pnpm test" pnpm test
+  ANVIL_RELEASE_GATE_TIMEOUT="$PNPM_TEST_TIMEOUT" run_gate "pnpm-test" "pnpm test" "pnpm test" pnpm test
 }
 
 failed_gate_count() {
