@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 0/2      |
+| CIB | —     | In Progress | 1/2      |
 
 ## Purpose
 
@@ -84,7 +84,7 @@ archive.
 
 ### CIB-001: Sweep global `dev-workflow` skill for post-cutover and current-council drift
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Bring the global `dev-workflow` routing skill into alignment with
   the main-first cutover and the current risk-tiered council architecture.
 - **Expected Outcome:** `~/Projects/src/code-env/.claude/skills/dev-workflow/SKILL.md`
@@ -104,6 +104,12 @@ archive.
 - **Coordinates with:** DOCGOV-008 (stale entrypoints), CIB-002 (canonical skill
   list), `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
   (skill authority boundaries).
+- **Evidence:** Anvil PR #1443 (vendored repo-local copy at
+  `.claude/skills/dev-workflow/SKILL.md`, merged 2026-05-11); follow-up review
+  fixes in commit `ce4091cf` aligned the skill to the repo-local `quick|mini|full`
+  council tiers and added a Surface Inventory section. Companion code-env PR
+  `joshuaboys/code-env#20` covers the upstream global skill — open at closeout
+  time; tracked separately.
 - **Confidence:** high
 
 ### CIB-002: Establish definitive skill and agent list for the anvil repo
