@@ -20,15 +20,25 @@ if [[ ! -f "${log_file}" ]]; then
   exit 2
 fi
 
-# All ADR files: NNN-*.md or NNN<letter>-*.md
-mapfile -t adr_files < <(cd "${decisions_dir}" && ls | grep -E '^[0-9]{3}[a-z]?-.*\.md$' | sort)
+# All ADR files: NNN-*.md or NNN<letter>-*.md. Tolerate an empty/no-match
+# decisions directory — `grep` returns 1 on zero matches, and a bare pipeline
+# would trip `set -o pipefail`. Wrap in `|| true` and rely on the empty-array
+# guards below.
+mapfile -t adr_files < <(cd "${decisions_dir}" && ls | grep -E '^[0-9]{3}[a-z]?-.*\.md$' 2>/dev/null | sort || true)
 
-# Extract the leading number (without optional suffix) from each filename
-mapfile -t file_numbers < <(printf '%s\n' "${adr_files[@]}" | sed -E 's/^([0-9]{3})[a-z]?-.*/\1/')
+# Extract the leading number from each filename. printf on an empty array
+# emits a single empty line; filter it out so file_numbers is genuinely empty
+# when adr_files is empty.
+if [[ ${#adr_files[@]} -gt 0 ]]; then
+  mapfile -t file_numbers < <(printf '%s\n' "${adr_files[@]}" | sed -E 's/^([0-9]{3})[a-z]?-.*/\1/')
+else
+  file_numbers=()
+fi
 
-# Extract every ADR reference from DECISION-LOG: looks for [NNN](NNN<letter>?-*.md)
-mapfile -t log_refs < <(grep -oE '\[[0-9]{3}[a-z]?\]\([0-9]{3}[a-z]?-[^)]+\)' "${log_file}" \
-  | sed -E 's/\[([0-9]{3}[a-z]?)\].*/\1/' | sort -u)
+# Extract every ADR reference from DECISION-LOG: looks for [NNN](NNN<letter>?-*.md).
+# Same tolerance: grep returns 1 if the log has no references yet.
+mapfile -t log_refs < <(grep -oE '\[[0-9]{3}[a-z]?\]\([0-9]{3}[a-z]?-[^)]+\)' "${log_file}" 2>/dev/null \
+  | sed -E 's/\[([0-9]{3}[a-z]?)\].*/\1/' | sort -u || true)
 
 failed=0
 
@@ -63,8 +73,12 @@ fi
 # 4. Compute next available number. A bare slot is "occupied" if any file
 #    starts with that number, including suffix variants (011a occupies 011
 #    because reusing the bare number alongside a variant is confusing).
-mapfile -t occupied_numbers < <(printf '%s\n' "${adr_files[@]}" \
-  | sed -E 's/^([0-9]{3}).*/\1/' | sort -u)
+if [[ ${#adr_files[@]} -gt 0 ]]; then
+  mapfile -t occupied_numbers < <(printf '%s\n' "${adr_files[@]}" \
+    | sed -E 's/^([0-9]{3}).*/\1/' | sort -u)
+else
+  occupied_numbers=()
+fi
 
 if [[ ${#occupied_numbers[@]} -gt 0 ]]; then
   max_num=$(printf '%s\n' "${occupied_numbers[@]}" | tail -n1)

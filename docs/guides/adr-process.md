@@ -22,8 +22,11 @@ Do **not** write an ADR for:
 
 ## How to Create an ADR
 
-1. Run `pnpm test:adr-integrity` to confirm the log is currently clean and to
-   see the next available number printed by the script
+1. Run `pnpm adr:check` against the live repo to confirm the log is currently
+   clean and to read the next-available ADR number printed by the script
+   (`pnpm test:adr-integrity` runs the fixture tests against sandbox trees, not
+   the real `plans/decisions/`, so it won't surface a real next-available
+   number)
 2. Copy the template:
    `cp plans/decisions/adr-template.md plans/decisions/NNN-short-title.md`
 3. Use the next available number; if you raced another author and they took it
@@ -47,9 +50,10 @@ Do **not** write an ADR for:
   Rejected. If a gap exists from a historical race, the next renumber-on- rename
   event should backfill it (see ADR-021 / ADR-026 history in the decision log
   for an example).
-- **No duplicate numbers** — `pnpm test:adr-integrity` fails if two ADR files
-  share a number, and if any ADR file is not indexed in `DECISION-LOG.md`, or
-  vice versa.
+- **No duplicate numbers** — `pnpm adr:check` (run against the live repo) and
+  `pnpm test:adr-integrity` (fixture tests for the script itself) both fail if
+  two ADR files share a number, or if an ADR file is not indexed in
+  `DECISION-LOG.md`, or vice versa.
 
 ## Status Lifecycle
 

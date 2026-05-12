@@ -4,9 +4,10 @@ Condensed index of all Architecture Decision Records (ADRs). Read the linked
 document for full context and trade-off analysis.
 
 For the ADR process and when to write one, see
-[docs/guides/adr-process.md](../../docs/guides/adr-process.md). For ADR
-integrity (no duplicate numbers, no missing entries) run
-`pnpm test:adr-integrity`.
+[docs/guides/adr-process.md](../../docs/guides/adr-process.md). For a live
+integrity report against this directory (no duplicate numbers, no missing
+entries, next available ADR number) run `pnpm adr:check`. The fixture tests
+for the script itself live at `pnpm test:adr-integrity`.
 
 ## Core Philosophy
 

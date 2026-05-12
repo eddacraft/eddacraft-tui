@@ -105,6 +105,23 @@ else
   fail "expected next: 001 with 011a treated as occupying 011; got: ${out}"
 fi
 
+# Case 6: empty decisions directory — script must not crash under
+# `set -euo pipefail` when grep finds zero matches, and must report
+# next-available = 000.
+echo "case 6: empty decisions dir"
+c6=$(run_case empty-dir)
+# No ADR files, only the bare log header
+printf '# Decision Log\n' >"${c6}/plans/decisions/DECISION-LOG.md"
+out=$(bash "${c6}/scripts/docs/adr-integrity.sh" 2>&1)
+status=$?
+if [[ "${status}" -eq 0 ]] \
+  && echo "${out}" | grep -q "0 ADR files" \
+  && echo "${out}" | grep -q "next available ADR number: 000"; then
+  pass "empty decisions dir exits 0 and reports next-available 000"
+else
+  fail "empty dir should exit 0 with 000 next-available; status=${status}; got: ${out}"
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
   exit 1
