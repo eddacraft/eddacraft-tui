@@ -17,6 +17,7 @@ members = [
   "crates/anvil-intercept-rules",
   "crates/anvil-intercept-win32",
   "crates/anvil-policy",
+  "crates/anvil-policy-engine",
   "crates/anvil-architecture",
   "crates/workspace-hack",
 ]
@@ -48,6 +49,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 toml = "1"
+
+# Policy engine (ADR-040 — pinned at a committed minor version)
+regorus = "=0.10.0"
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }

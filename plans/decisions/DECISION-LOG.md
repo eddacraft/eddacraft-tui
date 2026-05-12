@@ -26,7 +26,7 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [000](000-use-zod-for-aps-schema-definition.md) | Zod for APS schema definition, export to JSON Schema when needed | Accepted |
 | [005](005-ink-over-opentui.md) | Ink (React-based Node.js) for TUI components | Accepted |
-| [006](006-hybrid-dc-opa.md) | Dependency-Cruiser for static analysis + OPA for policy evaluation | Accepted |
+| [006](006-hybrid-dc-opa.md) | Dependency-Cruiser for static analysis + OPA for policy evaluation | Accepted (engine half amended by ADR-040) |
 | [007](007-pulumi-iac.md) | Pulumi (TypeScript) for infrastructure as code | Accepted |
 | [014](014-language-allocation-tree-ts-vs-rust.md) | TypeScript for orchestration/UX; Rust for CPU-bound hot paths | Proposed |
 
@@ -39,7 +39,7 @@ These define how Anvil behaves by default. All features must align.
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
 | [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted (amended by ADR-033) |
 | [033](033-park-ide-mcp-retire-ts-scanner.md) | Archive VSCode extension and TS MCP server (`archive/anvil-vscode-extension/`, `archive/anvil-mcp-server/`); archive TS scanner, TS suppression parser, and parity harness to `archive/anvil-ts-scanner/`; CI excluded via `'!archive/**'`; napi crate stays as build canary; surfaces return as new active packages via DRVR / RMCPF / future ADR | Proposed |
-| [040](040-rust-policy-engine-regorus.md) | Adopt `regorus` as the embedded Rust policy engine behind `crates/anvil-policy-engine` facade; amends ADR-006 engine half (Dependency-Cruiser unaffected); POLENG-008 bench gate validates parity vs. Go OPA reference | Proposed |
+| [040](040-rust-policy-engine-regorus.md) | Adopt `regorus` as the embedded Rust policy engine behind `crates/anvil-policy-engine` facade; amends ADR-006 engine half (Dependency-Cruiser unaffected); POLENG-008 bench gate validates parity vs. Go OPA reference | Accepted |
 
 ## Product and Distribution
 

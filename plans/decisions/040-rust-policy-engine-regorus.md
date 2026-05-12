@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
-2026-05-10
+2026-05-10 (Proposed); 2026-05-13 (Accepted)
 
 ## Context
 
@@ -54,11 +54,13 @@ Anvil-shaped facade:
 
 ```rust
 // Public facade — sketch only; types and bodies live in `crates/anvil-policy-engine`.
+// `eval` takes `&mut self` because the underlying engine mutates state when
+// the input document is set; the skeleton signature lives in the crate.
 pub struct Engine { /* opaque */ }
 
 impl Engine {
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> { todo!() }
-    pub fn eval(&self, input: &PolicyInput) -> EvalResult { todo!() }
+    pub fn eval(&mut self, input: &PolicyInput, query: &str) -> Result<EvalResult, EngineError> { todo!() }
     pub fn register_builtin<B: Builtin>(&mut self, b: B) -> Result<(), EngineError> { todo!() }
     pub fn coverage(&self) -> Coverage { todo!() }
 }

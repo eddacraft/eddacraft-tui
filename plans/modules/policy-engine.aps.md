@@ -5,9 +5,14 @@
 
 | ID     | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
-| POLENG | —     | high     | Draft  |
+| POLENG | —     | high     | Ready  |
 
-**Last reviewed:** 2026-05-10
+**Last reviewed:** 2026-05-13
+
+> Module promoted to Ready 2026-05-13 once ADR-040 reached Accepted.
+> POLENG-001 is authorised for execution. POLENG-002..-008 remain
+> non-executable until their listed dependencies close (the parser
+> evaluates executability per-task, not per-module).
 
 > ADR-040 picks `regorus` as the embedded Rust policy engine. This module
 > owns the substrate: facade crate, input data document, builtins surface,
@@ -137,6 +142,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-001: Engine facade crate skeleton
 
+- **Status:** In Progress (2026-05-13)
 - **Intent:** Establish `crates/anvil-policy-engine` over `regorus` with the
   minimal facade types so downstream work can begin
 - **Expected Outcome:** Crate added to the workspace; `Engine`,
@@ -146,7 +152,7 @@ post-rust engine question. POLENG is the answer.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib`
 - **Files:** `crates/anvil-policy-engine/Cargo.toml`,
   `crates/anvil-policy-engine/src/lib.rs`
-- **Dependencies:** ADR-040 must reach Accepted before this task moves to Ready
+- **Dependencies:** ADR-040 (Accepted 2026-05-13) — dependency satisfied
 - **Confidence:** high
 
 ### POLENG-002: PolicyInput v1 schema
