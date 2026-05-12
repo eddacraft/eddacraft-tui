@@ -12,6 +12,7 @@ name = "anvil_intercept_rules"
 [dependencies]
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+globset = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 workspace-hack.workspace = true

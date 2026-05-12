@@ -1074,6 +1074,7 @@ version = "0.6.2-beta"
 dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-kernel-types",
+ "globset",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

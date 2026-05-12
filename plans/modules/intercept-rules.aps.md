@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress |
 | ---- | ------ | ----------- | -------- |
-| INTR | @aneki | In Progress | 4/8      |
+| INTR | @aneki | In Progress | 5/8      |
 
 **Last reviewed:** 2026-05-13 (Wave 0 G5: INTR-004 path-deny rule promoted
 **Draft → Ready** so the carry-forward gate closes before Wave 1 begins.
@@ -134,7 +134,25 @@ daemon hot path.
   configurable deny list; matches produce an interrupt decision with the
   matching pattern and path
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
-- **Status:** Ready (promoted Draft → Ready 2026-05-13 as Wave 0 G5 closure)
+- **Status:** Complete
+- **Progress (2026-05-13, `feat/INTR-004-path-deny`):** `PathDenyListRule`
+  shipped in `crates/anvil-intercept-rules/src/path_deny.rs`. Compiles
+  configured gitignore-flavoured globs (via `globset`) eagerly at
+  construction so malformed patterns surface as `PathDenyError::InvalidGlob`
+  rather than failing silently on the hot path. `needs_content()` is
+  `false`, allowing the registry (INTR-006) to skip content reads when
+  this is the only registered rule. `evaluate()` is a single
+  `GlobSet::matches` call; on match it returns
+  `RuleDecision::interrupt("path-deny", "Path matches deny pattern
+  '<pattern>': <path>")`. `Removed` changes always `Allow` — a delete
+  is not a write and the rule's intent is to prevent agent
+  creation/modification of protected paths. `diagnostics_with_limit`
+  emits a canonical `Category::Policy` diagnostic with no line number
+  (path-only rule) and a remediation hint. Deterministic "first
+  registered pattern wins" ordering keeps operator-visible output
+  stable across runs. 13 unit tests pass:
+  `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
+  (47 across the crate).
 
 ### INTR-005: Regex Content Rule
 
