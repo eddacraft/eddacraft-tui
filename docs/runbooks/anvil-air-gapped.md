@@ -1,8 +1,8 @@
 # Air-Gapped Operation Guarantee
 
-| Type    | Authority     | Owner  | Status   | Freshness                                                             |
-| ------- | ------------- | ------ | -------- | --------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Scaffold | First filed 2026-05-13 alongside Wave 1 (MLP-017 v1, RELEASE-PLAN.md) |
+| Type    | Authority     | Owner  | Status | Freshness                                                             |
+| ------- | ------------- | ------ | ------ | --------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-13 alongside Wave 1 (MLP-017 v1, RELEASE-PLAN.md) |
 
 ## Claim
 
