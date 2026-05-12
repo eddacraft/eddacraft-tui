@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-contracts",
-  "version": "0.6.1-beta",
+  "version": "0.6.2-beta",
   "description": "Schemas, types, and events with zero dependencies",
   "type": "module",
   "main": "./dist/index.js",

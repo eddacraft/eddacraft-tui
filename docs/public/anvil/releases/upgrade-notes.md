@@ -9,7 +9,61 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.6.1-beta
+## Current Version: 0.6.2-beta
+
+## Upgrading to 0.6.2-beta
+
+Drop-in upgrade from `0.6.1-beta`. No breaking changes — this is a patch release
+that polishes `anvil update` on Windows (no more file-lock crash, plus new
+WinGet and Scoop install detection), gives `anvil check` clearer no-args
+guidance, adds local trace correlation for daemon/CLI debugging
+(`ANVIL_TRACE_SINK=file=<path>`), and closes a brute-force window in the OAuth
+device-code confirmation flow.
+
+```bash
+# Upgrade via the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.6.2-beta
+
+- **`anvil update` Windows polish** — no more `The process cannot access the
+  file because it is being used by another process` crash. The in-process
+  axoupdater path is disabled this release because `install-updater = false`
+  keeps `aarch64-pc-windows-msvc` in the release matrix; `anvil update` now
+  refuses cleanly on Windows and points to `winget upgrade --id eddacraft.anvil`
+  or re-running the PowerShell installer. `--check` still works.
+- **`anvil update` detects WinGet and Scoop** — installs via WinGet or Scoop
+  now print the exact upgrade command (`winget upgrade --id eddacraft.anvil`
+  or `scoop update anvil`), mirroring the existing Homebrew dispatch.
+- **`anvil check` no-args message** — a bare `anvil check` now lists
+  `--changed`, `--all`, and explicit paths, plus pointers to `anvil welcome`
+  and `anvil status`.
+- **Local trace correlation** — `ANVIL_TRACE_SINK=file=<path>` writes
+  JSON-line traces to a user-private local file with correlation fields for
+  daemon and CLI debugging. Disabled by default. Unix file permissions are
+  enforced (`0600`; symlink/group/world-readable existing sinks are rejected).
+  See `docs/observability/local-tracing.md`.
+- **Security** — per-code brute-force counter on `/device/confirm` with an
+  atomic upper bound, preventing exhaustion of valid device codes during the
+  confirmation window.
 
 ## Upgrading to 0.6.1-beta
 

@@ -8,6 +8,28 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+## [0.6.2-beta] — `anvil update` Windows polish + device-code rate-limit
+
+### Added
+
+- **Local trace correlation for daemon and CLI debugging.** Set
+  `ANVIL_TRACE_SINK=file=<path>` to write JSON-line tracing output to a
+  user-private local file. On Unix, newly created files are opened with `0600`
+  permissions; existing sinks are rejected if they are symlinks or are
+  readable/writable by group or other users. The daemon records the incoming
+  `trace_id`, `parent_id`, and `trace_flags` as correlation fields on the
+  dispatch span and echoes the original `traceparent` header on the response.
+  Local correlation only — not full OpenTelemetry parent propagation. Disabled
+  by default. See `docs/observability/local-tracing.md`.
+
+### Security
+
+- **Per-code brute-force counter on `/device/confirm`.** The OAuth device-code
+  confirmation endpoint now tracks a per-code attempts counter with an atomic
+  upper bound, preventing brute-force exhaustion of valid device codes during
+  the confirmation window. Closes a race in the counter's initial implementation
+  in the same release.
+
 ### Fixed
 
 - **`anvil update` on Windows no longer crashes with a file-lock error.** The
