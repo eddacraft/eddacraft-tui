@@ -213,7 +213,66 @@ fi
 
 if [[ "$dry_run" == "true" ]]; then
   emit_envelope "success" "$data_json" "[]" "done" "Dry-run closeout plan is valid; execute mutating cleanup after operator approval."
-else
-  emit_envelope "needs-operator" "$data_json" "$(failure_json operator-required "non-dry-run closeout is not enabled in the initial local implementation" false use-dry-run-or-implement-gh)" "closeout" "Use --dry-run or complete GitHub-backed closeout implementation."
-  exit 1
+  exit 0
 fi
+
+command -v gh >/dev/null 2>&1 || {
+  emit_envelope "failed" "$data_json" "$(failure_json infra-failed "gh is required for non-dry-run closeout" true install-gh)" "closeout" "Install/authenticate gh or rerun with --dry-run."
+  exit 127
+}
+
+public_repo="${ANVIL_RELEASE_CLOSEOUT_PUBLIC_REPO:-eddacraft/anvil}"
+
+if [[ -n "$tracking_issue" ]]; then
+  summary_body="$(node - "$version" "$tag" "$source_sha" "$verification_record" <<'NODE'
+const [version, tag, sourceSha, verificationRecord] = process.argv.slice(2);
+const lines = [
+  '<!-- anvil-release-closeout -->',
+  `## Release closeout — ${version}`,
+  '',
+  `- Tag: \`${tag}\``,
+  `- Source SHA: \`${sourceSha}\``,
+  `- Verification record: ${verificationRecord}`,
+  `- Closed at: ${new Date().toISOString()}`,
+];
+process.stdout.write(lines.join('\n') + '\n');
+NODE
+)"
+  gh issue comment "$tracking_issue" --repo "$repo" --body "$summary_body" >/dev/null 2>&1 || {
+    emit_envelope "failed" "$data_json" "$(failure_json auth-failed "failed to post final summary on tracking issue" true gh-auth-or-issue)" "closeout" "Authenticate gh or verify the tracking issue, then rerun closeout."
+    exit 1
+  }
+fi
+
+gh release edit "$tag" --repo "$public_repo" --latest >/dev/null 2>&1 || {
+  emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to mark public release latest" true verify-public-release)" "closeout" "Verify the public release exists and rerun closeout. Override the public repo with ANVIL_RELEASE_CLOSEOUT_PUBLIC_REPO if needed."
+  exit 1
+}
+
+closed_issue=false
+if [[ "$close_issue" == "true" && -n "$tracking_issue" ]]; then
+  gh issue close "$tracking_issue" --repo "$repo" --reason completed >/dev/null 2>&1 || {
+    emit_envelope "failed" "$data_json" "$(failure_json auth-failed "failed to close tracking issue" true gh-auth-or-issue)" "closeout" "Authenticate gh or verify the tracking issue, then rerun closeout."
+    exit 1
+  }
+  closed_issue=true
+fi
+
+if [[ -n "$cleanup_branch" ]]; then
+  gh api -X DELETE "repos/$repo/git/refs/heads/$cleanup_branch" >/dev/null 2>&1 || {
+    emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to delete release branch" true verify-branch-or-permissions)" "closeout" "Verify the branch exists and the token has delete permission, then rerun closeout."
+    exit 1
+  }
+fi
+
+data_json="$(node - "$data_json" "$closed_issue" <<'NODE'
+const [raw, closedRaw] = process.argv.slice(2);
+const data = JSON.parse(raw);
+data.closedIssue = closedRaw === 'true';
+data.operatorActionRequired = false;
+process.stdout.write(JSON.stringify(data));
+NODE
+)"
+
+emit_envelope "success" "$data_json" "[]" "done" "Release closeout completed."
+exit 0
