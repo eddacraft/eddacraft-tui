@@ -50,7 +50,7 @@ impl<'a, T: Theme> StatusBadge<'a, T> {
 
     #[must_use]
     pub fn label(mut self, label: &'a str) -> Self {
-        self.label = label.into();
+        self.label = Some(label);
         self
     }
 

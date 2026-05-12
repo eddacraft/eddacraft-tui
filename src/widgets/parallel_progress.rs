@@ -16,6 +16,7 @@ use crate::widgets::{AnimatedU8, animated_u8};
 const FRACTION_BLOCKS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CheckStatus {
     Pending,
     Running,
@@ -110,8 +111,11 @@ pub fn calculate_eta(checks: &[CheckProgress], elapsed: Duration) -> Option<Dura
     let progress_ratio = u128::from(progress);
     let remaining_ms = elapsed_ms.saturating_mul(remaining_ratio) / progress_ratio;
 
-    #[allow(clippy::cast_possible_truncation)]
-    Some(Duration::from_millis(remaining_ms as u64))
+    // Saturate the u128 → u64 narrowing so absurd elapsed values don't wrap
+    // into a small bogus ETA. Matches the `resolve_duration` idiom below.
+    Some(Duration::from_millis(
+        u64::try_from(remaining_ms).unwrap_or(u64::MAX),
+    ))
 }
 
 #[must_use]
@@ -401,14 +405,15 @@ fn truncate_name(name: &str, width: usize) -> String {
     output
 }
 
-#[allow(clippy::cast_possible_truncation)]
 fn resolve_duration(check: &CheckProgress) -> Option<u64> {
     if let Some(duration) = check.duration_ms {
         return Some(duration);
     }
 
     match (check.start_time, check.end_time) {
-        (Some(start), Some(end)) => Some(end.saturating_duration_since(start).as_millis() as u64),
+        (Some(start), Some(end)) => Some(
+            u64::try_from(end.saturating_duration_since(start).as_millis()).unwrap_or(u64::MAX),
+        ),
         _ => None,
     }
 }

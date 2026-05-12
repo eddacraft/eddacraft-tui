@@ -51,6 +51,15 @@ impl EditorState {
     }
 
     /// Load content from `path`. All lines are editable.
+    ///
+    /// **Caller contract on untrusted input.** `path` is passed verbatim to
+    /// [`std::fs::read_to_string`] with no canonicalisation, symlink check,
+    /// or size cap. The entire file is read into memory and split into
+    /// `Vec<String>` line-by-line. Callers that surface this constructor
+    /// to user-controlled paths must validate the path themselves (resolve
+    /// symlinks, enforce a base directory, reject specials) and apply a
+    /// size budget before calling — otherwise a large or hostile file is a
+    /// memory-exhaustion vector in the host process.
     pub fn from_file(path: &Path) -> io::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let mut state = Self::from_string(&content);
@@ -63,6 +72,8 @@ impl EditorState {
     /// Lines that fall outside the `[focus_line - editable_above, focus_line + editable_below]`
     /// range (both inclusive) are rendered as read-only context.  The cursor is placed at the
     /// start of `focus_line`.
+    ///
+    /// See [`Self::from_file`] for the caller contract on untrusted paths.
     pub fn from_file_with_context(
         path: &Path,
         focus_line: usize,
@@ -74,7 +85,12 @@ impl EditorState {
         let total = lines.len().max(1);
 
         let start = focus_line.saturating_sub(editable_above).min(total);
-        let end = (focus_line + editable_below + 1).min(total);
+        // Saturate the focus + editable_below sum so pathological `usize::MAX`
+        // inputs collapse to `total` instead of wrapping to a small value.
+        let end = focus_line
+            .saturating_add(editable_below)
+            .saturating_add(1)
+            .min(total);
 
         let cursor_line = focus_line.min(total - 1);
 

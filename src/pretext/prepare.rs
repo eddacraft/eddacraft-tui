@@ -39,19 +39,31 @@ impl PreparedText {
 
     /// Append new text with a specific style without re-measuring existing content.
     pub fn append_styled(&mut self, text: &str, style: Style) {
-        let leading_ws_end = text
-            .char_indices()
-            .take_while(|(_, ch)| ch.is_whitespace())
-            .last()
-            .map(|(i, ch)| i + ch.len_utf8())
-            .unwrap_or(0);
+        // Walk soft leading whitespace only. Stopping at `\n` / `\r` keeps
+        // hard breaks in `text_remainder` so `measure_words` can emit the
+        // sentinel — otherwise the break would be silently absorbed into
+        // the previous word's `whitespace_width`.
+        let mut leading_ws_end = 0;
+        for (i, ch) in text.char_indices() {
+            if !ch.is_whitespace() || ch == '\n' || ch == '\r' {
+                break;
+            }
+            leading_ws_end = i + ch.len_utf8();
+        }
 
         if leading_ws_end > 0
             && let Some(last) = self.words.last_mut()
+            && !last.is_hard_break
         {
             let ws = &text[..leading_ws_end];
-            last.whitespace_width += UnicodeWidthStr::width(ws);
-            self.total_width += UnicodeWidthStr::width(ws);
+            let ws_width = UnicodeWidthStr::width(ws);
+            last.whitespace_width += ws_width;
+            self.total_width += ws_width;
+        } else {
+            // Either no prior word, or the prior entry is a hard break — in
+            // both cases the leading whitespace must travel through
+            // `measure_words` so it becomes an indent sentinel on the new row.
+            leading_ws_end = 0;
         }
 
         // When there's no prior word to attach leading whitespace to, hand the
@@ -67,6 +79,8 @@ impl PreparedText {
 
         if let (Some(last), Some(first_new)) = (self.words.last_mut(), new_words.first())
             && last.whitespace_width == 0
+            && !last.is_hard_break
+            && !first_new.is_hard_break
             && !text_remainder.starts_with(char::is_whitespace)
         {
             let old_last_total = last.width + last.whitespace_width;
@@ -273,6 +287,60 @@ mod tests {
         assert_eq!(prepared.words()[1].text, "hello");
         assert_eq!(prepared.words()[2].text, "world");
         assert_eq!(prepared.total_width(), 13);
+    }
+
+    #[test]
+    fn test_new_preserves_hard_break() {
+        let prepared = PreparedText::new("foo\nbar");
+        assert_eq!(prepared.word_count(), 3);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert!(prepared.words()[1].is_hard_break);
+        assert_eq!(prepared.words()[2].text, "bar");
+    }
+
+    #[test]
+    fn test_append_only_hard_break_does_not_merge() {
+        let mut prepared = PreparedText::new("foo");
+        prepared.append("\n");
+        prepared.append("bar");
+        assert_eq!(prepared.word_count(), 3);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert!(prepared.words()[1].is_hard_break);
+        assert_eq!(prepared.words()[2].text, "bar");
+    }
+
+    #[test]
+    fn test_append_trailing_hard_break_blocks_boundary_merge() {
+        // Without the merge guard, the streaming case `"foo\n"` + `"bar"`
+        // would splice "bar" onto the trailing hard-break sentinel.
+        let mut prepared = PreparedText::new("foo\n");
+        prepared.append("bar");
+        assert_eq!(prepared.word_count(), 3);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert!(prepared.words()[1].is_hard_break);
+        assert_eq!(prepared.words()[2].text, "bar");
+    }
+
+    #[test]
+    fn test_append_crlf_treated_as_hard_break() {
+        let mut prepared = PreparedText::new("foo");
+        prepared.append("\r\nbar");
+        assert_eq!(prepared.word_count(), 3);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert!(prepared.words()[1].is_hard_break);
+        assert_eq!(prepared.words()[2].text, "bar");
+    }
+
+    #[test]
+    fn test_append_indent_after_hard_break_becomes_sentinel() {
+        let mut prepared = PreparedText::new("foo\n");
+        prepared.append("  bar");
+        assert_eq!(prepared.word_count(), 4);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert!(prepared.words()[1].is_hard_break);
+        assert_eq!(prepared.words()[2].text, "");
+        assert_eq!(prepared.words()[2].whitespace_width, 2);
+        assert_eq!(prepared.words()[3].text, "bar");
     }
 
     #[test]

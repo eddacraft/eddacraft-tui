@@ -8,6 +8,7 @@ use ratatui::widgets::{Block, BorderType, Borders, StatefulWidget, Widget};
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LogLevel {
     Error,
     Warn,
@@ -270,15 +271,19 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
             .filter_map(|index| self.entries.get(*index))
             .collect();
 
-        if state.auto_scroll && filtered_entries.len() > state.last_entry_count {
-            state.selected_index = filtered_entries.len() - 1;
-        }
-
         if filtered_entries.is_empty() {
             state.selected_index = 0;
             state.scroll_offset = 0;
         } else {
+            // Re-clamp both indices before applying auto-scroll: a filter
+            // change between frames can shrink the visible list, leaving
+            // `selected_index` / `scroll_offset` past the end. Clamp first,
+            // then let `auto_scroll` jump to the latest entry if requested.
             state.selected_index = state.selected_index.min(filtered_entries.len() - 1);
+            state.scroll_offset = state.scroll_offset.min(filtered_entries.len() - 1);
+            if state.auto_scroll && filtered_entries.len() > state.last_entry_count {
+                state.selected_index = filtered_entries.len() - 1;
+            }
         }
 
         let mut rows = Vec::new();
@@ -390,8 +395,9 @@ fn render_entries<T: Theme>(
             .iter()
             .enumerate()
         {
-            #[allow(clippy::cast_possible_truncation)]
-            let y = entries_area.y + row_index as u16;
+            let y = entries_area
+                .y
+                .saturating_add(u16::try_from(row_index).unwrap_or(u16::MAX));
             let row_area = Rect::new(entries_area.x, y, entries_area.width, 1);
             let style = if state.scroll_offset + row_index == state.selected_index {
                 theme.highlighted()
@@ -459,11 +465,13 @@ fn matches_filter(entry: &LogEntry, filter: &LogFilter) -> bool {
         return true;
     }
 
-    let search = search.to_ascii_lowercase();
-    entry.message.to_ascii_lowercase().contains(&search)
-        || entry.source.to_ascii_lowercase().contains(&search)
-        || entry.timestamp.to_ascii_lowercase().contains(&search)
-        || entry.id.to_ascii_lowercase().contains(&search)
+    // Unicode-aware case-fold so non-ASCII queries (German ß, Turkish dotted
+    // i, accented vowels, …) match their differently-cased counterparts.
+    let search = search.to_lowercase();
+    entry.message.to_lowercase().contains(&search)
+        || entry.source.to_lowercase().contains(&search)
+        || entry.timestamp.to_lowercase().contains(&search)
+        || entry.id.to_lowercase().contains(&search)
 }
 
 fn render_filter_line<T: Theme>(filter: &LogFilter, theme: &T) -> Line<'static> {
