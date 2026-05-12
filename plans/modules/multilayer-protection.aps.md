@@ -1,14 +1,15 @@
 # Multi-Layer Protection
 
-| ID  | Owner  | Status      | Progress     |
-| --- | ------ | ----------- | ------------ |
-| MLP | @aneki | In Progress | 1/17 done    |
+| ID  | Owner  | Status      | Progress  |
+| --- | ------ | ----------- | --------- |
+| MLP | @aneki | In Progress | 2/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
 audit confirmed the shipped implementation matches the v1-narrowed scope;
-module advanced to In Progress for the Wave 1 backbone slate per
-`RELEASE-PLAN.md`. MLP-009 remains the hard release gate for `v0.7.0-beta`;
-ADRs 036–039 Accepted.)
+MLP-011 shipped a new `crates/anvil-config/` library with extension-based
+dispatch and canonical-JSON serialisation (44 tests green). Module advanced to
+In Progress for the Wave 1 backbone slate per `RELEASE-PLAN.md`. MLP-009
+remains the hard release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -399,22 +400,55 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-011: Multi-format config (yaml / json / toml)
 
+- **Status:** Done (2026-05-13)
 - **Intent:** Support `.anvil.yaml`, `.anvil.yml`, `.anvil.json`,
   `.anvil.toml`. Detection in that order; first match wins.
-- **Expected Outcome:**
-  - Parser dispatches on extension; canonical-JSON serialisation for
-    `rules_sha` computation (format-independent hash).
-  - `anvil start --format json|toml` overrides default YAML.
-  - `anvil/policy.*` matches `.anvil.*` choice (consistency).
-- **Files:** `crates/anvil-config/` (new crate for unified parsing),
-  edits in `crates/anvil-cli/src/commands/init.rs`.
-- **Validation:**
-  - Equivalent yaml + json + toml configs produce same `rules_sha`
-  - Detection precedence
-  - Round-trip parse + serialise for each format
+- **Expected Outcome (v1 shipped):**
+  - New crate `crates/anvil-config/` exposes `ConfigFormat`,
+    `discover(dir, basename)`, `parse_str` / `parse_file` (dispatch on
+    extension into `serde_json::Value`), and `canonical_json_bytes`
+    (RFC 8785-style: sorted object keys, no insignificant whitespace,
+    non-finite numbers rejected). Equivalent yaml / json / toml inputs
+    produce byte-identical canonical output, so `rules_sha` is
+    format-independent.
+  - Detection precedence (`yaml` > `yml` > `json` > `toml`) is
+    encoded as `Ord` on `ConfigFormat` and a `DISCOVER_PRECEDENCE`
+    constant so consumers can document the rule without re-spelling
+    it.
+  - TOML datetimes coerce to their lexical string form to keep
+    hashing deterministic across tz-normalisation choices.
+  - List order is preserved (documented by an explicit test): a
+    well-meaning reviewer who tries to "canonicalise" arrays by
+    sorting them would collapse different rule-precedence configs to
+    the same hash; the test pins the behaviour so the mistake is
+    visible in code review.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **`anvil start --format json|toml` CLI flag** — deferred; the
+     library is the building block. Wiring lands when the first
+     consumer (init.rs or the future policy parser) integrates.
+  2. **`.anvilrc` → `.anvil.<ext>` filename migration** — the
+     existing `.anvilrc` reader in `commands/gate.rs` keeps working
+     unchanged. Migration is a separate concern; `discover` is
+     basename-flexible (`".anvil"`, `"policy"`, etc.) so consumers
+     can adopt at their own pace.
+  3. **Typed `AnvilConfig` schema** — left to consumers so each
+     surface (init, gate, policy) can evolve its own typed view of
+     the same `serde_json::Value` intermediate.
+- **Files (shipped):** `crates/anvil-config/Cargo.toml`,
+  `crates/anvil-config/src/{lib,format,discover,parse,canonical}.rs`,
+  `crates/anvil-config/tests/cross_format_equivalence.rs`, workspace
+  `Cargo.toml` member registration.
+- **Validation:** `cargo test -p eddacraft-anvil-config` — 44 tests
+  green (39 unit + 5 cross-format equivalence integration). Headline
+  test `yaml_json_toml_equivalent_configs_hash_identically` proves
+  equal `rules_sha` across the three formats. `cargo clippy -p
+  eddacraft-anvil-config --all-targets -- -D warnings` clean.
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** none
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-012: `rules_sha` computation in witness lines
 
@@ -586,7 +620,7 @@ a defensible claim, not a slogan. This module owns:
 | Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 1/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
-| CI + config | 2 (MLP-010, -011) | 0/2 |
+| CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 0/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 0/1 |

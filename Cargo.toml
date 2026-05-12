@@ -10,6 +10,7 @@ members = [
   "crates/anvil-checks-napi",
   "crates/anvil-bench",
   "crates/anvil-cli",
+  "crates/anvil-config",
   "crates/anvil-intercept",
   "crates/anvil-intercept-proto",
   "crates/anvil-observability",
