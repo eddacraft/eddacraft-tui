@@ -5,6 +5,11 @@ readonly DEFAULT_REPO="eddacraft/anvil-001"
 readonly CARGO_HAKARI_VERSION="0.9.37"
 readonly CARGO_DENY_VERSION="0.19.4"
 readonly STEP_TIMEOUT="${ANVIL_RELEASE_STEP_TIMEOUT:-600}"
+# pnpm test runs `nx run-many -t test` with `test → ^build`, so every node
+# project rebuilds its upstream graph before vitest runs. Cold-cache wall
+# time on the current workspace is ~20 min; the default STEP_TIMEOUT (10
+# min) trips it as a false positive. Per-gate override here, configurable.
+readonly PNPM_TEST_TIMEOUT="${ANVIL_RELEASE_PNPM_TEST_TIMEOUT:-1800}"
 
 json=false
 base=""
@@ -40,6 +45,10 @@ Options:
   --head <ref>        Comparison head ref recorded in output.
   --repo <owner/name> Repository owner/name. Defaults to eddacraft/anvil-001.
   -h, --help          Show this help.
+
+Environment:
+  ANVIL_RELEASE_STEP_TIMEOUT       Default per-gate timeout in seconds (default 600).
+  ANVIL_RELEASE_PNPM_TEST_TIMEOUT  pnpm-test gate timeout in seconds (default 1800).
 
 Test fixture mode:
   ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass|fail|version-mismatch|missing-tool
@@ -147,12 +156,13 @@ require_cargo_tool_version() {
 }
 
 run_real_command() {
+  local effective_timeout="${GATE_TIMEOUT:-$STEP_TIMEOUT}"
   if declare -F "$1" >/dev/null 2>&1; then
     "$@"
   elif ! command -v "$1" >/dev/null 2>&1; then
     return 127
-  elif [[ "$STEP_TIMEOUT" != "0" ]] && command -v timeout >/dev/null 2>&1; then
-    timeout "$STEP_TIMEOUT" "$@"
+  elif [[ "$effective_timeout" != "0" ]] && command -v timeout >/dev/null 2>&1; then
+    timeout "$effective_timeout" "$@"
   else
     "$@"
   fi
@@ -241,7 +251,7 @@ run_gates() {
   run_gate "pnpm-format" "pnpm format" "pnpm format:check" pnpm format:check
   run_gate "pnpm-lint" "pnpm lint" "pnpm lint:check" pnpm lint:check
   run_gate "pnpm-typecheck" "pnpm typecheck" "pnpm typecheck" pnpm typecheck
-  run_gate "pnpm-test" "pnpm test" "pnpm test" pnpm test
+  GATE_TIMEOUT="$PNPM_TEST_TIMEOUT" run_gate "pnpm-test" "pnpm test" "pnpm test" pnpm test
 }
 
 failed_gate_count() {
