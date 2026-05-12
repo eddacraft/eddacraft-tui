@@ -1,6 +1,6 @@
 //! MLP-014 / INTL-003 session-key vocabulary.
 //!
-//! This is the **stub** AgentTag definition landed during the Wave 0
+//! This is the **stub** `AgentTag` definition landed during the Wave 0
 //! readiness review (2026-05-13) so the INTL ↔ MLP-014 interface
 //! exists in code rather than only in planning prose. Behavioural use
 //! arrives with MLP-014 (registry key change) and INTL-003 / INTL-004
@@ -103,7 +103,7 @@ mod tests {
     }
 
     /// Pinned: distinct tuples must hash distinctly so the daemon's
-    /// session-registry HashMap separates them per MLP-014's
+    /// session-registry `HashMap` separates them per MLP-014's
     /// `(WorktreeKey, AgentTag)` key plan.
     #[test]
     fn distinct_pid_starttimes_produce_distinct_tags() {
