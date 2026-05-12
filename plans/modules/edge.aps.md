@@ -483,7 +483,7 @@ design spec lives in `plans/specs/2026-04-27-edge-architecture-multi-origin.md`;
 the ADR lives in `plans/decisions/032-edge-architecture-afd.md`.
 
 If/when the cross-cutting convention is promoted to a first-class APS primitive
-(per the Open Decision in `plans/next-steps.md`), this module will adopt the
+(see `plans/aps-rules.md` for the current shape), this module will adopt the
 typed callout shape.
 
 ## Deferred / Trigger-gated

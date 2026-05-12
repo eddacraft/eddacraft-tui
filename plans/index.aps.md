@@ -131,9 +131,10 @@ promoted back into the current release window.
 
 The slate below shipped as `v0.5.0-beta` on 2026-05-01. Tables are retained
 for historical record; counts read "Complete / Locked" rather than "Complete
-/ In Progress". The next-release slate is open — see
-[`plans/next-steps.md`](./next-steps.md) for the cherry-pick verdict against
-the post-0.5.0 horizon.
+/ In Progress". For active release sequencing see
+[`ROADMAP.md`](../ROADMAP.md) (strategic narrative) and the module status
+table earlier in this file (work-state authority); the next-release menu
+lives in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 ### A1 — RTAI Spike Slice (launch-blocker, ~24 items, shipped)
 
@@ -179,7 +180,7 @@ running.
 - The X5 ADR-030 sequencing question is effectively resolved: INTD work
   *did* ship inside the `-beta` cut. The tag-rename option for the next
   release (daemon-backed RTV) is still open but no longer blocks A1's
-  status (see `plans/next-steps.md` Open Decision 1).
+  status.
 
 ### A2-A4 — Shipped Source Modules
 

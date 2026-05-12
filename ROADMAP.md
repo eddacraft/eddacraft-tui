@@ -197,5 +197,3 @@ back to one or more.
   [`plans/index.aps.md`](./plans/index.aps.md).
 - **Not the release menu.** That lives in
   [`RELEASE-PLAN.md`](./RELEASE-PLAN.md).
-- **Not the cherry-pick verdict.** That lives in
-  [`plans/next-steps.md`](./plans/next-steps.md).

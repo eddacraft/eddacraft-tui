@@ -14,7 +14,8 @@ after v0.5.0-beta (which shipped 2026-05-01). Holds two kinds of entries:
 
 This is a *capture* surface, not a *commitment* surface. Anything in
 here is a candidate, not a guarantee. Sequencing is owed against
-plans/next-steps.md (the strategic frame) at cherry-pick time.
+ROADMAP.md (the strategic frame) and RELEASE-PLAN.md (release menu)
+at cherry-pick time.
 
 Naming: file is `v060` because items here ride the *next* release after
 v0.5.0; if the next release tags as v0.5.1 (patch) instead of v0.6.0
@@ -33,7 +34,8 @@ See: plans/aps-rules.md
 
 **Last reviewed:** 2026-05-08 (V060F-025 completed — OPA runtime pin bumped from 0.60.0 to 1.16.1 for the v0.6.0-beta release candidate; previous 2026-05-07 sweep added V060F-002..V060F-024)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
-**Sequencing context:** [plans/next-steps.md](../next-steps.md)
+**Sequencing context:** [`ROADMAP.md`](../../ROADMAP.md) +
+[`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)
 
 ## Purpose
 
