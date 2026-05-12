@@ -127,28 +127,20 @@ mod tests {
 
     #[test]
     fn non_finite_number_rejected() {
-        let value = serde_json::Value::Number(
-            serde_json::Number::from_f64(f64::INFINITY).unwrap_or_else(|| {
-                // serde_json refuses NaN/Inf at construction; build via
-                // string deser as a last resort. If that also fails,
-                // skip — the rejection is enforced by serde_json itself.
-                serde_json::from_str::<serde_json::Value>("0")
-                    .unwrap()
-                    .as_number()
-                    .cloned()
-                    .unwrap()
-            }),
-        );
-        // If we couldn't even construct a non-finite number, the
-        // serde_json layer already enforces the invariant; nothing to
-        // check at the canonical layer.
-        if let serde_json::Value::Number(n) = &value
-            && n.as_f64().is_some_and(f64::is_finite)
-        {
-            return;
+        // `serde_json::Number::from_f64` refuses NaN/Inf at the API
+        // level, which is the first line of defence. If a build
+        // configuration of serde_json ever accepts a non-finite
+        // float, our canonical encoder must catch it; otherwise
+        // verify the API-level rejection is consistent across all
+        // three non-finite variants.
+        if let Some(n) = serde_json::Number::from_f64(f64::INFINITY) {
+            let value = serde_json::Value::Number(n);
+            let err = canonical_json_bytes(&value).unwrap_err();
+            assert!(matches!(err, CanonicalError::NonFiniteNumber { .. }));
+        } else {
+            assert!(serde_json::Number::from_f64(f64::NAN).is_none());
+            assert!(serde_json::Number::from_f64(f64::NEG_INFINITY).is_none());
         }
-        let err = canonical_json_bytes(&value).unwrap_err();
-        assert!(matches!(err, CanonicalError::NonFiniteNumber { .. }));
     }
 
     #[test]

@@ -28,6 +28,17 @@ pub struct DiscoveredConfig {
 /// `basename` is the filename without extension — for `anvil/policy.*`
 /// pass `"policy"` with `dir = Path::new("anvil")`; for `.anvil.*`
 /// pass `".anvil"` with `dir = workspace_root`.
+///
+/// **Case sensitivity.** Discovery uses lowercase extensions only
+/// (`.yaml`, `.yml`, `.json`, `.toml`). This is a deliberate choice:
+/// project conventions in Anvil are lowercase by default, and
+/// directory scans for case variants would be both slow and ambiguous
+/// (which precedence wins between `policy.YAML` and `policy.yml` on
+/// the same case-sensitive disk?). When a caller already has a path
+/// — e.g. read from a CLI argument or env var — they can use
+/// [`ConfigFormat::from_path`], which IS case-insensitive on the
+/// extension, to recognise the format. Discovery and recognition are
+/// deliberately split along this axis.
 pub fn discover(dir: &Path, basename: &str) -> std::io::Result<Option<DiscoveredConfig>> {
     for &format in &DISCOVER_PRECEDENCE {
         let candidate = dir.join(format!("{basename}.{}", format.extension()));
@@ -38,7 +49,8 @@ pub fn discover(dir: &Path, basename: &str) -> std::io::Result<Option<Discovered
                     format,
                 }));
             }
-            Ok(false) => continue,
+            // Ok(false) falls through to the next format candidate.
+            Ok(false) => {}
             // Surface the underlying io error rather than papering over
             // it; a permission-denied on the directory shouldn't be
             // silently confused with "no config exists".

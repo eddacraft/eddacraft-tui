@@ -18,9 +18,10 @@ fn hash(value: &serde_json::Value) -> String {
 }
 
 fn hex_of(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
-        out.push_str(&format!("{b:02x}"));
+        let _ = write!(out, "{b:02x}");
     }
     out
 }
@@ -103,8 +104,8 @@ fn reordering_json_keys_does_not_change_hash() {
 #[test]
 fn list_order_does_change_hash() {
     // Documenting the opposite case: arrays are ordered, so reordering
-    // a list element list is a meaningful change. Reviewers who try
-    // to "canonicalise" by sorting arrays MUST stop here — that would
+    // a list is a meaningful change. Reviewers who try to
+    // "canonicalise" by sorting arrays MUST stop here — that would
     // collapse different rule-precedence configs to the same hash.
     let a = r#"{"checks": ["a", "b"]}"#;
     let b = r#"{"checks": ["b", "a"]}"#;

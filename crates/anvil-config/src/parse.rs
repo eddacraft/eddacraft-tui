@@ -32,6 +32,8 @@ pub enum ParseError {
         #[source]
         source: toml::de::Error,
     },
+    #[error("toml float in {path} is not representable in canonical JSON: {value}")]
+    NonFiniteTomlFloat { path: PathBuf, value: f64 },
 }
 
 /// Parse `contents` as `format` into a `serde_json::Value`.
@@ -66,7 +68,7 @@ pub fn parse_str(contents: &str, format: ConfigFormat, path: &Path) -> Result<Va
                     path: path.to_path_buf(),
                     source,
                 })?;
-            Ok(toml_value_to_json(&toml_value))
+            toml_value_to_json(&toml_value, path)
         }
     }
 }
@@ -95,28 +97,43 @@ pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
 /// - Datetime → JSON string (preserves the original lexical form).
 /// - Array, Table → recursive conversion.
 ///
+/// Non-finite floats (NaN, ±Infinity) are rejected with
+/// [`ParseError::NonFiniteTomlFloat`]. Silently mapping them to JSON
+/// `null` would collapse distinct inputs to the same canonical bytes
+/// and break the format-independent `rules_sha` invariant.
+///
 /// `Map` keys are inserted in their natural toml-iteration order;
 /// [`crate::canonical_json_bytes`] re-sorts at serialisation time so
 /// key ordering at the `Value` level is not load-bearing.
-fn toml_value_to_json(value: &toml::Value) -> Value {
+fn toml_value_to_json(value: &toml::Value, path: &Path) -> Result<Value, ParseError> {
     use serde_json::Map;
-    match value {
+    Ok(match value {
         toml::Value::String(s) => Value::String(s.clone()),
         toml::Value::Integer(i) => Value::Number((*i).into()),
-        toml::Value::Float(f) => serde_json::Number::from_f64(*f)
-            .map(Value::Number)
-            .unwrap_or(Value::Null),
+        toml::Value::Float(f) => match serde_json::Number::from_f64(*f) {
+            Some(n) => Value::Number(n),
+            None => {
+                return Err(ParseError::NonFiniteTomlFloat {
+                    path: path.to_path_buf(),
+                    value: *f,
+                });
+            }
+        },
         toml::Value::Boolean(b) => Value::Bool(*b),
         toml::Value::Datetime(d) => Value::String(d.to_string()),
-        toml::Value::Array(arr) => Value::Array(arr.iter().map(toml_value_to_json).collect()),
+        toml::Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| toml_value_to_json(v, path))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
         toml::Value::Table(table) => {
             let mut map = Map::with_capacity(table.len());
             for (k, v) in table {
-                map.insert(k.clone(), toml_value_to_json(v));
+                map.insert(k.clone(), toml_value_to_json(v, path)?);
             }
             Value::Object(map)
         }
-    }
+    })
 }
 
 #[cfg(test)]
@@ -242,8 +259,39 @@ mod tests {
 
     #[test]
     fn parse_file_missing_returns_io_error() {
-        let err = parse_file(Path::new("/definitely/not/a/path.json")).unwrap_err();
+        // Use a guaranteed-missing path inside a TempDir so the test
+        // works identically on Windows and Unix.
+        let dir = tempfile::TempDir::new().unwrap();
+        let missing = dir.path().join("definitely-not-there.json");
+        let err = parse_file(&missing).unwrap_err();
         assert!(matches!(err, ParseError::Io { .. }));
+    }
+
+    #[test]
+    fn parse_str_toml_nan_is_rejected() {
+        // TOML allows `nan` as a literal; the parser must surface it
+        // as `NonFiniteTomlFloat` rather than silently mapping to
+        // JSON null (which would collapse distinct inputs to the same
+        // canonical bytes and break `rules_sha`).
+        let err = parse_str("x = nan\n", ConfigFormat::Toml, Path::new("t.toml")).unwrap_err();
+        assert!(
+            matches!(err, ParseError::NonFiniteTomlFloat { .. }),
+            "got {err:?}"
+        );
+    }
+
+    #[test]
+    fn parse_str_toml_inf_is_rejected() {
+        let err = parse_str("x = inf\n", ConfigFormat::Toml, Path::new("t.toml")).unwrap_err();
+        assert!(
+            matches!(err, ParseError::NonFiniteTomlFloat { .. }),
+            "got {err:?}"
+        );
+        let err = parse_str("x = -inf\n", ConfigFormat::Toml, Path::new("t.toml")).unwrap_err();
+        assert!(
+            matches!(err, ParseError::NonFiniteTomlFloat { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
