@@ -52,12 +52,10 @@ pub fn parse_str(contents: &str, format: ConfigFormat, path: &Path) -> Result<Va
                 source,
             })
         }
-        ConfigFormat::Json => {
-            serde_json::from_str(contents).map_err(|source| ParseError::Json {
-                path: path.to_path_buf(),
-                source,
-            })
-        }
+        ConfigFormat::Json => serde_json::from_str(contents).map_err(|source| ParseError::Json {
+            path: path.to_path_buf(),
+            source,
+        }),
         ConfigFormat::Toml => {
             // toml -> toml::Value -> serde_json::Value. The double-parse
             // is the simplest path that preserves toml's stricter type
@@ -128,8 +126,12 @@ mod tests {
 
     #[test]
     fn parse_str_yaml_basic() {
-        let v = parse_str("version: 1\nchecks:\n  - secrets\n", ConfigFormat::Yaml, Path::new("x"))
-            .unwrap();
+        let v = parse_str(
+            "version: 1\nchecks:\n  - secrets\n",
+            ConfigFormat::Yaml,
+            Path::new("x"),
+        )
+        .unwrap();
         assert_eq!(v, json!({"version": 1, "checks": ["secrets"]}));
     }
 
@@ -142,15 +144,23 @@ mod tests {
 
     #[test]
     fn parse_str_json_basic() {
-        let v = parse_str(r#"{"version": 1, "checks": ["secrets"]}"#, ConfigFormat::Json, Path::new("x"))
-            .unwrap();
+        let v = parse_str(
+            r#"{"version": 1, "checks": ["secrets"]}"#,
+            ConfigFormat::Json,
+            Path::new("x"),
+        )
+        .unwrap();
         assert_eq!(v, json!({"version": 1, "checks": ["secrets"]}));
     }
 
     #[test]
     fn parse_str_toml_basic() {
-        let v = parse_str("version = 1\nchecks = [\"secrets\"]\n", ConfigFormat::Toml, Path::new("x"))
-            .unwrap();
+        let v = parse_str(
+            "version = 1\nchecks = [\"secrets\"]\n",
+            ConfigFormat::Toml,
+            Path::new("x"),
+        )
+        .unwrap();
         assert_eq!(v, json!({"version": 1, "checks": ["secrets"]}));
     }
 
@@ -162,7 +172,10 @@ mod tests {
             Path::new("x"),
         )
         .unwrap();
-        assert_eq!(v, json!({"version": 1, "thresholds": {"overall_score": 80}}));
+        assert_eq!(
+            v,
+            json!({"version": 1, "thresholds": {"overall_score": 80}})
+        );
     }
 
     #[test]
@@ -173,7 +186,10 @@ mod tests {
             Path::new("x"),
         )
         .unwrap();
-        assert_eq!(v, json!({"version": 1, "thresholds": {"overall_score": 80}}));
+        assert_eq!(
+            v,
+            json!({"version": 1, "thresholds": {"overall_score": 80}})
+        );
     }
 
     #[test]
@@ -187,7 +203,10 @@ mod tests {
         let err = parse_str("not json", ConfigFormat::Json, Path::new("bad.json")).unwrap_err();
         assert!(matches!(err, ParseError::Json { .. }));
         let msg = err.to_string();
-        assert!(msg.contains("bad.json"), "error should reference the path: {msg}");
+        assert!(
+            msg.contains("bad.json"),
+            "error should reference the path: {msg}"
+        );
     }
 
     #[test]

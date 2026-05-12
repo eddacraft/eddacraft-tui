@@ -72,8 +72,7 @@ fn write_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CanonicalError> {
             // Sort keys lexicographically via BTreeMap. We borrow the
             // string keys and the value refs so this allocates only
             // the BTreeMap structure, not the strings themselves.
-            let sorted: BTreeMap<&str, &Value> =
-                map.iter().map(|(k, v)| (k.as_str(), v)).collect();
+            let sorted: BTreeMap<&str, &Value> = map.iter().map(|(k, v)| (k.as_str(), v)).collect();
             out.push(b'{');
             for (i, (k, v)) in sorted.iter().enumerate() {
                 if i > 0 {
