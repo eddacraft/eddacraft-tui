@@ -79,7 +79,7 @@ function validateMyRule(doc: APSDocument): ValidationIssue[] {
   return issues;
 }
 
-// Add to validateDocument():
+// Add to validatePlanningDoc() in validator/index.ts:
 issues.push(...validateMyRule(doc));
 ```
 
@@ -114,15 +114,25 @@ await unlockTask(state, 'TASK-001');
 ## Parser Usage
 
 ```typescript
-import { parseAPSDocument } from '@eddacraft/anvil-aps/parser';
+import { parseDocument, parseIndex } from '@eddacraft/anvil-aps/parser';
 
-const doc = await parseAPSDocument(content, { path: 'plans/index.aps.md' });
+// Leaf spec — modules with tasks
+const doc = await parseDocument(leafContent, 'plans/modules/my-feature.aps.md');
+doc.title; //  string
+doc.metadata; // ModuleMetadata (id, owner, status, …)
+doc.tasks; //   Task[]
 
-// Access parsed structure
-doc.metadata; // Title, version, status
-doc.modules; // Array of Module objects
-doc.tasks; // Array of Task objects
-doc.dependencies; // Module dependency graph
+// Index file — the root plan listing modules
+const index = await parseIndex(indexContent, 'plans/index.aps.md');
+index.title; //   string
+index.modules; // ModuleMetadata[] referenced from the index
+```
+
+Validation lives in the validator subpath:
+
+```typescript
+import { validatePlanningDoc } from '@eddacraft/anvil-aps/validator';
+const result = await validatePlanningDoc('plans/modules/my-feature.aps.md');
 ```
 
 ## Document Shapes and Field Aliases
@@ -138,16 +148,23 @@ There are two parser entry-points; templates differ accordingly:
 
 Parser tolerances worth knowing when authoring or migrating docs:
 
-| Surface              | Canonical form    | Legacy alias accepted                                                      | Effect                           |
-| -------------------- | ----------------- | -------------------------------------------------------------------------- | -------------------------------- |
-| Task field name      | `Validation:`     | `Test:`                                                                    | Parsed as `validation`           |
-| Task field name      | `Non-scope:`      | `NonScope:`                                                                | Parsed as `nonScope`             |
-| Module `Status:`     | `Proposed`        | `Draft`                                                                    | Normalised → Proposed            |
-| Module `Status:`     | `Done`            | `Complete`                                                                 | Normalised → Done                |
-| Task `Status:` prose | `open` / `locked` | `in progress`, `done`, `draft`, `ready`, `blocked`, `complete`, `canceled` | Normalised — see `parseStatus()` |
+| Surface              | Canonical tokens                                          | Legacy aliases accepted                                                                                                     | Effect                                              |
+| -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Task field name      | `Validation:`                                             | `Test:`                                                                                                                     | Parsed as `validation`                              |
+| Task field name      | `Non-scope:`                                              | `NonScope:`                                                                                                                 | Parsed as `nonScope`                                |
+| Module `Status:`     | `Proposed` / `Ready` / `In Progress` / `Done` / `Blocked` | `Draft` → `Proposed`; `Complete` → `Done`                                                                                   | Normalised; any other value leaves status unset     |
+| Task `Status:` prose | `open` / `locked` / `completed` / `cancelled`             | `in progress` & `blocked` → `locked`; `complete`, `done` → `completed`; `draft`, `ready` → `open`; `canceled` → `cancelled` | Normalised — see `parseStatus()` in `parse-task.ts` |
 
-Anything outside these aliases is ignored (status left unset) — the parser does
-not error on unknown status prose.
+Module status and task status use different vocabularies because they describe
+different things: module status is _planning state_ (in `ModuleStatusSchema`),
+task status is _execution state_ (in `TaskStatusSchema`, normally managed
+externally in `.anvil/state.json`).
+
+Task `Status:` is **fail-soft**: unknown prose defaults to `open` rather than
+leaving the field unset, and the parser never errors on unrecognised status
+text. Module `Status:` is **fail-silent**: unrecognised values are ignored
+(status left unset). New text should use the canonical tokens listed above; the
+aliases exist for migrations only.
 
 ## Template Generation
 

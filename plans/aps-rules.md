@@ -20,18 +20,24 @@
 
 ## Lifecycle Statuses
 
-APS distinguishes two related but separate vocabularies:
+APS uses three related but separate vocabularies, and the schema treats them
+differently:
 
-1. **Schema status field** — the value assigned to a module's `Status` (or a
-   task `Status:` line) in an `.aps.md` file. This is parsed and validated by
-   `@eddacraft/anvil-aps`.
-2. **Lifecycle narrative** — prose labels used in index commentary, release
+1. **Module schema status** — the value parsed from a module's header
+   `Status` (or a task body's `Status:` line in a module spec). This is the
+   *planning* state the validator/`ModuleStatusSchema` cares about.
+2. **Task execution status** — a separate, narrower vocabulary used by the
+   external state file (`.anvil/state.json` per `TaskStatusSchema`) for
+   in-flight execution locking. Authors do not write this in `.aps.md`
+   files; it is managed by the state APIs.
+3. **Lifecycle narrative** — prose labels used in index commentary, release
    tables, and operator-facing summaries. These are not parsed; they describe
    where work sits in the broader plan/build/release pipeline.
 
-### Schema Status Values
+### Module Schema Status Values
 
-The parser and validator accept exactly these five values:
+The parser and validator accept exactly these five values for the module
+status field (`ModuleStatusSchema` in `packages/aps/src/types/index.ts`):
 
 | Status | Meaning | Tasks Executable? |
 |--------|---------|-------------------|
@@ -46,8 +52,24 @@ The parser normalises two legacy values written in older specs:
 - `Draft` → `Proposed`
 - `Complete` → `Done`
 
-New APS text should write the canonical form directly. Any other value is
-ignored by the parser (status is left unset).
+New APS text should write the canonical form directly. Any other module
+status value is ignored by the parser (status is left unset).
+
+### Task Execution Status (state, not text)
+
+Tasks may carry a `Status:` line in their body. The parser maps the prose
+value to one of four execution-state tokens defined by `TaskStatusSchema`:
+`open`, `locked`, `completed`, `cancelled`. These describe *execution
+state*, not planning state, and are normally managed by `state.json` rather
+than written by hand.
+
+The parser is deliberately lenient about prose: it normalises common module
+status words (`In Progress`, `Done`, `Draft`, `Ready`, `Blocked`,
+`Complete`) onto the four execution tokens, and **defaults to `open`** for
+any value it doesn't recognise rather than leaving the field unset. See
+`parseStatus()` in `packages/aps/src/parser/parse-task.ts` for the exact
+alias table; document the canonical execution tokens (`open` / `locked` /
+`completed` / `cancelled`) in new text.
 
 ### Lifecycle Narrative Labels
 
@@ -72,8 +94,9 @@ APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Ship
 
 ### Status Rules
 
-1. Do not execute `Draft` or `Proposed` work unless the operator explicitly
-   approves the item as urgent authorised work; record that authorisation inline.
+1. Do not execute `Proposed` work (or legacy `Draft`, normalised to
+   `Proposed`) unless the operator explicitly approves the item as urgent
+   authorised work; record that authorisation inline.
 2. Mark work `In Progress` before making substantive changes for that item.
 3. In schema fields, advance the module/task to `Done` when substantive work is
    finished. In index narrative, additionally distinguish `Merged` vs

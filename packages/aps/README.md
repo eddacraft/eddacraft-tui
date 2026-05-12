@@ -22,11 +22,17 @@ pnpm add @eddacraft/anvil-aps
 ## Usage
 
 ```typescript
-import { parseAPSDocument } from '@eddacraft/anvil-aps/parser';
-import { validateDocument } from '@eddacraft/anvil-aps/validator';
+import { parseDocument, parseIndex } from '@eddacraft/anvil-aps/parser';
+import { validatePlanningDoc } from '@eddacraft/anvil-aps/validator';
 
-const doc = await parseAPSDocument(content, { path: 'plans/index.aps.md' });
-const result = validateDocument(doc);
+// Leaf spec (module/task file)
+const doc = await parseDocument(leafContent, 'plans/modules/my-feature.aps.md');
+
+// Index file (the root plan)
+const index = await parseIndex(indexContent, 'plans/index.aps.md');
+
+// Validate any plan file by path
+const result = await validatePlanningDoc('plans/modules/my-feature.aps.md');
 ```
 
 See [`AGENTS.md`](./AGENTS.md) for the subpath-export map (parser, loader,
