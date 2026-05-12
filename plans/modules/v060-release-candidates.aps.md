@@ -30,9 +30,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 3/25     |
+| V060F | —     | In Progress | 4/25     |
 
-**Last reviewed:** 2026-05-12 (V060F-020 completed — `TerminalGuard` + idempotent panic hook landed in `crates/anvil-cli/src/tui.rs`; previously: V060F-025 OPA runtime pin 2026-05-08, V060F-002..V060F-024 filed 2026-05-07)
+**Last reviewed:** 2026-05-12 (V060F-021 completed — tutorial legacy paths refreshed to reflect Rego policies and current CLI commands; V060F-020 completed — `TerminalGuard` + idempotent panic hook landed in `crates/anvil-cli/src/tui.rs`; previously: V060F-025 OPA runtime pin 2026-05-08, V060F-002..V060F-024 filed 2026-05-07)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [`ROADMAP.md`](../../ROADMAP.md) +
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)
@@ -614,9 +614,13 @@ discovery.
   paths entirely and route users through the deeper `docs/public/anvil/tutorials/` written guides.
   ProtectionLoop is the canonical first-touch; the legacy paths
   carry their weight only if they remain accurate.
-- **Confidence:** medium (content refresh is doable; deletion
-  is simpler but loses the in-TUI deep dives)
-- **Status:** Open
+- **Confidence:** high
+- **Status:** Complete — All four legacy paths (Policy,
+  Architecture, Drift, CI) refreshed in `crates/anvil-tui/src/surfaces/tutorial/paths.rs`.
+  YAML references changed to Rego; file extensions aligned
+  to `.rego`; `anvil architecture show` and `anvil policy test`
+  wired into the walk; Honest Vocabulary invariants maintained.
+  Tests updated to match refreshed titles and commands.
 
 ---
 
@@ -739,9 +743,9 @@ discovery.
 | Nominations                          | 1     | Complete (V060F-001)                                   |
 | As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
 | As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
-| As-built sweep follow-ups (batch 3)  | 5     | 1 Complete (V060F-020, 2026-05-12) / 4 Open (V060F-021..V060F-024) |
+| As-built sweep follow-ups (batch 3)  | 5     | 2 Complete (V060F-020, V060F-021) / 3 Open (V060F-022..V060F-024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 3 Complete / 22 Open                                  |
+| **Total**                            | **25** | 4 Complete / 21 Open                                  |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
@@ -763,7 +767,7 @@ Batch 2 (TUI / driver framework / API / observability as-builts) split:
 Batch 3 (tutorial / widgets / CLI TUI runner / adapter packages as-builts) split:
 
 - **Architectural / runtime correctness** (1): V060F-020 CLI TUI runner panic-safety gap
-- **Test-pin coverage gaps** (1): V060F-021 tutorial legacy-path content drift + invariant coverage
+- **Test-pin coverage gaps** (1): V060F-021 Complete (refreshed Policy/Architecture/Drift/CI paths)
 - **Public-doc spec drift** (1): V060F-022 APS public schema documents legacy ModuleStatus enum
 - **Small doc / version drift** (1): V060F-023 kindling header comment + BMAD adapter version
 - **Repo hygiene** (1): V060F-024 archive/eddacraft-tui-local/ clarification or retirement

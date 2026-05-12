@@ -20,3 +20,5 @@
 *.png binary
 *.jpg binary
 *.zip binary
+anvil/witness/active.ndjson merge=union -text
+anvil/witness/manifest/chain.ndjson merge=union -text

@@ -139,7 +139,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Policies are the rules that Anvil enforces on your codebase. Each policy is a declarative YAML file that describes what to check and how severely to flag violations.",
+            "Policies are the rules that Anvil enforces on your codebase. Each policy is a Rego file (.rego) that describes what to check and how severely to flag violations using the Open Policy Agent (OPA) engine.",
             "Press enter to continue to the next step.",
         ),
         TutorialStep {
@@ -149,35 +149,35 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom rules.",
+                "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom Rego rules.",
                 "Run: mkdir -p .anvil/policies",
             )
         },
         step_with_watch(
             "Write Your First Policy",
-            "A policy file defines a check ID, severity level, and a pattern to match against. Start with a simple rule that flags TODO comments left in production code.",
-            "Create .anvil/policies/no-todos.yaml with a pattern rule.",
-            Verify::FileExists(".anvil/policies/no-todos.yaml".to_string()),
-            "Create the file .anvil/policies/no-todos.yaml to continue.",
+            "A policy defines a check ID, severity level, and logic to match against. Start with a simple Rego rule that flags TODO comments left in production code. Anvil provides helper libraries to simplify common pattern matching.",
+            "Create .anvil/policies/no-todos.rego with a Rego rule.",
+            Verify::FileExists(".anvil/policies/no-todos.rego".to_string()),
+            "Create the file .anvil/policies/no-todos.rego to continue.",
             ".anvil/policies",
         ),
         step_with_verify(
             "Test the Policy",
-            "Before enforcing a policy, test it locally to confirm it catches the expected patterns. Anvil's dry-run mode evaluates policies without blocking commits.",
-            "Run: anvil doctor to verify your setup is healthy.",
-            "anvil doctor",
+            "Before enforcing a policy, test it locally to confirm it catches the expected patterns. `anvil policy test` runs the OPA test suite against your policies to ensure they behave as expected.",
+            "Run: anvil policy test to verify your Rego logic.",
+            "anvil policy test",
             Verify::ExitCode(0),
-            "Doctor reported issues. Check the output above.",
+            "Policy tests failed. Check your Rego logic.",
         ),
         step(
             "See the Policy Fire",
-            "Add a TODO comment to any source file, then run the gate. You should see the no-todos policy flag a warning with the file path and line number.",
-            "Run: anvil gate to evaluate your custom policies against the codebase.",
+            "Add a TODO comment to any source file, then run the gate. You should see your custom policy flag a warning with the file path and line number.",
+            "Run: anvil gate to evaluate policies against the codebase.",
         ),
         step(
             "Customise Severity",
-            "Policies support four severity levels: critical, high, medium, and low. Critical findings block the gate; lower severities produce warnings. Adjust to match your team workflow.",
-            "Edit the severity field in no-todos.yaml, then re-run anvil gate to see the updated severity.",
+            "Policies support four severity levels: critical, high, medium, and low. Critical findings block the gate; lower severities produce warnings. Adjust your Rego metadata to match your team workflow.",
+            "Edit the severity in no-todos.rego, then re-run anvil gate to see the updated severity.",
         ),
     ]
 }
@@ -186,12 +186,12 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Architecture enforcement validates that your code respects the layer boundaries you define. Anvil prevents imports that violate your declared dependency rules.",
+            "Architecture enforcement validates that your code respects the layer boundaries you define. Anvil prevents imports that violate your declared dependency rules, catching architectural drift early.",
             "Press enter to continue to the next step.",
         ),
         step_with_watch(
-            "Choose a Template",
-            "Anvil ships with architecture templates for common patterns: layered, hexagonal, and modular. Pick a template that matches your project structure.",
+            "Define Your Layers",
+            "Layers define how your code is structured. You can map directories to layers and set rules on which layers can talk to each other in .anvil/architecture.yaml.",
             "Create .anvil/architecture.yaml with your layer definitions.",
             Verify::FileExists(".anvil/architecture.yaml".to_string()),
             "Create .anvil/architecture.yaml to continue.",
@@ -206,19 +206,19 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Validation failed. Check your architecture.yaml.",
         ),
         step_with_command(
-            "Detect Violations",
-            "Run the architecture check against your codebase. Anvil walks the import graph and reports any cross-layer violations it finds.",
-            "Run: anvil architecture validate",
-            "anvil architecture validate",
+            "Show Definition",
+            "See how Anvil interprets your architecture. The `show` command prints the resolved layers and rules, including any template defaults that were applied.",
+            "Run: anvil architecture show",
+            "anvil architecture show",
         ),
         step(
             "Validate Boundaries",
-            "Add a deliberate cross-layer import to see the violation in action. The error message shows the source file, the disallowed import, and the boundary rule that was broken.",
-            "Add a cross-layer import and run: anvil architecture validate",
+            "Add a deliberate cross-layer import to see the violation in action. Anvil will surface the disallowed import and the boundary rule that was broken during `anvil check` or `anvil gate`.",
+            "Add a cross-layer import and run: anvil check",
         ),
         step(
             "Summary",
-            "You now have architecture enforcement configured. The architecture check surfaces boundary violations in every commit review via anvil gate.",
+            "You now have architecture enforcement configured. Boundary violations will be surfaced in every commit review via `anvil gate` and during active development via your editor.",
             "Architecture enforcement is ready. Press enter to finish.",
         ),
     ]
@@ -228,12 +228,12 @@ pub fn drift_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Drift detection captures snapshots of your configuration and flags changes between captures. This helps you track unintended configuration changes over time.",
+            "Drift detection captures snapshots of your configuration and architecture, flagging changes between captures. This helps you track unintended structural changes over time.",
             "Press enter to continue to the next step.",
         ),
         step_with_verify(
             "Capture a Baseline",
-            "Take an initial snapshot of your current configuration state. Anvil serialises the config into a versioned snapshot stored in .anvil/snapshots/.",
+            "Take an initial snapshot of your current state. Anvil serialises the config and architecture into a versioned snapshot stored in .anvil/snapshots/.",
             "Run: anvil drift snapshot --name baseline",
             "anvil drift snapshot --name baseline",
             Verify::ExitCode(0),
@@ -241,13 +241,13 @@ pub fn drift_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Capture Current State",
-            "After making configuration changes, capture a second snapshot. Anvil stores each snapshot by name so you can compare them later.",
+            "After making structural changes, capture a second snapshot. Anvil stores each snapshot by name so you can compare them later.",
             "Run: anvil drift snapshot --name current",
             "anvil drift snapshot --name current",
         ),
         step_with_command(
             "Compare Snapshots",
-            "Now compare the two snapshots. Anvil shows a structured diff highlighting what changed between baseline and current.",
+            "Now compare the two snapshots. Anvil shows a structured diff highlighting exactly what changed in your configuration or layer definitions.",
             "Run: anvil drift compare baseline current",
             "anvil drift compare baseline current",
         ),
@@ -261,7 +261,7 @@ pub fn drift_steps() -> Vec<TutorialStep> {
         },
         step(
             "Summary",
-            "Drift detection gives you visibility into configuration changes. Schedule regular captures in CI to catch unintended changes before they reach production.",
+            "Drift detection gives you visibility into structural changes. You can run `anvil drift report` in CI to catch unintended drift before it is merged.",
             "Drift detection is configured. Press enter to finish.",
         ),
     ]
@@ -276,22 +276,22 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Install Git Hooks",
-            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil auto-detects Husky; pass --husky to force the .husky/ directory. On Git 2.54+, --config installs native config-mode hooks instead (no files written under .husky/ or .git/hooks/) — see docs/guides/git-hook-compatibility.md for the trade-offs.",
+            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil supports both Husky and native git config hooks (`--config`).",
             "Run: anvil hooks install",
         ),
         step(
             "Add CI Workflow",
-            "Create a GitHub Actions workflow that runs anvil gate on every push and pull request. The workflow exits with a non-zero code when checks fail.",
+            "Create a GitHub Actions workflow that runs `anvil gate` on every push and pull request. The workflow exits with a non-zero code when checks fail.",
             "Add .github/workflows/anvil.yml with a step that runs anvil gate.",
         ),
         step(
             "Configure Exit Codes",
-            "Anvil uses structured exit codes: 0 for pass, 1 for errors, 2 for gate failure, 3 for auth required, and 4 for configuration errors. Map these codes to your CI system's pass/fail/error states.",
+            "Anvil uses structured exit codes: 0 for pass, 1 for errors, 2 for gate failure, 3 for auth required, and 4 for configuration errors. Map these to your CI fail-fast settings.",
             "Verify exit code handling in your workflow file.",
         ),
         step_with_verify(
-            "Detect CI Environment",
-            "Anvil auto-detects CI environments and adjusts its output format. In CI mode, it produces machine-readable JSON output suitable for downstream tooling.",
+            "Machine-Readable Output",
+            "Anvil auto-detects CI environments and adjusts its output. Use the `--json` flag to produce machine-readable output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
             "anvil status --json",
             Verify::OutputContains("\"status\":".to_string()),
@@ -352,9 +352,9 @@ mod tests {
             6,
             &[
                 "Introduction",
-                "Choose a Template",
+                "Define Your Layers",
                 "Validate the Architecture",
-                "Detect Violations",
+                "Show Definition",
                 "Validate Boundaries",
                 "Summary",
             ],
@@ -389,7 +389,7 @@ mod tests {
                 "Install Git Hooks",
                 "Add CI Workflow",
                 "Configure Exit Codes",
-                "Detect CI Environment",
+                "Machine-Readable Output",
                 "Summary",
             ],
         );
@@ -432,7 +432,7 @@ mod tests {
             "Write Your First Policy should have watch_path"
         );
         // Test the Policy — has command + verify
-        assert_eq!(steps[3].command.as_deref(), Some("anvil doctor"));
+        assert_eq!(steps[3].command.as_deref(), Some("anvil policy test"));
         assert!(
             steps[3].verify.is_some(),
             "Test the Policy should have verification"
@@ -459,15 +459,15 @@ mod tests {
         );
         assert!(
             steps[1].command.is_none(),
-            "Choose a Template should have no command"
+            "Define Your Layers should have no command"
         );
         assert!(
             steps[1].verify.is_some(),
-            "Choose a Template should have verification"
+            "Define Your Layers should have verification"
         );
         assert!(
             steps[1].watch_path.is_some(),
-            "Choose a Template should have watch_path"
+            "Define Your Layers should have watch_path"
         );
         assert_eq!(
             steps[2].command.as_deref(),
@@ -475,16 +475,16 @@ mod tests {
         );
         assert!(
             steps[2].verify.is_some(),
-            "Compile the Architecture should have verification"
+            "Validate the Architecture should have verification"
         );
         assert!(steps[2].verify_hint.is_some());
         assert_eq!(
             steps[3].command.as_deref(),
-            Some("anvil architecture validate")
+            Some("anvil architecture show")
         );
         assert!(
             steps[3].verify.is_none(),
-            "Detect Violations has no verification"
+            "Show Definition has no verification"
         );
         // Validate Boundaries — informational (mentions running the command in the instruction
         // text but is not a direct executable step)
