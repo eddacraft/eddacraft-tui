@@ -175,7 +175,7 @@ use the minimal validation baseline in
 
 ### DOCGOV-005: Add documentation validation baseline
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Convert closeout from memory-based hygiene into fully automated
   checks.
 - **Expected Outcome:** `pnpm docs:check` validates metadata, tags, links,
