@@ -46,7 +46,14 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 4. **Mark Merged on PR merge.** Not Complete — the cleanup agent advances `Merged → Released/Shipped → Complete` when release evidence confirms ship.
 5. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md`; the gitignore exception `!plans/reviews/post-merge/` keeps these tracked.
 6. **Verify before claiming complete.** Evidence before assertions — use `verification-before-completion`.
-7. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
+7. **Wait for automated PR review before remediation.** After opening a PR,
+   wait up to 10 minutes for Copilot and other automated reviewers to complete
+   or time out, then run `addressing-pr-reviews`. Do not mention or tag bots to
+   request a review unless the user explicitly asks.
+8. **Use the review remediation order.** Fix failing CI first, then automated
+   review comments, then human review comments. Re-run targeted validation after
+   each meaningful fix batch.
+9. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
    abandoned, or paused with no near-term action, ask whether to run
    `wt remove` for the Worktrunk worktree and local branch if it is safe. Never
    delete a branch that is unmerged, unpushed, or still needed without explicit
@@ -68,12 +75,20 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 → `verification-before-completion` gate → `/council` (default `quick`; escalate
 to `mini`/`full` for risk) → `finishing-a-branch`
 
-**After PR open / merge / abandon / pause:**
+**After PR open:**
+→ wait up to 10 minutes for Copilot and automated reviewers to complete or time
+out → run `addressing-pr-reviews`; fix CI first, then automated review comments,
+then human review comments; do not tag bots unless the user explicitly asks
+
+**After PR merge / abandon / pause:**
 → offer `wt remove`; perform cleanup only after confirming the branch is pushed
-or safely merged, and only with user approval for unmerged work
+or safely merged, and only with user approval for unmerged work. Do not offer
+cleanup while review fixes are still expected unless the user says local
+iteration is done.
 
 **PR review feedback returned:**
-→ `addressing-pr-reviews` — fix CI first, then walk each unresolved thread
+→ `addressing-pr-reviews` — fix CI first, then automated review comments, then
+human review comments
 
 **Multiple independent tasks:**
 → `parallel-agents` to dispatch subagents per task

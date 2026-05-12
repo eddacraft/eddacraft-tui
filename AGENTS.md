@@ -162,6 +162,13 @@ APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → clea
 
 - Target `main`. Hotfixes also target `main` (or a release branch if one is
   active).
+- After opening the PR, wait up to 10 minutes for Copilot and other automated
+  reviewers to complete or time out, then run `addressing-pr-reviews`.
+- Do not mention or tag Copilot or other bots to request review unless the user
+  explicitly asks.
+- Review remediation order is: failing CI first, automated review comments
+  second, human review comments third. Re-run targeted validation after each
+  meaningful fix batch.
 - If the PR has post-merge verification steps:
   - Extract them to `plans/reviews/post-merge/<branch-slug>.md`
     (`!plans/reviews/post-merge/` is a gitignore exception, so the file is
@@ -174,6 +181,8 @@ APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → clea
 
 - At the end of a task, offer `wt remove` to remove the worktree and delete the
   local branch when safe.
+- Do not offer cleanup while PR review fixes are still expected unless the user
+  says local iteration is done.
 - Only clean automatically safe state: clean worktree, branch pushed or merged,
   and no uncommitted work.
 - Ask before deleting unmerged, unpushed, or still-needed branches. Never delete
