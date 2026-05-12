@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 269 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 274 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1086,6 +1086,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `dirs` | 6.0.0 | MIT License | https://github.com/soc/dirs-rs |
 | `try-lock` | 0.2.5 | MIT License | https://github.com/seanmonstar/try-lock |
 | `block-buffer` | 0.12.0 | MIT License | https://github.com/RustCrypto/utils |
+| `getrandom` | 0.3.4 | MIT License | https://github.com/rust-random/getrandom |
 | `rand_core` | 0.10.1 | MIT License | https://github.com/rust-random/rand_core |
 | `getrandom` | 0.4.2 | MIT License | https://github.com/rust-random/getrandom |
 | `unicode-truncate` | 2.0.1 | MIT License | https://github.com/Aetf/unicode-truncate |
@@ -1103,6 +1104,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tower-http` | 0.6.10 | MIT License | https://github.com/tower-rs/tower-http |
 | `http-body` | 1.0.1 | MIT License | https://github.com/hyperium/http-body |
 | `http-body-util` | 0.1.3 | MIT License | https://github.com/hyperium/http-body |
+| `chacha20` | 0.10.0 | MIT License | https://github.com/RustCrypto/stream-ciphers |
 | `iana-time-zone` | 0.1.65 | MIT License | https://github.com/strawlab/iana-time-zone |
 | `document-features` | 0.2.12 | MIT License | https://github.com/slint-ui/document-features |
 | `litrs` | 1.0.0 | MIT License | https://github.com/LukasKalbertodt/litrs |
@@ -1144,6 +1146,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.0 | MIT License | https://github.com/krisprice/ipnet |
+| `rand` | 0.10.1 | MIT License | https://github.com/rust-random/rand |
+| `zerocopy-derive` | 0.8.48 | MIT License | https://github.com/google/zerocopy |
+| `zerocopy` | 0.8.48 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.16.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |

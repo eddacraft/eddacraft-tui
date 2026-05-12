@@ -5,7 +5,7 @@
 //! Schema, builtins, determinism, post-processing, coverage/trace, CLI,
 //! and bench harness land in POLENG-002..-008.
 
-use regorus::Engine as RegorusEngine;
+use regorus::{Engine as RegorusEngine, Value as RegorusValue};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -24,11 +24,17 @@ pub struct PolicyInput {}
 
 /// Result of a single evaluation.
 ///
+/// `value` is `None` when the Rego query produced no result — Rego's
+/// `undefined` outcome, which is semantically distinct from a query
+/// that resolved to JSON `null`. Callers MUST treat these cases
+/// separately (e.g. an unknown rule reference vs. a rule that returned
+/// `null` explicitly).
+///
 /// Coverage and trace become first-class fields in POLENG-006; result
 /// post-processing (severity, new-edge annotation) lands in POLENG-005.
 #[derive(Debug, Clone)]
 pub struct EvalResult {
-    pub value: serde_json::Value,
+    pub value: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Error)]
@@ -85,14 +91,17 @@ impl Engine {
             .eval_query(query.to_string(), false)
             .map_err(|e| EngineError::Regorus(e.to_string()))?;
 
-        let value = results
-            .result
-            .first()
-            .and_then(|qr| qr.expressions.first())
-            .map(|expr| serde_json::to_value(&expr.value))
-            .transpose()
-            .map_err(|e| EngineError::Regorus(e.to_string()))?
-            .unwrap_or(serde_json::Value::Null);
+        let value = match results.result.first().and_then(|qr| qr.expressions.first()) {
+            // Preserve the Rego undefined vs. null distinction: Rego
+            // `undefined` (no expression result, or `Value::Undefined`)
+            // collapses to `None`; an explicit JSON `null` stays `Some(Null)`.
+            None => None,
+            Some(expr) if matches!(expr.value, RegorusValue::Undefined) => None,
+            Some(expr) => Some(
+                serde_json::to_value(&expr.value)
+                    .map_err(|e| EngineError::Regorus(e.to_string()))?,
+            ),
+        };
 
         Ok(EvalResult { value })
     }
@@ -128,7 +137,37 @@ greeting := "hello world"
 
         assert_eq!(
             result.value,
-            serde_json::Value::String("hello world".into())
+            Some(serde_json::Value::String("hello world".into()))
         );
+    }
+
+    #[test]
+    fn eval_distinguishes_undefined_from_null() {
+        let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+
+        engine
+            .add_policy(
+                "shapes.rego",
+                r"package shapes
+import rego.v1
+
+explicit_null := null
+",
+            )
+            .expect("add_policy");
+
+        let input = PolicyInput::default();
+
+        // Undefined: querying a rule that does not exist → None.
+        let undefined = engine
+            .eval(&input, "data.shapes.no_such_rule")
+            .expect("eval undefined");
+        assert_eq!(undefined.value, None);
+
+        // Explicit null: a rule that returns null → Some(Null).
+        let null = engine
+            .eval(&input, "data.shapes.explicit_null")
+            .expect("eval null");
+        assert_eq!(null.value, Some(serde_json::Value::Null));
     }
 }
