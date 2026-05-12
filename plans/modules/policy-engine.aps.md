@@ -146,7 +146,7 @@ post-rust engine question. POLENG is the answer.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib`
 - **Files:** `crates/anvil-policy-engine/Cargo.toml`,
   `crates/anvil-policy-engine/src/lib.rs`
-- **Dependencies:** ADR-040 Accepted
+- **Dependencies:** ADR-040 must reach Accepted before this task moves to Ready
 - **Confidence:** high
 
 ### POLENG-002: PolicyInput v1 schema
@@ -157,8 +157,7 @@ post-rust engine question. POLENG is the answer.
 - **Expected Outcome:** `PolicyInput` struct serialises to `regorus`'s input
   format; schema versioned (`v1`); snapshot-tested; spec doc lives at
   `docs/specs/policy-input-v1.md` with deprecation policy
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib
-  input_schema` plus schema-stability snapshot
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib input_schema` plus schema-stability snapshot
 - **Files:** `crates/anvil-policy-engine/src/input.rs`,
   `docs/specs/policy-input-v1.md`
 - **Dependencies:** POLENG-001
@@ -190,8 +189,7 @@ post-rust engine question. POLENG is the answer.
   clippy/CI lint blocks new builtins without a declaration; repeatable-eval
   test runs a representative policy 100× over identical input and asserts
   byte-identical output
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib
-  determinism` plus the workspace lint
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib determinism` plus the workspace lint
 - **Files:** `crates/anvil-policy-engine/src/determinism.rs`,
   `crates/anvil-policy-engine/tests/determinism.rs`
 - **Dependencies:** POLENG-001
@@ -207,8 +205,7 @@ post-rust engine question. POLENG is the answer.
   and an `is_new_edge` annotation drawn from `anvil.is_new_edge`; default
   exit-code policy is `exit 0` on warnings; `--fail-on-warnings` flag at the
   CLI overrides; baselined findings annotated and excluded from new-edge set
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib
-  post_processing`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine --lib post_processing`
 - **Files:** `crates/anvil-policy-engine/src/result.rs`
 - **Dependencies:** POLENG-001, POLENG-003
 - **Confidence:** high
@@ -233,10 +230,7 @@ post-rust engine question. POLENG is the answer.
 
 - **Intent:** Wire the engine into `crates/anvil-cli` so developers and CI
   can evaluate policies from the shell with structured output
-- **Expected Outcome:** `anvil policy eval <policy> [--input <path>]
-  [--explain] [--why <finding-id>] [--fail-on-warnings]` produces JSON
-  result + exit code; output uses the shared AIGUARD diagnostic envelope;
-  `--explain` renders coverage; `--why` renders trace for a specific finding
+- **Expected Outcome:** `anvil policy eval <policy> [--input <path>] [--explain] [--why <finding-id>] [--fail-on-warnings]` produces JSON result + exit code; output uses the shared AIGUARD diagnostic envelope; `--explain` renders coverage; `--why` renders trace for a specific finding
 - **Validation:** `cargo test -p eddacraft-anvil-cli --test policy_eval`
 - **Files:** `crates/anvil-cli/src/commands/policy/eval.rs`
 - **Dependencies:** POLENG-001, POLENG-005, POLENG-006

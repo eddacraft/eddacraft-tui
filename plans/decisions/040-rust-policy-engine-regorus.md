@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Proposed
 
 ## Date
 
@@ -53,13 +53,14 @@ A new crate `crates/anvil-policy-engine` wraps `regorus` behind an
 Anvil-shaped facade:
 
 ```rust
+// Public facade — sketch only; types and bodies live in `crates/anvil-policy-engine`.
 pub struct Engine { /* opaque */ }
 
 impl Engine {
-    pub fn new(config: EngineConfig) -> Result<Self, EngineError>;
-    pub fn eval(&self, input: &PolicyInput) -> EvalResult;
-    pub fn register_builtin<B: Builtin>(&mut self, b: B) -> Result<(), EngineError>;
-    pub fn coverage(&self) -> Coverage;
+    pub fn new(config: EngineConfig) -> Result<Self, EngineError> { todo!() }
+    pub fn eval(&self, input: &PolicyInput) -> EvalResult { todo!() }
+    pub fn register_builtin<B: Builtin>(&mut self, b: B) -> Result<(), EngineError> { todo!() }
+    pub fn coverage(&self) -> Coverage { todo!() }
 }
 ```
 
