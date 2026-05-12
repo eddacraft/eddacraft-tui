@@ -150,9 +150,9 @@ daemon hot path.
   emits a canonical `Category::Policy` diagnostic with no line number
   (path-only rule) and a remediation hint. Deterministic "first
   registered pattern wins" ordering keeps operator-visible output
-  stable across runs. 13 unit tests pass:
+  stable across runs. 14 unit tests pass:
   `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
-  (47 across the crate).
+  (48 across the crate).
 
 ### INTR-005: Regex Content Rule
 

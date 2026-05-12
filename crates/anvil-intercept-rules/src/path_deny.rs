@@ -98,17 +98,15 @@ impl PathDenyListRule {
 
     /// Returns the first matching pattern for `path`, if any. The
     /// "first" is defined as the earliest registered pattern, which
-    /// keeps diagnostic output deterministic across runs.
+    /// keeps diagnostic output deterministic across runs. `globset`
+    /// does not guarantee the ordering of indices in the returned
+    /// `matches` vector, so we take the minimum directly rather than
+    /// sorting the whole vector to pick the smallest index.
     fn first_match(&self, path: &Path) -> Option<&str> {
         if self.patterns.is_empty() {
             return None;
         }
-        let mut matches = self.globset.matches(path);
-        if matches.is_empty() {
-            return None;
-        }
-        matches.sort_unstable();
-        let idx = matches[0];
+        let idx = self.globset.matches(path).into_iter().min()?;
         self.patterns.get(idx).map(String::as_str)
     }
 
