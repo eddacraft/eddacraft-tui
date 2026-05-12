@@ -478,10 +478,7 @@ mod tests {
             "Validate the Architecture should have verification"
         );
         assert!(steps[2].verify_hint.is_some());
-        assert_eq!(
-            steps[3].command.as_deref(),
-            Some("anvil architecture show")
-        );
+        assert_eq!(steps[3].command.as_deref(), Some("anvil architecture show"));
         assert!(
             steps[3].verify.is_none(),
             "Show Definition has no verification"
