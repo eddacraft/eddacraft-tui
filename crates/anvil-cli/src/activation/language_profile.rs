@@ -485,6 +485,42 @@ mod tests {
     }
 
     #[test]
+    fn registry_basis_strings_do_not_leak_internal_module_ids() {
+        // `basis` is rendered to end users by `anvil start` / `anvil status`.
+        // It must describe what ships today in plain language and must not
+        // name internal APS module / anchor IDs (e.g. SURFSQL, MDGOV, PYLAN,
+        // RSTLAN). This guard flags any token shaped like `[A-Z][A-Z0-9]{3,}`
+        // — the conventional APS-ID shape. If a future basis legitimately
+        // needs a 4+ char uppercase acronym (e.g. "JSON", "YAML"), extend
+        // ALLOWED_ACRONYMS rather than weakening the check.
+        const ALLOWED_ACRONYMS: &[&str] = &[];
+
+        fn looks_like_module_id(word: &str) -> bool {
+            word.len() >= 4
+                && word.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                && word
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+        }
+
+        for entry in LANGUAGE_REGISTRY {
+            for word in entry.basis.split(|c: char| !c.is_ascii_alphanumeric()) {
+                if word.is_empty() || ALLOWED_ACRONYMS.contains(&word) {
+                    continue;
+                }
+                assert!(
+                    !looks_like_module_id(word),
+                    "Language `{}` basis `{}` contains uppercase token `{}` that looks like an internal APS module / anchor ID. User-facing copy must not leak internal codes. If `{}` is a legitimate acronym, add it to ALLOWED_ACRONYMS.",
+                    entry.name,
+                    entry.basis,
+                    word,
+                    word,
+                );
+            }
+        }
+    }
+
+    #[test]
     fn classify_extension_handles_case_and_dots() {
         assert_eq!(classify_extension(".ts"), Some("TypeScript"));
         assert_eq!(classify_extension(".TS"), Some("TypeScript"));
