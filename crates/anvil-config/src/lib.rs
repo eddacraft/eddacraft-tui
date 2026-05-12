@@ -43,8 +43,10 @@ mod canonical;
 mod discover;
 mod format;
 mod parse;
+mod validation;
 
 pub use canonical::{CanonicalError, canonical_json_bytes};
 pub use discover::{DISCOVER_PRECEDENCE, DiscoveredConfig, discover};
 pub use format::ConfigFormat;
 pub use parse::{ParseError, parse_file, parse_str};
+pub use validation::{HARD_PINNED_CLASSES, ValidationError, validate_hard_pinned_classes};

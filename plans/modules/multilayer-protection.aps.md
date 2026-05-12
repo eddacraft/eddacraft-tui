@@ -2,14 +2,16 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 2/17 done |
+| MLP | @aneki | In Progress | 3/17 done |
 
-**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
-audit confirmed the shipped implementation matches the v1-narrowed scope;
-MLP-011 shipped a new `crates/anvil-config/` library with extension-based
-dispatch and canonical-JSON serialisation (44 tests green). Module advanced to
-In Progress for the Wave 1 backbone slate per `RELEASE-PLAN.md`. MLP-009
-remains the hard release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
+**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done
+against the v1-narrowed identity scope; MLP-011 shipped a new
+`crates/anvil-config/` library; MLP-013 added the `validation` module
+on top for hard-pinned class rejection. 63 tests green across the
+config crate. This branch is stacked on
+`feat/mlp-011-multi-format-config`; counter reflects MLP-001 (merged)
+plus the two items in this stack. MLP-009 remains the hard release gate
+for `v0.7.0-beta`.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -475,24 +477,55 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-013: Hard-pinned rule classes (`secrets`, `command-safety`)
 
+- **Status:** Done (2026-05-13)
 - **Intent:** Config parser refuses configs that disable hard-pinned
   classes.
-- **Expected Outcome:**
-  - Parser-level enforcement (not runtime check). Same pattern as
-    ADR-015 ambiguous-ownership hard-cap.
-  - Hard-pinned classes documented in code; rule registration carries
-    `hard_pinned: bool` field.
-  - Per-finding `@anvil-ignore` bypass remains available (ADR-004).
-- **Files:** `crates/anvil-config/src/validation.rs` (new),
-  `crates/anvil-checks/` (rule registration metadata).
-- **Validation:**
-  - Config attempting `enforcement.rules.secrets.enabled: false` →
-    parse error
-  - Config tuning rule params (severity, mode) → accepted
-  - Per-finding suppression still works
+- **Expected Outcome (v1 shipped):**
+  - New module `crates/anvil-config/src/validation.rs` exposes
+    `validate_hard_pinned_classes(&Value)` and
+    `HARD_PINNED_CLASSES: &[&str]` (currently `["secrets",
+    "command-safety"]`, pinned by ADR-039; changing the list requires
+    an ADR amendment).
+  - Five disable-attempt shapes are rejected: `{enabled: false}` and
+    `: false` at both the canonical
+    `enforcement.rules.<class>` location and the legacy flat
+    `rules.<class>` location, plus `mode: "disabled" | "off" | "none"`
+    (case-insensitive).
+  - Tuning attempts pass through unchanged: severity, custom params,
+    `mode: "warn" | "block"`, and `enabled: true` are all accepted.
+  - Per-finding `@anvil-ignore` (ADR-004) is a separate channel and
+    is not intercepted by the parser; suppression still works.
+  - Error messages name the violating class, cite ADR-039, and point
+    to `@anvil-ignore` as the supported bypass — operator-actionable
+    in a single line of output.
+  - Layered on top of `parse_str`, not embedded in it: consumers can
+    skip validation when constructing configs programmatically, and
+    new validators ride on the same `serde_json::Value` intermediate
+    without touching the parser.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **`anvil-checks` rule-registration metadata
+     (`hard_pinned: bool` on each registered rule)** — the canonical
+     list lives in `anvil-config::HARD_PINNED_CLASSES` for the v1
+     surface so a single edit pins the list everywhere. Wiring a
+     mirror field into `anvil-checks` rule registration is a small
+     follow-up that fits better with MLP-006 (L4 policy framework),
+     where the registry is touched anyway.
+- **Files (shipped):** `crates/anvil-config/src/validation.rs`,
+  `crates/anvil-config/src/lib.rs` (re-export),
+  `crates/anvil-config/tests/hard_pinned_integration.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil-config` — 63 tests
+  green (53 unit including 14 new in `validation::tests` + 5
+  cross-format equivalence + 5 hard-pinned integration). The
+  integration test `equivalent_disable_attempts_across_formats_fail_identically`
+  pins the cross-format rejection contract; `tuning_only_config_passes_through_all_formats`
+  pins the opposite contract. `cargo clippy -p eddacraft-anvil-config
+  --all-targets -- -D warnings` clean.
 - **Confidence:** high
 - **Priority:** Critical (security)
 - **Dependencies:** MLP-011
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-014: Multi-session-per-worktree + per-task fence isolation
 
@@ -621,10 +654,10 @@ a defensible claim, not a slogan. This module owns:
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
-| Rule distribution | 2 (MLP-012, -013) | 0/2 |
+| Rule distribution | 2 (MLP-012, -013) | 1/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 0/1 |
-| **Total** | **17** | **1/17** |
+| **Total** | **17** | **2/17** |
 
 ## Recommended landing order
 
