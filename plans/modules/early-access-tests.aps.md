@@ -3,11 +3,11 @@
 
 # Early Access Tests
 
-| Scope  | Owner | Priority | Status      |
-| ------ | ----- | -------- | ----------- |
-| EATEST | —     | High     | In Progress |
+| Scope  | Owner | Priority | Status      | Progress |
+| ------ | ----- | -------- | ----------- | -------- |
+| EATEST | —     | High     | In Progress | 6/38     |
 
-**Last reviewed:** 2026-05-13
+**Last reviewed:** 2026-05-13 (EATEST-019..023 merged; progress reconciled)
 
 ## Purpose
 
