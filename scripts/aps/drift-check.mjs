@@ -407,12 +407,22 @@ if (json) {
   //     without log-diving.
   // We DO NOT mutate exit code — these remain advisory.
   if (process.env.GITHUB_ACTIONS === 'true' && findings.length > 0) {
+    // Workflow-command escaping per GitHub Actions docs:
+    // <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#example-passing-a-property-to-a-command>.
+    // The runner URL-decodes `%XX` sequences after parsing, so any
+    // literal `%`, `\r`, or `\n` in the payload must be escaped FIRST.
+    // For property values (after `name=`), commas and colons are also
+    // separator-significant and need the same treatment.
+    //   - data (after `::`): escape `%` `\r` `\n`
+    //   - prop value (in `title=foo`): also escape `,` `:`
+    // `%` must be encoded before the others so we don't double-escape.
+    const escapeCmdData = (s) =>
+      String(s).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    const escapeCmdProp = (s) => escapeCmdData(s).replace(/,/g, '%2C').replace(/:/g, '%3A');
     for (const finding of findings) {
-      // Workflow-command escaping: `::warning::` parses commas in the
-      // message body as parameter separators, so collapse newlines and
-      // strip embedded `::` to avoid breaking the annotation.
-      const safe = finding.message.replace(/[\r\n]+/g, ' ').replace(/::/g, ':');
-      console.log(`::warning title=APS drift / ${finding.code}::${safe}`);
+      const title = escapeCmdProp(`APS drift / ${finding.code}`);
+      const message = escapeCmdData(finding.message);
+      console.log(`::warning title=${title}::${message}`);
     }
     const summaryPath = process.env.GITHUB_STEP_SUMMARY;
     if (summaryPath) {

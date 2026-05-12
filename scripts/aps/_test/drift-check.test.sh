@@ -252,6 +252,34 @@ printf 'This is unplanned-work: see linked thread\n' > "$tmp/pr-body-lowercase.t
 pr_prose_optout_json="$("${CHECK[@]}" --root "$tmp" --pr-title 'docs: thread context' --pr-body-file "$tmp/pr-body-lowercase.txt" --json)"
 assert_json_has_code "$pr_prose_optout_json" 'pr-missing-aps-reference'
 
+# PR #1442 follow-up: when emitting `::warning::` workflow commands
+# the message body must be URL-encoded for `%`, `\r`, `\n` (and the
+# title for `,`, `:`) — the GitHub Actions runner URL-decodes the
+# parameter after parsing, so literal `%` characters or stray
+# `%XX` sequences in finding messages would corrupt the annotation.
+# Synthesise a finding by putting `%` in the changed-file path (which
+# lands verbatim in the `changed-file-without-aps-reference`
+# message), then assert the emitted annotation URL-encodes it as
+# `%25`. We must enable GITHUB_ACTIONS at the env level so the
+# annotation branch actually runs.
+printf '%s\n' 'src/has-percent-50%-here.ts' > "$tmp/changed-files-pct"
+escape_out="$(GITHUB_ACTIONS=true node "$ROOT/scripts/aps/drift-check.mjs" --root "$tmp" --changed-files "$tmp/changed-files-pct" 2>&1 | grep '^::warning' | grep 'has-percent' || true)"
+case "$escape_out" in
+  *'%25'*) ;;
+  *)
+    echo "expected ::warning annotation to URL-encode literal % as %25" >&2
+    echo "got: $escape_out" >&2
+    exit 1
+    ;;
+esac
+case "$escape_out" in
+  *' 50% '*)
+    echo "::warning annotation must not contain a literal '%' followed by non-hex chars" >&2
+    echo "got: $escape_out" >&2
+    exit 1
+    ;;
+esac
+
 # CICD-011 council follow-up: when plans/modules/ is missing or empty,
 # the PR-aps-reference-unknown check is degraded — drift-check must
 # emit the explicit `pr-aps-check-degraded` advisory rather than
