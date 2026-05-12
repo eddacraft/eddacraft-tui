@@ -59,6 +59,7 @@ Thumbs.db
 !.opencode/skills/
 .opencode/skills/*
 !.opencode/skills/dev-workflow/
+!.opencode/skills/addressing-pr-reviews/
 docs/analysis/claude-code-safety-net-review.md
 .anvil/first-run
 .anvil/tutorial-progress.json
@@ -87,6 +88,7 @@ docs/analysis/claude-code-safety-net-review.md
 .claude/skills/*
 !.claude/skills/release/
 !.claude/skills/dev-workflow/
+!.claude/skills/addressing-pr-reviews/
 !.claude/skills/dependabot
 !.claude/skills/planning-council/
 .claude/VERSION

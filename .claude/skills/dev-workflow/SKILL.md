@@ -17,7 +17,7 @@ This is a project-local snapshot, but most referenced skills and agents are **gl
 
 | Surface | Repo-local (`.claude/`) | Global (`code-env`) |
 |---|---|---|
-| Skills | `dev-workflow`, `planning-council`, `release`, `dependabot` (symlink) | `brainstorming`, `writing-plans`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `addressing-pr-reviews`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
+| Skills | `dev-workflow`, `addressing-pr-reviews`, `planning-council`, `release`, `dependabot` (symlink) | `brainstorming`, `writing-plans`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
 | Agents | `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead`, `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach` | `debugger`, `autonomous`, others |
 | Commands | `/council` (repo-local — see [`commands/council.md`](../../commands/council.md)), `/plan`, `/release`, others | `/test`, `/debug`, `/delegate`, `/commit` |
 
