@@ -52,11 +52,11 @@ Implementation notes:
 The active assertion lives at
 [`crates/anvil-cli/tests/air_gapped.rs`](../../crates/anvil-cli/tests/air_gapped.rs):
 
-| Test                                          | Asserts                                                                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `version_offline_succeeds_with_no_network`    | `anvil version --offline` exits 0 with no network                                               |
-| `status_verify_json_succeeds_with_no_network` | `anvil status --verify --json` finishes cleanly (any exit code; never killed by signal)         |
-| `harness_is_executable_and_checked_in`        | The harness script is on disk and executable — guards against accidental `chmod -x` regressions |
+| Test                                                     | Asserts                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `anvil_version_offline_succeeds_with_no_network`         | `anvil version --offline` exits 0 with no network                                               |
+| `anvil_status_verify_json_exits_cleanly_with_no_network` | `anvil status --verify --json` finishes cleanly (any exit code; never killed by signal)         |
+| `harness_is_executable_and_checked_in`                   | The harness script is on disk and executable — guards against accidental `chmod -x` regressions |
 
 Run the suite manually with:
 

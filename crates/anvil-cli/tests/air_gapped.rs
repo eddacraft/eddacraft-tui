@@ -9,12 +9,13 @@
 //!
 //! The scaffold lives here and grows as each command lands:
 //!
-//! - **v1 (this PR):** `anvil --version`, `anvil --version --offline`,
-//!   and the read-only verify path on `anvil status --verify --json`
-//!   exit 0 under the network-blocked harness. These are the
-//!   currently-shipping commands in the MLP/INTL slate. They give
-//!   the harness real exercise and make the rule visible to anyone
-//!   adding new commands.
+//! - **v1 (this PR):** the `anvil version --offline` subcommand
+//!   succeeds under the network-blocked harness, and the read-only
+//!   `anvil status --verify --json` path exits cleanly (any code;
+//!   not killed by signal). These are the currently-shipping
+//!   commands in the MLP/INTL slate that legitimately run without
+//!   network access. They give the harness real exercise and make
+//!   the rule visible to anyone adding new commands.
 //! - **As MLP-002 → -008 land:** each new command (`anvil hook
 //!   pre-commit`, `anvil baseline`, etc.) adds a `#[test]` here.
 //!   Reviewers should reject hook PRs that don't extend this test.
@@ -81,13 +82,13 @@ fn run_air_gapped(args: &[&str]) -> Option<std::process::Output> {
 }
 
 #[test]
-fn version_offline_succeeds_with_no_network() {
+fn anvil_version_offline_succeeds_with_no_network() {
     let Some(out) = run_air_gapped(&["--no-tui", "version", "--offline"]) else {
         return;
     };
     assert!(
         out.status.success(),
-        "anvil --version --offline failed under air-gap: stderr={}",
+        "anvil version --offline failed under air-gap: stderr={}",
         String::from_utf8_lossy(&out.stderr),
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
@@ -95,7 +96,7 @@ fn version_offline_succeeds_with_no_network() {
 }
 
 #[test]
-fn status_verify_json_succeeds_with_no_network() {
+fn anvil_status_verify_json_exits_cleanly_with_no_network() {
     // `anvil status --verify --json` is the read-only activation
     // probe (LAUNCH-012). It must not depend on the network in
     // normal operation — the diagnostic comes from local state.
@@ -107,7 +108,7 @@ fn status_verify_json_succeeds_with_no_network() {
     // running outside a workspace). What we DO enforce is that the
     // process exits cleanly under the air-gap rather than hanging on
     // a network resolver. Cleanly = any exit status; not segfault,
-    // not killed-by-signal.
+    // not killed-by-signal. Test name reflects that contract.
     assert!(
         out.status.code().is_some(),
         "anvil status --verify --json was killed by signal under air-gap: {:?}",
