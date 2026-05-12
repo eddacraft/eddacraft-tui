@@ -74,12 +74,10 @@ waitlist.post('/', async (c) => {
       emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');
     }
 
-    const adminNotification = sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
-    try {
-      c.executionCtx.waitUntil(adminNotification);
-    } catch {
-      void adminNotification;
-    }
+    // Await rather than fire-and-forget: on Vercel Node serverless,
+    // c.executionCtx is unavailable and the catch fallback lets the
+    // lambda freeze before the Resend HTTP call flushes.
+    await sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
 
     return c.json({
       success: true,
