@@ -8,9 +8,11 @@
 | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-13 (Wave 0 _Promote Contracts_ closed; MLP and INTL
-promoted to Ready, ADR-036..039 Accepted, runbook ownership refreshed. Next
-candidate remains the daemon-working `v0.7.0-beta` slate.)
+**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_ started;
+MLP-001 reconciled Done against shipped `activation/identity.rs` (22 tests
+green; v1 scope narrowed per module footnotes); MLP module advanced to In
+Progress with 1/17 done. Next candidate remains the daemon-working `v0.7.0-beta`
+slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -53,12 +55,12 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 
 **Primary APS modules:**
 
-| Pick | Module                                                | Status    | Progress | Role                                                                                                                                                                                                                                                      |
-| ---- | ----------------------------------------------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | Ready     | 0/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit.                                                                                                                                                      |
-| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready     | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                 |
-| N3   | Carry-forward gates                                   | Confirmed | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`. |
-| N4   | Documentation lanes                                   | —         | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.              |
+| Pick | Module                                                | Status      | Progress | Role                                                                                                                                                                                                                                                      |
+| ---- | ----------------------------------------------------- | ----------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | In Progress | 1/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. MLP-001 Done 2026-05-13 (v1-narrowed scope; see module footnotes).                                                                                   |
+| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                 |
+| N3   | Carry-forward gates                                   | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`. |
+| N4   | Documentation lanes                                   | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.              |
 
 **Hard release gate:** `MLP-009`. The protection-claim contract suite, air-gap
 guarantee, and noise-discipline tests must be green before the release can claim
@@ -95,13 +97,13 @@ witness-chain primitive is the single load-bearing point of failure).
 These items should stay small and reviewable. `MLP-002` is the single point of
 failure for most downstream work.
 
-| Work                                    | Parallel? | Notes                                                                    |
-| --------------------------------------- | --------- | ------------------------------------------------------------------------ |
-| `MLP-001` project identity              | First     | Establishes `anvil/project-id`; unblocks witness, baseline, and policy.  |
-| `MLP-002` witness chain                 | After 001 | Spike as a standalone PR with flock, rollover, DAG, and 80-writer tests. |
-| `MLP-011` multi-format config           | Parallel  | Can proceed once config ownership is confirmed.                          |
-| `MLP-013` hard-pinned rule classes      | Parallel  | Pairs with baseline semantics; do not allow config to disable secrets.   |
-| `MLP-017` air-gapped guarantee scaffold | Parallel  | Build the test harness early; it is part of the release gate.            |
+| Work                                    | Parallel? | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------- | --------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MLP-001` project identity              | First     | Done (2026-05-13) | Establishes `anvil/project-id`; unblocks witness, baseline, and policy. Shipped via `activation/identity.rs` (22 tests green). v1 scope: idempotent UUID v7 write at `anvil start`; concurrent-rename convergence; symlink refusal. Deferred to follow-ups (see MLP-001 footnotes): composite-identity attach-check (with MLP-014), `--new-identity` flag (with MLP-007), `anvil baseline` integration (MLP-007). |
+| `MLP-002` witness chain                 | After 001 | Pending           | Spike as a standalone PR with flock, rollover, DAG, and 80-writer tests.                                                                                                                                                                                                                                                                                                                                          |
+| `MLP-011` multi-format config           | Parallel  | Pending           | Can proceed once config ownership is confirmed.                                                                                                                                                                                                                                                                                                                                                                   |
+| `MLP-013` hard-pinned rule classes      | Parallel  | Pending           | Pairs with baseline semantics; do not allow config to disable secrets.                                                                                                                                                                                                                                                                                                                                            |
+| `MLP-017` air-gapped guarantee scaffold | Parallel  | Pending           | Build the test harness early; it is part of the release gate.                                                                                                                                                                                                                                                                                                                                                     |
 
 ### Wave 2: Hook, Policy, And Baseline Surfaces
 

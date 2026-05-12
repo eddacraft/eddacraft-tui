@@ -1,12 +1,14 @@
 # Multi-Layer Protection
 
-| ID  | Owner  | Status | Progress      |
-| --- | ------ | ------ | ------------- |
-| MLP | @aneki | Ready  | 0/17 complete |
+| ID  | Owner  | Status      | Progress     |
+| --- | ------ | ----------- | ------------ |
+| MLP | @aneki | In Progress | 1/17 done    |
 
-**Last reviewed:** 2026-05-13 (Wave 0 readiness review — MLP-009 confirmed as
-hard release gate for `v0.7.0-beta`; ADRs 036–039 now Accepted; ready for Wave 1
-implementation)
+**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
+audit confirmed the shipped implementation matches the v1-narrowed scope;
+module advanced to In Progress for the Wave 1 backbone slate per
+`RELEASE-PLAN.md`. MLP-009 remains the hard release gate for `v0.7.0-beta`;
+ADRs 036–039 Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -136,21 +138,44 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-001: Project identity (`anvil/project-id`)
 
+- **Status:** Done (2026-05-13)
 - **Intent:** Establish stable cross-machine project identity at
   adoption time.
-- **Expected Outcome:** `anvil start` writes `anvil/project-id` (UUID
-  + optional `forked_from`); `anvil baseline` does the same. Composite
-  identity (`project_uuid`, `first_commit`, `origin_canonical`) checked
-  at daemon attach time. Forks inherit by default; `--new-identity`
-  flag opts out.
-- **Files:** `crates/anvil-cli/src/activation/identity.rs` (new),
-  edits in `commands/start.rs`, `commands/init.rs`,
-  `commands/baseline.rs` (new — see MLP-007).
-- **Validation:** Idempotent on re-run; cross-check warns on origin
-  mismatch; tests cover greenfield, baseline, fork-inherit, fork-opt-out.
+- **Expected Outcome (v1 shipped):** `anvil start` writes
+  `anvil/project-id` (UUID v7 + optional `forked_from`) via the
+  activation orchestrator. Idempotent on re-run; concurrent callers
+  converge on the on-disk identity via a post-rename re-read.
+  Symlinked `anvil/` dirs are refused at write time (TOCTOU-hardened).
+  Parse rejects non-UUID `project_uuid` / `forked_from` values.
+  `anvil doctor` reads the identity for the identity-present check.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **Composite identity check at daemon attach** — cross-checking
+     `(project_uuid, first_commit, origin_canonical)` is owned by the
+     daemon attach path (anvil-intercept) and is filed as a follow-up
+     to land alongside MLP-014 multi-session work, where attach-time
+     composite verification fits naturally.
+  2. **`--new-identity` fork opt-out CLI flag on `anvil start`** —
+     deferred; forks today inherit the parent's UUID via the
+     idempotent ensure path. The opt-out flag will land with MLP-007
+     (`anvil baseline`), which already plans the
+     fork-aware adoption surface.
+  3. **`anvil baseline` writes identity** — owned by MLP-007 baseline
+     command (`commands/baseline.rs` does not exist yet); MLP-007 will
+     call `identity::ensure_project_id` alongside its other bootstrap
+     work.
+- **Files (shipped):** `crates/anvil-cli/src/activation/identity.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`.
+- **Validation:** `cargo test --bin anvil identity` — 22/22 tests
+  green (greenfield, idempotency, symlink refusal, non-UUID rejection,
+  concurrent-rename convergence, comments / blank lines, forward-compat
+  unknown keys, colons-in-values).
 - **Confidence:** high
 - **Priority:** Critical (load-bearing)
 - **Dependencies:** none
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-002: Witness chain (active + archive + manifest + hash chain)
 
@@ -558,14 +583,14 @@ a defensible claim, not a slogan. This module owns:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 0/5 |
+| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 1/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 0/2 |
 | Rule distribution | 2 (MLP-012, -013) | 0/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 0/1 |
-| **Total** | **17** | **0/17** |
+| **Total** | **17** | **1/17** |
 
 ## Recommended landing order
 
