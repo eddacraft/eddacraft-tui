@@ -75,6 +75,57 @@ check_promote_fake_guard() {
   fi
 }
 
+# Reads the tracking issue for a previously persisted readiness-run marker
+# matching the given source SHA. Echoes one JSON line {runId, runUrl,
+# sourceSha} on stdout, or nothing if no marker is found / no tracking
+# issue / no gh. Picks the latest matching marker if several exist.
+find_persisted_readiness_run() {
+  local issue="$1"
+  local sha="$2"
+  [[ -n "$issue" ]] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  local comments_json
+  comments_json="$(gh issue view "$issue" --repo "$repo" --json comments --jq '[.comments[].body]' 2>/dev/null || true)"
+  [[ -n "$comments_json" ]] || return 0
+  node - "$comments_json" "$sha" <<'NODE'
+const [raw, sourceSha] = process.argv.slice(2);
+let bodies = [];
+try { bodies = JSON.parse(raw); } catch (_) { return; }
+const matches = [];
+for (const body of bodies) {
+  if (typeof body !== 'string') continue;
+  if (!body.startsWith('<!-- anvil-release-readiness-run -->')) continue;
+  const newline = body.indexOf('\n');
+  if (newline < 0) continue;
+  try {
+    const meta = JSON.parse(body.slice(newline + 1));
+    if (meta && meta.sourceSha === sourceSha && Number.isInteger(meta.runId)) matches.push(meta);
+  } catch (_) { /* ignore malformed markers */ }
+}
+if (!matches.length) return;
+process.stdout.write(JSON.stringify(matches[matches.length - 1]));
+NODE
+}
+
+# Posts a marker comment to the tracking issue recording a newly-dispatched
+# readiness run id. Best-effort: missing tracking issue, missing gh, or a
+# failed comment is silently ignored so the parent command continues.
+persist_readiness_run_id() {
+  local issue="$1"
+  local sha="$2"
+  local run_id="$3"
+  local run_url="$4"
+  [[ -n "$issue" && -n "$run_id" ]] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  local body
+  body="$(node - "$sha" "$run_id" "$run_url" <<'NODE'
+const [sourceSha, runId, runUrl] = process.argv.slice(2);
+process.stdout.write(`<!-- anvil-release-readiness-run -->\n${JSON.stringify({ sourceSha, runId: Number(runId), runUrl: runUrl || null, dispatchedAt: new Date().toISOString() }, null, 2)}`);
+NODE
+)"
+  gh issue comment "$issue" --repo "$repo" --body "$body" >/dev/null 2>&1 || true
+}
+
 emit_envelope() {
   local status="$1"
   local data_json="$2"
@@ -224,8 +275,25 @@ NODE
       emit_envelope "failed" "$data_json" "$(failure_json infra-failed "gh is required to request release-readiness" true install-gh)" "promote" "Install/authenticate gh or rerun with --dry-run."
       exit 127
     }
-    run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --json databaseId,headSha,status,conclusion,url --limit 20 2>/dev/null || true)"
-    readiness_json="$(node - "$run_json" "$source_sha" <<'NODE'
+    readiness_json=""
+    persisted_marker="$(find_persisted_readiness_run "$tracking_issue" "$source_sha" 2>/dev/null || true)"
+    if [[ -n "$persisted_marker" ]]; then
+      persisted_run_id="$(node -e "process.stdout.write(String(JSON.parse(process.argv[1]).runId))" "$persisted_marker")"
+      persisted_run_json="$(gh run view "$persisted_run_id" --repo "$repo" --json databaseId,headSha,status,conclusion,url 2>/dev/null || true)"
+      if [[ -n "$persisted_run_json" ]]; then
+        readiness_json="$(node - "$persisted_run_json" "$source_sha" <<'NODE'
+const [runRaw, sourceSha] = process.argv.slice(2);
+const run = JSON.parse(runRaw);
+if (run.conclusion === 'success') process.stdout.write(JSON.stringify({ state: 'passed', runUrl: run.url, headSha: sourceSha }));
+else if (run.conclusion && run.conclusion !== 'success') process.stdout.write(JSON.stringify({ state: 'failed', runUrl: run.url, headSha: sourceSha }));
+else process.stdout.write(JSON.stringify({ state: 'in-progress', runUrl: run.url, headSha: sourceSha }));
+NODE
+)"
+      fi
+    fi
+    if [[ -z "$readiness_json" ]]; then
+      run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --json databaseId,headSha,status,conclusion,url --limit 20 2>/dev/null || true)"
+      readiness_json="$(node - "$run_json" "$source_sha" <<'NODE'
 const [runsRaw, sourceSha] = process.argv.slice(2);
 const runs = runsRaw ? JSON.parse(runsRaw) : [];
 const run = runs.find((candidate) => candidate.headSha === sourceSha);
@@ -235,6 +303,7 @@ else if (run.conclusion && run.conclusion !== 'success') process.stdout.write(JS
 else process.stdout.write(JSON.stringify({ state: 'in-progress', runUrl: run.url, headSha: sourceSha }));
 NODE
 )"
+    fi
     if [[ "$readiness_json" == "null" ]]; then
       gh workflow run release-readiness.yml --repo "$repo" --ref main \
         --field sourceSha="$source_sha" --field mode=readiness --field channel="$channel" \
@@ -243,9 +312,18 @@ NODE
         emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to dispatch release-readiness workflow" true retry-readiness-dispatch)" "promote" "Retry readiness dispatch after checking workflow permissions."
         exit 1
       }
-      readiness_json="$(node - "$source_sha" <<'NODE'
-const sourceSha = process.argv[2];
-process.stdout.write(JSON.stringify({ state: 'requested', runUrl: null, headSha: sourceSha }));
+      sleep "${ANVIL_RELEASE_PROMOTE_DISPATCH_SETTLE_SECONDS:-3}"
+      dispatched_run_json="$(gh run list --repo "$repo" --workflow release-readiness.yml --event workflow_dispatch --limit 1 --json databaseId,url,createdAt --jq '.[0] // empty' 2>/dev/null || true)"
+      dispatched_run_id=""
+      dispatched_run_url=""
+      if [[ -n "$dispatched_run_json" ]]; then
+        dispatched_run_id="$(node -e "process.stdout.write(String(JSON.parse(process.argv[1]).databaseId||''))" "$dispatched_run_json")"
+        dispatched_run_url="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).url||'')" "$dispatched_run_json")"
+        persist_readiness_run_id "$tracking_issue" "$source_sha" "$dispatched_run_id" "$dispatched_run_url"
+      fi
+      readiness_json="$(node - "$source_sha" "$dispatched_run_url" <<'NODE'
+const [sourceSha, runUrl] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({ state: 'requested', runUrl: runUrl || null, headSha: sourceSha }));
 NODE
 )"
     fi
