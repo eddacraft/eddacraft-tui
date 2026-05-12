@@ -39,8 +39,12 @@ fn line_for_thread(seq: u64, prev: &str, thread_id: usize) -> WitnessLine {
 fn run_concurrent(n_writers: usize) {
     let dir = TempDir::new().unwrap();
     let writer = Arc::new(
-        WitnessWriter::open(dir.path(), "active", RolloverPolicy::tight(100_000, 100_000_000))
-            .unwrap(),
+        WitnessWriter::open(
+            dir.path(),
+            "active",
+            RolloverPolicy::tight(100_000, 100_000_000),
+        )
+        .unwrap(),
     );
     let prev = GenesisAnchor::Fresh.anchor_string();
 
@@ -71,7 +75,10 @@ fn run_concurrent(n_writers: usize) {
         let _: WitnessLine = serde_json::from_str(raw).expect("interleaved bytes in chain");
         parsed += 1;
     }
-    assert_eq!(parsed, n_writers, "expected {n_writers} clean lines on disk, got {parsed}");
+    assert_eq!(
+        parsed, n_writers,
+        "expected {n_writers} clean lines on disk, got {parsed}"
+    );
 }
 
 #[test]

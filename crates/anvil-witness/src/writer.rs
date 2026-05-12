@@ -131,22 +131,21 @@ impl WitnessWriter {
             // Decide on rollover. Cheap line count + byte count.
             let size_after = active.metadata()?.len();
             let lines_after = count_lines(&mut active)?;
-            let outcome = if lines_after >= self.policy.max_lines
-                || size_after >= self.policy.max_bytes
-            {
-                let archive_path = self.rollover(&active_path, line.seq)?;
-                AppendOutcome {
-                    active_lines: 0,
-                    active_bytes: 0,
-                    rolled_over_to: Some(archive_path),
-                }
-            } else {
-                AppendOutcome {
-                    active_lines: lines_after,
-                    active_bytes: size_after,
-                    rolled_over_to: None,
-                }
-            };
+            let outcome =
+                if lines_after >= self.policy.max_lines || size_after >= self.policy.max_bytes {
+                    let archive_path = self.rollover(&active_path, line.seq)?;
+                    AppendOutcome {
+                        active_lines: 0,
+                        active_bytes: 0,
+                        rolled_over_to: Some(archive_path),
+                    }
+                } else {
+                    AppendOutcome {
+                        active_lines: lines_after,
+                        active_bytes: size_after,
+                        rolled_over_to: None,
+                    }
+                };
             Ok(outcome)
         })();
 
@@ -353,7 +352,10 @@ mod tests {
                 break;
             }
         }
-        assert!(saw_rollover, "byte-size rollover should fire on the 2nd append");
+        assert!(
+            saw_rollover,
+            "byte-size rollover should fire on the 2nd append"
+        );
     }
 
     #[test]

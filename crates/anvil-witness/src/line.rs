@@ -64,7 +64,9 @@ impl WitnessLine {
         // free; nested objects (if any are added later) need their
         // own sort, but the current schema is flat.
         let value = serde_json::to_value(self)?;
-        let object = value.as_object().expect("WitnessLine serialises to a JSON object");
+        let object = value
+            .as_object()
+            .expect("WitnessLine serialises to a JSON object");
         let sorted: BTreeMap<&str, &serde_json::Value> =
             object.iter().map(|(k, v)| (k.as_str(), v)).collect();
         serde_json::to_vec(&sorted)

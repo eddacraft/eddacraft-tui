@@ -20,7 +20,9 @@ pub enum VerifyError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("chain break at {path}:{line_number}: prev_line_hash mismatch (expected {expected}, got {actual})")]
+    #[error(
+        "chain break at {path}:{line_number}: prev_line_hash mismatch (expected {expected}, got {actual})"
+    )]
     ChainBreak {
         path: PathBuf,
         line_number: usize,
@@ -34,7 +36,9 @@ pub enum VerifyError {
         expected: u64,
         actual: u64,
     },
-    #[error("unexpected genesis anchor at {path}:{line_number}: a non-first line must reference a SHA-256, not {anchor}")]
+    #[error(
+        "unexpected genesis anchor at {path}:{line_number}: a non-first line must reference a SHA-256, not {anchor}"
+    )]
     StrayGenesis {
         path: PathBuf,
         line_number: usize,
@@ -83,13 +87,12 @@ pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
                 continue;
             }
             let line_number = idx + 1;
-            let line: WitnessLine = serde_json::from_str(raw_line).map_err(|source| {
-                VerifyError::Parse {
+            let line: WitnessLine =
+                serde_json::from_str(raw_line).map_err(|source| VerifyError::Parse {
                     path: path.to_path_buf(),
                     line_number,
                     source,
-                }
-            })?;
+                })?;
 
             // Check the `prev_line_hash` against either the genesis
             // anchor (first line only) or the running tip.
@@ -113,7 +116,10 @@ pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
                         anchor: line.prev_line_hash.clone(),
                     });
                 }
-                let expected = tip.as_deref().expect("tip set after first line").to_string();
+                let expected = tip
+                    .as_deref()
+                    .expect("tip set after first line")
+                    .to_string();
                 if line.prev_line_hash != expected {
                     return Err(VerifyError::ChainBreak {
                         path: path.to_path_buf(),
@@ -139,13 +145,13 @@ pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
             // because a downstream tool might re-format the file
             // (e.g. add a trailing space) without altering the
             // semantic record — the verifier should still pass.
-            let canonical = line.to_canonical_bytes().map_err(|source| {
-                VerifyError::Parse {
+            let canonical = line
+                .to_canonical_bytes()
+                .map_err(|source| VerifyError::Parse {
                     path: path.to_path_buf(),
                     line_number,
                     source,
-                }
-            })?;
+                })?;
             tip = Some(compute_line_hash(&canonical));
             total += 1;
         }
@@ -227,7 +233,12 @@ mod tests {
         // Drop the middle line.
         let active = writer.active_path();
         let contents = fs::read_to_string(&active).unwrap();
-        let kept: Vec<&str> = contents.lines().enumerate().filter(|(i, _)| *i != 1).map(|(_, l)| l).collect();
+        let kept: Vec<&str> = contents
+            .lines()
+            .enumerate()
+            .filter(|(i, _)| *i != 1)
+            .map(|(_, l)| l)
+            .collect();
         fs::write(&active, kept.join("\n") + "\n").unwrap();
 
         let err = verify_chain(&[active.as_path()]).unwrap_err();
@@ -235,7 +246,10 @@ mod tests {
         // SequenceGap (seq 1 -> seq 3) is acceptable; both flag the
         // anomaly. The verifier checks the chain first.
         assert!(
-            matches!(err, VerifyError::ChainBreak { .. } | VerifyError::SequenceGap { .. }),
+            matches!(
+                err,
+                VerifyError::ChainBreak { .. } | VerifyError::SequenceGap { .. }
+            ),
             "got {err:?}"
         );
     }
@@ -253,19 +267,18 @@ mod tests {
         fs::write(&path, bytes).unwrap();
 
         let err = verify_chain(&[path.as_path()]).unwrap_err();
-        assert!(matches!(err, VerifyError::UnknownGenesis { .. }), "got {err:?}");
+        assert!(
+            matches!(err, VerifyError::UnknownGenesis { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn verify_walks_archive_then_active() {
         // Simulate rollover: archive has lines 1-3, active has 4-5.
         let dir = TempDir::new().unwrap();
-        let writer = WitnessWriter::open(
-            dir.path(),
-            "active",
-            RolloverPolicy::tight(3, 1_000_000),
-        )
-        .unwrap();
+        let writer =
+            WitnessWriter::open(dir.path(), "active", RolloverPolicy::tight(3, 1_000_000)).unwrap();
         let mut prev = GenesisAnchor::Fresh.anchor_string();
         let mut rolled_to = None;
         for seq in 1..=5 {
