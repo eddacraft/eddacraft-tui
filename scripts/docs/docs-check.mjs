@@ -23,11 +23,12 @@
 // entries for surfaces that did not run are preserved unchanged.
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
-const REPO_ROOT = resolve(new URL('../..', import.meta.url).pathname);
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SURFACES = [
   { name: 'metadata', script: 'scripts/docs/check-metadata.mjs', baselineable: true },
   { name: 'tags', script: 'scripts/docs/check-tags.mjs', baselineable: true },
@@ -56,7 +57,7 @@ if (updateBaseline) {
 async function runAll() {
   const results = [];
   for (const surface of SURFACES) {
-    const result = runSurface(surface, { json: false });
+    const result = runSurface(surface, { json: false, forceNoBaseline: false });
     results.push({ surface: surface.name, ...result });
   }
   printSummary(results);
@@ -64,11 +65,17 @@ async function runAll() {
   process.exit(anyError ? 1 : 0);
 }
 
-function runSurface(surface, { json }) {
+function runSurface(surface, { json, forceNoBaseline }) {
   const scriptPath = resolve(REPO_ROOT, surface.script);
   const argv = [scriptPath];
   if (json) argv.push('--json');
-  if (noBaseline) argv.push('--no-baseline');
+  // When regenerating the baseline we must NOT apply the existing one — otherwise
+  // previously-baselined errors are downgraded to WARN and dropped by
+  // collapseFindings(), so the baseline can only shrink. forceNoBaseline lets
+  // regenerateBaseline() bypass the user's --no-baseline flag (which is itself
+  // only meaningful for a normal run).
+  if (json && forceNoBaseline) argv.push('--no-baseline');
+  else if (noBaseline) argv.push('--no-baseline');
 
   const result = spawnSync('node', argv, {
     cwd: REPO_ROOT,
@@ -109,13 +116,17 @@ function printSummary(results) {
 
 async function regenerateBaseline() {
   process.stdout.write('[docs-check] regenerating baseline from current corpus...\n');
-  const current = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : {};
-  const next = { ...current };
+  // Start from an empty baseline for the surfaces we are about to regenerate.
+  // Preserve entries for non-baselineable surfaces if they somehow exist (none
+  // do today). We never read the existing baseline for baselineable surfaces —
+  // that would be self-referential and would let absorbed errors silently drop
+  // out of scope on regeneration.
+  const next = {};
 
   for (const surface of SURFACES) {
     if (!surface.baselineable) continue;
     process.stdout.write(`[docs-check] regenerating ${surface.name}...\n`);
-    const result = runSurface(surface, { json: true });
+    const result = runSurface(surface, { json: true, forceNoBaseline: true });
     if (!result.stdout.trim()) {
       process.stderr.write(`[docs-check] ${surface.name}: no JSON output\n`);
       continue;
@@ -135,7 +146,9 @@ async function regenerateBaseline() {
     );
   }
 
-  if (!existsSync(dirname(baselinePath))) mkdirSync(dirname(baselinePath), { recursive: true });
+  // mkdirSync with recursive:true is idempotent and atomic — no need for the
+  // race-prone existsSync-then-mkdir guard CodeQL flagged.
+  mkdirSync(dirname(baselinePath), { recursive: true });
   writeFileSync(baselinePath, JSON.stringify(next, null, 2) + '\n');
   process.stdout.write(`[docs-check] baseline written to ${baselinePath}\n`);
 }

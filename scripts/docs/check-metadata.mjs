@@ -32,10 +32,12 @@ const root = resolve(values.root ?? process.cwd());
 const baselinePath = resolve(root, values.baseline ?? 'docs/governance/docs-check.baseline.json');
 
 // Globs: every docs/**/*.md governed file. APS/README/ADR have native formats;
-// templates and archives are intentionally excluded.
+// templates and any archive subdirectory under docs/ are intentionally
+// excluded. `!docs/**/archive/**` covers both the top-level docs/archive/ and
+// any nested archive directory (e.g. docs/plans/archive/) for future use.
 const patterns = [
   'docs/**/*.md',
-  '!docs/archive/**',
+  '!docs/**/archive/**',
   '!docs/**/*.template.md',
   '!docs/**/README.md',
 ];

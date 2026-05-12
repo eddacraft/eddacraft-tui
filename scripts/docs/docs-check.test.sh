@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Fixture tests for scripts/docs/docs-check.mjs and its surface scripts.
+# Contract tests for scripts/docs/docs-check.mjs and its surface scripts.
 #
-# Each case builds a minimal sandbox repo under $TMPDIR, runs the orchestrator
-# (or a single surface) against it, and asserts on exit code + output. The
-# fixtures stay tiny on purpose — these tests lock the contract (output format,
-# baseline behaviour, labelled summary), not the rules of every validator.
+# These tests run against the *live* repository on purpose — the orchestrator's
+# job is to drive the real surface scripts against the real corpus and apply
+# the real baseline, so testing it in a sandboxed clone would mostly retest the
+# sandbox infrastructure. What we lock here is the contract: labelled-output
+# format, summary line shape, baseline absorption, --no-baseline behaviour,
+# --json round-trip, and orchestrator exit codes. A regression in validator
+# rules is caught by the per-surface unit tests (e.g. @eddacraft/anvil-docs-meta
+# vitest cases) and by the baselined snapshot of the live corpus.
+#
+# tmp_root is used for per-case temp files (e.g. captured JSON output) and is
+# unconditionally cleaned up on exit.
 
 set -euo pipefail
 
@@ -21,14 +28,6 @@ trap 'rm -rf "${tmp_root}"' EXIT
 failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
-
-# Run a script via the live monorepo so its imports resolve against the real
-# node_modules. The sandbox provides --root for input paths only.
-run_surface() {
-  local script="$1"
-  shift
-  node "${script}" "$@"
-}
 
 # Case 1: orchestrator surfaces the seven expected labels in summary order.
 echo "case 1: orchestrator emits all seven surface labels"

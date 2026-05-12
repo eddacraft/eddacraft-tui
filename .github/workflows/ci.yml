@@ -94,6 +94,9 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
+      - name: Build docs-meta package for docs:check
+        run: pnpm -F @eddacraft/anvil-docs-meta build
+
       - name: Run docs:check (DOCGOV-005)
         run: pnpm run docs:check
 

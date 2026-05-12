@@ -96,6 +96,9 @@
     "docs/guides/adr-process.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
+    "docs/guides/agent-surface-inventory.md": [
+      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
+    ],
     "docs/guides/anchor-rescoring-process.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
     ],
@@ -245,27 +248,6 @@
     ],
     "docs/plans/2026-03-17-lineage-authorship-confidence-v1.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/plans/archive/2026-01-23-aps-completion.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/plans/archive/2026-01-23-git-ai-standard-adoption.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/plans/archive/2026-02-03-tutorial-overhaul.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/plans/archive/2026-02-24-tutorial-flow-polish-plan.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/plans/archive/2026-02-24-tutorial-flow-polish.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/plans/archive/2026-03-01-aps-always-on-skill-plan.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/plans/archive/2026-03-01-aps-always-on-skill.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
     ],
     "docs/public/anvil/beta-testing-guide.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
@@ -1120,7 +1102,8 @@
     "plans/decisions/033-park-ide-mcp-retire-ts-scanner.md": [
       "broken link \"../modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",
       "broken link \"../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist",
-      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
+      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist",
+      "broken link \"../next-steps.md\" — target file does not exist"
     ],
     "plans/index.aps.md": [
       "broken anchor \"#auth--access\" — heading \"#auth--access\" not found in current file",
@@ -1145,11 +1128,6 @@
     ],
     "plans/modules/usage-analytics.aps.md": [
       "broken anchor \"./feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
-    ],
-    "plans/next-steps.md": [
-      "broken anchor \"../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate\" — file exists but heading \"#next-release-window-proposed--post-v060-beta-daemon-working-slate\" not found",
-      "broken link \"./modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",
-      "broken link \"./modules/skobs.aps.md\" — target file does not exist"
     ],
     "plans/releases/v0.3.0-beta.md": [
       "broken link \"../docs/guides/release-runbook.md\" — target file does not exist"

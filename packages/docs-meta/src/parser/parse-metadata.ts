@@ -11,7 +11,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
-import { visit } from 'unist-util-visit';
+import { visit, EXIT, CONTINUE } from 'unist-util-visit';
 import type { Root, Heading, Table, TableRow, TableCell, PhrasingContent } from 'mdast';
 import {
   DocGovernanceSchema,
@@ -89,9 +89,9 @@ function findFirstH1(ast: Root): Heading | null {
   visit(ast, 'heading', (node) => {
     if (!found && (node as Heading).depth === 1) {
       found = node as Heading;
-      return false;
+      return EXIT;
     }
-    return true;
+    return CONTINUE;
   });
   return found;
 }
