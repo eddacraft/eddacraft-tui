@@ -36,8 +36,8 @@ propagation). Concretely:
 Env vars are **advisory hints, not authenticated identity**. Any same-UID
 process can spoof or unset them. The daemon MUST:
 
-1. Cross-check an env-supplied `AgentTag` against the registration it issued
-   for that pid lineage at INTL-003. A tag that doesn't match a known
+1. Cross-check an env-supplied `AgentTag` against the `AgentTag` it issued
+   for this pid lineage at INTL-003. A tag that doesn't match the
    registration is treated as missing, not honoured.
 2. Fall through to the process-tree walk on env miss (MLP-014); a walk that
    finds no registered ancestor downgrades to worktree-level fence per

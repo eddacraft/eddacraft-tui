@@ -25,9 +25,9 @@ use serde::{Deserialize, Serialize};
 
 /// Environment variable carrying the daemon-minted `AgentTag` from a
 /// launcher to its child process. Advisory only — the daemon MUST
-/// cross-check against the registered `(pid_starttime, AgentTag)`
-/// tuple at INTL-003 before honouring the tag. See ADR-037 D-2 for
-/// the witness-chain authentication backstop.
+/// cross-check the env-supplied tag against the `AgentTag` it issued
+/// for this pid lineage at INTL-003 before honouring it. See ADR-037
+/// D-2 for the witness-chain authentication backstop.
 pub const ANVIL_AGENT_TAG_ENV: &str = "ANVIL_AGENT_TAG";
 
 /// Environment variable carrying the per-task identifier that scopes
@@ -102,9 +102,11 @@ mod tests {
         assert_eq!(ANVIL_TASK_ID_ENV, "ANVIL_TASK_ID");
     }
 
-    /// Pinned: distinct tuples must hash distinctly so the daemon's
-    /// session-registry `HashMap` separates them per MLP-014's
-    /// `(WorktreeKey, AgentTag)` key plan.
+    /// Pinned invariant: tags with different `pid_starttime` values
+    /// compare unequal under `Eq`, so the daemon's session-registry
+    /// `HashMap` treats them as distinct keys per MLP-014's
+    /// `(WorktreeKey, AgentTag)` plan. (Hash collisions are allowed
+    /// by `HashMap` — `Eq` is what guarantees key separation.)
     #[test]
     fn distinct_pid_starttimes_produce_distinct_tags() {
         let a = AgentTag::new("anvil-run", "claude-1", 1_700_000_000);

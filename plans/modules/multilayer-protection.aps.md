@@ -455,9 +455,9 @@ a defensible claim, not a slogan. This module owns:
   - **Trust model.** `ANVIL_TASK_ID` and `ANVIL_AGENT_TAG` are
     advisory hints, not authenticated identity — any same-UID
     process can spoof or unset them. The daemon MUST cross-check an
-    env-supplied `AgentTag` against the registration it issued at
-    INTL-003 for that pid lineage; mismatches are treated as missing,
-    not honoured. The process-tree walk fallback finds a registered
+    env-supplied `AgentTag` against the `AgentTag` it issued for this
+    pid lineage at INTL-003; mismatches are treated as missing, not
+    honoured. The process-tree walk fallback finds a registered
     ancestor on env miss; a walk that finds none downgrades to
     worktree-level fence (ADR-038 noise discipline applies). Witness
     chain (ADR-037 §D-2) and `validate_at_l4` (§D-5) are the
