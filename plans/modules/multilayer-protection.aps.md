@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 3/17 done |
+| MLP | @aneki | In Progress | 5/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
 audit confirmed the shipped implementation matches the v1-narrowed scope;
@@ -658,14 +658,14 @@ a defensible claim, not a slogan. This module owns:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 1/5 |
+| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 2/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
-| Rule distribution | 2 (MLP-012, -013) | 0/2 |
+| Rule distribution | 2 (MLP-012, -013) | 1/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
-| Doctrine | 1 (MLP-017) | 0/1 |
-| **Total** | **17** | **1/17** |
+| Doctrine | 1 (MLP-017) | 1/1 |
+| **Total** | **17** | **5/17** |
 
 ## Recommended landing order
 
