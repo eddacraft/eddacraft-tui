@@ -68,6 +68,9 @@
     },
     {
       "path": "./packages/anvil-driver-client"
+    },
+    {
+      "path": "./packages/docs-meta"
     }
   ]
 }
