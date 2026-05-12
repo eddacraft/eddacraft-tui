@@ -25,13 +25,13 @@ readiness.
 1. Use `gh` for all GitHub operations.
 2. Fix failing CI first, then automated review comments, then human review
    comments.
-3. Target/base branch is `main` unless the user explicitly says otherwise.
-4. Prefer `git rebase origin/main` for branch catch-up and conflict resolution;
-   push rebased PR branches with `git push --force-with-lease`.
+3. Use the PR's base branch from `gh pr view`; Anvil PRs normally target `main`.
+4. Prefer `git rebase origin/$BASE_BRANCH` for branch catch-up and conflict
+   resolution; push rebased PR branches with `git push --force-with-lease`.
 5. Never `@`-mention Copilot or other bots in replies, summaries, commits, or PR
    comments. Write `copilot`, not `@copilot`.
 6. Do not claim a CI failure is unrelated or pre-existing without proving the
-   same check fails on `main`.
+   same check fails on the PR's base branch.
 7. If remediation changes `docs/**`, `plans/**`, README files, skill docs, or
    runbooks, perform the docs closeout required by `AGENTS.md`.
 8. If post-merge verification is needed, extract it to
@@ -159,13 +159,13 @@ mutation($threadId: ID!) {
 Resolve every addressed thread, whether the response was a code change or an
 explanation.
 
-### 6. Sync With Main By Rebase
+### 6. Sync With Base By Rebase
 
-Anvil prefers rebasing PR branches onto latest `main` before merge.
+Anvil prefers rebasing PR branches onto the latest base branch before merge.
 
 ```bash
-git fetch origin main
-git rebase origin/main
+git fetch origin "$BASE_BRANCH"
+git rebase "origin/$BASE_BRANCH"
 ```
 
 If conflicts occur:
