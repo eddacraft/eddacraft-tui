@@ -86,7 +86,13 @@ export async function sendWaitlistAdminNotification(
 ): Promise<void> {
   const resend = getResendClient();
   const adminEmail = process.env.WAITLIST_ADMIN_EMAIL;
-  if (!resend || !adminEmail) return;
+  if (!resend || !adminEmail) {
+    console.warn('Admin notification skipped — missing env', {
+      hasResend: !!resend,
+      hasAdminEmail: !!adminEmail,
+    });
+    return;
+  }
 
   try {
     const status = !isNewSignup ? 'skipped (returning signup)' : emailSent ? 'sent' : 'FAILED';
