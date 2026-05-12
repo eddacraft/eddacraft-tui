@@ -126,12 +126,7 @@ NODE
       exit 1
     }
   else
-    gh api "repos/$repo/issues" \
-      --method POST \
-      -f "title=Release $version" \
-      -f "body=Release tracking issue for $version." \
-      -f "labels[]=release" \
-      --jq '{number, url: .html_url}' 2>/dev/null || {
+    gh issue create --repo "$repo" --title "Release $version" --body "Release tracking issue for $version." --json number,url 2>/dev/null || {
       emit_envelope "failed" "$(empty_data_json)" "$(failure_json auth-failed "failed to create tracking issue" true gh-auth)" "prepare" "Authenticate gh and rerun prepare."
       exit 1
     }
