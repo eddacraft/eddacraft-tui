@@ -20,6 +20,7 @@
     "paths": {
       "@eddacraft/anvil-adapters": ["./packages/adapters/dist/index.d.ts"],
       "@eddacraft/anvil-aps": ["./packages/aps/dist/index.d.ts"],
+      "@eddacraft/anvil-docs-meta": ["./packages/docs-meta/dist/index.d.ts"],
       "@eddacraft/anvil-driver-client": ["./packages/anvil-driver-client/dist/index.d.ts"],
       "@eddacraft/anvil-core": ["./packages/anvil/core/dist/index.d.ts"],
       "@eddacraft/anvil-core/*": ["./packages/anvil/core/dist/*/index.d.ts"],

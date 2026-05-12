@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 4/8      |
+| DOCGOV | —     | In Progress | 5/8      |
 
 ## Purpose
 
@@ -175,7 +175,7 @@ use the minimal validation baseline in
 
 ### DOCGOV-005: Add documentation validation baseline
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Convert closeout from memory-based hygiene into fully automated
   checks.
 - **Expected Outcome:** `pnpm docs:check` validates metadata, tags, links,
@@ -184,8 +184,38 @@ use the minimal validation baseline in
   document-local metadata and approved tag catalogue updates. Until this ships,
   references to `pnpm docs:check` are target-state guidance, not an available
   repository command.
-- **Validation:** `pnpm format:check && pnpm lint:check`
+- **Validation:** `pnpm docs:check && pnpm test:docs-check && pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-004
+- **Files:** `plans/decisions/042-closeout-enforcement-exit-codes.md`,
+  `plans/execution/DOCGOV-005.steps.md`, `packages/docs-meta/**`,
+  `scripts/docs/{docs-check.mjs,check-metadata.mjs,check-tags.mjs,check-links.mjs,check-aps.mjs,check-adr.mjs,check-index-freshness.mjs,check-asbuilt-paths.mjs,docs-check.test.sh}`,
+  `docs/governance/{tags-catalogue.md,docs-check.baseline.json}`,
+  `package.json`, `.github/workflows/ci.yml`,
+  `pnpm-workspace.yaml`, `tsconfig.base.json`,
+  `plans/decisions/DECISION-LOG.md`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Closeout:** A planning council (session `plan-0b3290b4`) settled the
+  design across nine decisions before any code landed; the outcome is
+  recorded in [ADR-042](../decisions/042-closeout-enforcement-exit-codes.md)
+  (closeout-enforcement carve-out from ADR-002) and the 24-step action plan
+  at [`../execution/DOCGOV-005.steps.md`](../execution/DOCGOV-005.steps.md).
+  Ships `pnpm docs:check` as a thin Node ESM orchestrator over seven
+  surfaces (`metadata`, `tags`, `links`, `aps`, `adr`, `index-freshness`,
+  `asbuilt-paths`) — five real validators plus two no-op stubs reserved for
+  DOCGOV-006 and DOCGOV-007. The metadata parser lives in a new
+  `@eddacraft/anvil-docs-meta` package (mirrors `packages/aps` Zod-validated
+  patterns) so DOCGOV-006 / DOCGOV-007 can reuse it. The tags surface reads
+  the seeded `docs/governance/tags-catalogue.md` (audited from current
+  `Tags:` usage across 195 APS files); the links surface resolves files and
+  GitHub-style heading anchors across `docs/**` and `plans/**`; the APS and
+  ADR surfaces wrap `pnpm aps:drift` and `pnpm adr:check` so existing logic
+  is reused, not duplicated. The validator applies the ADR-003 new-edges-only
+  discipline via `docs/governance/docs-check.baseline.json` (562 current
+  errors absorbed; DOCGOV-008 will shrink the baseline as cleanup lands),
+  and the orchestrator emits a labelled summary so a single CI failure
+  points at the specific surface that broke. Wired into the `Docs Lint`
+  GitHub Actions job; fixture tests cover all nine surface/baseline
+  contract cases.
 - **Confidence:** medium
 
 ### DOCGOV-006: Standardise runbook and as-built freshness

@@ -9,6 +9,7 @@ packages:
   - packages/adapters
   - packages/anvil-driver-client
   - packages/aps
+  - packages/docs-meta
   - packages/edda-stack
   - packages/eslint-plugin-anvil
   - packages/kindling-integration

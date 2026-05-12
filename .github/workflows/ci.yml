@@ -94,6 +94,12 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
+      - name: Run docs:check (DOCGOV-005)
+        run: pnpm run docs:check
+
+      - name: Run docs-check fixture tests
+        run: pnpm run test:docs-check
+
   # Skip-twin for `Docs Lint`. Reports the same check name on PRs that don't
   # touch any `.md` files, so the required check in the `main` ruleset always
   # has a status to satisfy. Mirrors the `lint-skip` / `typecheck-skip` /
