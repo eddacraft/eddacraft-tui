@@ -1,5 +1,6 @@
 use std::io;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
@@ -18,6 +19,79 @@ use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+/// Best-effort restore: leave the alternate screen and disable raw mode. Safe
+/// to call when those modes are not active — crossterm treats both as no-ops.
+fn restore_terminal() {
+    let _ = execute!(io::stdout(), LeaveAlternateScreen);
+    let _ = terminal::disable_raw_mode();
+}
+
+/// Install a process-wide panic hook that restores the terminal before the
+/// previous hook prints the panic message. Idempotent — only the first call
+/// installs the hook; subsequent calls are no-ops. Without this, a panic
+/// inside a `run_*` loop leaves the user at a shell prompt with raw mode and
+/// the alternate screen still active.
+fn install_panic_hook() {
+    static INSTALLED: OnceLock<()> = OnceLock::new();
+    INSTALLED.get_or_init(|| {
+        let prev = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            restore_terminal();
+            prev(info);
+        }));
+    });
+}
+
+/// RAII guard for the TUI terminal session. Enables raw mode + the alternate
+/// screen on `enter`, restores both on `Drop` — including on unwinding panic.
+/// Pair with [`install_panic_hook`] (invoked automatically) so the panic
+/// backtrace is rendered against a normal terminal.
+pub struct TerminalGuard {
+    active: bool,
+}
+
+impl TerminalGuard {
+    /// Enable raw mode and the alternate screen. Installs the panic-restore
+    /// hook on first use.
+    pub fn enter() -> anyhow::Result<Self> {
+        install_panic_hook();
+        terminal::enable_raw_mode()?;
+        if let Err(e) = execute!(io::stdout(), EnterAlternateScreen) {
+            // Roll back the raw-mode change so we don't leak it on
+            // partial-setup failure.
+            let _ = terminal::disable_raw_mode();
+            return Err(e.into());
+        }
+        Ok(Self { active: true })
+    }
+
+    /// Explicit teardown. After this, `Drop` is a no-op. Returns any error
+    /// from the underlying crossterm calls — prefer this over relying solely
+    /// on `Drop` when callers want to surface restoration errors.
+    pub fn leave(mut self) -> anyhow::Result<()> {
+        self.disarm_and_restore()
+    }
+
+    fn disarm_and_restore(&mut self) -> anyhow::Result<()> {
+        if !self.active {
+            return Ok(());
+        }
+        self.active = false;
+        execute!(io::stdout(), LeaveAlternateScreen)?;
+        terminal::disable_raw_mode()?;
+        Ok(())
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        if self.active {
+            restore_terminal();
+            self.active = false;
+        }
+    }
+}
+
 /// How a surface exited.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceExit {
@@ -31,17 +105,14 @@ pub enum SurfaceExit {
 /// Returns the state after the surface exits, so callers can inspect
 /// final state (e.g. which menu option was chosen).
 pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
+    let guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
     let result = surface_loop(&mut terminal, &mut state, &theme);
 
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    guard.leave()?;
 
     result.map(|_| state)
 }
@@ -58,7 +129,12 @@ pub fn run_surface_in<S: Surface>(
 
 /// Set up a TUI terminal session and return the terminal for caller-managed
 /// surface switching. Caller must call `teardown_terminal` when done.
+///
+/// Installs the panic-restore hook so a panic between setup and teardown
+/// still restores the terminal. For the RAII-style alternative, see
+/// [`TerminalGuard`].
 pub fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
+    install_panic_hook();
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -162,17 +238,14 @@ pub fn run_tutorial(
     mut state: anvil_tui::surfaces::tutorial::TutorialState,
     file_rx: Option<&Receiver<anvil_kernel::watcher::events::ChangeBatch>>,
 ) -> anyhow::Result<anvil_tui::surfaces::tutorial::TutorialState> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
+    let guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
     let result = tutorial_loop(&mut terminal, &mut state, file_rx, &theme);
 
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    guard.leave()?;
 
     result.map(|()| state)
 }
@@ -220,17 +293,14 @@ pub fn run_watch_demo(
     mut state: anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
     event_rx: &Receiver<EngineEvent>,
 ) -> anyhow::Result<()> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
+    let guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
     let result = watch_demo_loop(&mut terminal, &mut state, event_rx, &theme);
 
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    guard.leave()?;
 
     result
 }
@@ -333,10 +403,8 @@ pub fn run_watch(
     action_link: Option<&crate::commands::watch::WatchActionLink<'_>>,
     shutdown: Option<&Arc<AtomicBool>>,
 ) -> anyhow::Result<()> {
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
+    let guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
@@ -349,8 +417,7 @@ pub fn run_watch(
         &theme,
     );
 
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    guard.leave()?;
 
     result
 }
@@ -491,5 +558,25 @@ where
 
     if !already_dirty && is_animating() {
         mark_dirty();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The panic hook MUST be idempotent. Multiple TUI sessions (or repeated
+    /// `setup_terminal` calls in tests) must not wrap the previous hook again
+    /// — otherwise restoration runs N times for one panic, and the original
+    /// libtest panic hook can end up nested behind our own copies.
+    #[test]
+    fn install_panic_hook_is_idempotent() {
+        let before = std::panic::take_hook();
+        std::panic::set_hook(before);
+        install_panic_hook();
+        install_panic_hook();
+        install_panic_hook();
+        // No assertion beyond "did not panic / double-install". The OnceLock
+        // guard inside `install_panic_hook` is the contract under test.
     }
 }

@@ -30,9 +30,9 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 2/25     |
+| V060F | —     | In Progress | 3/25     |
 
-**Last reviewed:** 2026-05-08 (V060F-025 completed — OPA runtime pin bumped from 0.60.0 to 1.16.1 for the v0.6.0-beta release candidate; previous 2026-05-07 sweep added V060F-002..V060F-024)
+**Last reviewed:** 2026-05-12 (V060F-020 completed — `TerminalGuard` + idempotent panic hook landed in `crates/anvil-cli/src/tui.rs`; previously: V060F-025 OPA runtime pin 2026-05-08, V060F-002..V060F-024 filed 2026-05-07)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [`ROADMAP.md`](../../ROADMAP.md) +
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)
@@ -578,7 +578,14 @@ discovery.
   so the panic backtrace is readable. Apply at every `run_*`
   entry point.
 - **Confidence:** high (the fix is a well-known Rust idiom)
-- **Status:** Open
+- **Status:** Complete — `TerminalGuard` (RAII enter / `Drop` /
+  explicit `leave`) wired through `run_surface`, `run_tutorial`,
+  `run_watch_demo`, `run_watch` in `crates/anvil-cli/src/tui.rs`.
+  `setup_terminal` (welcome-hub path) installs the same panic
+  hook. The hook chains the previous hook so panic backtraces
+  still print, but only after `LeaveAlternateScreen` +
+  `disable_raw_mode` have run. Idempotent via `OnceLock` so
+  repeated TUI sessions don't stack restore copies.
 
 ---
 
@@ -732,9 +739,9 @@ discovery.
 | Nominations                          | 1     | Complete (V060F-001)                                   |
 | As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
 | As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
-| As-built sweep follow-ups (batch 3)  | 5     | Open (V060F-020..V060F-024, filed 2026-05-07)          |
+| As-built sweep follow-ups (batch 3)  | 5     | 1 Complete (V060F-020, 2026-05-12) / 4 Open (V060F-021..V060F-024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 2 Complete / 23 Open                                  |
+| **Total**                            | **25** | 3 Complete / 22 Open                                  |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
