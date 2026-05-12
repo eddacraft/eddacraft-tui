@@ -1277,7 +1277,6 @@ dependencies = [
 name = "eddacraft-anvil-witness"
 version = "0.6.2-beta"
 dependencies = [
- "chrono",
  "fs2",
  "hex",
  "serde",
@@ -1285,6 +1284,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.18",
+ "workspace-hack",
 ]
 
 [[package]]
