@@ -204,7 +204,14 @@ else
   [[ -n "$head_sha" ]] || fail_usage "head ref is not a commit: $head_ref"
 fi
 
-previous_tag="$(git describe --tags --abbrev=0 "$head_sha" 2>/dev/null || true)"
+# `--match='v*'` restricts the search to version-shaped tags so non-release
+# tags like `dev-retired-2026-05-11` (the OPMODEL-012 cutover marker) don't
+# leak in as `previousTag` and short-circuit the version-bump regex below.
+# Without the filter, `git describe --tags --abbrev=0` returns the most
+# recent tag reachable from HEAD ordered by commit history, which on a repo
+# with retired-branch markers can be the cutover tag instead of the
+# previous release.
+previous_tag="$(git describe --tags --match='v*' --abbrev=0 "$head_sha" 2>/dev/null || true)"
 base_sha="$(git rev-parse --verify "${base_ref}^{commit}" 2>/dev/null || true)"
 [[ -n "$base_sha" ]] || fail_usage "base ref is not a commit: $base_ref"
 
@@ -213,15 +220,68 @@ trap 'rm -rf "$tmp"' EXIT
 
 git diff --name-only "$base_sha" "$head_sha" >"$tmp/changed-paths"
 
+# APS-item extraction
+# ====================
+# The candidate window is pulled from two sources: commit messages
+# ("CICD-005" mentioned in the body) and the diff of `plans/` files
+# (heading edits, file moves). Both feed the candidate metadata that
+# downstream commands consume.
+#
+# Extraction uses PCRE so we can negative-look-behind on `[\w-]` —
+# without it, prose like `pre-FIX-001` matches `FIX-001` via the
+# bare-`\b` hyphen quirk. Trailing `[a-z]?` admits suffixed IDs like
+# `RCLI3-016b`. Mirrors the regex in `scripts/aps/drift-check.mjs` so
+# the two surfaces classify identically.
+#
+# After extraction we filter to **known module prefixes** — derived
+# at runtime from the first ID-table row of each `plans/modules/` and
+# `plans/archive/modules/` file. This drops common false positives
+# (`EC2-123`, `HTTP-404`, `TLS13-001`, `SHA-256`, `ISO-860`, etc.)
+# that would otherwise pollute the candidate metadata. Tradeoff:
+# brand-new module IDs filed in a commit but not yet declared via a
+# module file are excluded; this is acceptable because such items
+# show up in the commit log directly and don't need to round-trip
+# through the candidate-metadata surface to be discoverable.
 git log --format=%B "$base_sha..$head_sha" 2>/dev/null \
-  | grep -Eo '[A-Z][A-Z0-9]+-[0-9]{3}' >"$tmp/aps-log" || true
+  | grep -Po '(?<![\w-])[A-Z][A-Z0-9]+-[0-9]{3}[a-z]?\b' >"$tmp/aps-log" || true
 if git diff "$base_sha" "$head_sha" -- plans 2>/dev/null \
-  | grep -Eo '[A-Z][A-Z0-9]+-[0-9]{3}' >"$tmp/aps-plan"; then
+  | grep -Po '(?<![\w-])[A-Z][A-Z0-9]+-[0-9]{3}[a-z]?\b' >"$tmp/aps-plan"; then
   true
 else
   : >"$tmp/aps-plan"
 fi
-cat "$tmp/aps-log" "$tmp/aps-plan" | sort -u >"$tmp/aps-items"
+
+# Build the known-prefix allowlist from real module files. Each
+# module's header table has a row whose first cell is the canonical
+# prefix (e.g. `| CICD | — | Complete | 12/12 |`); read it directly
+# so the allowlist tracks reality without a hardcoded list. Some
+# archived modules use a different header shape, so the pipe can
+# emit nothing for a given file — wrap in `|| true` so `set -e`
+# doesn't abort on the empty-match case.
+: >"$tmp/known-prefixes"
+for module_file in plans/modules/*.aps.md plans/archive/modules/*.aps.md; do
+  [ -f "$module_file" ] || continue
+  awk '/^\| ID/ { getline; getline; print; exit }' "$module_file" \
+    | grep -oE '^\| *[A-Z][A-Z0-9]*' \
+    | sed 's/^| *//' >>"$tmp/known-prefixes" || true
+done
+sort -u "$tmp/known-prefixes" -o "$tmp/known-prefixes"
+
+# Filter aps-items down to entries whose prefix appears in the
+# allowlist. Empty allowlist (e.g. testing in a tmp dir with no real
+# modules on disk) keeps the unfiltered behaviour so the fixture
+# remains exercisable in isolation.
+if [ -s "$tmp/known-prefixes" ]; then
+  cat "$tmp/aps-log" "$tmp/aps-plan" | sort -u | while IFS= read -r item; do
+    [ -n "$item" ] || continue
+    prefix="${item%%-*}"
+    if grep -Fxq -- "$prefix" "$tmp/known-prefixes"; then
+      printf '%s\n' "$item"
+    fi
+  done >"$tmp/aps-items"
+else
+  cat "$tmp/aps-log" "$tmp/aps-plan" | sort -u >"$tmp/aps-items"
+fi
 
 : >"$tmp/risk-signals"
 while IFS= read -r path; do

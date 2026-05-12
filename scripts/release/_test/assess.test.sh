@@ -134,4 +134,70 @@ fi
 target_noop_output="$(cd "$target_repo" && bash "$ASSESS" --base "$target_sha" --source-sha "$target_sha")"
 assert_contains "$target_noop_output" "$target_sha has no changed paths"
 
+# PR #(B): version-detection regression. `git describe --tags` returns
+# the most recent reachable tag; the cutover work added a marker tag
+# `dev-retired-2026-05-11` that previously got picked as `previousTag`
+# and short-circuited the version-bump regex (falling back to the
+# default `v0.1.0-beta`). The fix narrows the describe to `--match='v*'`.
+# Reproduce by tagging the fixture HEAD with a non-version marker and
+# verifying `previousTag` still resolves to `v0.6.1-beta`.
+marker_repo="$tmp/marker-repo"
+init_repo "$marker_repo"
+printf '%s\n' 'fn main() {}' >"$marker_repo/crates/anvil-cli/src/main.rs"
+# Module file with a real header table so the known-prefix allowlist
+# admits RELORCH.
+cat >"$marker_repo/plans/archive/modules/release-orchestration.aps.md" <<'MODULE'
+# Release orchestration
+
+| ID | Owner | Status | Progress |
+| --- | --- | --- | --- |
+| RELORCH | — | Complete | 12/12 |
+
+### RELORCH-003: assessment
+
+- **Status:** Complete
+MODULE
+git -C "$marker_repo" add crates/anvil-cli/src/main.rs plans/archive/modules/release-orchestration.aps.md
+git -C "$marker_repo" commit -q -m "feat: RELORCH-003 assessment with HTTP-404 error path and pre-FIX-001 cleanup"
+# Tag HEAD with a non-version marker that previously confused
+# `git describe --tags --abbrev=0`. The marker uses a date-like
+# suffix so it sorts lexicographically AFTER `v0.6.1-beta`.
+git -C "$marker_repo" tag "dev-retired-2026-05-11"
+(cd "$marker_repo" && bash "$ASSESS" --json --base v0.6.1-beta --head HEAD) >"$tmp/marker.json"
+node - "$tmp/marker.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const failures = [];
+function expect(condition, message) {
+  if (!condition) failures.push(message);
+}
+// Bug 1 regression: previousTag must NOT be the marker tag.
+expect(
+  doc.data.previousTag === 'v0.6.1-beta',
+  `previousTag picked the marker tag instead of v0.6.1-beta: ${doc.data.previousTag}`
+);
+expect(
+  doc.data.candidateVersion !== 'v0.1.0-beta',
+  'candidateVersion fell through to the v0.1.0-beta default — `git describe --match=v*` not honoured'
+);
+// Bug 2 regression: HTTP-404 / pre-FIX-001 in the commit message
+// must NOT leak into apsItems; RELORCH-003 must remain.
+expect(
+  doc.data.apsItems.includes('RELORCH-003'),
+  'legitimate APS item RELORCH-003 was dropped by the prefix filter'
+);
+expect(
+  !doc.data.apsItems.some((i) => i.startsWith('HTTP-')),
+  `HTTP-* false positive leaked through prefix filter: ${doc.data.apsItems.filter((i) => i.startsWith('HTTP-'))}`
+);
+expect(
+  !doc.data.apsItems.includes('FIX-001'),
+  'pre-FIX-001 hyphen-preceded prose matched FIX-001 — negative lookbehind not applied'
+);
+if (failures.length > 0) {
+  for (const failure of failures) console.error(failure);
+  process.exit(1);
+}
+NODE
+
 echo "assess.test.sh: ok"
