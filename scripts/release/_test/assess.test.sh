@@ -159,9 +159,13 @@ cat >"$marker_repo/plans/archive/modules/release-orchestration.aps.md" <<'MODULE
 MODULE
 git -C "$marker_repo" add crates/anvil-cli/src/main.rs plans/archive/modules/release-orchestration.aps.md
 git -C "$marker_repo" commit -q -m "feat: RELORCH-003 assessment with HTTP-404 error path and pre-FIX-001 cleanup"
-# Tag HEAD with a non-version marker that previously confused
-# `git describe --tags --abbrev=0`. The marker uses a date-like
-# suffix so it sorts lexicographically AFTER `v0.6.1-beta`.
+# Tag HEAD with a non-version marker. `git describe --tags --abbrev=0`
+# selects the nearest reachable tag by commit-ancestry distance, not
+# lexicographic ordering — `v0.6.1-beta` sits on the initial fixture
+# commit (distance 1 from HEAD) while the marker is applied to HEAD
+# itself (distance 0), so unfiltered `git describe` returns the
+# marker. The `--match='v*'` filter (the actual bug-1 fix) makes the
+# describe call ignore the marker and return v0.6.1-beta.
 git -C "$marker_repo" tag "dev-retired-2026-05-11"
 (cd "$marker_repo" && bash "$ASSESS" --json --base v0.6.1-beta --head HEAD) >"$tmp/marker.json"
 node - "$tmp/marker.json" <<'NODE'

@@ -246,7 +246,11 @@ git diff --name-only "$base_sha" "$head_sha" >"$tmp/changed-paths"
 # module file are excluded; this is acceptable because such items
 # show up in the commit log directly and don't need to round-trip
 # through the candidate-metadata surface to be discoverable.
-APS_PERL_EXTRACT='while (/(?<![\w-])([A-Z][A-Z0-9]+-\d{3}[a-z]?)\b/g) { print "$1\n" }'
+# Prefix is `[A-Z][A-Z0-9]{1,15}` — the same upper bound as
+# `scripts/aps/drift-check.mjs` so the two surfaces classify tokens
+# identically. The longest real APS prefix is `OPENSPEC` at 8 chars;
+# 16 leaves headroom without admitting absurdly long false positives.
+APS_PERL_EXTRACT='while (/(?<![\w-])([A-Z][A-Z0-9]{1,15}-\d{3}[a-z]?)\b/g) { print "$1\n" }'
 git log --format=%B "$base_sha..$head_sha" 2>/dev/null \
   | perl -nle "$APS_PERL_EXTRACT" >"$tmp/aps-log" || true
 if git diff "$base_sha" "$head_sha" -- plans 2>/dev/null \
