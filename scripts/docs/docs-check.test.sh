@@ -13,7 +13,12 @@
 # tmp_root is used for per-case temp files (e.g. captured JSON output) and is
 # unconditionally cleaned up on exit.
 
-set -euo pipefail
+# Deliberate: no `pipefail`. The test cases use `echo | grep -q` and
+# `printf | head -N` pipelines where the downstream command (head, grep -q)
+# legitimately closes stdin early on large outputs, causing the upstream to
+# exit 141 (SIGPIPE). With pipefail, those benign exits would cascade and
+# abort the whole script. Each test case has its own explicit guard.
+set -eu
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../.." && pwd)"
