@@ -8,6 +8,7 @@ DEFAULT_REPO="eddacraft/anvil-001"
 
 json=false
 dry_run=false
+apply=false
 repo="$DEFAULT_REPO"
 version=""
 tag=""
@@ -30,6 +31,11 @@ is local and dry-run safe; it does not mutate branches, releases, or issues.
 Options:
   --json                         Accepted for command-surface consistency; output is always one JSON object
   --dry-run                      Report planned closeout without mutation
+  --apply                        Execute the mutating cleanup actions (gh release edit --latest,
+                                 tracking issue comment/close, branch deletion). Required for
+                                 non-dry-run execution; without it, closeout reports the plan
+                                 and returns needs-operator so accidental invocations on a
+                                 dev machine cannot mutate the public release.
   --version <version>            Release version, e.g. v0.7.0-beta
   --tag <tag>                    Verified release tag
   --source-sha <sha>             Exact released source SHA
@@ -137,6 +143,7 @@ while (($# > 0)); do
   case "$1" in
     --json) json=true; shift ;;
     --dry-run) dry_run=true; shift ;;
+    --apply) apply=true; shift ;;
     --version) require_value "$1" "${2:-}"; version="$2"; shift 2 ;;
     --tag) require_value "$1" "${2:-}"; tag="$2"; shift 2 ;;
     --source-sha) require_value "$1" "${2:-}"; source_sha="$2"; shift 2 ;;
@@ -216,12 +223,32 @@ if [[ "$dry_run" == "true" ]]; then
   exit 0
 fi
 
+if [[ "$apply" != "true" ]]; then
+  emit_envelope "needs-operator" "$data_json" "$(failure_json operator-required "non-dry-run closeout requires --apply to execute mutating cleanup" false rerun-with-apply)" "closeout" "Rerun with --apply to execute, or use --dry-run to preview the plan."
+  exit 1
+fi
+
 command -v gh >/dev/null 2>&1 || {
   emit_envelope "failed" "$data_json" "$(failure_json infra-failed "gh is required for non-dry-run closeout" true install-gh)" "closeout" "Install/authenticate gh or rerun with --dry-run."
   exit 127
 }
 
 public_repo="${ANVIL_RELEASE_CLOSEOUT_PUBLIC_REPO:-eddacraft/anvil}"
+
+classify_gh_failure() {
+  local stderr_text="$1"
+  local default_code="$2"
+  local default_recovery="$3"
+  local lc
+  lc="$(printf '%s' "$stderr_text" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$lc" == *"http 401"* || "$lc" == *"http 403"* || "$lc" == *"authentication"* || "$lc" == *"unauthorized"* || "$lc" == *"forbidden"* || "$lc" == *"permission"* ]]; then
+    printf '%s\n%s\n' auth-failed gh-auth
+  elif [[ "$lc" == *"http 404"* || "$lc" == *"not found"* || "$lc" == *"could not find"* ]]; then
+    printf '%s\n%s\n' infra-failed verify-target-exists
+  else
+    printf '%s\n%s\n' "$default_code" "$default_recovery"
+  fi
+}
 
 if [[ -n "$tracking_issue" ]]; then
   summary_body="$(node - "$version" "$tag" "$source_sha" "$verification_record" <<'NODE'
@@ -244,8 +271,9 @@ NODE
   }
 fi
 
-gh release edit "$tag" --repo "$public_repo" --latest >/dev/null 2>&1 || {
-  emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to mark public release latest" true verify-public-release)" "closeout" "Verify the public release exists and rerun closeout. Override the public repo with ANVIL_RELEASE_CLOSEOUT_PUBLIC_REPO if needed."
+release_edit_err="$(gh release edit "$tag" --repo "$public_repo" --latest 2>&1 >/dev/null)" || {
+  mapfile -t classification < <(classify_gh_failure "$release_edit_err" infra-failed verify-public-release)
+  emit_envelope "failed" "$data_json" "$(failure_json "${classification[0]}" "failed to mark public release latest on ${public_repo}: ${release_edit_err}" true "${classification[1]}")" "closeout" "Resolve the gh error above and rerun closeout. Override the public repo with ANVIL_RELEASE_CLOSEOUT_PUBLIC_REPO if needed."
   exit 1
 }
 
@@ -259,8 +287,9 @@ if [[ "$close_issue" == "true" && -n "$tracking_issue" ]]; then
 fi
 
 if [[ -n "$cleanup_branch" ]]; then
-  gh api -X DELETE "repos/$repo/git/refs/heads/$cleanup_branch" >/dev/null 2>&1 || {
-    emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to delete release branch" true verify-branch-or-permissions)" "closeout" "Verify the branch exists and the token has delete permission, then rerun closeout."
+  encoded_branch="$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$cleanup_branch")"
+  gh api -X DELETE "repos/$repo/git/refs/heads/$encoded_branch" >/dev/null 2>&1 || {
+    emit_envelope "failed" "$data_json" "$(failure_json infra-failed "failed to delete release branch $cleanup_branch" true verify-branch-or-permissions)" "closeout" "Verify the branch exists and the token has delete permission, then rerun closeout."
     exit 1
   }
 fi
