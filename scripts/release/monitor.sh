@@ -4,7 +4,10 @@ set -euo pipefail
 COMMAND="monitor"; PHASE="monitor"; SCHEMA_VERSION="1.0.0"; DEFAULT_REPO="eddacraft/anvil-001"
 json=false; poll=false; repo="$DEFAULT_REPO"; version=""; run_url=""; mode="target"; started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-usage() { printf '%s\n' 'Usage: monitor.sh --version <vX.Y.Z[-suffix]> [--json] [--poll] [--run-url <url>]'; }
+usage() { printf '%s\n' 'Usage: monitor.sh --version <vX.Y.Z[-suffix]> [--json] [--poll] [--run-url <url>]
+  --poll                          Loop until the workflow reaches a terminal state.
+                                  Configure with ANVIL_RELEASE_MONITOR_POLL_INTERVAL (default 15s)
+                                  and ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS (default 3600s).'; }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 failure_json() { node - "$1" "$2" "$3" "$4" <<'NODE'
 const [code, message, retryableRaw, recovery] = process.argv.slice(2);
@@ -45,15 +48,32 @@ NODE
 )" "$(failure_json infra-failed 'gh is required to poll workflow run state' true install-gh)" monitor 'Install/authenticate gh or rerun without --poll to record operator evidence.'; exit 127; }
     run_id="$(run_id_from_url "$run_url")"
     [[ -n "$run_id" ]] || fail_usage '--run-url must be a GitHub Actions run URL or run id when --poll is used'
-    run_json="$(gh run view "$run_id" --repo "$repo" --json status,conclusion,url 2>/dev/null || true)"
-    if [[ -z "$run_json" ]]; then
-      emit failed "$(node - "$run_url" <<'NODE'
+    poll_interval="${ANVIL_RELEASE_MONITOR_POLL_INTERVAL:-15}"
+    poll_max="${ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS:-3600}"
+    poll_elapsed=0
+    while :; do
+      run_json="$(gh run view "$run_id" --repo "$repo" --json status,conclusion,url 2>/dev/null || true)"
+      if [[ -z "$run_json" ]]; then
+        emit failed "$(node - "$run_url" <<'NODE'
 const runUrl = process.argv[2];
 process.stdout.write(JSON.stringify({ workflowRun: runUrl, state: 'unknown', failedJob: null, logUrl: runUrl }));
 NODE
 )" "$(failure_json infra-failed 'failed to read workflow run state' true retry-gh-run-view)" monitor 'Check GitHub auth or the run URL, then rerun monitor.'
-      exit 1
-    fi
+        exit 1
+      fi
+      run_status="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).status||'')" "$run_json")"
+      [[ "$run_status" == "completed" ]] && break
+      if (( poll_elapsed >= poll_max )); then
+        emit blocked "$(node - "$run_url" "$run_status" <<'NODE'
+const [runUrl, state] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({ workflowRun: runUrl, state: state || 'in_progress', failedJob: null, logUrl: runUrl }));
+NODE
+)" "$(failure_json operator-required 'workflow still running after poll timeout' true rerun-with-poll)" monitor 'Workflow still running; rerun monitor to continue polling or raise ANVIL_RELEASE_MONITOR_POLL_MAX_SECONDS.'
+        exit 1
+      fi
+      sleep "$poll_interval"
+      poll_elapsed=$((poll_elapsed + poll_interval))
+    done
     result="$(node - "$run_json" <<'NODE'
 const run = JSON.parse(process.argv[2]);
 const ok = run.status === 'completed' && run.conclusion === 'success';
