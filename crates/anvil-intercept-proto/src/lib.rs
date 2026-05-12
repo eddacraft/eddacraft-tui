@@ -15,6 +15,7 @@
 
 pub mod enforcement_config;
 pub mod protocol;
+pub mod session;
 pub mod status;
 
 use std::path::PathBuf;

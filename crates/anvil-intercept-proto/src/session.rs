@@ -1,0 +1,114 @@
+//! MLP-014 / INTL-003 session-key vocabulary.
+//!
+//! This is the **stub** AgentTag definition landed during the Wave 0
+//! readiness review (2026-05-13) so the INTL ↔ MLP-014 interface
+//! exists in code rather than only in planning prose. Behavioural use
+//! arrives with MLP-014 (registry key change) and INTL-003 / INTL-004
+//! (launcher-side propagation). Both items remain in their respective
+//! modules' task lists.
+//!
+//! Scope deliberately narrow:
+//!
+//! - `AgentTag` — the composite minted by the daemon from
+//!   `(driver_id, claimed_agent_id, pid_starttime)`.
+//! - Env-var name constants for the launcher → child propagation
+//!   contract (`ANVIL_TASK_ID`, `ANVIL_AGENT_TAG`).
+//!
+//! Anything else MLP-014 needs (per-task fence keys, the
+//! `degraded:fence-cascade` mode, attribution-chain dispatch) lives in
+//! `anvil-intercept` proper and is out of scope here.
+//!
+//! See `plans/modules/multilayer-protection.aps.md` MLP-014 and
+//! `plans/modules/intercept-launcher.aps.md` INTL-003 / INTL-004.
+
+use serde::{Deserialize, Serialize};
+
+/// Environment variable carrying the daemon-minted `AgentTag` from a
+/// launcher to its child process. Advisory only — the daemon MUST
+/// cross-check against the registered `(pid_starttime, AgentTag)`
+/// tuple at INTL-003 before honouring the tag. See ADR-037 D-2 for
+/// the witness-chain authentication backstop.
+pub const ANVIL_AGENT_TAG_ENV: &str = "ANVIL_AGENT_TAG";
+
+/// Environment variable carrying the per-task identifier that scopes
+/// fence isolation in multi-agent worktrees (MLP-014). Same trust
+/// caveat as `ANVIL_AGENT_TAG_ENV`: env is forgeable by any same-UID
+/// peer, so absence triggers a process-tree walk fallback rather than
+/// being treated as authoritative.
+pub const ANVIL_TASK_ID_ENV: &str = "ANVIL_TASK_ID";
+
+/// Composite identity for a session within a worktree. Minted by the
+/// daemon at INTL-003 registration time from the launcher-supplied
+/// `(driver_id, claimed_agent_id)` plus the kernel-reported
+/// `pid_starttime`. Combined with `WorktreeKey` in MLP-014 to form
+/// the per-task fence scope.
+///
+/// **Trust model.** `AgentTag` is not authenticated identity. Any
+/// same-UID process can claim any `driver_id` / `claimed_agent_id`
+/// pair; `pid_starttime` makes after-the-fact PID reuse detectable
+/// but does not prove the process started where the launcher said it
+/// did. The daemon honours a tag only when it matches a registration
+/// it issued in this session; the witness chain (ADR-037 D-2) and
+/// `validate_at_l4` (ADR-037 D-5) are the authentication backstops.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AgentTag {
+    /// Identifies the driver framework that launched the agent
+    /// (`anvil-run`, `claude-code-pretool`, `direct-mcp`, …). Drawn
+    /// from the surface driver registry; never user-supplied.
+    pub driver_id: String,
+
+    /// Free-form identifier the driver claims for this agent
+    /// instance. Opaque to the proto layer; the daemon may apply
+    /// per-driver well-formedness rules before honouring.
+    pub claimed_agent_id: String,
+
+    /// Process start time as Unix seconds since epoch, captured at
+    /// spawn. Defends against PID reuse — a recycled PID with a
+    /// different `pid_starttime` is treated as a different session.
+    pub pid_starttime: u64,
+}
+
+impl AgentTag {
+    /// Construct an `AgentTag`. No validation: the daemon's session
+    /// registry is the single authority on which tags are honoured.
+    pub fn new(
+        driver_id: impl Into<String>,
+        claimed_agent_id: impl Into<String>,
+        pid_starttime: u64,
+    ) -> Self {
+        Self {
+            driver_id: driver_id.into(),
+            claimed_agent_id: claimed_agent_id.into(),
+            pid_starttime,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn agent_tag_round_trips_through_json() {
+        let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
+        let line = serde_json::to_string(&tag).expect("serialise");
+        let back: AgentTag = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, tag);
+    }
+
+    #[test]
+    fn env_var_names_match_planning_contract() {
+        assert_eq!(ANVIL_AGENT_TAG_ENV, "ANVIL_AGENT_TAG");
+        assert_eq!(ANVIL_TASK_ID_ENV, "ANVIL_TASK_ID");
+    }
+
+    /// Pinned: distinct tuples must hash distinctly so the daemon's
+    /// session-registry HashMap separates them per MLP-014's
+    /// `(WorktreeKey, AgentTag)` key plan.
+    #[test]
+    fn distinct_pid_starttimes_produce_distinct_tags() {
+        let a = AgentTag::new("anvil-run", "claude-1", 1_700_000_000);
+        let b = AgentTag::new("anvil-run", "claude-1", 1_700_000_001);
+        assert_ne!(a, b);
+    }
+}

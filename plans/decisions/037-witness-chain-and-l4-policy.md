@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-05-13 during Wave 0 carry-forward reconciliation — witness-chain
+shape is the load-bearing primitive for MLP-002 and remains unchanged after
+`v0.6.2-beta`)
 
 ## Date
 

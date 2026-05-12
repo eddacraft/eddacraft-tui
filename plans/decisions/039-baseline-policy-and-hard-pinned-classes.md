@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-05-13 during Wave 0 carry-forward reconciliation — per-class
+baseline defaults and hard-pinned `secrets` / `command-safety` enforcement
+remain the v1 mechanism for MLP-007/-013)
 
 ## Date
 

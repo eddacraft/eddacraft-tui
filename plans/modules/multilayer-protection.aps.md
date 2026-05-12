@@ -1,10 +1,12 @@
 # Multi-Layer Protection
 
-| ID  | Owner | Status      | Progress     |
-| --- | ----- | ----------- | ------------ |
-| MLP | —     | Proposed    | 0/17 complete |
+| ID  | Owner  | Status | Progress      |
+| --- | ------ | ------ | ------------- |
+| MLP | @aneki | Ready  | 0/17 complete |
 
-**Last reviewed:** 2026-05-07
+**Last reviewed:** 2026-05-13 (Wave 0 readiness review — MLP-009 confirmed as
+hard release gate for `v0.7.0-beta`; ADRs 036–039 now Accepted; ready for Wave 1
+implementation)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -450,8 +452,19 @@ a defensible claim, not a slogan. This module owns:
     operator-clear required.
   - `ANVIL_TASK_ID` env var inherited through process spawns;
     process-tree walk fallback when env missing.
+  - **Trust model.** `ANVIL_TASK_ID` and `ANVIL_AGENT_TAG` are
+    advisory hints, not authenticated identity — any same-UID
+    process can spoof or unset them. The daemon MUST cross-check an
+    env-supplied `AgentTag` against the registration it issued at
+    INTL-003 for that pid lineage; mismatches are treated as missing,
+    not honoured. The process-tree walk fallback finds a registered
+    ancestor on env miss; a walk that finds none downgrades to
+    worktree-level fence (ADR-038 noise discipline applies). Witness
+    chain (ADR-037 §D-2) and `validate_at_l4` (§D-5) are the
+    authentication backstop.
 - **Files:** `crates/anvil-intercept/src/registry.rs` (extend session
-  key), `crates/anvil-intercept-proto/src/session.rs` (add `AgentTag`),
+  key), `crates/anvil-intercept-proto/src/session.rs` (`AgentTag`
+  stub landed 2026-05-13; extend in MLP-014),
   `packages/anvil-driver-client/src/session.ts` mirror,
   `crates/anvil-attribution/` (new — env propagation + process-tree
   walk).
@@ -461,6 +474,9 @@ a defensible claim, not a slogan. This module owns:
   - Worktree-level fence on unattributable still applies to all
   - Cascade detection at 5 in 60s
   - Process-tree walk finds registered ancestor on env var miss
+  - Spoofed env (`ANVIL_AGENT_TAG` set to a tag that was never
+    registered for this pid lineage) is rejected — not silently
+    honoured — and the session is treated as unattributable
 - **Confidence:** medium (substantial extension of existing INTD-003)
 - **Priority:** Critical
 - **Dependencies:** MLP-002 (witness chain encodes AgentTag), MLP-003

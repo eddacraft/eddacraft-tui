@@ -2,7 +2,12 @@
 
 ## Status
 
-Proposed
+Accepted (2026-05-13 during Wave 0 carry-forward reconciliation — Serena rule
+and hook surface table govern MLP-003/-004/-005/-008 implementation. Forward-
+looking acceptance: `v0.6.2-beta` shipped no hooks so there is no
+implementation evidence to contradict; this acceptance authorises the design
+for Wave 2. Behavioural audit deferred to when MLP-003 ships shippable hook
+output.)
 
 ## Date
 

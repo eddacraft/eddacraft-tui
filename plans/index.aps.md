@@ -97,7 +97,7 @@ the current planning window has moved to the daemon-working product slate.
 | CI/CD release readiness | Shipped | OPMODEL-005 spec + CICD-009 implementation complete | `.github/workflows/release-readiness.yml` validates an exact `main` SHA with no publishing credentials; candidate metadata + retention live. CICD-012 added cutover-aware gates and self-defending fork-reject. |
 | Release orchestration | Complete | RELORCH 12/12 | Completed command-surface slice after OPMODEL-012 unblocked main-targeted work: assess, preflight, prepare, promote, tag, monitor, verify, closeout, command harness, release-record yank/discard schema closure, and skill/runbook wire-up with legacy runner removal. Live CI readiness authority remains tracked under CICD. |
 | CI targeting + drift | Complete | CICD 12/12 (closed 2026-05-12) | All twelve items shipped: cost reporting (-001), classifier (-002), local validation (-003), fast PR validation (-004), integration SHA split (-005), coverage cost controls (-006), security/dependency targeting (-007), platform-matrix targeting (-008), release-readiness reconciliation (-009), workflow contract map + authority audit (-010), APS/repo/release drift checks in CI with PR-metadata extension (-011), and cutover readiness (-012). Council follow-ups closed via PR #1442 (issue #1438). |
-| Daemon-working product slate | Current candidate | MLP 0/17, INTL 0/9 | Next tag candidate `v0.7.0-beta`; MLP-009 remains the hard release gate for any full-protection claim. |
+| Daemon-working product slate | Current candidate | MLP 0/17 (Ready), INTL 0/9 (Ready, ready-to-start-Wave-3), carry-forward gates 6/6 confirmed (Wave 0 closed 2026-05-13) | Next tag candidate `v0.7.0-beta`; MLP-009 remains the hard release gate for any full-protection claim. |
 
 ### Next window (proposed) — _daemon-working slate_
 
@@ -113,10 +113,10 @@ Source of truth for current parallelisation and release dependencies:
 
 | Pick | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
-| N1 — Multi-Layer Protection v1 (MLP) | Proposed | 0/17 | Witness chain + hooks + L4 policy + baseline + multi-agent coord + rule distribution. New crates: `anvil-witness`, `anvil-hook`, `anvil-l4`, `anvil-config`, `anvil-baseline`, `anvil-attribution`. **Hard gate: MLP-009.** |
-| N2 — Intercept Launcher v1 (INTL) | Draft | 0/9 | `anvil-run` wrapped-launch ingress. New crate: `anvil-run`. Coordinates `AgentTag` proto change with MLP-014. |
-| N3 — Carry-forward gates | Pending | 0/6 | G1 ADR-036/-037/-038/-039 Accepted; G2 `anvil/project-id`; G3 noise-discipline audit; G4 AIGUARD envelope re-run; G5 INTR-004 promotion; G6 DRVR forward-compat verification. |
-| N4 — Documentation lanes | Pending | 0/6 | Adoption / air-gap / witness-chain / hooks-integration runbooks; migration note; INTL manpage. |
+| N1 — Multi-Layer Protection v1 (MLP) | Ready | 0/17 | Witness chain + hooks + L4 policy + baseline + multi-agent coord + rule distribution. New crates: `anvil-witness`, `anvil-hook`, `anvil-l4`, `anvil-config`, `anvil-baseline`, `anvil-attribution`. **Hard gate: MLP-009.** Promoted from Proposed during Wave 0 readiness review (2026-05-13). |
+| N2 — Intercept Launcher v1 (INTL) | Ready (ready-to-start-Wave-3) | 0/9 | `anvil-run` wrapped-launch ingress. New crate: `anvil-run`. `AgentTag` stub landed in `crates/anvil-intercept-proto/src/session.rs` (3 tests green) with `ANVIL_AGENT_TAG_ENV` / `ANVIL_TASK_ID_ENV` constants for INTL-004 propagation. INTL-003 and INTL-004 promoted to task-Ready; the other seven tasks remain Draft pending their direct prerequisites. Module-level Ready means "ready to begin Wave 3" not "all tasks reviewed". Promoted from Draft during Wave 0 readiness review (2026-05-13). |
+| N3 — Carry-forward gates | 6/6 confirmed | 6/6 | G1 ADR-036/-037/-038/-039 **Accepted** (2026-05-13), `DECISION-LOG.md` updated, `pnpm adr:check` green; G2 `anvil/project-id` schema reaffirmed (MLP-001 + ADR-036 §D-2); G3 noise-discipline **policy** confirmed (ADR-038), behavioural audit deferred to Wave 2; G4 AIGUARD envelope re-run via `cargo test -p eddacraft-anvil-kernel-types` (`diagnostic_schema_version_constant_matches_spec` pins `anvil.diagnostic.v1`); G5 INTR-004 promoted **Draft → Ready** (2026-05-13); G6 DRVR forward-compat: new `session.rs` co-existed with existing `protocol.rs` types under the full proto suite (28 passed). |
+| N4 — Documentation lanes | Owned, scoped | 0/6 | Adoption / air-gap / witness-chain / hooks-integration runbooks; migration note; INTL manpage. Wave 0 (2026-05-13) confirmed ownership: all six lanes assigned to @aneki; targets land in Wave 4 of `RELEASE-PLAN.md`. |
 
 **Window risk:** MLP-002 (witness chain primitive) is the single point of
 failure — every downstream lane reads/writes against it. Spike-first as a
@@ -705,9 +705,9 @@ INTD/INTR/INTL/DRVR work is queued after the launch shim.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Complete | 16/16 (A1 slice: INTD-001/-002/-003/-005/-007/-013/-014; A2 Wave 1: INTD-008/-012/-015 (PRs #1305/#1306); A2 Wave 2: INTD-004/-006/-009/-010/-016 (PR #1308); A2 Wave 3: INTD-011 (PR #1309)) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
-| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/9 | INTD; coordinates `AgentTag` proto with MLP-014 in next-release window |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 4/8 | anvil-checks, GV2 later for hot-read rules only; INTR-004 promoted to N3 G5 (next-release gate) |
-| [multilayer-protection](./modules/multilayer-protection.aps.md) | MLP | Proposed | 0/17 | INTD, DRVR, RMCP/RMCPF, RTAI, anvil-checks, kindling-integration, anvil-cli activation/init/baseline; ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md). **MLP-009 hard release gate**; sits on top of INTD/DRVR. Sequenced as N1 in [next-release window](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate). |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Ready | 0/9 | INTD; coordinates `AgentTag` proto with MLP-014 in next-release window; AgentTag / env-propagation contract recorded in INTL-003/-004 (2026-05-13) |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 4/8 (INTR-004 Ready 2026-05-13 as Wave 0 G5; INTR-003/-005/-007 remain Draft) | anvil-checks, GV2 later for hot-read rules only |
+| [multilayer-protection](./modules/multilayer-protection.aps.md) | MLP | Ready | 0/17 | INTD, DRVR, RMCP/RMCPF, RTAI, anvil-checks, kindling-integration, anvil-cli activation/init/baseline; ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md) (rewritten), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [039](./decisions/039-baseline-policy-and-hard-pinned-classes.md) — all Accepted 2026-05-13. **MLP-009 hard release gate**; sits on top of INTD/DRVR. Sequenced as N1 in [next-release window](../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate). Promoted from Proposed during Wave 0 (2026-05-13). |
 | [surface-drivers](./archive/modules/surface-drivers.aps.md) | DRVR | Complete | 5/5 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 Complete (PR #1304: auth.rs trust boundary v1); DRVR-006 Complete (PR #1304: option-(b) Distinguish recorded); DRVR-001 Complete (PR #1307: shared TS driver client); DRVR-002 Complete (PR #1310: editor-driver protocol design + capability negotiation); DRVR-008 Complete (PR #1310: capability negotiation + manifest method advertisement) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-003 deferred per ADR-033; DRVR-005 (architecture cross-links) remains Draft pending DRVR-003 un-pause |
 
 **Architecture Decisions:**
@@ -889,24 +889,24 @@ it.
   ready, hardened `os_locality_token`, cross-Windows/WSL boundary detect-and-
   refuse, forks inherit project_uuid by default
   ([ADR](./decisions/036-daemon-scope-discovery-and-boundaries.md)) —
-  **Proposed**
+  **Accepted** (2026-05-13)
 - **D-037:** Witness chain + L4 policy framework — per-commit hash-chained
   witness in `anvil/witnessed.ndjson` (in-tree, travels via git), active +
   archive + manifest with rollover, `flock`-protected chain integrity, per-
   branch L4 policy with `validate_at_l4` server-side fallback in
   `refs/notes/anvil-l4` ([ADR](./decisions/037-witness-chain-and-l4-policy.md))
-  — **Proposed**
+  — **Accepted** (2026-05-13)
 - **D-038:** Hook surface + noise discipline (the Serena rule) — silent on
   success, single terse line on failure, repeat-suppressed; self-contained
   binary; non-destructive integration with husky / lefthook / pcf / plain;
   panic catcher demotes crashes to exit-0 + log
-  ([ADR](./decisions/038-hook-surface-and-noise-discipline.md)) — **Proposed**
+  ([ADR](./decisions/038-hook-surface-and-noise-discipline.md)) — **Accepted** (2026-05-13)
 - **D-039:** Baseline policy + hard-pinned rule classes — `anvil baseline`
   scans + grandfathers per-class; `secrets` and `command-safety` cannot be
   config-disabled; fingerprint-based legacy-finding tracking; baseline-
   suspicious detection
   ([ADR](./decisions/039-baseline-policy-and-hard-pinned-classes.md)) —
-  **Proposed**
+  **Accepted** (2026-05-13)
 
 ## Open Questions
 

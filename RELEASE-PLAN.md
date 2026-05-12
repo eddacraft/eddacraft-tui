@@ -1,15 +1,16 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                      |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-12 against `v0.6.2-beta` and APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                      |
+| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-13 (Wave 0 Promote Contracts complete); base `v0.6.2-beta` + APS modules |
 
 | Upstream                                                                                                            | Downstream                                                        |
 | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-12 (`v0.6.2-beta` tagged; next candidate is the
-daemon-working `v0.7.0-beta` slate.)
+**Last updated:** 2026-05-13 (Wave 0 _Promote Contracts_ closed; MLP and INTL
+promoted to Ready, ADR-036..039 Accepted, runbook ownership refreshed. Next
+candidate remains the daemon-working `v0.7.0-beta` slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -52,12 +53,12 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 
 **Primary APS modules:**
 
-| Pick | Module                                                | Status   | Progress | Role                                                                                                      |
-| ---- | ----------------------------------------------------- | -------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | Proposed | 0/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit.      |
-| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Draft    | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. |
-| N3   | Carry-forward gates                                   | Pending  | 0/6      | ADR-036..039 accepted, project-id, noise discipline, AIGUARD envelope, INTR/DRVR forward checks.          |
-| N4   | Documentation lanes                                   | Pending  | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage.               |
+| Pick | Module                                                | Status    | Progress | Role                                                                                                                                                                                                                                         |
+| ---- | ----------------------------------------------------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | Ready     | 0/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit.                                                                                                                                         |
+| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready     | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                    |
+| N3   | Carry-forward gates                                   | Confirmed | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`. |
+| N4   | Documentation lanes                                   | —         | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope. |
 
 **Hard release gate:** `MLP-009`. The protection-claim contract suite, air-gap
 guarantee, and noise-discipline tests must be green before the release can claim
@@ -69,18 +70,25 @@ protection.
 ## Parallel Delivery Shape
 
 <a id="required-prerequisites-cross-cutting-glue"></a>
+<a id="wave-0-promote-contracts"></a>
 
-### Wave 0: Promote Contracts
+### Wave 0: Promote Contracts — Complete (2026-05-13)
 
-Run these before broad implementation. They remove ambiguity from the release
-claim and keep later lanes from diverging.
+These ran before broad implementation. Each item removed ambiguity from the
+release claim so later lanes don't diverge. Outcomes recorded inline.
 
-| Work                                  | Parallel? | Notes                                                                                  |
-| ------------------------------------- | --------- | -------------------------------------------------------------------------------------- |
-| MLP readiness review                  | First     | Promote MLP from Proposed only after confirming MLP-009 remains the hard release gate. |
-| INTL readiness review                 | First     | Promote INTL when the `AgentTag`/session interface with MLP-014 is explicit.           |
-| Carry-forward gate reconciliation     | First     | Confirm ADR-036..039, AIGUARD envelope, INTR-004, and DRVR compatibility still hold.   |
-| Release-doc/runbook ownership refresh | First     | Identify which runbooks must update before `v0.7.0-beta` can be cut.                   |
+| Work                                  | Parallel? | Outcome (2026-05-13)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP readiness review                  | First     | **Done.** MLP-009 confirmed as the hard release gate (module §17–22, recommended landing order §17). MLP promoted **Proposed → Ready** in [`multilayer-protection.aps.md`](./plans/modules/multilayer-protection.aps.md) and `plans/index.aps.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| INTL readiness review                 | First     | **Done.** `AgentTag` stub landed in `crates/anvil-intercept-proto/src/session.rs` (struct + `ANVIL_AGENT_TAG_ENV` / `ANVIL_TASK_ID_ENV` constants + 3 tests, all green via `cargo test -p eddacraft-anvil-intercept-proto`). INTL-003 / INTL-004 reference the real type; planning text now has a backing type definition. INTL promoted **Proposed → Ready** at module level — meaning ready-to-start-Wave-3; INTL-003 / INTL-004 promoted to task-Ready, the other seven INTL tasks remain Draft pending their direct prerequisites.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Carry-forward gate reconciliation     | First     | **6/6 confirmed.** G1 ADR-036/-037/-038/-039 promoted Proposed → **Accepted (2026-05-13)**; `DECISION-LOG.md` updated; `pnpm adr:check` green (`43 ADR files; 43 indexed; no duplicates, no orphans`). G2 `anvil/project-id` schema reaffirmed (ADR-036 §D-2 + MLP-001) — no code yet, but the schema is pinned. G3 **policy** confirmed — ADR-038 codifies the Serena rule + hook surface table; a **behavioural** audit is deferred to Wave 2 when MLP-003 ships shippable hook output to audit. G4 AIGUARD envelope re-run: `cargo test -p eddacraft-anvil-kernel-types` green; the `diagnostic_schema_version_constant_matches_spec` test pins `anvil.diagnostic.v1`, which ADR-037 §D-1 reuses inside the witness line envelope. G5 **closed 2026-05-13:** INTR-004 (path-deny rule) promoted **Draft → Ready** in `intercept-rules.aps.md`. G6 DRVR forward-compat: `crates/anvil-intercept-proto/src/protocol.rs` already owns the editor-driver method names (DRVR-002 / DRVR-008); the new `session.rs` lives in the same crate without touching the existing `IpcCommand` / `IpcEnvelope` types — compatibility confirmed by full proto suite (`cargo test -p eddacraft-anvil-intercept-proto`, 28 passed, 0 failed). |
+| Release-doc/runbook ownership refresh | First     | **Done.** All 16 files in `docs/runbooks/` enumerated. Not changed by this slate (general operations; no MLP/INTL surface): `admin-cli`, `branch-reconciliation`, `db-migrations`, `emergency-hotfix`, `intd-012-windows-evidence`, `main-first-cutover`, `neon-db-operations`, `observability-triage`, `post-deploy-smoke-check`, `release-token-scope`, `rollback-bad-candidate-artefact`, `rollback-bad-main`, `rollback-bad-published-release`, `v0.6.0-beta-release-runbook`, `v0.6.0-beta-security-note`, `waitlist-email-operations`. **Net-new for `v0.7.0-beta` (six N4 lanes, owner @aneki, deliver in Wave 4):** adoption, air-gap, witness-chain operator, hooks-integration, `v0.6.x → v0.7.0-beta` migration note, `anvil-run` (INTL) manpage. **One additional runbook required before tag:** `v0.7.0-beta-release-runbook.md` (cut from the `v0.6.0-beta` template). `intd-012-windows-evidence.md` flagged for re-read when MLP-014 lands (multi-agent Windows scope).                                                                                                                                                                                                                                                                                                                 |
+
+**Wave 0 follow-ups (next-window scope, not blocking Wave 1):** (1) ADR-039
+`@anvil-ignore` hardening — forbid wildcards and same-diff suppress-on-introduction
+for hard-pinned classes — filed against MLP-013. (2) Formal council session for
+ADR-037 before the MLP-002 spike (recommended; the witness-chain primitive is the
+single load-bearing point of failure).
 
 ### Wave 1: Build The Load-Bearing Backbone
 

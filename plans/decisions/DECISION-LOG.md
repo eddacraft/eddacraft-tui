@@ -63,8 +63,8 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [015](015-intercept-loop-enforcement.md) | Rust daemon detects file changes from AI agents, evaluates policy, interrupts sessions | Proposed |
 | [031](031-validation-latency-rubric.md) | Shared latency measurement rubric for intercept validation modes; standardises modes, timing boundaries, dimensions, and warm p95 SLOs so INTD / DRVR / RTAI cite one source | Proposed |
-| [036](036-daemon-scope-discovery-and-boundaries.md) | Daemon scope, discovery, and OS-boundary policy: what the intercept daemon is allowed to see, watch, and act on | Proposed |
-| [038](038-hook-surface-and-noise-discipline.md) | Hook surface contract and noise-discipline rules for the intercept hook system | Proposed |
+| [036](036-daemon-scope-discovery-and-boundaries.md) | Daemon scope, discovery, and OS-boundary policy: what the intercept daemon is allowed to see, watch, and act on | Accepted |
+| [038](038-hook-surface-and-noise-discipline.md) | Hook surface contract and noise-discipline rules for the intercept hook system | Accepted |
 
 ## Policy and Governance
 
@@ -73,8 +73,8 @@ These define how Anvil behaves by default. All features must align.
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
 | [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [035](035-three-pipe-observability-rule.md) | Three-pipe observability rule: Kindling = governance facts, Notification = user-visible state, tracing/OTEL = ephemeral debugging (never source-of-truth); `traceparent` is the cross-pipe correlation key | Accepted |
-| [037](037-witness-chain-and-l4-policy.md) | Witness chain and L4 policy framework for cross-surface policy evidence | Proposed |
-| [039](039-baseline-policy-and-hard-pinned-classes.md) | Baseline policy and hard-pinned rule classes; codifies which warning classes never get baselined | Proposed |
+| [037](037-witness-chain-and-l4-policy.md) | Witness chain and L4 policy framework for cross-surface policy evidence | Accepted |
+| [039](039-baseline-policy-and-hard-pinned-classes.md) | Baseline policy and hard-pinned rule classes; codifies which warning classes never get baselined | Accepted |
 | [041](041-flag-snapshot-usage-join-contract.md) | Usage rows store resolved flag context inline; manifest `key` is the stable join key; ADR-019 stays gate-affecting-only for standalone Kindling flag facts | Accepted |
 
 ## Planning and Process

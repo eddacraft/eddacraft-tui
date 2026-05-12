@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed (rewritten 2026-05-07)
+Accepted (rewritten 2026-05-07; accepted 2026-05-13 during Wave 0 carry-forward
+reconciliation — decisions still hold against `v0.6.2-beta` and the
+daemon-working slate plan)
 
 ## Date
 

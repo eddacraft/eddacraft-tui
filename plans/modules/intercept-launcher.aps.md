@@ -2,9 +2,52 @@
 
 | ID   | Owner  | Status | Progress |
 | ---- | ------ | ------ | -------- |
-| INTL | @aneki | Draft  | 0/9      |
+| INTL | @aneki | Ready  | 0/9      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-13 (Wave 0 readiness review — `AgentTag` stub landed
+in `crates/anvil-intercept-proto/src/session.rs`; INTL-003 and INTL-004
+promoted to task-Ready; the other seven tasks remain Draft pending their direct
+prerequisites. Module-level **Ready** here means "ready to begin Wave 3
+implementation" — not "all individual tasks reviewed". Wave 3 starts after
+MLP-002 ships the witness primitive.)
+
+## AgentTag and Session Interface (cross-reference)
+
+INTL is the ingress that produces the `AgentTag` minted by the daemon per
+MLP-014. The stub type lives in
+[`crates/anvil-intercept-proto/src/session.rs`](../../crates/anvil-intercept-proto/src/session.rs)
+(landed 2026-05-13 as part of Wave 0 closure); behavioural use comes with
+MLP-014 (registry key change) and INTL-003 / INTL-004 (launcher-side
+propagation). Concretely:
+
+- INTL-003 registers a session keyed by `(WorktreeKey, AgentTag)` rather than
+  just `WorktreeKey`; the launcher provides `driver_id`, `claimed_agent_id`,
+  and `pid_starttime` so the daemon can mint the tag.
+- INTL-004 sets `ANVIL_TASK_ID` and `ANVIL_AGENT_TAG` on the child process
+  environment before `exec` (constants: `ANVIL_TASK_ID_ENV`,
+  `ANVIL_AGENT_TAG_ENV`), so MLP-014's attribution chain can recover the tag
+  from any descendant via the env or, on miss, via process-tree walk.
+- INTL-007 side-channel registrations inherit a downgraded `AgentTag` and are
+  capped to fence-only enforcement (see `degraded:fence-cascade` mode in
+  MLP-014).
+
+### Trust model (read before implementing)
+
+Env vars are **advisory hints, not authenticated identity**. Any same-UID
+process can spoof or unset them. The daemon MUST:
+
+1. Cross-check an env-supplied `AgentTag` against the registration it issued
+   for that pid lineage at INTL-003. A tag that doesn't match a known
+   registration is treated as missing, not honoured.
+2. Fall through to the process-tree walk on env miss (MLP-014); a walk that
+   finds no registered ancestor downgrades to worktree-level fence per
+   ADR-038 noise-discipline (one terse line, then silent).
+3. Treat the witness chain (ADR-037 §D-2) and `validate_at_l4` (ADR-037 §D-5)
+   as the authentication backstop — env propagation is correctness for the
+   normal path, not a security boundary.
+
+This contract is the carry-forward gate confirmed in Wave 0 of the
+[release plan](../../RELEASE-PLAN.md#wave-0-promote-contracts).
 
 ## Purpose
 
@@ -77,10 +120,12 @@ consistent launch semantics across tools.
 - **Intent:** Register a new session with the daemon before spawning the child
   process
 - **Expected Outcome:** Launcher generates a session ID, sends registration
-  (tool, worktree, cwd, tmux pane), receives acknowledgement, then proceeds
-  to spawn
+  (tool, worktree, cwd, tmux pane, `driver_id`, `claimed_agent_id`,
+  `pid_starttime`), receives the daemon-minted `AgentTag` (MLP-014) and the
+  acknowledgement, then proceeds to spawn. Registration keys the session as
+  `(WorktreeKey, AgentTag)` to align with MLP-014.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib register`
-- **Status:** Draft
+- **Status:** Ready
 
 ### INTL-004: Process-Group Child Launch
 
@@ -91,9 +136,12 @@ consistent launch semantics across tools.
   from the session ID (not raw HANDLE) -- launcher sends the object name to the
   daemon, which opens the named Job Object independently; launcher reports PID,
   PGID (Unix) or Job Object name (Windows), and process start time to daemon;
-  launcher waits for child exit
+  launcher waits for child exit. Before `exec`, launcher sets
+  `ANVIL_TASK_ID` and `ANVIL_AGENT_TAG` on the child env so MLP-014 attribution
+  chain works through descendants; absence of those vars triggers the
+  process-tree walk fallback at daemon side.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib spawn`
-- **Status:** Draft
+- **Status:** Ready
 
 ### INTL-005: Session Cleanup on Exit
 

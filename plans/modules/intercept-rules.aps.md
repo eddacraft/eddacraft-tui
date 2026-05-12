@@ -4,7 +4,9 @@
 | ---- | ------ | ----------- | -------- |
 | INTR | @aneki | In Progress | 4/8      |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-05-13 (Wave 0 G5: INTR-004 path-deny rule promoted
+**Draft → Ready** so the carry-forward gate closes before Wave 1 begins.
+INTR-003 / INTR-005 / INTR-007 unchanged and remain Draft.)
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTR-001 (rule
 > trait), INTR-002 (secret-detection wrapper), INTR-006 (rule registry —
@@ -132,7 +134,7 @@ daemon hot path.
   configurable deny list; matches produce an interrupt decision with the
   matching pattern and path
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
-- **Status:** Draft
+- **Status:** Ready (promoted Draft → Ready 2026-05-13 as Wave 0 G5 closure)
 
 ### INTR-005: Regex Content Rule
 
