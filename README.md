@@ -122,6 +122,17 @@ If the installer fails with
 an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 `anvil mcp serve` process) and retry.
 
+## Release Status
+
+Latest repository tag: **`v0.6.2-beta`**. This is the shipped operational
+substrate release: main-first branch governance, targeted CI/readiness checks,
+and deterministic release commands are in place.
+
+Next candidate: **`v0.7.0-beta`** — the daemon-working product slate. It is
+tracked through [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
+[`plans/index.aps.md`](./plans/index.aps.md); `MLP-009` is the hard gate for any
+full-protection claim.
+
 ---
 
 ## For contributors
@@ -165,7 +176,7 @@ for the live uplift plan.
 
 Contributor workflow quick links:
 
-- [Branching strategy](docs/guides/branching-strategy.md) — `main`/`dev` release
+- [Branching strategy](docs/guides/branching-strategy.md) — main-first release
   and integration flow
 - [Worktree policy](docs/guides/worktree-policy.md) — permanent vs disposable
   worktrees

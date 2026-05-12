@@ -3,13 +3,12 @@
 
 # Anvil — Save-time Trust
 
-> **Latest verified release tag: `v0.6.1-beta`.** The operational substrate
-> window is complete — OPMODEL 12/12 (archived 2026-05-11; main-first cutover
-> done), RELORCH 12/12 (archived; deterministic release command surface), and
-> CICD 12/12 (closed 2026-05-12; CI targeting + drift checks + workflow
-> contract map). The next tag is the operational `v0.6.2-beta` whose claim is
-> *"the release operating model is executable end-to-end"*; the daemon-working
-> product slate (MLP + INTL) is queued behind it. See
+> **Latest release tag: `v0.6.2-beta`.** The operational substrate window is
+> shipped — OPMODEL 12/12 (archived 2026-05-11; main-first cutover done),
+> RELORCH 12/12 (archived; deterministic release command surface), and CICD
+> 12/12 (archived 2026-05-12; CI targeting + drift checks + workflow contract
+> map). The next tag candidate is the daemon-working product slate
+> `v0.7.0-beta` (MLP + INTL). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
 > [`ROADMAP.md`](../ROADMAP.md) for thematic context across horizons.
 
@@ -84,34 +83,30 @@ class reaches across architectural contexts.
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-### Current window — release orchestration + remaining CICD
+### Shipped operational window — `v0.6.2-beta`
 
-The current planning window opened after the OPMODEL-012 main-first cutover
-landed on 2026-05-11. The remaining operational substrate to finish before the
-next product window is the deterministic release command surface (RELORCH)
-plus the remaining CI targeting work (CICD-005, -008, -010, -011). The
-candidate release for this window remains `v0.6.2-beta`, claimed as _"the
-release operating model is executable end-to-end"_.
+The OPMODEL-012 main-first cutover landed on 2026-05-11, RELORCH completed the
+deterministic release command surface, and CICD closed the targeting/drift
+readiness work on 2026-05-12. The operational release `v0.6.2-beta` is tagged;
+the current planning window has moved to the daemon-working product slate.
 
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |
-| Shipped baseline | Shipped | `v0.6.1-beta` verified tag | Wow-start activation and daemon-backed validation are behind us; current work should not reopen `v0.6.0-beta` scope. |
+| Shipped baseline | Shipped | `v0.6.2-beta` tag | Wow-start activation, daemon-backed validation, and the executable release operating model are behind us; current work should not reopen operational substrate scope. |
 | Main-first cutover | Complete | OPMODEL 12/12 — archived 2026-05-11 | Cutover SHA `b6f236e9`; `main` ruleset id 16217152 enforces 7 required checks + PR + non-FF + no-delete; `dev` retired as `dev-retired-2026-05-11` tag (deletion follow-up #1419). Module archived. |
 | CI/CD release readiness | Shipped | OPMODEL-005 spec + CICD-009 implementation complete | `.github/workflows/release-readiness.yml` validates an exact `main` SHA with no publishing credentials; candidate metadata + retention live. CICD-012 added cutover-aware gates and self-defending fork-reject. |
 | Release orchestration | Complete | RELORCH 12/12 | Completed command-surface slice after OPMODEL-012 unblocked main-targeted work: assess, preflight, prepare, promote, tag, monitor, verify, closeout, command harness, release-record yank/discard schema closure, and skill/runbook wire-up with legacy runner removal. Live CI readiness authority remains tracked under CICD. |
 | CI targeting + drift | Complete | CICD 12/12 (closed 2026-05-12) | All twelve items shipped: cost reporting (-001), classifier (-002), local validation (-003), fast PR validation (-004), integration SHA split (-005), coverage cost controls (-006), security/dependency targeting (-007), platform-matrix targeting (-008), release-readiness reconciliation (-009), workflow contract map + authority audit (-010), APS/repo/release drift checks in CI with PR-metadata extension (-011), and cutover readiness (-012). Council follow-ups closed via PR #1442 (issue #1438). |
-| Daemon-working product slate | Queued | MLP 0/17, INTL 0/9 | Keep queued until operating-model and CI/CD release machinery are trustworthy enough to carry a larger product claim. |
+| Daemon-working product slate | Current candidate | MLP 0/17, INTL 0/9 | Next tag candidate `v0.7.0-beta`; MLP-009 remains the hard release gate for any full-protection claim. |
 
 ### Next window (proposed) — _daemon-working slate_
 
-OPMODEL closed; release-readiness CI shipped. The next product planning
-window opens once RELORCH commands can replay a known release end-to-end
-(RELORCH-009 against `v0.6.1-beta` is the practical gate). **Theme:**
-_Daemon working end-to-end_ — `anvil start` lands a real testable protection
-claim, hooks fire deterministically, the witness chain records every commit,
-baseline adoption works, and `anvil-run` wraps agent processes. Target tag
-candidate remains **`v0.7.0-beta`** unless the operational release sequence
-changes version policy.
+OPMODEL, RELORCH, and CICD are closed. The next product planning window is now
+the active release candidate. **Theme:** _Daemon working end-to-end_ —
+`anvil start` lands a real testable protection claim, hooks fire
+deterministically, the witness chain records every commit, baseline adoption
+works, and `anvil-run` wraps agent processes. Target tag candidate:
+**`v0.7.0-beta`**.
 
 Source of truth for current parallelisation and release dependencies:
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
