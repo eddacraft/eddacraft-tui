@@ -61,9 +61,8 @@ pub enum ValidationError {
 /// permissive default is deliberate — operators should be free to
 /// tighten or soften enforcement, just not turn it off.
 pub fn validate_hard_pinned_classes(value: &Value) -> Result<(), ValidationError> {
-    let root = match value.as_object() {
-        Some(obj) => obj,
-        None => return Ok(()),
+    let Some(root) = value.as_object() else {
+        return Ok(());
     };
 
     // Walk both the canonical and legacy locations. Each call yields
@@ -154,42 +153,55 @@ mod tests {
     fn rejects_secrets_enabled_false_canonical() {
         let v = json!({"enforcement": {"rules": {"secrets": {"enabled": false}}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets"));
+        assert!(
+            matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets")
+        );
     }
 
     #[test]
     fn rejects_command_safety_enabled_false_canonical() {
         let v = json!({"enforcement": {"rules": {"command-safety": {"enabled": false}}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "command-safety"));
+        assert!(
+            matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "command-safety")
+        );
     }
 
     #[test]
     fn rejects_class_as_bool_false() {
         let v = json!({"enforcement": {"rules": {"secrets": false}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets"));
+        assert!(
+            matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets")
+        );
     }
 
     #[test]
     fn rejects_legacy_flat_shape() {
         let v = json!({"rules": {"command-safety": {"enabled": false}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, ref path, .. } if class == "command-safety" && path.starts_with("rules.")));
+        assert!(
+            matches!(err, ValidationError::HardPinnedDisabled { ref class, ref path, .. } if class == "command-safety" && path.starts_with("rules."))
+        );
     }
 
     #[test]
     fn rejects_mode_disabled() {
         let v = json!({"enforcement": {"rules": {"secrets": {"mode": "disabled"}}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedModeDisabled { ref class, .. } if class == "secrets"));
+        assert!(
+            matches!(err, ValidationError::HardPinnedModeDisabled { ref class, .. } if class == "secrets")
+        );
     }
 
     #[test]
     fn rejects_mode_off_case_insensitive() {
         let v = json!({"enforcement": {"rules": {"command-safety": {"mode": "OFF"}}}});
         let err = validate_hard_pinned_classes(&v).unwrap_err();
-        assert!(matches!(err, ValidationError::HardPinnedModeDisabled { .. }));
+        assert!(matches!(
+            err,
+            ValidationError::HardPinnedModeDisabled { .. }
+        ));
     }
 
     #[test]
@@ -245,7 +257,9 @@ mod tests {
                 // violation it sees and stops.
                 assert!(class == "secrets" || class == "command-safety");
             }
-            other => panic!("unexpected error: {other:?}"),
+            other @ ValidationError::HardPinnedModeDisabled { .. } => {
+                panic!("expected HardPinnedDisabled, got mode-disabled error: {other:?}");
+            }
         }
     }
 
@@ -256,6 +270,9 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("secrets"), "msg should name the class");
         assert!(msg.contains("ADR-039"), "msg should cite the governing ADR");
-        assert!(msg.contains("@anvil-ignore"), "msg should point at the per-finding bypass");
+        assert!(
+            msg.contains("@anvil-ignore"),
+            "msg should point at the per-finding bypass"
+        );
     }
 }

@@ -12,9 +12,7 @@
 //!    layering also lets new validators ride on the same intermediate
 //!    `serde_json::Value` without re-touching the parser.
 
-use anvil_config::{
-    ConfigFormat, ValidationError, parse_str, validate_hard_pinned_classes,
-};
+use anvil_config::{ConfigFormat, ValidationError, parse_str, validate_hard_pinned_classes};
 use std::path::Path;
 
 #[test]
@@ -27,7 +25,9 @@ enforcement:
 ";
     let v = parse_str(yaml, ConfigFormat::Yaml, Path::new("test.yaml")).unwrap();
     let err = validate_hard_pinned_classes(&v).unwrap_err();
-    assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets"));
+    assert!(
+        matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets")
+    );
 }
 
 #[test]
@@ -35,7 +35,9 @@ fn json_disable_command_safety_is_rejected() {
     let json = r#"{"enforcement": {"rules": {"command-safety": {"enabled": false}}}}"#;
     let v = parse_str(json, ConfigFormat::Json, Path::new("test.json")).unwrap();
     let err = validate_hard_pinned_classes(&v).unwrap_err();
-    assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "command-safety"));
+    assert!(
+        matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "command-safety")
+    );
 }
 
 #[test]
@@ -46,7 +48,9 @@ enabled = false
 ";
     let v = parse_str(toml, ConfigFormat::Toml, Path::new("test.toml")).unwrap();
     let err = validate_hard_pinned_classes(&v).unwrap_err();
-    assert!(matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets"));
+    assert!(
+        matches!(err, ValidationError::HardPinnedDisabled { ref class, .. } if class == "secrets")
+    );
 }
 
 #[test]
@@ -77,7 +81,9 @@ enabled = false
             ValidationError::HardPinnedDisabled { class, .. } => {
                 assert_eq!(class, "secrets", "{name} should flag secrets");
             }
-            other => panic!("{name} unexpected error: {other:?}"),
+            other @ ValidationError::HardPinnedModeDisabled { .. } => {
+                panic!("{name} expected HardPinnedDisabled, got mode-disabled: {other:?}");
+            }
         }
     }
 }
