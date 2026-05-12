@@ -144,7 +144,8 @@ autonomous-state.json
 
 # Local review artefacts
 review/
-plans/reviews/
+plans/reviews/*
+!plans/reviews/post-merge/
 
 # GitHub Local Runners
 .github/actions-runner

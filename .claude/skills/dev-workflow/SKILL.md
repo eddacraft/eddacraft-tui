@@ -11,6 +11,18 @@ Routing layer for the development lifecycle. Every task follows this sequence �
 APS (Ready) → Branch → Code → Review → PR → Merged → [cleanup] → Released/Shipped
 ```
 
+## Surface inventory
+
+This is a project-local snapshot, but most referenced skills and agents are **globally available** via `joshuaboys/code-env` rather than vendored under `.claude/` here.
+
+| Surface | Repo-local (`.claude/`) | Global (`code-env`) |
+|---|---|---|
+| Skills | `dev-workflow`, `planning-council`, `release`, `dependabot` (symlink) | `brainstorming`, `writing-plans`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `addressing-pr-reviews`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
+| Agents | `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead`, `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach` | `debugger`, `autonomous`, others |
+| Commands | `/council` (repo-local — see [`commands/council.md`](../../commands/council.md)), `/plan`, `/release`, others | `/test`, `/debug`, `/delegate`, `/commit` |
+
+If a referenced skill or agent is missing locally, it is expected to be globally available — not vendored drift. CIB-002 is the open work item for producing a definitive inventory.
+
 ## Stage Map
 
 | Stage | What | Skill | Agent | Command |
@@ -21,8 +33,7 @@ APS (Ready) → Branch → Code → Review → PR → Merged → [cleanup] → R
 | **Code** | TDD implementation | `test-driven-development` | `tdd-coach` | `/test` |
 | **Debug** | Root cause analysis | `systematic-debugging` | `debugger` | `/debug` |
 | **Verify** | Evidence before completion claims | `verification-before-completion` | — | — |
-| **Review (streaming)** | Iterative council during implementation | `local-review-council` | `council-reviewer` | `/council` |
-| **Review (batch)** | Formal multi-persona dossier at milestone | `council` | `council-reviewer` + `adversarial-reviewer` + specialists | `/council batch` |
+| **Review (pre-PR)** | Risk-tiered Council | `council` | `council-reviewer` + role-mapped specialists | `/council [quick\|mini\|full] <target>` |
 | **Finish** | Commit, push, open PR | `finishing-a-branch` | — | `/commit` |
 | **Address review** | Resolve PR feedback and CI failures | `addressing-pr-reviews` | — | — |
 | **Parallelise** | Independent tasks concurrently | `parallel-agents` | `autonomous` | `/delegate` |
@@ -31,9 +42,9 @@ APS (Ready) → Branch → Code → Review → PR → Merged → [cleanup] → R
 
 1. **Always start from APS.** Pick a `Ready` work item. Mark it `In Progress` before writing code.
 2. **Branch from `main`.** Hotfixes also branch from `main` (or the latest good tag if `main` is unreleasable). Use the project naming convention (`feat/*`, `fix/*`, `docs/*`, `chore/*`).
-3. **Council is the review surface.** Run Streaming Council during implementation for fast iteration; run Batch Council before opening the PR for the formal review dossier. GitHub PRs are publication artifacts, not the primary review workspace. Address CRITICAL and MAJOR findings before push.
+3. **Council is the review surface.** Run `/council [quick|mini|full] <target>` before opening the PR. Default to `quick`; escalate to `mini` for cross-boundary / CI / release / security / workflow risk, and to `full` for branch / release-operating-model changes or high-risk design. See [`commands/council.md`](../../commands/council.md) for the tier table. Address CRITICAL and MAJOR findings before push.
 4. **Mark Merged on PR merge.** Not Complete — the cleanup agent advances `Merged → Released/Shipped → Complete` when release evidence confirms ship.
-5. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md` when the project uses that path.
+5. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md`; the gitignore exception `!plans/reviews/post-merge/` keeps these tracked.
 6. **Verify before claiming complete.** Evidence before assertions — use `verification-before-completion`.
 
 ## Decision Points
@@ -48,7 +59,7 @@ APS (Ready) → Branch → Code → Review → PR → Merged → [cleanup] → R
 → `systematic-debugging` before any other action
 
 **About to commit:**
-→ `verification-before-completion` gate → `local-review-council` (streaming) or `council` (batch) → `finishing-a-branch`
+→ `verification-before-completion` gate → `/council` (default `quick`; escalate to `mini`/`full` for risk) → `finishing-a-branch`
 
 **PR review feedback returned:**
 → `addressing-pr-reviews` — fix CI first, then walk each unresolved thread
@@ -74,4 +85,4 @@ present) auto-advances post-merge states when release evidence is recorded.
 - Worktree policy: `docs/guides/worktree-policy.md`
 - APS rules: `plans/aps-rules.md`
 - Post-merge template: `plans/reviews/post-merge/TEMPLATE.md`
-- Council architecture: see `council` skill (Streaming vs Batch modes)
+- Council command (repo-local): [`commands/council.md`](../../commands/council.md)
