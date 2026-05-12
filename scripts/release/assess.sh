@@ -227,11 +227,15 @@ git diff --name-only "$base_sha" "$head_sha" >"$tmp/changed-paths"
 # (heading edits, file moves). Both feed the candidate metadata that
 # downstream commands consume.
 #
-# Extraction uses PCRE so we can negative-look-behind on `[\w-]` —
+# Extraction uses `perl` so we can negative-look-behind on `[\w-]` —
 # without it, prose like `pre-FIX-001` matches `FIX-001` via the
 # bare-`\b` hyphen quirk. Trailing `[a-z]?` admits suffixed IDs like
-# `RCLI3-016b`. Mirrors the regex in `scripts/aps/drift-check.mjs` so
-# the two surfaces classify identically.
+# `RCLI3-016b`. `grep -P` would be terser but BSD grep on macOS
+# doesn't carry PCRE, and `release-harness.yml` runs this fixture on
+# both ubuntu-latest and macos-latest. Perl is on every macOS install
+# by default and on every Linux runner image — the portable choice.
+# The pattern mirrors `scripts/aps/drift-check.mjs` so the two
+# surfaces classify identically.
 #
 # After extraction we filter to **known module prefixes** — derived
 # at runtime from the first ID-table row of each `plans/modules/` and
@@ -242,10 +246,11 @@ git diff --name-only "$base_sha" "$head_sha" >"$tmp/changed-paths"
 # module file are excluded; this is acceptable because such items
 # show up in the commit log directly and don't need to round-trip
 # through the candidate-metadata surface to be discoverable.
+APS_PERL_EXTRACT='while (/(?<![\w-])([A-Z][A-Z0-9]+-\d{3}[a-z]?)\b/g) { print "$1\n" }'
 git log --format=%B "$base_sha..$head_sha" 2>/dev/null \
-  | grep -Po '(?<![\w-])[A-Z][A-Z0-9]+-[0-9]{3}[a-z]?\b' >"$tmp/aps-log" || true
+  | perl -nle "$APS_PERL_EXTRACT" >"$tmp/aps-log" || true
 if git diff "$base_sha" "$head_sha" -- plans 2>/dev/null \
-  | grep -Po '(?<![\w-])[A-Z][A-Z0-9]+-[0-9]{3}[a-z]?\b' >"$tmp/aps-plan"; then
+  | perl -nle "$APS_PERL_EXTRACT" >"$tmp/aps-plan"; then
   true
 else
   : >"$tmp/aps-plan"
