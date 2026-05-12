@@ -46,9 +46,10 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 4. **Mark Merged on PR merge.** Not Complete — the cleanup agent advances `Merged → Released/Shipped → Complete` when release evidence confirms ship.
 5. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md`; the gitignore exception `!plans/reviews/post-merge/` keeps these tracked.
 6. **Verify before claiming complete.** Evidence before assertions — use `verification-before-completion`.
-7. **Wait for automated PR review before remediation.** After opening a PR,
-   wait up to 10 minutes for Copilot and other automated reviewers to complete
-   or time out, then run `addressing-pr-reviews`. Do not mention or tag bots to
+7. **Always run post-PR review remediation.** After opening a PR, wait up to 10
+   minutes for Copilot and other automated reviewers to complete or time out,
+   then run `addressing-pr-reviews` even when no automated review comments were
+   left. That skill also catches late CI failures. Do not mention or tag bots to
    request a review unless the user explicitly asks.
 8. **Use the review remediation order.** Fix failing CI first, then automated
    review comments, then human review comments. Re-run targeted validation after
@@ -77,8 +78,9 @@ to `mini`/`full` for risk) → `finishing-a-branch`
 
 **After PR open:**
 → wait up to 10 minutes for Copilot and automated reviewers to complete or time
-out → run `addressing-pr-reviews`; fix CI first, then automated review comments,
-then human review comments; do not tag bots unless the user explicitly asks
+out → always run `addressing-pr-reviews`, even with no bot comments, because it
+also catches late CI failures; fix CI first, then automated review comments, then
+human review comments; do not tag bots unless the user explicitly asks
 
 **After PR merge / abandon / pause:**
 → offer `wt remove`; perform cleanup only after confirming the branch is pushed
