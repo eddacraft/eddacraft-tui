@@ -82,7 +82,7 @@ consistent launch semantics across tools.
 - Rule evaluation or enforcement decisions
 - tmux-specific UX (pane messaging, status line markers)
 - Editor or MCP integration
-- Remote session launch
+- Remote session launch except as coordinated by future SSHREMOTE work
 - Fish shell integration (can be added later)
 
 ## Interfaces

@@ -65,6 +65,7 @@ These define how Anvil behaves by default. All features must align.
 | [031](031-validation-latency-rubric.md) | Shared latency measurement rubric for intercept validation modes; standardises modes, timing boundaries, dimensions, and warm p95 SLOs so INTD / DRVR / RTAI cite one source | Proposed |
 | [036](036-daemon-scope-discovery-and-boundaries.md) | Daemon scope, discovery, and OS-boundary policy: what the intercept daemon is allowed to see, watch, and act on | Accepted |
 | [038](038-hook-surface-and-noise-discipline.md) | Hook surface contract and noise-discipline rules for the intercept hook system | Accepted |
+| [043](043-ssh-remote-host-daemon.md) | SSH remote support runs Anvil on the remote host; local surfaces are display/control only and must not claim local daemon protection for remote files | Proposed |
 
 ## Policy and Governance
 

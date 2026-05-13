@@ -796,7 +796,7 @@ predictable schema for tooling). `anvil/witnessed.ndjson` and
 | WSL (per distro) | ✓ | Each distro = separate execution scope |
 | Cross-Windows ↔ WSL | ✗ refuse | `os_locality_token` mismatch → `cross-boundary-detected` |
 | Dev container / Codespaces | later | Need daemon-in-container packaging |
-| SSH remote | later | Need remote-host driver story |
+| SSH remote | later | Remote-host daemon model selected in [`ADR-043`](../decisions/043-ssh-remote-host-daemon.md); implementation tracked by [`SSHREMOTE`](../modules/ssh-remote-host-daemon.aps.md) |
 | Web / mobile / API edits | L4-only | Caught by CI action / GH App (v2) at push time |
 
 macOS App Sandbox (Cursor, etc.): MCP shim falls back to embedded
@@ -973,6 +973,8 @@ $ git push
 - Rule pack marketplace
 - Bridge driver for cross-OS reach (Windows ↔ WSL with audit)
 - Self-hosted Anvil cloud (Helm chart)
+- SSH remote-host daemon driver (remote daemon + hooks + `anvil-run`; local
+  display/control only)
 - Platform supervisors (systemd / launchd / Task Scheduler)
 - Per-project worker model (Option D from §1.4 of original spec) if
   multi-tenant sandboxing becomes a hard requirement
