@@ -122,10 +122,16 @@ fn initial_scan(
     // SCAN-001: noise-pruning discovery (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) (same shape as the welcome
     // walker). Per-file parsing below already runs on rayon, so the only
     // change here is the walker primitive.
+    let filter_for_walker = filter.clone();
     let walker = ignore::WalkBuilder::new(root)
         .follow_links(false)
         .standard_filters(false)
         .hidden(false)
+        .filter_entry(move |e| {
+            !e.file_type().is_some_and(|ft| ft.is_dir())
+                || e.depth() == 0
+                || !filter_for_walker.should_ignore(e.path())
+        })
         .build();
 
     let all_paths: Vec<PathBuf> = walker
@@ -648,16 +654,26 @@ mod tests {
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
-        thread::sleep(std::time::Duration::from_millis(200));
+        let mut events = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut saw_snapshot = false;
+        while std::time::Instant::now() < deadline {
+            match event_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(event) => {
+                    saw_snapshot |= event.event_type == anvil_kernel_types::EventType::Snapshot;
+                    events.push(event);
+                    if saw_snapshot {
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
         handle.stop().unwrap();
+        events.extend(event_rx.try_iter());
 
-        let events: Vec<EngineEvent> = event_rx.try_iter().collect();
-        assert!(
-            events
-                .iter()
-                .any(|e| e.event_type == anvil_kernel_types::EventType::Snapshot),
-            "initial scan should still emit a snapshot"
-        );
+        assert!(saw_snapshot, "initial scan should still emit a snapshot");
         assert!(
             events
                 .iter()
