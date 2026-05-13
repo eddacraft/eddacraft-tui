@@ -13,7 +13,36 @@ description:
 
 Fetch all unresolved review comments on a GitHub PR, address each one (fix code
 or reply), resolve every thread, commit and push fixes, post a summary only when
-code changes were made, and ensure CI is green before finishing.
+code changes were made, sync with the base branch, and ensure CI, review state,
+and mergeability are all clean in the same final pass before finishing.
+
+## Closure Loop Hard Gate
+
+Run remediation as a bounded loop, not a one-shot checklist. Every pass must
+refresh all three PR readiness axes:
+
+```bash
+gh pr checks $PR_NUMBER
+gh api graphql -f query='<reviewThreads query from Step 2>' -f owner="$OWNER" -f repo="$REPO" -F pr=$PR_NUMBER
+gh pr view $PR_NUMBER --json mergeable,mergeStateStatus,reviewDecision,url
+```
+
+Fix the highest-priority blocker first:
+
+| Priority | Blocker                         | Required action                                      |
+| -------- | ------------------------------- | ---------------------------------------------------- |
+| 1        | Failed or pending required CI   | Inspect logs, fix root cause, validate, commit, push |
+| 2        | Merge conflicts / stale branch  | Rebase or merge base, resolve conflicts, push        |
+| 3        | Unresolved automated threads    | Reply/fix/resolve all bot threads                    |
+| 4        | Unresolved human review threads | Reply/fix/resolve all human threads                  |
+| 5        | Non-approving review decision   | Report remaining approval state                      |
+
+After any commit, push, rebase, comment reply, or thread resolution, restart the
+loop from the inventory commands. Finish only when one pass proves CI is green
+or base-branch failure is proven, unresolved threads are zero except conflicts
+awaiting user input, mergeability is not blocked, and the local worktree is
+clean. If three consecutive passes do not reduce blockers, stop and report the
+exact evidence and decision needed.
 
 ## When to Use
 
@@ -271,10 +300,11 @@ gh pr comment $PR_NUMBER --body "## Review Feedback Addressed
 - @alice and @bob disagree on axios vs fetch — awaiting direction"
 ```
 
-## Step 8: Wait for Green CI
+## Step 8: Wait for Green CI And Final Readiness
 
-After pushing, check that CI passes. **Do not consider the work done until CI is
-green.**
+After pushing, run the closure pass. **Do not consider the work done until CI,
+review threads, mergeability, and the local worktree are clean in the same
+pass.**
 
 ### Check CI status
 
@@ -284,6 +314,11 @@ sleep 5
 
 # Watch checks until they complete
 gh pr checks $PR_NUMBER --watch
+
+# Re-check review and merge readiness after CI settles
+gh api graphql -f query='<reviewThreads query from Step 2>' -f owner="$OWNER" -f repo="$REPO" -F pr=$PR_NUMBER
+gh pr view $PR_NUMBER --json mergeable,mergeStateStatus,reviewDecision,url
+git status --short
 ```
 
 If `gh pr checks --watch` is not available, poll manually:
@@ -325,15 +360,16 @@ status remaining).
    gh pr checks $PR_NUMBER --watch
    ```
 
-4. **Repeat until all checks pass.** If a failure is clearly unrelated to your
-   changes (e.g., a pre-existing flaky test in an unrelated module), note it in
-   your summary but don't block on it — inform the user.
+4. **Repeat the closure loop until all checks pass and review/merge state is
+   clean.** If a failure appears unrelated, prove the same check fails on the
+   base branch before treating it as pre-existing, then inform the user.
 
 ### Hard gate
 
-**All CI checks must be green (or explicitly flagged as unrelated failures)
-before marking the task as done.** If you cannot get CI green after 3 attempts,
-stop and ask the user for guidance.
+**All CI checks must be green, all resolvable threads resolved, mergeability not
+blocked, and the local worktree clean before marking the task as done.** If
+three consecutive passes do not reduce the blocker count, stop and ask the user
+for guidance with evidence.
 
 ## Common Mistakes
 
@@ -348,6 +384,7 @@ stop and ask the user for guidance.
 | Using wrong comment ID for replies                                   | Use `databaseId` of top-level comment, not reply IDs                    |
 | Resolving without replying first                                     | Always reply THEN resolve                                               |
 | Re-tagging a bot/agent (e.g. `@copilot`, `@coderabbitai`) in a reply | This triggers the bot to open a new review or PR — omit the `@` mention |
+| Declaring "done" after fixing only CI, reviews, or conflicts         | Re-run the closure loop and prove all three are clean together          |
 | Declaring "done" with CI still pending or red                        | Wait for all checks to pass before finishing                            |
 | Blindly retrying flaky tests                                         | Read the logs, fix the root cause                                       |
 | Blocking on unrelated CI failures                                    | Note them in the summary, inform the user                               |
@@ -362,4 +399,5 @@ Push:            git push
 Summary:         gh pr comment {n} --body "..." (only if fixes made)
 CI check:        gh pr checks {n} --watch
 CI logs:         gh run view {run-id} --log-failed
+Merge state:     gh pr view {n} --json mergeable,mergeStateStatus,reviewDecision
 ```

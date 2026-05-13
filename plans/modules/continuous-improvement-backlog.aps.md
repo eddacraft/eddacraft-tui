@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 1/2      |
+| CIB | —     | In Progress | 2/3      |
 
 ## Purpose
 
@@ -137,3 +137,23 @@ archive.
   `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
   (Phase 1: Inventory And Declare Authority).
 - **Confidence:** medium
+
+### CIB-003: Harden PR remediation against partial closure
+
+- **Status:** Complete
+- **Intent:** Ensure PR review remediation does not stop after fixing only CI,
+  only review comments, or only merge conflicts.
+- **Expected Outcome:** Repo-local `addressing-pr-reviews` skills for Claude,
+  OpenCode, and Codex require a bounded closure loop that re-inventories CI,
+  unresolved review threads, and mergeability after every push/rebase/thread
+  resolution, and the dev workflow routes PR feedback through that loop.
+- **Validation:** Manual cross-check of `.claude/skills/addressing-pr-reviews/SKILL.md`,
+  `.opencode/skills/addressing-pr-reviews/SKILL.md`,
+  `.codex/skills/addressing-pr-reviews/SKILL.md`, and both `dev-workflow` skill
+  variants; `pnpm format:check` for Markdown formatting.
+- **Identified From:** User report 2026-05-13 that agents addressing a stream of
+  PRs were fixing one blocker class while leaving CI, review comments, or merge
+  conflicts unresolved, causing repeated token-heavy reruns.
+- **Coordinates with:** CIB-002 (agent surface inventory) and repo-local
+  `addressing-pr-reviews` skill authority.
+- **Confidence:** high

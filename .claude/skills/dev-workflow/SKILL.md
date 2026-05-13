@@ -5,10 +5,17 @@ description: Use at the start of any development task to route to the correct sk
 
 # Dev Workflow
 
+## Source And Variant
+
+This is the Anvil vendored variant of the neutral EddaCraft skill at
+`eddacraft-skills/skills/eddacraft/dev-workflow`. Keep the workflow contract
+aligned with the neutral source, but preserve Anvil-specific APS, Worktrunk,
+main-first, Council, and release-closeout rules here.
+
 Routing layer for the development lifecycle. Every task follows this sequence — do not skip stages.
 
 ```
-APS (Ready) → Worktrunk Branch → Code → Review → PR → Merged → cleanup offer → Released/Shipped
+APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped
 ```
 
 ## Surface inventory
@@ -17,8 +24,8 @@ This is a project-local snapshot, but most referenced skills and agents are **gl
 
 | Surface | Repo-local (`.claude/`) | Global (`code-env`) |
 |---|---|---|
-| Skills | `dev-workflow`, `addressing-pr-reviews`, `planning-council`, `release`, `dependabot` (symlink) | `brainstorming`, `writing-plans`, `using-git-worktrees`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
-| Agents | `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead`, `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach` | `debugger`, `autonomous`, others |
+| Skills | `dev-workflow`, `planning-workflow`, `aps-planning`, `test-driven-development`, `addressing-pr-reviews`, `planning-council`, `release`, `dependabot` (symlink) | `brainstorming`, `writing-plans`, `using-git-worktrees`, `systematic-debugging`, `verification-before-completion`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
+| Agents | `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach`, `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead` | `debugger`, `autonomous`, others |
 | Commands | `/council` (repo-local — see [`commands/council.md`](../../commands/council.md)), `/plan`, `/release`, others | `/test`, `/debug`, `/delegate`, `/commit` |
 
 If a referenced skill or agent is missing locally, it is expected to be globally available — not vendored drift. CIB-002 is the open work item for producing a definitive inventory.
@@ -28,7 +35,7 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 | Stage | What | Skill | Agent | Command |
 |---|---|---|---|---|
 | **Idea / spec** | Explore intent, design before code | `brainstorming` | — | — |
-| **Plan** | Write implementation plan from spec | `writing-plans`, `planning-council` | `anvil-plan-spec` | `/plan` |
+| **Plan / APS gate** | Plan intent and validate APS truth | `planning-workflow`, `aps-planning`, `writing-plans`, `planning-council` | `anvil-plan-spec` | `/plan` |
 | **Branch** | Create Worktrunk worktree from `main` | `using-git-worktrees` | — | `wt switch --create <branch>` |
 | **Code** | TDD implementation | `test-driven-development` | `tdd-coach` | `/test` |
 | **Debug** | Root cause analysis | `systematic-debugging` | `debugger` | `/debug` |
@@ -40,24 +47,36 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 
 ## Rules
 
-1. **Always start from APS.** Pick a `Ready` work item. Mark it `In Progress` before writing code.
+1. **Always start from planning truth.** If the requested work is not already a
+   clearly valid `Ready` or `In Progress` APS item, invoke `planning-workflow`.
+   Before branch or code, invoke `aps-planning` for APS Truth Validation. If the
+   gate returns `needs-plan-update` or `blocked`, update APS or resolve the
+   blocker before implementation. Mark the work item `In Progress` before
+   writing code.
 2. **Use Worktrunk for task branches.** Create task branches with `wt switch --create <branch>` unless the user explicitly asks to continue in the current worktree. Hotfixes also branch from `main` (or the latest good tag if `main` is unreleasable). Use the project naming convention (`feat/*`, `fix/*`, `docs/*`, `chore/*`).
-3. **Council is the review surface.** Run `/council [quick|mini|full] <target>` before opening the PR. Default to `quick`; escalate to `mini` for cross-boundary / CI / release / security / workflow risk, and to `full` for branch / release-operating-model changes or high-risk design. See [`commands/council.md`](../../commands/council.md) for the tier table. Address CRITICAL and MAJOR findings before push.
-4. **Mark Merged on PR merge.** Not Complete — the cleanup agent advances `Merged → Released/Shipped → Complete` when release evidence confirms ship.
-5. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md`; the gitignore exception `!plans/reviews/post-merge/` keeps these tracked.
-6. **Verify before claiming complete.** Evidence before assertions — use `verification-before-completion`.
-7. **Always run post-PR review remediation.** After opening a PR, wait up to 10
+3. **Code through TDD.** Invoke `test-driven-development` for the Code stage.
+   Write or update the smallest failing test first, prove the red state, make it
+   pass with the smallest correct implementation, then refactor while keeping
+   targeted tests green. If the work truly cannot be tested first, record why in
+   the APS item or PR test plan.
+4. **Council is the review surface.** Run `/council [quick|mini|full] <target>` before opening the PR. Default to `quick`; escalate to `mini` for cross-boundary / CI / release / security / workflow risk, and to `full` for branch / release-operating-model changes or high-risk design. See [`commands/council.md`](../../commands/council.md) for the tier table. Address CRITICAL and MAJOR findings before push.
+5. **Mark Merged on PR merge.** Not Complete — the cleanup agent advances `Merged → Released/Shipped → Complete` when release evidence confirms ship.
+6. **Extract post-merge test plans.** Do not leave them in the PR description only. Write to `plans/reviews/post-merge/<branch-slug>.md`; the gitignore exception `!plans/reviews/post-merge/` keeps these tracked.
+7. **Verify before claiming complete.** Evidence before assertions — use `verification-before-completion`.
+8. **Always run post-PR review remediation.** After opening a PR, wait up to 10
    minutes for Copilot and other automated reviewers to complete or time out,
    then run `addressing-pr-reviews` even when no automated review comments were
    left. That skill also catches late CI failures. Do not mention or tag bots to
    request a review unless the user explicitly asks.
-8. **Use the review remediation order.** Fix failing CI first, then automated
-   review comments, then human review comments. Re-run targeted validation after
-   each meaningful fix batch.
-9. **Prefer rebase before merge.** When a PR branch needs to catch up to `main`
+9. **Use the review closure loop.** `addressing-pr-reviews` must re-inventory CI,
+    unresolved review threads, and mergeability after every push/rebase/thread
+    resolution. Fix the highest-priority blocker first: CI, conflicts/stale base,
+    automated review threads, then human review threads. Do not claim the PR is
+    ready after fixing only one blocker class.
+10. **Prefer rebase before merge.** When a PR branch needs to catch up to `main`
    or resolve merge conflicts, rebase it onto latest `main` and push with
    `--force-with-lease` unless the user explicitly asks for a merge commit.
-10. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
+11. **Offer branch/worktree cleanup at the end.** After a PR is opened, merged,
    abandoned, or paused with no near-term action, ask whether to run
    `wt remove` for the Worktrunk worktree and local branch if it is safe. Never
    delete a branch that is unmerged, unpushed, or still needed without explicit
@@ -66,11 +85,15 @@ If a referenced skill or agent is missing locally, it is expected to be globally
 ## Decision Points
 
 **Starting a new task:**
-→ Check `plans/index.aps.md` for next Ready item → `using-git-worktrees` via
-`wt switch --create <branch>` from `main` → code
+→ `planning-workflow` if no validated Ready item exists → `aps-planning` APS
+Truth Validation → check `plans/index.aps.md` for next Ready item → mark
+`In Progress` when authorised → `using-git-worktrees` via `wt switch --create
+<branch>` from `main` → `test-driven-development` → code
 
 **Implementation unclear:**
-→ `brainstorming` → `writing-plans` (or `planning-council` for multi-persona design) → `using-git-worktrees` → code
+→ `planning-workflow` → `brainstorming` when required → `writing-plans` (or
+`planning-council` for multi-persona design) → `aps-planning` validation →
+`using-git-worktrees` → `test-driven-development` → code
 
 **Tests failing unexpectedly:**
 → `systematic-debugging` before any other action
@@ -83,7 +106,9 @@ to `mini`/`full` for risk) → `finishing-a-branch`
 → wait up to 10 minutes for Copilot and automated reviewers to complete or time
 out → always run `addressing-pr-reviews`, even with no bot comments, because it
 also catches late CI failures; fix CI first, then automated review comments, then
-human review comments; do not tag bots unless the user explicitly asks
+human review comments inside the closure loop; after every push/rebase/thread
+resolution, re-check CI, unresolved threads, and mergeability; do not tag bots
+unless the user explicitly asks
 
 **After PR merge / abandon / pause:**
 → offer `wt remove`; perform cleanup only after confirming the branch is pushed
@@ -92,8 +117,9 @@ cleanup while review fixes are still expected unless the user says local
 iteration is done.
 
 **PR review feedback returned:**
-→ `addressing-pr-reviews` — fix CI first, then automated review comments, then
-human review comments
+→ `addressing-pr-reviews` — run the closure loop until CI, unresolved review
+threads, and mergeability are clean in the same pass, or stop with evidence for
+the remaining blocker
 
 **PR branch behind or conflicted:**
 → rebase onto latest `main`, resolve conflicts, validate, then push with

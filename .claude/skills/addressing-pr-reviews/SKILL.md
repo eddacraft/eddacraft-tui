@@ -7,7 +7,7 @@ description: Use after opening an Anvil PR, or when asked to address PR comments
 
 Project-local workflow for `anvil-001` PR remediation. This skill handles CI,
 automated review comments, human review comments, base-branch sync, and final PR
-readiness.
+readiness as one closure loop. Do not fix only one class of problem and stop.
 
 ## When To Use
 
@@ -32,8 +32,43 @@ readiness.
 7. If remediation changes `docs/**`, `plans/**`, README files, skill docs, or
    runbooks, perform the docs closeout required by `AGENTS.md`.
 8. If post-merge verification is needed, extract it to
-   `plans/reviews/post-merge/<branch-slug>.md`; do not leave it only in the PR
-   body.
+    `plans/reviews/post-merge/<branch-slug>.md`; do not leave it only in the PR
+    body.
+9. Treat CI, review threads, and mergeability as a single PR readiness contract.
+   After every push, re-inventory all three before deciding what to do next.
+
+## Closure Loop Hard Gate
+
+Run remediation as a bounded loop, not a linear checklist. Each pass must collect
+fresh state for all three readiness axes:
+
+```bash
+gh pr checks "$PR_NUMBER"
+gh api graphql -f query='<reviewThreads query from step 3>' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER"
+gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus,reviewDecision,url
+```
+
+Then fix the highest-priority blocker in this order:
+
+| Priority | Blocker | Required action |
+| --- | --- | --- |
+| 1 | Failed or pending required CI | Inspect logs, fix root cause, validate, commit, push |
+| 2 | Merge conflicts / dirty rebase | Rebase on base, resolve conflicts, validate, push |
+| 3 | Unresolved automated threads | Reply/fix/resolve all bot threads |
+| 4 | Unresolved human review threads | Reply/fix/resolve all human threads |
+| 5 | Non-approving review decision | Report remaining approval state |
+
+After any commit, push, rebase, comment reply, or thread resolution, start a new
+pass from the top. Finish only when the same pass proves:
+
+- required CI is green or a base-branch failure is proven with evidence
+- there are zero unresolved review threads, except conflicts awaiting user input
+- `mergeStateStatus` is not blocked by conflicts or stale head state
+- local working tree is clean
+
+If three consecutive passes do not reduce the blocker count, stop and report the
+exact blocker, evidence, and next decision needed. Do not declare the PR done
+after fixing only CI, only review comments, or only conflicts.
 
 ## Workflow
 
@@ -183,15 +218,18 @@ git push --force-with-lease
 
 ### 7. Final CI And Review State
 
-Run the final checks:
+Run the final closure pass:
 
 ```bash
 gh pr checks "$PR_NUMBER" --watch --fail-fast
+gh api graphql -f query='<reviewThreads query from step 3>' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER"
 gh pr view "$PR_NUMBER" --json mergeable,mergeStateStatus,reviewDecision,reviews,comments,url
+git status --short
 ```
 
-Do not finish while checks are pending or red unless the user explicitly accepts
-that state after you present the evidence.
+Do not finish while checks are pending/red, unresolved threads remain,
+mergeability is blocked, or the worktree is dirty unless the user explicitly
+accepts that state after you present the evidence.
 
 ### 8. Summary Comment
 
@@ -218,5 +256,6 @@ Report:
 - Commits pushed
 - CI status and evidence
 - Threads resolved or outstanding
+- Mergeability state and conflict status
 - Any residual risks or user decisions needed
 - Docs Closeout note when documentation changed
