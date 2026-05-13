@@ -146,7 +146,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-002 — Registry-backed skip and disable resolution
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
 

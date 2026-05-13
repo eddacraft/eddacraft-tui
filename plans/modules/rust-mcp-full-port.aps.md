@@ -108,7 +108,7 @@ Change status to **Ready** when:
 
 ### RMCPF-001: Existing MCP surface inventory
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Create the compatibility matrix for every current TS MCP tool,
   resource, prompt, and transport.
 - **Expected Outcome:** Inventory records contract, implementation owner,
