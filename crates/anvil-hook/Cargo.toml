@@ -1,0 +1,21 @@
+[package]
+name = "eddacraft-anvil-hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil hook surface primitives — ADR-038 noise discipline, framework detection, shell templates, panic catcher (MLP-003)"
+
+[lib]
+name = "anvil_hook"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+workspace-hack.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1127,6 +1127,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-hook"
+version = "0.6.2-beta"
+dependencies = [
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-intercept"
 version = "0.6.2-beta"
 dependencies = [
