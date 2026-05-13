@@ -1363,6 +1363,149 @@ Group A, D, and C-1 (MLP2-016) form the daemon-enforcement
 critical path. Group I depends on MLP2-016. Group J closes the
 protection-claim contract.
 
+## Priority and phasing plan
+
+Derived from each task's declared `Dependencies:` line. Every MLP
+dependency is already Done (the MLP module is Complete 18/18), so
+phasing is driven entirely by **MLP2-internal** dependencies plus
+crate-file contention.
+
+### Load-bearing tasks (prioritise these first)
+
+These five tasks gate the largest fanout downstream — every other
+group has at least one item waiting on one of them. Land them
+ahead of the rest of their respective groups in Phase 1.
+
+| Task | Group | Why load-bearing |
+| --- | --- | --- |
+| **MLP2-023** | D | Registry session-key change unblocks A1 / A3 / D2 / D3 / D4 + the spoof-rejection chain |
+| **MLP2-016** | C | `validate_at_l4` engine unblocks C2 / C4 / I1 / I5 / K3 — the L4 + Marketplace + audit-rescore lanes |
+| **MLP2-009** | A | Shared rate-window primitive unblocks A6 (Kindling emit) + D4 (`fence-cascade`) + K2 (audit-chain row) |
+| **MLP2-048** | J | `anvil status --json` render path unblocks the entire J group's HARD-GATE closure |
+| **MLP2-001** | A | Daemon-side rules-sha cache unblocks A2 + B4 (writer wiring), plus is the natural integration point for A6/A7 |
+
+### Phase 1 — Day-0 starters (31 tasks, fully parallel up to file conflicts)
+
+Every task here depends only on Done MLP items. Can start
+immediately; the only coordination is around shared files (see
+"Parallelisation notes" below).
+
+- **A:** MLP2-004, MLP2-005, MLP2-007, MLP2-008, MLP2-009¹
+- **B:** MLP2-011, MLP2-012, MLP2-013, MLP2-015
+- **C:** MLP2-016¹, MLP2-018, MLP2-020, MLP2-021, MLP2-022
+- **D:** MLP2-023¹
+- **E:** MLP2-027, MLP2-028
+- **F:** MLP2-029, MLP2-030
+- **G:** MLP2-031, MLP2-032, MLP2-034
+- **H:** MLP2-037, MLP2-038, MLP2-039, MLP2-040, MLP2-041
+- **I:** MLP2-043
+- **J:** MLP2-048¹, MLP2-052
+- **K:** MLP2-053
+
+¹ = load-bearing for Phase 2; land first within the group.
+
+### Phase 2 — Phase-1-gated (16 tasks)
+
+Each entry shows its gating Phase-1 dependency:
+
+| Task | Gated by |
+| --- | --- |
+| MLP2-001, MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
+| MLP2-026 | MLP2-023 + MLP2-009 |
+| MLP2-006 | MLP2-009 |
+| MLP2-017, MLP2-019, MLP2-042, MLP2-046, MLP2-055 | MLP2-016 |
+| MLP2-049, MLP2-051 | MLP2-048 |
+| MLP2-033 | MLP2-032 |
+| MLP2-035, MLP2-036 | MLP2-034 |
+
+### Phase 3 — Phase-2-gated (8 tasks)
+
+| Task | Gated by |
+| --- | --- |
+| MLP2-002, MLP2-014 | MLP2-001 |
+| MLP2-010, MLP2-054 | MLP2-006 |
+| MLP2-044, MLP2-045 | MLP2-042 |
+| MLP2-050 | MLP2-049 |
+| MLP2-047 | MLP2-046 + MLP2-052 |
+
+### Phase 4 — Tail (1 task)
+
+| Task | Gated by |
+| --- | --- |
+| MLP2-056 | MLP2-054 |
+
+### Parallelisation notes
+
+The phases above are dependency-correct; the practical question is
+which Phase-1 tasks can run *concurrently* across engineers /
+agents vs need to serialise because they edit the same files.
+
+**Fully parallel across groups.** Groups E (cross-platform
+attribution), F (TS driver-client mirrors), I (when not blocked
+by MLP2-016), and the external Marketplace repo for MLP2-042 all
+sit in disjoint crates / repos and never collide. These are the
+easiest concurrent picks.
+
+**Contention clusters to serialise:**
+
+- **`crates/anvil-intercept/src/registry.rs`** — MLP2-023 (key
+  change), MLP2-001 (cache), MLP2-003 (composite identity at
+  attach), MLP2-024 (session cap), MLP2-025 (spoof check). The
+  file is ~1000 lines and these tasks all extend the
+  `SessionRegistry` surface. **Land MLP2-023 first**, then the
+  rest of D + A1–A3 sequentially or with very careful
+  rebases.
+- **`crates/anvil-l4/src/decide.rs`** — MLP2-016 (engine),
+  MLP2-018 (`required_anvil_version` eval), MLP2-019
+  (`rules_sha` verify), MLP2-021 (cutoff ancestry). All
+  extend `CommitDecision`. Land MLP2-016 first; the others
+  can branch off it.
+- **`crates/anvil-intercept/src/fence.rs`** — MLP2-026
+  (`fence-cascade`) is the only Phase-1 / 2 fence-touching task,
+  but it depends on MLP2-009's rate-window primitive (new file).
+  Land MLP2-009 first, then MLP2-026 picks it up.
+- **`crates/anvil-cli/src/commands/status.rs`** — MLP2-048 and
+  MLP2-051 both rewrite the render path; MLP2-048 builds it,
+  MLP2-051 audits all consumers. Land MLP2-048 first (in Phase
+  1), MLP2-051 follows in Phase 2.
+- **`crates/anvil-cli/src/activation/orchestrator/mod.rs`** —
+  MLP2-038 (`.gitattributes` step), MLP2-039 (`--format` flag),
+  MLP2-043 (`anvil.yml` writer), MLP2-053 (`anvil-audit.yml`
+  writer). All extend the same orchestrator dispatch table.
+  These four can be batched into a single PR or landed
+  sequentially with trivial rebases.
+- **`crates/anvil-attribution/src/process.rs`** — MLP2-027
+  (macOS) + MLP2-028 (Windows). The Linux path is shipped; the
+  two new platforms add `#[cfg]` branches and don't collide with
+  each other. Fully parallel.
+
+**Cross-team coordination:**
+
+- **MLP2-008 (RTAI-007 telemetry join)** has an external
+  dependency on the RTAI module. Park until RTAI-007 surfaces;
+  the wire shape from `anvil-intercept::kindling_observation`
+  is already pinned so the join lands as a Rust-side field map
+  when RTAI-007 is ready.
+- **MLP2-042 (external `eddacraft/anvil-action` repo)** lives
+  outside this repo. Sequence relative to anvil-001 releases
+  rather than relative to other MLP2 tasks; the in-repo
+  template (MLP-010) already references the future
+  `eddacraft/anvil-action@v1` so the swap is a one-line change
+  for adopters.
+
+**Suggested first wave (highest parallelism × highest unblock
+value):**
+
+1. Day 0: **MLP2-023** (registry refactor, single-track) +
+   **MLP2-016** (L4 engine, single-track on `anvil-l4`) +
+   **MLP2-009** (rate-window primitive, new file) +
+   **MLP2-048** (status render, single-track on `status.rs`).
+2. Day 0 parallel filler: groups E, F, H (orchestrator items
+   batched), MLP2-043, MLP2-053, MLP2-052.
+3. Day 0+: G group (031, 032, 034) on baseline + identity.
+4. Once any of MLP2-023 / -016 / -009 / -048 / -034 lands, kick
+   off their Phase-2 dependents.
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
