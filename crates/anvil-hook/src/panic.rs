@@ -93,6 +93,24 @@ mod tests {
     use std::panic;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::MutexGuard;
+
+    /// `std::panic::set_hook` mutates process-wide state, so every
+    /// test that installs a custom hook must serialize against the
+    /// others. Without this guard, Rust's parallel test runner can
+    /// race two tests' `set_hook` + `take_hook` pairs and leak a
+    /// stale hook into a third test.
+    static PANIC_HOOK_LOCK: Mutex<()> = Mutex::new(());
+
+    fn lock_panic_hook() -> MutexGuard<'static, ()> {
+        // Recover from a poisoned lock — if a prior test panicked
+        // *while holding* the guard, the data is still fine (it's
+        // just `()`).
+        match PANIC_HOOK_LOCK.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
 
     #[test]
     fn panic_log_filename_is_pinned() {
@@ -102,6 +120,7 @@ mod tests {
 
     #[test]
     fn format_extracts_static_str_message() {
+        let _guard = lock_panic_hook();
         let captured: Arc<Mutex<Option<PanicReport>>> = Arc::new(Mutex::new(None));
         let cap = Arc::clone(&captured);
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
@@ -124,6 +143,7 @@ mod tests {
 
     #[test]
     fn format_extracts_string_message() {
+        let _guard = lock_panic_hook();
         let captured: Arc<Mutex<Option<PanicReport>>> = Arc::new(Mutex::new(None));
         let cap = Arc::clone(&captured);
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
@@ -144,6 +164,7 @@ mod tests {
 
     #[test]
     fn format_handles_non_string_payload() {
+        let _guard = lock_panic_hook();
         let captured: Arc<Mutex<Option<PanicReport>>> = Arc::new(Mutex::new(None));
         let cap = Arc::clone(&captured);
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
@@ -161,6 +182,7 @@ mod tests {
 
     #[test]
     fn log_text_contains_timestamp_placeholder() {
+        let _guard = lock_panic_hook();
         // The library can't include a wall-clock timestamp without
         // pulling in `chrono`; expose `{ts}` for the caller to
         // substitute. Pin the placeholder so substitution can't
@@ -184,6 +206,7 @@ mod tests {
 
     #[test]
     fn panic_catcher_hook_forwards_to_sink() {
+        let _guard = lock_panic_hook();
         let calls: Arc<Mutex<Vec<PanicReport>>> = Arc::new(Mutex::new(Vec::new()));
         let calls_for_sink = Arc::clone(&calls);
         let hook = panic_catcher_hook(move |report| calls_for_sink.lock().unwrap().push(report));

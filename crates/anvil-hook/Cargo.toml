@@ -10,8 +10,6 @@ description = "Anvil hook surface primitives — ADR-038 noise discipline, frame
 name = "anvil_hook"
 
 [dependencies]
-serde = { workspace = true }
-thiserror = { workspace = true }
 workspace-hack.workspace = true
 
 [dev-dependencies]

@@ -60,7 +60,16 @@ impl SuppressionLog {
     /// }
     /// ```
     pub fn should_emit(&mut self, key: &SuppressionKey) -> bool {
-        self.seen.insert(key.clone())
+        // `HashSet::insert` always clones via the owning `K` argument,
+        // even when the key is already present. Probe with `contains`
+        // first so the clone only happens on the (rare) first-emit
+        // path; on the suppressed path we do zero allocations.
+        if self.seen.contains(key) {
+            false
+        } else {
+            self.seen.insert(key.clone());
+            true
+        }
     }
 
     /// True when the key has been seen at least once.

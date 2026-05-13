@@ -21,10 +21,12 @@
 //!   framework / cargo-husky / plain `core.hooksPath` / nothing).
 //! - [`shell_template`] — the 3-line shell wrapper from ADR-038
 //!   §D-5. Per-hook (pre-commit, post-commit, pre-push, etc.).
-//! - [`panic_catcher_hook`] — `std::panic::set_hook` payload that
-//!   demotes a panic to a single stderr line + log file + exit-0,
-//!   per ADR-038 §D-7. Returns the witness-error record so the
-//!   caller can append it to the chain.
+//! - [`panic_catcher_hook`] — builds the closure consumed by
+//!   `std::panic::set_hook`. The closure formats each panic into a
+//!   [`PanicReport`] and forwards it to a caller-supplied sink. The
+//!   sink is responsible for the ADR-038 §D-7 side-effects (append
+//!   to the panic log, emit one stderr line, append a witness-error
+//!   record); this crate stays I/O-free and library-friendly.
 //!
 //! ## Out of scope (deferred to consumers / CLI lane)
 //!
