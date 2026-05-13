@@ -115,12 +115,12 @@ Change status to **Ready** when:
   current tests, supported clients, and disposition: port, retire, or defer.
 - **Validation:** Inventory reviewed against `archive/anvil-mcp-server/src/`,
   package manifest, Vitest config, and archived test files.
-- **Validation Evidence:** Validation passed: `pnpm docs:check` on 2026-05-13;
-  inventory
-  covers archived tools, resources, prompts, transports, client config targets,
-  tests, dispositions, and open follow-on decisions. Source review covered
-  `archive/anvil-mcp-server/src/**`, `archive/anvil-mcp-server/package.json`,
-  and `archive/anvil-mcp-server/vitest.config.ts`.
+- **Validation Evidence:** Validation passed: `pnpm docs:check` on 2026-05-13.
+  The inventory covers archived tools, resources, prompts, transports, client
+  config targets, tests, dispositions, and open follow-on decisions. Source
+  review covered `archive/anvil-mcp-server/src/**`,
+  `archive/anvil-mcp-server/package.json`, and
+  `archive/anvil-mcp-server/vitest.config.ts`.
 - **Files:** `plans/specs/rust-mcp-full-port-inventory.md`,
   `archive/anvil-mcp-server/src/`
 - **Confidence:** high
