@@ -669,7 +669,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-mcp-launch-shim](./archive/modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete | 8/8 (A1 launch slice closed 2026-04-30 — RMCP-001..-008 shipped; RMCP-008 GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md` §8; follow-up gaps tracked as #1194/#1195/#1197) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
-| [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | Draft | 0/9 (RMCPF-001 Ready; module remains Draft until inventory and client/transport retirement decisions satisfy the module Ready Checklist) | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
+| [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | In Progress | 1/9 (RMCPF-001 Complete; module-level Ready Checklist still needs client/transport retirement decisions after the inventory landed) | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
 
 ### Intercept Loop
 

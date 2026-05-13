@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | Draft  | 0/9      |
+| RMCPF | —     | In Progress | 1/9      |
 
 **Last reviewed:** 2026-04-28
 
@@ -95,8 +95,8 @@ runs against a frozen reference — not a moving sidecar.
 
 Change status to **Ready** when:
 
-- [ ] RMCP has shipped or reached Committed state
-- [ ] Existing TS MCP server inventory is complete
+- [x] RMCP has shipped or reached Committed state
+- [x] Existing TS MCP server inventory is complete
 - [ ] Supported-client matrix for Claude Code, Cursor, Continue, VSCode, and
   any remaining HTTP clients is confirmed
 - [ ] Decision recorded on whether Streamable HTTP remains required
@@ -108,13 +108,19 @@ Change status to **Ready** when:
 
 ### RMCPF-001: Existing MCP surface inventory
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Create the compatibility matrix for every current TS MCP tool,
   resource, prompt, and transport.
 - **Expected Outcome:** Inventory records contract, implementation owner,
   current tests, supported clients, and disposition: port, retire, or defer.
-- **Validation:** Inventory reviewed against `archive/anvil-mcp-server/src/` and the
-  current package test suite
+- **Validation:** Inventory reviewed against `archive/anvil-mcp-server/src/`,
+  package manifest, Vitest config, and archived test files.
+- **Validation Evidence:** Validation passed: `pnpm docs:check` on 2026-05-13;
+  inventory
+  covers archived tools, resources, prompts, transports, client config targets,
+  tests, dispositions, and open follow-on decisions. Source review covered
+  `archive/anvil-mcp-server/src/**`, `archive/anvil-mcp-server/package.json`,
+  and `archive/anvil-mcp-server/vitest.config.ts`.
 - **Files:** `plans/specs/rust-mcp-full-port-inventory.md`,
   `archive/anvil-mcp-server/src/`
 - **Confidence:** high
@@ -325,8 +331,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Inventory and Compatibility | 2 | Draft |
+| 0 — Inventory and Compatibility | 2 | 1/2 done; RMCPF-002 Draft |
 | 1 — Tool Parity | 3 | Draft |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
-| **Total** | **9** | **0/9 done** |
+| **Total** | **9** | **1/9 done** |
