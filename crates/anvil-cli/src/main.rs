@@ -109,6 +109,11 @@ struct Cli {
 enum Commands {
     /// Run a full project audit.
     Audit(commands::audit::AuditArgs),
+    /// L5 witness-chain audit — walk the branch and report commits
+    /// that lack an L3 witness. Catches bypassed protection (admin
+    /// overrides, force-push manipulation). Nightly via the
+    /// `anvil-audit` workflow template; on-demand from the CLI.
+    AuditChain(commands::audit_chain::AuditChainArgs),
     /// Analyse files for architecture violations and anti-patterns (planless mode).
     Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
@@ -193,6 +198,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
     use commands::auth::AuthCommand;
     match cmd {
         Commands::Audit(_) => "audit",
+        Commands::AuditChain(_) => "audit-chain",
         Commands::Check(_) => "check",
         Commands::Doctor(_) => "doctor",
         Commands::Drift(_) => "drift",
@@ -707,6 +713,7 @@ fn main() -> ExitCode {
 
     let result = match &cli.command {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
+        Commands::AuditChain(args) => commands::audit_chain::run(args, &cli.global),
         Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
         Commands::Drift(args) => commands::drift::run(args, &cli.global),

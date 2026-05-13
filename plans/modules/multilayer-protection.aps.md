@@ -747,24 +747,68 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-015: L5 audit (on-demand + nightly CI)
 
+- **Status:** In Progress (2026-05-13) — v1 surface lands as the new
+  `anvil audit-chain` subcommand; existing `anvil audit` keeps its
+  code-quality TUI behaviour.
 - **Intent:** Periodic re-scan of mainline for drift detection.
   Catches commits that bypassed all earlier layers (admin overrides,
   force-push manipulation).
-- **Expected Outcome:**
-  - `anvil audit` command — on-demand re-scan of current branch;
-    reports drift since last audit.
-  - `.github/workflows/anvil-audit.yml` — nightly cron template
-    written by `anvil start` / `anvil baseline`. Active by default
-    (per user direction); user can comment-out to disable.
-  - Audit emits Kindling `gate_evaluated` with `mode: audit`.
-  - Audit drift triggers `degraded:audit-drift` mode if findings
-    exceed configured threshold.
-- **Files:** `crates/anvil-cli/src/commands/audit.rs` (new),
-  template `anvil-audit-workflow.yml`.
-- **Validation:**
-  - Cron-driven nightly audit produces reproducible output
-  - `anvil audit` on-demand matches scheduled run
-  - Drift threshold detection
+- **Expected Outcome (v1 shipped):**
+  - `crates/anvil-cli/src/commands/audit_chain.rs` exposes the new
+    top-level `anvil audit-chain [--branch <ref>] [--since <ref>]
+    [--threshold <n>]` subcommand. Walks the branch tip's commits
+    via `git rev-list`, intersects with the witness-chain commit-
+    SHA set (active + archive), and emits an `AuditReport` (stable
+    schema `anvil.audit-chain.v1`).
+  - Plain-text or `--json` output; non-zero exit on drift exceeding
+    `--threshold` so the nightly cron surfaces the regression as a
+    workflow failure.
+  - Chain integrity is verified once over the active + archive
+    stack; tamper evidence flips `chain_intact: false` regardless of
+    witness count.
+  - `crates/anvil-cli/src/templates/anvil-audit-workflow.yml` ships
+    the GitHub workflow template (cron `17 3 * * *`,
+    `workflow_dispatch` inputs, report upload as an artifact).
+    Exposed as `audit_workflow_template()` for the activation
+    orchestrator to copy into `.github/workflows/anvil-audit.yml`.
+  - Drift threshold defaults to `5`, matching the workflow input.
+  - **Naming rationale:** `anvil audit` is already a 1448-line
+    code-quality TUI in the binary. Renaming it would break beta
+    users; adding a new `anvil audit-chain` subcommand keeps both
+    behaviours and makes the intent explicit (it audits the
+    witness chain, not the code).
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **Kindling `gate_evaluated` with `mode: audit` emission** —
+     owned by the kindling-integration consumer when the CLI gains
+     a kindling client handle; the report shape already carries the
+     fields the kindling row will need.
+  2. **`anvil start` / `anvil baseline` writing the workflow
+     template into `.github/workflows/anvil-audit.yml`** — template
+     ships in-tree; the activation orchestrator call site is the
+     operator-touch point and is deliberately deferred so the
+     `anvil-audit-workflow.yml` placement decision lands with the
+     adoption runbook.
+  3. **Rule re-scoring via `anvil-checks`** — v1 is a witness-
+     presence check; re-running the rule engine across history is a
+     separate concern and will land after MLP-006's deferred
+     validate-at-l4 CLI lane (so audit and L4 share a rule pipeline).
+  4. **Time-budget cap** — for very large histories. v1 walks
+     unboundedly; profiling first, cap second.
+- **Files (shipped):**
+  - `crates/anvil-cli/src/commands/audit_chain.rs` (new),
+  - `crates/anvil-cli/src/templates/anvil-audit-workflow.yml` (new),
+  - `crates/anvil-cli/src/commands/mod.rs` (register module),
+  - `crates/anvil-cli/src/main.rs` (add `AuditChain` command +
+    dispatch).
+- **Validation:** `cargo test -p eddacraft-anvil --bin anvil
+  'commands::audit_chain::'` — 10 green covering schema-version
+  pin, empty-repo zero-drift, witnessed-SHA collection (incl.
+  merge parent commits), chain-intact tamper detection,
+  degraded-threshold logic in both directions, sorted-output
+  determinism, and template-shape pinning (workflow name +
+  `anvil audit-chain` + `cron:` + `--threshold` + `--json`).
+  `cargo clippy --workspace --all-targets -- -D warnings` clean.
+  `cargo fmt --check` clean.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-006 (uses same rule pipeline as L4)

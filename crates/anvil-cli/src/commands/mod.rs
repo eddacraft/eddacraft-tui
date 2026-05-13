@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod architecture;
 pub mod audit;
+pub mod audit_chain;
 pub mod auth;
 pub mod baseline;
 pub mod check;
