@@ -94,12 +94,11 @@ pub fn run_audit(root: &Path) -> AuditData {
         .standard_filters(false)
         .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_some_and(|ft| ft.is_dir()) {
-                if let Some(name) = e.file_name().to_str()
-                    && is_ignored_dir_name(name)
-                {
-                    return false;
-                }
+            if e.file_type().is_some_and(|ft| ft.is_dir())
+                && let Some(name) = e.file_name().to_str()
+                && is_ignored_dir_name(name)
+            {
+                return false;
             }
             true
         })

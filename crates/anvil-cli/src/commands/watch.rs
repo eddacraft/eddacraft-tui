@@ -1675,12 +1675,14 @@ mod tests {
     fn source_patterns_only_include_kernel_parseable_extensions() {
         assert!(
             SOURCE_PATTERNS.iter().all(|pattern| {
-                pattern.ends_with(".ts")
-                    || pattern.ends_with(".tsx")
-                    || pattern.ends_with(".js")
-                    || pattern.ends_with(".jsx")
-                    || pattern.ends_with(".mjs")
-                    || pattern.ends_with(".cjs")
+                std::path::Path::new(pattern)
+                    .extension()
+                    .is_some_and(|ext| {
+                        matches!(
+                            ext.to_string_lossy().as_ref(),
+                            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
+                        )
+                    })
             }),
             "--source patterns must not forward unsupported languages into the kernel parser"
         );
