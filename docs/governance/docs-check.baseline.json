@@ -525,17 +525,17 @@
     "docs/strategy/competitor-tier2-tracking.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
-    "docs/superpowers/plans/2026-03-12-product-licensing.md": [
+    "docs/specs/2026-03-12-product-licensing-design.md": [
+      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
+    ],
+    "docs/specs/2026-03-18-pitch-deck-direction-design.md": [
+      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
+    ],
+    "plans/specs/2026-03-12-product-licensing.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
-    "docs/superpowers/plans/2026-03-18-pitch-deck-production.md": [
+    "plans/specs/2026-03-18-pitch-deck-production.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/superpowers/specs/2026-03-12-product-licensing-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
     ],
     "docs/testing/beta-user-test-scenarios.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
