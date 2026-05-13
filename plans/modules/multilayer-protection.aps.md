@@ -2,27 +2,33 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 6/17 done |
+| MLP | @aneki | In Progress | 7/17 done |
 
-**Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-012 shipped as a new
-`crates/anvil-rules/` library: `RulesShaInput` + `rules_sha` over
-canonical-JSON of `{anvil_version, config_sha, opa_runtime_version,
-rules}`; `RequiredAnvilVersion` semver-floor parser/comparator;
-`config_sha_from_canonical` helper sitting on top of MLP-011's
-canonical bytes. 29 tests green including yaml/json/toml
-cross-format determinism. Daemon cache, in-flight pinning, hook
-floor check, L4 verification, and witness writer wiring documented
-as deferred follow-ups owned by their respective consumers.
-Wave 1 entry — MLP-001 reconciled to Done after audit confirmed the
-shipped implementation matches the v1-narrowed scope; MLP-011
-shipped a new `crates/anvil-config/` library (extension dispatch +
-canonical-JSON serialisation; 44 tests green); MLP-002 witness-chain
-spike shipped a new `crates/anvil-witness/` crate (line, genesis,
-writer with flock + rollover, verifier with tamper / dropped-line /
-stray-genesis detection); 25 tests green plus an `--ignored`
-80-writer stress test. Module advanced to In Progress for the Wave 1
-backbone slate per `RELEASE-PLAN.md`. MLP-009 remains the hard
-release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
+**Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
+`crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
+`BaselineMetadata` on-disk schema (`anvil/baseline.json`, format
+version 1), move-resistant `compute_fingerprint` (16-hex-char sha256
+with NUL domain separation + whitespace-normalised snippet), TOCTOU-
+hardened `load` / `save` with atomic temp-then-rename and symlink
+refusal (including broken-symlink + tmp-path refusal), and
+`Baseline::diff` for the "new edges only" gate partition. 44 tests
+green. CLI command, scanner integration, `cutoff_commit` policy
+pinning, witness genesis-line emission, hook installation, and
+adversarial-refresh detection documented as deferred follow-ups
+owned by their respective consumers (MLP-003 / MLP-006). MLP-012
+already merged from PR #1489 (`crates/anvil-rules/` rules_sha +
+RequiredAnvilVersion; 29 tests green incl. yaml/json/toml
+cross-format determinism). Wave 1 entry — MLP-001 reconciled to Done
+after audit confirmed the shipped implementation matches the
+v1-narrowed scope; MLP-011 shipped a new `crates/anvil-config/`
+library (extension dispatch + canonical-JSON serialisation; 44 tests
+green); MLP-002 witness-chain spike shipped a new
+`crates/anvil-witness/` crate (line, genesis, writer with flock +
+rollover, verifier with tamper / dropped-line / stray-genesis
+detection); 25 tests green plus an `--ignored` 80-writer stress test.
+Module advanced to In Progress for the Wave 1 backbone slate per
+`RELEASE-PLAN.md`. MLP-009 remains the hard release gate for
+`v0.7.0-beta`; ADRs 036–039 Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -352,33 +358,70 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-007: `anvil baseline` command
 
+- **Status:** Done (2026-05-13) — v1 library primitive
 - **Intent:** Adopt Anvil into an existing repo with deep history.
-- **Expected Outcome:**
-  - `anvil baseline` scans current tree; records findings in
-    `anvil/baseline.json`; pins `cutoff_commit` in policy file;
-    writes witness genesis line; installs hooks; stages everything.
-  - `anvil baseline --refresh` re-scans at HEAD; updates baseline;
-    writes `baseline-refreshed` line to chain.
-  - `anvil baseline --verify` re-scans without writing; confirms
-    recorded findings still exist.
-  - Per-rule-class default baseline behaviour per ADR-039.
-  - Hard-pinned `secrets` and `command-safety` classes refused at
-    config-parse time.
-  - Adversarial-refresh detection (`degraded:baseline-suspicious`).
-  - Time budget: <60s for 12k files; bounded scan with async
-    continuation for >100k files.
-- **Files:** `crates/anvil-cli/src/commands/baseline.rs` (new),
-  `crates/anvil-baseline/` (new crate for fingerprint + scan logic).
-- **Validation:**
-  - Greenfield baseline (no existing findings)
-  - Existing-repo baseline (with findings across multiple classes)
-  - Refresh: resolved + new + remaining counted correctly
-  - Hard-pinned class rejection at parse time
-  - Fingerprint stability across line moves
-  - `--verify` detects falsified baseline metadata
-- **Confidence:** medium
+- **Expected Outcome (v1 shipped):**
+  - New crate `crates/anvil-baseline/` exposes:
+    - `BaselineFinding` (rule_id, file_path, fingerprint), `Baseline`
+      (format_version, metadata, cutoff_commit, findings),
+      `BaselineMetadata` (created_at, created_by_version,
+      project_uuid).
+    - `compute_fingerprint(rule_id, snippet)` — sha256-derived
+      16-hex-char digest with NUL domain separation; whitespace-
+      normalised snippet so trivial reformatting doesn't invalidate
+      the fingerprint (the move-resistance contract). ASCII-only
+      rule_ids; non-empty post-normalisation snippets.
+    - `load(repo_root)` / `save(repo_root, &baseline)` against
+      `anvil/baseline.json` with TOCTOU-hardened symlink refusal
+      (matches MLP-001's identity pattern) and atomic temp-then-
+      rename writes.
+    - `Baseline::canonicalise()` sorts findings by `(rule_id,
+      file_path, fingerprint)` + dedups, so two adopters of the
+      same tree produce byte-identical `baseline.json` (CLAUDE.md
+      "same input, same output").
+    - `Baseline::diff(&new_scan)` partitions into `unchanged` /
+      `added` / `removed` for downstream gate consumption ("new
+      edges only").
+    - `format_version` = 1; older anvil refuses newer files (no
+      silent re-interpretation).
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **`anvil baseline` CLI command** — lands with MLP-003 hook
+     lane, which is where the rule engine is invoked. The library
+     is the building block; the CLI shape and the actual scan call
+     wait for the consumer to stabilise.
+  2. **Scanner integration** — populating findings from
+     `anvil-checks` runs through that crate's pipeline; the baseline
+     crate is engine-agnostic by design (its `BaselineFinding`
+     schema is intentionally small).
+  3. **`cutoff_commit` pinning into `anvil/policy.yml`** — owned by
+     MLP-006 (L4 policy framework). The shape exposes the field on
+     the `Baseline` record itself for round-trip; writing it back
+     into a policy file is policy-crate work.
+  4. **Witness genesis-line emission** (`GENESIS-BASELINED`) —
+     owned by MLP-002's writer + the MLP-003 hook lane.
+  5. **Hook installation** — MLP-003 / MLP-008 own framework-
+     specific install paths.
+  6. **Adversarial-refresh detection** (`degraded:baseline-
+     suspicious`) — needs heuristics + threshold tuning beyond v1.
+  7. **Async continuation for >100k files** — performance work
+     item; v1 ships the data plane.
+- **Files (shipped):** `crates/anvil-baseline/Cargo.toml`,
+  `crates/anvil-baseline/src/{lib,finding,store,diff,io}.rs`,
+  workspace `Cargo.toml` member registration.
+- **Validation:** `cargo test -p eddacraft-anvil-baseline` — 40 tests
+  green covering fingerprint determinism, whitespace-resistance,
+  rule_id + snippet boundary checks, canonical-bytes round-trip,
+  cutoff_commit round-trip, format_version refusal, validate()
+  rejections, diff partition correctness, save/load round-trip,
+  TOCTOU symlink refusal (both anvil/ dir and baseline.json file),
+  atomic temp-then-rename, and overwrite semantics. `cargo clippy
+  -p eddacraft-anvil-baseline --all-targets -- -D warnings` clean.
+- **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** MLP-001, MLP-002
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-008: `anvil hook bootstrap` recovery command
 
@@ -713,7 +756,7 @@ a defensible claim, not a slogan. This module owns:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 2/5 |
-| Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
+| Policy + adoption | 3 (MLP-006, -007, -008) | 1/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |

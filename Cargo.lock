@@ -1072,6 +1072,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-baseline"
+version = "0.6.2-beta"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror 2.0.18",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-checks"
 version = "0.6.2-beta"
 dependencies = [
