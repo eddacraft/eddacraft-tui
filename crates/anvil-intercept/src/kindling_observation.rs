@@ -2,7 +2,7 @@
 //! mid-edit L1 path.
 //!
 //! `packages/kindling-integration/src/observation-contract.ts` defines
-//! the wire schema for the nine Kindling observation kinds, including
+//! the wire schema for the Kindling observation kinds, including
 //! `gate_evaluated`. The mid-edit driver loop produces a `ScanBufferResponse`
 //! every keystroke and the daemon needs a stable Rust-side primitive to
 //! convert those responses into observation envelopes. The actual
