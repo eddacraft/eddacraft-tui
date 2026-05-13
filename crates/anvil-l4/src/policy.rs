@@ -128,6 +128,18 @@ pub enum PolicyParseError {
     /// nothing.
     #[error("branch rule has empty pattern")]
     EmptyPattern,
+    /// `required_anvil_version` was present but empty. An empty
+    /// string would parse as an unrecognised floor at consumer
+    /// fire-time; refuse here so the error surfaces at the policy
+    /// boundary instead.
+    #[error("required_anvil_version is set but empty; omit the field or supply a value")]
+    EmptyRequiredAnvilVersion,
+    /// `baseline.cutoff_commit` was present but empty. An empty SHA
+    /// can't represent a commit; refuse so a half-written
+    /// `anvil baseline` artefact doesn't silently disable cutoff
+    /// acceptance.
+    #[error("baseline.cutoff_commit is set but empty; omit the field or supply a SHA")]
+    EmptyCutoffCommit,
 }
 
 impl Policy {
@@ -149,6 +161,16 @@ impl Policy {
             if rule.pattern.is_empty() {
                 return Err(PolicyParseError::EmptyPattern);
             }
+        }
+        if let Some(v) = &self.required_anvil_version
+            && v.is_empty()
+        {
+            return Err(PolicyParseError::EmptyRequiredAnvilVersion);
+        }
+        if let Some(c) = &self.baseline.cutoff_commit
+            && c.is_empty()
+        {
+            return Err(PolicyParseError::EmptyCutoffCommit);
         }
         Ok(())
     }
@@ -288,5 +310,32 @@ branches:
         let yaml = "branches: [\n";
         let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
         assert!(matches!(err, PolicyParseError::Config(_)));
+    }
+
+    #[test]
+    fn parse_rejects_empty_required_anvil_version() {
+        let yaml = r"
+required_anvil_version: ''
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(matches!(err, PolicyParseError::EmptyRequiredAnvilVersion));
+    }
+
+    #[test]
+    fn parse_rejects_empty_cutoff_commit() {
+        let yaml = r"
+baseline:
+  cutoff_commit: ''
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(matches!(err, PolicyParseError::EmptyCutoffCommit));
     }
 }
