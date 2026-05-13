@@ -128,5 +128,5 @@ fn rule_id_order_at_call_site_does_not_affect_rules_sha() {
         &cfg,
     )
     .unwrap();
-    assert_eq!(a, b, "rule sort happens inside RulesShaInput::new");
+    assert_eq!(a, b, "rule sort happens inside RulesShaInput::try_new");
 }

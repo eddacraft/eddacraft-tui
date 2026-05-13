@@ -26,7 +26,7 @@ pub enum RulesShaError {
     /// constraint also dodges the Unicode-normalisation hole where two
     /// rule IDs that print identically can have different canonical
     /// bytes.
-    #[error("rule id must be non-empty ASCII (kebab-case); got {raw:?}")]
+    #[error("rule id must be non-empty ASCII; got {raw:?}")]
     InvalidRuleId { raw: String },
 }
 
@@ -273,50 +273,40 @@ mod tests {
     }
 
     #[test]
-    fn golden_digest_pin_for_sample_input() {
-        // Pinned canary: any change to field names, key ordering,
+    fn golden_digest_pin_literal() {
+        // Hard-coded pin: a real string literal, computed once and
+        // committed. Any change to field names, key ordering,
         // encoding (whitespace, escaping, number form), or default
-        // handling will fail this test. If you legitimately need to
-        // change the encoding, the canonical reference is computed by
-        // hand below — update both halves together and add a release
-        // note explaining that every existing witness line's
-        // `rules_sha` is now invalid.
+        // handling will fail this test against this exact 64-char
+        // hex value. Update only with a release note — every
+        // existing witness line carries a `rules_sha` that depends
+        // on this exact encoding.
         //
         // Input:
-        //   anvil_version = "0.7.0-beta"
-        //   config_sha    = "00...00" (64 zeros)
+        //   anvil_version       = "0.7.0-beta"
+        //   config_sha          = "00…00" (64 zeros)
         //   opa_runtime_version = "0.10.0"
-        //   rules         = ["AI-001", "command-safety-rm-rf",
-        //                    "secret-aws-key"]
-        // Canonical JSON (sorted top-level keys; rules already sorted
+        //   rules               = ["AI-001", "command-safety-rm-rf",
+        //                          "secret-aws-key"]
+        // Canonical JSON (top-level keys sorted; rules already sorted
         // at construction):
-        //   {"anvil_version":"0.7.0-beta","config_sha":"00..00",\
-        //    "opa_runtime_version":"0.10.0","rules":["AI-001",\
+        //   {"anvil_version":"0.7.0-beta","config_sha":"0…0",
+        //    "opa_runtime_version":"0.10.0","rules":["AI-001",
         //    "command-safety-rm-rf","secret-aws-key"]}
-        // sha256 of that byte sequence:
-        let expected = "0d11b9f0c1abf2c9e15bb27c70b50b9a6c8b86d1c93c30c5f8a3cc91d20a0a0f";
-        let _ = expected;
-        // The exact reference hex is computed by the test below for
-        // forward compat. We assert against a recomputed reference
-        // first to confirm the helper agrees with itself, then pin
-        // a string literal in `golden_digest_pin_matches_string`.
-        let canonical = br#"{"anvil_version":"0.7.0-beta","config_sha":"0000000000000000000000000000000000000000000000000000000000000000","opa_runtime_version":"0.10.0","rules":["AI-001","command-safety-rm-rf","secret-aws-key"]}"#;
-        let manual = hex::encode(Sha256::digest(canonical));
-        assert_eq!(
-            sample().compute().unwrap(),
-            manual,
-            "rules_sha encoder must match the hand-rolled canonical bytes"
-        );
+        const PINNED_DIGEST: &str =
+            "3c22864908537fba7a1e6d6214efd68c770c5bcdf792edd92eca853670c6c517";
+        assert_eq!(sample().compute().unwrap(), PINNED_DIGEST);
     }
 
     #[test]
-    fn golden_digest_pin_matches_string() {
-        // Hard-coded pin. Update this string only with a release note
-        // — every existing witness line carries a rules_sha that
-        // depends on this exact encoding.
+    fn golden_digest_matches_hand_rolled_canonical_bytes() {
+        // Companion check: the encoder agrees with a hand-rolled
+        // canonical-JSON byte string for the same input. If the two
+        // diverge, the encoder has drifted from the documented
+        // canonical form — fix the encoder, not this test.
         let canonical = br#"{"anvil_version":"0.7.0-beta","config_sha":"0000000000000000000000000000000000000000000000000000000000000000","opa_runtime_version":"0.10.0","rules":["AI-001","command-safety-rm-rf","secret-aws-key"]}"#;
-        let expected = hex::encode(Sha256::digest(canonical));
-        assert_eq!(sample().compute().unwrap(), expected);
+        let manual = hex::encode(Sha256::digest(canonical));
+        assert_eq!(sample().compute().unwrap(), manual);
     }
 
     #[test]

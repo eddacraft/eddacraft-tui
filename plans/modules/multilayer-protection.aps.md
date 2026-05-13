@@ -543,7 +543,8 @@ a defensible claim, not a slogan. This module owns:
      daemon RPC path.
   3. **Hook-side floor check at fire time** — owned by MLP-003
      (`anvil hook pre-commit`); it consumes
-     `version_satisfies_floor` from this crate.
+     `RequiredAnvilVersion::parse(...).satisfied_by(...)` from this
+     crate.
   4. **L4 verification of witness `rules_sha` against a recognised
      version** — owned by MLP-006 (`anvil-l4` crate).
   5. **Witness-writer wiring** — the `WitnessLine.rules_sha` field

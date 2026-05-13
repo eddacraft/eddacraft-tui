@@ -8,16 +8,15 @@
 | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_
-complete: MLP-001 / -002 / -011 / -013 / -017 Done. Wave 2 _Hook,
-Policy, And Baseline Surfaces_ in flight — MLP-012 shipped a new
-`crates/anvil-rules/` library (`rules_sha` over `{anvil_version,
-config_sha, opa_runtime_version, rules}` canonical JSON +
-`RequiredAnvilVersion` semver-floor; 29 tests green incl.
-yaml/json/toml cross-format determinism). MLP module advanced to
-6/17. Daemon cache + hook-side floor check + L4 verification + witness
-writer wiring deferred to consumers MLP-003 / MLP-006 / MLP-014. Next
-candidate remains the daemon-working `v0.7.0-beta` slate.)
+**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_ complete:
+MLP-001 / -002 / -011 / -013 / -017 Done. Wave 2 _Hook, Policy, And Baseline
+Surfaces_ in flight — MLP-012 shipped a new `crates/anvil-rules/` library
+(`rules_sha` over `{anvil_version, config_sha, opa_runtime_version, rules}`
+canonical JSON + `RequiredAnvilVersion` semver-floor; 29 tests green incl.
+yaml/json/toml cross-format determinism). MLP module advanced to 6/17. Daemon
+cache + hook-side floor check + L4 verification + witness writer wiring deferred
+to consumers MLP-003 / MLP-006 / MLP-014. Next candidate remains the
+daemon-working `v0.7.0-beta` slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
