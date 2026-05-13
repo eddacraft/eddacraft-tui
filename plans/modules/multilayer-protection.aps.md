@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 7/17 done |
+| MLP | @aneki | In Progress | 8/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -268,9 +268,24 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-003: Pre-commit hook (L3 validation + witness append)
 
+- **Status:** Done (2026-05-13) — v1 library primitive
 - **Intent:** Self-contained binary subcommand that fires from any
   hook framework or none.
-- **Expected Outcome:**
+- **Expected Outcome (v1 shipped):** New crate `crates/anvil-hook/`
+  factors ADR-038's cross-cutting hook concerns out of any CLI call
+  site. `Verdict` + `render_verdict` map every §D-6 outcome to its
+  exact terse stderr line + exit code; `SuppressionLog` collapses
+  burst-suppression (82 events → 1 emit); `detect_framework` runs
+  §D-4 non-destructive detection (Husky / Lefthook /
+  pre-commit-framework / cargo-husky / Plain); `shell_template`
+  produces the verbatim §D-5 3-line POSIX wrapper; `panic_catcher_hook`
+  formats a panic into a `PanicReport` sink for §D-7. 47 tests green
+  (incl. process-wide-mutex serialisation of panic-hook tests).
+  CLI subcommands (`anvil hook <name>`), framework install paths
+  (MLP-008), witness append integration (MLP-002 writer + CLI), and
+  daemon RPC + embedded fallback (anvil-intercept) deferred to
+  consumers.
+- **Original Expected Outcome:**
   - `anvil hook pre-commit` subcommand
   - 3-line shell wrapper with `command -v anvil` guard
   - Reads `anvil/project-id`; resolves Kindling DB path;
@@ -755,14 +770,14 @@ a defensible claim, not a slogan. This module owns:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 2/5 |
+| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 3/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 1/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| **Total** | **17** | **6/17** |
+| **Total** | **17** | **8/17** |
 
 ## Recommended landing order
 
