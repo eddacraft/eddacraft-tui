@@ -113,7 +113,6 @@ fn initial_scan(
     root: &Path,
     filter: &FileFilter,
     pattern_filter: &WatchPatternFilter,
-    arch_config: &ArchitectureConfig,
     state: &mut WatchState,
     emitter: &EventEmitter,
     stop: &AtomicBool,
@@ -237,49 +236,7 @@ fn initial_scan(
     re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
 
-    evaluate_baseline(&scanned_files, state, arch_config, emitter);
     emitter.snapshot(&state.graph, state.file_count);
-}
-
-/// Run baseline policy evaluation so the first snapshot reflects real
-/// invariant results rather than an empty 0/0 checks placeholder.
-fn evaluate_baseline(
-    scanned_files: &[PathBuf],
-    state: &mut WatchState,
-    arch_config: &ArchitectureConfig,
-    emitter: &EventEmitter,
-) {
-    for rel_path in scanned_files {
-        let rel_str = rel_path.to_string_lossy().to_string();
-        let symbols_in_file: Vec<u64> = state
-            .graph
-            .symbols_in_file(&rel_str)
-            .iter()
-            .map(|s| s.id)
-            .collect();
-
-        if symbols_in_file.is_empty() {
-            continue;
-        }
-
-        let file_edges: Vec<(u64, u64, anvil_kernel_types::EdgeType)> = symbols_in_file
-            .iter()
-            .flat_map(|&sid| state.graph.outgoing_edges(sid))
-            .map(|e| (e.from, e.to, e.edge_type))
-            .collect();
-
-        let delta = crate::graph::GraphDelta {
-            added_symbols: symbols_in_file,
-            added_edges: file_edges,
-            file: rel_str,
-            ..Default::default()
-        };
-
-        let violations = state.engine.evaluate(&delta, &state.graph, arch_config);
-        for v in &violations {
-            emitter.violation(v);
-        }
-    }
 }
 
 fn watch_loop(
@@ -590,7 +547,6 @@ pub fn run_watch(
             &root,
             &filter,
             &pattern_filter,
-            &arch_config,
             &mut state,
             &emitter,
             &stop_clone,
@@ -667,6 +623,47 @@ mod tests {
             .iter()
             .any(|e| e.event_type == anvil_kernel_types::EventType::Snapshot);
         assert!(has_snapshot, "should emit a snapshot after initial scan");
+    }
+
+    #[test]
+    fn initial_scan_does_not_emit_existing_api_as_violations() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("main.ts"),
+            "export function existingApi() {}",
+        )
+        .unwrap();
+
+        let (event_tx, event_rx) = mpsc::channel();
+
+        let config = WatchConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            watcher: WatcherConfig {
+                root: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
+        };
+
+        let handle = run_watch(&config, event_tx).unwrap();
+        thread::sleep(std::time::Duration::from_millis(200));
+        handle.stop().unwrap();
+
+        let events: Vec<EngineEvent> = event_rx.try_iter().collect();
+        assert!(
+            events
+                .iter()
+                .any(|e| e.event_type == anvil_kernel_types::EventType::Snapshot),
+            "initial scan should still emit a snapshot"
+        );
+        assert!(
+            events
+                .iter()
+                .all(|e| e.event_type != anvil_kernel_types::EventType::Violation),
+            "initial scan should not fail on pre-existing public API surface: {events:?}"
+        );
     }
 
     #[test]

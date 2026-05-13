@@ -9,10 +9,15 @@ use anyhow::{Context, Result};
 /// entries here, not at the call site.
 pub(crate) const IGNORE_DIRS: &[&str] = &[
     ".anvil",
+    ".claude",
+    ".gemini",
     ".git",
     ".next",
     ".nx",
+    ".opencode",
+    ".serena",
     ".turbo",
+    ".worktrees",
     "__pycache__",
     "build",
     "coverage",

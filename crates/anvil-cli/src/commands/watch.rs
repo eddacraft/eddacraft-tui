@@ -94,6 +94,54 @@ struct WatchEvent {
     detail: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WatchOutputMode {
+    Json,
+    Plain { reason: PlainWatchReason },
+    Tui,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlainWatchReason {
+    NoTuiFlag,
+    StdoutNotTerminal,
+    StdinNotTerminal,
+}
+
+impl PlainWatchReason {
+    fn message(self) -> &'static str {
+        match self {
+            Self::NoTuiFlag => "--no-tui was passed",
+            Self::StdoutNotTerminal => "stdout is not a terminal",
+            Self::StdinNotTerminal => "stdin is not a terminal",
+        }
+    }
+}
+
+fn watch_output_mode(
+    global: &GlobalArgs,
+    stdin_is_terminal: bool,
+    stdout_is_terminal: bool,
+) -> WatchOutputMode {
+    if global.json {
+        WatchOutputMode::Json
+    } else if global.no_tui {
+        WatchOutputMode::Plain {
+            reason: PlainWatchReason::NoTuiFlag,
+        }
+    } else if !stdout_is_terminal {
+        WatchOutputMode::Plain {
+            reason: PlainWatchReason::StdoutNotTerminal,
+        }
+    } else if !stdin_is_terminal {
+        WatchOutputMode::Plain {
+            reason: PlainWatchReason::StdinNotTerminal,
+        }
+    } else {
+        WatchOutputMode::Tui
+    }
+}
+
 /// Normalise a path by canonicalising the longest existing ancestor, then
 /// re-appending the remaining suffix. This resolves `..` traversal even when
 /// the full path doesn't exist on disk.
@@ -222,12 +270,8 @@ fn is_likely_bare_directory_name(pattern: &str) -> bool {
 /// Print the active include/exclude scope so a viewer can see the LAUNCH-001
 /// glob filter is doing something. Silent in JSON mode (where structured
 /// telemetry is the canonical channel) and TUI mode (rendered separately).
-fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArgs) {
-    if global.json {
-        return;
-    }
-    let in_tui = !global.no_tui && std::io::stdout().is_terminal();
-    if in_tui {
+fn print_active_scope(include: &[String], exclude: &[String], mode: WatchOutputMode) {
+    if matches!(mode, WatchOutputMode::Json | WatchOutputMode::Tui) {
         return;
     }
     // ASCII-only so it renders cleanly on Windows terminals without full
@@ -242,6 +286,28 @@ fn print_active_scope(include: &[String], exclude: &[String], global: &GlobalArg
     if !exclude.is_empty() {
         println!("[excluding] {}", exclude.join(", "));
     }
+}
+
+fn warn_if_tui_fell_back(mode: WatchOutputMode) {
+    let WatchOutputMode::Plain { reason } = mode else {
+        return;
+    };
+    if reason == PlainWatchReason::NoTuiFlag {
+        return;
+    }
+    eprintln!(
+        "[watching] TUI disabled because {}; run anvil watch from an interactive terminal for the watch pane, or pass --no-tui for plain output.",
+        reason.message()
+    );
+}
+
+fn print_tui_startup_message(mode: WatchOutputMode) {
+    if !matches!(mode, WatchOutputMode::Tui) {
+        return;
+    }
+    eprintln!(
+        "[watching] starting watcher; large repos may take a moment before the watch pane appears."
+    );
 }
 
 /// Validate the `--action` argument.
@@ -758,7 +824,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans;
     let filter = build_filter(user_supplied_patterns);
 
-    print_active_scope(&patterns, &exclude, global);
+    let output_mode = watch_output_mode(
+        global,
+        std::io::stdin().is_terminal(),
+        std::io::stdout().is_terminal(),
+    );
+
+    print_active_scope(&patterns, &exclude, output_mode);
+    print_tui_startup_message(output_mode);
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
     let arch_config = if arch_config_path.exists() {
@@ -794,7 +867,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     })
     .context("setting Ctrl-C handler")?;
 
-    let non_tui = global.json || !std::io::stdout().is_terminal() || global.no_tui;
+    let non_tui = !matches!(output_mode, WatchOutputMode::Tui);
 
     // LAUNCH-002: in TUI mode, the dispatcher emits ActionResultLine records
     // through a sync_channel(1) into the watch loop. The bound is intentional
@@ -819,6 +892,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     });
 
     if non_tui {
+        warn_if_tui_fell_back(output_mode);
         let mut snapshot_count: u64 = 0;
 
         loop {
@@ -997,6 +1071,45 @@ mod tests {
     #[test]
     fn validate_action_rejects_unknown() {
         assert!(validate_action(Some("deploy")).is_err());
+    }
+
+    #[test]
+    fn output_mode_uses_tui_only_when_stdin_and_stdout_are_terminal() {
+        let global = GlobalArgs::default();
+
+        assert_eq!(watch_output_mode(&global, true, true), WatchOutputMode::Tui);
+        assert_eq!(
+            watch_output_mode(&global, true, false),
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::StdoutNotTerminal,
+            }
+        );
+        assert_eq!(
+            watch_output_mode(&global, false, true),
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::StdinNotTerminal,
+            }
+        );
+    }
+
+    #[test]
+    fn output_mode_json_and_no_tui_override_terminal_state() {
+        let json = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+        assert_eq!(watch_output_mode(&json, true, true), WatchOutputMode::Json);
+
+        let no_tui = GlobalArgs {
+            no_tui: true,
+            ..GlobalArgs::default()
+        };
+        assert_eq!(
+            watch_output_mode(&no_tui, true, true),
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::NoTuiFlag,
+            }
+        );
     }
 
     #[test]

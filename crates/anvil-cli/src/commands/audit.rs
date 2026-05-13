@@ -14,6 +14,7 @@ use crate::GlobalArgs;
 use crate::services::interactive_fix::{
     FixOutcome, apply_fix_request, is_auto_fixable_console_statement,
 };
+use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Args)]
 pub struct AuditArgs {}
@@ -52,9 +53,6 @@ pub fn run(_args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 // Data gathering
 // ---------------------------------------------------------------------------
 
-/// Directories to skip when walking the file tree.
-const SKIP_DIRS: &[&str] = &[".git", "node_modules", ".anvil", "target"];
-
 /// Source file extensions we scan for issues.
 const SOURCE_EXTS: &[&str] = &["ts", "js", "rs", "py"];
 
@@ -69,7 +67,7 @@ pub fn collect_audit_data() -> AuditData {
 /// Scan the repository at `root` and return audit data.
 ///
 /// SCAN-001: file discovery uses `ignore::WalkBuilder` configured with
-/// `.standard_filters(false)` plus an explicit `SKIP_DIRS` prune list.
+/// `.standard_filters(false)` plus the shared ignored-directory prune list.
 /// `.gitignore` is intentionally NOT applied — a security scan must see
 /// every file regardless of VCS state — but `target/`, `node_modules/`,
 /// and similar noise dirs are skipped via the explicit prune.
@@ -89,17 +87,19 @@ pub fn run_audit(root: &Path) -> AuditData {
 
     // Phase 1: discover candidate files via the noise-pruning walker (skips target/, node_modules/, etc; not .gitignore).
     // `standard_filters(true)` honours `.gitignore`; we still prune
-    // SKIP_DIRS explicitly to keep behaviour identical to the legacy
-    // serial walk (audit had its own ignore set independent of gitignore).
+    // known local/generated/tool-state directories explicitly to keep
+    // audit independent of user VCS ignore rules without scanning noise.
     let walker = ignore::WalkBuilder::new(root)
         .follow_links(false)
         .standard_filters(false)
         .hidden(false)
         .filter_entry(|e| {
-            if e.file_type().is_some_and(|ft| ft.is_dir())
-                && let Some(name) = e.file_name().to_str()
-            {
-                return !SKIP_DIRS.contains(&name);
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
+                if let Some(name) = e.file_name().to_str()
+                    && is_ignored_dir_name(name)
+                {
+                    return false;
+                }
             }
             true
         })
@@ -740,6 +740,34 @@ mod tests {
                 .iter()
                 .all(|i| !i.file.contains(".git") && !i.file.contains("node_modules"))
         );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn skips_generated_and_agent_worktree_dirs() {
+        let dir = make_temp_dir();
+        std::fs::create_dir_all(dir.join("dist")).unwrap();
+        std::fs::write(dir.join("dist/index.js"), "console.log('built');\n").unwrap();
+
+        std::fs::create_dir_all(dir.join(".nx/cache")).unwrap();
+        std::fs::write(dir.join(".nx/cache/prettify.js"), "console.log('cache');\n").unwrap();
+
+        std::fs::create_dir_all(dir.join(".claude/worktrees/agent-a/apps/web")).unwrap();
+        std::fs::write(
+            dir.join(".claude/worktrees/agent-a/apps/web/.env.local"),
+            "SECRET=abc123\n",
+        )
+        .unwrap();
+
+        std::fs::write(dir.join("app.ts"), "const y = 2;\n").unwrap();
+
+        let data = run_audit(&dir);
+        assert_eq!(data.total_files, 1);
+        assert!(data.issues.iter().all(|i| {
+            !i.file.contains("dist")
+                && !i.file.contains(".nx")
+                && !i.file.contains(".claude/worktrees")
+        }));
         cleanup(&dir);
     }
 

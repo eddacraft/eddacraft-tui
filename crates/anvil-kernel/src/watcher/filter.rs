@@ -35,6 +35,12 @@ impl FileFilter {
     /// Default ignore patterns for typical projects.
     pub fn default_patterns() -> Vec<String> {
         vec![
+            ".anvil".to_string(),
+            ".claude".to_string(),
+            ".gemini".to_string(),
+            ".opencode".to_string(),
+            ".serena".to_string(),
+            ".worktrees".to_string(),
             "node_modules".to_string(),
             ".git".to_string(),
             "target".to_string(),
@@ -44,7 +50,6 @@ impl FileFilter {
             ".turbo".to_string(),
             ".nx".to_string(),
             "coverage".to_string(),
-            ".anvil".to_string(),
         ]
     }
 
@@ -116,6 +121,16 @@ mod tests {
         assert!(filter.should_ignore(Path::new("target/debug/anvil")));
         assert!(filter.should_ignore(Path::new("dist/index.js")));
         assert!(filter.should_ignore(Path::new("build/output.js")));
+    }
+
+    #[test]
+    fn ignores_local_tool_and_worktree_dirs() {
+        let filter = FileFilter::default();
+        assert!(filter.should_ignore(Path::new(".claude/worktrees/agent-a/src/main.ts")));
+        assert!(filter.should_ignore(Path::new(".opencode/logs/session.jsonl")));
+        assert!(filter.should_ignore(Path::new(".gemini/cache/state.json")));
+        assert!(filter.should_ignore(Path::new(".serena/memories/index.json")));
+        assert!(filter.should_ignore(Path::new(".worktrees/fix-bug/src/main.ts")));
     }
 
     #[test]

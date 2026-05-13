@@ -4,14 +4,15 @@
 | ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------- |
 | Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-13 (Wave 0 Promote Contracts complete); base `v0.6.2-beta` + APS modules |
 
-| Upstream                                                                                                            | Downstream                                                        |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
+| Upstream                                                                                                                    | Downstream                                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_ complete:
-MLP-001 / -002 / -011 / -013 / -017 Done. Wave 2 _Hook, Policy, And Baseline
-Surfaces_ in flight — MLP-012 shipped a new `crates/anvil-rules/` library
-(rules_sha + RequiredAnvilVersion; 29 tests green) and MLP-007 shipped a new
+**Last updated:** 2026-05-13 (WATCHUX beta incident lane added to the current
+release slate. Wave 1 _Build The Load-Bearing Backbone_ complete: MLP-001 / -002
+/ -011 / -013 / -017 Done. Wave 2 _Hook, Policy, And Baseline Surfaces_ in
+flight — MLP-012 shipped a new `crates/anvil-rules/` library (rules_sha +
+RequiredAnvilVersion; 29 tests green) and MLP-007 shipped a new
 `crates/anvil-baseline/` library (Baseline schema + move-resistant fingerprint +
 TOCTOU-hardened I/O + diff partition; 44 tests green). MLP module advanced to
 7/17. CLI command, scanner integration, `cutoff_commit` policy pinning, witness
@@ -60,12 +61,13 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 
 **Primary APS modules:**
 
-| Pick | Module                                                | Status      | Progress | Role                                                                                                                                                                                                                                                               |
-| ---- | ----------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | In Progress | 11/17    | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. Wave 1 complete (MLP-001 / -002 / -011 / -013 / -017 Done 2026-05-13). Wave 2: MLP-012 rules_sha + MLP-007 baseline library primitives (29 + 44 tests green). |
-| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                          |
-| N3   | Carry-forward gates                                   | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.          |
-| N4   | Documentation lanes                                   | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                       |
+| Pick | Module                                                      | Status      | Progress | Role                                                                                                                                                                                                                                                                            |
+| ---- | ----------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md)       | In Progress | 11/17    | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. Wave 1 complete (MLP-001 / -002 / -011 / -013 / -017 Done 2026-05-13). Wave 2: MLP-012 rules_sha + MLP-007 baseline library primitives (29 + 44 tests green).              |
+| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)         | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                                       |
+| N3   | Carry-forward gates                                         | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                       |
+| N4   | Documentation lanes                                         | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                    |
+| N5   | [`WATCHUX`](./plans/modules/watch-ux-advisory-rules.aps.md) | In Progress | 0/8      | Beta incident remediation and first-run/watch UX: Homebrew installer detection, local-noise ignore policy, initial watch scan baseline semantics, immediate watch startup feedback; later items cover warning/failing language, warm-up TUI, rule modes, and config visibility. |
 
 **Hard release gate:** `MLP-009`. The protection-claim contract suite, air-gap
 guarantee, and noise-discipline tests must be green before the release can claim
@@ -109,6 +111,23 @@ failure for most downstream work.
 | `MLP-011` multi-format config           | Parallel  | Done (2026-05-13) | New `crates/anvil-config/` library: extension-based dispatch into `serde_json::Value`, canonical-JSON serialisation, detection precedence yaml > yml > json > toml. 44 tests green; cross-format equivalence pinned. CLI flag wiring deferred (see footnote 1).                                                                                                                                                                                                           |
 | `MLP-013` hard-pinned rule classes      | Parallel  | Done (2026-05-13) | New `validation` module in `crates/anvil-config/`: rejects five disable-attempt shapes for `secrets` / `command-safety` (canonical + legacy locations + mode-disabled); tuning passes through; error messages cite ADR-039 and the `@anvil-ignore` bypass. 19 new tests green; 5 cross-format hard-pinned integration tests. `anvil-checks` rule-registration mirror deferred (see footnote 1).                                                                           |
 | `MLP-017` air-gapped guarantee scaffold | Parallel  | Done (2026-05-13) | Linux network-namespace harness at `tools/test-harness/network-blocked/run.sh` (probes the kernel; exits 77 to skip on restricted hosts and non-Linux). Integration test suite at `crates/anvil-cli/tests/air_gapped.rs` (3 tests green covering `anvil version --offline`, `anvil status --verify --json`, and an executable-bit guard). Runbook at `docs/runbooks/anvil-air-gapped.md` documenting the extend-per-command protocol.                                     |
+
+### Wave 1A: Beta Watch UX Hotfix
+
+This lane is in the current release because beta feedback showed that first-run
+watch can look hung, scan local agent worktrees, and render advisory baseline
+findings as failures. The hotfix subset is scoped to WATCHUX-001 through
+WATCHUX-004; the larger warm-up TUI, rule-mode, config-command, and cache work
+remains sequenced after the hotfix unless it becomes required for the release
+claim.
+
+| Work                                   | Parallel? | Status      | Notes                                                                                                       |
+| -------------------------------------- | --------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `WATCHUX-001` Homebrew installer       | Parallel  | In Progress | Detect existing Homebrew Anvil before curl installer runs standalone install; guide user to `brew upgrade`. |
+| `WATCHUX-002` shared ignore policy     | Parallel  | In Progress | Skip `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`, generated/cache dirs in audit/watch paths. |
+| `WATCHUX-003` initial watch baseline   | Parallel  | In Progress | Initial scan builds graph/readiness state without emitting existing API surface as new violations.          |
+| `WATCHUX-004` watch startup feedback   | Parallel  | In Progress | Print immediate startup feedback and avoid TUI mode when stdin/stdout are not both terminals.               |
+| `WATCHUX-005` warning/failing language | Follow-up | Ready       | Required before broad beta if advisory findings still render as `Failing`; otherwise follow-up UX PR.       |
 
 ### Wave 2: Hook, Policy, And Baseline Surfaces
 

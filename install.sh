@@ -28,6 +28,58 @@ setup_colours
 
 INSTALLER_URL="https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
 
+homebrew_prefixes() {
+  if [ -n "${HOMEBREW_PREFIX:-}" ]; then
+    printf '%s\n' "$HOMEBREW_PREFIX"
+  fi
+  printf '%s\n' /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew
+}
+
+is_homebrew_anvil_path() {
+  case "$1" in
+    */Cellar/anvil/* | */Cellar/eddacraft-anvil/*) return 0 ;;
+  esac
+
+  while IFS= read -r prefix; do
+    [ -n "$prefix" ] || continue
+    case "$1" in
+      "$prefix"/bin/anvil | "$prefix"/Cellar/anvil/* | "$prefix"/Cellar/eddacraft-anvil/*) return 0 ;;
+    esac
+  done <<EOF
+$(homebrew_prefixes)
+EOF
+
+  return 1
+}
+
+detect_existing_homebrew_anvil() {
+  if ! command -v anvil >/dev/null 2>&1; then
+    return 1
+  fi
+
+  anvil_path=$(command -v anvil)
+  if is_homebrew_anvil_path "$anvil_path"; then
+    printf '%s\n' "$anvil_path"
+    return 0
+  fi
+
+  if [ -L "$anvil_path" ]; then
+    link_target=$(readlink "$anvil_path" 2>/dev/null || true)
+    if [ -n "$link_target" ]; then
+      case "$link_target" in
+        /*) resolved_target=$link_target ;;
+        *) resolved_target=$(dirname "$anvil_path")/$link_target ;;
+      esac
+      if is_homebrew_anvil_path "$resolved_target"; then
+        printf '%s\n' "$anvil_path"
+        return 0
+      fi
+    fi
+  fi
+
+  return 1
+}
+
 echo ""
 echo "  Anvil CLI Installer"
 echo "  ==================="
@@ -36,6 +88,16 @@ echo ""
 if ! command -v curl >/dev/null 2>&1; then
   echo "[!] curl is required. Install curl and try again." >&2
   exit 1
+fi
+
+if HOMEBREW_ANVIL_PATH=$(detect_existing_homebrew_anvil); then
+  echo "[!] Anvil is already installed via Homebrew at $HOMEBREW_ANVIL_PATH."
+  echo "    Use Homebrew to update it instead:"
+  echo ""
+  echo "      brew upgrade eddacraft/tap/anvil"
+  echo ""
+  echo "    To switch to the standalone installer, uninstall the Homebrew formula first."
+  exit 0
 fi
 
 if TMPFILE=$(mktemp -t anvil-installer 2>/dev/null); then
