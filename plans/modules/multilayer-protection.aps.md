@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 17/18 done |
+| MLP | @aneki | Complete    | 18/18 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -1139,272 +1139,19 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-018: v1 deferred follow-ups — module closeout backlog
 
-- **Status:** Draft (2026-05-13) — aggregator entry for every
-  v1-scope footnote filed under MLP-001 through MLP-017 plus the
-  Wave 3 PRs #1502 / #1503 / #1504 / #1505. Each Done item shipped
-  the smallest useful primitive to keep PR scopes bounded; this
-  task is the structured catalogue of the integration work that
-  closes those primitives into full surfaces so the deferrals
-  don't dissolve into "tracked as follow-up" with no trail.
-- **Intent:** Close the gap between every primitive that Wave 1 /
-  Wave 2 / Wave 3 landed and the full surfaces those primitives
-  target. Each item below carries: the originating MLP task, the
-  owner crate / lane, and the acceptance criterion (the surface
-  emits the pinned vocabulary, the registry honours the new key,
-  the IPC layer routes the observation, etc.).
-- **Expected Outcome (grouped by owner area; each sub-item lands
-  as its own focused PR when picked up):**
-
-  **A. Daemon enforcement + observation integration**
-  (`anvil-intercept` consumes the v1 libraries)
-  1. **Daemon-side `(worktree_key, rules_sha) → ResolvedRuleSet`
-     cache with `.anvil.*` watcher invalidation** — from MLP-012.
-     Owned by anvil-intercept when the daemon materialises;
-     coordinates with MLP-014 / INTD.
-  2. **In-flight evaluation pinning during config-update bursts**
-     — from MLP-012. Owned by the scheduler driving evaluations;
-     lands with the daemon RPC path.
-  3. **Composite identity check at daemon attach**
-     (`(project_uuid, first_commit, origin_canonical)`) — from
-     MLP-001 footnote 1. Lands alongside item D (multi-session).
-  4. **Daemon chain-head cache update on post-commit** — from
-     MLP-005 deferred outcome. Owned by anvil-intercept's
-     session-registry watcher.
-  5. **Witness append: daemon RPC + embedded fallback path** —
-     from MLP-003 deferred original-outcome. The `anvil hook
-     pre-commit` surface currently invokes the library directly;
-     wiring it through the daemon's IPC when present (and the
-     embedded fallback when not) is the next step.
-  6. **Daemon's notification layer emits
-     `GateEvaluatedObservation` rows via the kindling-integration
-     SQLite handle** — from MLP-016 footnote 1. Caller-supplied
-     identity fields (session_id, gate_eval_id, timestamp) come
-     from the session registry + traceparent.
-  7. **MCP shim mirror in `crates/anvil-cli/src/mcp/validation.rs`**
-     — from MLP-016 footnote 2. Uses the same Rust builder so MCP
-     and direct-driver observations are bit-identical.
-  8. **RTAI-007 telemetry-contract join** — from MLP-016 footnote
-     4. Explicit field map between RTAI-007 mid-edit envelope and
-     the gate_evaluated row.
-  9. **Volume-bounded-under-burst rate-shaping** — from MLP-016
-     footnote 5. Shared rate-window primitive (see item D3) bounds
-     observation emit rate so keystroke bursts can't flood Kindling.
-  10. **Kindling `action_executed` emission for post-commit /
-      post-merge / post-rewrite** — from MLP-005 deferred outcome.
-      Owned by the same daemon notification layer that owns A6.
-
-  **B. Witness chain extensions** (`anvil-witness` + hook lane)
-  1. **DAG-aware merge verification** (graph walk, not linear-
-     chain) — from MLP-002 footnote 1 and MLP-006 deferred outcome.
-     Merge commits carry `parent_commits[]` + `prev_line_hashes[]`
-     (anvil-witness shipped the fields with MLP-005); the verifier
-     needs to walk the graph.
-  2. **Manifest event stream `anvil/witness/manifest/chain.ndjson`
-     (MLP-002b)** — from MLP-002 footnote 2.
-     `WitnessWriter::append` already returns the archive path on
-     rollover, so the manifest layer plugs in without re-touching
-     the writer.
-  3. **Witness genesis-line emission (`GENESIS-BASELINED`)** —
-     from MLP-007 footnote 4. Owned by MLP-002's writer + the
-     MLP-003 hook lane.
-  4. **Witness-writer call-site wiring** — from MLP-012 footnote
-     5. The `WitnessLine.rules_sha` field exists from MLP-002; the
-     writer call site lives in the hook (MLP-003) where the rule
-     set is resolved.
-  5. **80-writer stress test ungated** — from MLP-002 footnote 4.
-     `eighty_writers_no_interleaving` exists under `#[ignore]`;
-     promote to CI run when the runner has the parallel budget.
-
-  **C. L4 policy execution** (`anvil-l4`)
-  1. **`validate_at_l4` server-side rule-engine execution** —
-     from MLP-006 deferred outcome and MLP-004 footnote 1. The
-     pre-push surface currently emits `InternalError { TimedOut }`
-     for `NeedsL4Validation` decisions; this swaps in the real
-     engine.
-  2. **`refs/notes/anvil-l4` writes** — from MLP-006 deferred
-     outcome and MLP-004 footnote 2. ADR-037 §D-7 forbids in-tree
-     ledger mutation at L4; this is the out-of-tree witness lane.
-  3. **`required_anvil_version` evaluation** — from MLP-006
-     deferred outcome. Lives in anvil-l4.
-  4. **L4 verification of witness `rules_sha` against a recognised
-     version** — from MLP-012 footnote 4. Owned by anvil-l4.
-  5. **Hook-side `required_anvil_version` floor check at fire
-     time** — from MLP-012 footnote 3. Owned by MLP-003's pre-
-     commit hook, consumes
-     `RequiredAnvilVersion::parse(...).satisfied_by(...)` from
-     anvil-rules.
-  6. **`cutoff_commit` baseline-ancestry acceptance in pre-push** —
-     from MLP-004 footnote 3. Needs a `git rev-list --first-parent`
-     ancestry walk per pushed ref to thread into
-     `Policy::commit_is_before_cutoff`.
-  7. **Pre-push time-budget cap with `partial: true`** — from
-     MLP-004 footnote 4. ADR-038 names a 2s p95 budget; cap-
-     trigger surface ships with measurements, not guesses.
-
-  **D. Multi-session + per-task fence isolation** (MLP-014
-  derivatives, `anvil-intercept` + `anvil-config`)
-  1. **Registry session key `WorktreeKey` →
-     `(WorktreeKey, AgentTag)`** in
-     `crates/anvil-intercept/src/registry.rs`. Two sessions same
-     worktree distinguished by AgentTag; per-task fence does not
-     affect other sessions in same worktree; worktree-level fence
-     on unattributable writers still applies to all.
-  2. **Per-worktree session cap**
-     (`enforcement.session.per_worktree_max`, default 16) in
-     `anvil-config` enforcement-config schema + `anvil-intercept`
-     enforcement.
-  3. **`degraded:fence-cascade` mode at 5 fences in 60s** in
-     `crates/anvil-intercept/src/fence.rs`. Rate-window primitive
-     shared with A9.
-  4. **Registry-side spoof-rejection cross-check** — env-supplied
-     AgentTag must match the AgentTag issued for this PID lineage
-     at INTL-003 registration; mismatches treated as missing.
-
-  **E. Cross-platform attribution** (`anvil-attribution`)
-  1. **macOS `pid_starttime` + `parent_pid`** via `sysctl
-     kern.proc.pid.<pid>` (wrapped in `nix`).
-  2. **Windows `pid_starttime` + `parent_pid`** via
-     `GetProcessTimes` + `Process32First/Next` (wrapped in
-     `windows-rs`). Workspace policy forbids raw unsafe.
-
-  **F. TypeScript driver-client mirrors**
-  (`packages/anvil-driver-client/`)
-  1. **AgentTag wire-shape mirror at `src/session.ts`** consuming
-     the proto JSON shape pinned in
-     `crates/anvil-intercept-proto/src/session.rs`.
-  2. **Mid-edit Kindling observation builder mirror** for the
-     daemon-unreachable embedded-fallback path; consumes the
-     wire-shape pinned by
-     `crates/anvil-intercept/src/kindling_observation.rs`.
-
-  **G. Baseline policy + identity wiring**
-  1. **`cutoff_commit` pinning into `anvil/policy.yml`** — from
-     MLP-007 footnote 3. Lands in anvil-l4 / anvil-policy.
-  2. **`anvil baseline` writes identity** — from MLP-001 footnote
-     3 and MLP-007 footnote 5. The baseline CLI calls
-     `identity::ensure_project_id` alongside its bootstrap work.
-  3. **`--new-identity` fork opt-out CLI flag** on `anvil start`
-     — from MLP-001 footnote 2. Forks today inherit the parent's
-     UUID; the opt-out flag joins MLP-007's fork-aware adoption
-     surface.
-  4. **Scanner integration** — populate `BaselineFinding` from
-     `anvil-checks` pipeline output (from MLP-007 footnote 2).
-  5. **Adversarial-refresh detection**
-     (`degraded:baseline-suspicious`) — from MLP-007 footnote 6.
-     Needs heuristics + threshold tuning.
-  6. **Async continuation for >100k files** — from MLP-007
-     footnote 7. Performance work item; v1 ships the data plane.
-
-  **H. Hook + config surface completion**
-  1. **`anvil hook bootstrap --witness-recent` mode** — from
-     MLP-008 deferred outcome. Walks `<remote>..HEAD`, runs
-     validation against each unwitnessed commit, writes
-     retroactive witnesses tagged
-     `validation_at: bootstrap-recovery`.
-  2. **`merge=union -text` orchestrator step** for
-     `.gitattributes` — from MLP-002 footnote 3. Pre-positioned
-     by MLP-001 step 1a-b; the explicit orchestrator step that
-     writes it lands here.
-  3. **`anvil start --format json|toml` CLI flag** — from MLP-011
-     footnote 1. Library is the building block; the flag wires
-     when the first consumer (init.rs / policy parser) integrates.
-  4. **`.anvilrc` → `.anvil.<ext>` filename migration** — from
-     MLP-011 footnote 2. The existing `.anvilrc` reader keeps
-     working; migration is a separate concern.
-  5. **Typed `AnvilConfig` schema** — from MLP-011 footnote 3.
-     Each consumer surface (init, gate, policy) evolves its own
-     typed view over the same `serde_json::Value` intermediate.
-
-  **I. GitHub Action publishing** (MLP-010 derivatives)
-  1. **External `github.com/eddacraft/anvil-action` repo** —
-     `action.yml`, bundled binary install, semver-tagged releases,
-     Marketplace listing.
-  2. **Activation orchestrator wiring** — `anvil start` /
-     `anvil baseline` write the template at
-     `crates/anvil-cli/src/templates/anvil-workflow.yml` into a
-     target repo's `.github/workflows/anvil.yml` at adoption time.
-  3. **Branch-protection integration end-to-end test** against a
-     live Marketplace action.
-  4. **Major-version tag automation** (`v1` auto-tracks latest
-     minor/patch); lives in the external publishing repo.
-  5. **`anvil l4-validate` binary surface** (MLP-006 deferred
-     lane); the template's `anvil hook pre-push` invocation swaps
-     to `anvil l4-validate` when that lands.
-  6. **Pre-push end-to-end subprocess integration tests** — from
-     MLP-004 footnote 5. Helper coverage is 40+ tests across
-     anvil-hook / anvil-l4 / anvil-cli::commands::hook; the
-     run-the-binary smoke pass lands with item J3 (the
-     protection-claim contract surface).
-
-  **J. Protection-claim render conformance** (MLP-009 derivatives,
-  the HARD GATE)
-  1. **`anvil status --json` render path** in
-     `crates/anvil-cli/src/commands/status.rs` emitting
-     `ProtectionClaim` from a daemon-snapshot input.
-  2. **Per-state golden fixture files** at
-     `crates/anvil-cli/tests/fixtures/status_v1/` — one JSON
-     snapshot per worktree state and per surface state.
-  3. **TypeScript e2e mirror** at
-     `apps/e2e/src/protection_claim_states.spec.ts` exercising the
-     rendered surface against the closed-set vocabulary.
-  4. **Driver / CLI / MCP-shim conformance pass** — every surface
-     that renders a protection claim consumes the
-     `crates/anvil-kernel-types/src/protection_claim.rs` types
-     rather than pattern-matching strings.
-  5. **Zod-style additive-optional-fields forward-compat test** —
-     pin that adding an optional `degraded_reasons` /
-     `cross_boundary_token` doesn't bump `schema_version` and
-     consumers ignore unknown optional fields.
-
-  **K. Kindling activation orchestrator follow-ups**
-  1. **`anvil start` / `anvil baseline` write
-     `.github/workflows/anvil-audit.yml`** — from MLP-015 footnote
-     2. Template ships in-tree
-     (`audit_workflow_template()`); the activation orchestrator
-     call site is the operator-touch point.
-  2. **Kindling `gate_evaluated` with `mode: audit` emission for
-     `anvil audit-chain`** — from MLP-015 footnote 1. Owned by the
-     kindling-integration consumer when the CLI gains a kindling
-     client handle; report shape already carries the fields the
-     row needs.
-  3. **`anvil audit-chain` re-scoring via `anvil-checks`** —
-     from MLP-015 footnote 3. v1 is a witness-presence check;
-     re-running the rule engine across history lands after C1
-     (validate-at-l4) so audit and L4 share a rule pipeline.
-  4. **`anvil audit-chain` time-budget cap** for very large
-     histories — from MLP-015 footnote 4. Profile first, cap
-     second.
-
-- **Files (touched by individual sub-PRs):** spans
-  `crates/anvil-intercept/`, `crates/anvil-attribution/`,
-  `crates/anvil-witness/`, `crates/anvil-l4/`,
-  `crates/anvil-baseline/`, `crates/anvil-config/`,
-  `crates/anvil-rules/`, `crates/anvil-hook/`,
-  `crates/anvil-cli/{src/commands/,src/activation/,src/mcp/,tests/fixtures/status_v1/}`,
-  `packages/anvil-driver-client/`,
-  `apps/e2e/src/protection_claim_states.spec.ts`, plus the
-  external `github.com/eddacraft/anvil-action` publishing repo.
-- **Validation:** each sub-PR carries its own test plan against
-  the acceptance criterion above. This aggregator task is Complete
-  when every sub-item is either shipped (referenced by a merged
-  PR) or split off into a dedicated MLP-NNN task with its own
-  acceptance criterion.
-- **Confidence:** medium (each sub-item is medium-confidence in
-  isolation; the aggregate is bounded by individual scoping).
-- **Priority:** High (post-MLP-009 unlock — the protection-claim
-  contract that MLP-009 ships only fully closes when J1–J5 land,
-  and the daemon-driven enforcement claim only fully closes when
-  A + C + D land).
-- **Dependencies:** Wave 1, Wave 2, and Wave 3 PRs all merged.
-  MLP-009 hard release gate enforced through the conformance
-  items (J1–J5).
-- **Source provenance:** MLP-001 footnotes 1–3; MLP-002 footnotes
-  1–5; MLP-003 deferred outcomes; MLP-004 footnotes 1–5; MLP-005
-  deferred outcomes; MLP-006 deferred outcomes; MLP-007 footnotes
-  1–7; MLP-008 deferred outcomes; MLP-011 footnotes 1–3; MLP-012
-  footnotes 1–5; MLP-014 (PR #1502); MLP-015 footnotes 1–4 (PR
-  #1500); MLP-016 footnotes 1–5 (PR #1503); MLP-010 footnotes 1–5
-  (PR #1504); MLP-009 footnotes 1–5 (PR #1505).
+- **Status:** Done (2026-05-14) — catalogue act complete (PR
+  #1507 wrote the aggregator entry, PR #1508 closed the Wave 3
+  Done flips). The 56 deferred sub-items have been split out
+  into their own first-class APS module to make each one
+  plannable in isolation.
+- **Intent:** Close MLP-018 with a pointer rather than carrying
+  the long catalogue inline.
+- **Outcome (shipped):** Each of the 56 v1-scope footnotes
+  filed under MLP-001..MLP-017 + the Wave 3 PRs (#1502 / #1503
+  / #1504 / #1505) is now a discrete MLP2-NNN task in
+  [`plans/modules/multilayer-protection-v2.aps.md`](./multilayer-protection-v2.aps.md).
+- **See also:** `plans/modules/multilayer-protection-v2.aps.md`
+  for the integration tracking module.
 
 ## Stats
 
@@ -1417,8 +1164,8 @@ a defensible claim, not a slogan. This module owns:
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 3/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| Module closeout backlog | 1 (MLP-018) | 0/1 |
-| **Total** | **18** | **17/18** |
+| Module closeout backlog | 1 (MLP-018) | 1/1 |
+| **Total** | **18** | **18/18** |
 
 ## Recommended landing order
 
