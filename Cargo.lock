@@ -1257,6 +1257,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-rules"
+version = "0.6.2-beta"
+dependencies = [
+ "eddacraft-anvil-config",
+ "hex",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "toml",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-tui"
 version = "0.6.2-beta"
 dependencies = [

@@ -2,17 +2,27 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 5/17 done |
+| MLP | @aneki | In Progress | 6/17 done |
 
-**Last reviewed:** 2026-05-13 (Wave 1 entry — MLP-001 reconciled to Done after
-audit confirmed the shipped implementation matches the v1-narrowed scope;
-MLP-011 shipped a new `crates/anvil-config/` library (extension dispatch +
-canonical-JSON serialisation; 44 tests green); MLP-002 witness-chain spike
-shipped a new `crates/anvil-witness/` crate (line, genesis, writer with
-flock + rollover, verifier with tamper / dropped-line / stray-genesis
-detection); 25 tests green plus an `--ignored` 80-writer stress test. Module
-advanced to In Progress for the Wave 1 backbone slate per `RELEASE-PLAN.md`.
-MLP-009 remains the hard release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
+**Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-012 shipped as a new
+`crates/anvil-rules/` library: `RulesShaInput` + `rules_sha` over
+canonical-JSON of `{anvil_version, config_sha, opa_runtime_version,
+rules}`; `RequiredAnvilVersion` semver-floor parser/comparator;
+`config_sha_from_canonical` helper sitting on top of MLP-011's
+canonical bytes. 29 tests green including yaml/json/toml
+cross-format determinism. Daemon cache, in-flight pinning, hook
+floor check, L4 verification, and witness writer wiring documented
+as deferred follow-ups owned by their respective consumers.
+Wave 1 entry — MLP-001 reconciled to Done after audit confirmed the
+shipped implementation matches the v1-narrowed scope; MLP-011
+shipped a new `crates/anvil-config/` library (extension dispatch +
+canonical-JSON serialisation; 44 tests green); MLP-002 witness-chain
+spike shipped a new `crates/anvil-witness/` crate (line, genesis,
+writer with flock + rollover, verifier with tamper / dropped-line /
+stray-genesis detection); 25 tests green plus an `--ignored`
+80-writer stress test. Module advanced to In Progress for the Wave 1
+backbone slate per `RELEASE-PLAN.md`. MLP-009 remains the hard
+release gate for `v0.7.0-beta`; ADRs 036–039 Accepted.)
 
 > **Scope.** MLP is the v1 module that ships the multi-layer
 > protection backbone: witness chain, hooks, L4 policy framework,
@@ -493,26 +503,69 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-012: `rules_sha` computation in witness lines
 
+- **Status:** Done (2026-05-13) — v1 primitive
 - **Intent:** Every witness line records the deterministic hash of
   the rule set used.
-- **Expected Outcome:**
-  - `rules_sha = sha256(anvil_version + opa_runtime_version + sorted_rules + config_sha)`
-  - Daemon caches `(worktree_key, rules_sha) → ResolvedRuleSet`;
-    invalidation on `.anvil.*` watcher event.
-  - In-flight evaluations finish with their pinned `rules_sha`.
-  - `required_anvil_version` floor in policy file; hook checks at fire time.
-  - L4 verifies witness `rules_sha` is from a recognised version;
-    falls back to revalidation if outside policy.
-- **Files:** `crates/anvil-rules/src/sha.rs` (new),
-  edits in `crates/anvil-witness/`, `crates/anvil-l4/`.
-- **Validation:**
-  - Cross-machine determinism (same anvil_version + same config →
-    same sha)
-  - Format-independent (yaml + toml equivalent → same sha)
-  - In-flight evaluation pinning under config-update burst
-- **Confidence:** medium
+- **Expected Outcome (v1 shipped):**
+  - New crate `crates/anvil-rules/` exposes `RulesShaInput`,
+    `rules_sha`, `config_sha_from_canonical`, and
+    `RequiredAnvilVersion`.
+  - `RulesShaInput::try_new` validates `config_sha` is exactly 64
+    lowercase hex characters and each rule id is non-empty ASCII
+    (rejects empty strings and non-ASCII to dodge Unicode
+    normalisation collisions); rule list is sorted + deduped at
+    construction, so call-site order doesn't affect the digest.
+  - `rules_sha = sha256(canonical_json({anvil_version, config_sha,
+    opa_runtime_version, rules}))`. Top-level keys are sorted via a
+    `BTreeMap` built from named fields (no round-trip through
+    `serde_json::to_value`) so the digest is independent of whether
+    `serde_json`'s `preserve_order` feature is enabled.
+  - `config_sha_from_canonical` sits on top of MLP-011's
+    `canonical_json_bytes`, so yaml / json / toml inputs collapse to
+    the same digest (the cross-format invariant).
+  - `RequiredAnvilVersion::parse` + `satisfied_by(current)` for the
+    policy-file floor — used by MLP-003 at hook fire time and by
+    MLP-006 at L4 verification. Callers should pass their own
+    `env!("CARGO_PKG_VERSION")` (no anvil-rules-side
+    `current_anvil_version()` helper — that would alias to this
+    crate's package version and silently diverge from the running
+    binary).
+  - Golden-digest pin test plus `golden_digest_pin_matches_string`
+    canary: any change to field names, key ordering, or encoding
+    surfaces as a test failure with a release-note prompt.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of Done):**
+  1. **Daemon-side `(worktree_key, rules_sha) → ResolvedRuleSet`
+     cache with `.anvil.*` watcher invalidation** — owned by
+     `anvil-intercept` when the daemon materialises (coordinates
+     with MLP-014 / INTD).
+  2. **In-flight evaluation pinning during config-update bursts** —
+     owned by the scheduler that drives evaluations; lands with the
+     daemon RPC path.
+  3. **Hook-side floor check at fire time** — owned by MLP-003
+     (`anvil hook pre-commit`); it consumes
+     `version_satisfies_floor` from this crate.
+  4. **L4 verification of witness `rules_sha` against a recognised
+     version** — owned by MLP-006 (`anvil-l4` crate).
+  5. **Witness-writer wiring** — the `WitnessLine.rules_sha` field
+     exists from MLP-002; the writer call site lives in the hook
+     (MLP-003) where the rule set is resolved.
+- **Files (shipped):** `crates/anvil-rules/Cargo.toml`,
+  `crates/anvil-rules/src/{lib,input,version}.rs`,
+  `crates/anvil-rules/tests/cross_format_determinism.rs`, workspace
+  `Cargo.toml` member registration.
+- **Validation:** `cargo test -p eddacraft-anvil-rules` — 34 tests
+  green (29 unit + 5 cross-format integration), incl. six
+  `try_new_rejects_*` boundary checks and two golden-digest pins.
+  Headline test `yaml_json_toml_collapse_to_same_rules_sha` proves
+  equal digest across the three formats. `cargo clippy -p
+  eddacraft-anvil-rules --all-targets -- -D warnings` clean.
+- **Confidence:** high (primitive only; downstream consumers wire it
+  in when they land)
 - **Priority:** High
 - **Dependencies:** MLP-011
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ### MLP-013: Hard-pinned rule classes (`secrets`, `command-safety`)
 
@@ -662,10 +715,10 @@ a defensible claim, not a slogan. This module owns:
 | Policy + adoption | 3 (MLP-006, -007, -008) | 0/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
-| Rule distribution | 2 (MLP-012, -013) | 1/2 |
+| Rule distribution | 2 (MLP-012, -013) | 2/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| **Total** | **17** | **5/17** |
+| **Total** | **17** | **6/17** |
 
 ## Recommended landing order
 
