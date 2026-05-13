@@ -24,6 +24,7 @@ members = [
   "crates/anvil-hook",
   "crates/anvil-l4",
   "crates/anvil-architecture",
+  "crates/anvil-attribution",
   "crates/workspace-hack",
 ]
 

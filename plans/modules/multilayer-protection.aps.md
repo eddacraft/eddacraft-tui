@@ -765,9 +765,67 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-014: Multi-session-per-worktree + per-task fence isolation
 
+- **Status:** In Progress (2026-05-13) — v1 attribution primitive lands
+  ahead of the registry / fence integration; see footnotes.
 - **Intent:** Promoted from DLIFE-008 v1.5 to MLP v1 per user direction.
   Sub-agent waves require per-task fence scope so one bad sub-agent
   doesn't cascade-fence a whole worktree.
+- **Expected Outcome (v1 shipped):** New crate `crates/anvil-attribution/`
+  exposes the four registry-agnostic primitives the higher layers
+  compose: `agent_tag_to_env_value` / `agent_tag_from_env_value` +
+  `set_attribution_env` wrap the `ANVIL_AGENT_TAG_ENV` and
+  `ANVIL_TASK_ID_ENV` propagation contract (JSON-encoded `AgentTag`
+  payload so the launcher and child speak the same Serialize impl);
+  `pid_starttime` and `parent_pid` parse `/proc/<pid>/stat` field 22
+  (start ticks since boot, combined with `/proc/stat` `btime` for an
+  absolute Unix seconds value) and field 4 (ppid) with the canonical
+  "scan to last `)` to skip comm-field paren content" trick;
+  `walk_ancestors` climbs from a starting PID toward init with a
+  caller-supplied visitor closure so the registry-lookup half lives in
+  `anvil-intercept` where the session table is, returning a typed
+  `WalkOutcome` (`Matched` / `ReachedRoot` / `DepthExhausted`) with a
+  default depth cap of 64. Defends against self-parent loops and
+  malformed stat files by typed errors rather than panics. Trust model
+  reiterated in the crate doc: env vars are advisory; the
+  registry-side issued-tag check is the authentication backstop.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **Registry key change from `WorktreeKey` to `(WorktreeKey,
+     AgentTag)`** — extends `crates/anvil-intercept/src/registry.rs`;
+     the crate touches 1000+ lines and threading the composite key
+     through every call site is its own PR. The attribution
+     primitives are the input that registry change needs.
+  2. **Per-worktree session cap config**
+     (`enforcement.session.per_worktree_max`, default 16) — lands in
+     `anvil-config` / `anvil-intercept`'s enforcement-config schema.
+  3. **`degraded:fence-cascade` mode at 5 fences / 60s** — lives in
+     `anvil-intercept`'s fence layer; needs the rate-window primitive
+     too.
+  4. **macOS / Windows `pid_starttime` + `parent_pid`** — v1 is
+     Linux-only; non-Linux paths return
+     `io::ErrorKind::Unsupported` so callers can degrade gracefully.
+     macOS via `sysctl kern.proc.pid.<pid>`, Windows via
+     `GetProcessTimes`.
+  5. **TS driver-client mirror at
+     `packages/anvil-driver-client/src/session.ts`** — owned by the
+     driver-client package; AgentTag wire shape is already pinned in
+     `crates/anvil-intercept-proto/src/session.rs`.
+  6. **Registry-side cross-check that an env-supplied AgentTag was
+     actually issued for this PID lineage** — owned by
+     `anvil-intercept/src/registry.rs`; the attribution crate is
+     deliberately registry-agnostic so the spoof-rejection rule lives
+     where the registry's `HashMap<(WorktreeKey, AgentTag),
+     SessionRecord>` does.
+- **Files (shipped):** `crates/anvil-attribution/Cargo.toml`,
+  `crates/anvil-attribution/src/{lib,env,process,walk}.rs`, workspace
+  `Cargo.toml` member registration.
+- **Validation:** `cargo test -p eddacraft-anvil-attribution` — 17
+  tests green (env round-trip + empty / malformed boundary cases +
+  spaces-in-driver-id; `/proc/self/stat` parse + sensible-window
+  starttime + init-pid earliest; comm-field paren handling;
+  nonexistent-pid io error; walk visit-self-first + match-short-
+  circuits + reach-root + depth-zero + nonexistent-pid surfaces typed
+  walk error). `cargo clippy -p eddacraft-anvil-attribution
+  --all-targets -- -D warnings` clean. `cargo fmt --check` clean.
 - **Expected Outcome:**
   - Session key becomes `(WorktreeKey, AgentTag)` rather than just
     `WorktreeKey`.

@@ -1,0 +1,19 @@
+[package]
+name = "eddacraft-anvil-attribution"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil agent-attribution primitives — env propagation + process-tree ancestor walk for MLP-014 multi-session / per-task fence isolation"
+
+[lib]
+name = "anvil_attribution"
+
+[dependencies]
+eddacraft-anvil-intercept-proto = { path = "../anvil-intercept-proto" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+workspace-hack.workspace = true
+
+[lints]
+workspace = true
