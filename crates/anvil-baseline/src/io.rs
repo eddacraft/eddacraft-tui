@@ -61,6 +61,11 @@ pub fn save(repo_root: &Path, baseline: &Baseline) -> Result<(), BaselineIoError
     refuse_if_symlink(&final_path)?;
 
     let tmp_path = parent.join(".baseline.json.tmp");
+    // Refuse a pre-existing symlink at the temp path too. Otherwise a
+    // hostile worktree state could pre-create `.baseline.json.tmp` as
+    // a symlink pointing outside the repo, and our `File::create`
+    // would happily write through it (overwriting the target).
+    refuse_if_symlink(&tmp_path)?;
     let bytes = baseline.to_canonical_bytes()?;
     {
         let mut f = fs::File::create(&tmp_path)?;
@@ -68,20 +73,51 @@ pub fn save(repo_root: &Path, baseline: &Baseline) -> Result<(), BaselineIoError
         f.sync_all()?;
     }
     refuse_if_symlink(&final_path)?;
-    fs::rename(&tmp_path, &final_path)?;
+    atomic_replace(&tmp_path, &final_path)?;
     Ok(())
 }
 
-fn refuse_if_symlink(path: &Path) -> Result<(), BaselineIoError> {
-    if path.exists() {
-        let meta = path.symlink_metadata()?;
-        if meta.file_type().is_symlink() {
-            return Err(BaselineIoError::SymlinkRefusal {
-                path: path.to_path_buf(),
-            });
+/// Atomically replace `dest` with `src`. POSIX `rename(2)` overwrites
+/// silently; Windows `MoveFileExW` (which `std::fs::rename` calls)
+/// returns `AlreadyExists` when `dest` exists, so we fall back to
+/// remove-then-rename on that one error path. The window between the
+/// remove and the rename is narrow and only matters on Windows; on
+/// POSIX the first rename always wins.
+fn atomic_replace(src: &Path, dest: &Path) -> Result<(), BaselineIoError> {
+    match fs::rename(src, dest) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            // Refuse symlinks again before the remove so we don't
+            // chase a swapped link out of the repo.
+            refuse_if_symlink(dest)?;
+            fs::remove_file(dest)?;
+            fs::rename(src, dest)?;
+            Ok(())
         }
+        Err(e) => Err(e.into()),
     }
-    Ok(())
+}
+
+/// Refuse if `path` is a symlink — including a *broken* symlink whose
+/// target doesn't exist. `Path::exists()` returns false for a broken
+/// symlink (it follows the link before checking), which would let an
+/// attacker stage a symlink to a non-existent file as a "doesn't
+/// exist" path and bypass our refusal. We use `symlink_metadata()`
+/// which inspects the link itself, not its target.
+fn refuse_if_symlink(path: &Path) -> Result<(), BaselineIoError> {
+    match path.symlink_metadata() {
+        Ok(meta) if meta.file_type().is_symlink() => Err(BaselineIoError::SymlinkRefusal {
+            path: path.to_path_buf(),
+        }),
+        // Not a symlink → not refused. Either a regular file/dir or
+        // something else (socket, etc.); the caller's subsequent
+        // operations will surface a more specific error if so.
+        Ok(_) => Ok(()),
+        // ENOENT → path doesn't exist at all, including as a symlink.
+        // That's fine; the caller will create it.
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(test)]
@@ -204,5 +240,49 @@ mod tests {
         save(tmp.path(), &b).unwrap();
         let loaded = load(tmp.path()).unwrap().unwrap();
         assert_eq!(loaded.cutoff_commit.as_deref(), Some("abc123"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_refuses_when_tmp_path_is_symlink_before_write() {
+        // A hostile worktree state could pre-create
+        // `.baseline.json.tmp` as a symlink pointing out of the
+        // repo; without the tmp-path refusal, `File::create` would
+        // happily write *through* the link.
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("anvil")).unwrap();
+        let outside = tmp.path().join("outside.json");
+        symlink(
+            &outside,
+            tmp.path().join("anvil").join(".baseline.json.tmp"),
+        )
+        .unwrap();
+        let err = save(tmp.path(), &sample()).unwrap_err();
+        assert!(matches!(err, BaselineIoError::SymlinkRefusal { .. }));
+        // The outside file must NOT exist — the symlink shouldn't
+        // have been written through.
+        assert!(!outside.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuse_if_symlink_catches_broken_symlinks() {
+        // `Path::exists()` returns false for a broken symlink (it
+        // follows the link). The earlier impl used `.exists()` and
+        // would silently allow a broken-symlink baseline path. The
+        // fixed impl uses `symlink_metadata` and refuses on the
+        // link itself.
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("anvil")).unwrap();
+        // Symlink to a target that doesn't exist.
+        symlink(
+            tmp.path().join("nonexistent-target"),
+            tmp.path().join(BASELINE_PATH),
+        )
+        .unwrap();
+        let err = save(tmp.path(), &sample()).unwrap_err();
+        assert!(matches!(err, BaselineIoError::SymlinkRefusal { .. }));
     }
 }

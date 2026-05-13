@@ -82,10 +82,9 @@ pub fn compute_fingerprint(rule_id: &str, snippet: &str) -> Result<String, Finge
 /// Normalise a snippet for fingerprinting.
 ///
 /// The normalisation collapses runs of ASCII whitespace into a single
-/// space, trims leading and trailing whitespace, and discards
-/// trailing line continuations. It does NOT lowercase, transliterate,
-/// or alter non-ASCII bytes — that would silently merge semantically
-/// distinct rule hits.
+/// space and trims leading and trailing whitespace. It does NOT
+/// lowercase, transliterate, or alter non-ASCII bytes — that would
+/// silently merge semantically distinct rule hits.
 pub fn normalize_snippet(snippet: &str) -> String {
     let mut out = String::with_capacity(snippet.len());
     let mut prev_was_space = true; // suppress leading whitespace
@@ -199,21 +198,43 @@ mod tests {
         assert_ne!(a, b);
     }
 
+    // Pinned canary digest for `golden_fingerprint_pin_literal`.
+    // Computed at landing time from rule_id || 0x00 ||
+    // normalize_snippet("  // @ts-ignore:\t  this is fine  ")
+    //   = "// @ts-ignore: this is fine"
+    // Update only with a release note — every existing baseline
+    // depends on this exact value.
+    const PINNED_FINGERPRINT: &str = "70c86a3617211686";
+
     #[test]
-    fn golden_fingerprint_pin() {
-        // Pinned canary: if the fingerprint algorithm changes, every
-        // existing baseline becomes invalid. This test fails first
-        // and forces a release note before that can happen silently.
+    fn golden_fingerprint_pin_literal() {
+        // The snippet is deliberately whitespace-noisy so the test
+        // exercises `normalize_snippet` (collapse + trim) on the way
+        // through. If normalisation is ever bypassed or swapped, the
+        // digest won't match this literal.
         let fp = compute_fingerprint(
             "anti-pattern:guardrail-suppression",
-            "// @ts-ignore: this is fine",
+            "  // @ts-ignore:\t  this is fine  ",
         )
         .unwrap();
-        // Computed once at landing time; do not edit without a
-        // baseline-format migration.
+        assert_eq!(fp, PINNED_FINGERPRINT);
+    }
+
+    #[test]
+    fn golden_fingerprint_matches_hand_rolled_normalised_bytes() {
+        // Companion check: the encoder agrees with a hand-rolled
+        // canonical-bytes path for the same logical input. If the
+        // two diverge, the encoder has drifted from its documented
+        // contract.
+        let fp = compute_fingerprint(
+            "anti-pattern:guardrail-suppression",
+            "  // @ts-ignore:\t  this is fine  ",
+        )
+        .unwrap();
         let mut hasher = Sha256::new();
         hasher.update(b"anti-pattern:guardrail-suppression");
         hasher.update([0u8]);
+        // Hand-rolled = normalised form, not the raw input.
         hasher.update(b"// @ts-ignore: this is fine");
         let expected = hex::encode(&hasher.finalize()[..8]);
         assert_eq!(fp, expected);

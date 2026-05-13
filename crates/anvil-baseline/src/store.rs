@@ -103,7 +103,12 @@ impl Baseline {
 
     /// Validate invariants. Called after deserialisation.
     pub fn validate(&self) -> Result<(), FormatError> {
-        if self.format_version > FORMAT_VERSION {
+        // Refuse `format_version == 0` as well as `> FORMAT_VERSION`.
+        // Zero isn't a published shape — accepting it would mean any
+        // baseline produced before the format_version field existed
+        // (or by a defaulting bug) silently loads as v1, hiding a
+        // real corruption signal. Today the only valid value is 1.
+        if self.format_version == 0 || self.format_version > FORMAT_VERSION {
             return Err(FormatError::UnsupportedFormat {
                 got: self.format_version,
                 supported: FORMAT_VERSION,
@@ -355,6 +360,16 @@ mod tests {
     fn validate_rejects_newer_format_version() {
         let mut b = Baseline::new(metadata(), vec![]);
         b.format_version = FORMAT_VERSION + 1;
+        let err = b.validate().unwrap_err();
+        assert!(matches!(err, FormatError::UnsupportedFormat { .. }));
+    }
+
+    #[test]
+    fn validate_rejects_zero_format_version() {
+        // `format_version: 0` is not a published shape. Accepting it
+        // would hide either a defaulting bug or a pre-versioned file.
+        let mut b = Baseline::new(metadata(), vec![]);
+        b.format_version = 0;
         let err = b.validate().unwrap_err();
         assert!(matches!(err, FormatError::UnsupportedFormat { .. }));
     }
