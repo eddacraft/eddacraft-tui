@@ -38,6 +38,16 @@ pub struct WitnessLine {
     /// bookkeeping, not commit attestation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit_sha: Option<String>,
+    /// Merge-commit parent SHAs (DAG-aware witness; MLP-005). Empty
+    /// for ordinary linear commits; one entry per parent on a merge
+    /// commit, in `git rev-list --parents` order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parent_commits: Vec<String>,
+    /// Per-parent `prev_line_hash` for merge-commit DAG joins
+    /// (MLP-005). Indexed in lockstep with `parent_commits`; `None`
+    /// expresses "this parent had no witnessed history."
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prev_line_hashes: Vec<Option<String>>,
     /// Optional agent tag for multi-agent attribution (MLP-014).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_tag: Option<String>,
@@ -101,6 +111,8 @@ impl WitnessLine {
             prev_line_hash: anchor.anchor_string().to_string(),
             project_uuid: project_uuid.into(),
             commit_sha: None,
+            parent_commits: Vec::new(),
+            prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
             ts: ts.into(),
@@ -136,6 +148,8 @@ mod tests {
             prev_line_hash: GenesisAnchor::Fresh.anchor_string().to_string(),
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
             commit_sha: Some("abcdef".to_string()),
+            parent_commits: Vec::new(),
+            prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
             ts: "2026-05-13T00:00:00Z".to_string(),

@@ -21,12 +21,10 @@
 //!   framework / cargo-husky / plain `core.hooksPath` / nothing).
 //! - [`shell_template`] — the 3-line shell wrapper from ADR-038
 //!   §D-5. Per-hook (pre-commit, post-commit, pre-push, etc.).
-//! - [`panic_catcher_hook`] — builds the closure consumed by
-//!   `std::panic::set_hook`. The closure formats each panic into a
-//!   [`PanicReport`] and forwards it to a caller-supplied sink. The
-//!   sink is responsible for the ADR-038 §D-7 side-effects (append
-//!   to the panic log, emit one stderr line, append a witness-error
-//!   record); this crate stays I/O-free and library-friendly.
+//! - [`panic_catcher_hook`] — `std::panic::set_hook` payload that
+//!   demotes a panic to a single stderr line + log file + exit-0,
+//!   per ADR-038 §D-7. Returns the witness-error record so the
+//!   caller can append it to the chain.
 //!
 //! ## Out of scope (deferred to consumers / CLI lane)
 //!
@@ -51,14 +49,24 @@
 //! - §D-6 failure-mode taxonomy → [`render_verdict`] exit-code map.
 //! - §D-7 panic catcher → [`panic_catcher_hook`].
 
+mod bootstrap;
 mod framework;
 mod panic;
+mod post;
 mod shell;
 mod suppression;
 mod verdict;
 
+pub use bootstrap::{
+    BootstrapPlan, HuskyRuntime, PlainHookFile, build_bootstrap_plan, generate_husky_runtime,
+    render_success_message,
+};
 pub use framework::{HookFramework, detect_framework};
 pub use panic::{PANIC_LOG_FILE, PanicReport, format_panic_report, panic_catcher_hook};
+pub use post::{
+    MergeWitnessPlan, POST_REWRITE_VALIDATION_AT, PostRewriteParseError, RetroactiveWitness,
+    RewritePair, merge_witness_plan, parse_post_rewrite_input,
+};
 pub use shell::{HookKind, shell_template};
 pub use suppression::{SuppressionKey, SuppressionLog};
 pub use verdict::{BlockReason, ErrorClass, RenderedVerdict, Verdict, render_verdict};

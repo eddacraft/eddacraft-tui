@@ -154,6 +154,11 @@ enum Commands {
     Export(commands::export::ExportArgs),
     /// Install and manage git hooks.
     Hooks(commands::hooks::HooksArgs),
+    /// Runtime hook subcommands (pre-commit, post-commit, post-merge,
+    /// post-rewrite, bootstrap) — invoked by the shell wrapper.
+    Hook(commands::hook::HookArgs),
+    /// Manage the `anvil/baseline.json` adoption record.
+    Baseline(commands::baseline::BaselineArgs),
     /// Manage architecture boundary definitions.
     Architecture(commands::architecture::ArchitectureArgs),
     /// Authenticate with the Anvil service.
@@ -208,6 +213,8 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Watch(_) => "watch",
         Commands::Export(_) => "export",
         Commands::Hooks(_) => "hooks",
+        Commands::Hook(_) => "hook",
+        Commands::Baseline(_) => "baseline",
         Commands::Architecture(_) => "architecture",
         Commands::Policy(_) => "policy",
         Commands::Update(_) => "update",
@@ -721,6 +728,8 @@ fn main() -> ExitCode {
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
+        Commands::Hook(args) => commands::hook::run(args, &cli.global),
+        Commands::Baseline(args) => commands::baseline::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
         Commands::Validate(args) => commands::validate::run(args, &cli.global),

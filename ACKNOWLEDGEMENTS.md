@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 274 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 275 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1033,6 +1033,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `petgraph` | 0.8.3 | MIT License | https://github.com/petgraph/petgraph |
 | `tempfile` | 3.27.0 | MIT License | https://github.com/Stebalien/tempfile |
+| `fs2` | 0.4.3 | MIT License | https://github.com/danburkert/fs2-rs |
 | `heck` | 0.5.0 | MIT License | https://github.com/withoutboats/heck |
 | `unicode-segmentation` | 1.13.2 | MIT License | https://github.com/unicode-rs/unicode-segmentation |
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |

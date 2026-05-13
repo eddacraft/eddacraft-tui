@@ -29,6 +29,8 @@ fn line_for_thread(seq: u64, prev: &str, thread_id: usize) -> WitnessLine {
         prev_line_hash: prev.to_string(),
         project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
         commit_sha: Some(format!("t{thread_id}-{seq}")),
+        parent_commits: Vec::new(),
+        prev_line_hashes: Vec::new(),
         agent_tag: None,
         rules_sha: None,
         ts: "2026-05-13T00:00:00Z".to_string(),

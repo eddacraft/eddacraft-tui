@@ -1017,17 +1017,23 @@ dependencies = [
  "demand",
  "dirs",
  "eddacraft-anvil-architecture",
+ "eddacraft-anvil-baseline",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-config",
+ "eddacraft-anvil-hook",
  "eddacraft-anvil-intercept",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-intercept-win32",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
+ "eddacraft-anvil-l4",
  "eddacraft-anvil-observability",
  "eddacraft-anvil-policy",
  "eddacraft-anvil-rayon-init",
+ "eddacraft-anvil-rules",
  "eddacraft-anvil-tui",
+ "eddacraft-anvil-witness",
  "eddacraft-tui",
  "hex",
  "ignore",
@@ -1131,6 +1137,7 @@ name = "eddacraft-anvil-hook"
 version = "0.6.2-beta"
 dependencies = [
  "tempfile",
+ "thiserror 2.0.18",
  "workspace-hack",
 ]
 

@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 9/17 done |
+| MLP | @aneki | In Progress | 11/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -331,8 +331,10 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-005: post-commit / post-merge / post-rewrite handlers
 
+- **Status:** Done (2026-05-13)
 - **Intent:** Record commit-time state changes in Kindling; handle
   witness chain edge cases (merges, rebases, amends).
+- **Expected Outcome (shipped):** `anvil hook post-commit` appends a `kind: "post-commit"` bookkeeping witness line; `anvil hook post-merge --commit <sha>` builds a DAG-aware witness via `anvil_hook::merge_witness_plan` with `parent_commits[]` + `prev_line_hashes[]` arrays populated (anvil-witness extended with these fields; parent enumeration via `git rev-list --parents -n 1`); `anvil hook post-rewrite` reads git's `<old> <new>` stdin via `anvil_hook::parse_post_rewrite_input` and writes retroactive witnesses tagged `POST_REWRITE_VALIDATION_AT = "post-rewrite-recovery"`. Kindling `action_executed` emission + daemon chain-head cache update remain deferred follow-ups; the witness side of the work is shipped.
 - **Expected Outcome:**
   - `anvil hook post-commit` — emit Kindling `action_executed`;
     update daemon's chain head cache.
@@ -442,8 +444,10 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-008: `anvil hook bootstrap` recovery command
 
+- **Status:** Done (2026-05-13)
 - **Intent:** Recover from worktree-bootstrap failure (hooks didn't
   fire; missing witnesses on local commits).
+- **Expected Outcome (shipped):** `anvil hook bootstrap [--dry-run]` CLI subcommand executes the `anvil_hook::BootstrapPlan` dispatch: regenerate Husky v9 `.husky/_/` shims, install the five v1 hooks at `.git/hooks/` from `shell_template(...)`, or report `NothingToDo` for Lefthook / pre-commit-framework / cargo-husky. One-line success output: `anvil: bootstrapped`. `--witness-recent` walk over `<remote>..HEAD` deferred (success-message counter stays zero until that ships, per ADR-038 noise discipline). Idempotent on re-run (writes are deterministic).
 - **Expected Outcome:**
   - Detects framework (husky / lefthook / pcf / none); regenerates
     runtime files (e.g., `.husky/_/` from `package.json`).
@@ -772,14 +776,14 @@ a defensible claim, not a slogan. This module owns:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 3/5 |
-| Policy + adoption | 3 (MLP-006, -007, -008) | 2/3 |
+| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 4/5 |
+| Policy + adoption | 3 (MLP-006, -007, -008) | 3/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| **Total** | **17** | **9/17** |
+| **Total** | **17** | **11/17** |
 
 ## Recommended landing order
 
