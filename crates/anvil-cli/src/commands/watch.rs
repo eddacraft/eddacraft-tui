@@ -76,12 +76,7 @@ const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "**/spec.*",
 ];
 
-const SOURCE_PATTERNS: &[&str] = &[
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "lib/**/*.ts",
-    "crates/**/*.rs",
-];
+const SOURCE_PATTERNS: &[&str] = &["src/**/*.ts", "src/**/*.tsx", "lib/**/*.ts"];
 
 // FileFilter owns the hardcoded internal denylist (node_modules, .git, …).
 // User --patterns / --exclude are glob filters applied separately by the
@@ -1674,6 +1669,21 @@ mod tests {
         let patterns = collect_patterns(&["test", "--source"]);
         let expected: Vec<String> = SOURCE_PATTERNS.iter().map(ToString::to_string).collect();
         assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn source_patterns_only_include_kernel_parseable_extensions() {
+        assert!(
+            SOURCE_PATTERNS.iter().all(|pattern| {
+                pattern.ends_with(".ts")
+                    || pattern.ends_with(".tsx")
+                    || pattern.ends_with(".js")
+                    || pattern.ends_with(".jsx")
+                    || pattern.ends_with(".mjs")
+                    || pattern.ends_with(".cjs")
+            }),
+            "--source patterns must not forward unsupported languages into the kernel parser"
+        );
     }
 
     #[test]
