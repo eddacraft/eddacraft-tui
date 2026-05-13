@@ -68,10 +68,14 @@ docs/analysis/claude-code-safety-net-review.md
 .anvil/logs/
 .anvil/snapshots/
 
-# Claude Code — ignore local executable tooling, keep declarative config
-# Committed: agents/*.md, skills/, rules/*.md, commands/ (web tools need these)
-# Ignored: hooks, council scripts, agent-bus, settings, mcp, sessions
-.claude/hooks/
+# Claude Code — ignore local state, keep declarative config and vendored hooks
+# Committed: agents/*.md, skills/, rules/*.md, commands/, selected hooks
+# Ignored: council scripts, agent-bus, settings, mcp, sessions, local hook extras
+.claude/hooks/*
+!.claude/hooks/post-edit.sh
+!.claude/hooks/tdd-guard.sh
+!.claude/hooks/on-agent-stop.sh
+!.claude/hooks/session-start.sh
 .claude/council/
 .claude/agent-bus/
 .claude/settings.json
