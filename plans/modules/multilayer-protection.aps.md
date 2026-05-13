@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 8/17 done |
+| MLP | @aneki | In Progress | 9/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -351,9 +351,11 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-006: L4 policy framework (`anvil/policy.yml`)
 
+- **Status:** Done (2026-05-13) — schema + resolver shipped
 - **Intent:** Per-branch policy rules + `validate_at_l4` server-side
   fallback.
-- **Expected Outcome:**
+- **Expected Outcome (v1 shipped):** New crate `crates/anvil-l4/` ships the `Policy` / `BranchRule` schema parsed from yaml / json / toml via `anvil-config`; first-matching-rule glob resolution via globset; `commit_is_before_cutoff` ancestry check; four boundary-rejection error variants (empty branches, empty pattern, empty required_anvil_version, empty cutoff_commit). 24 tests green. `validate_at_l4` server-side execution, `refs/notes/anvil-l4` writes, DAG-aware merge verification, and `required_anvil_version` evaluation deferred to consumers.
+- **Original Expected Outcome:**
   - `anvil/policy.yml` (or `.json` / `.toml`) parser
   - Per-branch pattern matching for `require:` / `on_no_witness:` /
     `on_block:` / `on_warn:` rules
@@ -771,13 +773,13 @@ a defensible claim, not a slogan. This module owns:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 3/5 |
-| Policy + adoption | 3 (MLP-006, -007, -008) | 1/3 |
+| Policy + adoption | 3 (MLP-006, -007, -008) | 2/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
 | Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| **Total** | **17** | **8/17** |
+| **Total** | **17** | **9/17** |
 
 ## Recommended landing order
 
