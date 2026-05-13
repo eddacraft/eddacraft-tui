@@ -2,8 +2,10 @@
 #
 # Re-scans `main` for commits that bypassed earlier protection layers
 # (admin overrides, force-push manipulation, hook-failure recovery).
-# Emits drift metrics; opens an issue when drift exceeds the configured
-# threshold.
+# Emits drift metrics; exits non-zero when drift meets or exceeds the
+# configured threshold so the cron run surfaces as a failed workflow
+# (open-an-issue automation is a documented follow-up, not part of
+# this template).
 #
 # Active by default per ADR-037 §D-9. Comment out the `schedule` block
 # to disable.
@@ -38,7 +40,14 @@ jobs:
           ref: ${{ github.event.inputs.branch || 'main' }}
           fetch-depth: 0
 
-      - name: Install anvil
+      # The official install path lands with MLP-010 (the
+      # `eddacraft/anvil-action` Marketplace action) — replace this
+      # step with `uses: eddacraft/anvil-action@v1` once that ships.
+      # Until then this is a deliberate **placeholder**: the
+      # `curl … | sh` pattern is supply-chain-sensitive, so operators
+      # adopting this template before MLP-010 should pin to a release
+      # asset by SHA-256 or install from a vendored binary.
+      - name: Install anvil (placeholder — replace with eddacraft/anvil-action@v1)
         run: |
           curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil/main/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -47,6 +56,7 @@ jobs:
         id: audit
         run: |
           anvil audit-chain \
+            --branch "${{ github.event.inputs.branch || 'main' }}" \
             --threshold "${{ github.event.inputs.threshold || '5' }}" \
             --json \
             > audit-report.json

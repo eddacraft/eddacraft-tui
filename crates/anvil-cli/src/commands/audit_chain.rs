@@ -9,8 +9,9 @@
 //!
 //! - Re-uses the same witness-chain primitive as MLP-002/-003/-004.
 //! - Emits a structured report (`AuditReport`) — plain table or JSON.
-//! - Returns a `degraded:audit-drift` marker when drift exceeds the
-//!   configured `--threshold`.
+//! - Returns a `degraded:audit-drift` marker when drift meets or
+//!   exceeds the configured `--threshold` (inclusive, so
+//!   `--threshold 5` flips on the 5th unwitnessed commit).
 //!
 //! Out of scope (deferred follow-ups, not part of v1):
 //!

@@ -760,9 +760,9 @@ a defensible claim, not a slogan. This module owns:
     via `git rev-list`, intersects with the witness-chain commit-
     SHA set (active + archive), and emits an `AuditReport` (stable
     schema `anvil.audit-chain.v1`).
-  - Plain-text or `--json` output; non-zero exit on drift exceeding
-    `--threshold` so the nightly cron surfaces the regression as a
-    workflow failure.
+  - Plain-text or `--json` output; non-zero exit when drift meets or
+    exceeds `--threshold` (inclusive) so the nightly cron surfaces
+    the regression as a workflow failure.
   - Chain integrity is verified once over the active + archive
     stack; tamper evidence flips `chain_intact: false` regardless of
     witness count.
