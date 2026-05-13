@@ -12,10 +12,17 @@
 # `Install anvil` block with `uses: eddacraft/anvil-action@v1` once
 # that ships — that one-line swap is the whole adoption story.
 #
-# Inputs (documented for forward compatibility with the action):
+# Inputs the `workflow_dispatch` block below accepts (mirrored from
+# the `eddacraft/anvil-action` Marketplace listing's input set so the
+# placeholder install path and the future `uses:` swap produce the
+# same shape):
 #   policy: path to anvil/policy.yml (default: anvil/policy.yml)
 #   fail-on-warning: 'true' surfaces warnings as failures; 'false'
 #                    (default) surfaces only blocks.
+#
+# Additional inputs the Marketplace action accepts that this template
+# does NOT expose (because they only make sense once `uses:
+# eddacraft/anvil-action@v1` replaces the placeholder install step):
 #   anvil-version: pin to a specific anvil release; defaults to the
 #                  action's bundled version.
 #

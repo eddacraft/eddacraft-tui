@@ -94,7 +94,12 @@ mod tests {
     /// accept. The template's `workflow_dispatch` block mirrors
     /// those input names so manual runs against the placeholder
     /// install path produce the same shape an `eddacraft/anvil-
-    /// action@v1` invocation will.
+    /// action@v1` invocation will. We pin the **exact GitHub Actions
+    /// expression forms** the run step references so a refactor
+    /// that breaks the expression syntax (e.g., switching to
+    /// `inputs['fail-on-warning']` without testing it, or renaming
+    /// the input) fails this contract test before CI ever runs the
+    /// workflow against a real PR.
     #[test]
     fn anvil_workflow_template_advertises_documented_inputs() {
         let t = anvil_workflow_template();
@@ -105,6 +110,22 @@ mod tests {
         assert!(
             t.contains("fail-on-warning:"),
             "fail-on-warning input documents the warning → failure escalation",
+        );
+        // Pin the exact expression forms — GitHub Actions accepts
+        // both `inputs.foo` and `inputs['foo']`, but kebab-case
+        // input names CANNOT use the dotted form because of the
+        // hyphen, so `fail-on-warning` MUST be indexed via the
+        // `inputs.fail-on-warning` operator form (which the
+        // Actions runtime parses as `inputs['fail-on-warning']`
+        // internally). A refactor that breaks this in either
+        // direction would fail.
+        assert!(
+            t.contains("${{ github.event.inputs.policy || 'anvil/policy.yml' }}"),
+            "policy expression form: must reference github.event.inputs.policy with a string default",
+        );
+        assert!(
+            t.contains("${{ github.event.inputs.fail-on-warning || 'false' }}"),
+            "fail-on-warning expression form: must reference github.event.inputs.fail-on-warning with a string default",
         );
     }
 
