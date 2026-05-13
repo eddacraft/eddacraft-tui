@@ -59,12 +59,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anvil_baseline::load as load_baseline;
+use anvil_config::ConfigFormat;
 use anvil_hook::{
-    BlockReason, BootstrapPlan, ErrorClass, MergeWitnessPlan, PanicReport, RewritePair,
-    SuppressionKey, SuppressionLog, Verdict, build_bootstrap_plan, detect_framework,
-    format_panic_report, merge_witness_plan, parse_post_rewrite_input, render_success_message,
-    render_verdict,
+    BlockReason, BootstrapPlan, ErrorClass, MergeWitnessPlan, PanicReport, PushKind, PushRef,
+    RewritePair, SuppressionKey, SuppressionLog, Verdict, build_bootstrap_plan, detect_framework,
+    format_panic_report, merge_witness_plan, parse_post_rewrite_input, parse_pre_push_input,
+    render_success_message, render_verdict,
 };
+use anvil_l4::{BlockKind, CommitDecision, Policy};
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
@@ -84,6 +86,12 @@ enum HookCommand {
     /// witness line. ADR-038 noise discipline: silent on pass, one
     /// line otherwise.
     PreCommit(SilentArgs),
+    /// L4 pre-push hook — walks the pushed commit range, verifies
+    /// each commit's L3 witness, and applies per-branch policy from
+    /// `anvil/policy.yml`. Reads git's pre-push stdin contract
+    /// (`<local-ref> <local-sha> <remote-ref> <remote-sha>` per
+    /// line).
+    PrePush(SilentArgs),
     /// post-commit hook — records that the commit succeeded.
     PostCommit(SilentArgs),
     /// post-merge hook — appends a DAG-aware witness for merge
@@ -137,6 +145,7 @@ pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
     // message; we just need to swallow the unwind and exit zero.
     let result = catch_unwind(AssertUnwindSafe(|| match &args.command {
         HookCommand::PreCommit(_) => run_pre_commit(&repo_root, &mut sup),
+        HookCommand::PrePush(_) => run_pre_push(&repo_root, &mut sup),
         HookCommand::PostCommit(_) => run_post_commit(&repo_root),
         HookCommand::PostMerge(a) => run_post_merge(&repo_root, a),
         HookCommand::PostRewrite(a) => run_post_rewrite(&repo_root, a, &mut sup),
@@ -216,6 +225,301 @@ fn run_post_commit(repo_root: &Path) -> Result<()> {
         line
     });
     Ok(())
+}
+
+/// MLP-004 entry point — the pre-push hook.
+///
+/// Reads git's pre-push stdin, resolves per-branch policy, walks each
+/// pushed range, and emits one [`Verdict`] line on the first block.
+/// Exits 1 on block; exits 0 on allow or internal error (Serena rule
+/// — ADR-038 §D-6).
+///
+/// ## v1 scope
+///
+/// - Witness existence is checked by scanning every `WitnessLine`
+///   with a non-empty `commit_sha` in `anvil/witness/active.ndjson`
+///   plus every archived segment.
+/// - Chain integrity (`verify_chain`) is run once over the active +
+///   archive stack; a broken chain blocks the push regardless of
+///   policy ([`Verdict::Block`] with [`BlockReason::ChainBroken`]).
+/// - Per-branch policy is loaded from `anvil/policy.yml` (also
+///   `.yaml` / `.json` / `.toml`). When no policy file exists the
+///   hook is a no-op (the project hasn't opted into L4 enforcement).
+/// - `NeedsL4Validation` decisions are surfaced as a single
+///   `InternalError { class: TimedOut }` line and the push is
+///   *allowed* — the validate-at-l4 rule-engine integration is the
+///   MLP-006 deferred follow-up. Treating it as block today would
+///   strand operators behind a feature that doesn't exist yet; the
+///   surface is correct, the engine will fill it in.
+///
+/// ## Deferred
+///
+/// - `cutoff_commit` baseline acceptance (needs `git rev-list
+///   --first-parent` ancestry walk per pushed ref).
+/// - Time-budget cap with `partial: true` for very large pushes.
+/// - L4 witness writes to `refs/notes/anvil-l4` (owned by MLP-010).
+fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
+    let identity = match read_project_id(repo_root) {
+        Ok(Some(id)) => id,
+        // No project-id → project hasn't opted into Anvil; hook is a
+        // no-op (Serena rule). Don't emit anything.
+        Ok(None) => return Ok(()),
+        Err(_) => {
+            emit_internal(ErrorClass::EmbeddedFailed, sup);
+            return Ok(());
+        }
+    };
+
+    // Read stdin (git pre-push contract).
+    let mut input = String::new();
+    if io::stdin().read_to_string(&mut input).is_err() {
+        emit_internal(ErrorClass::EmbeddedFailed, sup);
+        return Ok(());
+    }
+    // Malformed stdin: emit InternalError so a corrupted hook
+    // invocation surfaces without holding the user hostage. ADR-038
+    // §D-6: internal failures don't block the user.
+    let Ok(push_refs) = parse_pre_push_input(&input) else {
+        emit_internal(ErrorClass::EmbeddedFailed, sup);
+        return Ok(());
+    };
+    if push_refs.is_empty() {
+        return Ok(());
+    }
+
+    // Load the policy (may be absent).
+    let policy = match load_policy(repo_root) {
+        Ok(Some(p)) => p,
+        Ok(None) => return Ok(()), // No policy → no-op.
+        Err(_) => {
+            emit_internal(ErrorClass::EmbeddedFailed, sup);
+            return Ok(());
+        }
+    };
+
+    // Verify chain integrity once. A broken chain refuses the push
+    // outright; we MUST NOT re-seed.
+    if let Some(rendered) = verify_chain_or_block(repo_root, &identity.project_uuid) {
+        eprintln!("{}", rendered.stderr_line);
+        std::process::exit(rendered.exit_code);
+    }
+
+    // Collect the set of witnessed commit SHAs across active +
+    // archives. Cheap enough at v1 push frequency; archives can be
+    // mmap-backed in a follow-up if profiling shows it.
+    let witnessed = collect_witnessed_shas(repo_root).unwrap_or_default();
+
+    // Walk every push ref and apply per-branch policy.
+    let mut needs_l4_any = false;
+    for push_ref in &push_refs {
+        if push_ref.kind == PushKind::Delete {
+            continue; // No commits to validate on a deletion.
+        }
+        let branch = push_ref.branch_name();
+        let rule = match policy.resolve(branch) {
+            Ok(Some(r)) => r,
+            // No matching rule → policy doesn't speak to this branch;
+            // admit the push. Better than rejecting silently.
+            Ok(None) => continue,
+            Err(_) => {
+                emit_internal(ErrorClass::EmbeddedFailed, sup);
+                return Ok(());
+            }
+        };
+        let Some(range_commits) = list_range(repo_root, push_ref) else {
+            emit_internal(ErrorClass::EmbeddedFailed, sup);
+            continue;
+        };
+        for commit in range_commits {
+            let has_witness = witnessed.contains(&commit);
+            match rule.decide_commit(has_witness) {
+                CommitDecision::Allow => {}
+                CommitDecision::NeedsL4Validation => {
+                    needs_l4_any = true;
+                }
+                CommitDecision::Block(BlockKind::UnwitnessedCommit) => {
+                    let rendered = render_verdict(&Verdict::Block {
+                        count: 0,
+                        witness_id: short_sha(&commit),
+                        reason: BlockReason::UnwitnessedCommit,
+                    });
+                    eprintln!("{}", rendered.stderr_line);
+                    std::process::exit(rendered.exit_code);
+                }
+            }
+        }
+    }
+
+    // No block fired. Surface `NeedsL4Validation` as a single
+    // internal-error line (TimedOut == "validation pending") so the
+    // operator can see they're depending on a future feature, but
+    // don't block per Serena rule. SuppressionLog collapses bursts.
+    if needs_l4_any {
+        emit_internal(ErrorClass::TimedOut, sup);
+    }
+
+    Ok(())
+}
+
+/// Verify the active + archive chain. Returns `Some(verdict)` when the
+/// chain is broken; the caller emits + exits. Returns `None` when the
+/// chain is intact (or empty — there's nothing to break yet).
+fn verify_chain_or_block(
+    repo_root: &Path,
+    project_uuid: &str,
+) -> Option<anvil_hook::RenderedVerdict> {
+    let paths = witness_paths(repo_root);
+    if paths.is_empty() {
+        return None;
+    }
+    let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+    match verify_chain(&path_refs) {
+        Ok(_) => None,
+        Err(_) => Some(render_verdict(&Verdict::Block {
+            count: 0,
+            witness_id: project_uuid.to_string(),
+            reason: BlockReason::ChainBroken,
+        })),
+    }
+}
+
+/// Build the ordered list of witness files for the chain verifier:
+/// archive segments (lexicographic — matches `<scope>-<seq>-<merkle>`)
+/// followed by `active.ndjson`. Returns an empty list when the chain
+/// hasn't materialised yet.
+fn witness_paths(repo_root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let archive_dir = repo_root.join("anvil").join("witness").join("archive");
+    if let Ok(entries) = fs::read_dir(&archive_dir) {
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("ndjson"))
+            .collect();
+        files.sort();
+        out.extend(files);
+    }
+    let active = repo_root
+        .join("anvil")
+        .join("witness")
+        .join("active.ndjson");
+    if active.exists() {
+        out.push(active);
+    }
+    out
+}
+
+/// Scan every witness file under `anvil/witness/` and collect the set
+/// of recorded `commit_sha` values.
+///
+/// Returns `None` only when a witness file fails to open; a malformed
+/// line is skipped (the chain verifier already catches structural
+/// corruption with a stronger guarantee).
+fn collect_witnessed_shas(
+    repo_root: &Path,
+) -> std::result::Result<std::collections::HashSet<String>, std::io::Error> {
+    use std::collections::HashSet;
+    let mut out: HashSet<String> = HashSet::new();
+    for path in witness_paths(repo_root) {
+        let contents = fs::read_to_string(&path)?;
+        for line in contents.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let Ok(parsed) = WitnessLine::from_ndjson_line(line.as_bytes()) else {
+                continue;
+            };
+            if let Some(sha) = parsed.commit_sha
+                && !sha.is_empty()
+            {
+                out.insert(sha);
+            }
+            // DAG-aware: parents from a merge witness are also
+            // attestations of presence. Treat each parent as
+            // witnessed too.
+            for p in parsed.parent_commits {
+                if !p.is_empty() {
+                    out.insert(p);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Load `anvil/policy.yml` (or `.yaml` / `.json` / `.toml`).
+///
+/// Returns `Ok(None)` when no policy file exists — the caller treats
+/// that as "this project hasn't opted into L4 enforcement" and skips
+/// the pre-push checks entirely. Errors are propagated so the caller
+/// can degrade to `InternalError` per Serena rule.
+fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
+    let candidates: &[(&str, ConfigFormat)] = &[
+        ("anvil/policy.yml", ConfigFormat::Yaml),
+        ("anvil/policy.yaml", ConfigFormat::Yaml),
+        ("anvil/policy.json", ConfigFormat::Json),
+        ("anvil/policy.toml", ConfigFormat::Toml),
+    ];
+    for (rel, format) in candidates {
+        let path = repo_root.join(rel);
+        if path.exists() {
+            let raw =
+                fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+            let policy = Policy::parse(&raw, *format, &path)
+                .with_context(|| format!("parse {}", path.display()))?;
+            return Ok(Some(policy));
+        }
+    }
+    Ok(None)
+}
+
+/// Walk the pushed range via `git rev-list` and return commit SHAs in
+/// new→old order. For `PushKind::Update` the range is
+/// `<remote_sha>..<local_sha>`; for `PushKind::Create` (new branch)
+/// we walk the full ancestry of `local_sha`.
+///
+/// Returns `None` when the git invocation fails so the caller can
+/// downgrade to `InternalError` rather than panicking. An empty `Vec`
+/// is a valid result (nothing to validate; e.g. fast-forward push of
+/// already-pushed commits).
+fn list_range(repo_root: &Path, push_ref: &PushRef) -> Option<Vec<String>> {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(repo_root).arg("rev-list");
+    match push_ref.kind {
+        PushKind::Update => {
+            let range = format!("{}..{}", push_ref.remote_sha, push_ref.local_sha);
+            cmd.arg(range);
+        }
+        PushKind::Create => {
+            // git rev-list local_sha walks the full ancestry; the
+            // operator opts in by configuring `OnNoWitness::Allow` on
+            // the matching rule if the legacy commits shouldn't be
+            // re-witnessed. For initial-branch adoption,
+            // `cutoff_commit` (deferred) is the right mechanism.
+            cmd.arg(&push_ref.local_sha);
+        }
+        PushKind::Delete => return Some(Vec::new()),
+    }
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Some(
+        stdout
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// Short 12-char SHA prefix for the verdict line. Matches the
+/// `witness_id` format used by `anvil show <id>`.
+fn short_sha(sha: &str) -> String {
+    let len = sha.len().min(12);
+    sha[..len].to_string()
 }
 
 fn run_post_merge(repo_root: &Path, args: &PostMergeArgs) -> Result<()> {
@@ -837,6 +1141,197 @@ mod tests {
         // not silently reseeded.
         let contents = fs::read_to_string(&active).unwrap();
         assert_eq!(contents, "not-valid-ndjson\n");
+    }
+
+    // ---- MLP-004 pre-push helper tests ------------------------------
+
+    fn write_witness_line_for(root: &Path, project_uuid: &str, commit_sha: &str) {
+        let writer = WitnessWriter::open(root, "active", RolloverPolicy::default()).unwrap();
+        drop(writer);
+        append_witness(root, project_uuid, |seq, prev| {
+            build_witness_line(
+                project_uuid,
+                Some(commit_sha.to_string()),
+                "pre-commit",
+                seq,
+                prev,
+            )
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn witness_paths_is_empty_when_no_chain_exists() {
+        let (_tmp, root) = make_test_repo();
+        assert!(witness_paths(&root).is_empty());
+    }
+
+    #[test]
+    fn witness_paths_includes_active_when_present() {
+        let (_tmp, root) = make_test_repo();
+        write_witness_line_for(&root, "01997e4a-1b2c-7345-8901-abcdef123456", "deadbeef");
+        let paths = witness_paths(&root);
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].ends_with("active.ndjson"));
+    }
+
+    #[test]
+    fn collect_witnessed_shas_extracts_commit_sha_from_chain() {
+        let (_tmp, root) = make_test_repo();
+        write_witness_line_for(&root, "01997e4a-1b2c-7345-8901-abcdef123456", "commit-xyz");
+        let set = collect_witnessed_shas(&root).unwrap();
+        assert!(set.contains("commit-xyz"));
+    }
+
+    #[test]
+    fn collect_witnessed_shas_returns_empty_when_no_chain() {
+        let (_tmp, root) = make_test_repo();
+        let set = collect_witnessed_shas(&root).unwrap();
+        assert!(set.is_empty());
+    }
+
+    #[test]
+    fn collect_witnessed_shas_skips_genesis_and_lines_without_commit() {
+        // The genesis line has commit_sha=None; only records with a
+        // commit_sha go into the set.
+        let (_tmp, root) = make_test_repo();
+        write_witness_line_for(&root, "01997e4a-1b2c-7345-8901-abcdef123456", "real-sha");
+        let set = collect_witnessed_shas(&root).unwrap();
+        // 1 entry (the record), not 2 (which would include genesis).
+        assert_eq!(set.len(), 1);
+        assert!(set.contains("real-sha"));
+    }
+
+    #[test]
+    fn load_policy_returns_none_when_file_absent() {
+        let (_tmp, root) = make_test_repo();
+        assert!(load_policy(&root).unwrap().is_none());
+    }
+
+    #[test]
+    fn load_policy_reads_yaml() {
+        let (_tmp, root) = make_test_repo();
+        fs::write(
+            root.join("anvil").join("policy.yml"),
+            "branches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+        )
+        .unwrap();
+        let p = load_policy(&root).unwrap().unwrap();
+        assert_eq!(p.branches.len(), 1);
+        assert_eq!(p.branches[0].pattern, "main");
+    }
+
+    #[test]
+    fn load_policy_reads_json() {
+        let (_tmp, root) = make_test_repo();
+        fs::write(
+            root.join("anvil").join("policy.json"),
+            r#"{"branches":[{"pattern":"main","require":"l4_or_l3","on_no_witness":"validate_at_l4"}]}"#,
+        )
+        .unwrap();
+        let p = load_policy(&root).unwrap().unwrap();
+        assert_eq!(p.branches[0].pattern, "main");
+    }
+
+    #[test]
+    fn load_policy_reads_toml() {
+        let (_tmp, root) = make_test_repo();
+        fs::write(
+            root.join("anvil").join("policy.toml"),
+            "[[branches]]\npattern = \"main\"\nrequire = \"l4_or_l3\"\non_no_witness = \"validate_at_l4\"\n",
+        )
+        .unwrap();
+        let p = load_policy(&root).unwrap().unwrap();
+        assert_eq!(p.branches[0].pattern, "main");
+    }
+
+    #[test]
+    fn load_policy_prefers_yml_over_other_extensions() {
+        // If multiple files exist, .yml wins per the candidate order
+        // — documented precedence so an accidental .json doesn't
+        // shadow the .yml a user is editing.
+        let (_tmp, root) = make_test_repo();
+        fs::write(
+            root.join("anvil").join("policy.yml"),
+            "branches:\n  - pattern: yml-wins\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("anvil").join("policy.json"),
+            r#"{"branches":[{"pattern":"json-loses","require":"l4_or_l3","on_no_witness":"validate_at_l4"}]}"#,
+        )
+        .unwrap();
+        let p = load_policy(&root).unwrap().unwrap();
+        assert_eq!(p.branches[0].pattern, "yml-wins");
+    }
+
+    #[test]
+    fn short_sha_truncates_to_twelve_chars() {
+        let full = "0123456789abcdef0123456789abcdef";
+        assert_eq!(short_sha(full), "0123456789ab");
+    }
+
+    #[test]
+    fn short_sha_returns_full_when_already_short() {
+        assert_eq!(short_sha("abc"), "abc");
+    }
+
+    #[test]
+    fn short_sha_returns_empty_for_empty_input() {
+        assert_eq!(short_sha(""), "");
+    }
+
+    #[test]
+    fn verify_chain_or_block_returns_none_when_no_chain() {
+        let (_tmp, root) = make_test_repo();
+        assert!(verify_chain_or_block(&root, "uuid").is_none());
+    }
+
+    #[test]
+    fn verify_chain_or_block_blocks_on_corrupted_active_file() {
+        let (_tmp, root) = make_test_repo();
+        // Seed a chain so the active file exists.
+        write_witness_line_for(&root, "01997e4a-1b2c-7345-8901-abcdef123456", "abc");
+        // Corrupt it.
+        let active = root.join("anvil").join("witness").join("active.ndjson");
+        fs::write(&active, "not-valid-ndjson\n").unwrap();
+        let rendered = verify_chain_or_block(&root, "uuid").expect("expected block");
+        assert_eq!(rendered.exit_code, 1);
+        assert!(rendered.stderr_line.contains("chain integrity broken"));
+    }
+
+    #[test]
+    fn collect_witnessed_shas_includes_parent_commits_from_merge_lines() {
+        // A merge witness names parent SHAs; those should be treated
+        // as witnessed presence too, otherwise a merge-base ancestor
+        // would look unwitnessed during pre-push verification.
+        let (_tmp, root) = make_test_repo();
+        let writer = WitnessWriter::open(&root, "active", RolloverPolicy::default()).unwrap();
+        drop(writer);
+        let plan = merge_witness_plan(
+            "merge-sha".to_string(),
+            [
+                ("parent-x".to_string(), Some("hash-x".to_string())),
+                ("parent-y".to_string(), Some("hash-y".to_string())),
+            ],
+        );
+        append_witness(
+            &root,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            |seq, prev| {
+                build_merge_witness_line(
+                    "01997e4a-1b2c-7345-8901-abcdef123456",
+                    plan.clone(),
+                    seq,
+                    prev,
+                )
+            },
+        )
+        .unwrap();
+        let set = collect_witnessed_shas(&root).unwrap();
+        assert!(set.contains("merge-sha"));
+        assert!(set.contains("parent-x"));
+        assert!(set.contains("parent-y"));
     }
 
     #[test]

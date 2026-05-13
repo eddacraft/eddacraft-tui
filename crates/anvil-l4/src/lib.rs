@@ -61,9 +61,11 @@
 //!     on_no_witness: validate_at_l4
 //! ```
 
+mod decide;
 mod policy;
 mod resolve;
 
+pub use decide::{BlockKind, CommitDecision};
 pub use policy::{
     BaselineSection, BranchRule, OnBlock, OnNoWitness, OnWarn, Policy, PolicyParseError,
     Requirement,

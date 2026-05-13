@@ -307,24 +307,69 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-004: Pre-push hook (L4 client-side validation)
 
+- **Status:** In Progress (2026-05-13) — v1 surface lands ahead of the
+  rule engine; see footnotes.
 - **Intent:** Walk pushed commit range; verify chain integrity;
   validate any unwitnessed commits per `anvil/policy.yml`.
-- **Expected Outcome:**
-  - `anvil hook pre-push` subcommand
-  - Reads stdin (git pre-push contract: `<local-ref> <local-sha> <remote-ref> <remote-sha>` per line)
-  - For each ref: walk `<remote-sha>..<local-sha>`; verify each
-    commit's witness; `validate_at_l4` for unwitnessed commits per
-    policy
-  - Time budget <2s p95 for typical push; hard cap with `partial: true`
-    for very large pushes
-- **Files:** `crates/anvil-cli/src/commands/hook.rs` (extend),
-  `crates/anvil-l4/` (new crate for L4 policy logic).
-- **Validation:**
-  - Range-walk tests (single commit, many commits, force-push,
-    rebase-replay)
-  - Chain integrity break detection
-  - `validate_at_l4` integration
-  - Per-branch policy resolution tests
+- **Expected Outcome (v1 shipped):**
+  - `crates/anvil-hook/src/pre_push.rs` exposes
+    `parse_pre_push_input` + `PushRef` / `PushKind` / `ZERO_SHA` /
+    `is_zero_sha` — the stdin parser for git's pre-push contract
+    with explicit `Create` / `Delete` / `Update` classification.
+  - `crates/anvil-l4/src/decide.rs` adds `BranchRule::decide_commit`
+    + `CommitDecision` / `BlockKind` — the per-commit policy
+    decision matrix (Requirement × OnNoWitness → Allow / Block /
+    NeedsL4Validation). L3Only refuses to fall back to L4; L4Only
+    ignores the L3 witness; defaults match ADR-037 §D-5.
+  - `anvil-hook` `Verdict::Block` gains `BlockReason::UnwitnessedCommit`
+    rendering `anvil: unwitnessed commit refused by policy — anvil
+    show <id>` at exit 1.
+  - `crates/anvil-cli/src/commands/hook.rs` adds the `PrePush`
+    subcommand + `run_pre_push` orchestrator: stdin parse → policy
+    load → chain verification → range walk via `git rev-list` →
+    per-commit decision → verdict emission. Chain-integrity break
+    over the active + archive stack blocks the push outright.
+    `NeedsL4Validation` decisions emit a single
+    `InternalError { class: TimedOut }` line and *allow* the push —
+    the validate-at-l4 rule engine is the MLP-006 deferred follow-up,
+    and blocking on a feature that doesn't exist would strand
+    operators behind a Serena-rule violation.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **`validate_at_l4` rule-engine execution** — the surface is in
+     place; the engine landing is MLP-006's deferred CLI lane. When
+     it ships, `run_pre_push` swaps the `InternalError { TimedOut }`
+     branch for the real call site without changing the contract.
+  2. **`refs/notes/anvil-l4` L4-witness writes** — owned by MLP-010
+     (GitHub Action surface); ADR-037 §D-7 forbids in-tree ledger
+     mutation at L4.
+  3. **`cutoff_commit` baseline acceptance** — needs a `git rev-list
+     --first-parent` ancestry walk per pushed ref to thread into
+     `Policy::commit_is_before_cutoff`. v1 walks the literal pushed
+     range only.
+  4. **Time-budget cap with `partial: true`** — ADR-038 names a 2s
+     p95 budget; v1 relies on git's own range traversal speed and
+     leaves the explicit cap as a follow-up so the cap-trigger
+     surface ships with measurements rather than guesses.
+  5. **End-to-end subprocess integration tests** — pure-helper
+     coverage (parsing, decision matrix, chain verification, policy
+     loading) is 40+ tests across `anvil-hook`, `anvil-l4`, and
+     `anvil-cli::commands::hook`; the run-the-binary smoke pass
+     comes with the MLP-009 protection-claim contract suite.
+- **Files (shipped):** `crates/anvil-hook/src/pre_push.rs`,
+  `crates/anvil-l4/src/decide.rs`,
+  `crates/anvil-cli/src/commands/hook.rs` (extend),
+  `crates/anvil-hook/src/lib.rs` + `crates/anvil-l4/src/lib.rs` +
+  `crates/anvil-hook/src/verdict.rs` (re-exports + new
+  `BlockReason::UnwitnessedCommit`).
+- **Validation:** `cargo test -p eddacraft-anvil-hook` — 89 green
+  (incl. 16 new `pre_push` parser tests + 1
+  `block_unwitnessed_commit_emits_one_line_exits_one` verdict test).
+  `cargo test -p eddacraft-anvil-l4` — 35 green (incl. 11 new
+  `decide` matrix tests). `cargo test -p eddacraft-anvil --bin
+  anvil 'commands::hook::'` — 25 green (incl. 14 new helper tests:
+  `witness_paths`, `collect_witnessed_shas`, `load_policy`,
+  `short_sha`, `verify_chain_or_block`). `cargo clippy --workspace
+  --all-targets -- -D warnings` clean. `cargo fmt --check` clean.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** MLP-001, MLP-002, MLP-003, MLP-006

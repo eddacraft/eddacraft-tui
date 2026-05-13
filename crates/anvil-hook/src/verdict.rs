@@ -37,6 +37,11 @@ pub enum BlockReason {
     Findings,
     /// The witness chain's hash linkage was broken on inspection.
     ChainBroken,
+    /// A pre-push range contained a commit with no L3 witness AND
+    /// the resolved per-branch policy refused to admit it
+    /// (`OnNoWitness::Reject`, or `Requirement::L3Only` with no
+    /// matching witness).
+    UnwitnessedCommit,
 }
 
 /// Class of internal error, used in the one-line stderr message and
@@ -120,6 +125,16 @@ pub fn render_verdict(verdict: &Verdict) -> RenderedVerdict {
             stderr_line: format!("anvil: chain integrity broken — anvil show {witness_id}"),
             exit_code: 1,
         },
+        Verdict::Block {
+            witness_id,
+            reason: BlockReason::UnwitnessedCommit,
+            ..
+        } => RenderedVerdict {
+            stderr_line: format!(
+                "anvil: unwitnessed commit refused by policy — anvil show {witness_id}"
+            ),
+            exit_code: 1,
+        },
         Verdict::InternalError { class } => RenderedVerdict {
             stderr_line: format!(
                 "anvil: {} errored (anvil doctor for details)",
@@ -171,6 +186,21 @@ mod tests {
             "anvil: 2 finding(s) (block) — anvil show def456"
         );
         assert_eq!(r.exit_code, 1);
+    }
+
+    #[test]
+    fn block_unwitnessed_commit_emits_one_line_exits_one() {
+        let r = render_verdict(&Verdict::Block {
+            count: 0,
+            witness_id: "deadbeef".to_string(),
+            reason: BlockReason::UnwitnessedCommit,
+        });
+        assert_eq!(
+            r.stderr_line,
+            "anvil: unwitnessed commit refused by policy — anvil show deadbeef"
+        );
+        assert_eq!(r.exit_code, 1);
+        assert!(!r.stderr_line.contains('\n'));
     }
 
     #[test]
