@@ -57,11 +57,11 @@ The user wants to create an APS module. The agent uses the module template and p
 </example>
 
 <example>
-Context: The user wants to install or update APS tooling in a project.
-user: "Set up APS in this project" or "Update APS to the latest version"
-assistant: "I'll use the anvil-plan-spec agent to run the APS install/update script."
+Context: The user wants to reconcile an APS module against current repo state.
+user: "Reconcile the multilayer-protection module — I think the done counts drifted"
+assistant: "I'll use the anvil-plan-spec agent to read the module, validate work-item statuses against the index, and surface any drift."
 <commentary>
-The user wants to install APS for the first time or update existing APS templates, CLI, skill, and hooks to the latest version. The agent determines which script to run based on whether plans/ already exists.
+The user wants APS truth validation. The agent reads `plans/aps-rules.md`, the module file, and `plans/index.aps.md`, then reports drift or applies the reconciling edits. It does not run remote install/update scripts — this repository already vendors APS.
 </commentary>
 </example>
 
