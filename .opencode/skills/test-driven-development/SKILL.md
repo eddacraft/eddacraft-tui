@@ -58,7 +58,8 @@ before proving the first red/green cycle.
 - TypeScript E2E: `pnpm --filter @eddacraft/anvil-e2e test`
 - Rust unit: `cargo test --workspace` or targeted `cargo test -p <crate>`
 - Rego: `opa test --verbose policies/fixtures/`
-- Full closeout: `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
+- Full closeout:
+  `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
 
 Use the APS item's `Validation:` command when present. If it is stale, return to
 `aps-planning` and update the plan before continuing.

@@ -31,7 +31,8 @@ This skill is the planning orchestrator. It does not replace specialist skills:
 
 - Use `brainstorming` for unclear scope, behaviour, architecture, ownership, or
   user experience.
-- Use `aps-planning` for APS truth validation, status, drift, and reconciliation.
+- Use `aps-planning` for APS truth validation, status, drift, and
+  reconciliation.
 - Use `writing-plans` for implementation plans after design approval.
 - Use the vendored `anvil-plan-spec` agent for APS module/task drafting,
   validation, status updates, and plan hygiene.
@@ -156,8 +157,10 @@ Return this handoff block:
 - Files:
 - Validation:
 - Risks:
-- Decision: ready-for-dev | needs-design | needs-plan-update | blocked | out-of-scope
-- Next skill: dev-workflow | brainstorming | aps-planning | writing-plans | planning-council
+- Decision: ready-for-dev | needs-design | needs-plan-update | blocked |
+  out-of-scope
+- Next skill: dev-workflow | brainstorming | aps-planning | writing-plans |
+  planning-council
 ```
 
 `ready-for-dev` hands back to `dev-workflow`. All other decisions stop before

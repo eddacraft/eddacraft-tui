@@ -1,6 +1,9 @@
 ---
 name: anvil-plan-spec
-description: Create, manage, validate, and reconcile Anvil Plan Spec (APS) artefacts for this repository, including modules, work items, readiness checks, status tracking, and wave-based planning handoff
+description:
+  Create, manage, validate, and reconcile Anvil Plan Spec (APS) artefacts for
+  this repository, including modules, work items, readiness checks, status
+  tracking, and wave-based planning handoff
 model: opus
 tools:
   - Read
@@ -31,8 +34,8 @@ Before writing or validating APS, read:
 - `plans/index.aps.md`
 - Relevant `plans/modules/<module>.aps.md`
 
-For scope, architecture, docs, feature flags, release, or workflow changes,
-also read the relevant docs and ADRs cited by `AGENTS.md`.
+For scope, architecture, docs, feature flags, release, or workflow changes, also
+read the relevant docs and ADRs cited by `AGENTS.md`.
 
 ## Current APS Model
 

@@ -75,9 +75,9 @@ Do not print this context unless the user asks for plan status.
 
 ## APS Truth Validation
 
-Run this mode when `dev-workflow` asks for an APS gate, when
-`planning-workflow` needs a readiness decision, when the user asks if a plan is
-current, or when scope appears stale, ambiguous, or cross-cutting.
+Run this mode when `dev-workflow` asks for an APS gate, when `planning-workflow`
+needs a readiness decision, when the user asks if a plan is current, or when
+scope appears stale, ambiguous, or cross-cutting.
 
 Steps:
 
