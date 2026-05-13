@@ -194,11 +194,21 @@ pub struct SurfaceClaim {
 /// This is the wire shape `anvil status --json` / the MCP response
 /// surface / `anvil doctor` will all emit. Tooling deserialises this
 /// instead of pattern-matching strings.
+///
+/// Deserialisation enforces the `schema_version` invariant at the
+/// type boundary: a wire payload with any value other than
+/// [`PROTECTION_CLAIM_SCHEMA_VERSION`] is rejected with a serde
+/// error. Consumers never see a `ProtectionClaim` instance carrying
+/// a future / unknown major version, so the docstring rule
+/// "consumers MUST refuse claims with an unknown / future major
+/// version" is structurally guaranteed rather than just documented.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ProtectionClaimRaw")]
 pub struct ProtectionClaim {
     /// Schema version pinned to [`PROTECTION_CLAIM_SCHEMA_VERSION`].
-    /// Consumers MUST refuse claims with an unknown / future major
-    /// version rather than parsing them permissively.
+    /// The deserialise path refuses any other value; consumers
+    /// holding a `ProtectionClaim` can rely on this being the
+    /// current major.
     pub schema_version: String,
     /// One of the ten §14.2 states.
     pub worktree_state: WorktreeClaimState,
@@ -218,6 +228,35 @@ impl ProtectionClaim {
             worktree_state,
             surfaces,
         }
+    }
+}
+
+/// Wire-shape intermediate used by [`ProtectionClaim`]'s
+/// `#[serde(try_from = ...)]` so the schema-version check runs at
+/// deserialise time. Not part of the public API — consumers always
+/// see the validated [`ProtectionClaim`] type.
+#[derive(Deserialize)]
+struct ProtectionClaimRaw {
+    schema_version: String,
+    worktree_state: WorktreeClaimState,
+    surfaces: Vec<SurfaceClaim>,
+}
+
+impl TryFrom<ProtectionClaimRaw> for ProtectionClaim {
+    type Error = String;
+
+    fn try_from(raw: ProtectionClaimRaw) -> Result<Self, Self::Error> {
+        if raw.schema_version != PROTECTION_CLAIM_SCHEMA_VERSION {
+            return Err(format!(
+                "unknown protection-claim schema_version: {:?} (expected {:?})",
+                raw.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION,
+            ));
+        }
+        Ok(Self {
+            schema_version: raw.schema_version,
+            worktree_state: raw.worktree_state,
+            surfaces: raw.surfaces,
+        })
     }
 }
 
@@ -461,5 +500,46 @@ mod tests {
             result.is_err(),
             "unknown surface states must reject at deserialise: {result:?}",
         );
+    }
+
+    /// `ProtectionClaim`'s deserialise path enforces the
+    /// schema-version invariant at the type boundary. A wire payload
+    /// carrying a future / unknown major version is rejected, so
+    /// consumers holding an instance can rely on the current major
+    /// without checking again. The PR review pinned this gap; this
+    /// test pins the structural enforcement.
+    #[test]
+    fn unknown_schema_version_fails_to_deserialise() {
+        let wire = r#"{"schema_version":"anvil.protection-claim.v999","worktree_state":"full","surfaces":[]}"#;
+        let result: Result<ProtectionClaim, _> = serde_json::from_str(wire);
+        assert!(
+            result.is_err(),
+            "future schema_version values must reject at deserialise: {result:?}",
+        );
+        let err_text = result.unwrap_err().to_string();
+        assert!(
+            err_text.contains("schema_version"),
+            "diagnostic should mention schema_version, got: {err_text}",
+        );
+    }
+
+    /// And empty / malformed `schema_version` is also rejected.
+    #[test]
+    fn empty_schema_version_fails_to_deserialise() {
+        let wire = r#"{"schema_version":"","worktree_state":"full","surfaces":[]}"#;
+        let result: Result<ProtectionClaim, _> = serde_json::from_str(wire);
+        assert!(
+            result.is_err(),
+            "empty schema_version must reject at deserialise: {result:?}",
+        );
+    }
+
+    /// Sanity: the pinned current `schema_version` still round-trips.
+    #[test]
+    fn pinned_schema_version_round_trips() {
+        let claim = ProtectionClaim::new(WorktreeClaimState::Full, vec![]);
+        let line = serde_json::to_string(&claim).expect("serialise");
+        let back: ProtectionClaim = serde_json::from_str(&line).expect("deserialise round-trip");
+        assert_eq!(back.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
     }
 }
