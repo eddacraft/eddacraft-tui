@@ -272,97 +272,191 @@ Entry format:
 ## 2026-05-13
 
 - **source repo + link:** `preloop/preloop` — https://github.com/preloop/preloop
-  - **what to borrow/adopt:** Transparent agent onboarding via config-level wrapping — zero SDK changes, rewrites existing agent configs so Anvil governance applies without touching source code. The `preloop agents discover` pattern is the right DX bar for Anvil adoption: agents shouldn't need to opt in.
+  - **what to borrow/adopt:** Transparent agent onboarding via config-level
+    wrapping — zero SDK changes, rewrites existing agent configs so Anvil
+    governance applies without touching source code. The
+    `preloop agents discover` pattern is the right DX bar for Anvil adoption:
+    agents shouldn't need to opt in.
   - **adopt type:** copy-ux
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Keep config-rewriting as a reversible onboarding shim — do not couple it to the policy engine core. Define an explicit undo path. Do not intercept configs that Anvil cannot fully interpret yet.
+  - **architecture notes / anti-frankenstein guardrails:** Keep config-rewriting
+    as a reversible onboarding shim — do not couple it to the policy engine
+    core. Define an explicit undo path. Do not intercept configs that Anvil
+    cannot fully interpret yet.
 
-- **source repo + link:** `Justin0504/Aegis` — https://github.com/Justin0504/Aegis
-  - **what to borrow/adopt:** Explicit kill-switch primitive for runaway agents (emergency halt) + one-liner instrumentation with zero agent changes required. Kill switch is an undervalued enterprise procurement checkbox — explicit emergency halt is a feature buyers ask for by name.
+- **source repo + link:** `Justin0504/Aegis` —
+  https://github.com/Justin0504/Aegis
+  - **what to borrow/adopt:** Explicit kill-switch primitive for runaway agents
+    (emergency halt) + one-liner instrumentation with zero agent changes
+    required. Kill switch is an undervalued enterprise procurement checkbox —
+    explicit emergency halt is a feature buyers ask for by name.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Kill switch must be a first-class, tested code path — not a last-minute flag. Route it through the same enforcement bus as policy violations; do not add a separate halt mechanism outside the main gate lifecycle.
+  - **architecture notes / anti-frankenstein guardrails:** Kill switch must be a
+    first-class, tested code path — not a last-minute flag. Route it through the
+    same enforcement bus as policy violations; do not add a separate halt
+    mechanism outside the main gate lifecycle.
 
-- **source repo + link:** `luckyPipewrench/pipelock` — https://github.com/luckyPipewrench/pipelock
-  - **what to borrow/adopt:** 17 built-in default rule packs for MCP security (destructive ops, credential access, reverse shells, persistence, encoded commands, DLP, SSRF, prompt injection) — a "secure by default" starter ruleset enterprise devs immediately recognise as covering their threat model without custom policy writing.
+- **source repo + link:** `luckyPipewrench/pipelock` —
+  https://github.com/luckyPipewrench/pipelock
+  - **what to borrow/adopt:** 17 built-in default rule packs for MCP security
+    (destructive ops, credential access, reverse shells, persistence, encoded
+    commands, DLP, SSRF, prompt injection) — a "secure by default" starter
+    ruleset enterprise devs immediately recognise as covering their threat model
+    without custom policy writing.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** Med
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Map pipelock's 17 rules to Anvil's OWASP Agentic Top 10 coverage matrix before shipping. Deliver as an opt-in starter pack, not a hardcoded default, so teams can disable rules they don't need without forking policy config.
+  - **architecture notes / anti-frankenstein guardrails:** Map pipelock's 17
+    rules to Anvil's OWASP Agentic Top 10 coverage matrix before shipping.
+    Deliver as an opt-in starter pack, not a hardcoded default, so teams can
+    disable rules they don't need without forking policy config.
 
-- **source repo + link:** `joemunene-by/ghostguard` — https://github.com/joemunene-by/ghostguard
-  - **what to borrow/adopt:** Tiered enforcement pipeline design — fast static rules first, pattern scan second, anomaly/rate-limit third, optional LLM-judge last. Correct latency/safety tradeoff: expensive LLM evaluation only runs when cheap tiers pass.
+- **source repo + link:** `joemunene-by/ghostguard` —
+  https://github.com/joemunene-by/ghostguard
+  - **what to borrow/adopt:** Tiered enforcement pipeline design — fast static
+    rules first, pattern scan second, anomaly/rate-limit third, optional
+    LLM-judge last. Correct latency/safety tradeoff: expensive LLM evaluation
+    only runs when cheap tiers pass.
   - **adopt type:** borrow-pattern
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Map tiers directly onto Anvil's existing enforcement bus as an ordered check pipeline. Do not add a separate pipeline executor — plug tiers into the single evaluation context so the audit trail captures tier outcomes uniformly. LLM-judge tier must be explicitly opt-in with latency budget declared in config.
+  - **architecture notes / anti-frankenstein guardrails:** Map tiers directly
+    onto Anvil's existing enforcement bus as an ordered check pipeline. Do not
+    add a separate pipeline executor — plug tiers into the single evaluation
+    context so the audit trail captures tier outcomes uniformly. LLM-judge tier
+    must be explicitly opt-in with latency budget declared in config.
 
-- **source repo + link:** `AiAgentKarl/agent-audit-trail-mcp` — https://github.com/AiAgentKarl/agent-audit-trail-mcp
-  - **what to borrow/adopt:** EU AI Act Article 12 compliance framing as a named output target for Anvil's audit trail — naming specific Act articles in compliance exports is a procurement checklist item. Hash-chaining (SHA-256 prev-hash) as the tamper-evidence primitive.
+- **source repo + link:** `AiAgentKarl/agent-audit-trail-mcp` —
+  https://github.com/AiAgentKarl/agent-audit-trail-mcp
+  - **what to borrow/adopt:** EU AI Act Article 12 compliance framing as a named
+    output target for Anvil's audit trail — naming specific Act articles in
+    compliance exports is a procurement checklist item. Hash-chaining (SHA-256
+    prev-hash) as the tamper-evidence primitive.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Add EU AI Act article citation as a metadata annotation on finding exports — do not fork the audit trail store. Reuse existing hash-chain schema; define article citations as an optional structured field so it degrades gracefully for non-EU buyers.
+  - **architecture notes / anti-frankenstein guardrails:** Add EU AI Act article
+    citation as a metadata annotation on finding exports — do not fork the audit
+    trail store. Reuse existing hash-chain schema; define article citations as
+    an optional structured field so it degrades gracefully for non-EU buyers.
 
-- **source repo + link:** `HeadyZhang/agent-audit` — https://github.com/HeadyZhang/agent-audit
-  - **what to borrow/adopt:** Static security scanner for LLM agent *code* (shift-left) — tool-boundary taint tracking, prompt injection detection, MCP config auditing, secret detection. 53 rules mapped to OWASP Agentic Top 10. CI gate via `--severity high`. Creates a developer-first entry point separate from runtime enforcement.
+- **source repo + link:** `HeadyZhang/agent-audit` —
+  https://github.com/HeadyZhang/agent-audit
+  - **what to borrow/adopt:** Static security scanner for LLM agent _code_
+    (shift-left) — tool-boundary taint tracking, prompt injection detection, MCP
+    config auditing, secret detection. 53 rules mapped to OWASP Agentic Top 10.
+    CI gate via `--severity high`. Creates a developer-first entry point
+    separate from runtime enforcement.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** Med
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Implement as a distinct `anvil scan` subcommand (static, pre-commit/CI) clearly separated from `anvil gate` (runtime enforcement). Same buyer, two touchpoints — do not merge. Ensure findings from `scan` and `gate` share the same diagnostic envelope schema.
+  - **architecture notes / anti-frankenstein guardrails:** Implement as a
+    distinct `anvil scan` subcommand (static, pre-commit/CI) clearly separated
+    from `anvil gate` (runtime enforcement). Same buyer, two touchpoints — do
+    not merge. Ensure findings from `scan` and `gate` share the same diagnostic
+    envelope schema.
 
-- **source repo + link:** `Steward` (Rust forum) — https://users.rust-lang.org/t/steward-contract-driven-governance-engine-for-ai-systems/137079
-  - **what to borrow/adopt:** Three-verdict output format (PROCEED / ESCALATE / BLOCKED) with evidence chain per decision + pipe-friendly CLI as a first-class design goal. A clean API contract that CI pipelines can consume without parsing prose.
+- **source repo + link:** `Steward` (Rust forum) —
+  https://users.rust-lang.org/t/steward-contract-driven-governance-engine-for-ai-systems/137079
+  - **what to borrow/adopt:** Three-verdict output format (PROCEED / ESCALATE /
+    BLOCKED) with evidence chain per decision + pipe-friendly CLI as a
+    first-class design goal. A clean API contract that CI pipelines can consume
+    without parsing prose.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Adopt three-verdict semantic as Anvil's canonical gate output — do not invent new verdict terms. ESCALATE must have a defined human approval workflow (not just a log entry). Pipe-friendly output requires a stable machine-readable format (JSON, not coloured CLI text) as the primary CI consumer path.
+  - **architecture notes / anti-frankenstein guardrails:** Adopt three-verdict
+    semantic as Anvil's canonical gate output — do not invent new verdict terms.
+    ESCALATE must have a defined human approval workflow (not just a log entry).
+    Pipe-friendly output requires a stable machine-readable format (JSON, not
+    coloured CLI text) as the primary CI consumer path.
 
 - **source repo + link:** `Symbiont` — https://docs.symbiont.dev
-  - **what to borrow/adopt:** Verifiable agent identity layer — tying agent actions to a cryptographically verifiable identity (not just a session ID). Closes a gap in Anvil's current audit trail: "which agent identity performed this action" is a procurement question Anvil cannot currently answer.
+  - **what to borrow/adopt:** Verifiable agent identity layer — tying agent
+    actions to a cryptographically verifiable identity (not just a session ID).
+    Closes a gap in Anvil's current audit trail: "which agent identity performed
+    this action" is a procurement question Anvil cannot currently answer.
   - **adopt type:** borrow-pattern
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Add agent identity as an optional field in the audit event schema first; do not block enforcement on identity resolution. Plan for SPIFFE/SVID compatibility to align with AGT's identity model and avoid vendor lock-in. Identity resolution must degrade gracefully to session-scoped attribution when no strong identity is configured.
+  - **architecture notes / anti-frankenstein guardrails:** Add agent identity as
+    an optional field in the audit event schema first; do not block enforcement
+    on identity resolution. Plan for SPIFFE/SVID compatibility to align with
+    AGT's identity model and avoid vendor lock-in. Identity resolution must
+    degrade gracefully to session-scoped attribution when no strong identity is
+    configured.
 
-- **source repo + link:** `provos/ironcurtain` — https://github.com/provos/ironcurtain
-  - **what to borrow/adopt:** UX pattern of writing policy in plain English and compiling it to enforced deterministic rules (LLM compiles, validates against generated tests). Directly targets non-security-engineer buyers — the CTO/EM who won't write Rego.
+- **source repo + link:** `provos/ironcurtain` —
+  https://github.com/provos/ironcurtain
+  - **what to borrow/adopt:** UX pattern of writing policy in plain English and
+    compiling it to enforced deterministic rules (LLM compiles, validates
+    against generated tests). Directly targets non-security-engineer buyers —
+    the CTO/EM who won't write Rego.
   - **adopt type:** copy-ux
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** "Compile to policy" must produce a reviewable, version-controlled rule artefact before it enforces — show the generated rule, don't auto-deploy it. LLM-compiled rules must pass the same test harness as hand-written ones. Store generated rules alongside hand-written policy files; do not treat them as ephemeral.
+  - **architecture notes / anti-frankenstein guardrails:** "Compile to policy"
+    must produce a reviewable, version-controlled rule artefact before it
+    enforces — show the generated rule, don't auto-deploy it. LLM-compiled rules
+    must pass the same test harness as hand-written ones. Store generated rules
+    alongside hand-written policy files; do not treat them as ephemeral.
 
-- **source repo + link:** `open-gitagent/gitagent` — https://github.com/open-gitagent/gitagent
-  - **what to borrow/adopt:** Git-native agent definition standard with built-in segregation of duties (maker/checker role model, conflict enforcement, strict handoffs). Framework-agnostic and git-native — the closest public design to Anvil's policy-as-code angle from the git workflow direction.
+- **source repo + link:** `open-gitagent/gitagent` —
+  https://github.com/open-gitagent/gitagent
+  - **what to borrow/adopt:** Git-native agent definition standard with built-in
+    segregation of duties (maker/checker role model, conflict enforcement,
+    strict handoffs). Framework-agnostic and git-native — the closest public
+    design to Anvil's policy-as-code angle from the git workflow direction.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Treat as a policy source format Anvil can read and enforce — not a competing governance system. Define a one-way import bridge: gitagent agent definitions → Anvil policy packs. Do not build a second git-native agent definition format; compose with the existing `.anvil/` convention.
+  - **architecture notes / anti-frankenstein guardrails:** Treat as a policy
+    source format Anvil can read and enforce — not a competing governance
+    system. Define a one-way import bridge: gitagent agent definitions → Anvil
+    policy packs. Do not build a second git-native agent definition format;
+    compose with the existing `.anvil/` convention.
 
-- **source repo + link:** `langfuse/langfuse` — https://github.com/langfuse/langfuse
-  - **what to borrow/adopt:** OpenTelemetry as the standard trace transport for AI audit events — emit OTLP-compatible spans so Anvil audit trails plug into existing observability stacks (Datadog, Grafana, Honeycomb) without requiring a custom dashboard or vendor lock-in.
+- **source repo + link:** `langfuse/langfuse` —
+  https://github.com/langfuse/langfuse
+  - **what to borrow/adopt:** OpenTelemetry as the standard trace transport for
+    AI audit events — emit OTLP-compatible spans so Anvil audit trails plug into
+    existing observability stacks (Datadog, Grafana, Honeycomb) without
+    requiring a custom dashboard or vendor lock-in.
   - **adopt type:** integrate-dependency
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** OTLP emission must be additive — does not replace Anvil's native audit log, complements it. Define span schema once in a shared OTel semantic conventions doc; do not let individual modules invent their own span attributes. Keep OTLP export as a configurable exporter, off by default.
+  - **architecture notes / anti-frankenstein guardrails:** OTLP emission must be
+    additive — does not replace Anvil's native audit log, complements it. Define
+    span schema once in a shared OTel semantic conventions doc; do not let
+    individual modules invent their own span attributes. Keep OTLP export as a
+    configurable exporter, off by default.
 
-- **source repo + link:** `jagmarques/asqav-sdk` — https://github.com/jagmarques/asqav-sdk
-  - **what to borrow/adopt:** Quantum-safe signing narrative (ML-DSA-65 / FIPS 204) for long-lived audit trails — "your audit trail holds up in court" is a strong enterprise hook. Also: EU AI Act article-mapping baked into report output (named article citations in compliance exports).
+- **source repo + link:** `jagmarques/asqav-sdk` —
+  https://github.com/jagmarques/asqav-sdk
+  - **what to borrow/adopt:** Quantum-safe signing narrative (ML-DSA-65 /
+    FIPS 204) for long-lived audit trails — "your audit trail holds up in court"
+    is a strong enterprise hook. Also: EU AI Act article-mapping baked into
+    report output (named article citations in compliance exports).
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** High
   - **status:** candidate
-  - **architecture notes / anti-frankenstein guardrails:** Plan for algorithm agility in the attestation format from day one — do not hardcode SHA-256 in the signing layer. Quantum-safe signing can ship as a day-two feature but the schema must not preclude it. EU AI Act article mapping is a metadata annotation layer, not a schema redesign.
+  - **architecture notes / anti-frankenstein guardrails:** Plan for algorithm
+    agility in the attestation format from day one — do not hardcode SHA-256 in
+    the signing layer. Quantum-safe signing can ship as a day-two feature but
+    the schema must not preclude it. EU AI Act article mapping is a metadata
+    annotation layer, not a schema redesign.
