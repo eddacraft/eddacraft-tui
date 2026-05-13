@@ -511,8 +511,89 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-009: Protection-claim contract test suite (HARD GATE)
 
+- **Status:** In Progress (2026-05-13) — v1 closed-set vocabulary +
+  contract conformance lands ahead of the per-surface fixture wiring;
+  see footnotes.
 - **Intent:** Pin the closed-set protection-claim states as testable
   contract. **Hard release gate for the module.**
+- **Expected Outcome (v1 shipped):** New module
+  `crates/anvil-kernel-types/src/protection_claim.rs` ships the
+  vocabulary half of the contract: `WorktreeClaimState` (10 variants
+  matching spec §14.2 — `unprotected` / `warming` /
+  `pre-write-embedded` / `pre-write-daemon` / `save-time-only` /
+  `full` / `degraded-protection` / `cross-boundary-mixed` /
+  `multi-daemon-detected` / `path-uncertain`) and
+  `SurfaceClaimState` (8 variants matching §14.1 — `unbound` /
+  `attached` / `participating` / `embedded-fallback` / `degraded` /
+  `cross-boundary-refused` / `quarantined` / `detached`), both
+  serde-kebab-case so the wire strings exactly match the spec.
+  `ProtectionClaim` aggregator with explicit
+  `schema_version: "anvil.protection-claim.v1"` field that
+  consumers MUST refuse unknown / future major versions on (no
+  permissive parsing). `as_str()` + `all()` helpers on each enum
+  pin the canonical wire strings via `match` exhaustiveness and
+  drive table-driven tests. Re-exported through
+  `crates/anvil-kernel-types/src/lib.rs`. Cross-crate contract
+  test surface at
+  `crates/anvil-cli/tests/protection_claim_states.rs` exercises
+  every state through `serde_json` round-trips, pins the documented
+  field names (`schema_version` / `worktree_state` / `surfaces[].
+  identifier` / `surfaces[].state`), pins the
+  `pre-write-embedded ≠ pre-write-daemon` distinctness invariant
+  required by spec §14.2, and asserts unknown state strings reject
+  at deserialise rather than silently falling through to a default.
+  13 + 7 = 20 tests total.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **`anvil status --json` render path** — the rendering layer
+     that emits these types lives in
+     `crates/anvil-cli/src/commands/status.rs` and consumes a
+     daemon-snapshot input. Owned by the status command's
+     daemon-integration lane; v1 ships the vocabulary the render
+     path will target so the render-side wire-up lands cleanly
+     once the daemon snapshot is available.
+  2. **Per-state fixture files at
+     `crates/anvil-cli/tests/fixtures/status_v1/`** — golden JSON
+     fixtures pinning the full render shape per worktree state.
+     v1 ships in-test fixtures (the contract test constructs each
+     `ProtectionClaim` inline and serialises); golden files become
+     useful once the render path lands so the fixtures double as
+     "what `anvil status --json` produces for state X" examples.
+  3. **TS e2e mirror at
+     `apps/e2e/src/protection_claim_states.spec.ts`** — the
+     TypeScript end-to-end conformance test against the rendered
+     surface. Lands with the render path it exercises.
+  4. **Driver / CLI / MCP-shim conformance** — every surface that
+     renders a claim MUST consume these types rather than
+     pattern-matching strings; the conformance pass against each
+     surface is part of that surface's task (MLP / DLIFE / DRVR
+     consumers all reach the same vocabulary). v1 locks the
+     vocabulary so those consumers have a stable target.
+  5. **Forward-compat-additive-field test** — `schema_version` is
+     the major-bump signal, but Zod-style "additive optional
+     fields" forward-compat is a deferred follow-up: extending
+     `ProtectionClaim` with optional metadata fields (e.g.,
+     `degraded_reasons`, `cross_boundary_token`) lands when a
+     concrete surface needs it, and the additivity rule gets
+     pinned then.
+- **Files (shipped):**
+  - `crates/anvil-kernel-types/src/protection_claim.rs` (new),
+  - `crates/anvil-kernel-types/src/lib.rs` (module + re-exports),
+  - `crates/anvil-cli/tests/protection_claim_states.rs` (new).
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types
+  protection_claim::` — 13 unit tests green covering state counts,
+  per-state canonical strings (10 + 8), JSON wire-shape, surface
+  claim shape, `pre-write-embedded ≠ pre-write-daemon`
+  distinctness, schema-version constant pin, round-trip, pairwise
+  distinctness, and closed-set deserialise rejection (worktree +
+  surface). `cargo test -p eddacraft-anvil --test
+  protection_claim_states` — 7 cross-crate contract tests green
+  covering every worktree state's JSON round-trip, every surface
+  state's JSON round-trip inside the `surfaces` array, documented
+  field names, distinctness at the contract boundary, closed-set
+  rejection at the contract boundary (worktree + surface), and the
+  closed-set counts pin. `cargo clippy -p eddacraft-anvil-
+  kernel-types -p eddacraft-anvil --all-targets -- -D warnings`
+  clean. `cargo fmt --check` clean.
 - **Expected Outcome:**
   - For each state in spec §14.2 (per-worktree) and §14.1 (per-surface),
     drive system into that state and assert rendered claim matches

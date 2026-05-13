@@ -1,0 +1,465 @@
+//! MLP-009 protection-claim contract types.
+//!
+//! Spec §14 (`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`)
+//! defines the closed-set protection-claim vocabulary that `anvil
+//! status`, the MCP response surface, and `anvil doctor` collectively
+//! commit to. This module ships the Rust-side enums and serde JSON
+//! wire shape that pin those state names so:
+//!
+//! 1. Tooling (CI, contract tests, downstream tools) treats the set
+//!    as closed — unknown states are rejected at deserialise time.
+//! 2. Every surface that renders a protection claim agrees on the
+//!    exact spelling: `pre-write-embedded` ≠ `pre-write-daemon`, etc.
+//! 3. The wire shape is forward-compatible via the explicit
+//!    `schema_version` field; future additions (more surfaces,
+//!    annotations, etc.) ride a major bump rather than silently
+//!    extending a Zod-style permissive parser.
+//!
+//! ## Hard release gate
+//!
+//! MLP-009 is the **hard release gate** for the Multi-Layer
+//! Protection module. The module-level APS rule (see
+//! `plans/modules/multilayer-protection.aps.md`): _"No MLP item
+//! marked Complete in `plans/index.aps.md` until [MLP-009] is
+//! green."_ The gate is "every state in §14 is reachable in a
+//! fixture, round-trips through the wire shape, and renders the
+//! pinned canonical string". This module is the vocabulary half;
+//! the conformance test surface lives at
+//! `crates/anvil-cli/tests/protection_claim_states.rs`.
+//!
+//! ## Deferred follow-ups (not v1)
+//!
+//! - `anvil status --json` render path emitting these types — owned
+//!   by `crates/anvil-cli/src/commands/status.rs` when the
+//!   render-from-daemon-snapshot lane lands.
+//! - TS e2e mirror at `apps/e2e/src/protection_claim_states.spec.ts`.
+//! - Per-state fixture files at
+//!   `crates/anvil-cli/tests/fixtures/status_v1/`.
+//! - Driver / CLI / MCP-shim conformance tests against the rendered
+//!   surface. The vocabulary lands first so the surfaces can target
+//!   a stable contract; conformance tests follow once they wire it.
+
+use serde::{Deserialize, Serialize};
+
+/// Schema version pinned for the JSON wire shape. Forward-compat
+/// rule: additions of optional fields ride this version; semantically
+/// breaking changes (state-name renames, field-type changes, removed
+/// states) bump the major component.
+pub const PROTECTION_CLAIM_SCHEMA_VERSION: &str = "anvil.protection-claim.v1";
+
+/// Per-worktree protection-claim state from spec §14.2. Ten closed-
+/// set variants. Tooling treats unknown variants as a hard error at
+/// deserialise time (no silent fallthrough to a `default`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorktreeClaimState {
+    /// No daemon, no embedded fallback; `ensure()` failed.
+    Unprotected,
+    /// Daemon up but `ready: false`, OR no surfaces attached yet.
+    Warming,
+    /// MCP shims active; all on `embedded` backend.
+    PreWriteEmbedded,
+    /// MCP shims active; ≥1 daemon-backed.
+    PreWriteDaemon,
+    /// Editor driver Participating; no MCP.
+    SaveTimeOnly,
+    /// ≥1 daemon-backed MCP + ≥1 Participating editor driver.
+    Full,
+    /// Above states with ≥1 surface degraded.
+    DegradedProtection,
+    /// Multiple surfaces detected on different `os_locality_token`s.
+    CrossBoundaryMixed,
+    /// Two `info.json` records observed.
+    MultiDaemonDetected,
+    /// Daemon canonicalisation differs from registered path.
+    PathUncertain,
+}
+
+impl WorktreeClaimState {
+    /// Canonical wire string for this state. Pinned by tests so
+    /// renaming a variant in Rust forces an explicit string update
+    /// and a schema version review.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unprotected => "unprotected",
+            Self::Warming => "warming",
+            Self::PreWriteEmbedded => "pre-write-embedded",
+            Self::PreWriteDaemon => "pre-write-daemon",
+            Self::SaveTimeOnly => "save-time-only",
+            Self::Full => "full",
+            Self::DegradedProtection => "degraded-protection",
+            Self::CrossBoundaryMixed => "cross-boundary-mixed",
+            Self::MultiDaemonDetected => "multi-daemon-detected",
+            Self::PathUncertain => "path-uncertain",
+        }
+    }
+
+    /// Every variant in declaration order. Drives contract tests so
+    /// adding a new variant without updating the test surface is a
+    /// compile-time discovery (the `match` exhaustiveness check in
+    /// [`Self::as_str`]) plus a runtime test failure (this slice
+    /// length disagrees with the constant pin in the test module).
+    #[must_use]
+    pub const fn all() -> &'static [WorktreeClaimState] {
+        &[
+            WorktreeClaimState::Unprotected,
+            WorktreeClaimState::Warming,
+            WorktreeClaimState::PreWriteEmbedded,
+            WorktreeClaimState::PreWriteDaemon,
+            WorktreeClaimState::SaveTimeOnly,
+            WorktreeClaimState::Full,
+            WorktreeClaimState::DegradedProtection,
+            WorktreeClaimState::CrossBoundaryMixed,
+            WorktreeClaimState::MultiDaemonDetected,
+            WorktreeClaimState::PathUncertain,
+        ]
+    }
+}
+
+/// Per-surface protection-claim state from spec §14.1. Eight closed-
+/// set variants. Surfaces include MCP shims, editor drivers, and
+/// future amplifiers; the daemon assigns one of these to every
+/// surface in its registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SurfaceClaimState {
+    /// Surface known but not yet registered with the daemon.
+    Unbound,
+    /// Registered, handshake complete, but not actively participating
+    /// in the enforcement pipeline.
+    Attached,
+    /// Surface is contributing to enforcement decisions.
+    Participating,
+    /// Daemon unreachable; surface running an embedded fallback.
+    EmbeddedFallback,
+    /// Surface is up but missing one or more capabilities for full
+    /// protection (e.g., rule pack mismatch).
+    Degraded,
+    /// Surface refused at registration time because it lives across
+    /// an `os_locality_token` boundary.
+    CrossBoundaryRefused,
+    /// Surface is fenced — outputs are not honoured until an
+    /// explicit unblock.
+    Quarantined,
+    /// Surface previously attached but is no longer responding;
+    /// pending eviction.
+    Detached,
+}
+
+impl SurfaceClaimState {
+    /// Canonical wire string for this state.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unbound => "unbound",
+            Self::Attached => "attached",
+            Self::Participating => "participating",
+            Self::EmbeddedFallback => "embedded-fallback",
+            Self::Degraded => "degraded",
+            Self::CrossBoundaryRefused => "cross-boundary-refused",
+            Self::Quarantined => "quarantined",
+            Self::Detached => "detached",
+        }
+    }
+
+    /// Every variant in declaration order.
+    #[must_use]
+    pub const fn all() -> &'static [SurfaceClaimState] {
+        &[
+            SurfaceClaimState::Unbound,
+            SurfaceClaimState::Attached,
+            SurfaceClaimState::Participating,
+            SurfaceClaimState::EmbeddedFallback,
+            SurfaceClaimState::Degraded,
+            SurfaceClaimState::CrossBoundaryRefused,
+            SurfaceClaimState::Quarantined,
+            SurfaceClaimState::Detached,
+        ]
+    }
+}
+
+/// Single surface's claim entry — identifier plus state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceClaim {
+    /// Driver / surface identifier. Opaque to this contract; the
+    /// daemon decides naming.
+    pub identifier: String,
+    /// One of the eight §14.1 states.
+    pub state: SurfaceClaimState,
+}
+
+/// Aggregate protection claim for a worktree.
+///
+/// This is the wire shape `anvil status --json` / the MCP response
+/// surface / `anvil doctor` will all emit. Tooling deserialises this
+/// instead of pattern-matching strings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProtectionClaim {
+    /// Schema version pinned to [`PROTECTION_CLAIM_SCHEMA_VERSION`].
+    /// Consumers MUST refuse claims with an unknown / future major
+    /// version rather than parsing them permissively.
+    pub schema_version: String,
+    /// One of the ten §14.2 states.
+    pub worktree_state: WorktreeClaimState,
+    /// All surfaces the daemon knows about for this worktree. Empty
+    /// when `worktree_state` is [`WorktreeClaimState::Unprotected`]
+    /// or [`WorktreeClaimState::Warming`] without attachments yet.
+    pub surfaces: Vec<SurfaceClaim>,
+}
+
+impl ProtectionClaim {
+    /// Build a claim at the pinned schema version. Mostly used by
+    /// tests and the (deferred) status-render path.
+    #[must_use]
+    pub fn new(worktree_state: WorktreeClaimState, surfaces: Vec<SurfaceClaim>) -> Self {
+        Self {
+            schema_version: PROTECTION_CLAIM_SCHEMA_VERSION.to_string(),
+            worktree_state,
+            surfaces,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pinned count of per-worktree states. If a variant is added,
+    /// this test fails so the conformance fixture and the
+    /// per-state mapping table are updated together.
+    #[test]
+    fn worktree_state_count_matches_spec() {
+        assert_eq!(
+            WorktreeClaimState::all().len(),
+            10,
+            "spec §14.2 names ten per-worktree states",
+        );
+    }
+
+    /// Pinned count of per-surface states from spec §14.1.
+    #[test]
+    fn surface_state_count_matches_spec() {
+        assert_eq!(
+            SurfaceClaimState::all().len(),
+            8,
+            "spec §14.1 names eight per-surface states",
+        );
+    }
+
+    /// Per-worktree state → canonical wire string. Adding or
+    /// renaming a state breaks this map first, forcing an explicit
+    /// schema-version review.
+    #[test]
+    fn worktree_state_canonical_strings_match_spec() {
+        let expected: &[(WorktreeClaimState, &str)] = &[
+            (WorktreeClaimState::Unprotected, "unprotected"),
+            (WorktreeClaimState::Warming, "warming"),
+            (WorktreeClaimState::PreWriteEmbedded, "pre-write-embedded"),
+            (WorktreeClaimState::PreWriteDaemon, "pre-write-daemon"),
+            (WorktreeClaimState::SaveTimeOnly, "save-time-only"),
+            (WorktreeClaimState::Full, "full"),
+            (
+                WorktreeClaimState::DegradedProtection,
+                "degraded-protection",
+            ),
+            (
+                WorktreeClaimState::CrossBoundaryMixed,
+                "cross-boundary-mixed",
+            ),
+            (
+                WorktreeClaimState::MultiDaemonDetected,
+                "multi-daemon-detected",
+            ),
+            (WorktreeClaimState::PathUncertain, "path-uncertain"),
+        ];
+        for (variant, canonical) in expected {
+            assert_eq!(
+                variant.as_str(),
+                *canonical,
+                "WorktreeClaimState::{variant:?} as_str()"
+            );
+            let serialized = serde_json::to_string(variant).expect("serialise");
+            assert_eq!(
+                serialized,
+                format!("\"{canonical}\""),
+                "WorktreeClaimState::{variant:?} JSON",
+            );
+        }
+    }
+
+    /// Per-surface state → canonical wire string.
+    #[test]
+    fn surface_state_canonical_strings_match_spec() {
+        let expected: &[(SurfaceClaimState, &str)] = &[
+            (SurfaceClaimState::Unbound, "unbound"),
+            (SurfaceClaimState::Attached, "attached"),
+            (SurfaceClaimState::Participating, "participating"),
+            (SurfaceClaimState::EmbeddedFallback, "embedded-fallback"),
+            (SurfaceClaimState::Degraded, "degraded"),
+            (
+                SurfaceClaimState::CrossBoundaryRefused,
+                "cross-boundary-refused",
+            ),
+            (SurfaceClaimState::Quarantined, "quarantined"),
+            (SurfaceClaimState::Detached, "detached"),
+        ];
+        for (variant, canonical) in expected {
+            assert_eq!(
+                variant.as_str(),
+                *canonical,
+                "SurfaceClaimState::{variant:?} as_str()"
+            );
+            let serialized = serde_json::to_string(variant).expect("serialise");
+            assert_eq!(
+                serialized,
+                format!("\"{canonical}\""),
+                "SurfaceClaimState::{variant:?} JSON",
+            );
+        }
+    }
+
+    /// Spec §14.2: "`pre-write-embedded` ≠ `pre-write-daemon` —
+    /// tooling MUST treat them distinct". Pin so a future helper
+    /// that collapses them surfaces in review.
+    #[test]
+    fn pre_write_embedded_distinct_from_pre_write_daemon() {
+        assert_ne!(
+            WorktreeClaimState::PreWriteEmbedded,
+            WorktreeClaimState::PreWriteDaemon,
+            "spec §14.2 pin",
+        );
+        assert_ne!(
+            WorktreeClaimState::PreWriteEmbedded.as_str(),
+            WorktreeClaimState::PreWriteDaemon.as_str(),
+            "wire strings must also disagree",
+        );
+    }
+
+    /// Every variant is distinct via `PartialEq` — defends against
+    /// an accidental duplicate variant introduced during refactoring.
+    #[test]
+    fn worktree_states_are_pairwise_distinct() {
+        let all = WorktreeClaimState::all();
+        for (i, a) in all.iter().enumerate() {
+            for (j, b) in all.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "WorktreeClaimState variants {i} and {j} collide");
+                    assert_ne!(
+                        a.as_str(),
+                        b.as_str(),
+                        "WorktreeClaimState wire strings {i} and {j} collide",
+                    );
+                }
+            }
+        }
+    }
+
+    /// Same pairwise-distinct invariant for the surface enum.
+    #[test]
+    fn surface_states_are_pairwise_distinct() {
+        let all = SurfaceClaimState::all();
+        for (i, a) in all.iter().enumerate() {
+            for (j, b) in all.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "SurfaceClaimState variants {i} and {j} collide");
+                    assert_ne!(
+                        a.as_str(),
+                        b.as_str(),
+                        "SurfaceClaimState wire strings {i} and {j} collide",
+                    );
+                }
+            }
+        }
+    }
+
+    /// Schema version constant is pinned. The text matches the
+    /// project-wide `anvil.<dotted-name>.vN` convention used by
+    /// `anvil.diagnostic.v1`, `anvil.audit-chain.v1`, etc.
+    #[test]
+    fn schema_version_constant_is_pinned() {
+        assert_eq!(PROTECTION_CLAIM_SCHEMA_VERSION, "anvil.protection-claim.v1");
+    }
+
+    /// `ProtectionClaim` round-trips through JSON with all fields
+    /// preserved. Pinned wire shape: `schema_version` /
+    /// `worktree_state` / `surfaces`.
+    #[test]
+    fn protection_claim_round_trips_through_json() {
+        let claim = ProtectionClaim::new(
+            WorktreeClaimState::Full,
+            vec![
+                SurfaceClaim {
+                    identifier: "mcp-shim-claude".into(),
+                    state: SurfaceClaimState::Participating,
+                },
+                SurfaceClaim {
+                    identifier: "editor-driver-vscode".into(),
+                    state: SurfaceClaimState::Attached,
+                },
+            ],
+        );
+        let line = serde_json::to_string(&claim).expect("serialise");
+        let back: ProtectionClaim = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, claim);
+    }
+
+    /// JSON wire shape pin: every required field is present and
+    /// uses the documented key. Tests as a `serde_json::Value` so
+    /// the assertion errors point at field names rather than a
+    /// stringly-compared blob.
+    #[test]
+    fn protection_claim_json_uses_documented_field_names() {
+        let claim = ProtectionClaim::new(WorktreeClaimState::Warming, vec![]);
+        let value: serde_json::Value = serde_json::to_value(&claim).expect("serialise");
+        assert_eq!(value["schema_version"], PROTECTION_CLAIM_SCHEMA_VERSION);
+        assert_eq!(value["worktree_state"], "warming");
+        assert!(
+            value["surfaces"].is_array(),
+            "surfaces is an array even when empty",
+        );
+        assert_eq!(value["surfaces"].as_array().unwrap().len(), 0);
+    }
+
+    /// Surfaces field is an array of `{identifier, state}` objects
+    /// with documented keys.
+    #[test]
+    fn surface_claim_json_uses_documented_field_names() {
+        let claim = ProtectionClaim::new(
+            WorktreeClaimState::SaveTimeOnly,
+            vec![SurfaceClaim {
+                identifier: "editor-driver-vscode".into(),
+                state: SurfaceClaimState::Participating,
+            }],
+        );
+        let value: serde_json::Value = serde_json::to_value(&claim).expect("serialise");
+        let surfaces = value["surfaces"].as_array().expect("surfaces array");
+        assert_eq!(surfaces.len(), 1);
+        assert_eq!(surfaces[0]["identifier"], "editor-driver-vscode");
+        assert_eq!(surfaces[0]["state"], "participating");
+    }
+
+    /// Tooling MUST refuse unknown worktree-state strings rather
+    /// than silently mapping them to a default. Pinned so the
+    /// `#[serde(rename_all = "kebab-case")]` derive's closed-enum
+    /// behaviour doesn't accidentally regress into a permissive
+    /// `#[serde(other)]` fallback.
+    #[test]
+    fn unknown_worktree_state_fails_to_deserialise() {
+        let result: Result<WorktreeClaimState, _> = serde_json::from_str("\"future-state\"");
+        assert!(
+            result.is_err(),
+            "unknown worktree states must reject at deserialise: {result:?}",
+        );
+    }
+
+    /// Same closed-enum invariant for the surface enum.
+    #[test]
+    fn unknown_surface_state_fails_to_deserialise() {
+        let result: Result<SurfaceClaimState, _> = serde_json::from_str("\"future-surface\"");
+        assert!(
+            result.is_err(),
+            "unknown surface states must reject at deserialise: {result:?}",
+        );
+    }
+}

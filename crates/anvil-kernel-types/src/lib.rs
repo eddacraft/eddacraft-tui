@@ -4,6 +4,7 @@ pub mod feature_flags;
 mod graph;
 pub mod hooks;
 mod notifications;
+pub mod protection_claim;
 mod trust;
 
 pub use diagnostics::{
@@ -20,6 +21,10 @@ pub use graph::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, Visibility};
 pub use hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 pub use notifications::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,
+};
+pub use protection_claim::{
+    PROTECTION_CLAIM_SCHEMA_VERSION, ProtectionClaim, SurfaceClaim, SurfaceClaimState,
+    WorktreeClaimState,
 };
 pub use trust::TrustLevel;
 
