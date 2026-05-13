@@ -8,18 +8,16 @@
 | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_
-complete: MLP-001 / -002 / -011 / -013 / -017 Done. Wave 2 _Hook,
-Policy, And Baseline Surfaces_ in flight — MLP-012 shipped a new
-`crates/anvil-rules/` library (rules_sha + RequiredAnvilVersion;
-29 tests green) and MLP-007 shipped a new `crates/anvil-baseline/`
-library (Baseline schema + move-resistant fingerprint +
-TOCTOU-hardened I/O + diff partition; 44 tests green). MLP module
-advanced to 7/17. CLI command, scanner integration, `cutoff_commit`
-policy pinning, witness genesis emission, hook install, daemon
-cache, L4 verification, and writer wiring deferred to consumers
-MLP-003 / MLP-006. Next candidate remains the daemon-working
-`v0.7.0-beta` slate.)
+**Last updated:** 2026-05-13 (Wave 1 _Build The Load-Bearing Backbone_ complete:
+MLP-001 / -002 / -011 / -013 / -017 Done. Wave 2 _Hook, Policy, And Baseline
+Surfaces_ in flight — MLP-012 shipped a new `crates/anvil-rules/` library
+(rules_sha + RequiredAnvilVersion; 29 tests green) and MLP-007 shipped a new
+`crates/anvil-baseline/` library (Baseline schema + move-resistant fingerprint +
+TOCTOU-hardened I/O + diff partition; 44 tests green). MLP module advanced to
+7/17. CLI command, scanner integration, `cutoff_commit` policy pinning, witness
+genesis emission, hook install, daemon cache, L4 verification, and writer wiring
+deferred to consumers MLP-003 / MLP-006. Next candidate remains the
+daemon-working `v0.7.0-beta` slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -62,12 +60,12 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 
 **Primary APS modules:**
 
-| Pick | Module                                                | Status      | Progress | Role                                                                                                                                                                                                                                                      |
-| ---- | ----------------------------------------------------- | ----------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | In Progress | 7/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. Wave 1 complete (MLP-001 / -002 / -011 / -013 / -017 Done 2026-05-13). Wave 2: MLP-012 rules_sha + MLP-007 baseline library primitives (29 + 44 tests green).                                                                       |
-| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                 |
-| N3   | Carry-forward gates                                   | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`. |
-| N4   | Documentation lanes                                   | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.              |
+| Pick | Module                                                | Status      | Progress | Role                                                                                                                                                                                                                                                               |
+| ---- | ----------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md) | In Progress | 7/17     | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. Wave 1 complete (MLP-001 / -002 / -011 / -013 / -017 Done 2026-05-13). Wave 2: MLP-012 rules_sha + MLP-007 baseline library primitives (29 + 44 tests green). |
+| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)   | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                          |
+| N3   | Carry-forward gates                                   | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.          |
+| N4   | Documentation lanes                                   | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                       |
 
 **Hard release gate:** `MLP-009`. The protection-claim contract suite, air-gap
 guarantee, and noise-discipline tests must be green before the release can claim
@@ -117,14 +115,14 @@ failure for most downstream work.
 Start once the witness primitive is stable enough for dependent lanes to write
 against it.
 
-| Work                                          | Parallel?         | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------------------- | ----------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MLP-012` `rules_sha` in witnesses            | After 002 (+ 011) | Done (2026-05-13) | Shipped as a new `crates/anvil-rules/` library: `RulesShaInput` + `rules_sha` over canonical JSON of `{anvil_version, config_sha, opa_runtime_version, rules}` + `RequiredAnvilVersion` semver-floor parser. 29 tests green incl. yaml/json/toml cross-format determinism. (Merged via PR #1489.) |
+| Work                                          | Parallel?         | Status            | Notes                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | ----------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MLP-012` `rules_sha` in witnesses            | After 002 (+ 011) | Done (2026-05-13) | Shipped as a new `crates/anvil-rules/` library: `RulesShaInput` + `rules_sha` over canonical JSON of `{anvil_version, config_sha, opa_runtime_version, rules}` + `RequiredAnvilVersion` semver-floor parser. 29 tests green incl. yaml/json/toml cross-format determinism. (Merged via PR #1489.)                                                                                                   |
 | `MLP-007` baseline command                    | After 001 + 002   | Done (2026-05-13) | v1 library primitive shipped via `crates/anvil-baseline/`: `Baseline` schema + move-resistant `compute_fingerprint` + TOCTOU-hardened I/O (incl. broken-symlink + tmp-path refusal, atomic-replace for Windows) + diff partition; 44 tests green. CLI command, scanner integration, cutoff_commit policy pinning, witness genesis emission, hook install deferred to consumers (MLP-003 / MLP-006). |
-| `MLP-003` pre-commit hook                     | After 002 + 012   |                   | First noisy surface; ADR-038 noise discipline applies from day one. Wires the rules_sha primitive into the witness append path. |
-| `MLP-005` post-commit/post-merge/post-rewrite | After 003         |                   | Records commit-time state and handles merges/rebases/amends. |
-| `MLP-006` L4 policy framework                 | After 002 + 007   |                   | Provides per-branch fallback policy for unwitnessed commits. Consumes `RequiredAnvilVersion` for the rules_sha-recognition check; consumes `Baseline.cutoff_commit` for legacy acceptance. |
-| `MLP-008` hook bootstrap recovery             | After 003         |                   | Recovery UX depends on the first hook implementation. |
+| `MLP-003` pre-commit hook                     | After 002 + 012   |                   | First noisy surface; ADR-038 noise discipline applies from day one. Wires the rules_sha primitive into the witness append path.                                                                                                                                                                                                                                                                     |
+| `MLP-005` post-commit/post-merge/post-rewrite | After 003         |                   | Records commit-time state and handles merges/rebases/amends.                                                                                                                                                                                                                                                                                                                                        |
+| `MLP-006` L4 policy framework                 | After 002 + 007   |                   | Provides per-branch fallback policy for unwitnessed commits. Consumes `RequiredAnvilVersion` for the rules_sha-recognition check; consumes `Baseline.cutoff_commit` for legacy acceptance.                                                                                                                                                                                                          |
+| `MLP-008` hook bootstrap recovery             | After 003         |                   | Recovery UX depends on the first hook implementation.                                                                                                                                                                                                                                                                                                                                               |
 
 ### Wave 3: Coordination And Launcher Ingress
 
