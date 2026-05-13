@@ -8,15 +8,23 @@ if [[ -z "$TOOL_INPUT" && ! -t 0 ]]; then
   TOOL_INPUT=$(cat)
 fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || exit 0
 
 FILE_PATH=$(printf '%s\n' "$TOOL_INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
 if [[ -z "$FILE_PATH" ]]; then
   exit 0
 fi
+if [[ "$FILE_PATH" != /* ]]; then
+  FILE_PATH="$PROJECT_DIR/$FILE_PATH"
+fi
+FILE_DIR=$(dirname "$FILE_PATH")
+FILE_BASE=$(basename "$FILE_PATH")
+FILE_DIR=$(cd "$FILE_DIR" 2>/dev/null && pwd -P) || exit 0
+FILE_PATH="$FILE_DIR/$FILE_BASE"
 
 case "$FILE_PATH" in
   "$PROJECT_DIR"/*) REL_PATH="${FILE_PATH#"$PROJECT_DIR"/}" ;;
-  *) REL_PATH="$FILE_PATH" ;;
+  *) exit 0 ;;
 esac
 
 EXT="${FILE_PATH##*.}"
@@ -47,7 +55,7 @@ test_evidence_exists() {
       ;;
     rs)
       grep -q '#\[cfg(test)\]' "$FILE_PATH" 2>/dev/null && return 0
-      [[ -d "$PROJECT_DIR/crates" && -d "$PROJECT_DIR/tests" ]] && return 0
+      find "$PROJECT_DIR/crates" -path '*/tests' -type d -print -quit 2>/dev/null | grep -q . && return 0
       ;;
   esac
 

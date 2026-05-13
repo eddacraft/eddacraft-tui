@@ -11,9 +11,18 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 SOURCE_AGENT="${CLAUDE_AGENT_NAME:-unknown}"
 AGENT_TRIGGERS="${CLAUDE_AGENT_TRIGGERS:-false}"
 AGENT_OUTPUT="${CLAUDE_TOOL_OUTPUT:-}"
+HAS_JQ=false
+if command -v jq >/dev/null 2>&1; then
+  HAS_JQ=true
+fi
 
-jq -n --arg ts "$TIMESTAMP" --arg agent "$SOURCE_AGENT" \
-  '{timestamp: $ts, event: "agent_stop", agent: $agent}' >> "$LOG_DIR/session.log"
+if [[ "$HAS_JQ" == "true" ]]; then
+  jq -n --arg ts "$TIMESTAMP" --arg agent "$SOURCE_AGENT" \
+    '{timestamp: $ts, event: "agent_stop", agent: $agent}' >> "$LOG_DIR/session.log"
+else
+  printf '{"timestamp":"%s","event":"agent_stop","agent":"%s"}\n' \
+    "$TIMESTAMP" "$SOURCE_AGENT" >> "$LOG_DIR/session.log"
+fi
 
 if [[ "$AGENT_TRIGGERS" != "true" ]]; then
   exit 0
@@ -26,6 +35,10 @@ if [[ -z "$AGENT_OUTPUT" ]]; then
 fi
 
 if [[ "$AGENT_OUTPUT" != *TRIGGER:* ]]; then
+  exit 0
+fi
+
+if [[ "$HAS_JQ" != "true" ]]; then
   exit 0
 fi
 
