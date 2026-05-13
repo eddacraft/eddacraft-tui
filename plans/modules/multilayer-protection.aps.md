@@ -815,9 +815,77 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-016: L1 editor driver → Kindling integration
 
+- **Status:** In Progress (2026-05-13) — v1 observation builder lands
+  ahead of the IPC fan-out + TS driver-client mirror; see footnotes.
 - **Intent:** Editor driver emits Kindling `gate_evaluated` with
   `mode: midEdit` for findings, preserving forensic detail of "what
   the AI tried to write mid-edit."
+- **Expected Outcome (v1 shipped):** New module
+  `crates/anvil-intercept/src/kindling_observation.rs` exposes the
+  Rust-side primitives that the future IPC fan-out / MCP shim / TS
+  driver-client mirror will all share: `KIND_GATE_EVALUATED` +
+  `MIDEDIT_GATE_ID` schema-pin constants matching
+  `GateEvaluatedObservationSchema.kind` /
+  `GateEvaluatedObservationSchema.gate_id` from
+  `packages/kindling-integration/src/observation-contract.ts`;
+  `Enforcement` (`blocking` / `warning` / `informational`) and
+  `Outcome` (`pass` / `fail` / `error` / `skipped`) closed enums with
+  kebab-case serde tags matching the Zod schema; an
+  `ObservationContext` borrow-only carrier so the call site supplies
+  `session_id` / `timestamp` / `gate_eval_id` / `file_path` /
+  `duration_ms`; and the pure converter `from_midedit_response(ctx,
+  &ScanBufferResponse) -> Option<GateEvaluatedObservation>` that
+  returns `None` for empty diagnostics so pass-no-finding mid-edit
+  calls remain silent (MLP-016 volume-control contract). Severity →
+  Enforcement mapping picks the highest class in the batch (`Error`
+  → `Blocking`, `Warning` → `Warning`, all-`Info` → `Informational`);
+  `violation_count` / `warning_count` populated from the same scan
+  so the row matches Zod's optional-but-present-when-meaningful
+  policy; `rules_violated` excludes `Info` severities so the field
+  carries actionable rule ids only and is omitted for info-only
+  batches (matches the Zod optional). 11 unit tests pin the volume-
+  control silence, the three severity mappings, the mixed-batch
+  "highest wins" rule, the `rules_violated` Info-exclusion, the
+  `rules_evaluated` superset, the info-only batch's `rules_violated`
+  omission, the JSON wire-shape (`kind` + `gate_id` + `enforcement` +
+  `outcome` field values), the file-path → `changed_files`
+  mapping, and the caller-supplied identity-fields preservation.
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **IPC fan-out wiring** — the daemon's notification layer needs
+     a Kindling client handle to actually write rows; v1 ships the
+     payload shape so the wiring call site lands cleanly when that
+     consumer materialises. Owned by INTD's notification fan-out.
+  2. **MCP shim mirror at `crates/anvil-cli/src/mcp/validation.rs`**
+     — the MCP path's diagnostic pipeline is its own surface and
+     needs the same conversion; the helper here is intentionally
+     generic over `ScanBufferResponse` so the shim can call it
+     unchanged when its IPC mirror lands.
+  3. **TypeScript driver-client mirror at
+     `packages/anvil-driver-client/src/`** — the editor-side L1
+     surface needs its own observation builder for the
+     daemon-unreachable embedded-fallback path. Wire shape is
+     pinned by this PR (the Rust struct's serde-JSON tag layout is
+     the authoritative reference for the TS implementor).
+  4. **RTAI-007 telemetry contract joining** — the Kindling row
+     shape here is compatible with the contract; the explicit join
+     between RTAI-007's mid-edit envelope and the
+     `gate_evaluated` row lands when RTAI-007 surfaces.
+  5. **Volume-bounded-under-burst test** — the volume-control
+     contract is a "no row on pass" guarantee, not yet a rate limit
+     in v1. Burst bounding lands with the IPC fan-out where the
+     rate-shaping primitive can be shared with the other
+     observation kinds.
+- **Files (shipped):**
+  - `crates/anvil-intercept/src/kindling_observation.rs` (new),
+  - `crates/anvil-intercept/src/lib.rs` (module registration).
+- **Validation:** `cargo test -p eddacraft-anvil-intercept
+  kindling_observation::` — 11 tests green covering volume control,
+  severity → enforcement mapping, mixed-batch highest-severity rule,
+  `rules_violated` info-exclusion + info-only omission,
+  `rules_evaluated` completeness, JSON wire-shape, file-path
+  recording, and caller-supplied identity preservation. `cargo
+  clippy -p eddacraft-anvil-intercept --all-targets -- -D warnings`
+  clean. `cargo fmt --check` clean.
 - **Expected Outcome:**
   - DRVR mid-edit findings (warn / block decisions) emit a Kindling
     `gate_evaluated` observation with `mode: midEdit`.
