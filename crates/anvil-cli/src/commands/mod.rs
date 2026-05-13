@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod anvil_action;
 pub mod architecture;
 pub mod audit;
 pub mod audit_chain;

@@ -536,8 +536,73 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-010: GitHub Action publishing
 
+- **Status:** In Progress (2026-05-13) — v1 in-tree workflow template
+  lands ahead of the external `eddacraft/anvil-action` publishing
+  repo; see footnotes.
 - **Intent:** `eddacraft/anvil-action` available on GitHub Marketplace
   for `uses: eddacraft/anvil-action@v1`.
+- **Expected Outcome (v1 shipped):** New template
+  `crates/anvil-cli/src/templates/anvil-workflow.yml` ships the
+  per-PR L4 validation workflow alongside the existing nightly
+  audit template from MLP-015. Triggers on `pull_request` against
+  `main` plus `workflow_dispatch` with the same input names the
+  Marketplace action will accept (`policy`, `fail-on-warning`).
+  Synthesises the git pre-push stdin (`<local-ref> <local-sha>
+  <remote-ref> <remote-sha>`) from
+  `github.event.pull_request.{base,head}.{sha,ref}` and pipes it to
+  `anvil hook pre-push` so the workflow shares the same parser
+  surface MLP-004 ships. Placeholder install step uses
+  `https://raw.githubusercontent.com/eddacraft/anvil/main/install.sh`
+  with an explicit "replace with `uses: eddacraft/anvil-action@v1`
+  once that ships" operator marker. `crates/anvil-cli/src/commands/
+  anvil_action.rs` exposes `anvil_workflow_template()` (mirrors
+  `audit_workflow_template()` from MLP-015) so the activation
+  orchestrator can copy the template into a target repo's
+  `.github/workflows/anvil.yml` at adoption time. Read-only
+  `permissions:` block — L4 validation never writes back to the
+  repo from CI (the L4 witness goes to `refs/notes/anvil-l4` from
+  the daemon side per ADR-037 §D-7).
+- **Scope-narrowing footnotes (deferred follow-ups, not part of v1):**
+  1. **`eddacraft/anvil-action` Marketplace listing** — a separate
+     publishing repo at `github.com/eddacraft/anvil-action` that
+     wraps the same `anvil hook pre-push` logic the developer-side
+     hook uses. Out of this PR's scope (new repo + npm publish +
+     Marketplace listing pipeline live in their own repo). The
+     template's placeholder install step is the swappable shim;
+     adopters land the Marketplace action via a one-line change.
+  2. **Activation orchestrator wiring** — `anvil start` / `anvil
+     baseline` writing the template into
+     `.github/workflows/anvil.yml` at adoption time. Owned by the
+     orchestrator (`commands/start.rs`) when its
+     workflows-into-target-repo lane lands; the template is the
+     ready-to-paste payload it will consume.
+  3. **Branch protection integration test** — "require check before
+     merge" verification needs a live PR check run, which depends
+     on the Marketplace action being published. v1 ships the
+     template surface only; the end-to-end PR check fires through
+     adopter-side branch protection rules.
+  4. **Major-version tag automation** (`v1` auto-tracks latest
+     minor / patch) — lives in the external `eddacraft/anvil-
+     action` publishing repo (release.yml step), not here.
+  5. **`anvil l4-validate` binary** — MLP-006 deferred follow-up.
+     This template invokes `anvil hook pre-push` instead, sharing
+     the parser surface; when the dedicated `l4-validate` binary
+     lands, both the template and the Marketplace action swap that
+     line without breaking the workflow shape.
+- **Files (shipped):**
+  - `crates/anvil-cli/src/templates/anvil-workflow.yml` (new),
+  - `crates/anvil-cli/src/commands/anvil_action.rs` (new),
+  - `crates/anvil-cli/src/commands/mod.rs` (register module).
+- **Validation:** `cargo test -p eddacraft-anvil --bin anvil
+  'commands::anvil_action::'` — 4 tests green covering YAML-shape
+  pin (`name`, `on.pull_request`, `workflow_dispatch`,
+  `eddacraft/anvil-action@v1` reference, `anvil hook pre-push`
+  invocation, placeholder marker, `fetch-depth: 0`), documented-
+  inputs pin (`policy`, `fail-on-warning`), HTTPS-only install URL
+  (no `http://`; supply-chain doctrine), and read-only permissions
+  pin (`contents: read`, no `contents: write`). `cargo clippy
+  --workspace --all-targets -- -D warnings` clean. `cargo fmt
+  --check` clean.
 - **Expected Outcome:**
   - Separate publishing repo at `github.com/eddacraft/anvil-action`
   - Action runs the same `anvil l4-validate` binary
