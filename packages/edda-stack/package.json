@@ -37,9 +37,9 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "^12.10.0",
     "uuid": "^14.0.0",
-    "yaml": "^2.8.4",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
