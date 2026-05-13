@@ -1226,6 +1226,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-l4"
+version = "0.6.2-beta"
+dependencies = [
+ "eddacraft-anvil-config",
+ "globset",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-observability"
 version = "0.6.2-beta"
 dependencies = [

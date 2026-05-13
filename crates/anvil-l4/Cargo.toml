@@ -1,0 +1,21 @@
+[package]
+name = "eddacraft-anvil-l4"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil L4 policy framework — anvil/policy.yml parsing, per-branch pattern matching, cutoff_commit acceptance (MLP-006)"
+
+[lib]
+name = "anvil_l4"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror = { workspace = true }
+globset = { workspace = true }
+eddacraft-anvil-config = { path = "../anvil-config" }
+workspace-hack.workspace = true
+
+[lints]
+workspace = true
