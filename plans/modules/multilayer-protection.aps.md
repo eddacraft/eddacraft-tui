@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 11/17 done |
+| MLP | @aneki | In Progress | 13/17 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -307,7 +307,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-004: Pre-push hook (L4 client-side validation)
 
-- **Status:** In Progress (2026-05-13) — v1 surface lands ahead of the
+- **Status:** Done (2026-05-13) — v1 surface lands ahead of the
   rule engine; see footnotes.
 - **Intent:** Walk pushed commit range; verify chain integrity;
   validate any unwitnessed commits per `anvil/policy.yml`.
@@ -747,7 +747,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-015: L5 audit (on-demand + nightly CI)
 
-- **Status:** In Progress (2026-05-13) — v1 surface lands as the new
+- **Status:** Done (2026-05-13) — v1 surface lands as the new
   `anvil audit-chain` subcommand; existing `anvil audit` keeps its
   code-quality TUI behaviour.
 - **Intent:** Periodic re-scan of mainline for drift detection.
@@ -865,14 +865,14 @@ a defensible claim, not a slogan. This module owns:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 4/5 |
+| Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 5/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 3/3 |
 | Hard release gate | 1 (MLP-009) | 0/1 |
 | CI + config | 2 (MLP-010, -011) | 1/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
-| Coordination + audit | 3 (MLP-014, -015, -016) | 0/3 |
+| Coordination + audit | 3 (MLP-014, -015, -016) | 1/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
-| **Total** | **17** | **11/17** |
+| **Total** | **17** | **13/17** |
 
 ## Recommended landing order
 
