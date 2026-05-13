@@ -32,12 +32,29 @@ use std::io;
 
 use thiserror::Error;
 
-/// `clock(3)` `CLK_TCK` for the Linux kernels we support. The kernel
-/// has not shipped a different default in mainline since 2.6, and
-/// `sysconf(_SC_CLK_TCK)` would force a libc dependency for a value
-/// that has been 100 for two decades. Defending against drift here is
-/// not worth the cost.
-const CLK_TCK: u64 = 100;
+/// Conservative fallback for `clock(3)` `CLK_TCK` if `sysconf(3)`
+/// fails or reports a non-positive value. The kernel default has
+/// been 100 for two decades, but `CONFIG_HZ_250` / `CONFIG_HZ_1000`
+/// build configurations exist (notably on some Debian / Arch kernels
+/// and on real-time-tuned hosts), so the runtime path queries
+/// `_SC_CLK_TCK` first and only falls back to this constant when the
+/// syscall fails.
+const FALLBACK_CLK_TCK: u64 = 100;
+
+#[cfg(target_os = "linux")]
+fn clk_tck() -> u64 {
+    // `nix::unistd::sysconf` is the safe wrapper around `sysconf(3)`;
+    // workspace policy forbids the raw `unsafe { libc::sysconf(...) }`
+    // call. `_SC_CLK_TCK` reports the kernel's `USER_HZ` configuration
+    // (commonly 100, 250, or 1000 on Linux). On any failure path
+    // (Err, Ok(None), or non-positive value) we fall back to 100 —
+    // the kernel default for two decades — so attribution still
+    // works, just with the historical units.
+    match nix::unistd::sysconf(nix::unistd::SysconfVar::CLK_TCK) {
+        Ok(Some(raw)) if raw > 0 => u64::try_from(raw).unwrap_or(FALLBACK_CLK_TCK),
+        _ => FALLBACK_CLK_TCK,
+    }
+}
 
 /// Errors from [`pid_starttime`] / [`parent_pid`]. Wraps `io::Error`
 /// so callers see file-not-found vs. malformed-content separately.
@@ -138,7 +155,7 @@ fn pid_starttime_linux(pid: u32) -> Result<u64, ProcessInfoError> {
         })?;
 
     let boot_time = read_boot_time_seconds()?;
-    Ok(boot_time + starttime_ticks / CLK_TCK)
+    Ok(boot_time + starttime_ticks / clk_tck())
 }
 
 #[cfg(target_os = "linux")]

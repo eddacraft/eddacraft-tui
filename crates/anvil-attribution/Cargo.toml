@@ -15,5 +15,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 workspace-hack.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.30", default-features = false, features = ["feature"] }
+
 [lints]
 workspace = true

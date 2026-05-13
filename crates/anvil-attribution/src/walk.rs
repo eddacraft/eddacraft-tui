@@ -73,8 +73,16 @@ where
     F: FnMut(u32) -> Option<T>,
 {
     let mut pid = start_pid;
+    // Track the deepest PID we actually invoked the visitor against;
+    // `pid` itself is advanced to the *next* ancestor at the end of
+    // each iteration, so reporting `pid` directly on exhaustion can
+    // name an unvisited ancestor (e.g. `max_depth = 1` would report
+    // the parent even though only `start_pid` ran). `last_visited`
+    // is the contract-correct value for `DepthExhausted.deepest_pid`.
+    let mut last_visited = start_pid;
 
     for _step in 0..max_depth {
+        last_visited = pid;
         if let Some(value) = visit(pid) {
             return Ok(WalkOutcome::Matched { pid, value });
         }
@@ -98,7 +106,9 @@ where
         }
     }
 
-    Ok(WalkOutcome::DepthExhausted { deepest_pid: pid })
+    Ok(WalkOutcome::DepthExhausted {
+        deepest_pid: last_visited,
+    })
 }
 
 #[cfg(test)]

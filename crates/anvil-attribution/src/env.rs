@@ -1,11 +1,17 @@
 //! Env-var encoding for [`AgentTag`] + [`ANVIL_TASK_ID_ENV`].
 //!
 //! The on-wire encoding is the same compact JSON the proto crate's
-//! `AgentTag` already serialises to (sorted-key-stable via `serde_json`
-//! deterministic key ordering for plain structs). Keeping it as JSON
-//! rather than a custom field-separated format means the launcher can
-//! emit it with `serde_json::to_string` and the child can parse it
-//! with `serde_json::from_str` — no parser to keep in sync.
+//! `AgentTag` already serialises to. `serde_json::to_string` emits
+//! struct fields in **declaration order** (it does NOT sort keys);
+//! the determinism guarantee we rely on is that the
+//! [`AgentTag`] field order is fixed by the type definition in
+//! `crates/anvil-intercept-proto/src/session.rs`. Two launchers
+//! emitting the same `AgentTag` produce byte-identical JSON because
+//! they walk the same field list, not because the keys are sorted.
+//! Keeping it as JSON rather than a custom field-separated format
+//! means the launcher can emit it with `serde_json::to_string` and
+//! the child can parse it with `serde_json::from_str` — no parser
+//! to keep in sync.
 //!
 //! Linux env vars are byte strings without embedded NULs. JSON
 //! serialisation of [`AgentTag`] never emits NULs (`driver_id` and
