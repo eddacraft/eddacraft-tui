@@ -59,6 +59,11 @@ pub enum ErrorClass {
     Panic,
     /// Time budget exceeded; partial verdict surfaced.
     TimedOut,
+    /// L4 server-side validation surface exists but the rule engine
+    /// isn't wired yet (MLP-006's deferred CLI lane). The hook
+    /// allows the push and emits a single noise-disciplined line so
+    /// the operator can see they're depending on a future feature.
+    ValidationPending,
 }
 
 impl ErrorClass {
@@ -66,7 +71,9 @@ impl ErrorClass {
     pub fn component(self) -> &'static str {
         match self {
             ErrorClass::DaemonUnreachable => "daemon",
-            ErrorClass::EmbeddedFailed | ErrorClass::TimedOut => "validation",
+            ErrorClass::EmbeddedFailed | ErrorClass::TimedOut | ErrorClass::ValidationPending => {
+                "validation"
+            }
             ErrorClass::Panic => "hook",
         }
     }
@@ -134,6 +141,16 @@ pub fn render_verdict(verdict: &Verdict) -> RenderedVerdict {
                 "anvil: unwitnessed commit refused by policy — anvil show {witness_id}"
             ),
             exit_code: 1,
+        },
+        Verdict::InternalError {
+            class: ErrorClass::ValidationPending,
+        } => RenderedVerdict {
+            // Distinct line so the operator knows this is "feature not
+            // ready yet" rather than "Anvil broke." Stays exit 0 per
+            // Serena rule.
+            stderr_line: "anvil: l4 validation pending (push allowed) — anvil doctor for details"
+                .to_string(),
+            exit_code: 0,
         },
         Verdict::InternalError { class } => RenderedVerdict {
             stderr_line: format!(
@@ -218,6 +235,19 @@ mod tests {
     }
 
     #[test]
+    fn validation_pending_emits_distinct_line_and_exits_zero() {
+        // Distinct from "validation errored" — operator can tell
+        // "feature not ready yet" apart from "Anvil broke."
+        let r = render_verdict(&Verdict::InternalError {
+            class: ErrorClass::ValidationPending,
+        });
+        assert_eq!(r.exit_code, 0);
+        assert!(r.stderr_line.contains("l4 validation pending"));
+        assert!(r.stderr_line.contains("push allowed"));
+        assert!(!r.stderr_line.contains("errored"));
+    }
+
+    #[test]
     fn internal_error_exits_zero_per_serena_rule() {
         // Per ADR-038 §D-6: "failure that's Anvil's fault doesn't
         // block the user." All InternalError variants must allow the
@@ -227,6 +257,7 @@ mod tests {
             ErrorClass::EmbeddedFailed,
             ErrorClass::Panic,
             ErrorClass::TimedOut,
+            ErrorClass::ValidationPending,
         ] {
             let r = render_verdict(&Verdict::InternalError { class });
             assert_eq!(
@@ -238,7 +269,15 @@ mod tests {
                 "internal error line must be anvil-prefixed: {:?}",
                 r.stderr_line
             );
-            assert!(r.stderr_line.contains("errored"));
+            // ValidationPending uses its own distinct phrasing
+            // ("l4 validation pending"); the other variants share the
+            // generic "errored …" form. Both still point the operator
+            // at `anvil doctor`.
+            if class == ErrorClass::ValidationPending {
+                assert!(r.stderr_line.contains("pending"));
+            } else {
+                assert!(r.stderr_line.contains("errored"));
+            }
             assert!(r.stderr_line.contains("anvil doctor"));
         }
     }
@@ -251,6 +290,7 @@ mod tests {
         assert_eq!(ErrorClass::EmbeddedFailed.component(), "validation");
         assert_eq!(ErrorClass::Panic.component(), "hook");
         assert_eq!(ErrorClass::TimedOut.component(), "validation");
+        assert_eq!(ErrorClass::ValidationPending.component(), "validation");
     }
 
     #[test]

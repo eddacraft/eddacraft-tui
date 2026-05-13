@@ -54,8 +54,12 @@ pub const ZERO_SHA: &str = "0000000000000000000000000000000000000000";
 /// zero SHA isn't a valid ancestor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PushKind {
-    /// New branch on the remote. `remote_sha` is [`ZERO_SHA`]; walk
-    /// `local_sha`'s full ancestry that isn't on any other remote.
+    /// New branch on the remote. `remote_sha` is [`ZERO_SHA`]; the
+    /// v1 CLI walks `git rev-list <local_sha>` (full reachable
+    /// history). A "branch-new-edges-only" walk via `--not --remotes`
+    /// is a deferred follow-up — until then, operators with deep
+    /// histories should pin a `cutoff_commit` in `anvil/policy.yml`
+    /// or set `OnNoWitness::Allow` on the relevant branch rule.
     Create,
     /// Branch deletion. `local_sha` is [`ZERO_SHA`]; nothing to
     /// validate.
@@ -181,13 +185,36 @@ fn validate_ref(raw: &str, line_number: usize) -> Result<(), PrePushParseError> 
 }
 
 fn validate_sha(raw: &str, line_number: usize) -> Result<(), PrePushParseError> {
-    if raw.is_empty() || !raw.is_ascii() {
+    // The git wire format puts a SHA-1 hex (40 chars) here, and
+    // SHA-256 (64 chars) for repos opted into that hash algorithm.
+    // Either way the token MUST be ASCII hex — anything else (`-foo`,
+    // a path, a refspec) would otherwise reach `git rev-list` as a
+    // revspec/option and walk the wrong commits. We accept the zero
+    // sentinel as a special case; reject everything else that isn't
+    // pure hex.
+    if !is_hex_sha(raw) {
         return Err(PrePushParseError::InvalidSha {
             line_number,
             sha: raw.to_string(),
         });
     }
     Ok(())
+}
+
+/// True when `raw` is the zero sentinel OR a non-empty ASCII hex
+/// string of plausible SHA length (4..=64 chars; covers short SHAs
+/// through SHA-256). Strict-by-design so a corrupted stdin token
+/// can't be forwarded to `git rev-list` as an option or revspec.
+#[must_use]
+pub fn is_hex_sha(raw: &str) -> bool {
+    if is_zero_sha(raw) {
+        return true;
+    }
+    let len = raw.len();
+    if !(4..=64).contains(&len) {
+        return false;
+    }
+    raw.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
@@ -285,6 +312,62 @@ refs/heads/feat/x ccc333 refs/heads/feat/x ddd444
             PrePushParseError::InvalidSha { line_number, .. } => assert_eq!(line_number, 1),
             other => panic!("expected InvalidSha, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parse_rejects_dash_prefixed_sha_token() {
+        // A leading `-` would be interpreted as a git option if it
+        // reached `git rev-list`. Refuse at parse time so a corrupted
+        // stdin can't smuggle in `--all` or similar.
+        let input = "refs/heads/main -all refs/heads/main bbb222\n";
+        let err = parse_pre_push_input(input).unwrap_err();
+        match err {
+            PrePushParseError::InvalidSha { line_number, .. } => assert_eq!(line_number, 1),
+            other => panic!("expected InvalidSha, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_rejects_revspec_sha_token() {
+        // `HEAD~3` looks like a revspec; reject so it can't reach
+        // git's rev parser.
+        let input = "refs/heads/main HEAD~3 refs/heads/main bbb222\n";
+        let err = parse_pre_push_input(input).unwrap_err();
+        match err {
+            PrePushParseError::InvalidSha { line_number, .. } => assert_eq!(line_number, 1),
+            other => panic!("expected InvalidSha, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_rejects_short_sha_token() {
+        // SHAs shorter than 4 hex chars don't disambiguate anything;
+        // reject so a stray `abc` token can't reach git.
+        let input = "refs/heads/main ab refs/heads/main bbb222\n";
+        let err = parse_pre_push_input(input).unwrap_err();
+        match err {
+            PrePushParseError::InvalidSha { line_number, .. } => assert_eq!(line_number, 1),
+            other => panic!("expected InvalidSha, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn is_hex_sha_accepts_typical_short_and_full_shas() {
+        assert!(is_hex_sha("aaaa")); // 4-char short SHA
+        assert!(is_hex_sha("0123456789abcdef0123456789abcdef01234567")); // 40-char SHA-1
+        assert!(is_hex_sha(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        )); // 64-char SHA-256
+        assert!(is_hex_sha(ZERO_SHA));
+    }
+
+    #[test]
+    fn is_hex_sha_rejects_dashes_and_non_hex() {
+        assert!(!is_hex_sha("HEAD"));
+        assert!(!is_hex_sha("refs/heads/main"));
+        assert!(!is_hex_sha("commit-sha-1"));
+        assert!(!is_hex_sha("--all"));
+        assert!(!is_hex_sha("xyz0"));
     }
 
     #[test]

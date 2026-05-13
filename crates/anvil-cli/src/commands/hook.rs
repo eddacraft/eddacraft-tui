@@ -63,8 +63,8 @@ use anvil_config::ConfigFormat;
 use anvil_hook::{
     BlockReason, BootstrapPlan, ErrorClass, MergeWitnessPlan, PanicReport, PushKind, PushRef,
     RewritePair, SuppressionKey, SuppressionLog, Verdict, build_bootstrap_plan, detect_framework,
-    format_panic_report, merge_witness_plan, parse_post_rewrite_input, parse_pre_push_input,
-    render_success_message, render_verdict,
+    format_panic_report, is_hex_sha, merge_witness_plan, parse_post_rewrite_input,
+    parse_pre_push_input, render_success_message, render_verdict,
 };
 use anvil_l4::{BlockKind, CommitDecision, Policy};
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
@@ -350,12 +350,12 @@ fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
         }
     }
 
-    // No block fired. Surface `NeedsL4Validation` as a single
-    // internal-error line (TimedOut == "validation pending") so the
-    // operator can see they're depending on a future feature, but
-    // don't block per Serena rule. SuppressionLog collapses bursts.
+    // No block fired. Surface `NeedsL4Validation` as a distinct
+    // `ValidationPending` line so the operator can tell "feature not
+    // ready yet" from "Anvil broke." Stays exit 0 per Serena rule;
+    // SuppressionLog collapses bursts.
     if needs_l4_any {
-        emit_internal(ErrorClass::TimedOut, sup);
+        emit_internal(ErrorClass::ValidationPending, sup);
     }
 
     Ok(())
@@ -415,14 +415,22 @@ fn witness_paths(repo_root: &Path) -> Vec<PathBuf> {
 /// Returns `None` only when a witness file fails to open; a malformed
 /// line is skipped (the chain verifier already catches structural
 /// corruption with a stronger guarantee).
+///
+/// Streams each segment via `BufRead::lines()` rather than reading
+/// the whole file into a `String` so memory stays bounded on large
+/// chains (archive segments cap at 1 MB each, but on long-lived
+/// repos there can be many).
 fn collect_witnessed_shas(
     repo_root: &Path,
 ) -> std::result::Result<std::collections::HashSet<String>, std::io::Error> {
     use std::collections::HashSet;
+    use std::io::{BufRead, BufReader};
     let mut out: HashSet<String> = HashSet::new();
     for path in witness_paths(repo_root) {
-        let contents = fs::read_to_string(&path)?;
-        for line in contents.lines() {
+        let file = fs::File::open(&path)?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
             if line.trim().is_empty() {
                 continue;
             }
@@ -483,12 +491,22 @@ fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
 /// is a valid result (nothing to validate; e.g. fast-forward push of
 /// already-pushed commits).
 fn list_range(repo_root: &Path, push_ref: &PushRef) -> Option<Vec<String>> {
+    // Defence in depth: the parser already enforces hex-only SHAs,
+    // but verify again at the call site so a future contributor who
+    // hand-builds a `PushRef` can't feed `git rev-list` a revspec or
+    // option. Belt-and-braces; cheap.
+    if !is_hex_sha(&push_ref.local_sha) || !is_hex_sha(&push_ref.remote_sha) {
+        return None;
+    }
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(repo_root).arg("rev-list");
     match push_ref.kind {
         PushKind::Update => {
             let range = format!("{}..{}", push_ref.remote_sha, push_ref.local_sha);
-            cmd.arg(range);
+            // `--` after the revision argument makes git refuse to
+            // re-interpret `range` as a path or option even if a
+            // future bug lets a non-hex token slip through.
+            cmd.arg(range).arg("--");
         }
         PushKind::Create => {
             // git rev-list local_sha walks the full ancestry; the
@@ -496,7 +514,7 @@ fn list_range(repo_root: &Path, push_ref: &PushRef) -> Option<Vec<String>> {
             // the matching rule if the legacy commits shouldn't be
             // re-witnessed. For initial-branch adoption,
             // `cutoff_commit` (deferred) is the right mechanism.
-            cmd.arg(&push_ref.local_sha);
+            cmd.arg(&push_ref.local_sha).arg("--");
         }
         PushKind::Delete => return Some(Vec::new()),
     }

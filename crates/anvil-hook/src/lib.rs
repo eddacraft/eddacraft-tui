@@ -69,7 +69,7 @@ pub use post::{
     RewritePair, merge_witness_plan, parse_post_rewrite_input,
 };
 pub use pre_push::{
-    PrePushParseError, PushKind, PushRef, ZERO_SHA, is_zero_sha, parse_pre_push_input,
+    PrePushParseError, PushKind, PushRef, ZERO_SHA, is_hex_sha, is_zero_sha, parse_pre_push_input,
 };
 pub use shell::{HookKind, shell_template};
 pub use suppression::{SuppressionKey, SuppressionLog};
