@@ -8,8 +8,13 @@ LOG_DIR="$PROJECT_DIR/.claude/logs"
 mkdir -p "$LOG_DIR"
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-jq -n --arg ts "$TIMESTAMP" --arg project "$PROJECT_DIR" \
-  '{timestamp: $ts, event: "session_start", project: $project}' >> "$LOG_DIR/session.log"
+if command -v jq >/dev/null 2>&1; then
+  jq -n --arg ts "$TIMESTAMP" --arg project "$PROJECT_DIR" \
+    '{timestamp: $ts, event: "session_start", project: $project}' >> "$LOG_DIR/session.log"
+else
+  printf '{"timestamp":"%s","event":"session_start","project":"%s"}\n' \
+    "$TIMESTAMP" "$PROJECT_DIR" >> "$LOG_DIR/session.log"
+fi
 
 check_tool() {
   if command -v "$1" >/dev/null 2>&1; then

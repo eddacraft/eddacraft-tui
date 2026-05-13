@@ -4,6 +4,9 @@
 set -euo pipefail
 
 TOOL_INPUT="${1:-}"
+if [[ -z "$TOOL_INPUT" && ! -t 0 ]]; then
+  TOOL_INPUT=$(cat)
+fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 FILE_PATH=$(printf '%s\n' "$TOOL_INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
