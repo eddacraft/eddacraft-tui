@@ -32,7 +32,7 @@ Fix the highest-priority blocker first:
 | Priority | Blocker                         | Required action                                      |
 | -------- | ------------------------------- | ---------------------------------------------------- |
 | 1        | Failed or pending required CI   | Inspect logs, fix root cause, validate, commit, push |
-| 2        | Merge conflicts / stale branch  | Rebase or merge base, resolve conflicts, push        |
+| 2        | Merge conflicts / stale branch  | Rebase on base, resolve conflicts, push              |
 | 3        | Unresolved automated threads    | Reply/fix/resolve all bot threads                    |
 | 4        | Unresolved human review threads | Reply/fix/resolve all human threads                  |
 | 5        | Non-approving review decision   | Report remaining approval state                      |
@@ -117,8 +117,14 @@ BASE_BRANCH=$(gh pr view --json baseRefName -q '.baseRefName')
 git fetch origin $BASE_BRANCH
 ```
 
-If the project prefers rebase, use `git rebase origin/$BASE_BRANCH`. If it
-prefers merge, use `git merge origin/$BASE_BRANCH`. If uncertain, ask the user.
+Anvil prefers rebasing PR branches onto the latest base branch:
+
+```bash
+git rebase origin/$BASE_BRANCH
+```
+
+Use `git merge origin/$BASE_BRANCH` only when the user explicitly asks for a
+merge commit.
 
 If conflicts appear:
 

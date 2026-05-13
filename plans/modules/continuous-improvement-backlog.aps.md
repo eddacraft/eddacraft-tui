@@ -150,7 +150,9 @@ archive.
 - **Validation:** Manual cross-check of `.claude/skills/addressing-pr-reviews/SKILL.md`,
   `.opencode/skills/addressing-pr-reviews/SKILL.md`,
   `.codex/skills/addressing-pr-reviews/SKILL.md`, and both `dev-workflow` skill
-  variants; `pnpm format:check` for Markdown formatting.
+  variants; targeted `pnpm exec oxfmt --check <changed files>` and
+  `git diff --check` for formatting/whitespace. Full `pnpm format:check` was
+  blocked by unrelated untracked OpenCode files in the local worktree.
 - **Identified From:** User report 2026-05-13 that agents addressing a stream of
   PRs were fixing one blocker class while leaving CI, review comments, or merge
   conflicts unresolved, causing repeated token-heavy reruns.

@@ -137,7 +137,7 @@ is current:
 1. **List repo-local surfaces:**
 
    ```bash
-   ls .claude/skills/ .claude/agents/ .claude/commands/ .opencode/skills/
+   ls .claude/skills/ .claude/agents/ .claude/commands/ .opencode/skills/ .codex/skills/
    ```
 
    Compare against the **Repo-local** tables above. Any name in the filesystem
