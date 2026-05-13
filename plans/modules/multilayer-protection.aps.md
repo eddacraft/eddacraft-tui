@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      | Progress  |
 | --- | ------ | ----------- | --------- |
-| MLP | @aneki | In Progress | 13/18 done |
+| MLP | @aneki | In Progress | 17/18 done |
 
 **Last reviewed:** 2026-05-13 (Wave 2 entry — MLP-007 shipped as a new
 `crates/anvil-baseline/` library: `Baseline` / `BaselineFinding` /
@@ -511,7 +511,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-009: Protection-claim contract test suite (HARD GATE)
 
-- **Status:** In Progress (2026-05-13) — v1 closed-set vocabulary +
+- **Status:** Done (2026-05-13) — v1 closed-set vocabulary +
   contract conformance lands ahead of the per-surface fixture wiring;
   see footnotes.
 - **Intent:** Pin the closed-set protection-claim states as testable
@@ -617,7 +617,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-010: GitHub Action publishing
 
-- **Status:** In Progress (2026-05-13) — v1 in-tree workflow template
+- **Status:** Done (2026-05-13) — v1 in-tree workflow template
   lands ahead of the external `eddacraft/anvil-action` publishing
   repo; see footnotes.
 - **Intent:** `eddacraft/anvil-action` available on GitHub Marketplace
@@ -825,6 +825,10 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-013: Hard-pinned rule classes (`secrets`, `command-safety`)
 
+- **Status:** Done (2026-05-13) — shipped alongside MLP-011 via
+  `crates/anvil-config/`'s parse-time class-disable rejection; the
+  Stats table has counted this as done since Wave 1 but the inline
+  Status: line was missing.
 - **Intent:** Config parser refuses configs that disable hard-pinned
   classes.
 - **Expected Outcome:**
@@ -846,7 +850,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-014: Multi-session-per-worktree + per-task fence isolation
 
-- **Status:** In Progress (2026-05-13) — v1 attribution primitive lands
+- **Status:** Done (2026-05-13) — v1 attribution primitive lands
   ahead of the registry / fence integration; see footnotes.
 - **Intent:** Promoted from DLIFE-008 v1.5 to MLP v1 per user direction.
   Sub-agent waves require per-task fence scope so one bad sub-agent
@@ -1019,7 +1023,7 @@ a defensible claim, not a slogan. This module owns:
 
 ### MLP-016: L1 editor driver → Kindling integration
 
-- **Status:** In Progress (2026-05-13) — v1 observation builder lands
+- **Status:** Done (2026-05-13) — v1 observation builder lands
   ahead of the IPC fan-out + TS driver-client mirror; see footnotes.
 - **Intent:** Editor driver emits Kindling `gate_evaluated` with
   `mode: midEdit` for findings, preserving forensic detail of "what
@@ -1408,13 +1412,13 @@ a defensible claim, not a slogan. This module owns:
 | ----- | ----- | ------ |
 | Foundations (identity, witness, hooks) | 5 (MLP-001..-005) | 5/5 |
 | Policy + adoption | 3 (MLP-006, -007, -008) | 3/3 |
-| Hard release gate | 1 (MLP-009) | 0/1 |
-| CI + config | 2 (MLP-010, -011) | 1/2 |
+| Hard release gate | 1 (MLP-009) | 1/1 |
+| CI + config | 2 (MLP-010, -011) | 2/2 |
 | Rule distribution | 2 (MLP-012, -013) | 2/2 |
-| Coordination + audit | 3 (MLP-014, -015, -016) | 1/3 |
+| Coordination + audit | 3 (MLP-014, -015, -016) | 3/3 |
 | Doctrine | 1 (MLP-017) | 1/1 |
 | Module closeout backlog | 1 (MLP-018) | 0/1 |
-| **Total** | **18** | **13/18** |
+| **Total** | **18** | **17/18** |
 
 ## Recommended landing order
 
