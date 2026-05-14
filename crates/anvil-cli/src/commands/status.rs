@@ -946,6 +946,114 @@ const fn next_action_for(state: WorktreeClaimState, daemon: &DaemonSummary) -> &
 }
 
 // ---------------------------------------------------------------------------
+// ADTRUST-002: degraded-state banner primitive
+// ---------------------------------------------------------------------------
+
+// `DegradedBanner` + helpers are exercised by the in-module unit
+// tests and consumed by the watch tui
+// (`crates/anvil-tui/src/surfaces/watch/render.rs`) and the hook
+// bridge (`crates/anvil-cli/src/commands/hook.rs`) in follow-up PRs.
+// The status command itself is single-shot and already names the
+// protection state in the legible block, so it deliberately does
+// not call the rate-limited banner. The `#[allow(dead_code, ...)]`
+// markers below sit on each public-but-not-yet-called item; remove
+// them as the follow-up wiring lands.
+//
+// When the protection claim drops below `full` (any closed-set
+// `WorktreeClaimState` that names a degraded condition), surfaces
+// that the user actively watches — the watch TUI, pre-commit/pre-push
+// hook output, `anvil status` itself — emit a single terse banner
+// naming the state and pointing at `anvil doctor`. The banner is
+// rate-limited per terminal session so a noisy state cannot drown
+// out the surrounding command output.
+//
+// `DegradedBanner` is the shared rate-limit + content primitive.
+// `crates/anvil-cli/src/commands/status.rs` consumes it directly; the
+// tui watch surface (`crates/anvil-tui/src/surfaces/watch/render.rs`)
+// and the hook bridge (`crates/anvil-cli/src/commands/hook.rs`) wire
+// it in follow-up PRs so each crate can carry its own rate-limit
+// state without re-importing this module. The closed-set string the
+// banner names is the canonical `WorktreeClaimState::as_str()`
+// vocabulary, so the surface can never invent ad-hoc wording.
+
+/// Banner rate limit window in seconds. Spec §ADTRUST-002 calls for
+/// ≤1 banner per 60s per terminal session. Held as a `u64` so the
+/// `Duration::from_secs` literal goes through a named constant and
+/// stays clippy-clean on stable Rust.
+#[allow(dead_code, reason = "wired by hook + watch in ADTRUST-002 follow-ups")]
+const DEGRADED_BANNER_WINDOW_SECS: u64 = 60;
+
+/// Tracks whether a degraded-state banner is due for emission given
+/// the current claim state and time. `Default` is the empty state
+/// (no banner has been emitted yet).
+///
+/// Public crate-level so the in-tree hook bridge and watch tui can
+/// hold one per terminal session in their respective entry points.
+/// The status surface itself does not consume `DegradedBanner` — it
+/// is single-shot and already names the protection state in the
+/// legible block — so the type intentionally has no other call sites
+/// in this PR. The follow-up wiring lands in:
+/// - `crates/anvil-cli/src/commands/hook.rs` (pre-commit / pre-push
+///   exit paths).
+/// - `crates/anvil-tui/src/surfaces/watch/render.rs` (TUI watch
+///   surface; once-per-tick poll).
+#[allow(dead_code, reason = "wired by hook + watch in ADTRUST-002 follow-ups")]
+#[derive(Debug, Default)]
+pub(crate) struct DegradedBanner {
+    /// Last emit instant. `None` means "never emitted in this
+    /// session"; the next degraded sample always fires.
+    last_emit: Option<std::time::Instant>,
+}
+
+impl DegradedBanner {
+    /// Decide whether to emit a banner. Returns `Some(line)` when the
+    /// claim is degraded AND the rate-limit window has elapsed since
+    /// the last emit; otherwise `None`. Callers print the line as-is.
+    #[allow(dead_code, reason = "wired by hook + watch in ADTRUST-002 follow-ups")]
+    pub(crate) fn poll(
+        &mut self,
+        claim: WorktreeClaimState,
+        now: std::time::Instant,
+    ) -> Option<String> {
+        if !is_degraded_claim(claim) {
+            return None;
+        }
+        if let Some(last) = self.last_emit
+            && now.saturating_duration_since(last)
+                < Duration::from_secs(DEGRADED_BANNER_WINDOW_SECS)
+        {
+            return None;
+        }
+        self.last_emit = Some(now);
+        Some(format_degraded_banner(claim))
+    }
+}
+
+/// Spec §14.2 names ten worktree states. Six of them are "degraded"
+/// in the ADTRUST-002 sense — the protection claim is below `full`
+/// AND naming it actionable in the surrounding surface.
+#[allow(dead_code, reason = "wired by hook + watch in ADTRUST-002 follow-ups")]
+pub(crate) const fn is_degraded_claim(claim: WorktreeClaimState) -> bool {
+    matches!(
+        claim,
+        WorktreeClaimState::DegradedProtection
+            | WorktreeClaimState::CrossBoundaryMixed
+            | WorktreeClaimState::MultiDaemonDetected
+            | WorktreeClaimState::PathUncertain
+            | WorktreeClaimState::Unprotected
+            | WorktreeClaimState::Warming
+    )
+}
+
+#[allow(dead_code, reason = "wired by hook + watch in ADTRUST-002 follow-ups")]
+pub(crate) fn format_degraded_banner(claim: WorktreeClaimState) -> String {
+    format!(
+        "anvil: {} — run `anvil doctor` to investigate",
+        claim.as_str()
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Output: JSON
 // ---------------------------------------------------------------------------
 
@@ -1730,6 +1838,82 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(HOUR_SECS)), "1h");
         assert_eq!(format_duration(Duration::from_secs(DAY_SECS)), "1d");
         assert_eq!(format_duration(Duration::from_secs(7 * DAY_SECS)), "7d");
+    }
+
+    // -----------------------------------------------------------------
+    // ADTRUST-002 degraded-state banner
+    // -----------------------------------------------------------------
+
+    /// ADTRUST-002 validation: a degraded sample inside the 60-second
+    /// rate-limit window must NOT re-emit the banner. The first sample
+    /// returns `Some`; the second (well under 60s later) returns
+    /// `None`.
+    #[test]
+    fn degraded_banner_rate_limited() {
+        let mut banner = DegradedBanner::default();
+        let t0 = std::time::Instant::now();
+        let first = banner.poll(WorktreeClaimState::DegradedProtection, t0);
+        assert!(first.is_some(), "first degraded sample must emit");
+        let inside_window = banner.poll(
+            WorktreeClaimState::DegradedProtection,
+            t0 + Duration::from_secs(10),
+        );
+        assert!(
+            inside_window.is_none(),
+            "second sample inside the 60s window must suppress: {inside_window:?}"
+        );
+    }
+
+    /// ADTRUST-002 validation: once the rate-limit window has elapsed
+    /// the next degraded sample re-emits. Pins the "no silent middle"
+    /// contract — the user must see the banner again on the next
+    /// save-time interaction past 60s.
+    #[test]
+    fn degraded_emits_within_60s() {
+        let mut banner = DegradedBanner::default();
+        let t0 = std::time::Instant::now();
+        let _ = banner.poll(WorktreeClaimState::MultiDaemonDetected, t0);
+        let past_window = banner.poll(
+            WorktreeClaimState::MultiDaemonDetected,
+            t0 + Duration::from_secs(61),
+        );
+        assert!(
+            past_window.is_some(),
+            "sample past the 60s window must re-emit; got {past_window:?}"
+        );
+    }
+
+    /// `Full` and `PreWriteDaemon` are NOT degraded — the banner must
+    /// stay silent so it cannot drown out the surrounding output when
+    /// protection is live. `is_degraded_claim` is the closed-set gate
+    /// the surface depends on.
+    #[test]
+    fn full_and_pre_write_daemon_are_not_degraded() {
+        let mut banner = DegradedBanner::default();
+        let t0 = std::time::Instant::now();
+        assert!(banner.poll(WorktreeClaimState::Full, t0).is_none());
+        assert!(
+            banner
+                .poll(WorktreeClaimState::PreWriteDaemon, t0)
+                .is_none()
+        );
+        assert!(banner.poll(WorktreeClaimState::SaveTimeOnly, t0).is_none());
+    }
+
+    /// Banner content names the closed-set string and points at
+    /// `anvil doctor`. Pinning both keeps the surfaces honest — they
+    /// cannot invent wording or omit the recovery pointer.
+    #[test]
+    fn degraded_banner_names_state_and_doctor() {
+        let line = format_degraded_banner(WorktreeClaimState::PathUncertain);
+        assert!(
+            line.contains("path-uncertain"),
+            "missing closed-set string: {line}"
+        );
+        assert!(
+            line.contains("anvil doctor"),
+            "missing recovery pointer: {line}"
+        );
     }
 
     /// User-authored config-mode entries surface without the `(anvil-managed)`

@@ -110,9 +110,14 @@ rather than a product feature — and sustained-use trust never forms.
   - `crates/anvil-cli/src/commands/hook.rs`
   - `crates/anvil-kernel/src/watch.rs`
 - **Validation:**
-  - `cargo test -p eddacraft-anvil-tui watch::tests::degraded_banner_rate_limited`
-  - `cargo test -p eddacraft-anvil-kernel watch::tests::degraded_emits_within_60s`
-- **Status:** Draft
+  - `cargo test -p eddacraft-anvil commands::status::tests::degraded_banner_rate_limited`
+  - `cargo test -p eddacraft-anvil commands::status::tests::degraded_emits_within_60s`
+  - Follow-up: `cargo test -p eddacraft-anvil-tui watch::tests::degraded_banner_rate_limited`
+    once the watch surface consumes the primitive (PR follow-up under
+    MLP2 group J).
+  - Follow-up: `cargo test -p eddacraft-anvil-kernel watch::tests::degraded_emits_within_60s`
+    once the kernel watch consumes the primitive (PR follow-up).
+- **Status:** In Progress
 - **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
