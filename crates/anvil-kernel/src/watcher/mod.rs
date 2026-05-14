@@ -92,12 +92,18 @@ fn watch_directories(
     watcher: &mut RecommendedWatcher,
     root: &std::path::Path,
     filter: &FileFilter,
+    progress: Option<&dyn Fn(u64, u64)>,
 ) -> Result<WatchSetupDiagnostics, WatcherError> {
     const MAX_SAMPLE_ERRORS: usize = 3;
     let mut diag = WatchSetupDiagnostics::default();
 
     match watcher.watch(root, RecursiveMode::NonRecursive) {
-        Ok(()) => diag.registered += 1,
+        Ok(()) => {
+            diag.registered += 1;
+            if let Some(progress) = progress {
+                progress(diag.registered, diag.registered + diag.failed);
+            }
+        }
         Err(e) => {
             // Root-level failure is catastrophic — no subtree can compensate.
             // Propagate so the caller can fail fast with a clear error.
@@ -145,6 +151,9 @@ fn watch_directories(
                 }
             }
         }
+        if let Some(progress) = progress {
+            progress(diag.registered, diag.registered + diag.failed);
+        }
     }
 
     Ok(diag)
@@ -168,6 +177,7 @@ pub struct WatcherHandle {
 /// limit or close other watch-heavy processes.
 pub fn start_watcher(
     config: &WatcherConfig,
+    progress: Option<&dyn Fn(u64, u64)>,
 ) -> Result<
     (
         WatcherHandle,
@@ -190,7 +200,7 @@ pub fn start_watcher(
     // `.git`, `target`, etc.) at the OS level to avoid exhausting inotify
     // limits.
     let filter = config.filter.clone().unwrap_or_default();
-    let diagnostics = watch_directories(&mut watcher, &config.root, &filter)?;
+    let diagnostics = watch_directories(&mut watcher, &config.root, &filter, progress)?;
 
     // Wrap watcher so the processing thread can register new directories.
     let watcher_arc = Arc::new(Mutex::new(watcher));

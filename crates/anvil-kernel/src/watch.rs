@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
 
@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
 use crate::parser::Parser;
-use crate::parser::extract::{ImportEdge, extract_symbols};
+use crate::parser::extract::{FileSymbols, ImportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::PolicyEngine;
 use crate::policy::invariants::cross_layer::CrossLayerViolation;
@@ -188,28 +188,20 @@ fn initial_scan(
     // already initialised it at process start.
     init_rayon_pool();
 
+    let parsed_count = AtomicU64::new(0);
     let parse_results: Vec<Result<(PathBuf, _), (PathBuf, String)>> = all_paths
         .par_iter()
         .map(|abs_path| {
-            // Check cancellation at start of each closure for responsive shutdown
-            if stop.load(Ordering::Relaxed) {
-                return Err((abs_path.clone(), "cancelled".to_string()));
-            }
-            let rel_path = abs_path.strip_prefix(root).unwrap_or(abs_path);
-            let content = std::fs::read(abs_path)
-                .map_err(|e| (rel_path.to_path_buf(), format!("failed to read: {e}")))?;
-            let mut parser = Parser::new();
-            let result = parser
-                .parse_bytes(rel_path, &content)
-                .map_err(|e| (rel_path.to_path_buf(), format!("parse failed: {e}")))?;
-            let symbols = extract_symbols(&result.tree, &content, rel_path, 0);
-            Ok((rel_path.to_path_buf(), symbols))
+            let result = parse_initial_file(root, abs_path, stop);
+            let current = parsed_count.fetch_add(1, Ordering::Relaxed) + 1;
+            emitter.progress("Building graph", current, total_paths);
+            result
         })
         .collect();
 
     // Phase 2: apply parsed results to graph sequentially (graph requires &mut).
     // Surface errors so callers know which files were skipped.
-    for (idx, result) in parse_results.into_iter().enumerate() {
+    for result in parse_results {
         let (rel_path, mut file_symbols) = match result {
             Ok(v) => v,
             Err((_, msg)) if msg == "cancelled" => continue,
@@ -241,13 +233,33 @@ fn initial_scan(
         state.file_count += 1;
         state.tracked_files.insert(rel_str);
         scanned_files.push(rel_path);
-        emitter.progress("Building graph", (idx + 1) as u64, total_paths);
     }
 
     re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
 
     emitter.snapshot(&state.graph, state.file_count);
+}
+
+fn parse_initial_file(
+    root: &Path,
+    abs_path: &Path,
+    stop: &AtomicBool,
+) -> Result<(PathBuf, FileSymbols), (PathBuf, String)> {
+    // Check cancellation at start of each closure for responsive shutdown.
+    if stop.load(Ordering::Relaxed) {
+        return Err((abs_path.to_path_buf(), "cancelled".to_string()));
+    }
+
+    let rel_path = abs_path.strip_prefix(root).unwrap_or(abs_path);
+    let content = std::fs::read(abs_path)
+        .map_err(|e| (rel_path.to_path_buf(), format!("failed to read: {e}")))?;
+    let mut parser = Parser::new();
+    let result = parser
+        .parse_bytes(rel_path, &content)
+        .map_err(|e| (rel_path.to_path_buf(), format!("parse failed: {e}")))?;
+    let symbols = extract_symbols(&result.tree, &content, rel_path, 0);
+    Ok((rel_path.to_path_buf(), symbols))
 }
 
 fn watch_loop(
@@ -520,19 +532,19 @@ pub fn run_watch(
         .unwrap_or_else(|_| config.root.clone());
     let mut watcher_config = config.watcher.clone();
     watcher_config.root.clone_from(&root);
-    let (watcher, batch_rx, setup_diagnostics) = start_watcher(&watcher_config)?;
+    let emitter = EventEmitter::new(event_tx, EngineId::Rust);
+    let (watcher, batch_rx, setup_diagnostics) = start_watcher(
+        &watcher_config,
+        Some(&|registered, attempted| {
+            emitter.progress("Registering watchers", registered, attempted);
+        }),
+    )?;
 
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = Arc::clone(&stop);
 
     let thread = thread::spawn(move || {
-        let emitter = EventEmitter::new(event_tx, EngineId::Rust);
         let mut state = WatchState::new();
-        emitter.progress(
-            "Registering watchers",
-            setup_diagnostics.registered,
-            setup_diagnostics.registered + setup_diagnostics.failed,
-        );
 
         // If some directories couldn't register a watch (commonly: inotify
         // `max_user_watches` reached), emit a warning up-front so the user

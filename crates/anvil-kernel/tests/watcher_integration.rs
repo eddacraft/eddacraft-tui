@@ -15,7 +15,7 @@ fn detects_parseable_file_creation() {
         filter: None, // uses default filter
     };
 
-    let (_watcher, rx, _diag) = start_watcher(&config).unwrap();
+    let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
 
     // Give the watcher time to start; cross-compiled macOS runners can
     // take longer to register the temp directory with the OS watcher.
@@ -41,7 +41,7 @@ fn filters_out_non_parseable_files() {
         filter: Some(FileFilter::default()),
     };
 
-    let (_watcher, rx, _diag) = start_watcher(&config).unwrap();
+    let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
 
     std::thread::sleep(Duration::from_millis(50));
 
@@ -72,7 +72,7 @@ fn setup_diagnostics_report_registered_directories() {
         filter: None,
     };
 
-    let (_watcher, _rx, diag) = start_watcher(&config).unwrap();
+    let (_watcher, _rx, diag) = start_watcher(&config, None).unwrap();
 
     // root + src + src/inner = at least 3 successful registrations on a clean host.
     assert!(

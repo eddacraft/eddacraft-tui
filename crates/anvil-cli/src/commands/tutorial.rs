@@ -151,7 +151,7 @@ fn try_start_watcher() -> anyhow::Result<(
         debounce_window: std::time::Duration::from_millis(200),
         ..Default::default()
     };
-    let (handle, rx, _diag) = anvil_kernel::watcher::start_watcher(&config)?;
+    let (handle, rx, _diag) = anvil_kernel::watcher::start_watcher(&config, None)?;
     Ok((rx, handle))
 }
 

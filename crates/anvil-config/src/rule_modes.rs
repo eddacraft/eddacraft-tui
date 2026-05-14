@@ -34,6 +34,12 @@ impl RuleMode {
 pub enum RuleModeError {
     #[error("unknown rule mode `{mode}` at `{path}`; expected off, warn, or enforce")]
     UnknownMode { path: String, mode: String },
+    #[error("invalid rule mode config at `{path}`; expected an object")]
+    InvalidObject { path: String },
+    #[error(
+        "invalid rule mode config at `{path}`; expected a string mode or object with string `mode`"
+    )]
+    InvalidRule { path: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +64,7 @@ impl Default for RuleModes {
 impl RuleModes {
     pub fn from_value(value: &Value) -> Result<Self, RuleModeError> {
         let mut modes = Self::default();
-        let Some(rules) = rules_object(value) else {
+        let Some(rules) = rules_object(value)? else {
             return Ok(modes);
         };
 
@@ -102,13 +108,38 @@ impl RuleModes {
     }
 }
 
-fn rules_object(value: &Value) -> Option<&serde_json::Map<String, Value>> {
-    value
-        .get("enforcement")
-        .and_then(Value::as_object)
-        .and_then(|obj| obj.get("rules"))
-        .and_then(Value::as_object)
-        .or_else(|| value.get("rules").and_then(Value::as_object))
+fn rules_object(value: &Value) -> Result<Option<&serde_json::Map<String, Value>>, RuleModeError> {
+    let Some(root) = value.as_object() else {
+        return Err(RuleModeError::InvalidObject {
+            path: String::from("config"),
+        });
+    };
+
+    if let Some(enforcement) = root.get("enforcement") {
+        let Some(enforcement) = enforcement.as_object() else {
+            return Err(RuleModeError::InvalidObject {
+                path: String::from("enforcement"),
+            });
+        };
+        if let Some(rules) = enforcement.get("rules") {
+            return rules
+                .as_object()
+                .ok_or_else(|| RuleModeError::InvalidObject {
+                    path: String::from("enforcement.rules"),
+                })
+                .map(Some);
+        }
+    }
+
+    root.get("rules")
+        .map(|rules| {
+            rules
+                .as_object()
+                .ok_or_else(|| RuleModeError::InvalidObject {
+                    path: String::from("rules"),
+                })
+        })
+        .transpose()
 }
 
 fn apply_rule(
@@ -128,6 +159,10 @@ fn apply_rule(
         .and_then(Value::as_str)
     {
         *target = RuleMode::parse(raw, path)?;
+    } else {
+        return Err(RuleModeError::InvalidRule {
+            path: path.to_string(),
+        });
     }
     Ok(())
 }
@@ -166,5 +201,39 @@ mod tests {
         assert_eq!(modes.new_dependency_introduction, RuleMode::Warn);
         assert_eq!(modes.cross_layer_violation, RuleMode::Enforce);
         assert_eq!(modes.privilege_expansion, RuleMode::Enforce);
+    }
+
+    #[test]
+    fn rejects_null_config() {
+        let err = RuleModes::from_value(&json!(null)).unwrap_err();
+
+        assert!(err.to_string().contains("config"));
+    }
+
+    #[test]
+    fn rejects_malformed_rules_block() {
+        let err = RuleModes::from_value(&json!({
+            "enforcement": { "rules": [] }
+        }))
+        .unwrap_err();
+
+        assert!(err.to_string().contains("enforcement.rules"));
+    }
+
+    #[test]
+    fn rejects_malformed_rule_entry() {
+        let err = RuleModes::from_value(&json!({
+            "enforcement": {
+                "rules": {
+                    "public-api-expansion": []
+                }
+            }
+        }))
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("enforcement.rules.public-api-expansion.mode")
+        );
     }
 }

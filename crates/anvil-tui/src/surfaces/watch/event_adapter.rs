@@ -106,15 +106,6 @@ impl WatchEventAdapter {
             {
                 self.check_count = total as usize;
             }
-            // Update status but don't record a history entry — the
-            // subsequent Snapshot event is the authoritative end-of-cycle
-            // marker and records the run to avoid double-counting.
-            let passed = self.error_count == 0;
-            data.status = if passed {
-                WatchStatus::Passing
-            } else {
-                WatchStatus::Failing
-            };
         }
     }
 
@@ -359,14 +350,15 @@ mod tests {
     }
 
     #[test]
-    fn progress_completion_sets_passing_status() {
+    fn progress_completion_keeps_warmup_status_until_snapshot() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
         adapter.handle_event(&progress_event("scan", 0, 5), &mut data);
         adapter.handle_event(&progress_event("scan", 5, 5), &mut data);
 
-        assert_eq!(data.status, WatchStatus::Passing);
+        assert_eq!(data.status, WatchStatus::Running);
+        assert!(data.warmup.is_some());
         // Progress completion updates status but does not record history
         // — the subsequent Snapshot is the authoritative end-of-cycle marker.
         assert_eq!(data.history.len(), 0);

@@ -30,25 +30,41 @@ enum ConfigLoad {
 }
 
 fn load_config_value(root: &Path) -> ConfigLoad {
-    if let Ok(Some(discovered)) = discover(root, ".anvil") {
-        let path = discovered
-            .path
-            .strip_prefix(root)
-            .unwrap_or(&discovered.path)
-            .to_string_lossy()
-            .into_owned();
-        return match parse_file(&discovered.path) {
-            Ok(value) => ConfigLoad::Loaded { path, value },
-            Err(error) => ConfigLoad::Invalid {
-                path,
+    match discover(root, ".anvil") {
+        Ok(Some(discovered)) => {
+            let path = discovered
+                .path
+                .strip_prefix(root)
+                .unwrap_or(&discovered.path)
+                .to_string_lossy()
+                .into_owned();
+            return match parse_file(&discovered.path) {
+                Ok(value) => ConfigLoad::Loaded { path, value },
+                Err(error) => ConfigLoad::Invalid {
+                    path,
+                    error: error.to_string(),
+                },
+            };
+        }
+        Ok(None) => {}
+        Err(error) => {
+            return ConfigLoad::Invalid {
+                path: String::from(".anvil.*"),
                 error: error.to_string(),
-            },
-        };
+            };
+        }
     }
 
     let rc_path = root.join(".anvilrc");
-    let Ok(contents) = std::fs::read_to_string(&rc_path) else {
-        return ConfigLoad::Missing;
+    let contents = match std::fs::read_to_string(&rc_path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ConfigLoad::Missing,
+        Err(error) => {
+            return ConfigLoad::Invalid {
+                path: String::from(".anvilrc"),
+                error: error.to_string(),
+            };
+        }
     };
     match serde_json::from_str(&contents)
         .or_else(|_| parse_str(&contents, ConfigFormat::Yaml, &rc_path))
@@ -140,6 +156,17 @@ enforcement:
 
         assert!(summary.contains("rule modes: invalid"));
         assert!(summary.contains("enfroce"));
+        assert!(summary.contains("config: .anvil.yaml"));
+    }
+
+    #[test]
+    fn renders_invalid_when_discovered_config_shape_is_invalid() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "").unwrap();
+
+        let summary = render_rule_mode_summary(tmp.path());
+
+        assert!(summary.contains("rule modes: invalid"));
         assert!(summary.contains("config: .anvil.yaml"));
     }
 }

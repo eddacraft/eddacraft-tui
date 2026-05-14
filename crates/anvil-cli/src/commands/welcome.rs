@@ -732,7 +732,7 @@ fn try_start_tutorial_watcher() -> Option<(
         filter: Some(anvil_kernel::watcher::filter::FileFilter::default()),
         ..Default::default()
     };
-    match anvil_kernel::watcher::start_watcher(&config) {
+    match anvil_kernel::watcher::start_watcher(&config, None) {
         Ok((handle, rx, _diag)) => Some((rx, handle)),
         Err(_) => None,
     }
