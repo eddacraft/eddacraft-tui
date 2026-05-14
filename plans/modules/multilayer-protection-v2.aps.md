@@ -474,7 +474,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-012: Manifest event stream (`anvil/witness/manifest/chain.ndjson`)
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Rollover events from `WitnessWriter::append`
   become append-only entries in
   `anvil/witness/manifest/chain.ndjson` so consumers can stream
@@ -1352,7 +1352,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-046: `anvil l4-validate` binary surface
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Dedicated `anvil l4-validate` CLI subcommand
   (rather than the current `anvil hook pre-push` reuse). The
   template + Marketplace action both swap to this binary
@@ -1422,7 +1422,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-049: Per-state golden fixture files
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Per-state JSON snapshots at
   `crates/anvil-cli/tests/fixtures/status_v1/` — one per
   worktree state (10) + one per surface state (8).
@@ -1651,7 +1651,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-058: Tracing + status-surface instrumentation for rule_cache + in_flight
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** The MLP2-001 cache and MLP2-002 in-flight counter
   ship as library primitives with zero `tracing::` calls and no
   exposure via the daemon's `query_status` IPC handler. An operator
