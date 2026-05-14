@@ -448,12 +448,41 @@ fn is_executable(path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagnostic) {
-    let snapshot = build_legible_snapshot(data, activation_diag, Path::new("."));
+    // Resolve the repo root once so the witness chain at
+    // `<repo-root>/anvil/witness/active.ndjson` is found even when
+    // `anvil status` is invoked from a subdirectory. Falls back to
+    // the CWD when `git rev-parse` is unavailable or the directory
+    // is not a git repo — the legible surface still renders, the
+    // witness line just reports "none yet" instead of pointing at
+    // the wrong tree.
+    let root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
+    let snapshot = build_legible_snapshot(data, activation_diag, &root);
     print!("{}", render_plain_legible(&snapshot));
-    // Rule-mode summary line is appended as advisory context (ADTRUST-001
-    // keeps the legible block above the 24-row budget; the rule-mode
-    // summary is a single line that stays under that ceiling).
-    print!("{}", render_rule_mode_summary(Path::new(".")));
+    // Rule-mode summary line is appended as advisory context. The
+    // 24-row budget is for the FULL `anvil status` plain output, so
+    // the legible block reserves up to two extra lines for the rule-
+    // mode summary (a single line in the common case, three when the
+    // config is invalid).
+    print!("{}", render_rule_mode_summary(&root));
+}
+
+/// Resolve the repo root via `git rev-parse --show-toplevel`. Returns
+/// `None` when git is unavailable, the directory is not a worktree,
+/// or the command exits non-zero — callers fall back to the CWD.
+fn resolve_repo_root() -> Option<std::path::PathBuf> {
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let path = String::from_utf8(out.stdout).ok()?;
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(std::path::PathBuf::from(trimmed))
 }
 
 // ---------------------------------------------------------------------------
@@ -529,7 +558,14 @@ enum DaemonSummary {
 
 #[derive(Debug, Clone)]
 enum WitnessSummary {
-    Last { commit_short: String, age: Duration },
+    /// Witness line was found. `age` is `None` when the recorded
+    /// timestamp cannot be parsed — the render says "age unknown"
+    /// rather than collapsing to `0s ago` and pretending the witness
+    /// is fresh.
+    Last {
+        commit_short: String,
+        age: Option<Duration>,
+    },
     None,
 }
 
@@ -563,12 +599,21 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
         }
     }
     match &s.witness {
-        WitnessSummary::Last { commit_short, age } => {
+        WitnessSummary::Last {
+            commit_short,
+            age: Some(age),
+        } => {
             let _ = writeln!(
                 out,
                 "  Witness: {commit_short} \u{00b7} {} ago",
                 format_duration(*age)
             );
+        }
+        WitnessSummary::Last {
+            commit_short,
+            age: None,
+        } => {
+            let _ = writeln!(out, "  Witness: {commit_short} \u{00b7} age unknown");
         }
         WitnessSummary::None => {
             out.push_str("  Witness: none yet\n");
@@ -721,6 +766,18 @@ fn derive_protection(
 /// resolves to a live process. Uptime is estimated from the pid
 /// file's mtime — close enough for the legible surface; precise
 /// uptime requires an IPC round-trip and will land with MLP2-048.
+///
+/// Caveats acknowledged in v1 (improved by ADTRUST-004 wire-up):
+///
+/// - mtime is touched by the writer once at daemon start, so the
+///   value normally reflects daemon startup. On systems where the
+///   `default_pid_file_path()` directory (`~/.local/state/anvil`)
+///   can be perturbed by cleanup utilities, `tmpfiles.d`, or backup
+///   tools, the mtime can drift forward. The `elapsed()` failure
+///   path collapses that case to `Duration::ZERO` rather than
+///   reporting a negative or panicking duration.
+/// - `process_is_alive` shells `kill -0`; see its doc for the EPERM
+///   limitation when a daemon is owned by another user.
 fn read_daemon_summary() -> DaemonSummary {
     let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
         return DaemonSummary::NotRunning;
@@ -728,12 +785,16 @@ fn read_daemon_summary() -> DaemonSummary {
     let Ok(contents) = std::fs::read_to_string(&pid_file) else {
         return DaemonSummary::NotRunning;
     };
-    let Some(pid) = contents.trim().parse::<u32>().ok() else {
+    let Ok(pid) = contents.trim().parse::<u32>() else {
         return DaemonSummary::NotRunning;
     };
     if !process_is_alive(pid) {
         return DaemonSummary::NotRunning;
     }
+    // `mtime.elapsed()` errors when mtime is in the future relative
+    // to the system clock — collapsing to `Duration::ZERO` is the
+    // honest answer for that case (we cannot date a daemon whose
+    // recorded start is impossible).
     let uptime = std::fs::metadata(&pid_file)
         .ok()
         .and_then(|m| m.modified().ok())
@@ -747,8 +808,17 @@ fn process_is_alive(pid: u32) -> bool {
     // Use `kill -0 <pid>` to probe — POSIX signal 0 does not deliver
     // anything; exit 0 means the caller has permission to signal,
     // which proves the process exists. Avoids pulling `libc` into
-    // anvil-cli's direct dependency surface for a single probe. The
-    // richer cross-platform liveness check lands with ADTRUST-004.
+    // anvil-cli's direct dependency surface for a single probe.
+    //
+    // EPERM caveat: a non-zero exit may mean either "no such
+    // process" (ESRCH) or "exists but you cannot signal it" (EPERM —
+    // e.g. daemon owned by a different user). This shell-out cannot
+    // distinguish those without parsing `kill`'s stderr, which is
+    // not portable. The single-user flow (anvil daemon launched by
+    // the same user running `anvil status`) sees zero EPERM cases,
+    // so the legible surface reports `not running` on EPERM. The
+    // richer cross-platform liveness check that distinguishes the
+    // two lands with ADTRUST-004's hook + kernel wire-up.
     std::process::Command::new("kill")
         .arg("-0")
         .arg(pid.to_string())
@@ -792,28 +862,35 @@ fn read_witness_summary(root: &Path) -> WitnessSummary {
         return WitnessSummary::None;
     };
     let commit_short: String = commit.chars().take(7).collect();
-    let age = ts
-        .and_then(parse_iso_timestamp_seconds)
-        .and_then(|t| {
-            std::time::SystemTime::UNIX_EPOCH
-                .checked_add(Duration::from_secs(t))
-                .and_then(|t| t.elapsed().ok())
-        })
-        .unwrap_or_default();
+    let age = ts.and_then(parse_iso_timestamp_seconds).and_then(|t| {
+        std::time::SystemTime::UNIX_EPOCH
+            .checked_add(Duration::from_secs(t))
+            .and_then(|t| t.elapsed().ok())
+    });
     WitnessSummary::Last { commit_short, age }
 }
 
 /// Parse `2026-05-07T12:34:56Z` (witness `ts` field) to seconds
 /// since the epoch. Accepts only `Z`-terminated RFC 3339 strings —
-/// matches what the witness writer emits today. Numeric offsets
-/// (`+00:00` style) would shift the time-field byte offsets and
-/// produce nonsense; callers should not pass them. Returns `None`
-/// on any malformed input — the legible surface treats an
-/// unparseable timestamp as "age unknown" and falls back to a zero
-/// duration so the line still renders.
+/// matches what the witness writer emits today and refuses numeric
+/// offsets (`+00:00`, `-08:00`) up front so the time-field byte
+/// offsets are unambiguous. A non-`Z` suffix (or a missing one)
+/// returns `None`; the caller renders "age unknown" rather than
+/// silently misinterpreting the local time as UTC.
 fn parse_iso_timestamp_seconds(s: &str) -> Option<u64> {
     let bytes = s.as_bytes();
     if bytes.len() < 20 || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T' {
+        return None;
+    }
+    // Enforce `Z`-terminator at byte 19. The witness writer emits
+    // UTC only, so anything else (a `+`/`-` offset, fractional
+    // seconds without a `Z`, a truncated string) is rejected. This
+    // closes the silent-misinterpretation hole that would otherwise
+    // happen for `2026-05-07T12:34:56+00:00`: the byte offsets up
+    // to 19 are identical to the `Z` form, so without this guard
+    // the parser would happily read the local-time value and treat
+    // a `-08:00` offset as UTC.
+    if bytes[19] != b'Z' {
         return None;
     }
     let y: i64 = s.get(0..4)?.parse().ok()?;
@@ -1473,11 +1550,25 @@ mod tests {
     /// claim. Every state is rendered twice: once with the empty
     /// snapshot (cheap fallback path) and once with a worst-case
     /// snapshot (`DaemonSummary::Running` + `WitnessSummary::Last` +
-    /// the longest `next_action` string this surface emits). Without
-    /// the worst-case sweep a new `next` arm that runs over the
-    /// budget would still pass on the cheap path.
+    /// the longest `next_action` string this surface emits). The
+    /// budget is checked against `render_plain_legible` **plus** the
+    /// worst-case rule-mode summary that `print_plain` appends (the
+    /// invalid-config branch produces three additional lines), so a
+    /// future regression that pushes the legible block past 21 lines
+    /// fails this test before reaching the 24-row terminal budget.
     #[test]
     fn plain_mode_fits_24_rows() {
+        // Worst-case rule-mode summary the surface can emit (the
+        // invalid-config branch). Use a tempdir whose `.anvilrc` is
+        // intentionally malformed so the appended block reaches the
+        // three-line invalid-config render.
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".anvilrc"), "not json at all").unwrap();
+        let rule_mode_lines = crate::config_summary::render_rule_mode_summary(&dir)
+            .lines()
+            .count();
+        cleanup(&dir);
+
         let worst_action = longest_next_action();
         for &state in WorktreeClaimState::all() {
             for snap in [
@@ -1485,10 +1576,11 @@ mod tests {
                 worst_case_snapshot(state, &worst_action),
             ] {
                 let rendered = render_plain_legible(&snap);
-                let lines = rendered.lines().count();
+                let legible_lines = rendered.lines().count();
+                let total = legible_lines + rule_mode_lines;
                 assert!(
-                    lines <= 24,
-                    "render for {state:?} produced {lines} lines (budget 24):\n{rendered}",
+                    total <= 24,
+                    "render for {state:?} produced {legible_lines} legible + {rule_mode_lines} rule-mode lines = {total} (budget 24):\n{rendered}",
                 );
             }
         }
@@ -1511,7 +1603,7 @@ mod tests {
             },
             witness: WitnessSummary::Last {
                 commit_short: "deadbee".to_string(),
-                age: Duration::from_secs(YEAR_SECS),
+                age: Some(Duration::from_secs(YEAR_SECS)),
             },
             next_action: next_action.to_string(),
         }
@@ -1605,6 +1697,25 @@ mod tests {
                 assert_eq!(commit_short, "abcdef1");
             }
             WitnessSummary::None => panic!("expected Last variant"),
+        }
+
+        // Malformed `ts` (numeric offset variant the parser refuses)
+        // must produce `age: None` rather than collapsing to zero —
+        // the surface renders "age unknown" instead of misleading
+        // "0s ago".
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            "{\"commit\":\"abcdef1234567890\",\"ts\":\"2026-05-07T12:34:56+00:00\"}\n",
+        )
+        .unwrap();
+        match read_witness_summary(&dir) {
+            WitnessSummary::Last {
+                commit_short,
+                age: None,
+            } => {
+                assert_eq!(commit_short, "abcdef1");
+            }
+            other => panic!("expected Last with age: None, got {other:?}"),
         }
 
         cleanup(&dir);
