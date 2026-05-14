@@ -4,11 +4,12 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 0/5 done |
+| DISTRIB | @aneki | In Progress | 1/5 done |
 
-**Last reviewed:** 2026-05-14 (DISTRIB-001 picked up — work in progress on
-branch `feat/distrib-001-signature-verification`; promoted
-**Proposed → Ready** alongside acceptance of
+**Last reviewed:** 2026-05-14 (DISTRIB-001 **Merged** via PR #1562; remaining
+operator follow-up tracked in
+[`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
+Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Module-level `Ready` means "ready to begin Wave 3A"; individual tasks
 remain `Draft` until picked up. DISTRIB-001 (signature verification +
@@ -89,7 +90,11 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil --test update_resolution_chain`
   - Integration: fixture install for each path; tampered-artefact refusal
     test; CI runs both on macOS and Linux runners
-- **Status:** In Progress
+- **Status:** Merged
+- **Merged:** 2026-05-14 via PR #1562 (commits `ceadb1c5`, `44c5df3e`,
+  `ae36e615`). Cleanup agent will advance to Released/Shipped once
+  v0.7.0-beta ships with the production minisign key embedded; see the
+  post-merge plan for operator setup steps.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
