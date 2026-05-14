@@ -270,9 +270,9 @@ items do not need separate user-facing notes beyond the per-task
 
 ## Cross-References
 
-- Coordinates with: [`MLP-009`](multilayer-protection.aps.md) (closed-set
-  vocabulary), [`MLP-018`](multilayer-protection.aps.md) (consumer-side
-  render wiring), [`WATCHUX-005`](watch-ux-advisory-rules.aps.md) (advisory
-  rendering language), [`WATCHUX-007`](watch-ux-advisory-rules.aps.md) (rule
+- Coordinates with: [`MLP-009`](../../modules/multilayer-protection.aps.md) (closed-set
+  vocabulary), [`MLP-018`](../../modules/multilayer-protection.aps.md) (consumer-side
+  render wiring), [`WATCHUX-005`](../../modules/watch-ux-advisory-rules.aps.md) (advisory
+  rendering language), [`WATCHUX-007`](../../modules/watch-ux-advisory-rules.aps.md) (rule
   mode summary in `anvil status`).
 - Blocks on: none at module level; individual tasks note dependencies inline.
