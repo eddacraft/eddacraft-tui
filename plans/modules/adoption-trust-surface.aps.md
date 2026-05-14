@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADTRUST | @aneki | Ready  | 0/6 done |
+| ADTRUST | @aneki | In Progress | 0/6 done |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -86,7 +86,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil commands::status::tests::names_protection_state`
   - Manual: a teammate who has not seen Anvil before reads the output and
     correctly answers "are you protected?" without prompting
-- **Status:** Draft
+- **Status:** In Progress
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor

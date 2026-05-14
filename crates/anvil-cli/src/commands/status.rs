@@ -1,7 +1,9 @@
 use std::io::IsTerminal;
 use std::path::Path;
+use std::time::Duration;
 
 use anvil_kernel_types::hooks::is_anvil_managed_command;
+use anvil_kernel_types::protection_claim::WorktreeClaimState;
 use anvil_tui::surfaces::status::{
     GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
 };
@@ -446,54 +448,423 @@ fn is_executable(path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagnostic) {
-    println!("ANVIL STATUS\n");
-
-    // Activation header is rendered first so the literal protection
-    // claim is the first thing the user sees — they should not have
-    // to scroll past hooks/profile/runs to learn whether Anvil is
-    // protecting their repo.
-    print!("{}", activation::render_human(activation_diag));
+    let snapshot = build_legible_snapshot(data, activation_diag, Path::new("."));
+    print!("{}", render_plain_legible(&snapshot));
+    // Rule-mode summary line is appended as advisory context (ADTRUST-001
+    // keeps the legible block above the 24-row budget; the rule-mode
+    // summary is a single line that stays under that ceiling).
     print!("{}", render_rule_mode_summary(Path::new(".")));
-    println!();
+}
 
-    println!("HOOKS");
-    for hook in &data.hooks {
-        let (icon, label) = if hook.active {
-            ("\u{2713}", "active")
-        } else if hook.path.is_empty() {
-            ("\u{25cb}", "missing")
-        } else {
-            ("\u{2717}", "inactive")
-        };
+// ---------------------------------------------------------------------------
+// ADTRUST-001: legible plain-mode render
+// ---------------------------------------------------------------------------
+//
+// `anvil status` plain-mode rebuild for the Adoption Trust Surface
+// module. The default human output names the protection state from
+// the closed-set vocabulary, lists L0–L5 with a one-word status,
+// reports the daemon PID + uptime (or "not running"), the last
+// witness commit + age (or "none yet"), and ends with a single
+// next-action line. Designed to fit a 24-row terminal so the success
+// test ("a developer who hasn't read the docs reads it in one pass")
+// holds. The renderer accepts a `LegibleSnapshot` so tests can
+// synthesise inputs without touching disk or daemon IPC; gathering
+// helpers below are best-effort and degrade cleanly when the
+// underlying sources are missing.
 
-        if hook.path.is_empty() {
-            println!("  {icon} {:<14} {label}", hook.name);
-        } else {
-            println!("  {icon} {:<14} {:<10} {}", hook.name, label, hook.path);
+/// All inputs the legible render needs. Built by
+/// [`build_legible_snapshot`] from gathered status data + an
+/// activation diagnostic + on-disk pid/witness files.
+#[derive(Debug, Clone)]
+struct LegibleSnapshot {
+    protection: WorktreeClaimState,
+    layers: LayerSummary,
+    daemon: DaemonSummary,
+    witness: WitnessSummary,
+    next_action: String,
+}
+
+/// One-word layer status for the L0–L5 block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayerState {
+    /// Layer is not configured or not active in this repo.
+    Off,
+    /// Layer is configured but not at full strength (e.g. watch-only
+    /// fallback when MCP is not attached).
+    Partial,
+    /// Layer is active and at full strength.
+    On,
+    /// Layer state cannot be determined from local signals (e.g. L1
+    /// mid-edit driver, L5 audit cron — both off-process surfaces).
+    Unknown,
+}
+
+impl LayerState {
+    /// One-word label used in the rendered output.
+    const fn label(self) -> &'static str {
+        match self {
+            LayerState::Off => "off",
+            LayerState::Partial => "partial",
+            LayerState::On => "on",
+            LayerState::Unknown => "unknown",
         }
     }
+}
 
-    println!();
-    println!("PROFILE: {}", data.profile.name);
-    if data.profile.checks.is_empty() {
-        println!("  Checks: (none)");
-    } else {
-        println!("  Checks: {}", data.profile.checks.join(", "));
-    }
-    println!("  Config: {}", data.profile.path);
+#[derive(Debug, Clone)]
+struct LayerSummary {
+    l0_mcp: LayerState,
+    l1_mid_edit: LayerState,
+    l2_save: LayerState,
+    l3_commit: LayerState,
+    l4_push: LayerState,
+    l5_audit: LayerState,
+}
 
-    println!();
-    println!("RECENT RUNS");
-    if data.recent_runs.is_empty() {
-        println!("  (no recent runs)");
-    } else {
-        for run in &data.recent_runs {
-            let icon = if run.passed { "\u{2713}" } else { "\u{2717}" };
-            println!(
-                "  {icon} {}  {}/{} checks  {:.2}  {}ms",
-                run.timestamp, run.checks_passed, run.checks_run, run.score, run.duration_ms,
+#[derive(Debug, Clone)]
+enum DaemonSummary {
+    Running { pid: u32, uptime: Duration },
+    NotRunning,
+}
+
+#[derive(Debug, Clone)]
+enum WitnessSummary {
+    Last { commit_short: String, age: Duration },
+    None,
+}
+
+/// Render the legible block. Pure function — no I/O.
+fn render_plain_legible(s: &LegibleSnapshot) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    out.push_str("ANVIL STATUS\n");
+    out.push('\n');
+    let _ = writeln!(out, "  Protection: {}", s.protection.as_str());
+    out.push('\n');
+    out.push_str("  Layers:\n");
+    let _ = writeln!(out, "    L0 mcp        {}", s.layers.l0_mcp.label());
+    let _ = writeln!(out, "    L1 mid-edit   {}", s.layers.l1_mid_edit.label());
+    let _ = writeln!(out, "    L2 save       {}", s.layers.l2_save.label());
+    let _ = writeln!(out, "    L3 commit     {}", s.layers.l3_commit.label());
+    let _ = writeln!(out, "    L4 push       {}", s.layers.l4_push.label());
+    let _ = writeln!(out, "    L5 audit      {}", s.layers.l5_audit.label());
+    out.push('\n');
+    match &s.daemon {
+        DaemonSummary::Running { pid, uptime } => {
+            let _ = writeln!(
+                out,
+                "  Daemon: pid {pid} \u{00b7} up {}",
+                format_duration(*uptime)
             );
         }
+        DaemonSummary::NotRunning => {
+            out.push_str("  Daemon: not running\n");
+        }
+    }
+    match &s.witness {
+        WitnessSummary::Last { commit_short, age } => {
+            let _ = writeln!(
+                out,
+                "  Witness: {commit_short} \u{00b7} {} ago",
+                format_duration(*age)
+            );
+        }
+        WitnessSummary::None => {
+            out.push_str("  Witness: none yet\n");
+        }
+    }
+    out.push('\n');
+    let _ = writeln!(out, "  Next: {}", s.next_action);
+    out
+}
+
+/// Short human duration: `45s`, `3m`, `2h`, `5d`. Floors to the
+/// largest unit at or below the value. Used for daemon uptime and
+/// witness age in the legible block.
+fn format_duration(d: Duration) -> String {
+    let s = d.as_secs();
+    if s < 60 {
+        format!("{s}s")
+    } else if s < 3600 {
+        format!("{}m", s / 60)
+    } else if s < 86400 {
+        format!("{}h", s / 3600)
+    } else {
+        format!("{}d", s / 86400)
+    }
+}
+
+/// Assemble the snapshot from the gathered status data, activation
+/// diagnostic, and on-disk pid/witness files. Each helper degrades to
+/// the "missing" variant on any failure — the render is single-pass
+/// best-effort, never blocks, and never propagates errors past
+/// `print_plain` because status is a read-only diagnostic surface.
+fn build_legible_snapshot(
+    data: &StatusData,
+    diag: &activation::ActivationDiagnostic,
+    root: &Path,
+) -> LegibleSnapshot {
+    let layers = derive_layers(data, diag);
+    let protection = derive_protection(diag, &layers);
+    let daemon = read_daemon_summary();
+    let witness = read_witness_summary(root);
+    let next_action = next_action_for(protection, &daemon).to_string();
+    LegibleSnapshot {
+        protection,
+        layers,
+        daemon,
+        witness,
+        next_action,
+    }
+}
+
+/// Map per-layer signals from the activation diagnostic and gathered
+/// hook data into the L0–L5 status grid.
+fn derive_layers(data: &StatusData, diag: &activation::ActivationDiagnostic) -> LayerSummary {
+    let l0_mcp = if diag.mcp_pre_write_wired_or_live() {
+        LayerState::On
+    } else if diag.mcp.is_empty() {
+        LayerState::Off
+    } else {
+        LayerState::Partial
+    };
+
+    // L1 mid-edit lives inside an editor driver process; local
+    // signals can't prove it's running, so we report Unknown rather
+    // than a false Off.
+    let l1_mid_edit = LayerState::Unknown;
+
+    let l2_save = match diag.watch {
+        activation::diagnostic::WatchTier::Running => LayerState::On,
+        activation::diagnostic::WatchTier::Offered => LayerState::Partial,
+        activation::diagnostic::WatchTier::NotRequested => LayerState::Off,
+    };
+
+    let l3_commit = hook_layer_state(data, "pre-commit");
+    let l4_push = hook_layer_state(data, "pre-push");
+
+    // L5 audit ships as a GitHub Action cron; local CLI cannot
+    // observe it. Future ADTRUST-003 can confirm the workflow file
+    // exists and flip this to On when present.
+    let l5_audit = LayerState::Unknown;
+
+    LayerSummary {
+        l0_mcp,
+        l1_mid_edit,
+        l2_save,
+        l3_commit,
+        l4_push,
+        l5_audit,
+    }
+}
+
+fn hook_layer_state(data: &StatusData, name: &str) -> LayerState {
+    let mut any = false;
+    let mut active = false;
+    for hook in &data.hooks {
+        if hook.name == name {
+            any = true;
+            if hook.active {
+                active = true;
+            }
+        }
+    }
+    match (any, active) {
+        (false, _) => LayerState::Off,
+        (true, true) => LayerState::On,
+        (true, false) => LayerState::Partial,
+    }
+}
+
+/// Pick a closed-set protection-claim state for the legible header.
+///
+/// Until `MLP2-048` wires a daemon-snapshot source, this is a local
+/// derivation from the activation diagnostic alone. Local signals
+/// cannot prove the per-surface state that distinguishes several
+/// closed-set variants, so this v1 mapping deliberately undershoots
+/// rather than over-claim:
+///
+/// - `Full` requires `≥1 daemon-backed MCP + ≥1 Participating editor
+///   driver` (spec §14.2). Driver state lives in the daemon
+///   registry, not in the activation diagnostic, so `Full` is
+///   **unreachable from local signals** here. `MLP2-048` is the
+///   load-bearing follow-up.
+/// - `PreWriteEmbedded` requires confirming surfaces are on the
+///   embedded backend — also a daemon-snapshot question.
+/// - `DegradedProtection`, `MultiDaemonDetected`, `PathUncertain`,
+///   `CrossBoundaryMixed` are all daemon-derived diagnoses.
+///
+/// The render still names the protection state honestly: the user
+/// will see `pre-write-daemon`, `save-time-only`, `warming`, or
+/// `unprotected` until daemon-snapshot wiring lights up the richer
+/// variants in `next_action_for`.
+fn derive_protection(
+    diag: &activation::ActivationDiagnostic,
+    _layers: &LayerSummary,
+) -> WorktreeClaimState {
+    use activation::state::ProtectionState as PS;
+
+    match diag.protection_state() {
+        // Live MCP — daemon-backed pre-write attachment is the
+        // strongest honest claim the local signal can make. `Full`
+        // remains unreachable here; see the doc comment.
+        PS::Protecting => WorktreeClaimState::PreWriteDaemon,
+        PS::Watching => WorktreeClaimState::SaveTimeOnly,
+        PS::ReadyRestartRequired => WorktreeClaimState::Warming,
+        PS::NeedsAction | PS::Unsupported | PS::Error => WorktreeClaimState::Unprotected,
+    }
+}
+
+/// Best-effort daemon summary. Reads the daemon pid file written by
+/// `anvil start`; reports `Running` only when the recorded PID still
+/// resolves to a live process. Uptime is estimated from the pid
+/// file's mtime — close enough for the legible surface; precise
+/// uptime requires an IPC round-trip and will land with MLP2-048.
+fn read_daemon_summary() -> DaemonSummary {
+    let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
+        return DaemonSummary::NotRunning;
+    };
+    let Ok(contents) = std::fs::read_to_string(&pid_file) else {
+        return DaemonSummary::NotRunning;
+    };
+    let Some(pid) = contents.trim().parse::<u32>().ok() else {
+        return DaemonSummary::NotRunning;
+    };
+    if !process_is_alive(pid) {
+        return DaemonSummary::NotRunning;
+    }
+    let uptime = std::fs::metadata(&pid_file)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|mtime| mtime.elapsed().ok())
+        .unwrap_or_default();
+    DaemonSummary::Running { pid, uptime }
+}
+
+#[cfg(unix)]
+fn process_is_alive(pid: u32) -> bool {
+    // Use `kill -0 <pid>` to probe — POSIX signal 0 does not deliver
+    // anything; exit 0 means the caller has permission to signal,
+    // which proves the process exists. Avoids pulling `libc` into
+    // anvil-cli's direct dependency surface for a single probe. The
+    // richer cross-platform liveness check lands with ADTRUST-004.
+    std::process::Command::new("kill")
+        .arg("-0")
+        .arg(pid.to_string())
+        .stderr(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[cfg(not(unix))]
+fn process_is_alive(_pid: u32) -> bool {
+    // No portable POSIX `kill` on Windows. Fail closed — a stale pid
+    // file with a valid integer would otherwise produce a phantom
+    // daemon line. `ADTRUST-004` (daemon-down auto-recovery) is the
+    // owner of the cross-platform liveness check that will return
+    // a real answer here.
+    false
+}
+
+/// Best-effort witness summary. Tails the active witness chain and
+/// pulls `commit` + `ts` from the last NDJSON line. Returns `None`
+/// when the chain file is absent, empty, or unreadable. Designed not
+/// to hold the chain open or compete with the witness writer.
+fn read_witness_summary(root: &Path) -> WitnessSummary {
+    let active = root.join("anvil/witness/active.ndjson");
+    let Ok(contents) = std::fs::read_to_string(&active) else {
+        return WitnessSummary::None;
+    };
+    let Some(last) = contents.lines().rev().find(|l| !l.is_empty()) else {
+        return WitnessSummary::None;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(last) else {
+        return WitnessSummary::None;
+    };
+    let commit = value
+        .get("commit")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| value.get("commit_sha").and_then(serde_json::Value::as_str));
+    let ts = value.get("ts").and_then(serde_json::Value::as_str);
+    let Some(commit) = commit else {
+        return WitnessSummary::None;
+    };
+    let commit_short: String = commit.chars().take(7).collect();
+    let age = ts
+        .and_then(parse_iso_timestamp_seconds)
+        .and_then(|t| {
+            std::time::SystemTime::UNIX_EPOCH
+                .checked_add(Duration::from_secs(t))
+                .and_then(|t| t.elapsed().ok())
+        })
+        .unwrap_or_default();
+    WitnessSummary::Last { commit_short, age }
+}
+
+/// Parse `2026-05-07T12:34:56Z` (witness `ts` field) to seconds
+/// since the epoch. Accepts only `Z`-terminated RFC 3339 strings —
+/// matches what the witness writer emits today. Numeric offsets
+/// (`+00:00` style) would shift the time-field byte offsets and
+/// produce nonsense; callers should not pass them. Returns `None`
+/// on any malformed input — the legible surface treats an
+/// unparseable timestamp as "age unknown" and falls back to a zero
+/// duration so the line still renders.
+fn parse_iso_timestamp_seconds(s: &str) -> Option<u64> {
+    let bytes = s.as_bytes();
+    if bytes.len() < 20 || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T' {
+        return None;
+    }
+    let y: i64 = s.get(0..4)?.parse().ok()?;
+    let mo: i64 = s.get(5..7)?.parse().ok()?;
+    let d: i64 = s.get(8..10)?.parse().ok()?;
+    let hh: i64 = s.get(11..13)?.parse().ok()?;
+    let mm: i64 = s.get(14..16)?.parse().ok()?;
+    let ss: i64 = s.get(17..19)?.parse().ok()?;
+    // Days-from-civil (Howard Hinnant, public domain).
+    let y_adj = if mo <= 2 { y - 1 } else { y };
+    let era = y_adj.div_euclid(400);
+    let yoe = y_adj - era * 400;
+    let doy = (153 * (if mo > 2 { mo - 3 } else { mo + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days_since_epoch = era * 146_097 + doe - 719_468;
+    let secs = days_since_epoch * 86400 + hh * 3600 + mm * 60 + ss;
+    u64::try_from(secs).ok()
+}
+
+/// Single next-action line keyed off the protection state. Kept
+/// terse so it stays one row.
+const fn next_action_for(state: WorktreeClaimState, daemon: &DaemonSummary) -> &'static str {
+    match state {
+        WorktreeClaimState::Full | WorktreeClaimState::PreWriteDaemon => {
+            "Protection is live. Run `anvil doctor` if anything looks off."
+        }
+        WorktreeClaimState::PreWriteEmbedded => {
+            "Run `anvil start` so MCP pre-write attaches to a daemon-backed surface."
+        }
+        WorktreeClaimState::SaveTimeOnly => {
+            "Save-time only. Attach a driver or MCP shim for pre-write coverage."
+        }
+        WorktreeClaimState::Warming => "Restart your editor or agent so the MCP server attaches.",
+        WorktreeClaimState::DegradedProtection => {
+            "Run `anvil doctor` — at least one surface is degraded."
+        }
+        WorktreeClaimState::MultiDaemonDetected => {
+            "Multiple daemons detected. Run `anvil doctor` to identify the duplicate."
+        }
+        WorktreeClaimState::PathUncertain => {
+            "Path canonicalisation drift. Run `anvil doctor --fix` to reconcile."
+        }
+        WorktreeClaimState::CrossBoundaryMixed => {
+            "Surfaces span an OS-locality boundary. Re-run `anvil start` inside the intended host."
+        }
+        WorktreeClaimState::Unprotected => match daemon {
+            DaemonSummary::Running { .. } => {
+                "Run `anvil init` to attach this repo to the running daemon."
+            }
+            DaemonSummary::NotRunning => "Run `anvil start` to turn on protection.",
+        },
     }
 }
 
@@ -1055,6 +1426,181 @@ mod tests {
         assert!(config_row.path.contains("(anvil-managed)"));
 
         cleanup(&dir);
+    }
+
+    // -----------------------------------------------------------------
+    // ADTRUST-001 legible plain-mode renderer
+    // -----------------------------------------------------------------
+
+    fn legible_test_snapshot(state: WorktreeClaimState) -> LegibleSnapshot {
+        LegibleSnapshot {
+            protection: state,
+            layers: LayerSummary {
+                l0_mcp: LayerState::Off,
+                l1_mid_edit: LayerState::Unknown,
+                l2_save: LayerState::Off,
+                l3_commit: LayerState::Off,
+                l4_push: LayerState::Off,
+                l5_audit: LayerState::Unknown,
+            },
+            daemon: DaemonSummary::NotRunning,
+            witness: WitnessSummary::None,
+            next_action: "run `anvil start`".to_string(),
+        }
+    }
+
+    /// ADTRUST-001 validation: the legible plain-mode render must
+    /// fit a 24-row terminal in every closed-set state so a developer
+    /// reading `anvil status` does not scroll past the protection
+    /// claim. Every state is rendered twice: once with the empty
+    /// snapshot (cheap fallback path) and once with a worst-case
+    /// snapshot (`DaemonSummary::Running` + `WitnessSummary::Last` +
+    /// the longest `next_action` string this surface emits). Without
+    /// the worst-case sweep a new `next` arm that runs over the
+    /// budget would still pass on the cheap path.
+    #[test]
+    fn plain_mode_fits_24_rows() {
+        let worst_action = longest_next_action();
+        for &state in WorktreeClaimState::all() {
+            for snap in [
+                legible_test_snapshot(state),
+                worst_case_snapshot(state, &worst_action),
+            ] {
+                let rendered = render_plain_legible(&snap);
+                let lines = rendered.lines().count();
+                assert!(
+                    lines <= 24,
+                    "render for {state:?} produced {lines} lines (budget 24):\n{rendered}",
+                );
+            }
+        }
+    }
+
+    fn worst_case_snapshot(state: WorktreeClaimState, next_action: &str) -> LegibleSnapshot {
+        LegibleSnapshot {
+            protection: state,
+            layers: LayerSummary {
+                l0_mcp: LayerState::Partial,
+                l1_mid_edit: LayerState::Partial,
+                l2_save: LayerState::Partial,
+                l3_commit: LayerState::Partial,
+                l4_push: LayerState::Partial,
+                l5_audit: LayerState::Partial,
+            },
+            daemon: DaemonSummary::Running {
+                pid: 4_194_303,
+                uptime: Duration::from_secs(365 * 86400),
+            },
+            witness: WitnessSummary::Last {
+                commit_short: "deadbee".to_string(),
+                age: Duration::from_secs(365 * 86400),
+            },
+            next_action: next_action.to_string(),
+        }
+    }
+
+    fn longest_next_action() -> String {
+        WorktreeClaimState::all()
+            .iter()
+            .map(|s| next_action_for(*s, &DaemonSummary::NotRunning).to_string())
+            .max_by_key(String::len)
+            .expect("closed set is non-empty")
+    }
+
+    /// ADTRUST-001 validation: every closed-set protection state
+    /// renders its canonical wire string verbatim. The success test
+    /// hinges on the user being able to read the state and look it
+    /// up in the spec without translation.
+    #[test]
+    fn names_protection_state() {
+        for &state in WorktreeClaimState::all() {
+            let rendered = render_plain_legible(&legible_test_snapshot(state));
+            assert!(
+                rendered.contains(state.as_str()),
+                "render for {state:?} missing canonical string {:?}:\n{rendered}",
+                state.as_str(),
+            );
+        }
+    }
+
+    /// `Protecting` maps to the closed-set `PreWriteDaemon` state in
+    /// the v1 local-derivation path. `Full` requires a Participating
+    /// editor driver per spec §14.2; that signal lives in the
+    /// daemon registry and is unreachable from the activation
+    /// diagnostic alone. Pins the honest undershoot so a future
+    /// refactor cannot silently promote the claim to `Full` without
+    /// wiring the missing surface check.
+    #[test]
+    fn protecting_maps_to_pre_write_daemon_until_driver_signal_lands() {
+        use activation::diagnostic::{
+            ActivationDiagnostic, ConfigStatus, McpClientId, McpTier, WatchTier,
+        };
+        use std::collections::BTreeMap;
+
+        let mut mcp = BTreeMap::new();
+        mcp.insert(McpClientId::ClaudeCode, McpTier::LiveValidation.into());
+        let diag = ActivationDiagnostic {
+            config: ConfigStatus::Valid,
+            mcp,
+            watch: WatchTier::Running,
+            baseline_present: false,
+            baseline_summary: None,
+            last_error: None,
+            all_languages_unsupported: false,
+            language_profile: activation::language_profile::RepoLanguageProfile::default(),
+        };
+        let data = StatusData {
+            hooks: Vec::new(),
+            profile: ProfileInfo {
+                name: "(no config)".to_string(),
+                checks: Vec::new(),
+                path: ".anvilrc".to_string(),
+            },
+            recent_runs: Vec::new(),
+        };
+        let layers = derive_layers(&data, &diag);
+        let claim = derive_protection(&diag, &layers);
+        assert_eq!(claim, WorktreeClaimState::PreWriteDaemon);
+    }
+
+    /// Witness summary parsing pulls the short SHA and falls back to
+    /// `None` cleanly on malformed input. Pins the legible
+    /// surface's "Witness: …" line so an unreadable chain never
+    /// stalls the render.
+    #[test]
+    fn witness_summary_handles_missing_and_malformed() {
+        let dir = make_temp_dir();
+        assert!(matches!(read_witness_summary(&dir), WitnessSummary::None));
+
+        let witness_dir = dir.join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        std::fs::write(witness_dir.join("active.ndjson"), "not json\n").unwrap();
+        assert!(matches!(read_witness_summary(&dir), WitnessSummary::None));
+
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            "{\"commit\":\"abcdef1234567890\",\"ts\":\"2026-05-07T12:34:56Z\"}\n",
+        )
+        .unwrap();
+        match read_witness_summary(&dir) {
+            WitnessSummary::Last { commit_short, .. } => {
+                assert_eq!(commit_short, "abcdef1");
+            }
+            WitnessSummary::None => panic!("expected Last variant"),
+        }
+
+        cleanup(&dir);
+    }
+
+    /// `format_duration` produces a single short token per bucket so
+    /// the daemon/witness lines stay one row even at large values.
+    #[test]
+    fn format_duration_picks_largest_unit() {
+        assert_eq!(format_duration(Duration::from_secs(5)), "5s");
+        assert_eq!(format_duration(Duration::from_secs(90)), "1m");
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1h");
+        assert_eq!(format_duration(Duration::from_secs(86400)), "1d");
+        assert_eq!(format_duration(Duration::from_secs(7 * 86400)), "7d");
     }
 
     /// User-authored config-mode entries surface without the `(anvil-managed)`
