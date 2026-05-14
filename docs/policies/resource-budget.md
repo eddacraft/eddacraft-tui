@@ -1,5 +1,13 @@
 # Resource Budget — `anvil watch`
 
+| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                 |
+| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta sit-on; implementation state `Pre-implementation` |
+
+| Upstream                                                      | Downstream                                                                                                             |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-bench` (`budget`, `fixture`, `measure` modules) | `.github/workflows/resource-budget.yml` (follow-up), `crates/anvil-bench/benches/watch_resource_budget.rs` (follow-up) |
+
 Pinned ceiling for `anvil watch` on the reference benchmark fixture. Anvil's
 adoption test is that senior users do not notice it on their battery or CPU
 graph during sustained daily use; this policy is the hard line, enforced in CI.
