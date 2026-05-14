@@ -4,15 +4,30 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADTRUST | @aneki | In Progress | 0/6 done |
+| ADTRUST | @aneki | Complete | 6/6 done |
 
-**Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
-acceptance of
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Module-level `Ready` means "ready to begin Wave 3B"; individual tasks
-remain `Draft` until each is picked up — matches the INTL precedent.
-ADTRUST-001 is the load-bearing item; the other five extend its render
-path or sit alongside it.)
+**Closed out 2026-05-14.** All six tasks shipped:
+
+- ADTRUST-001 — PR #1531 (legible plain-mode render)
+- ADTRUST-002 — PR #1534 (degraded-state banner primitive)
+- ADTRUST-003 — PR #1536 (doctor protection-claim states + runbook)
+- ADTRUST-004 — PR #1537 (start idempotency contract pin)
+- ADTRUST-005 — PR #1532 (`anvil status --json` schema pin at v1)
+- ADTRUST-006 — PR #1533 (first-run claim summary + verification recipe)
+
+**Deferred follow-ups (tracked elsewhere):**
+
+- ADTRUST-002 watch TUI + hook bridge wire-up of the `DegradedBanner`
+  primitive lives under MLP2 group J. The primitive + rate-limit +
+  content contract shipped here; the per-crate call sites land in
+  follow-up PRs.
+- ADTRUST-004 cross-crate hook + kernel embedded-fallback wiring
+  (`anvil-hook::fallback_path_emits_degraded_once`, kernel embedded
+  re-arm) lives in follow-up PRs against the pinned idempotency
+  contract.
+- ADTRUST-001 `Full` claim mapping waits on MLP2-048 daemon-snapshot
+  source for the per-surface `SurfaceClaimState` that distinguishes
+  `Full` from `PreWriteDaemon`.
 
 ## Purpose
 
@@ -86,7 +101,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil commands::status::tests::names_protection_state`
   - Manual: a teammate who has not seen Anvil before reads the output and
     correctly answers "are you protected?" without prompting
-- **Status:** In Progress
+- **Status:** Complete
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -117,7 +132,7 @@ rather than a product feature — and sustained-use trust never forms.
     MLP2 group J).
   - Follow-up: `cargo test -p eddacraft-anvil-kernel watch::tests::degraded_emits_within_60s`
     once the kernel watch consumes the primitive (PR follow-up).
-- **Status:** In Progress
+- **Status:** Complete
 - **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -144,7 +159,7 @@ rather than a product feature — and sustained-use trust never forms.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::doctor::tests::enumerates_all_documented_states`
   - `cargo test -p eddacraft-anvil commands::doctor::tests::fix_is_idempotent`
-- **Status:** Draft
+- **Status:** Complete
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -173,7 +188,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil commands::start::tests::idempotent_with_running_daemon`
   - Integration: kill daemon mid-session, make a save, verify hook does not
     fail and `anvil status` reports `degraded-protection` exactly once
-- **Status:** Draft
+- **Status:** Complete
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -199,7 +214,7 @@ rather than a product feature — and sustained-use trust never forms.
 - **Validation:**
   - `cargo test -p eddacraft-anvil --test status_json_contract`
   - `pnpm run validate:schemas` (extend to cover the new schema)
-- **Status:** In Progress
+- **Status:** Complete
 - **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -227,7 +242,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil commands::start::tests::first_run_recipe_matches_fixture`
   - Manual: a fresh checkout + `anvil start` + recipe steps reproduces the
     described behaviour
-- **Status:** In Progress
+- **Status:** Complete
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
