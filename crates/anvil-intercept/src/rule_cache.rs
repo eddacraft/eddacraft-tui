@@ -626,6 +626,7 @@ mod tests {
 
     #[test]
     fn concurrent_invalidate_and_store_do_not_race() {
+        const ITERATIONS: usize = 200;
         let cache = Arc::new(RuleSetCache::new());
         let dir = TempDir::new().unwrap();
         let k = key(&dir);
@@ -634,8 +635,14 @@ mod tests {
             let cache = Arc::clone(&cache);
             let k = k.clone();
             thread::spawn(move || {
-                for i in 0..200 {
-                    let _ = cache.get_or_resolve::<_, ()>(&k, |_| Ok(entry(&format!("v{i}"))));
+                for i in 0..ITERATIONS {
+                    // Bind the formatted value in an outer let so the
+                    // closure captures the produced `String` rather
+                    // than the loop variable directly — keeps CodeQL's
+                    // "unused variable" lint quiet on the inlined
+                    // `format!("v{i}")` pattern (PR #1522 review).
+                    let sha = format!("v{i}");
+                    let _ = cache.get_or_resolve::<_, ()>(&k, |_| Ok(entry(&sha)));
                 }
             })
         };
@@ -643,7 +650,7 @@ mod tests {
             let cache = Arc::clone(&cache);
             let k = k.clone();
             thread::spawn(move || {
-                for _ in 0..200 {
+                for _ in 0..ITERATIONS {
                     cache.invalidate(&k);
                 }
             })
@@ -651,12 +658,25 @@ mod tests {
 
         writer.join().unwrap();
         invalidator.join().unwrap();
-        // No assertion on final state — convergent under concurrency.
-        // The point is that `lock()` does not deadlock or panic and
-        // the cache stays internally consistent (size 0 or 1, both
-        // valid).
+        // The cache must be convergent under concurrency. Two
+        // assertions, both addressing pragmatic-lead Council finding
+        // #C-003 by lifting the test from "Mutex does not deadlock"
+        // (stdlib-guaranteed) to "the cache only ever holds a value
+        // the writer inserted":
+        // 1) Cache size is at most 1 (single-key cache property).
+        // 2) Any final entry's `rules_sha` must be one of the
+        //    `v0..v200` values the writer produced — never a torn
+        //    value, never something the writer never inserted.
         let final_len = cache.len();
         assert!(final_len <= 1);
+        if let CacheOutcome::Hit(entry) = cache.lookup(&k) {
+            let valid: Vec<String> = (0..ITERATIONS).map(|i| format!("v{i}")).collect();
+            assert!(
+                valid.contains(&entry.rules_sha),
+                "final rules_sha must be one of the writer's inserts, got {:?}",
+                entry.rules_sha
+            );
+        }
     }
 
     #[test]

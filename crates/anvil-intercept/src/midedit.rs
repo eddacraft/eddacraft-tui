@@ -832,15 +832,20 @@ mod tests {
     /// The earlier version of this test captured the pin into a local
     /// `String` before spawning the invalidator, so the test passed
     /// even if the implementation re-read from the cache mid-call.
-    /// This version pauses the worker on a `Barrier`, invalidates the
-    /// cache from the test body while the worker is provably blocked,
-    /// then releases the barrier and asserts the response carries the
-    /// pre-invalidation `rules_sha`.
+    /// This version uses two `Barrier`s — `arrived` to wait until the
+    /// worker thread is provably inside `evaluate`, and `release` to
+    /// resume the worker after the cache has been invalidated. No
+    /// polling, no `yield_now` — deterministic on any executor + any
+    /// load level (Council CI fix 2026-05-14: the earlier
+    /// `in_flight()`-poll version was racy under CI scheduling).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn config_invalidation_while_worker_running_does_not_swap_pinned_rules_sha() {
         use crate::rule_cache::{ResolvedRuleSet, RuleSetCache, RuleSetEntry, WorktreeKey};
 
-        struct GateRule(Arc<Barrier>);
+        struct GateRule {
+            arrived: Arc<Barrier>,
+            release: Arc<Barrier>,
+        }
         impl InterceptRule for GateRule {
             fn rule_id(&self) -> &'static str {
                 "test.pin-gate"
@@ -849,10 +854,12 @@ mod tests {
                 true
             }
             fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
-                // Hold the worker thread here until the test releases
-                // the barrier; the cache invalidation will fire while
-                // we are stopped here.
-                self.0.wait();
+                // Signal "I'm in evaluate()" then park until the test
+                // releases. Both barriers are 2-party so the worker
+                // thread proceeds only when the test side calls
+                // `wait` on the same barrier.
+                self.arrived.wait();
+                self.release.wait();
                 RuleDecision::allow()
             }
         }
@@ -877,13 +884,15 @@ mod tests {
         };
         assert_eq!(pinned.as_deref(), Some("v-original"));
 
-        let barrier = Arc::new(Barrier::new(2));
-        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule(Arc::clone(&barrier)))])
-            .expect("registry");
+        let arrived = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule {
+            arrived: Arc::clone(&arrived),
+            release: Arc::clone(&release),
+        })])
+        .expect("registry");
         let service = ScanBufferService::new(EnforcementPipeline::new(registry));
 
-        // Spawn the scan_buffer_with_pin call; its worker thread will
-        // park on the barrier inside `GateRule::evaluate`.
         let service_clone = service.clone();
         let pin_for_call = pinned.clone();
         let handle = tokio::spawn(async move {
@@ -892,34 +901,40 @@ mod tests {
                 .await
         });
 
-        // Wait until the worker has actually entered the pipeline —
-        // the in-flight counter going to 1 is the signal that the
-        // permit was acquired AND the worker thread is live.
-        for _ in 0..500 {
-            if service.in_flight() == 1 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+        // Block (on a blocking-friendly task) until the worker is
+        // provably in `evaluate`. `spawn_blocking` keeps the tokio
+        // reactor responsive while the std Barrier parks the calling
+        // OS thread.
+        let arrived_for_wait = Arc::clone(&arrived);
+        tokio::task::spawn_blocking(move || arrived_for_wait.wait())
+            .await
+            .expect("arrived join");
+
+        // Belt-and-braces: the in-flight counter must read 1 too.
+        // This is now guaranteed (not racy) because the worker has
+        // already passed the permit-acquire + InFlightGuard::new
+        // happens-before the barrier wait it just released.
         assert_eq!(
             service.in_flight(),
             1,
-            "worker must be in flight before cache invalidation"
+            "worker must be in flight at the gate"
         );
 
-        // The worker is now provably stopped inside `GateRule`. Mutate
-        // the cache; if the implementation re-read from the cache
-        // here, the next assertion would fail.
+        // Worker is parked inside `GateRule`. Invalidate the cache —
+        // if the implementation re-read from the cache here, the
+        // response would carry a different (or missing) `rules_sha`.
         assert!(
             cache.invalidate(&key),
             "cache entry must be present before invalidation"
         );
         assert!(cache.is_empty(), "cache must be empty post-invalidation");
 
-        // Release the worker so it finishes its evaluation. Once the
-        // future returns, the response carries whatever `rules_sha`
-        // was pinned at call entry.
-        barrier.wait();
+        // Release the worker.
+        let release_for_wait = Arc::clone(&release);
+        tokio::task::spawn_blocking(move || release_for_wait.wait())
+            .await
+            .expect("release join");
+
         let response = handle.await.expect("join").expect("scan_buffer_with_pin");
 
         assert_eq!(
