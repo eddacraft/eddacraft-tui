@@ -1,5 +1,13 @@
 # Release Signing — Operator Runbook
 
+| Type    | Authority     | Owner  | Status | Freshness                                    |
+| ------- | ------------- | ------ | ------ | -------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside DISTRIB-001 |
+
+| Upstream                                                                                                                                                                                                                                    | Downstream                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ADR-045](../../plans/decisions/045-update-signing-scheme.md), [DISTRIB-001 in `distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md), [ADR-044 §9](../../plans/decisions/044-mcp-entry-activation-owned.md) | [`.github/workflows/release-sign-artefacts.yml`](../../.github/workflows/release-sign-artefacts.yml), [`crates/anvil-cli/src/commands/update/signature.rs`](../../crates/anvil-cli/src/commands/update/signature.rs), v0.7.0-beta release notes |
+
 Background: see [ADR-045](../../plans/decisions/045-update-signing-scheme.md).
 This runbook covers the operational mechanics. Read the ADR first for the trust
 model and rationale.
