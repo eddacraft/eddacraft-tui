@@ -164,6 +164,25 @@ affects install commands, supported targets, or project status.
 - [ ] `.github/workflows/rust.yml` — Rust CI changes
 - [ ] `.github/workflows/ci-nightly.yml` — nightly build changes
 
+### Pre-release: third-party attribution (ATTRIB)
+
+Owned by the
+[`attribution-pipeline-v3`](../../plans/modules/attribution-pipeline-v3.aps.md)
+module. Both checks below are wired into the `Acknowledgements freshness` job in
+CI, so a passing PR pipeline already proves them — but run them locally before
+tagging so a stale lockfile surfaces here rather than in the CI fast-fail.
+
+- [ ] `tools/starters/acknowledgements/generate-acknowledgements.sh --check` —
+      verifies `ACKNOWLEDGEMENTS.md` is in sync with the runtime dependency
+      graph. cargo-about runs with `--fail` (ATTRIB-007), so a workspace crate
+      missing the `license` / `license-file` field aborts here rather than
+      silently dropping out of attribution.
+- [ ] `tools/starters/acknowledgements/expand-licences.sh --check` — verifies
+      `about.toml.accepted` and `deny.toml.[licenses].allow` are in sync with
+      the canonical `licences.toml` (ATTRIB-006). If you added or removed a
+      licence, the source of truth is `licences.toml`; rerun the expander and
+      commit all three files together.
+
 ### Post-release
 
 - [ ] Verify crate published to crates.io (when applicable)

@@ -286,7 +286,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-010: Update release runbook + doc checklist
 
-- **Status:** Pending
+- **Status:** In Progress
 - **Intent:** Reference the starter-kit location and the `--check` invocation downstream consumers should run pre-release.
 - **Expected Outcome:** `docs/guides/release-doc-checklist.md` mentions the kit; release runbook calls out the gate.
 - **Validation:** Release runbook references resolve; doc lint passes.

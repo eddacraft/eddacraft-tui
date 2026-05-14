@@ -40,6 +40,26 @@ bash scripts/release/closeout.sh --help
 If any command is missing, the release process is not ready. Do not substitute a
 manual checklist for that command surface.
 
+Third-party attribution gates (run before tag — both wired into the
+`Acknowledgements freshness` CI job so a passing pipeline already proves them,
+but a local pre-tag run surfaces a stale lockfile faster than the CI fast-fail):
+
+```bash
+tools/starters/acknowledgements/generate-acknowledgements.sh --check
+tools/starters/acknowledgements/expand-licences.sh --check
+```
+
+The first verifies `ACKNOWLEDGEMENTS.md` is in sync with the runtime dependency
+graph and that every workspace crate has a `license` / `license-file` field
+(ATTRIB-007). The second verifies `about.toml.accepted` and
+`deny.toml.[licenses].allow` are in sync with the canonical `licences.toml`
+(ATTRIB-006). Source of truth for licences is `licences.toml`; both consumer
+arrays are regenerated from it. See the
+[`attribution-pipeline-v3`](../../plans/modules/attribution-pipeline-v3.aps.md)
+module for design history and the
+[release doc checklist](./release-doc-checklist.md#pre-release-third-party-attribution-attrib)
+for the per-release tick-box.
+
 ## Happy Path
 
 Use this path for normal releases. Releases tag a selected green `main` SHA
