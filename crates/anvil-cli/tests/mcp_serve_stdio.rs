@@ -211,11 +211,15 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 7);
+    assert_eq!(tools.len(), 8);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
         .expect("tools/list includes anvil_validate_write");
+    let apply_patch = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_apply_patch")
+        .expect("tools/list includes anvil_apply_patch");
     let status = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_status")
@@ -240,6 +244,13 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .iter()
         .find(|tool| tool["name"] == "anvil_fix")
         .expect("tools/list includes anvil_fix");
+    assert_eq!(apply_patch["inputSchema"]["type"], "object");
+    assert_eq!(apply_patch["annotations"]["destructiveHint"], true);
+    let apply_patch_required = apply_patch["inputSchema"]["required"]
+        .as_array()
+        .expect("anvil_apply_patch required is an array");
+    assert!(apply_patch_required.contains(&json!("path")));
+    assert!(apply_patch_required.contains(&json!("unifiedDiff")));
     let description = validate_write["description"]
         .as_str()
         .expect("tool descriptor must include a description");

@@ -1,3 +1,4 @@
+pub mod apply_patch;
 pub mod check;
 pub mod fix;
 pub mod gate;

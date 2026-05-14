@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::{check, fix, gate, query_boundary, status, suppress, validate_write};
+use super::{apply_patch, check, fix, gate, query_boundary, status, suppress, validate_write};
 
 pub struct ToolDefinition {
     pub name: &'static str,
@@ -25,6 +25,12 @@ static TOOLS: &[ToolDefinition] = &[
         requires_auth: true,
         descriptor: validate_write::descriptor,
         call: validate_write::call,
+    },
+    ToolDefinition {
+        name: apply_patch::TOOL_NAME,
+        requires_auth: true,
+        descriptor: apply_patch::descriptor,
+        call: apply_patch::call,
     },
     ToolDefinition {
         name: status::TOOL_NAME,
@@ -85,12 +91,13 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 7);
+        assert_eq!(tools.len(), 8);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
             vec![
                 validate_write::TOOL_NAME,
+                apply_patch::TOOL_NAME,
                 status::TOOL_NAME,
                 check::TOOL_NAME,
                 gate::TOOL_NAME,
@@ -107,6 +114,7 @@ mod tests {
     #[test]
     fn registry_finds_known_tools_and_rejects_unknown() {
         assert!(find(validate_write::TOOL_NAME).is_some());
+        assert!(find(apply_patch::TOOL_NAME).is_some());
         assert!(find(status::TOOL_NAME).is_some());
         assert!(find(check::TOOL_NAME).is_some());
         assert!(find(gate::TOOL_NAME).is_some());

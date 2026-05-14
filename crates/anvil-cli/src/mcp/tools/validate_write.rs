@@ -46,6 +46,14 @@ pub fn descriptor() -> Value {
                     "type": ["string", "null"],
                     "description": "Unified diff or client patch payload."
                 },
+                "contentSha256": {
+                    "type": "string",
+                    "description": "SHA-256 hex digest of the full proposed content. Pair with preview to send a slim payload without proposedContent."
+                },
+                "preview": {
+                    "type": "string",
+                    "description": "First lines of the proposed content. Used for partial validation when proposedContent is omitted."
+                },
                 "contentEncoding": {
                     "type": "string",
                     "enum": ["utf-8"],
@@ -58,6 +66,12 @@ pub fn descriptor() -> Value {
             },
             "required": ["path", "operation"],
             "additionalProperties": true
+        },
+        "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
         }
     })
 }
@@ -179,6 +193,7 @@ fn call_with_validation_client(
         daemon_status,
         None,
         enforcement_mode,
+        request.partial_scan,
     ))
 }
 
@@ -219,6 +234,7 @@ fn problem_payload(
         Some(problem),
         enforcement_mode,
         ControlDecision::Block,
+        false,
     )
 }
 
@@ -289,6 +305,7 @@ fn validation_payload(
     daemon_status: DaemonStatus,
     problem: Option<ToolProblem>,
     enforcement_mode: EnforcementMode,
+    partial_scan: bool,
 ) -> Value {
     let decision = enforcement::decision_for(diagnostics, enforcement_mode);
     validation_payload_with_decision(
@@ -299,6 +316,7 @@ fn validation_payload(
         problem,
         enforcement_mode,
         decision,
+        partial_scan,
     )
 }
 
@@ -310,6 +328,7 @@ fn validation_payload_with_decision(
     problem: Option<ToolProblem>,
     enforcement_mode: EnforcementMode,
     decision: ControlDecision,
+    partial_scan: bool,
 ) -> Value {
     // The `enforcementMode` and `daemonStatus` correlation fields are
     // part of the `anvil.mcp.validate-write.v1` schema and are
@@ -333,6 +352,10 @@ fn validation_payload_with_decision(
         }
     });
 
+    if partial_scan {
+        payload["correlation"]["partialScan"] = json!(true);
+    }
+
     if decision == ControlDecision::Block {
         payload["safeDefault"] = json!("do-not-write");
     }
@@ -348,7 +371,7 @@ fn validation_payload_with_decision(
     payload
 }
 
-fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
+pub(crate) fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
     let mut error = 0usize;
     let mut warning = 0usize;
     let mut info = 0usize;
@@ -371,7 +394,7 @@ fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
     })
 }
 
-fn normalise_response_diagnostics(
+pub(crate) fn normalise_response_diagnostics(
     diagnostics: &[Diagnostic],
     _backend: ValidationBackend,
 ) -> Vec<Diagnostic> {
@@ -448,7 +471,7 @@ fn input_diagnostic(problem: ToolProblem, path: &str) -> Diagnostic {
     )
 }
 
-fn correlation_id(path: &str) -> String {
+pub(crate) fn correlation_id(path: &str) -> String {
     format!("corr_mcp_{}", sanitise_id_part(path))
 }
 
@@ -470,6 +493,7 @@ struct ValidateWriteRequest {
     operation: Operation,
     content: Option<String>,
     patch_only: bool,
+    partial_scan: bool,
     preflight_problem: Option<ToolProblem>,
 }
 
@@ -507,13 +531,20 @@ impl ValidateWriteRequest {
         });
 
         let proposed_content = optional_string(arguments.get("proposedContent"))?;
+        let preview_content = optional_string(arguments.get("preview"))?;
         let patch_content = optional_string(arguments.get("patch"))?;
-        // Per the launch-shim contract, when both fields are supplied
-        // `proposedContent` is authoritative and `patch` is correlation
-        // metadata. Patch text is never scanned as file content because diff
-        // hunks include removed lines and metadata that would mislead the
-        // secret/reasoning checks.
-        let content = proposed_content.map(str::to_string);
+        // When proposedContent is absent but preview is present, use preview
+        // for partial validation (the caller sent a slim payload). When both
+        // are present, proposedContent is authoritative. Patch text is never
+        // scanned as file content because diff hunks include removed lines and
+        // metadata that would mislead the secret/reasoning checks.
+        let (content, partial_scan) = match proposed_content {
+            Some(full) => (Some(full.to_string()), false),
+            None => match preview_content {
+                Some(preview) => (Some(preview.to_string()), true),
+                None => (None, false),
+            },
+        };
         let patch_only = content.is_none() && patch_content.is_some();
 
         Ok(Self {
@@ -522,6 +553,7 @@ impl ValidateWriteRequest {
             operation,
             content,
             patch_only,
+            partial_scan,
             preflight_problem,
         })
     }
@@ -1619,6 +1651,54 @@ mod tests {
         );
         assert_eq!(result["content"][0]["type"], "text");
         parse_payload(&result)
+    }
+
+    #[test]
+    fn preview_content_allows_write_when_clean() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "preview": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["correlation"]["partialScan"], true);
+    }
+
+    #[test]
+    fn preview_content_blocks_when_secret_detected() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "update",
+                "preview": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["correlation"]["partialScan"], true);
+    }
+
+    #[test]
+    fn full_content_does_not_set_partial_scan() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert!(payload["correlation"]["partialScan"].is_null());
     }
 
     fn sample_daemon_diagnostic() -> Diagnostic {
