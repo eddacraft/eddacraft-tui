@@ -111,13 +111,25 @@ disables any check, suppresses without resolution, or bypasses a hook.
   > 5% or RSS > 200MB on the reference repo. `docs/policies/resource-
   budget.md` documents the ceiling and the measurement protocol.
 - **Files:**
-  - `crates/anvil-bench/benches/watch_resource_budget.rs` (NEW)
-  - `.github/workflows/resource-budget.yml` (NEW)
-  - `docs/policies/resource-budget.md` (NEW)
+  - `crates/anvil-bench/src/budget.rs` (NEW — evaluator primitive
+    landed 2026-05-14 on `feat/adopt-002-resource-budget`)
+  - `docs/policies/resource-budget.md` (NEW — landed 2026-05-14)
+  - `crates/anvil-bench/benches/watch_resource_budget.rs` (NEW —
+    follow-up: drives `anvil watch` on the fixture and emits a
+    `MeasurementSample`)
+  - `.github/workflows/resource-budget.yml` (NEW — follow-up:
+    runs the bench scenario and asserts on the JSON verdict)
 - **Validation:**
-  - `cargo bench -p eddacraft-anvil-bench --bench watch_resource_budget`
+  - `cargo test -p anvil-bench budget` (11 tests green; covers
+    pinned ceiling, pass/fail axes, JSON shape and round-trip)
+  - `cargo bench -p anvil-bench --bench watch_resource_budget`
+    (deferred — added with the bench scenario)
   - CI: `resource-budget` workflow green on the candidate SHA
-- **Status:** Draft
+    (deferred — added with the workflow)
+- **Status:** In Progress
+- **Picked up:** 2026-05-14 (primitive PR open on
+  `feat/adopt-002-resource-budget`; bench scenario + CI workflow
+  follow-up tracked here)
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
