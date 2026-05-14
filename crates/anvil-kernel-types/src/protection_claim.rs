@@ -27,6 +27,36 @@
 //! the conformance test surface lives at
 //! `crates/anvil-cli/tests/protection_claim_states.rs`.
 //!
+//! ## Additive-optional-fields forward-compat (MLP2-052)
+//!
+//! Future optional fields (e.g., `degraded_reasons: Vec<DegradedReason>`,
+//! `cross_boundary_token: Option<String>`) ride **inside this same
+//! major** — they do NOT bump [`PROTECTION_CLAIM_SCHEMA_VERSION`].
+//! The rule:
+//!
+//! 1. Producers MAY emit additional optional fields not declared in the
+//!    Rust struct; consumers MUST silently ignore them on deserialise.
+//!    The intermediate [`ProtectionClaimRaw`] deliberately does NOT use
+//!    `#[serde(deny_unknown_fields)]` so a strict-rejection regression
+//!    is a compile-time-visible diff rather than a runtime contract
+//!    break. Same posture for [`SurfaceClaim`] entries inside the
+//!    `surfaces` array.
+//! 2. Old consumers parsing a newer payload retain semantic identity
+//!    on the fields they understand — round-tripping into and back out
+//!    of a `ProtectionClaim` drops the unknown field (its data is not
+//!    materialised) but never produces a different value for the
+//!    known fields.
+//! 3. Adding a non-optional field, renaming a field, changing a
+//!    field's type, or removing a closed-set variant is NOT additive
+//!    and MUST bump the major component of
+//!    [`PROTECTION_CLAIM_SCHEMA_VERSION`].
+//!
+//! The conformance tests at the bottom of this module pin these
+//! invariants; the cross-crate mirror at
+//! `crates/anvil-cli/tests/protection_claim_states.rs` pins the same
+//! rule at the contract boundary every downstream surface compiles
+//! against.
+//!
 //! ## Deferred follow-ups (not v1)
 //!
 //! - `anvil status --json` render path emitting these types — owned
@@ -541,5 +571,121 @@ mod tests {
         let line = serde_json::to_string(&claim).expect("serialise");
         let back: ProtectionClaim = serde_json::from_str(&line).expect("deserialise round-trip");
         assert_eq!(back.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
+    }
+
+    /// MLP2-052 — additive-optional-fields forward-compat. A wire
+    /// payload carrying an unknown optional top-level field (here
+    /// `degraded_reasons`, one of the field names the spec earmarks
+    /// for v1.1 addition) deserialises successfully against the
+    /// current Rust struct. The unknown field's data is dropped —
+    /// it's not part of the type — but the known fields retain
+    /// semantic identity. This is the structural pin against a
+    /// future regression that adds `#[serde(deny_unknown_fields)]`
+    /// to [`ProtectionClaimRaw`].
+    #[test]
+    fn additive_optional_top_level_field_deserialises_ok() {
+        let wire = r#"{
+            "schema_version": "anvil.protection-claim.v1",
+            "worktree_state": "full",
+            "surfaces": [],
+            "degraded_reasons": ["surface-drift", "rule-pack-mismatch"]
+        }"#;
+        let claim: ProtectionClaim = serde_json::from_str(wire)
+            .expect("unknown optional top-level field must be silently ignored");
+        assert_eq!(claim.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Full);
+        assert!(claim.surfaces.is_empty());
+    }
+
+    /// The unknown optional field is not re-emitted by serialise —
+    /// its data has nowhere to go in the v1 struct, so it drops on
+    /// round-trip. Documents the "old consumers parsing a newer
+    /// payload" half of the additivity rule.
+    #[test]
+    fn additive_optional_top_level_field_drops_on_serialise() {
+        let wire = r#"{
+            "schema_version": "anvil.protection-claim.v1",
+            "worktree_state": "warming",
+            "surfaces": [],
+            "cross_boundary_token": "future-token-abc123"
+        }"#;
+        let claim: ProtectionClaim = serde_json::from_str(wire).expect("deserialise");
+        let re_emitted: serde_json::Value = serde_json::to_value(&claim).expect("serialise back");
+        assert!(
+            re_emitted.get("cross_boundary_token").is_none(),
+            "unknown field must drop on re-serialise (no synthetic emission); got: {re_emitted}",
+        );
+    }
+
+    /// Same forward-compat rule on the surface-claim entries: an
+    /// unknown optional field on a per-surface object deserialises
+    /// without error and the known fields keep semantic identity.
+    #[test]
+    fn additive_optional_field_on_surface_claim_deserialises_ok() {
+        let wire = r#"{
+            "schema_version": "anvil.protection-claim.v1",
+            "worktree_state": "save-time-only",
+            "surfaces": [
+                {
+                    "identifier": "editor-driver-vscode",
+                    "state": "participating",
+                    "last_evaluated_at": "2026-05-14T12:34:56Z"
+                }
+            ]
+        }"#;
+        let claim: ProtectionClaim = serde_json::from_str(wire)
+            .expect("unknown optional field on surface must be silently ignored");
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].identifier, "editor-driver-vscode");
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
+    }
+
+    /// Adding an optional field is, by the rule, NOT a breaking
+    /// change — so the `schema_version` stays pinned at v1. This is
+    /// the "`schema_version` stays `anvil.protection-claim.v1`" half
+    /// of the MLP2-052 acceptance criterion: any future PR that adds
+    /// an optional field MUST NOT alter [`PROTECTION_CLAIM_SCHEMA_VERSION`].
+    #[test]
+    fn additive_optional_field_does_not_bump_schema_version() {
+        // The pin: the major component is "v1". If a future change
+        // bumps to v2 it MUST do so deliberately and document why in
+        // the module docstring's additivity rule, not as a drive-by.
+        assert_eq!(
+            PROTECTION_CLAIM_SCHEMA_VERSION, "anvil.protection-claim.v1",
+            "additive-optional changes must not bump the schema_version major",
+        );
+        // And a fixture carrying an optional field still deserialises
+        // at this exact version constant.
+        let wire = r#"{
+            "schema_version": "anvil.protection-claim.v1",
+            "worktree_state": "degraded-protection",
+            "surfaces": [],
+            "degraded_reasons": ["mock-future-field"]
+        }"#;
+        let claim: ProtectionClaim = serde_json::from_str(wire).expect("deserialise");
+        assert_eq!(claim.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
+    }
+
+    /// Combined: the new field appears on both the envelope and a
+    /// surface entry in the same payload. Pins that the two
+    /// silently-ignore paths compose without interaction.
+    #[test]
+    fn additive_optional_fields_compose_across_envelope_and_surface() {
+        let wire = r#"{
+            "schema_version": "anvil.protection-claim.v1",
+            "worktree_state": "full",
+            "surfaces": [
+                {
+                    "identifier": "mcp-shim-claude",
+                    "state": "participating",
+                    "rule_pack_sha": "abc123"
+                }
+            ],
+            "degraded_reasons": []
+        }"#;
+        let claim: ProtectionClaim = serde_json::from_str(wire).expect("deserialise");
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Full);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
     }
 }

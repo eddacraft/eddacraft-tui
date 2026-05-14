@@ -153,3 +153,60 @@ fn closed_set_counts_match_spec() {
         "spec §14.1 names eight per-surface states",
     );
 }
+
+/// MLP2-052 — additive-optional-fields forward-compat at the
+/// contract boundary. A wire payload from a future producer that
+/// carries an optional field not declared in the current Rust
+/// struct (here `degraded_reasons`) deserialises against the v1
+/// `ProtectionClaim` without error. Downstream surfaces compiling
+/// against this type can rely on the additivity rule without
+/// per-call version checks.
+#[test]
+fn additive_optional_field_forward_compat_at_contract_boundary() {
+    let wire = r#"{
+        "schema_version": "anvil.protection-claim.v1",
+        "worktree_state": "degraded-protection",
+        "surfaces": [],
+        "degraded_reasons": ["surface-drift"]
+    }"#;
+    let claim: ProtectionClaim = serde_json::from_str(wire).expect(
+        "unknown optional fields on the envelope must deserialise into the v1 ProtectionClaim",
+    );
+    assert_eq!(claim.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
+    assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
+}
+
+/// Same additivity rule on the per-surface entries: unknown optional
+/// fields on a `SurfaceClaim` deserialise without error.
+#[test]
+fn additive_optional_field_on_surface_forward_compat_at_contract_boundary() {
+    let wire = r#"{
+        "schema_version": "anvil.protection-claim.v1",
+        "worktree_state": "full",
+        "surfaces": [
+            {
+                "identifier": "mcp-shim-claude",
+                "state": "participating",
+                "last_evaluated_at": "2026-05-14T12:34:56Z",
+                "rule_pack_sha": "abc123"
+            }
+        ]
+    }"#;
+    let claim: ProtectionClaim = serde_json::from_str(wire).expect(
+        "unknown optional fields on a surface entry must deserialise into the v1 SurfaceClaim",
+    );
+    assert_eq!(claim.surfaces.len(), 1);
+    assert_eq!(claim.surfaces[0].identifier, "mcp-shim-claude");
+    assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
+}
+
+/// Adding an optional field MUST NOT bump the `schema_version` major.
+/// This is the contract-boundary pin of the rule documented in the
+/// `protection_claim.rs` module docstring.
+#[test]
+fn additive_optional_field_does_not_bump_schema_version_at_contract_boundary() {
+    assert_eq!(
+        PROTECTION_CLAIM_SCHEMA_VERSION, "anvil.protection-claim.v1",
+        "additive-optional changes must not bump the schema_version major",
+    );
+}
