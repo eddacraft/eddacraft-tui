@@ -88,10 +88,15 @@ mod tests {
     use std::path::Path;
 
     fn fixture_policy() -> Policy {
+        // `cutoff_commit` uses a hex shape so `Policy::validate` —
+        // which enforces hex-SHA shape per MLP2-021's Council
+        // follow-up — accepts the fixture. The cutoff-ancestry
+        // tests below still compare by string equality so the
+        // chosen hex value is opaque.
         Policy::parse(
             r"
 baseline:
-  cutoff_commit: cutoff-sha
+  cutoff_commit: c0ff00
 branches:
   - pattern: main
     require: l4_or_l3
@@ -204,25 +209,27 @@ branches:
     #[test]
     fn cutoff_accepts_commit_at_cutoff_sha() {
         let p = fixture_policy();
-        let ancestry = ["head-sha", "cutoff-sha", "older-sha"];
-        assert!(p.commit_is_before_cutoff("cutoff-sha", &ancestry));
+        // `c0ff00` matches the fixture's `cutoff_commit`. The other
+        // entries are opaque hex-shaped SHAs.
+        let ancestry = ["aaaa01", "c0ff00", "0deadbeef"];
+        assert!(p.commit_is_before_cutoff("c0ff00", &ancestry));
     }
 
     #[test]
     fn cutoff_accepts_commit_older_than_cutoff() {
         let p = fixture_policy();
-        let ancestry = ["head-sha", "cutoff-sha", "older-sha", "much-older"];
-        assert!(p.commit_is_before_cutoff("older-sha", &ancestry));
-        assert!(p.commit_is_before_cutoff("much-older", &ancestry));
+        let ancestry = ["aaaa01", "c0ff00", "0deadbeef", "0badcafe"];
+        assert!(p.commit_is_before_cutoff("0deadbeef", &ancestry));
+        assert!(p.commit_is_before_cutoff("0badcafe", &ancestry));
     }
 
     #[test]
     fn cutoff_rejects_commit_newer_than_cutoff() {
         let p = fixture_policy();
-        let ancestry = ["head-sha", "newer-sha", "cutoff-sha", "older-sha"];
-        // `head-sha` and `newer-sha` are newer than cutoff.
-        assert!(!p.commit_is_before_cutoff("head-sha", &ancestry));
-        assert!(!p.commit_is_before_cutoff("newer-sha", &ancestry));
+        let ancestry = ["aaaa01", "bbbb02", "c0ff00", "0deadbeef"];
+        // `aaaa01` and `bbbb02` are newer than cutoff.
+        assert!(!p.commit_is_before_cutoff("aaaa01", &ancestry));
+        assert!(!p.commit_is_before_cutoff("bbbb02", &ancestry));
     }
 
     #[test]
@@ -238,14 +245,14 @@ branches:
             Path::new("<test>"),
         )
         .unwrap();
-        let ancestry = ["any-sha"];
-        assert!(!p.commit_is_before_cutoff("any-sha", &ancestry));
+        let ancestry = ["aaaa01"];
+        assert!(!p.commit_is_before_cutoff("aaaa01", &ancestry));
     }
 
     #[test]
     fn cutoff_returns_false_for_commit_not_in_ancestry() {
         let p = fixture_policy();
-        let ancestry = ["head-sha", "cutoff-sha"];
-        assert!(!p.commit_is_before_cutoff("unrelated-sha", &ancestry));
+        let ancestry = ["aaaa01", "c0ff00"];
+        assert!(!p.commit_is_before_cutoff("ffff99", &ancestry));
     }
 }

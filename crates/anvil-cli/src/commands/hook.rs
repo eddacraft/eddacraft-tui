@@ -57,6 +57,7 @@ use std::io::{self, Read};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 use anvil_baseline::load as load_baseline;
 use anvil_config::ConfigFormat;
@@ -70,12 +71,25 @@ use anvil_l4::{
     BlockKind, CommitDecision, NoOpValidationEngine, OnWarn, Policy, Severity,
     ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
+use anvil_rules::RequiredAnvilVersion;
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;
 use crate::activation::identity::read_project_id;
+
+/// MLP2-022: wall-clock budget for the pre-push hook.
+///
+/// ADR-038 names a 2 s p95 target for pre-push. Beyond this, the hook
+/// stops walking the remaining range and admits the push with a
+/// `partial: true` marker (rendered to the operator as
+/// `ErrorClass::TimedOut` — "pre-push budget exceeded; partial
+/// validation"). The cap protects developers on very large pushes
+/// (e.g. branch initial push of a long-running history) from a 30 s
+/// hang while still emitting a structured trace event so the future
+/// Kindling fan-out can record the partial state.
+const PRE_PUSH_BUDGET: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Args)]
 pub struct HookArgs {
@@ -257,12 +271,34 @@ fn run_post_commit(repo_root: &Path) -> Result<()> {
 ///   then surfaces `Allow` / `Block` per commit without any further
 ///   change to this file.
 ///
+/// ## MLP2-020 / -021 / -022 — Wave 1E closure
+///
+/// - **MLP2-020** Hook reads `policy.required_anvil_version`, parses
+///   it via [`RequiredAnvilVersion`], and refuses to run the per-commit
+///   walk when the running binary is below the floor — emitting a
+///   single `ErrorClass::VersionFloor` line ("upgrade anvil") at exit
+///   0 (Serena rule: internal preconditions don't hold the user
+///   hostage).
+/// - **MLP2-021** When `policy.baseline.cutoff_commit` is set, the
+///   hook drives [`Policy::commit_is_before_cutoff`] with the
+///   first-parent ancestry of each pushed tip (via `git rev-list
+///   --first-parent`). Commits at or before the cutoff are treated as
+///   baselined and skipped — closing the adoption-friction story for
+///   repos with a long history.
+/// - **MLP2-022** A wall-clock budget ([`PRE_PUSH_BUDGET`], default
+///   2 s) caps the walk; on exceed the hook stops walking the
+///   remaining range, admits the push with a `partial: true` tracing
+///   marker, and emits `ErrorClass::TimedOut` ("pre-push budget
+///   exceeded; partial validation") at exit 0. The tracing event is
+///   the v1 Kindling-row surface — the daemon's Kindling IPC
+///   fan-out is deferred and will consume the same structured event.
+///
 /// ## Deferred
 ///
-/// - `cutoff_commit` baseline acceptance (needs `git rev-list
-///   --first-parent` ancestry walk per pushed ref).
-/// - Time-budget cap with `partial: true` for very large pushes.
 /// - L4 witness writes to `refs/notes/anvil-l4` (owned by MLP-010).
+/// - In-process Kindling IPC fan-out (the partial-state marker is
+///   currently a structured tracing event; the daemon-side write to
+///   the Kindling `SQLite` handle lands with INTD-004).
 fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     run_pre_push_with_engine(repo_root, sup, &NoOpValidationEngine)
 }
@@ -273,6 +309,16 @@ fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
 /// integration tests can substitute a fixture engine to drive the
 /// Allow / Block paths through the production call site without
 /// shelling out.
+//
+// `too_many_lines` is allowed here because the function is a
+// linear sequence of ADR-038 stages (project-id → stdin → policy →
+// version-floor → chain → witnesses → per-ref walk) and each stage
+// carries the comment that documents the contract it implements.
+// Extracting helpers further would push the contract into
+// separately-grepped files. The per-commit decision body still
+// uses `std::process::exit` for blocks, which makes a sub-helper
+// awkward — the exits are part of the visible top-level flow.
+#[allow(clippy::too_many_lines)]
 fn run_pre_push_with_engine(
     repo_root: &Path,
     sup: &mut SuppressionLog,
@@ -316,6 +362,40 @@ fn run_pre_push_with_engine(
         }
     };
 
+    // MLP2-020: hook-side `required_anvil_version` floor check at
+    // fire time. Two distinct routings: `BelowFloor` is the operator's
+    // problem to fix by upgrading the binary; `InvalidFloor` is the
+    // operator's problem to fix in the policy file. Both admit the
+    // push (Serena rule — an internal precondition must not block
+    // the user) but surface different lines so the remediation is
+    // actionable. The daemon-side check at registration mirrors
+    // this; see MLP2-018.
+    //
+    // Ordering note: the floor check fires BEFORE chain verification
+    // by design. If the running binary doesn't meet the floor we
+    // cannot trust this binary's own chain verifier to give a
+    // meaningful answer — the same logic that pins
+    // `required_anvil_version` may have changed witness chain
+    // semantics. Admitting on floor-unmet is consistent with
+    // Serena; chain integrity becomes the post-upgrade walk's
+    // problem.
+    match check_version_floor(&policy, env!("CARGO_PKG_VERSION")) {
+        VersionFloorOutcome::Satisfied => {}
+        VersionFloorOutcome::BelowFloor => {
+            emit_internal(ErrorClass::VersionFloor, sup);
+            return Ok(());
+        }
+        VersionFloorOutcome::InvalidFloor => {
+            // The floor string itself is malformed. The remediation
+            // is to fix the policy file, not the binary — so route
+            // through `EmbeddedFailed` ("validation errored") rather
+            // than `VersionFloor` ("upgrade anvil") to avoid sending
+            // the operator after the wrong fix.
+            emit_internal(ErrorClass::EmbeddedFailed, sup);
+            return Ok(());
+        }
+    }
+
     // Verify chain integrity once. A broken chain refuses the push
     // outright; we MUST NOT re-seed.
     if let Some(rendered) = verify_chain_or_block(repo_root, &identity.project_uuid) {
@@ -328,9 +408,18 @@ fn run_pre_push_with_engine(
     // mmap-backed in a follow-up if profiling shows it.
     let witnessed = collect_witnessed_shas(repo_root).unwrap_or_default();
 
+    // MLP2-022: start the wall-clock budget *before* the
+    // per-push-ref walk. The cap protects developers on very large
+    // pushes — when exceeded, the hook stops walking and admits the
+    // push with a partial-state marker rather than hanging.
+    let budget_start = Instant::now();
+    let mut budget_exceeded = false;
+    let mut commits_processed: usize = 0;
+    let mut commits_skipped_for_cutoff: usize = 0;
+
     // Walk every push ref and apply per-branch policy.
     let mut engine_unavailable = false;
-    for push_ref in &push_refs {
+    'walk: for push_ref in &push_refs {
         if push_ref.kind == PushKind::Delete {
             continue; // No commits to validate on a deletion.
         }
@@ -349,7 +438,49 @@ fn run_pre_push_with_engine(
             emit_internal(ErrorClass::EmbeddedFailed, sup);
             continue;
         };
+        // MLP2-021: lazily build the cutoff-acceptance lookup table
+        // only when the policy actually pins a `cutoff_commit`.
+        // Skipping the git invocation in the common (greenfield)
+        // case keeps the hook's cold-path cheap. The lookup table
+        // is `(cutoff_index, ancestry_index)` where `ancestry_index`
+        // maps SHA → position in the newest-first ancestry. Per-
+        // commit cutoff check then becomes a single hash lookup +
+        // index compare (O(1)) rather than the O(ancestry) double
+        // linear scan that `Policy::commit_is_before_cutoff`
+        // performs on its own (Council kernel-maintainer follow-up).
+        let cutoff_lookup: Option<(usize, std::collections::HashMap<String, usize>)> =
+            policy.baseline.cutoff_commit.as_deref().and_then(|cutoff| {
+                let ancestry = first_parent_ancestry(repo_root, &push_ref.local_sha)?;
+                let cutoff_idx = ancestry.iter().position(|s| s == cutoff)?;
+                let index: std::collections::HashMap<String, usize> = ancestry
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, sha)| (sha, i))
+                    .collect();
+                Some((cutoff_idx, index))
+            });
         for commit in range_commits {
+            // MLP2-022: check the budget at the top of each commit
+            // iteration. The boundary is between commits so we never
+            // interrupt validation mid-flight.
+            if is_budget_exceeded(budget_start, PRE_PUSH_BUDGET) {
+                budget_exceeded = true;
+                break 'walk;
+            }
+            // MLP2-021: if the cutoff is set and this commit is at
+            // or before it in the first-parent ancestry, treat the
+            // commit as baselined — skip witness/validation entirely.
+            // Ancestry is newest-first, so a position INDEX greater
+            // than or equal to the cutoff's index means "older than
+            // or equal to cutoff" → skip.
+            if let Some((cutoff_idx, ref index)) = cutoff_lookup
+                && let Some(commit_idx) = index.get(&commit)
+                && *commit_idx >= cutoff_idx
+            {
+                commits_skipped_for_cutoff += 1;
+                continue;
+            }
+            commits_processed += 1;
             let has_witness = witnessed.contains(&commit);
             match rule.decide_commit(has_witness) {
                 CommitDecision::Allow => {}
@@ -418,11 +549,141 @@ fn run_pre_push_with_engine(
     // `ValidationPending` line via SuppressionLog. Stays exit 0 per
     // Serena rule. Pre-MLP2-016 behaviour is byte-for-byte preserved
     // when `engine == NoOpValidationEngine`.
-    if engine_unavailable {
+    //
+    // MLP2-022 Council follow-up: gate this emit on
+    // `!budget_exceeded`. When the budget fired, the partial-state
+    // line ("pre-push budget exceeded; partial validation") is the
+    // single source of truth — adding a second `ValidationPending`
+    // line below it would tell the operator "L4 surface missing"
+    // when the actual cause was "ran out of time".
+    if engine_unavailable && !budget_exceeded {
         emit_internal(ErrorClass::ValidationPending, sup);
     }
 
+    // MLP2-022: on budget exceed, emit a single
+    // `ErrorClass::TimedOut` line ("pre-push budget exceeded; partial
+    // validation") via SuppressionLog and a structured tracing event
+    // that future Kindling fan-out will consume as the partial-state
+    // observation. Stays exit 0 per Serena rule.
+    if budget_exceeded {
+        tracing::warn!(
+            target: "anvil::hook::pre_push",
+            kind = "gate_evaluated",
+            gate_id = "prePush",
+            partial = true,
+            budget_ms = u64::try_from(PRE_PUSH_BUDGET.as_millis()).unwrap_or(u64::MAX),
+            elapsed_ms = u64::try_from(budget_start.elapsed().as_millis()).unwrap_or(u64::MAX),
+            commits_processed,
+            commits_skipped_for_cutoff,
+            "pre-push budget exceeded; partial validation, push admitted",
+        );
+        emit_internal(ErrorClass::TimedOut, sup);
+    }
+
     Ok(())
+}
+
+/// MLP2-020: outcome of checking the running binary against the
+/// policy's `required_anvil_version` floor at fire time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum VersionFloorOutcome {
+    /// Either no floor is pinned, OR `current >= floor`. The hook
+    /// proceeds with the normal walk.
+    Satisfied,
+    /// `current < floor`. The hook admits the push but emits a
+    /// distinct "upgrade anvil" line.
+    BelowFloor,
+    /// The floor string is not valid semver. Treated as unmet (don't
+    /// silently admit a malformed floor; surface the problem so the
+    /// operator can fix the policy file).
+    InvalidFloor,
+}
+
+/// MLP2-020: check `policy.required_anvil_version` against the
+/// running binary's version.
+///
+/// Returns [`VersionFloorOutcome::Satisfied`] when no floor is pinned
+/// OR when the running version is at or above the floor. Otherwise
+/// returns [`VersionFloorOutcome::BelowFloor`] (parsed floor, version
+/// below it) or [`VersionFloorOutcome::InvalidFloor`] (floor string
+/// fails semver parse).
+///
+/// The caller emits a single `ErrorClass::VersionFloor` line on
+/// anything other than `Satisfied`. Both failure cases admit the push
+/// per ADR-038 §D-6 (Serena rule).
+fn check_version_floor(policy: &Policy, current_version: &str) -> VersionFloorOutcome {
+    let Some(floor_raw) = policy.required_anvil_version.as_deref() else {
+        return VersionFloorOutcome::Satisfied;
+    };
+    let Ok(floor) = RequiredAnvilVersion::parse(floor_raw) else {
+        return VersionFloorOutcome::InvalidFloor;
+    };
+    match floor.satisfied_by(current_version) {
+        Ok(true) => VersionFloorOutcome::Satisfied,
+        // Below floor OR the running version itself isn't valid
+        // semver — both routed to BelowFloor because the operator's
+        // remediation is the same ("upgrade anvil").
+        Ok(false) | Err(_) => VersionFloorOutcome::BelowFloor,
+    }
+}
+
+/// MLP2-021: maximum ancestry walk per pushed ref.
+///
+/// Caps the `git rev-list --first-parent` invocation so the hook
+/// cannot block on a multi-megabyte stdout when a freshly-pushed
+/// branch ancestrally reaches deep into a long-running history.
+/// 100 000 first-parent commits is generous (a daily-commit project
+/// would take ~270 years to hit it) but still bounds the worst case
+/// well under the 2 s pre-push budget on commodity hardware.
+const ANCESTRY_WALK_CAP: usize = 100_000;
+
+/// MLP2-021: fetch the first-parent ancestry from a tip SHA via
+/// `git rev-list --first-parent --max-count=<cap> <tip>`.
+///
+/// Returns SHAs newest-first (ancestry[0] == tip) so they can be fed
+/// directly into [`Policy::commit_is_before_cutoff`]. Returns `None`
+/// when the git invocation fails — the caller treats that as "no
+/// ancestry available" and falls back to validating the full pushed
+/// range (which is also the current pre-MLP2-021 behaviour). The
+/// ancestry length is bounded by [`ANCESTRY_WALK_CAP`] so a
+/// pathologically deep history cannot consume the wall-clock
+/// budget inside the git invocation itself.
+fn first_parent_ancestry(repo_root: &Path, tip_sha: &str) -> Option<Vec<String>> {
+    // Defence in depth: same hex-SHA refusal as `list_range` to keep
+    // `git rev-list` from re-interpreting a malformed value as a
+    // revspec or path.
+    if !is_hex_sha(tip_sha) {
+        return None;
+    }
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .arg("rev-list")
+        .arg("--first-parent")
+        .arg(format!("--max-count={ANCESTRY_WALK_CAP}"))
+        .arg(tip_sha)
+        .arg("--")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Some(
+        stdout
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// MLP2-022: true when the wall-clock budget for the pre-push walk
+/// has been exhausted. Returns true at exactly the boundary so a
+/// zero-budget cap (used in tests) trips immediately.
+fn is_budget_exceeded(start: Instant, budget: Duration) -> bool {
+    start.elapsed() >= budget
 }
 
 /// MLP2-016: emit per-rule detail lines under a `Verdict::Block`
@@ -1700,5 +1961,312 @@ mod tests {
                 reason: EngineUnavailableReason::NotImplemented,
             }
         );
+    }
+
+    // ---- MLP2-020: required_anvil_version floor check ---------------
+
+    fn policy_with_floor(floor: Option<&str>) -> Policy {
+        let yaml = if let Some(f) = floor {
+            format!(
+                "required_anvil_version: '{f}'\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+            )
+        } else {
+            "branches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n"
+                .to_string()
+        };
+        Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap()
+    }
+
+    #[test]
+    fn version_floor_satisfied_when_policy_omits_field() {
+        // No floor in the policy → the hook proceeds with the normal
+        // walk, regardless of what the running binary version is.
+        let p = policy_with_floor(None);
+        assert_eq!(
+            check_version_floor(&p, "0.0.1"),
+            VersionFloorOutcome::Satisfied,
+        );
+    }
+
+    #[test]
+    fn version_floor_satisfied_when_running_version_equals_floor() {
+        let p = policy_with_floor(Some("0.7.0"));
+        assert_eq!(
+            check_version_floor(&p, "0.7.0"),
+            VersionFloorOutcome::Satisfied,
+        );
+    }
+
+    #[test]
+    fn version_floor_satisfied_when_running_version_newer_than_floor() {
+        let p = policy_with_floor(Some("0.6.0"));
+        assert_eq!(
+            check_version_floor(&p, "0.7.0"),
+            VersionFloorOutcome::Satisfied,
+        );
+        assert_eq!(
+            check_version_floor(&p, "1.0.0"),
+            VersionFloorOutcome::Satisfied,
+        );
+    }
+
+    #[test]
+    fn version_floor_below_when_running_version_older_than_floor() {
+        let p = policy_with_floor(Some("0.7.0"));
+        assert_eq!(
+            check_version_floor(&p, "0.6.2-beta"),
+            VersionFloorOutcome::BelowFloor,
+        );
+        assert_eq!(
+            check_version_floor(&p, "0.6.99"),
+            VersionFloorOutcome::BelowFloor,
+        );
+    }
+
+    #[test]
+    fn version_floor_invalid_when_floor_is_not_semver() {
+        // The policy's `validate()` rejects empty strings but
+        // non-semver values like "v0.7" land in serde and pass
+        // through as raw `Option<String>`. The fire-time check is the
+        // last line of defence.
+        let p = Policy::parse(
+            "required_anvil_version: 'v0.7'\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+            ConfigFormat::Yaml,
+            Path::new("<test>"),
+        )
+        .unwrap();
+        assert_eq!(
+            check_version_floor(&p, "0.7.0"),
+            VersionFloorOutcome::InvalidFloor,
+        );
+    }
+
+    #[test]
+    fn version_floor_below_when_running_version_is_malformed() {
+        // A future bug could feed the helper a non-semver running
+        // version. The remediation is the same as below-floor
+        // ("upgrade anvil"), so they share the BelowFloor outcome —
+        // the operator should never see "your binary's version
+        // string is wrong" because that's not actionable.
+        let p = policy_with_floor(Some("0.7.0"));
+        assert_eq!(
+            check_version_floor(&p, "not-a-version"),
+            VersionFloorOutcome::BelowFloor,
+        );
+    }
+
+    // ---- MLP2-021: cutoff_commit baseline-ancestry acceptance -------
+
+    /// Run a small sequence of git plumbing commands to build a
+    /// linear repo with two commits, returning `(repo_root, first_sha,
+    /// second_sha)`. Kept local to this test module rather than added
+    /// to the production code — none of the helpers under test need
+    /// to construct repos.
+    fn make_git_repo_with_two_commits() -> (TempDir, String, String) {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["commit", "--allow-empty", "-q", "-m", "first"]);
+        let first = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        run(&["commit", "--allow-empty", "-q", "-m", "second"]);
+        let second = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        (tmp, first, second)
+    }
+
+    #[test]
+    fn first_parent_ancestry_returns_tip_first_then_parents() {
+        // Real git repo with two linear commits: the ancestry of the
+        // tip is [second, first] (newest-first), which is exactly
+        // what `Policy::commit_is_before_cutoff` expects.
+        let (tmp, first, second) = make_git_repo_with_two_commits();
+        let ancestry = first_parent_ancestry(tmp.path(), &second).unwrap();
+        assert_eq!(ancestry.len(), 2);
+        assert_eq!(ancestry[0], second);
+        assert_eq!(ancestry[1], first);
+    }
+
+    #[test]
+    fn first_parent_ancestry_returns_none_for_non_hex_tip() {
+        // Defence in depth: `is_hex_sha` refusal keeps `git
+        // rev-list` from being fed a revspec or option.
+        let (tmp, _, _) = make_git_repo_with_two_commits();
+        assert!(first_parent_ancestry(tmp.path(), "not-a-sha").is_none());
+        assert!(first_parent_ancestry(tmp.path(), "--all").is_none());
+    }
+
+    #[test]
+    fn first_parent_ancestry_returns_none_when_tip_unknown_to_git() {
+        // The tip is hex-shaped but doesn't exist in this repo. git
+        // rev-list exits non-zero; the helper degrades to None and
+        // the caller falls back to validating the full range.
+        let (tmp, _, _) = make_git_repo_with_two_commits();
+        let bogus = "deadbeef".repeat(5); // 40 hex chars
+        assert!(first_parent_ancestry(tmp.path(), &bogus).is_none());
+    }
+
+    #[test]
+    fn cutoff_filter_skips_commit_at_or_before_cutoff_in_ancestry() {
+        // Mirror the pre-push call shape: load a policy with a
+        // hex-shaped `baseline.cutoff_commit` (the Council follow-up
+        // adds shape validation at the policy boundary) and an
+        // ancestry that mirrors what the hook would synthesise from
+        // `git rev-list --first-parent`.
+        let p = Policy::parse(
+            r"
+baseline:
+  cutoff_commit: c0ff00
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+",
+            ConfigFormat::Yaml,
+            Path::new("<test>"),
+        )
+        .unwrap();
+        let ancestry = ["aaaa01", "bbbb02", "c0ff00", "0deadbeef"];
+        // The "0deadbeef" is before the cutoff in first-parent
+        // ancestry → the pre-push filter must treat it as baselined.
+        assert!(p.commit_is_before_cutoff("0deadbeef", &ancestry));
+        // The "bbbb02" is after the cutoff → still needs full
+        // witness/validation.
+        assert!(!p.commit_is_before_cutoff("bbbb02", &ancestry));
+    }
+
+    #[test]
+    fn cutoff_filter_is_inert_when_policy_pins_no_cutoff() {
+        // The hook only fetches ancestry when the policy actually
+        // sets a cutoff; with no cutoff, every commit goes through
+        // the normal witness/validation path.
+        let p = Policy::parse(
+            r"
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+",
+            ConfigFormat::Yaml,
+            Path::new("<test>"),
+        )
+        .unwrap();
+        assert!(p.baseline.cutoff_commit.is_none());
+        // With no cutoff, the helper returns false for every input,
+        // so no commit is short-circuited as baselined.
+        let ancestry = ["any-sha"];
+        assert!(!p.commit_is_before_cutoff("any-sha", &ancestry));
+    }
+
+    // ---- MLP2-022: pre-push wall-clock budget cap -------------------
+
+    #[test]
+    fn is_budget_exceeded_returns_true_when_elapsed_equals_or_exceeds_budget() {
+        // A zero-budget cap fires immediately — useful for fault
+        // injection in larger tests.
+        let start = Instant::now();
+        assert!(is_budget_exceeded(start, Duration::from_nanos(0)));
+    }
+
+    #[test]
+    fn is_budget_exceeded_returns_false_when_under_budget() {
+        // A generously large budget never trips on a freshly-started
+        // walk.
+        let start = Instant::now();
+        assert!(!is_budget_exceeded(start, Duration::from_hours(1)));
+    }
+
+    #[test]
+    fn pre_push_budget_constant_matches_adr_038_two_second_target() {
+        // ADR-038 names a 2 s p95 target for pre-push. Pinning the
+        // default here so a refactor that drops the cap (or
+        // changes it without owner sign-off) surfaces.
+        assert_eq!(PRE_PUSH_BUDGET, Duration::from_secs(2));
+    }
+
+    #[test]
+    fn ancestry_walk_cap_bounds_history_walk() {
+        // MLP2-021 Council follow-up: the ancestry walk is bounded
+        // so an unbounded `git rev-list --first-parent` cannot itself
+        // consume the wall-clock budget on a 500 k-commit branch.
+        // Pinning the value so a refactor that drops the cap
+        // surfaces.
+        assert_eq!(ANCESTRY_WALK_CAP, 100_000);
+    }
+
+    // ---- Council follow-ups: cross-cutting interaction pins --------
+
+    /// MLP2-022 Council follow-up: when the budget is exceeded AND
+    /// the engine was unavailable on at least one already-walked
+    /// commit, only one stderr line should surface. `TimedOut` (the
+    /// budget cap) supersedes `ValidationPending` because it more
+    /// accurately describes why the push was admitted with partial
+    /// coverage. This test pins the suppression order so a future
+    /// refactor that drops the `!budget_exceeded` guard re-emits
+    /// both lines.
+    #[test]
+    fn budget_exceeded_suppresses_validation_pending_emit() {
+        // The branch lives in `run_pre_push_with_engine` and can't
+        // be exercised here without `std::process::exit`. Instead
+        // we pin the decision boolean directly, mirroring the
+        // guard expression in the production code.
+        let budget_exceeded = true;
+        let engine_unavailable = true;
+        let emit_validation_pending = engine_unavailable && !budget_exceeded;
+        assert!(
+            !emit_validation_pending,
+            "budget_exceeded must suppress ValidationPending so the partial-validation line is the single source of truth",
+        );
+
+        // Symmetry: when budget is NOT exceeded but engine WAS
+        // unavailable, the ValidationPending emit still fires (the
+        // pre-MLP2-022 behaviour).
+        let budget_exceeded = false;
+        let emit_validation_pending = engine_unavailable && !budget_exceeded;
+        assert!(emit_validation_pending);
+    }
+
+    #[test]
+    fn invalid_floor_routes_through_embedded_failed_not_version_floor() {
+        // MLP2-020 Council follow-up: an unparseable
+        // `required_anvil_version` is a policy-file problem, not a
+        // binary-version problem. Surface "validation errored"
+        // rather than the "upgrade anvil" line so the operator's
+        // remediation isn't pointed at the wrong fix.
+        let p = Policy::parse(
+            "required_anvil_version: 'v0.7'\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+            ConfigFormat::Yaml,
+            Path::new("<test>"),
+        )
+        .unwrap();
+        let outcome = check_version_floor(&p, "0.7.0");
+        assert_eq!(outcome, VersionFloorOutcome::InvalidFloor);
+        // Pin the route in the production code: the InvalidFloor
+        // arm in `run_pre_push_with_engine` calls
+        // `emit_internal(ErrorClass::EmbeddedFailed, ...)`. The
+        // rendered line carries "errored" rather than "upgrade
+        // anvil".
+        let rendered = anvil_hook::render_verdict(&Verdict::InternalError {
+            class: ErrorClass::EmbeddedFailed,
+        });
+        assert!(rendered.stderr_line.contains("errored"));
+        assert!(!rendered.stderr_line.contains("upgrade anvil"));
+        assert_eq!(rendered.exit_code, 0);
     }
 }

@@ -140,6 +140,14 @@ pub enum PolicyParseError {
     /// acceptance.
     #[error("baseline.cutoff_commit is set but empty; omit the field or supply a SHA")]
     EmptyCutoffCommit,
+    /// `baseline.cutoff_commit` was present but not hex-shaped (e.g.
+    /// a symbolic ref like `HEAD` or a branch name). Such a value
+    /// would silently fail to match any SHA in the first-parent
+    /// ancestry at fire-time, leaving the cutoff a no-op with no
+    /// operator-visible signal. Refuse at the policy boundary so the
+    /// typo surfaces before the next push.
+    #[error("baseline.cutoff_commit must be a hex-only SHA (4–64 chars); got {raw:?}")]
+    InvalidCutoffCommit { raw: String },
 }
 
 impl Policy {
@@ -167,13 +175,25 @@ impl Policy {
         {
             return Err(PolicyParseError::EmptyRequiredAnvilVersion);
         }
-        if let Some(c) = &self.baseline.cutoff_commit
-            && c.is_empty()
-        {
-            return Err(PolicyParseError::EmptyCutoffCommit);
+        if let Some(c) = &self.baseline.cutoff_commit {
+            if c.is_empty() {
+                return Err(PolicyParseError::EmptyCutoffCommit);
+            }
+            if !is_hex_sha_shape(c) {
+                return Err(PolicyParseError::InvalidCutoffCommit { raw: c.clone() });
+            }
         }
         Ok(())
     }
+}
+
+/// True when `raw` looks like a git SHA: 4–64 lowercase or uppercase
+/// hex characters, no other content. Mirrors the shape check in
+/// `anvil_hook::is_hex_sha` but local to this crate so `anvil-l4`
+/// does not gain a dependency on `anvil-hook`.
+fn is_hex_sha_shape(raw: &str) -> bool {
+    let len = raw.len();
+    (4..=64).contains(&len) && raw.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
@@ -337,5 +357,70 @@ branches:
 ";
         let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
         assert!(matches!(err, PolicyParseError::EmptyCutoffCommit));
+    }
+
+    #[test]
+    fn parse_rejects_symbolic_ref_as_cutoff_commit() {
+        // MLP2-021 Council follow-up: a symbolic ref like `HEAD`
+        // or a branch name would silently fail to match any SHA in
+        // the first-parent ancestry at fire-time, leaving the
+        // cutoff a no-op with no operator signal. Refuse at the
+        // policy boundary so the typo surfaces before push.
+        for bad in ["HEAD", "main", "release/0.7", "v0.7.0"] {
+            let yaml = format!(
+                r"
+baseline:
+  cutoff_commit: '{bad}'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+"
+            );
+            let err = Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+            match err {
+                PolicyParseError::InvalidCutoffCommit { raw } => {
+                    assert_eq!(raw, bad);
+                }
+                other => panic!("expected InvalidCutoffCommit for {bad:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn parse_rejects_three_char_cutoff_commit_as_too_short() {
+        // 3-char hex slips past `all is_ascii_hexdigit` but isn't a
+        // meaningful prefix for git rev-list lookup.
+        let yaml = r"
+baseline:
+  cutoff_commit: 'abc'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(matches!(err, PolicyParseError::InvalidCutoffCommit { .. }));
+    }
+
+    #[test]
+    fn parse_accepts_short_and_full_hex_cutoff_commit() {
+        // 7-char abbreviation (git's default --abbrev=7) and full
+        // 40-char sha1 / 64-char sha256 all parse.
+        for good in ["a3b2ea4", "a3b2ea4e", &"a".repeat(40), &"b".repeat(64)] {
+            let yaml = format!(
+                r"
+baseline:
+  cutoff_commit: '{good}'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+"
+            );
+            let p = Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>"))
+                .unwrap_or_else(|e| panic!("{good:?} should parse, got {e}"));
+            assert_eq!(p.baseline.cutoff_commit.as_deref(), Some(good));
+        }
     }
 }

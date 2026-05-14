@@ -57,13 +57,24 @@ pub enum ErrorClass {
     EmbeddedFailed,
     /// `std::panic::set_hook` fired during hook execution.
     Panic,
-    /// Time budget exceeded; partial verdict surfaced.
+    /// MLP2-022: pre-push wall-clock budget exceeded; the hook
+    /// stopped walking remaining commits and admits the push with a
+    /// `partial: true` marker. The operator sees a distinct line
+    /// ("partial validation") so they can tell this apart from
+    /// "Anvil broke".
     TimedOut,
     /// L4 server-side validation surface exists but the rule engine
     /// isn't wired yet (MLP-006's deferred CLI lane). The hook
     /// allows the push and emits a single noise-disciplined line so
     /// the operator can see they're depending on a future feature.
     ValidationPending,
+    /// MLP2-020: this repo's `anvil/policy.yml` pins a
+    /// `required_anvil_version` floor that the running binary does
+    /// not satisfy (or the floor field is itself malformed). The
+    /// hook admits the push (Serena rule — don't hold the user
+    /// hostage to an internal precondition) and emits a distinct
+    /// one-line "upgrade anvil" message.
+    VersionFloor,
 }
 
 impl ErrorClass {
@@ -71,9 +82,10 @@ impl ErrorClass {
     pub fn component(self) -> &'static str {
         match self {
             ErrorClass::DaemonUnreachable => "daemon",
-            ErrorClass::EmbeddedFailed | ErrorClass::TimedOut | ErrorClass::ValidationPending => {
-                "validation"
-            }
+            ErrorClass::EmbeddedFailed
+            | ErrorClass::TimedOut
+            | ErrorClass::ValidationPending
+            | ErrorClass::VersionFloor => "validation",
             ErrorClass::Panic => "hook",
         }
     }
@@ -150,6 +162,29 @@ pub fn render_verdict(verdict: &Verdict) -> RenderedVerdict {
             // Serena rule.
             stderr_line: "anvil: l4 validation pending (push allowed) — anvil doctor for details"
                 .to_string(),
+            exit_code: 0,
+        },
+        Verdict::InternalError {
+            class: ErrorClass::TimedOut,
+        } => RenderedVerdict {
+            // MLP2-022: pre-push budget exceeded. Distinct from
+            // generic "validation errored" so the operator can see
+            // "Anvil ran out of time" vs "Anvil broke".
+            stderr_line:
+                "anvil: pre-push budget exceeded; partial validation (push admitted) — anvil doctor for details"
+                    .to_string(),
+            exit_code: 0,
+        },
+        Verdict::InternalError {
+            class: ErrorClass::VersionFloor,
+        } => RenderedVerdict {
+            // MLP2-020: `required_anvil_version` floor unmet. The
+            // hook admits the push (Serena rule) but the line says
+            // "upgrade anvil" so the operator knows the action to
+            // take.
+            stderr_line:
+                "anvil: required_anvil_version not met — upgrade anvil (push admitted)"
+                    .to_string(),
             exit_code: 0,
         },
         Verdict::InternalError { class } => RenderedVerdict {
@@ -258,6 +293,7 @@ mod tests {
             ErrorClass::Panic,
             ErrorClass::TimedOut,
             ErrorClass::ValidationPending,
+            ErrorClass::VersionFloor,
         ] {
             let r = render_verdict(&Verdict::InternalError { class });
             assert_eq!(
@@ -269,16 +305,31 @@ mod tests {
                 "internal error line must be anvil-prefixed: {:?}",
                 r.stderr_line
             );
-            // ValidationPending uses its own distinct phrasing
-            // ("l4 validation pending"); the other variants share the
-            // generic "errored …" form. Both still point the operator
-            // at `anvil doctor`.
-            if class == ErrorClass::ValidationPending {
-                assert!(r.stderr_line.contains("pending"));
-            } else {
-                assert!(r.stderr_line.contains("errored"));
+            // Each variant carries a distinct, operator-facing phrase
+            // (`pending`, `budget exceeded`, `required_anvil_version`)
+            // or falls through to the generic "errored …" form. All
+            // still hint at recovery: either `anvil doctor` or, for
+            // VersionFloor specifically, the explicit "upgrade anvil"
+            // call to action.
+            match class {
+                ErrorClass::ValidationPending => {
+                    assert!(r.stderr_line.contains("pending"));
+                    assert!(r.stderr_line.contains("anvil doctor"));
+                }
+                ErrorClass::TimedOut => {
+                    assert!(r.stderr_line.contains("budget exceeded"));
+                    assert!(r.stderr_line.contains("partial validation"));
+                    assert!(r.stderr_line.contains("anvil doctor"));
+                }
+                ErrorClass::VersionFloor => {
+                    assert!(r.stderr_line.contains("required_anvil_version"));
+                    assert!(r.stderr_line.contains("upgrade anvil"));
+                }
+                _ => {
+                    assert!(r.stderr_line.contains("errored"));
+                    assert!(r.stderr_line.contains("anvil doctor"));
+                }
             }
-            assert!(r.stderr_line.contains("anvil doctor"));
         }
     }
 
@@ -291,6 +342,37 @@ mod tests {
         assert_eq!(ErrorClass::Panic.component(), "hook");
         assert_eq!(ErrorClass::TimedOut.component(), "validation");
         assert_eq!(ErrorClass::ValidationPending.component(), "validation");
+        assert_eq!(ErrorClass::VersionFloor.component(), "validation");
+    }
+
+    #[test]
+    fn version_floor_renders_distinct_upgrade_line_at_exit_zero() {
+        // MLP2-020: the line MUST name `required_anvil_version` and
+        // include "upgrade anvil" so the operator knows the precise
+        // remediation. Exit 0 per Serena rule.
+        let r = render_verdict(&Verdict::InternalError {
+            class: ErrorClass::VersionFloor,
+        });
+        assert_eq!(r.exit_code, 0);
+        assert!(r.stderr_line.contains("required_anvil_version"));
+        assert!(r.stderr_line.contains("upgrade anvil"));
+        assert!(r.stderr_line.contains("push admitted"));
+        assert!(!r.stderr_line.contains('\n'));
+    }
+
+    #[test]
+    fn timed_out_renders_distinct_partial_validation_line_at_exit_zero() {
+        // MLP2-022: the line MUST name "budget exceeded" and
+        // "partial validation" so the operator can tell this apart
+        // from "Anvil broke". Exit 0 per Serena rule.
+        let r = render_verdict(&Verdict::InternalError {
+            class: ErrorClass::TimedOut,
+        });
+        assert_eq!(r.exit_code, 0);
+        assert!(r.stderr_line.contains("budget exceeded"));
+        assert!(r.stderr_line.contains("partial validation"));
+        assert!(r.stderr_line.contains("push admitted"));
+        assert!(!r.stderr_line.contains('\n'));
     }
 
     #[test]

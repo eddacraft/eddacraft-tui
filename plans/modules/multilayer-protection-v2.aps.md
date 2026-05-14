@@ -653,7 +653,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-020: Hook-side `required_anvil_version` floor check at fire time
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `anvil hook pre-commit` reads
   `anvil/policy.yml`'s `required_anvil_version` and refuses to
   run (with a clear "upgrade anvil" message) if the running
@@ -673,7 +673,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-021: `cutoff_commit` baseline-ancestry acceptance in pre-push
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Pre-push currently walks the literal pushed
   range only. Extend to accept the cutoff via a
   `git rev-list --first-parent` ancestry walk per pushed ref,
@@ -695,7 +695,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-022: Pre-push time-budget cap with `partial: true`
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** ADR-038 names a 2s p95 budget for pre-push. v1
   walks unboundedly. Add the cap-trigger surface so very large
   pushes return `partial: true` rather than blocking developers
