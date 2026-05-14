@@ -211,7 +211,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 2);
+    assert_eq!(tools.len(), 4);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
@@ -220,6 +220,14 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .iter()
         .find(|tool| tool["name"] == "anvil_status")
         .expect("tools/list includes anvil_status");
+    let check = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_check")
+        .expect("tools/list includes anvil_check");
+    let gate = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_gate")
+        .expect("tools/list includes anvil_gate");
     let description = validate_write["description"]
         .as_str()
         .expect("tool descriptor must include a description");
@@ -230,6 +238,18 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     assert!(
         status["inputSchema"]["properties"]
             .get("workspaceRoot")
+            .is_some()
+    );
+    assert_eq!(check["inputSchema"]["type"], "object");
+    let check_required = check["inputSchema"]["required"]
+        .as_array()
+        .expect("check inputSchema.required is an array");
+    assert!(check_required.contains(&json!("files")));
+    assert!(check_required.contains(&json!("workspaceRoot")));
+    assert_eq!(gate["inputSchema"]["type"], "object");
+    assert!(
+        gate["inputSchema"]["properties"]
+            .get("targetFiles")
             .is_some()
     );
 }
@@ -585,6 +605,171 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
             .expect("availableChecks is an array")
             .contains(&json!("secret-detection"))
     );
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_check_returns_clean_payload_for_clean_files() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(src.join("clean.ts"), "export const value = 1;\n")
+        .expect("clean fixture is writable");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_check",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "files": ["src/clean.ts"]
+                    }
+                }
+            })
+        )
+        .expect("failed to send check tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after check tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("check tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 20);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["hasBlockingWarnings"], false);
+    assert_eq!(payload["summary"]["total"], 0);
+    assert_eq!(payload["warnings"], json!([]));
+    assert_eq!(payload["workspaceRoot"], ".");
+    assert_eq!(payload["backend"], "local");
+    assert_eq!(payload["daemonStatus"], "not-wired");
+    assert_eq!(payload["checksRun"], json!(["antipattern"]));
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root() {
+    let server_root = tempfile::tempdir().expect("server root exists");
+    let foreign_workspace = tempfile::tempdir().expect("foreign workspace exists");
+
+    let mut child = spawn_mcp_server_in(server_root.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_check",
+                    "arguments": {
+                        "workspaceRoot": foreign_workspace.path(),
+                        "files": []
+                    }
+                }
+            })
+        )
+        .expect("failed to send out-of-root check tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after out-of-root check call; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("check tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["result"]["isError"], true);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(
+        payload["error"],
+        "workspaceRoot must be inside the MCP server root"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_gate_planless_mode_scans_target_files() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(src.join("clean.ts"), "export const value = 1;\n")
+        .expect("clean fixture is writable");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_gate",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "targetFiles": ["src/clean.ts"]
+                    }
+                }
+            })
+        )
+        .expect("failed to send gate planless tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after gate planless call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("gate planless response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 22);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["mode"], "planless");
+    assert_eq!(payload["hasBlockingWarnings"], false);
+    assert_eq!(payload["summary"]["total"], 0);
+    assert_eq!(payload["checksRun"], json!(["antipattern"]));
+    assert_eq!(payload["backend"], "local");
+    assert_eq!(payload["daemonStatus"], "not-wired");
 }
 
 #[test]

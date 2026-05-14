@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 3/10     |
+| RMCPF | —     | In Progress | 4/10     |
 
 **Last reviewed:** 2026-05-14
 
@@ -207,7 +207,7 @@ retirement decisions:
 
 ### RMCPF-010: Port check/gate/status tools
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Move the core read-only validation tools from the TS MCP server to
   Rust while preserving response contracts or documenting intentional changes.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_check`,
@@ -242,18 +242,62 @@ retirement decisions:
   `cargo test -p eddacraft-anvil mcp::tools::status::tests`, and
   `cargo test -p eddacraft-anvil mcp::tools::registry::tests`. The full
   `cargo test -p eddacraft-anvil --test mcp_serve_stdio` integration suite also
-  passed before PR closeout.
-- **Closeout evidence:** The Rust MCP tool registry now dispatches multiple
-  tools without changing `tools/call` protocol handling. `anvil_status` is
-  implemented as an unauthenticated read-only local status tool for this slice
-  because no Rust daemon `status.query` MCP surface exists yet; its response
-  keeps the archived TS field names (`status`, `workspaceRoot`,
-  `availableChecks`, `config`, `hasBaseline`, `version`) while redacting path
-  values to workspace-relative forms and adding explicit `backend: "local"` /
-  `daemonStatus: "not-wired"` provenance for future daemon replacement. The
-  workspace root is canonicalised and rejected when it resolves outside the MCP
-  server root before any filesystem reads, and `hasBaseline` reads the archived
-  architecture baseline source (`.anvil/architecture.json`).
+  passed before PR closeout. The check/gate slice was validated on 2026-05-14
+  with `cargo test -p eddacraft-anvil --bin anvil mcp::tools::check::tests`,
+  `cargo test -p eddacraft-anvil --bin anvil mcp::tools::gate::tests`, an
+  updated `cargo test -p eddacraft-anvil --bin anvil mcp::tools::registry::tests`
+  (four tools registered), and the full
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio` integration suite
+  (19/19 green including the new
+  `mcp_serve_stdio_tools_call_check_returns_clean_payload_for_clean_files`,
+  `mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root`, and
+  `mcp_serve_stdio_tools_call_gate_planless_mode_scans_target_files` cases).
+  `cargo fmt --all -- --check` and
+  `cargo clippy -p eddacraft-anvil --all-targets` both ran clean after the
+  slice.
+- **Closeout evidence:** The Rust MCP tool registry now dispatches four tools
+  (`anvil_validate_write`, `anvil_status`, `anvil_check`, `anvil_gate`) without
+  changing `tools/call` protocol handling. `anvil_status` is implemented as an
+  unauthenticated read-only local status tool for this slice because no Rust
+  daemon `status.query` MCP surface exists yet; its response keeps the archived
+  TS field names (`status`, `workspaceRoot`, `availableChecks`, `config`,
+  `hasBaseline`, `version`) while redacting path values to workspace-relative
+  forms and adding explicit `backend: "local"` / `daemonStatus: "not-wired"`
+  provenance for future daemon replacement. The workspace root is canonicalised
+  and rejected when it resolves outside the MCP server root before any
+  filesystem reads, and `hasBaseline` reads the archived architecture baseline
+  source (`.anvil/architecture.json`).
+  `anvil_check` is implemented as the daemon-RPC translator's
+  correctness-equivalent embedded fallback because no daemon `scan.files`
+  surface exists yet: it validates workspaceRoot containment under the MCP
+  server root, rejects absolute and `..`-escaping file entries, canonicalises
+  every workspace-relative path and re-verifies it stays inside the workspace
+  before reading (per Council review — closes the symlink-escape vector where a
+  workspace-relative entry pointing at a symlink targeting `/etc/passwd` would
+  otherwise be read), runs
+  `anvil_checks::antipattern::run_antipattern_check` in process against
+  workspace-relative paths, and returns the parity payload (`warnings`,
+  `summary`, `executionTimeMs`, `checksRun: ["antipattern"]`,
+  `hasBlockingWarnings`, redacted `workspaceRoot`, `backend: "local"`,
+  `daemonStatus: "not-wired"`). When INTD lands `scan.files`, this handler
+  flips to the daemon-RPC translator path without an MCP contract change.
+  `anvil_gate` is MCP-driver-local composition: planless mode (`targetFiles`
+  supplied) runs the antipattern scanner in process with the same redaction,
+  symlink-resolution, and provenance contract as `anvil_check`; full mode (no
+  `targetFiles`) shells `current_exe --no-tui --json gate` from the workspace
+  root with a 2-minute timeout, optional `--skip-checks` and `--fail-fast`
+  flags, parses the gate JSON envelope, and returns a reshaped payload
+  (`mode`, `overall`, `score`, `checks`, `executionTimeMs`, `exitCode`,
+  redacted `workspaceRoot`, `backend: "local"`, `daemonStatus: "not-wired"`).
+  Both tools reject workspace roots outside the MCP server root before any
+  filesystem or subprocess work, cap file-array length at 10 000 entries,
+  reject comma-bearing or NUL-byte-bearing skip-check entries before any
+  subprocess spawn, and cap subprocess stdout/stderr capture at 16 MiB so a
+  pathological gate plugin cannot exhaust the MCP server's memory before the
+  timeout fires. Shared workspace/redaction/warning helpers live in
+  `crates/anvil-cli/src/mcp/tools/shared.rs`; `status`, `check`, and `gate`
+  all consume the same canonicalisation and containment logic so a future
+  hardening tweak lands once, not three times.
 - **Files:** `crates/anvil-cli/src/mcp/tools/`,
   `archive/anvil-mcp-server/src/tools/`
 - **Confidence:** medium
@@ -405,7 +449,7 @@ retirement decisions:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
-| 1 — Tool Parity | 3 | RMCPF-010 In Progress |
+| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 Draft |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
-| **Total** | **10** | **3/10 done** |
+| **Total** | **10** | **4/10 done** |

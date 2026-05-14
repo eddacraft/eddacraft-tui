@@ -1,8 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::{Value, json};
 
 use crate::commands::check_catalog;
+use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 use crate::mcp::validation::DaemonStatus;
 
 pub const TOOL_NAME: &str = "anvil_status";
@@ -63,43 +64,6 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         "backend": "local",
         "daemonStatus": DaemonStatus::NotWired.as_str()
     }))
-}
-
-fn validate_workspace_root(
-    workspace_root: &Path,
-    server_root: &Path,
-) -> Result<(PathBuf, PathBuf), String> {
-    if !workspace_root.is_absolute() {
-        return Err("workspaceRoot must be an absolute path".to_string());
-    }
-    if !workspace_root.exists() {
-        return Err("workspaceRoot does not exist".to_string());
-    }
-    if !workspace_root.is_dir() {
-        return Err("workspaceRoot must be a directory".to_string());
-    }
-    let server_root = server_root
-        .canonicalize()
-        .map_err(|err| format!("MCP server root is not accessible: {err}"))?;
-    let workspace_root = workspace_root
-        .canonicalize()
-        .map_err(|err| format!("workspaceRoot is not accessible: {err}"))?;
-    if !workspace_root.starts_with(&server_root) {
-        return Err("workspaceRoot must be inside the MCP server root".to_string());
-    }
-    Ok((server_root, workspace_root))
-}
-
-fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> String {
-    let relative = workspace_root
-        .strip_prefix(server_root)
-        .expect("workspace root containment already validated");
-
-    if relative.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        relative.to_string_lossy().replace('\\', "/")
-    }
 }
 
 fn load_config_info(workspace_root: &Path) -> Value {
