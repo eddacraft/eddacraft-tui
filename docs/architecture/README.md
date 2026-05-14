@@ -124,6 +124,15 @@ against.
   strategy: Criterion regression detection plus `anvil-bench` capacity
   discovery; tracks performance targets from the kernel spec
 
+## Active architecture specs
+
+Specs that are active authority for planned implementation slices.
+
+- [rust-mcp-server-spec.md](rust-mcp-server-spec.md) — RMCPF-002 Rust MCP parity
+  architecture: command layout, protocol support, DRVR-006 tool classification,
+  resources, prompts, transports, and TypeScript MCP retirement gates (Ready,
+  2026-05-14)
+
 ## Specs (`docs/specs/`)
 
 Older design drafts and feature design specs. These describe intent at the time

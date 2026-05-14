@@ -1,24 +1,17 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                      |
-| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-13 (Wave 0 Promote Contracts complete); base `v0.6.2-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                     |
+| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-14 (RMCPF later-window phasing added); base `v0.6.2-beta` + APS modules |
 
-| Upstream                                                                                                                    | Downstream                                                        |
-| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
+| Upstream                                                                                                                          | Downstream                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-13 (WATCHUX beta incident lane added to the current
-release slate. Wave 1 _Build The Load-Bearing Backbone_ complete: MLP-001 / -002
-/ -011 / -013 / -017 Done. Wave 2 _Hook, Policy, And Baseline Surfaces_ in
-flight — MLP-012 shipped a new `crates/anvil-rules/` library (rules_sha +
-RequiredAnvilVersion; 29 tests green) and MLP-007 shipped a new
-`crates/anvil-baseline/` library (Baseline schema + move-resistant fingerprint +
-TOCTOU-hardened I/O + diff partition; 44 tests green). MLP module advanced to
-7/17. CLI command, scanner integration, `cutoff_commit` policy pinning, witness
-genesis emission, hook install, daemon cache, L4 verification, and writer wiring
-deferred to consumers MLP-003 / MLP-006. Next candidate remains the
-daemon-working `v0.7.0-beta` slate.)
+**Last updated:** 2026-05-14 (RMCPF later-window phasing added. MLP v1 is now
+Complete at 18/18, with MLP-018 split into the new MLP2 follow-up module for 56
+integration items. WATCHUX remains the beta-incident lane, INTL remains the
+launcher ingress lane, and RMCPF is sequenced after the daemon-working slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -63,7 +56,8 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 
 | Pick | Module                                                      | Status      | Progress | Role                                                                                                                                                                                                                                                                            |
 | ---- | ----------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md)       | In Progress | 11/17    | Multi-layer protection backbone: project identity, witness chain, hooks, L4 policy, baseline, audit. Wave 1 complete (MLP-001 / -002 / -011 / -013 / -017 Done 2026-05-13). Wave 2: MLP-012 rules_sha + MLP-007 baseline library primitives (29 + 44 tests green).              |
+| N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                    |
+| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)   | Draft       | 0/56     | Follow-up integration module created from the MLP-018 split; holds v1 deferrals and broader integration debt. It is not part of the current `v0.7.0-beta` protection claim unless promoted separately.                                                                          |
 | N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)         | Ready       | 0/9      | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register.                                                                                                                                                                       |
 | N3   | Carry-forward gates                                         | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                       |
 | N4   | Documentation lanes                                         | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                    |
@@ -73,6 +67,9 @@ commit; baseline adoption works; and `anvil-run` wraps agent processes.
 guarantee, and noise-discipline tests must be green before the release can claim
 "Anvil protects this project." No partial slice should be marketed as full
 protection.
+
+The MLP wave rows below are retained as release evidence. Current integration
+debt that did not belong in the v1 primitive module now lives in MLP2.
 
 ---
 
@@ -164,14 +161,14 @@ runtime loop.
 
 Do not tag until these are green and reflected in release evidence.
 
-| Work                                  | Parallel?  | Notes                                                                                 |
-| ------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
-| `MLP-004` pre-push hook               | After 006  | Walks pushed ranges, verifies witnesses, and applies L4 fallback.                     |
-| `MLP-009` protection-claim contract   | Gate       | Closed-set claim states must be reachable in fixtures and rendered honestly.          |
-| `MLP-010` GitHub Action publishing    | After 004  | Marketplace action exposes the L4/CI surface.                                         |
-| `MLP-015` L5 audit                    | After 006  | On-demand and nightly drift detection for bypassed layers.                            |
-| `MLP-016` L1 editor driver → Kindling | After DRVR | Emits mid-edit observations into the protection evidence stream.                      |
-| Documentation lanes                   | Gate       | Adoption, air-gap, witness-chain, hooks-integration, migration, and `anvil-run` docs. |
+| Work                                  | Status | Notes                                                                                                             |
+| ------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| `MLP-004` pre-push hook               | Done   | Shipped via PR #1499; walks pushed ranges, verifies witnesses, and applies L4 fallback.                           |
+| `MLP-009` protection-claim contract   | Done   | Closed-set protection vocabulary and contract evidence shipped with MLP v1.                                       |
+| `MLP-010` GitHub Action publishing    | Done   | Shipped via PR #1504; workflow template/accessor exposes the L4/CI surface.                                       |
+| `MLP-015` L5 audit                    | Done   | Shipped via PR #1500; audit-chain lane covers bypassed-layer detection.                                           |
+| `MLP-016` L1 editor driver → Kindling | Done   | Shipped via PR #1503; mid-edit Kindling observation builder completed.                                            |
+| Documentation lanes                   | Gate   | Adoption, air-gap, witness-chain, hooks-integration, migration, and `anvil-run` docs still gate release evidence. |
 
 ---
 
@@ -201,8 +198,23 @@ claim. If scope must be cut, rename the release claim before tagging.
 After the daemon-working release, promote the next slice based on real adoption
 signals rather than pre-allocating a fixed version.
 
+### RMCPF: Rust MCP Full-Port Phasing
+
+RMCPF is the likely next MCP-focused lane after the daemon-working slate, but it
+should not block `v0.7.0-beta`. The v0.7 claim is daemon/hooks/witness/launcher
+protection; RMCPF replaces the archived TypeScript MCP server once parity is
+defined and demand for each surface is clear.
+
+| Phase                              | Scope                                                                                                                                       | Gate                                                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — Inventory lock                 | Complete RMCPF-001 against `archive/anvil-mcp-server/src/`; confirm client matrix and Streamable HTTP demand.                               | Inventory matrix reviewed; remaining module-level readiness blockers are explicit client, transport, and retirement decisions. |
+| 1 — Core tool parity               | Implement RMCPF-010 and RMCPF-011 in Rust under `anvil mcp serve`, preserving DRVR-006 daemon/local classifications and DRVR-007 redaction. | Fixture parity for `anvil_check`, `anvil_gate`, `anvil_status`, `anvil_fix`, `anvil_suppress`, and `anvil_query_boundary`.     |
+| 2 — Resources, prompts, transports | Implement or retire RMCPF-012, RMCPF-020, and RMCPF-021 using `docs/architecture/rust-mcp-server-spec.md` as authority.                     | Resource read/list tests pass; prompt and HTTP retain/retire decisions documented.                                             |
+| 3 — Cutover and retirement         | Ship RMCPF-030 compatibility harness and RMCPF-031 TypeScript MCP retirement/archive decision.                                              | Generated configs and release-critical docs point at Rust MCP; migration doc names all intentional incompatibilities.          |
+
 | Future slice                                 | Source             | Gate before promotion                                                           |
 | -------------------------------------------- | ------------------ | ------------------------------------------------------------------------------- |
+| Rust MCP full port                           | RMCPF              | Phase 0 inventory lock complete and supported-client demand confirmed.          |
 | Team-lead browser surface                    | Dashboard/export   | Daemon-working evidence stream exists and can be exported reliably.             |
 | Enterprise / compliance / language expansion | Queued APS modules | Demand-pulled by a design partner or customer; do not pre-build as speculation. |
 | Wider language and rule-pack coverage        | Queued APS modules | Core protection loop stable enough that added breadth does not dilute signal.   |

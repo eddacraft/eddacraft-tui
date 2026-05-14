@@ -2,9 +2,9 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 1/9      |
+| RMCPF | —     | In Progress | 2/9      |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-05-14
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The TypeScript MCP server (`archive/anvil-mcp-server/`) is now
@@ -91,9 +91,11 @@ runs against a frozen reference — not a moving sidecar.
 - Graph-context features depend on GV2/GCTX and must not become accidental scope
   in this module
 
-## Ready Checklist
+## Phase 1 Readiness Checklist
 
-Change status to **Ready** when:
+RMCPF has started because RMCPF-001 and RMCPF-002 are complete. Before claiming
+the implementation phases are ready to run, close the remaining client and
+retirement decisions:
 
 - [x] RMCP has shipped or reached Committed state
 - [x] Existing TS MCP server inventory is complete
@@ -131,7 +133,7 @@ Change status to **Ready** when:
 
 ### RMCPF-002: Rust MCP parity architecture spec
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Define the post-launch Rust MCP architecture and how it relates to
   the daemon, driver framework, Graph v2, and legacy TS server.
 - **Expected Outcome:** Spec defines command layout, protocol support,
@@ -150,9 +152,20 @@ Change status to **Ready** when:
   single-binary launch path, and confirms each tool's class matches the
   DRVR-006 table above (or records a deliberate amendment with rationale).
 - **Files:** `docs/architecture/rust-mcp-server-spec.md`
+- **Closeout evidence:** Spec added in
+  `docs/architecture/rust-mcp-server-spec.md` on 2026-05-14. It preserves the
+  RMCP `anvil_validate_write` path, adopts DRVR-006 option (b) classifications,
+  names DRVR-007 redaction as transport-wide, and records retirement gates for
+  the archived TypeScript MCP package. Quick Council review completed on
+  2026-05-14 with no findings after the dependency, protocol-method,
+  architecture-index, and review-date fixes.
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** RMCPF-001
+- **Dependencies:** DRVR-006, DRVR-007, ADR-033, RMCP,
+  `archive/anvil-mcp-server/src/` frozen reference. RMCPF-001 remains the
+  detailed compatibility inventory input for implementation items, but RMCPF-002
+  is intentionally closed first to give that inventory a stable architecture
+  taxonomy.
 
 ---
 
@@ -331,8 +344,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Inventory and Compatibility | 2 | 1/2 done; RMCPF-002 Draft |
+| 0 — Inventory and Compatibility | 2 | 2/2 done |
 | 1 — Tool Parity | 3 | Draft |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
-| **Total** | **9** | **1/9 done** |
+| **Total** | **9** | **2/9 done** |
