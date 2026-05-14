@@ -32,6 +32,14 @@ pub struct VersionArgs {
     /// in CI / sandboxed environments where outbound HTTPS is blocked.
     #[arg(long)]
     pub offline: bool,
+
+    /// Probe the releases feed for security advisories attached to the
+    /// running version, in addition to the latest-version check.
+    /// Requires network unless `--offline`. When offline, advisories
+    /// are reported as `unavailable` rather than empty so the user
+    /// knows the absence is not a positive result. See DISTRIB-002.
+    #[arg(long)]
+    pub check: bool,
 }
 
 /// Install method detected for the running binary. The variant is
@@ -90,6 +98,30 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         None => false,
     };
 
+    // `--check` opts in to a second network call that retrieves the
+    // running version's release body and extracts any
+    // `Security-Advisory: GHSA-…` entries. Skipping this on every
+    // `anvil version` invocation keeps the default path's latency
+    // bounded by one HTTP round-trip; users who specifically want to
+    // know about advisories ask via `--check`.
+    //
+    // Three states: NotProbed (no --check), Unavailable (--check
+    // requested but offline OR network failure), Probed(items)
+    // (probe succeeded, items may be empty). The distinction matters
+    // because "we checked and there are none" reassures the user,
+    // while "we tried and couldn't ask" must NOT be presented as
+    // reassurance.
+    let advisories = if !args.check {
+        AdvisoryProbe::NotProbed
+    } else if args.offline {
+        AdvisoryProbe::Unavailable
+    } else {
+        match fetch_advisories_for_version(&current) {
+            Some(items) => AdvisoryProbe::Probed(items),
+            None => AdvisoryProbe::Unavailable,
+        }
+    };
+
     if global.json {
         let payload = VersionJson {
             current_version: &current,
@@ -97,6 +129,7 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             update_available,
             install_method: install_method.label(),
             upgrade_command,
+            advisories: advisories.json_shape(),
         };
         let out = serde_json::to_string_pretty(&payload)?;
         println!("{out}");
@@ -106,10 +139,59 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             latest.as_deref(),
             update_available,
             install_method,
+            &advisories,
         );
     }
 
     Ok(())
+}
+
+/// Outcome of the `--check` advisory probe.
+///
+/// `NotProbed` means `--check` was not requested — distinct from
+/// `Probed(vec![])` (probed, none attached) so the JSON consumer can
+/// tell "we don't know" from "we know there are none". `Unavailable`
+/// means `--check` was requested but `--offline` blocked the probe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AdvisoryProbe {
+    NotProbed,
+    Unavailable,
+    Probed(Vec<AdvisoryTag>),
+}
+
+impl AdvisoryProbe {
+    fn json_shape(&self) -> AdvisoryJson<'_> {
+        match self {
+            AdvisoryProbe::NotProbed => AdvisoryJson {
+                checked: false,
+                available: false,
+                items: &[],
+            },
+            AdvisoryProbe::Unavailable => AdvisoryJson {
+                checked: true,
+                available: false,
+                items: &[],
+            },
+            AdvisoryProbe::Probed(items) => AdvisoryJson {
+                checked: true,
+                available: true,
+                items,
+            },
+        }
+    }
+}
+
+/// One security advisory tag attached to a release. The `id` follows
+/// GitHub's GHSA scheme (`GHSA-xxxx-yyyy-zzzz`); other identifiers
+/// (CVE, RUSTSEC) are accepted verbatim. `summary` is the free-text
+/// remainder after the colon if present, trimmed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AdvisoryTag {
+    pub id: String,
+    /// Optional human description after the ID (e.g. " — credential
+    /// leak in update flow"). Empty string when no summary is given.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub summary: String,
 }
 
 /// JSON shape locked for tooling consumers. Adding fields is allowed;
@@ -127,6 +209,17 @@ struct VersionJson<'a> {
     /// `dev_build`). Tooling should treat empty as "no automatic
     /// upgrade — see docs."
     upgrade_command: &'static str,
+    /// DISTRIB-002 advisory surface. Only populated when `--check`
+    /// was passed; otherwise `checked` is false and consumers should
+    /// treat `items` as "unknown" rather than "none".
+    advisories: AdvisoryJson<'a>,
+}
+
+#[derive(Serialize)]
+struct AdvisoryJson<'a> {
+    checked: bool,
+    available: bool,
+    items: &'a [AdvisoryTag],
 }
 
 fn print_human(
@@ -134,6 +227,7 @@ fn print_human(
     latest: Option<&str>,
     update_available: bool,
     install_method: InstallMethod,
+    advisories: &AdvisoryProbe,
 ) {
     println!("anvil {current}");
     match latest {
@@ -148,6 +242,29 @@ fn print_human(
             println!("Upgrade: {cmd}");
         } else {
             println!("Upgrade command (when needed): {cmd}");
+        }
+    }
+    match advisories {
+        AdvisoryProbe::NotProbed => {}
+        AdvisoryProbe::Unavailable => {
+            println!("Advisories: unavailable (offline; rerun without --offline to probe)");
+        }
+        AdvisoryProbe::Probed(items) if items.is_empty() => {
+            println!("Advisories: none attached to running version");
+        }
+        AdvisoryProbe::Probed(items) => {
+            // Surface each advisory on its own line so a release with
+            // multiple tags does not collapse into one ambiguous string.
+            // The ID is the actionable token a user pastes into
+            // GitHub's advisory search.
+            println!("Advisories: {} attached to running version", items.len());
+            for adv in items {
+                if adv.summary.is_empty() {
+                    println!("  - {}", adv.id);
+                } else {
+                    println!("  - {}: {}", adv.id, adv.summary);
+                }
+            }
         }
     }
 }
@@ -329,6 +446,103 @@ async fn fetch_latest_version_from(url: &str) -> Option<String> {
     let body: serde_json::Value = resp.json().await.ok()?;
     let tag = body.get("tag_name")?.as_str()?;
     Some(tag.trim_start_matches('v').to_string())
+}
+
+// ─── Advisory probe (DISTRIB-002) ────────────────────────────────────
+
+/// Best-effort fetch of advisories attached to a specific version's
+/// release body. Returns `None` when the release cannot be fetched
+/// (private repo, deleted release, network failure, malformed JSON);
+/// returns `Some(vec![])` when the release exists but carries no
+/// advisory tags. Two outcomes look the same in human output but
+/// differ in JSON via [`AdvisoryProbe`].
+fn fetch_advisories_for_version(version: &str) -> Option<Vec<AdvisoryTag>> {
+    let tag = if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{version}")
+    };
+    let url =
+        format!("https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tags/{tag}");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .ok()?;
+    runtime.block_on(fetch_advisories_from(&url))
+}
+
+/// Async core, extracted so unit tests can point it at a wiremock
+/// server. Returns `None` on any failure (HTTP error, JSON parse,
+/// missing field); the caller treats `None` as "advisory feed
+/// unavailable for this version" and continues without false claims.
+async fn fetch_advisories_from(url: &str) -> Option<Vec<AdvisoryTag>> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .user_agent(concat!("anvil/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .ok()?;
+    let resp = client.get(url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let body: serde_json::Value = resp.json().await.ok()?;
+    let release_body = body.get("body").and_then(|b| b.as_str()).unwrap_or("");
+    Some(parse_advisory_tags(release_body))
+}
+
+/// Parse `Security-Advisory: <ID>[: <summary>]` lines from a release
+/// body. The line may appear anywhere in the body. Header recognition
+/// is case-insensitive on the prefix; the ID is captured verbatim
+/// (typically `GHSA-xxxx-yyyy-zzzz`, but `CVE-*` and `RUSTSEC-*` are
+/// also accepted because the convention is "whatever the maintainer
+/// wrote after the colon").
+///
+/// Returns advisories in source order, de-duplicated by ID so a
+/// release body that mentions the same advisory twice does not
+/// double-count it.
+pub fn parse_advisory_tags(release_body: &str) -> Vec<AdvisoryTag> {
+    const PREFIX: &str = "security-advisory:";
+    let mut out: Vec<AdvisoryTag> = Vec::new();
+    for raw_line in release_body.lines() {
+        let line = raw_line.trim_start_matches(['-', '*', ' ', '\t']);
+        let lower = line.to_ascii_lowercase();
+        let Some(rest) = lower.strip_prefix(PREFIX) else {
+            continue;
+        };
+        // Index into the original-case string at the same boundary as
+        // the lowercase match so identifier casing is preserved
+        // (`GHSA-` upper-case is convention).
+        let rest_start = PREFIX.len();
+        let rest_original = &line[rest_start..];
+        let _ = rest; // explicit drop — `lower` only used for prefix detection
+        let trimmed = rest_original.trim();
+        let (id, summary) = split_id_and_summary(trimmed);
+        if id.is_empty() {
+            continue;
+        }
+        if out.iter().any(|adv| adv.id == id) {
+            continue;
+        }
+        out.push(AdvisoryTag {
+            id: id.to_string(),
+            summary: summary.to_string(),
+        });
+    }
+    out
+}
+
+fn split_id_and_summary(s: &str) -> (&str, &str) {
+    // Allow either `ID: summary` or `ID — summary` or just `ID`.
+    // The dash form is common in release notes where the colon is
+    // already used to delimit the header.
+    for sep in [": ", " — ", " - "] {
+        if let Some(idx) = s.find(sep) {
+            let id = s[..idx].trim();
+            let summary = s[idx + sep.len()..].trim();
+            return (id, summary);
+        }
+    }
+    (s.trim(), "")
 }
 
 /// True when `latest` is a strictly higher `SemVer` than `current`.
@@ -782,5 +996,218 @@ mod tests {
         let url = format!("{}/releases/latest", server.uri());
         let result = fetch_latest_version_from(&url).await;
         assert_eq!(result.as_deref(), Some("0.5.2-beta"));
+    }
+
+    // ─── DISTRIB-002 advisory parser ──────────────────────────────
+
+    #[test]
+    fn parse_advisory_tags_extracts_single_ghsa_with_colon_summary() {
+        let body = "## Notes\n\nSecurity-Advisory: GHSA-aaaa-bbbb-cccc: credential leak\n";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1);
+        assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+        assert_eq!(advisories[0].summary, "credential leak");
+    }
+
+    #[test]
+    fn parse_advisory_tags_extracts_bare_id_without_summary() {
+        let body = "Security-Advisory: GHSA-aaaa-bbbb-cccc\n";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1);
+        assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+        assert!(advisories[0].summary.is_empty());
+    }
+
+    #[test]
+    fn parse_advisory_tags_handles_em_dash_summary_separator() {
+        // Release notes commonly use an em-dash because the colon is
+        // already part of the `Security-Advisory:` header.
+        let body = "- Security-Advisory: GHSA-aaaa-bbbb-cccc — update flow CVE-style leak\n";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1);
+        assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+        assert_eq!(advisories[0].summary, "update flow CVE-style leak");
+    }
+
+    #[test]
+    fn parse_advisory_tags_is_case_insensitive_on_header() {
+        let body = "security-advisory: GHSA-aaaa-bbbb-cccc\n";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1);
+        assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+    }
+
+    #[test]
+    fn parse_advisory_tags_accepts_cve_and_rustsec_ids() {
+        let body = "\
+Security-Advisory: CVE-2026-1234: deps issue
+Security-Advisory: RUSTSEC-2026-0001
+";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 2);
+        assert_eq!(advisories[0].id, "CVE-2026-1234");
+        assert_eq!(advisories[1].id, "RUSTSEC-2026-0001");
+    }
+
+    #[test]
+    fn parse_advisory_tags_deduplicates_repeated_ids() {
+        let body = "\
+Security-Advisory: GHSA-aaaa-bbbb-cccc: first mention
+Security-Advisory: GHSA-aaaa-bbbb-cccc: second mention
+";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1, "duplicate IDs must collapse");
+        assert_eq!(advisories[0].summary, "first mention");
+    }
+
+    #[test]
+    fn parse_advisory_tags_ignores_unrelated_lines() {
+        let body = "## Notes\n\nNothing security here.\n\n## Other\n\nstill nothing\n";
+        assert!(parse_advisory_tags(body).is_empty());
+    }
+
+    #[test]
+    fn parse_advisory_tags_handles_list_item_prefixes() {
+        let body = "\
+- Security-Advisory: GHSA-1111-2222-3333: dash bullet
+* Security-Advisory: GHSA-4444-5555-6666: asterisk bullet
+  Security-Advisory: GHSA-7777-8888-9999: indented
+";
+        let ids: Vec<_> = parse_advisory_tags(body)
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "GHSA-1111-2222-3333".to_string(),
+                "GHSA-4444-5555-6666".to_string(),
+                "GHSA-7777-8888-9999".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_advisory_tags_drops_lines_with_empty_id() {
+        // A malformed `Security-Advisory: ` (no ID) must not produce
+        // a phantom advisory.
+        let body = "Security-Advisory:\nSecurity-Advisory: GHSA-aaaa-bbbb-cccc\n";
+        let advisories = parse_advisory_tags(body);
+        assert_eq!(advisories.len(), 1);
+        assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+    }
+
+    // ─── Advisory probe wiring ───────────────────────────────────
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_surfaces_advisory_from_release_body() {
+        // This is the spec's named validation test
+        // (`commands::version::tests::check_surfaces_advisory`):
+        // fetch the running version's release, parse its body,
+        // return the advisory tag.
+        let server = wiremock::MockServer::start().await;
+        let payload = serde_json::json!({
+            "tag_name": "v0.6.2-beta",
+            "body": "## Notes\n\nSecurity-Advisory: GHSA-aaaa-bbbb-cccc: credential leak in update flow\n",
+        })
+        .to_string();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/releases/tags/v0.6.2-beta"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(payload))
+            .mount(&server)
+            .await;
+        let url = format!("{}/releases/tags/v0.6.2-beta", server.uri());
+        let result = fetch_advisories_from(&url)
+            .await
+            .expect("probe must succeed");
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "GHSA-aaaa-bbbb-cccc");
+        assert_eq!(result[0].summary, "credential leak in update flow");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_returns_empty_vec_when_release_has_no_advisories() {
+        let server = wiremock::MockServer::start().await;
+        let payload = serde_json::json!({
+            "tag_name": "v0.6.2-beta",
+            "body": "Routine release. No security issues.",
+        })
+        .to_string();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(payload))
+            .mount(&server)
+            .await;
+        let url = format!("{}/releases/tags/v0.6.2-beta", server.uri());
+        let result = fetch_advisories_from(&url)
+            .await
+            .expect("probe must succeed");
+        assert!(
+            result.is_empty(),
+            "release with no advisory tags must return empty vec, not None"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_returns_none_on_404() {
+        // A deleted release / private repo / wrong tag must propagate
+        // as `None` so the caller renders "unavailable" rather than
+        // misclaiming "no advisories".
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let url = format!("{}/releases/tags/v0.6.2-beta", server.uri());
+        let result = fetch_advisories_from(&url).await;
+        assert!(result.is_none(), "404 must yield None, got {result:?}");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_returns_none_on_malformed_json() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("{not json"))
+            .mount(&server)
+            .await;
+        let url = format!("{}/releases/tags/v0.6.2-beta", server.uri());
+        assert!(fetch_advisories_from(&url).await.is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn check_returns_empty_when_body_field_missing() {
+        // Some releases publish without a body. That's a valid
+        // response — no advisories — not a network failure.
+        let server = wiremock::MockServer::start().await;
+        let payload = serde_json::json!({"tag_name": "v0.6.2-beta"}).to_string();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(payload))
+            .mount(&server)
+            .await;
+        let url = format!("{}/releases/tags/v0.6.2-beta", server.uri());
+        let result = fetch_advisories_from(&url)
+            .await
+            .expect("probe must succeed");
+        assert!(result.is_empty());
+    }
+
+    // ─── JSON shape ──────────────────────────────────────────────
+
+    #[test]
+    fn advisory_probe_json_shape_distinguishes_not_probed_from_empty() {
+        let not_probed = AdvisoryProbe::NotProbed;
+        let not_probed_shape = not_probed.json_shape();
+        assert!(!not_probed_shape.checked);
+        assert!(!not_probed_shape.available);
+
+        let probed_empty = AdvisoryProbe::Probed(vec![]);
+        let probed_empty_shape = probed_empty.json_shape();
+        assert!(probed_empty_shape.checked);
+        assert!(probed_empty_shape.available);
+        assert!(probed_empty_shape.items.is_empty());
+
+        let unavailable = AdvisoryProbe::Unavailable;
+        let unavailable_shape = unavailable.json_shape();
+        assert!(unavailable_shape.checked);
+        assert!(!unavailable_shape.available);
     }
 }
