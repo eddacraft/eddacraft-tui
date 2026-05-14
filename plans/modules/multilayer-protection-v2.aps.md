@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 7/60 done |
+| MLP2 | @aneki | In Progress | 9/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -970,19 +970,54 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-030: Mid-edit Kindling observation builder mirror
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** TypeScript mirror of
   `anvil-intercept::kindling_observation::from_midedit_response`
   for the daemon-unreachable embedded-fallback path.
 - **Expected Outcome:**
-  - `packages/anvil-driver-client/src/kindling.ts` ships
+  - `packages/anvil-driver-client/src/kindling/` ships
     `fromMidEditResponse(ctx, response)` returning
     `GateEvaluatedObservation | null` with identical volume-
     control rules and severity → enforcement mapping.
   - Wire-shape parity test against the Rust builder.
-- **Files:** `packages/anvil-driver-client/src/kindling.ts`.
+- **Files:** `packages/anvil-driver-client/src/kindling/types.ts`
+  (type definitions + builder + severity / enforcement helpers),
+  `packages/anvil-driver-client/src/kindling/types.test.ts`
+  (parity tests, 13), `packages/anvil-driver-client/src/kindling/index.ts`
+  (barrel), `packages/anvil-driver-client/src/index.ts` (root
+  re-export). Subdir layout matches the MLP2-029 / `session/` and
+  `diagnostics/` patterns rather than the spec's flat
+  `kindling.ts` so the parity test sits next to the types.
 - **Validation:** Parity test in
-  `packages/anvil-driver-client/test/kindling_parity.test.ts`.
+  `packages/anvil-driver-client/src/kindling/types.test.ts`.
+  **Evidence (Done 2026-05-14):** `pnpm test kindling` in
+  `packages/anvil-driver-client` — 13 tests green (166 total
+  package tests; was 153 baseline after MLP2-029). Coverage:
+  - Constants pinned (`KIND_GATE_EVALUATED` / `MIDEDIT_GATE_ID`
+    match Rust).
+  - Headline byte-exact parity test against a `serde_json::to_string`
+    fixture captured from a one-shot Rust test (mixed-severity
+    error + warning batch → blocking enforcement + violation/
+    warning counts + `rules_violated` populated).
+  - JSON round-trip via `JSON.parse(JSON.stringify(obs))`
+    preserves field equality.
+  - Volume-control contract: empty diagnostics → `null`,
+    matching Rust `from_midedit_response` returning `None`.
+  - Severity → enforcement mapping (error-only → `blocking`,
+    warning-only → `warning`, info-only → `informational`,
+    mixed batch picks the worst).
+  - Optional `rules_violated` field is **omitted from the wire**
+    (key absent) when no diagnostics qualify, mirroring Rust's
+    `#[serde(skip_serializing_if = "Option::is_none")]`.
+  - Caller-supplied `ObservationContext` plumbing
+    (`session_id` / `timestamp` / `gate_eval_id` /
+    `duration_ms` / `file_path`) round-trips into the row.
+  - Pinned constants (`kind = "gate_evaluated"`, `gate_id =
+    "midEdit"`) are unconditional — the builder ignores any
+    caller attempt to override.
+  `pnpm typecheck` clean, `pnpm format:check` (1319 files)
+  clean, `pnpm lint:check` (nx clippy + fmt-check across 26
+  projects) clean. **Closes Group F (2/2).**
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** MLP-016
@@ -1693,7 +1728,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-060: YAML resource-bounds hardening in anvil-config parser
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** `anvil-config::parse_file` dispatches `.anvil.yaml` /
   `.yml` through `serde_yaml 0.9.34+deprecated` straight into a
   `serde_json::Value`. The crate has no recursion-depth limit and
@@ -1732,21 +1767,48 @@ Source line distinguishes Group L tasks from Group A–K tasks.
     (maintained successors) which may make alias control easier.
 - **Files:** `crates/anvil-config/src/parse.rs`,
   `crates/anvil-intercept/src/rule_cache.rs` (resolve fast-path).
-- **Validation:** Fuzz fixtures:
-  - 33-level-deep mapping → `ParseError::DepthExceeded` (rejected
-    before any consumer sees the `Value`).
-  - 2 MiB file → `ParseError::FileTooLarge` (rejected before
-    `read_to_string`).
-  - **Classic billion-laughs payload** (3 KiB on disk, expands
-    to gigabytes) → rejected at parse time, parser does NOT
-    consume gigabytes of memory. This is the primary regression
-    test for the chosen alias defence.
-  - Operator-realistic config (`.anvil.yaml` with `mode: warn`,
-    no anchors) → parses normally.
-  - Under option (1): aliased document of any size →
-    `ParseError::AliasNotPermitted`. Under option (2): a benign
-    aliased document under the expansion-cost cap → parses
-    normally; over-cap → rejected.
+- **Validation:** Fuzz fixtures.
+  **Evidence (Done 2026-05-14, option (1) — reject aliases
+  outright):** `cargo test -p eddacraft-anvil-config --lib` —
+  70 tests green (was 60 baseline; +10 MLP2-060 tests).
+  Coverage:
+  - **Classic billion-laughs payload** (5-level nested
+    `&a0 [lol]` + `*a0` references; ~200 bytes on disk, would
+    expand to gigabytes under unbounded alias resolution) →
+    `ParseError::AliasNotPermitted` at the byte-scanner gate,
+    BEFORE `serde_yaml` materialises the alias graph. This is
+    the primary regression test for the alias defence.
+  - Single anchor (`&a foo`) → rejected.
+  - Single alias (`*a`) → rejected.
+  - `&` / `*` inside double-quoted scalars (`"https://example.com/a&b=*"`)
+    → accepted (scanner correctly treats them as data).
+  - `&` / `*` inside single-quoted scalars (`'a&b *foo'`) →
+    accepted.
+  - `&` / `*` inside `#` comments → accepted.
+  - Operator-realistic `.anvil.yaml` (`enforcement.mode: warn`,
+    `session.per_worktree_max: 8`, `telemetry.allow_cross_session: false`)
+    parses cleanly.
+  - 1 MiB + 16-byte JSON payload → `ParseError::FileTooLarge`
+    at the `fs::metadata` check, BEFORE `read_to_string`.
+  - 40-deep JSON object → `ParseError::DepthExceeded` at the
+    post-parse walk (cap 32).
+  - 30-deep JSON object (under cap) → parses normally.
+  **Implementation choice (option 1 — reject aliases outright,
+  per the spec's two options):** picked option (1) because
+  `.anvil.*` configs are hand-edited and operator-realistic
+  configs never use anchors. The byte scanner is conservative
+  (a literal `&` or `*` in an unquoted scalar would
+  false-positive) but the false-positive mitigation is simple:
+  quote the value, or use JSON / TOML. ADR note deferred —
+  the inline doc on `scan_for_yaml_aliases` records the
+  decision rationale. Migration to `serde_yaml_ng` / `serde-
+  yaml-bw` (maintained successors) tracked separately. Caps
+  enforced in `anvil-config::parse_file`; the
+  `rule_cache::resolve_for_worktree` already routes through
+  `parse_file`, so the size + alias + depth checks apply
+  transparently on every cache miss (no separate fast-path
+  needed). `MAX_CONFIG_FILE_BYTES = 1 MiB` and `MAX_PARSED_DEPTH = 32`
+  exposed as `pub const`s for downstream consumers.
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** MLP-011
@@ -1765,14 +1827,14 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
-| F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 1/2 |
+| F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 0/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 0/5 |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
-| L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
-| **Total** | **60** | **7/60** |
+| L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 1/4 |
+| **Total** | **60** | **9/60** |
 
 ## Recommended landing order
 
