@@ -8,6 +8,7 @@ mod mcp;
 mod output;
 mod services;
 mod tui;
+mod update_hint;
 mod util;
 mod warmup_cache;
 
