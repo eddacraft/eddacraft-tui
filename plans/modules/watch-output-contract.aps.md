@@ -74,10 +74,11 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **changeType:** docs
 - **releaseIntent:** candidate
 - **releaseScope:** minor
-- **releaseNote.audience:** developer
-- **releaseNote.type:** added
-- **releaseNote.text:** `anvil --json watch` gains a documented NDJSON contract
-  for downstream consumers.
+- **releaseNote:**
+  - audience: developer
+  - type: added
+  - text: `anvil --json watch` gains a documented NDJSON contract for
+    downstream consumers.
 
 ### WOUT-002: Typed Watch Event Envelope
 
@@ -125,7 +126,7 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
   `crates/anvil-cli/tests/fixtures/watch-json/*`
 - **Validation:** `cargo test -p eddacraft-anvil --test watch_json_output`
 - **Status:** Draft
-- **changeType:** test
+- **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
 
@@ -142,7 +143,7 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **Validation:** `cargo test -p eddacraft-anvil --test watch_json_output` and
   `pnpm docs:check`
 - **Status:** Draft
-- **changeType:** test
+- **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
 
@@ -162,9 +163,10 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **changeType:** docs
 - **releaseIntent:** candidate
 - **releaseScope:** minor
-- **releaseNote.audience:** developer
-- **releaseNote.type:** added
-- **releaseNote.text:** Consumers can pipe `anvil --json watch` as stable NDJSON.
+- **releaseNote:**
+  - audience: developer
+  - type: added
+  - text: Consumers can pipe `anvil --json watch` as stable NDJSON.
 
 ## Sequencing
 
