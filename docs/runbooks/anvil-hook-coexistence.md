@@ -1,11 +1,11 @@
 # Hook Coexistence — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                    |
-| ------- | ------------- | ------ | ------ | -------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside ADOPT-001   |
+| Type    | Authority     | Owner  | Status | Freshness                                  |
+| ------- | ------------- | ------ | ------ | ------------------------------------------ |
+| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside ADOPT-001 |
 
-| Upstream                                                                                                                | Downstream                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Upstream                                                                                                                                                 | Downstream                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ADOPT-001 in `adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md), [ADR-038](../../plans/decisions/038-noise-discipline-policy.md) | [`crates/anvil-hook/src/coexistence.rs`](../../crates/anvil-hook/src/coexistence.rs), [`crates/anvil-cli/src/commands/hooks.rs`](../../crates/anvil-cli/src/commands/hooks.rs), [`docs/guides/git-hook-compatibility.md`](../guides/git-hook-compatibility.md) |
 
 Anvil installs pre-commit, post-commit, pre-push, post-merge, and post-rewrite
@@ -21,9 +21,12 @@ for framework marker files in this order:
 
 1. `.husky/` directory → **Husky**
 2. `lefthook.yml`, `lefthook.toml`, or `lefthook.yaml` → **Lefthook**
-3. `.pre-commit-config.yaml` or `.pre-commit-config.yml` → **pre-commit framework**
-4. `.cargo-husky/hooks/` directory → **cargo-husky** (coexistence not supported; see below)
-5. `core.hooksPath` set in git config → **CoreHooksPath** (coexistence not supported; see below)
+3. `.pre-commit-config.yaml` or `.pre-commit-config.yml` → **pre-commit
+   framework**
+4. `.cargo-husky/hooks/` directory → **cargo-husky** (coexistence not supported;
+   see below)
+5. `core.hooksPath` set in git config → **CoreHooksPath** (coexistence not
+   supported; see below)
 6. Nothing matched → **Plain** (Anvil writes directly to `.git/hooks/`)
 
 The first match wins. If you have both `.husky/` and `lefthook.yml`, Husky is
@@ -34,14 +37,13 @@ detected and Lefthook is ignored for coexistence purposes.
 ### Plain (no manager detected)
 
 Anvil writes shell scripts to `.git/hooks/<event>`. Each script is marked
-executable. On uninstall the scripts are removed; the directory is left
-as-is.
+executable. On uninstall the scripts are removed; the directory is left as-is.
 
 ### Husky
 
-Anvil appends a marker-bounded block to `.husky/<event>` for each enabled
-hook kind. If the file does not yet exist Anvil creates it with the standard
-Husky shell preamble (`#!/usr/bin/env sh` + `husky.sh` source guard).
+Anvil appends a marker-bounded block to `.husky/<event>` for each enabled hook
+kind. If the file does not yet exist Anvil creates it with the standard Husky
+shell preamble (`#!/usr/bin/env sh` + `husky.sh` source guard).
 
 The managed block looks like:
 
@@ -93,8 +95,8 @@ inject a second one. The install plan therefore has two parts:
    ```
 
    If you already have an `extends:` key, append to the list rather than
-   replacing it. The comment block Anvil injects into `lefthook.yml` reminds
-   you of this step.
+   replacing it. The comment block Anvil injects into `lefthook.yml` reminds you
+   of this step.
 
 On uninstall Anvil removes `.anvil-lefthook.yml` and its marker block from
 `lefthook.yml`. The `extends:` entry you added manually is not removed — remove
@@ -150,12 +152,12 @@ reconcile hook execution order manually.
 `anvil hook install --config` and `anvil hook uninstall --config` both print a
 coexistence report. The report surfaces four signals per hook event:
 
-| Signal | Meaning |
-| ------ | ------- |
-| `file_mode_paths` | Hook script files on disk for this event (`.git/hooks/`, `.husky/`, `core.hooksPath` dir). Multiple entries means duplicate-execution risk. |
-| `third_party_managers` | Managers detected repo-wide (Husky, Lefthook, pre-commit). |
-| `foreign_config_entries` | Count of `hook.<event>.command` git-config entries not owned by Anvil. |
-| `core_hooks_path` | Value of `core.hooksPath` if set; `None` otherwise. |
+| Signal                   | Meaning                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file_mode_paths`        | Hook script files on disk for this event (`.git/hooks/`, `.husky/`, `core.hooksPath` dir). Multiple entries means duplicate-execution risk. |
+| `third_party_managers`   | Managers detected repo-wide (Husky, Lefthook, pre-commit).                                                                                  |
+| `foreign_config_entries` | Count of `hook.<event>.command` git-config entries not owned by Anvil.                                                                      |
+| `core_hooks_path`        | Value of `core.hooksPath` if set; `None` otherwise.                                                                                         |
 
 A healthy post-install report for a Husky repo looks like:
 
@@ -172,30 +174,29 @@ pre-commit coexistence
 Install followed by uninstall returns every modified file to its canonical form
 (single trailing `\n`, no leading whitespace removed). For Husky files with
 non-canonical trailing whitespace (e.g. multiple trailing newlines), the
-post-uninstall file is canonicalised — this is documented behaviour and will show
-as a one-line diff in `git diff`.
+post-uninstall file is canonicalised — this is documented behaviour and will
+show as a one-line diff in `git diff`.
 
 ## Troubleshooting
 
-**`anvil hook install` says "framework not supported"**
-The repo uses cargo-husky or `core.hooksPath`. Anvil falls back to plain
-`.git/hooks/` writes. Verify with `git config core.hooksPath`.
+**`anvil hook install` says "framework not supported"** The repo uses
+cargo-husky or `core.hooksPath`. Anvil falls back to plain `.git/hooks/` writes.
+Verify with `git config core.hooksPath`.
 
-**Duplicate hook execution after install**
-Two hook scripts exist for the same event. Check `file_mode_paths` in the
-coexistence report. Remove the extra script or consolidate via your hook manager.
+**Duplicate hook execution after install** Two hook scripts exist for the same
+event. Check `file_mode_paths` in the coexistence report. Remove the extra
+script or consolidate via your hook manager.
 
-**Lefthook does not run Anvil hooks**
-`.anvil-lefthook.yml` exists but is not in `lefthook.yml`'s `extends:` list.
-Add it manually (see Lefthook section above).
+**Lefthook does not run Anvil hooks** `.anvil-lefthook.yml` exists but is not in
+`lefthook.yml`'s `extends:` list. Add it manually (see Lefthook section above).
 
-**pre-commit framework does not run Anvil hooks**
-The snippet was not merged into `.pre-commit-config.yaml`. Copy the `local` repo
-stanza from `.anvil-pre-commit-config.local.yaml` into your config.
+**pre-commit framework does not run Anvil hooks** The snippet was not merged
+into `.pre-commit-config.yaml`. Copy the `local` repo stanza from
+`.anvil-pre-commit-config.local.yaml` into your config.
 
-**Uninstall left a stale `extends:` entry (Lefthook) or `repos:` stanza (pre-commit)**
-These are user-owned and not auto-removed. Delete them manually.
+**Uninstall left a stale `extends:` entry (Lefthook) or `repos:` stanza
+(pre-commit)** These are user-owned and not auto-removed. Delete them manually.
 
-**`git diff` shows a trailing-whitespace change after uninstall**
-The original file had non-canonical trailing whitespace. The diff is cosmetic and
-safe to commit. See the round-trip guarantee above.
+**`git diff` shows a trailing-whitespace change after uninstall** The original
+file had non-canonical trailing whitespace. The diff is cosmetic and safe to
+commit. See the round-trip guarantee above.
