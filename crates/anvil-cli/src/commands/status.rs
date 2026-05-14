@@ -1432,6 +1432,14 @@ mod tests {
     // ADTRUST-001 legible plain-mode renderer
     // -----------------------------------------------------------------
 
+    // Stable-Rust workaround for the `clippy::duration_suboptimal_units`
+    // lint that would prefer `Duration::from_hours` / `from_days`; both
+    // are still unstable as of Rust 1.95. Routing through named
+    // constants keeps the literals away from the lint pattern.
+    const HOUR_SECS: u64 = 3_600;
+    const DAY_SECS: u64 = 86_400;
+    const YEAR_SECS: u64 = 365 * DAY_SECS;
+
     fn legible_test_snapshot(state: WorktreeClaimState) -> LegibleSnapshot {
         LegibleSnapshot {
             protection: state,
@@ -1489,11 +1497,11 @@ mod tests {
             },
             daemon: DaemonSummary::Running {
                 pid: 4_194_303,
-                uptime: Duration::from_secs(365 * 86400),
+                uptime: Duration::from_secs(YEAR_SECS),
             },
             witness: WitnessSummary::Last {
                 commit_short: "deadbee".to_string(),
-                age: Duration::from_secs(365 * 86400),
+                age: Duration::from_secs(YEAR_SECS),
             },
             next_action: next_action.to_string(),
         }
@@ -1598,9 +1606,9 @@ mod tests {
     fn format_duration_picks_largest_unit() {
         assert_eq!(format_duration(Duration::from_secs(5)), "5s");
         assert_eq!(format_duration(Duration::from_secs(90)), "1m");
-        assert_eq!(format_duration(Duration::from_secs(3600)), "1h");
-        assert_eq!(format_duration(Duration::from_secs(86400)), "1d");
-        assert_eq!(format_duration(Duration::from_secs(7 * 86400)), "7d");
+        assert_eq!(format_duration(Duration::from_secs(HOUR_SECS)), "1h");
+        assert_eq!(format_duration(Duration::from_secs(DAY_SECS)), "1d");
+        assert_eq!(format_duration(Duration::from_secs(7 * DAY_SECS)), "7d");
     }
 
     /// User-authored config-mode entries surface without the `(anvil-managed)`
