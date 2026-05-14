@@ -63,6 +63,7 @@ use crate::activation;
 use crate::activation::orchestrator::InstallOutcome;
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
+use crate::warmup_cache::write_watch_warmup_cache;
 
 #[derive(Debug, Args)]
 pub struct StartArgs {
@@ -192,6 +193,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         })
     {
         bail!("MCP install failed: {err}");
+    }
+
+    if !read_only
+        && let Err(error) = write_watch_warmup_cache(root)
+        && global.verbose
+    {
+        eprintln!("[watch] warm-up cache not written: {error:#}");
     }
 
     // LAUNCH-011: hand off to the kernel watcher OR print the

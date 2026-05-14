@@ -2,11 +2,11 @@
 
 | ID       | Owner  | Status      | Progress |
 | -------- | ------ | ----------- | -------- |
-| WATCHUX | @aneki | In Progress | 3/8 done |
+| WATCHUX | @aneki | Complete | 8/8 done |
 
-**Last reviewed:** 2026-05-14 (`WATCHUX-005` through `WATCHUX-007` merged via
-PR #1524; `WATCHUX-001` through `WATCHUX-004` remain on the beta hotfix lane and
-`WATCHUX-008` remains Draft.)
+**Last reviewed:** 2026-05-14 (`WATCHUX-001` through `WATCHUX-004` reconciled
+against merged PR #1497; `WATCHUX-005` through `WATCHUX-007` merged via PR #1524;
+`WATCHUX-008` implemented on `feat/watchux-008-config-cache`.)
 
 Created from beta-user incident timeline and
 [`plans/specs/2026-05-13-watch-warmup-and-advisory-rules.md`](../specs/2026-05-13-watch-warmup-and-advisory-rules.md).
@@ -84,7 +84,10 @@ WATCHUX owns the user-facing correction of those behaviours:
   guidance.
 - **Files:** `install.sh`, `scripts/install.test.sh`
 - **Validation:** `bash scripts/install.test.sh`
-- **Status:** In Progress
+- **Status:** Complete
+- **Evidence:** Merged via PR #1497 (`fix(watch): reduce first-run beta noise`);
+  `install.sh` now detects direct Homebrew binaries and Cellar symlinks before
+  download and prints `brew upgrade eddacraft/tap/anvil` guidance.
 
 ### WATCHUX-002: Shared Local-Noise Ignore Policy
 
@@ -100,7 +103,10 @@ WATCHUX owns the user-facing correction of those behaviours:
   `cargo test -p eddacraft-anvil util::tests::is_ignored_dir_name_matches_full_list`,
   `cargo test -p eddacraft-anvil commands::audit::tests::skips_generated_and_agent_worktree_dirs`,
   `cargo test -p eddacraft-anvil-kernel watcher::filter::tests::ignores_local_tool_and_worktree_dirs --lib`
-- **Status:** In Progress
+- **Status:** Complete
+- **Evidence:** Merged via PR #1497; shared CLI ignore policy and kernel watcher
+  defaults now include local tool-state, agent-worktree, generated, cache, and
+  build directories.
 
 ### WATCHUX-003: Initial Watch Scan Is Baseline State
 
@@ -112,7 +118,9 @@ WATCHUX owns the user-facing correction of those behaviours:
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 - **Validation:**
   `cargo test -p eddacraft-anvil-kernel watch::tests::initial_scan_does_not_emit_existing_api_as_violations --lib`
-- **Status:** In Progress
+- **Status:** Complete
+- **Evidence:** Merged via PR #1497; initial watch graph construction emits a
+  snapshot without surfacing existing public exports as new violations.
 
 ### WATCHUX-004: Immediate Watch Startup Feedback
 
@@ -124,7 +132,10 @@ WATCHUX owns the user-facing correction of those behaviours:
 - **Files:** `crates/anvil-cli/src/commands/watch.rs`
 - **Validation:**
   `cargo test -p eddacraft-anvil commands::watch::tests::output_mode`
-- **Status:** In Progress
+- **Status:** Complete
+- **Evidence:** Merged via PR #1497; watch mode selection falls back to plain mode
+  when stdin/stdout are not both terminals and emits startup feedback before the
+  watch loop.
 
 ### WATCHUX-005: Watch Status Language and Advisory Rendering
 
@@ -197,7 +208,15 @@ WATCHUX owns the user-facing correction of those behaviours:
 - **Validation:** `cargo test -p eddacraft-anvil-config`,
   `cargo test -p eddacraft-anvil config`, and integration tests proving stale
   warm-up cache falls back safely
-- **Status:** Draft
+- **Authorisation:** Operator requested completing `WATCHUX-008` on 2026-05-14;
+  implementation is limited to explicit config show/set/convert operations and
+  an opportunistic, non-authoritative watch warm-up cache.
+- **Status:** Complete
+- **Evidence:** Implemented on `feat/watchux-008-config-cache`; `anvil config`
+  now supports `show`, `set <rule> <mode>`, and `convert --to <format>`. `anvil
+  start` writes `.anvil/cache/watch-warmup.json` opportunistically, and `anvil
+  watch` validates the cache before using it as advisory warm-up evidence;
+  stale or corrupt cache data falls back safely.
 
 ## Sequencing
 
@@ -206,7 +225,7 @@ WATCHUX owns the user-facing correction of those behaviours:
    `Failing`.
 3. **Progressive startup:** WATCHUX-006.
 4. **Config truth:** WATCHUX-007.
-5. **Cache and command surface:** WATCHUX-008.
+5. **Cache and command surface:** WATCHUX-008 — complete.
 
 ## Release Notes
 

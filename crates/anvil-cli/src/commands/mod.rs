@@ -7,6 +7,7 @@ pub mod auth;
 pub mod baseline;
 pub mod check;
 pub mod check_catalog;
+pub mod config;
 pub mod defaults;
 pub mod doctor;
 pub mod drift;

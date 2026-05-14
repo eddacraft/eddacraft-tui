@@ -9,6 +9,7 @@ mod output;
 mod services;
 mod tui;
 mod util;
+mod warmup_cache;
 
 use std::io::IsTerminal;
 use std::process::ExitCode;
@@ -119,6 +120,8 @@ enum Commands {
     Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
+    /// Show, set, and convert Anvil project config.
+    Config(commands::config::ConfigArgs),
     /// Track architecture drift over time.
     Drift(commands::drift::DriftArgs),
     /// Show project status and health.
@@ -206,6 +209,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::AuditChain(_) => "audit-chain",
         Commands::Check(_) => "check",
         Commands::Doctor(_) => "doctor",
+        Commands::Config(_) => "config",
         Commands::Drift(_) => "drift",
         Commands::Start(_) => "start",
         Commands::Status(_) => "status",
@@ -722,6 +726,7 @@ fn main() -> ExitCode {
         Commands::AuditChain(args) => commands::audit_chain::run(args, &cli.global),
         Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
+        Commands::Config(args) => commands::config::run(args, &cli.global),
         Commands::Drift(args) => commands::drift::run(args, &cli.global),
         Commands::Start(args) => commands::start::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),

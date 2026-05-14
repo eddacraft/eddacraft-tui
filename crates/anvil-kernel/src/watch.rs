@@ -54,6 +54,10 @@ pub struct WatchConfig {
     /// User-supplied exclude glob patterns. Empty = exclude nothing.
     /// Takes precedence over `include_patterns` when both match.
     pub exclude_patterns: Vec<String>,
+    /// Validated repo-relative files from the CLI warm-up cache. Empty means
+    /// discover from disk. The cache is advisory: each path still goes through
+    /// the active parser/filter path before entering the graph.
+    pub warmup_paths: Vec<PathBuf>,
 }
 
 pub struct WatchHandle {
@@ -113,12 +117,20 @@ fn initial_scan(
     root: &Path,
     filter: &FileFilter,
     pattern_filter: &WatchPatternFilter,
+    warmup_paths: &[PathBuf],
     state: &mut WatchState,
     emitter: &EventEmitter,
     stop: &AtomicBool,
 ) {
-    let mut scanned_files: Vec<PathBuf> = Vec::new();
     emitter.progress("Discovering files", 0, 0);
+
+    let cached_paths = cached_initial_paths(root, filter, pattern_filter, warmup_paths);
+    if !cached_paths.is_empty() {
+        let total_paths = cached_paths.len() as u64;
+        emitter.progress("Discovering files", total_paths, total_paths);
+        build_initial_graph(root, cached_paths, state, emitter, stop);
+        return;
+    }
 
     // SCAN-001: noise-pruning discovery (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) (same shape as the welcome
     // walker). Per-file parsing below already runs on rayon, so the only
@@ -170,9 +182,33 @@ fn initial_scan(
     let total_paths = all_paths.len() as u64;
     emitter.progress("Discovering files", total_paths, total_paths);
 
+    build_initial_graph(root, all_paths, state, emitter, stop);
+}
+
+fn cached_initial_paths(
+    root: &Path,
+    filter: &FileFilter,
+    pattern_filter: &WatchPatternFilter,
+    warmup_paths: &[PathBuf],
+) -> Vec<PathBuf> {
+    warmup_paths
+        .iter()
+        .map(|path| root.join(path))
+        .filter(|path| filter.should_process(path) && pattern_matches(pattern_filter, root, path))
+        .collect()
+}
+
+fn build_initial_graph(
+    root: &Path,
+    all_paths: Vec<PathBuf>,
+    state: &mut WatchState,
+    emitter: &EventEmitter,
+    stop: &AtomicBool,
+) {
     if stop.load(Ordering::Relaxed) {
         return;
     }
+    let total_paths = all_paths.len() as u64;
     emitter.progress("Building graph", 0, total_paths);
 
     // Phase 1: parse all files in parallel (embarrassingly parallel — no shared state).
@@ -232,7 +268,6 @@ fn initial_scan(
         state.next_id = (base_id + symbol_count).max(state.graph.next_id());
         state.file_count += 1;
         state.tracked_files.insert(rel_str);
-        scanned_files.push(rel_path);
     }
 
     re_resolve_imports(&mut state.graph, &state.all_imports);
@@ -542,6 +577,7 @@ pub fn run_watch(
 
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = Arc::clone(&stop);
+    let warmup_paths = config.warmup_paths.clone();
 
     let thread = thread::spawn(move || {
         let mut state = WatchState::new();
@@ -575,6 +611,7 @@ pub fn run_watch(
             &root,
             &filter,
             &pattern_filter,
+            &warmup_paths,
             &mut state,
             &emitter,
             &stop_clone,
@@ -601,6 +638,7 @@ pub fn run_watch(
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]
@@ -617,6 +655,7 @@ mod tests {
             },
             include_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -640,6 +679,7 @@ mod tests {
             },
             include_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -669,6 +709,7 @@ mod tests {
             },
             include_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -725,6 +766,7 @@ mod tests {
             },
             include_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -754,6 +796,53 @@ mod tests {
                 .all(|e| e.event_type != anvil_kernel_types::EventType::Violation),
             "initial scan should not fail on pre-existing public API surface: {events:?}"
         );
+    }
+
+    #[test]
+    fn initial_scan_uses_validated_warmup_paths_as_seed() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("cached.ts"), "export function cached() {}").unwrap();
+        fs::write(
+            tmp.path().join("uncached.ts"),
+            "export function uncached() {}",
+        )
+        .unwrap();
+
+        let (event_tx, event_rx) = mpsc::channel();
+
+        let config = WatchConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            watcher: WatcherConfig {
+                root: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
+            warmup_paths: vec![PathBuf::from("cached.ts")],
+        };
+
+        let handle = run_watch(&config, event_tx).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut watched_files = None;
+        while std::time::Instant::now() < deadline {
+            match event_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(event) if event.event_type == anvil_kernel_types::EventType::Snapshot => {
+                    if let anvil_kernel_types::EventPayload::Snapshot { files_watched, .. } =
+                        event.payload
+                    {
+                        watched_files = Some(files_watched);
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        handle.stop().unwrap();
+
+        assert_eq!(watched_files, Some(1));
     }
 
     #[test]
@@ -808,6 +897,7 @@ mod tests {
             },
             include_patterns: Vec::new(),
             exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();

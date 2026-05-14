@@ -109,6 +109,7 @@ fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
         watcher: watcher_config,
         include_patterns: vec!["**/*".to_string()],
         exclude_patterns: Vec::new(),
+        warmup_paths: Vec::new(),
     };
 
     let (event_tx, event_rx) = std::sync::mpsc::channel();

@@ -8,6 +8,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::warmup_cache::load_watch_warmup_cache;
 
 #[derive(Debug, Args)]
 pub struct WatchArgs {
@@ -280,6 +281,18 @@ fn print_active_scope(include: &[String], exclude: &[String], mode: WatchOutputM
     }
     if !exclude.is_empty() {
         println!("[excluding] {}", exclude.join(", "));
+    }
+}
+
+fn print_warmup_cache_status(paths: Option<&Vec<String>>, mode: WatchOutputMode) {
+    if matches!(mode, WatchOutputMode::Json | WatchOutputMode::Tui) {
+        return;
+    }
+    if let Some(paths) = paths {
+        println!(
+            "[warm-up cache] {} files validated; reconciling with filesystem",
+            paths.len()
+        );
     }
 }
 
@@ -824,8 +837,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         std::io::stdin().is_terminal(),
         std::io::stdout().is_terminal(),
     );
+    let warmup_paths = load_watch_warmup_cache(&workspace_root).unwrap_or(None);
+    let warmup_path_bufs: Vec<PathBuf> = warmup_paths
+        .as_ref()
+        .map(|paths| paths.iter().map(PathBuf::from).collect())
+        .unwrap_or_default();
 
     print_active_scope(&patterns, &exclude, output_mode);
+    print_warmup_cache_status(warmup_paths.as_ref(), output_mode);
     print_tui_startup_message(output_mode);
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
@@ -848,6 +867,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         watcher: watcher_config,
         include_patterns: patterns,
         exclude_patterns: exclude.clone(),
+        warmup_paths: warmup_path_bufs,
     };
 
     let (event_tx, event_rx) = mpsc::channel();

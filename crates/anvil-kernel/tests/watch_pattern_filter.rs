@@ -86,6 +86,7 @@ fn exclude_pattern_drops_matching_files_from_initial_scan() {
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: vec!["vendor/**".to_string()],
+        warmup_paths: Vec::new(),
     };
 
     let handle = run_watch(&cfg, tx).unwrap();
@@ -112,6 +113,7 @@ fn include_pattern_restricts_initial_scan_to_matching_files() {
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: vec!["src/**/*.ts".to_string()],
         exclude_patterns: Vec::new(),
+        warmup_paths: Vec::new(),
     };
 
     let handle = run_watch(&cfg, tx).unwrap();
@@ -140,6 +142,7 @@ fn no_filter_means_all_files_are_scanned() {
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: Vec::new(),
+        warmup_paths: Vec::new(),
     };
 
     let handle = run_watch(&cfg, tx).unwrap();
@@ -166,6 +169,7 @@ fn invalid_pattern_surfaces_a_clear_error() {
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: vec!["src/[unclosed".to_string()],
         exclude_patterns: Vec::new(),
+        warmup_paths: Vec::new(),
     };
 
     let Err(err) = run_watch(&cfg, tx) else {
@@ -192,6 +196,7 @@ fn excluded_runtime_change_does_not_emit_violation() {
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: vec!["vendor/**".to_string()],
+        warmup_paths: Vec::new(),
     };
 
     let handle = run_watch(&cfg, tx).unwrap();
