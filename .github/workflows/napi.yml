@@ -127,6 +127,39 @@ jobs:
           # rust-cache and @napi-rs/cli before the build starts.
           cache-bin: false
 
+      - name: Verify cargo is not a rustup-init shim
+        # Belt-and-braces for issue #1535: if anything reintroduces a cached
+        # cargo shim that resolves to rustup-init, fail this step with a
+        # clear, actionable error before `@napi-rs/cli` produces the cryptic
+        # "unexpected argument 'metadata'" message many minutes into the
+        # build. macOS is where this has actually bitten us, but the check
+        # is cheap on every platform and is platform-neutral so a future
+        # Linux/Windows regression of the same shape is caught too.
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo_path="$(command -v cargo)"
+          echo "cargo resolves to: $cargo_path"
+          # `cargo --version` succeeds on real cargo and fails (or prints
+          # `rustup-init` usage) on the shim. Capture both stdout+stderr so
+          # the failure mode is visible in the workflow log either way.
+          if ! version_output="$(cargo --version 2>&1)"; then
+            echo "::error::'cargo --version' failed at $cargo_path. \
+          This usually means a rustup-init shim is on PATH (regression of #1535). \
+          Check that setup-rust-toolchain's cache: false and rust-cache's cache-bin: false \
+          are still in this workflow." >&2
+            echo "$version_output" >&2
+            exit 1
+          fi
+          if printf '%s' "$version_output" | grep -qi 'rustup-init'; then
+            echo "::error::'cargo --version' returned rustup-init usage output \
+          at $cargo_path. This is the #1535 regression — a cached cargo shim is \
+          resolving to rustup-init. Restore the cache disables in this workflow." >&2
+            echo "$version_output" >&2
+            exit 1
+          fi
+          echo "$version_output"
+
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
