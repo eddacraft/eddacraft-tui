@@ -33,8 +33,18 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         return run_verify(global);
     }
 
-    let data = gather_status_data(".");
+    let mut data = gather_status_data(".");
     let activation = activation::verify(Path::new("."));
+
+    // DISTRIB-002: surface an update-available hint when one is
+    // detected and the 24h rate-limit gate allows it. `--json` is
+    // excluded from the rate-limit accounting because JSON consumers
+    // are tooling, not humans, and consume the underlying
+    // `anvil version --check` output directly. The hint is opt-out
+    // via env var so a noisy CI does not have to add a flag everywhere.
+    if !global.json && std::env::var_os("ANVIL_DISABLE_UPDATE_HINT").is_none() {
+        data.update_hint = crate::commands::version::compute_update_hint(false);
+    }
 
     if global.json {
         print_json(&data, &activation)?;
@@ -75,6 +85,11 @@ fn gather_status_data(root: &str) -> StatusData {
         hooks: gather_hooks(root),
         profile: gather_profile(root),
         recent_runs: gather_recent_runs(root),
+        // DISTRIB-002: probe + rate-limit wiring is done by
+        // [`gather_status_data_with_update_hint`]. Callers that want
+        // the hint should use that wrapper; the bare gather stays
+        // None so existing call sites (tests, --json) are unaffected.
+        update_hint: None,
     }
 }
 
@@ -464,6 +479,12 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
     // mode summary (a single line in the common case, three when the
     // config is invalid).
     print!("{}", render_rule_mode_summary(&root));
+    // DISTRIB-002: trailing one-liner when an update is available.
+    // The rate-limit gate (computed by the caller) keeps this from
+    // becoming noise across repeated invocations.
+    if let Some(hint) = &data.update_hint {
+        println!("{}", hint.render_line());
+    }
 }
 
 /// Resolve the repo root via `git rev-parse --show-toplevel`. Returns
@@ -1801,6 +1822,7 @@ mod tests {
                 path: ".anvilrc".to_string(),
             },
             recent_runs: Vec::new(),
+            update_hint: None,
         };
         let layers = derive_layers(&data, &diag);
         let claim = derive_protection(&diag, &layers);

@@ -8,6 +8,9 @@ pub mod notifications;
 pub mod onboarding;
 pub mod status;
 pub mod tutorial;
+pub mod update_hint;
 pub mod watch;
 pub mod welcome;
 pub mod wizard;
+
+pub use update_hint::UpdateHint;

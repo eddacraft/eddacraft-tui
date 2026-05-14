@@ -129,6 +129,7 @@ fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
         },
         warmup: None,
         last_action: None,
+        update_hint: None,
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);

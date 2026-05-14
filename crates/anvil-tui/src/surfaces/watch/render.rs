@@ -23,15 +23,16 @@ fn advisory_warning_count(state: &WatchState) -> usize {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
-    // Reserve a 1-line footer at the bottom for the most recent --action
-    // outcome (LAUNCH-002). Hidden when no action has run yet, so the 2x2
-    // grid keeps the full area in the common case.
-    let (grid_area, footer_area) = if state.data.last_action.is_some() {
-        let split = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
-        (split[0], Some(split[1]))
-    } else {
-        (area, None)
-    };
+    // Reserve up to two 1-line strips at the bottom: the DISTRIB-002
+    // update-available hint (when set), then the most recent --action
+    // outcome (LAUNCH-002). Hint goes above the action footer so the
+    // most recent — and most actionable — line remains nearest the
+    // user's eye on the prompt edge.
+    let (grid_area, hint_area, footer_area) = split_footer(
+        area,
+        state.data.update_hint.is_some(),
+        state.data.last_action.is_some(),
+    );
 
     // Zoom mode: collapse the 2x2 grid to the focused panel filling the
     // whole grid area. Useful at narrow widths where the four-up layout
@@ -60,9 +61,66 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
         render_stats_panel(frame, bottom_cols[1], state, theme);
     }
 
+    if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
+        render_update_hint(frame, strip, hint, theme);
+    }
     if let (Some(footer), Some(line)) = (footer_area, state.data.last_action.as_ref()) {
         render_action_footer(frame, footer, line, theme);
     }
+}
+
+/// Compute the grid + optional 1-line footers. Extracted from `render`
+/// so tests can assert the layout deterministically without needing
+/// the full ratatui frame setup.
+pub(crate) fn split_footer(
+    area: Rect,
+    has_hint: bool,
+    has_action: bool,
+) -> (Rect, Option<Rect>, Option<Rect>) {
+    match (has_hint, has_action) {
+        (false, false) => (area, None, None),
+        (true, false) => {
+            let s = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+            (s[0], Some(s[1]), None)
+        }
+        (false, true) => {
+            let s = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+            (s[0], None, Some(s[1]))
+        }
+        (true, true) => {
+            let s = Layout::vertical([
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
+            .split(area);
+            (s[0], Some(s[1]), Some(s[2]))
+        }
+    }
+}
+
+/// DISTRIB-002: render the single-line "update available" hint at
+/// `area`. ASCII-only by convention (matches the action footer
+/// comment above) so the line survives Windows legacy code-pages and
+/// CI log captures.
+fn render_update_hint(
+    frame: &mut Frame,
+    area: Rect,
+    hint: &crate::surfaces::UpdateHint,
+    theme: &EddaCraftTheme,
+) {
+    let colour = if hint.advisory_ids.is_empty() {
+        theme.accent()
+    } else {
+        // Security advisories elevate to the error/warn colour so the
+        // user does not skim past a CVE row.
+        theme.error()
+    };
+    let para = Paragraph::new(Line::from(Span::styled(
+        hint.render_line(),
+        Style::default().fg(colour).add_modifier(Modifier::BOLD),
+    )));
+    frame.render_widget(para, area);
 }
 
 /// One-line footer summarising the most recent `--action` outcome.
@@ -459,6 +517,7 @@ mod tests {
             },
             warmup: None,
             last_action: None,
+            update_hint: None,
         })
     }
 
@@ -525,6 +584,7 @@ mod tests {
             },
             warmup: None,
             last_action: None,
+            update_hint: None,
         });
         let theme = EddaCraftTheme;
 
@@ -664,5 +724,120 @@ mod tests {
 
         assert!(rendered.contains("Building graph"), "got:\n{rendered}");
         assert!(rendered.contains("3/10"), "got:\n{rendered}");
+    }
+
+    // ─── DISTRIB-002 update-available hint ─────────────────────────
+
+    #[test]
+    fn update_hint_renders_one_line_at_bottom() {
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.update_hint = Some(crate::surfaces::UpdateHint {
+            latest_version: "0.7.0-beta".into(),
+            current_version: "0.6.2-beta".into(),
+            advisory_ids: vec![],
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Update available"),
+            "missing hint line, got:\n{rendered}"
+        );
+        assert!(rendered.contains("0.7.0-beta"));
+        assert!(rendered.contains("anvil update"));
+    }
+
+    #[test]
+    fn update_hint_with_advisory_names_id_on_the_line() {
+        let backend = TestBackend::new(140, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.update_hint = Some(crate::surfaces::UpdateHint {
+            latest_version: "0.7.0-beta".into(),
+            current_version: "0.6.2-beta".into(),
+            advisory_ids: vec!["GHSA-aaaa-bbbb-cccc".into()],
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(rendered.contains("GHSA-aaaa-bbbb-cccc"));
+        assert!(rendered.contains("security advisory"));
+    }
+
+    /// DISTRIB-002 spec validation test
+    /// (`watch::tests::update_hint_rate_limited`): the TUI render is
+    /// driven entirely by the presence of `update_hint` in `WatchData`.
+    /// When the rate-limit gate (owned by anvil-cli's
+    /// `update_hint::record_if_due`) suppresses the hint, the consumer
+    /// sets `update_hint = None` and the watch surface MUST NOT render
+    /// any "Update available" line. The primitive's rate-limit
+    /// behaviour is covered exhaustively in
+    /// `update_hint::tests::record_if_due_*` in anvil-cli.
+    #[test]
+    fn update_hint_rate_limited() {
+        // `None` simulates the rate-limit gate suppressing the hint;
+        // the render must omit the "Update available" line entirely.
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.update_hint = None;
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            !rendered.contains("Update available"),
+            "rate-limited state must not render the hint, got:\n{rendered}"
+        );
+
+        // When the gate allows it, `Some(hint)` is rendered.
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        state.data.update_hint = Some(crate::surfaces::UpdateHint {
+            latest_version: "0.7.0-beta".into(),
+            current_version: "0.6.2-beta".into(),
+            advisory_ids: vec![],
+        });
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Update available"),
+            "allowed state must render the hint, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn split_footer_reserves_correct_lines_for_each_combination() {
+        let area = Rect::new(0, 0, 80, 24);
+        let (grid, hint, action) = split_footer(area, false, false);
+        assert_eq!(grid.height, 24);
+        assert!(hint.is_none() && action.is_none());
+
+        let (grid, hint, action) = split_footer(area, true, false);
+        assert_eq!(grid.height, 23);
+        assert!(hint.is_some() && action.is_none());
+
+        let (grid, hint, action) = split_footer(area, false, true);
+        assert_eq!(grid.height, 23);
+        assert!(hint.is_none() && action.is_some());
+
+        let (grid, hint, action) = split_footer(area, true, true);
+        assert_eq!(grid.height, 22);
+        let hint = hint.unwrap();
+        let action = action.unwrap();
+        // Hint sits above action so the action footer is closest to
+        // the prompt edge, matching the comment in `render`.
+        assert!(hint.y < action.y);
     }
 }

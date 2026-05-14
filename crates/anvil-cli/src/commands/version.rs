@@ -490,6 +490,49 @@ async fn fetch_advisories_from(url: &str) -> Option<Vec<AdvisoryTag>> {
     Some(parse_advisory_tags(release_body))
 }
 
+// ─── Bridge: probe → UpdateHint DTO (DISTRIB-002) ─────────────────
+
+/// Compose the optional `UpdateHint` for `anvil status` and the watch
+/// TUI. Returns `None` when no update is available, the probe failed,
+/// or the rate-limit gate suppressed the hint.
+///
+/// Probes latest version synchronously (3s timeout, silent on failure
+/// — see [`fetch_latest_version_quiet`]). When `include_advisories`
+/// is true, also probes the running version's release body for
+/// advisory tags. The rate-limit gate at
+/// [`crate::update_hint::record_if_due`] persists state so successive
+/// invocations across surfaces share the 24h budget.
+pub fn compute_update_hint(include_advisories: bool) -> Option<anvil_tui::surfaces::UpdateHint> {
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let latest = fetch_latest_version_quiet()?;
+    if !is_newer_semver(&latest, &current) {
+        return None;
+    }
+    let state_path = crate::update_hint::state_file_path()?;
+    if !crate::update_hint::record_if_due(
+        &state_path,
+        &latest,
+        std::time::SystemTime::now(),
+        crate::update_hint::DEFAULT_HINT_TTL,
+    ) {
+        return None;
+    }
+    let advisory_ids = if include_advisories {
+        fetch_advisories_for_version(&current)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| a.id)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Some(anvil_tui::surfaces::UpdateHint {
+        latest_version: latest,
+        current_version: current,
+        advisory_ids,
+    })
+}
+
 /// Parse `Security-Advisory: <ID>[: <summary>]` lines from a release
 /// body. The line may appear anywhere in the body. Header recognition
 /// is case-insensitive on the prefix; the ID is captured verbatim

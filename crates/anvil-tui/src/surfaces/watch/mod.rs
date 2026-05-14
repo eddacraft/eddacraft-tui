@@ -150,6 +150,11 @@ pub struct WatchData {
     /// Most recent `--action` outcome (LAUNCH-002). `None` until the first
     /// action completes. See `ActionResultLine` for the isolation invariant.
     pub last_action: Option<ActionResultLine>,
+    /// DISTRIB-002: one-line "update available" hint set by anvil-cli
+    /// before the watch loop starts. The TUI renders it in the action
+    /// footer when present; `None` when no update is available or the
+    /// rate-limit gate suppressed the hint.
+    pub update_hint: Option<crate::surfaces::UpdateHint>,
 }
 
 /// Which panel is focused in the 2x2 grid.
@@ -477,6 +482,7 @@ mod tests {
             },
             warmup: None,
             last_action: None,
+            update_hint: None,
         }
     }
 

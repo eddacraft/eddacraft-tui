@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 /// The spec says "rate-limited to once per 24h". Encoded explicitly so
 /// tests can substitute a shorter window without going around the
 /// production constant.
-pub const DEFAULT_HINT_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+pub const DEFAULT_HINT_TTL: Duration = Duration::from_hours(24);
 
 /// On-disk shape of the hint state. `version` records which release
 /// the hint last advertised — when a fresh version appears, the gate
@@ -69,8 +69,8 @@ impl HintState {
 
     /// Record that the hint fired for `latest_version` at `now`. The
     /// caller is expected to write the result back to disk via
-    /// [`write_to`] (typically through [`record_shown_at`]).
-    pub fn after_shown(&self, latest_version: &str, now: SystemTime) -> Self {
+    /// [`write_to`] (typically through [`record_if_due`]).
+    pub fn after_shown(latest_version: &str, now: SystemTime) -> Self {
         let secs = now
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -128,7 +128,7 @@ pub fn record_if_due(path: &Path, latest_version: &str, now: SystemTime, ttl: Du
     if !state.should_show(latest_version, now, ttl) {
         return false;
     }
-    let next = state.after_shown(latest_version, now);
+    let next = HintState::after_shown(latest_version, now);
     let _ = write_to(path, &next);
     true
 }

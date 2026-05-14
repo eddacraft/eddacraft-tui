@@ -35,6 +35,12 @@ pub struct StatusData {
     pub hooks: Vec<HookStatus>,
     pub profile: ProfileInfo,
     pub recent_runs: Vec<GateRunResult>,
+    /// DISTRIB-002: one-line "update available" hint set by anvil-cli
+    /// when a newer release is detected and the 24h rate-limit allows
+    /// rendering. `None` when no update is available, the probe was
+    /// skipped (offline / network failure), or the hint already fired
+    /// within the rate-limit window for this version.
+    pub update_hint: Option<crate::surfaces::UpdateHint>,
 }
 
 /// Which panel is focused.
@@ -221,6 +227,7 @@ mod tests {
                 checks_passed: 5,
                 duration_ms: 2400,
             }],
+            update_hint: None,
         }
     }
 

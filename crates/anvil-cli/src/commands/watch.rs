@@ -1019,6 +1019,17 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
     } else {
+        // DISTRIB-002: probe before launching the TUI loop so the hint
+        // is rendered on the first frame. Network call is gated by the
+        // existing 3s timeout in `fetch_latest_version_quiet`; the
+        // 24h rate-limit keeps repeated `anvil watch` invocations from
+        // re-printing the same line every restart. Opt-out via
+        // `ANVIL_DISABLE_UPDATE_HINT=1`.
+        let update_hint = if std::env::var_os("ANVIL_DISABLE_UPDATE_HINT").is_none() {
+            crate::commands::version::compute_update_hint(false)
+        } else {
+            None
+        };
         let state =
             anvil_tui::surfaces::watch::WatchState::new(anvil_tui::surfaces::watch::WatchData {
                 status: anvil_tui::surfaces::watch::WatchStatus::Idle,
@@ -1032,6 +1043,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                 },
                 warmup: None,
                 last_action: None,
+                update_hint,
             });
         let link = action_rx
             .as_ref()

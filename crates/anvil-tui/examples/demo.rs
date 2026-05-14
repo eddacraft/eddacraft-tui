@@ -248,6 +248,7 @@ fn mock_status_data() -> StatusData {
                 duration_ms: 1920,
             },
         ],
+        update_hint: None,
     }
 }
 
@@ -420,6 +421,7 @@ fn mock_watch_data() -> WatchData {
         },
         warmup: None,
         last_action: None,
+        update_hint: None,
     }
 }
 

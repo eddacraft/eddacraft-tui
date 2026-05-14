@@ -8,27 +8,50 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{StatusPanel, StatusState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
+    // DISTRIB-002: reserve a 1-line strip at the bottom for the
+    // "Update available" hint when set. The strip is omitted when no
+    // hint applies so the existing three-panel layout keeps the full
+    // area in the common case.
+    let (body_area, hint_area) = if state.data.update_hint.is_some() {
+        let s = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+        (s[0], Some(s[1]))
+    } else {
+        (area, None)
+    };
+
     // Zoom mode: only the focused panel renders, taking the full area.
     // Press `z` to toggle, `esc` exits zoom before navigating back.
     if state.zoomed {
         match state.focused_panel {
-            StatusPanel::Hooks => render_hooks_panel(frame, area, state, theme),
-            StatusPanel::Profile => render_profile_panel(frame, area, state, theme),
-            StatusPanel::Results => render_results_panel(frame, area, state, theme),
+            StatusPanel::Hooks => render_hooks_panel(frame, body_area, state, theme),
+            StatusPanel::Profile => render_profile_panel(frame, body_area, state, theme),
+            StatusPanel::Results => render_results_panel(frame, body_area, state, theme),
         }
-        return;
+    } else {
+        let chunks = Layout::vertical([
+            Constraint::Ratio(1, 3), // Hooks panel
+            Constraint::Ratio(1, 3), // Profile panel
+            Constraint::Ratio(1, 3), // Results panel
+        ])
+        .split(body_area);
+
+        render_hooks_panel(frame, chunks[0], state, theme);
+        render_profile_panel(frame, chunks[1], state, theme);
+        render_results_panel(frame, chunks[2], state, theme);
     }
 
-    let chunks = Layout::vertical([
-        Constraint::Ratio(1, 3), // Hooks panel
-        Constraint::Ratio(1, 3), // Profile panel
-        Constraint::Ratio(1, 3), // Results panel
-    ])
-    .split(area);
-
-    render_hooks_panel(frame, chunks[0], state, theme);
-    render_profile_panel(frame, chunks[1], state, theme);
-    render_results_panel(frame, chunks[2], state, theme);
+    if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
+        let colour = if hint.advisory_ids.is_empty() {
+            theme.accent()
+        } else {
+            theme.error()
+        };
+        let para = Paragraph::new(Line::from(Span::styled(
+            hint.render_line(),
+            Style::default().fg(colour).add_modifier(Modifier::BOLD),
+        )));
+        frame.render_widget(para, strip);
+    }
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {
@@ -238,6 +261,7 @@ mod tests {
                     duration_ms: 1800,
                 },
             ],
+            update_hint: None,
         })
     }
 
