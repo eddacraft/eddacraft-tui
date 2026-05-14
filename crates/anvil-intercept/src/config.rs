@@ -70,6 +70,12 @@ use anvil_intercept_proto::enforcement_config::{
 };
 use thiserror::Error;
 
+/// MLP2-024 default per-worktree session cap. Sized for ~6
+/// concurrent sub-agents with ~3x headroom per the trace evidence
+/// in MLP-014; operators can tighten via `.anvil.yaml`. See
+/// `SessionConfigFile::per_worktree_max` for the rationale.
+pub const DEFAULT_PER_WORKTREE_MAX: usize = 16;
+
 /// Resolved enforcement strictness for the daemon.
 ///
 /// Variants are ordered for stricter-wins comparison. Do not rely on
@@ -216,7 +222,7 @@ pub enum LoadError {
 /// `observe_only = false`,
 /// `telemetry_allow_cross_session = false`,
 /// `ipc_limits = IpcLimits::default()` (INTD-016 baseline).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Resolved {
     pub mode: Mode,
     pub on_ambiguous_ownership: AmbiguousOwnership,
@@ -240,6 +246,14 @@ pub struct Resolved {
     /// `*_timeout_seconds`, and a smaller `control_frame_max_bytes`
     /// each represent the more restrictive enforcement posture.
     pub ipc_limits: crate::dos::IpcLimits,
+    /// MLP2-024: maximum number of sessions allowed per
+    /// canonicalised worktree. Stricter-wins merge (smaller value
+    /// wins). The resolution layer clamps to a minimum of 1 — a
+    /// `0` value would refuse every registration and is treated
+    /// as an operator typo. Default (both sides unset): 16, sized
+    /// for ~6 concurrent sub-agents with 3x headroom (per
+    /// `SessionConfigFile::per_worktree_max` doc).
+    pub session_per_worktree_max: usize,
 }
 
 impl Resolved {
@@ -325,12 +339,27 @@ impl Resolved {
 
         let ipc_limits = resolve_ipc_limits(project.map(|p| &p.dos), user.map(|u| &u.dos));
 
+        // MLP2-024: stricter-wins on `per_worktree_max` (smaller
+        // value wins). `None` on both sides → daemon default of
+        // 16. A `0` value on either side is clamped to 1 — operator
+        // typo defence (matches `IpcLimits::from_config` pattern;
+        // refusing every registration is never the desired outcome).
+        let project_cap = project.and_then(|p| p.session.per_worktree_max);
+        let user_cap = user.and_then(|u| u.session.per_worktree_max);
+        let merged_cap = match (project_cap, user_cap) {
+            (Some(p), Some(u)) => Some(p.min(u)),
+            (Some(v), None) | (None, Some(v)) => Some(v),
+            (None, None) => None,
+        };
+        let session_per_worktree_max = merged_cap.unwrap_or(DEFAULT_PER_WORKTREE_MAX).max(1);
+
         Self {
             mode,
             on_ambiguous_ownership,
             observe_only,
             telemetry_allow_cross_session,
             ipc_limits,
+            session_per_worktree_max,
         }
     }
 
@@ -368,6 +397,23 @@ impl Resolved {
             crate::fanout::CrossSessionPolicy::Redact
         } else {
             crate::fanout::CrossSessionPolicy::Deny
+        }
+    }
+}
+
+impl Default for Resolved {
+    /// Daemon's no-config baseline. Matches
+    /// `from_config_files(None, None)` so `Resolved::default()`
+    /// stays interchangeable with "operator wrote nothing
+    /// anywhere" across the existing test suite.
+    fn default() -> Self {
+        Self {
+            mode: Mode::default(),
+            on_ambiguous_ownership: AmbiguousOwnership::default(),
+            observe_only: false,
+            telemetry_allow_cross_session: false,
+            ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: DEFAULT_PER_WORKTREE_MAX,
         }
     }
 }
@@ -799,6 +845,63 @@ mod tests {
         assert!(
             !resolved.telemetry_allow_cross_session,
             "project deny must win over user allow",
+        );
+    }
+
+    // -------- MLP2-024 session.per_worktree_max --------
+
+    #[test]
+    fn session_per_worktree_max_defaults_to_sixteen_when_unset() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(workspace.path(), "enforcement:\n  mode: warn\n");
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert_eq!(resolved.session_per_worktree_max, DEFAULT_PER_WORKTREE_MAX);
+        assert_eq!(resolved.session_per_worktree_max, 16);
+    }
+
+    #[test]
+    fn session_per_worktree_max_honours_project_value() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(
+            workspace.path(),
+            "enforcement:\n  session:\n    per_worktree_max: 4\n",
+        );
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert_eq!(resolved.session_per_worktree_max, 4);
+    }
+
+    #[test]
+    fn session_per_worktree_max_stricter_wins_picks_smaller() {
+        let workspace = tempdir().expect("workspace");
+        let user_dir = tempdir().expect("user dir");
+        let user_path = user_dir.path().join("anvil.yaml");
+
+        write_anvil_yaml(
+            workspace.path(),
+            "enforcement:\n  session:\n    per_worktree_max: 8\n",
+        );
+        write_user_config(
+            &user_path,
+            "enforcement:\n  session:\n    per_worktree_max: 4\n",
+        );
+        let resolved = Resolved::load(workspace.path(), Some(&user_path)).expect("load");
+        assert_eq!(
+            resolved.session_per_worktree_max, 4,
+            "smaller (stricter) value wins"
+        );
+    }
+
+    #[test]
+    fn session_per_worktree_max_zero_is_clamped_to_one() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(
+            workspace.path(),
+            "enforcement:\n  session:\n    per_worktree_max: 0\n",
+        );
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert_eq!(
+            resolved.session_per_worktree_max, 1,
+            "zero is operator-typo defence; clamp to 1"
         );
     }
 }

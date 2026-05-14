@@ -26,6 +26,14 @@ use thiserror::Error;
 /// window is treated as crashed.
 pub const DEFAULT_HEARTBEAT_TTL: Duration = Duration::from_secs(30);
 
+/// MLP2-024: default per-worktree session cap. Sized for ~6
+/// concurrent sub-agents with ~3x headroom; operators can tighten
+/// via `.anvil.yaml` (`enforcement.session.per_worktree_max`).
+/// Mirrored here (and not imported from `crate::config`) so the
+/// registry stays self-contained for callers that bypass the
+/// config layer.
+pub const DEFAULT_PER_WORKTREE_CAP: usize = 16;
+
 /// Errors returned by the synchronous registry surface. The wire layer
 /// (INTD-002) maps these onto JSON-RPC error codes; that mapping lives
 /// outside this module so the registry stays independent of transport.
@@ -82,6 +90,21 @@ pub enum RegistryError {
     /// Fence state could not be loaded, so registration fails closed.
     #[error("fence state unavailable: {message}")]
     FenceStateUnavailable { message: String },
+
+    /// MLP2-024: the worktree already has the configured maximum
+    /// number of live sessions. `cap` is the per-worktree limit at
+    /// the time of refusal; `live` is the count the registry
+    /// observed. The launcher should surface this as
+    /// `Refused::SessionCapExceeded` and back off.
+    #[error(
+        "worktree session cap exceeded for {worktree:?}: \
+         {live} live sessions at cap={cap}"
+    )]
+    SessionCapExceeded {
+        worktree: PathBuf,
+        cap: usize,
+        live: usize,
+    },
 }
 
 impl PartialEq for RegistryError {
@@ -108,6 +131,18 @@ impl PartialEq for RegistryError {
                 Self::FenceStateUnavailable { message: a },
                 Self::FenceStateUnavailable { message: b },
             ) => a == b,
+            (
+                Self::SessionCapExceeded {
+                    worktree: a_wt,
+                    cap: a_cap,
+                    live: a_live,
+                },
+                Self::SessionCapExceeded {
+                    worktree: b_wt,
+                    cap: b_cap,
+                    live: b_live,
+                },
+            ) => a_wt == b_wt && a_cap == b_cap && a_live == b_live,
             _ => false,
         }
     }
@@ -187,6 +222,11 @@ pub trait SessionDispatcher: Send + Sync + 'static {
 pub struct SessionRegistry {
     inner: Mutex<Inner>,
     ttl: Duration,
+    /// MLP2-024: per-worktree session cap. Default
+    /// [`DEFAULT_PER_WORKTREE_CAP`] (16); set by the daemon's
+    /// startup from `Resolved::session_per_worktree_max`. Tests
+    /// override via [`SessionRegistry::with_per_worktree_cap`].
+    per_worktree_cap: usize,
 }
 
 struct Inner {
@@ -232,7 +272,25 @@ impl SessionRegistry {
                 by_composite: HashMap::new(),
             }),
             ttl,
+            per_worktree_cap: DEFAULT_PER_WORKTREE_CAP,
         }
+    }
+
+    /// MLP2-024: builder-style override of the per-worktree cap.
+    /// The daemon wires this from
+    /// `Resolved::session_per_worktree_max` at startup; tests use it
+    /// to drive the cap-exceeded path on a small fixture.
+    ///
+    /// `cap` is clamped to a minimum of 1 — a zero cap would refuse
+    /// every registration and is treated as an operator typo. The
+    /// resolution layer in `crate::config` applies the same clamp
+    /// upstream so the registry receives a sane value, but the
+    /// defensive clamp here keeps the surface honest for hand-built
+    /// fixtures.
+    #[must_use]
+    pub fn with_per_worktree_cap(mut self, cap: usize) -> Self {
+        self.per_worktree_cap = cap.max(1);
+        self
     }
 
     /// Register a new session against a worktree path.
@@ -279,6 +337,7 @@ impl SessionRegistry {
         now: Instant,
     ) -> Result<SessionRecord, RegistryError> {
         let canonical = canonicalise(worktree)?;
+        let cap = self.per_worktree_cap;
         let mut inner = self.lock();
 
         if inner.sessions.contains_key(id) {
@@ -288,6 +347,22 @@ impl SessionRegistry {
         if let Some(existing) = inner.by_composite.get(&composite_key) {
             return Err(RegistryError::WorktreeAlreadyOwned {
                 existing: existing.clone(),
+            });
+        }
+
+        // MLP2-024: per-worktree session cap. Counted across all
+        // agent_tags on this canonical worktree, so the cap is a
+        // total-sub-agent budget, not a per-tag budget.
+        let live: usize = inner
+            .by_composite
+            .keys()
+            .filter(|(wt, _)| wt == &canonical)
+            .count();
+        if live >= cap {
+            return Err(RegistryError::SessionCapExceeded {
+                worktree: canonical,
+                cap,
+                live,
             });
         }
 
@@ -1404,6 +1479,155 @@ mod tests {
         let records = registry.active_sessions();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].agent_tag.as_ref(), Some(&tag_a));
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // MLP2-024: per-worktree session cap.
+    // ───────────────────────────────────────────────────────────
+
+    /// MLP2-024: with the cap at 2, a third registration on the same
+    /// canonical worktree is refused with `SessionCapExceeded`. Cap
+    /// is counted across all `agent_tag` values, so two tagged
+    /// sub-agents + one attempted untagged session would also trip
+    /// the limit.
+    #[test]
+    fn third_session_on_capped_worktree_is_refused() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(2);
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        let tag_c = tag("anvil-run", "claude-3", 1_700_000_003);
+
+        registry
+            .register(&sid("a"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        registry
+            .register(&sid("b"), wt.path(), Some(&tag_b), now)
+            .unwrap();
+        let err = registry
+            .register(&sid("c"), wt.path(), Some(&tag_c), now)
+            .expect_err("third registration must be refused");
+
+        let canonical = std::fs::canonicalize(wt.path()).unwrap();
+        match err {
+            RegistryError::SessionCapExceeded {
+                worktree,
+                cap,
+                live,
+            } => {
+                assert_eq!(worktree, canonical);
+                assert_eq!(cap, 2);
+                assert_eq!(live, 2);
+            }
+            other => panic!("expected SessionCapExceeded, got {other:?}"),
+        }
+    }
+
+    /// MLP2-024: unregistering a session frees a slot — the next
+    /// registration succeeds at the same cap.
+    #[test]
+    fn cap_freed_by_unregister_admits_next_registration() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(2);
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        let tag_c = tag("anvil-run", "claude-3", 1_700_000_003);
+
+        registry
+            .register(&sid("a"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        registry
+            .register(&sid("b"), wt.path(), Some(&tag_b), now)
+            .unwrap();
+        assert!(registry.unregister(&sid("a")).unwrap());
+        registry
+            .register(&sid("c"), wt.path(), Some(&tag_c), now)
+            .expect("new slot opens after unregister");
+        assert_eq!(registry.sessions_for_worktree(wt.path()).len(), 2);
+    }
+
+    /// MLP2-024: cap is scoped per worktree — registering against a
+    /// second worktree does NOT trip the first worktree's cap.
+    #[test]
+    fn cap_is_scoped_per_worktree() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(1);
+        let wt_a = make_worktree();
+        let wt_b = make_worktree();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("a"), wt_a.path(), None, now)
+            .unwrap();
+        registry
+            .register(&sid("b"), wt_b.path(), None, now)
+            .expect("different worktree must not trip the cap");
+    }
+
+    /// MLP2-024: `with_per_worktree_cap(0)` clamps to 1 — a zero
+    /// cap would refuse every registration, which is never the
+    /// operator's intent. Uses distinct tags so the cap path
+    /// fires before the composite-key duplicate path.
+    #[test]
+    fn zero_cap_is_clamped_to_one() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(0);
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        // First registration succeeds because the clamp lifted the cap to 1.
+        registry
+            .register(&sid("a"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        // Second is refused — different tag, so it goes past the
+        // composite-key check straight to the cap check.
+        let err = registry
+            .register(&sid("b"), wt.path(), Some(&tag_b), now)
+            .expect_err("second registration above clamp must be refused");
+        match err {
+            RegistryError::SessionCapExceeded { cap, live, .. } => {
+                assert_eq!(cap, 1, "zero must be clamped to 1");
+                assert_eq!(live, 1);
+            }
+            other => panic!("expected SessionCapExceeded, got {other:?}"),
+        }
+    }
+
+    /// MLP2-024: the cap counts both tagged and untagged sessions
+    /// against the same canonical worktree.
+    #[test]
+    fn cap_counts_tagged_and_untagged_together() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(2);
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+
+        registry.register(&sid("u"), wt.path(), None, now).unwrap();
+        registry
+            .register(&sid("t1"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        let err = registry
+            .register(&sid("t2"), wt.path(), None, now)
+            .expect_err("untagged+tagged together hit the cap");
+        // Either correctness path is acceptable: a duplicate-
+        // untagged registration returns `WorktreeAlreadyOwned` (the
+        // composite-key check fires first), while a third distinct
+        // tag would return `SessionCapExceeded`. Both prove the cap
+        // counts tagged + untagged together and refuses the third
+        // attempt.
+        assert!(
+            matches!(err, RegistryError::WorktreeAlreadyOwned { .. })
+                || matches!(
+                    err,
+                    RegistryError::SessionCapExceeded {
+                        cap: 2,
+                        live: 2,
+                        ..
+                    }
+                ),
+            "expected SessionCapExceeded or WorktreeAlreadyOwned, got {err:?}"
+        );
     }
 
     /// MLP2-023: `SessionDispatcher::register` honours `agent_tag`

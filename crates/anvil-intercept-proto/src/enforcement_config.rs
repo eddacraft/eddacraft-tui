@@ -124,6 +124,12 @@ pub struct EnforcementConfigFile {
     /// ignores this field.
     #[serde(default)]
     pub dos: DosConfigFile,
+
+    /// MLP2-024 multi-session caps. Reserved at the proto layer;
+    /// consumed by the daemon's session registry on
+    /// `register-session`. RTAI-006 ignores this field.
+    #[serde(default)]
+    pub session: SessionConfigFile,
 }
 
 /// INTD-016 `DoS` protection budgets. Reserved at this layer by
@@ -173,6 +179,40 @@ pub struct DosConfigFile {
     /// separately by the daemon's IPC reader.
     #[serde(default)]
     pub control_frame_max_bytes: Option<usize>,
+}
+
+/// MLP2-024 multi-session caps. Sized as a top-level config block
+/// (rather than a single scalar) so future per-worktree limits
+/// (e.g. burst registration rate, max concurrent fences) land
+/// here without another wave of wire-shape churn.
+///
+/// Stricter-wins on `per_worktree_max`: smaller value wins.
+/// Unset on both sides → daemon default of 16 (the MLP2-024
+/// design value; rationale below).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct SessionConfigFile {
+    /// Maximum number of registered sessions that may share a
+    /// single canonicalised worktree. Above this cap, additional
+    /// `register-session` calls fail with
+    /// `RegistryError::SessionCapExceeded`.
+    ///
+    /// **Default (when both project and user configs leave this
+    /// unset): 16.** Sized off the MLP-014 telemetry trace
+    /// (~6 concurrent sub-agents observed in a busy multi-agent
+    /// session) with ~3x headroom. A larger cap would let an
+    /// adversarial launcher pin unbounded memory in the daemon's
+    /// `SessionRegistry`; a smaller cap would refuse legitimate
+    /// multi-agent flows. Operators can tighten via project-level
+    /// `.anvil.yaml` (`enforcement.session.per_worktree_max: 4`)
+    /// or relax via user-level config; the stricter (smaller)
+    /// value wins on conflict.
+    ///
+    /// Setting `0` is rejected at the resolution boundary (it
+    /// would refuse every registration on the worktree); the
+    /// resolution layer clamps to a minimum of 1, matching the
+    /// `IpcLimits::from_config` defensive clamp pattern.
+    #[serde(default)]
+    pub per_worktree_max: Option<usize>,
 }
 
 /// Telemetry stream config (INTD-015 fan-out scope).

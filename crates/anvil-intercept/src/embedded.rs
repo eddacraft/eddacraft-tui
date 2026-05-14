@@ -282,6 +282,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
 
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
@@ -354,6 +355,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         match decision {
@@ -377,6 +379,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
         match outcome.decision {
@@ -405,6 +408,7 @@ mod tests {
                 observe_only: true,
                 telemetry_allow_cross_session: false,
                 ipc_limits: crate::dos::IpcLimits::default(),
+                session_per_worktree_max: 16,
             };
             let decision = embedded_evaluate(&batch, &config, &pipeline);
             assert!(
@@ -429,6 +433,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         assert!(
@@ -455,6 +460,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
         let outcome = embedded_evaluate_with_diagnostics(&batch, &config, &pipeline);
         match outcome.decision {
@@ -486,6 +492,7 @@ mod tests {
             observe_only: false,
             telemetry_allow_cross_session: false,
             ipc_limits: crate::dos::IpcLimits::default(),
+            session_per_worktree_max: 16,
         };
         let decision = embedded_evaluate(&batch, &config, &pipeline);
         // The default registry only contains content-bearing rules
