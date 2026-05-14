@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anvil_kernel_types::hooks::is_anvil_managed_command;
-use anvil_kernel_types::protection_claim::WorktreeClaimState;
+use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
 use anvil_tui::surfaces::status::{
     GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
 };
@@ -724,11 +724,16 @@ fn hook_layer_state(data: &StatusData, name: &str) -> LayerState {
 
 /// Pick a closed-set protection-claim state for the legible header.
 ///
-/// Until `MLP2-048` wires a daemon-snapshot source, this is a local
-/// derivation from the activation diagnostic alone. Local signals
-/// cannot prove the per-surface state that distinguishes several
-/// closed-set variants, so this v1 mapping deliberately undershoots
-/// rather than over-claim:
+/// MLP2-048 added the JSON `claim` field to `anvil status --json`
+/// using this same derivation, so JSON and plain agree on the
+/// worktree state. The full IPC-backed surface enumeration (per-surface
+/// `Participating` / `Quarantined` / `Detached` entries) is a separate
+/// follow-up; the building block lives at
+/// [`anvil_intercept::status::build_protection_claim`].
+///
+/// Local signals cannot prove the per-surface state that
+/// distinguishes several closed-set variants, so this v1 mapping
+/// deliberately undershoots rather than over-claim:
 ///
 /// - `Full` requires `≥1 daemon-backed MCP + ≥1 Participating editor
 ///   driver` (spec §14.2). Driver state lives in the daemon
@@ -1072,6 +1077,16 @@ struct StatusOutput {
     hooks: Vec<HookOutput>,
     profile: ProfileOutput,
     recent_runs: Vec<RunOutput>,
+    /// MLP2-048: nested `ProtectionClaim` wire shape per spec §14.
+    /// Carries its own `schema_version` (`anvil.protection-claim.v1`)
+    /// so consumers parse the claim against
+    /// `anvil_kernel_types::protection_claim::ProtectionClaim`
+    /// independently of `anvil.status.v1`. Surfaces are empty in v1
+    /// because local CLI signals cannot enumerate per-surface state;
+    /// IPC `query_status` integration is a separate follow-up that
+    /// will populate `surfaces` via
+    /// `anvil_intercept::status::build_protection_claim`.
+    claim: ProtectionClaim,
 }
 
 #[derive(Serialize)]
@@ -1102,6 +1117,16 @@ fn print_json(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
 ) -> anyhow::Result<()> {
+    // MLP2-048: build a ProtectionClaim from the same activation
+    // diagnostic used by the legible plain render. Re-use the
+    // `derive_protection` path so JSON and plain agree on the
+    // worktree state. Surfaces are empty here because local signals
+    // cannot enumerate per-surface state — IPC `query_status`
+    // integration is a separate follow-up.
+    let layers = derive_layers(data, activation_diag);
+    let worktree_state = derive_protection(activation_diag, &layers);
+    let claim = ProtectionClaim::new(worktree_state, Vec::new());
+
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
@@ -1131,6 +1156,7 @@ fn print_json(
                 duration_ms: r.duration_ms,
             })
             .collect(),
+        claim,
     };
 
     let json = serde_json::to_string_pretty(&output)?;

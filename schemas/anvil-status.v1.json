@@ -98,6 +98,57 @@
           "duration_ms": { "type": "integer", "minimum": 0 }
         }
       }
+    },
+    "claim": {
+      "description": "MLP2-048: nested ProtectionClaim per spec §14. Closed-set vocabulary shared across every protection-rendering surface (status, MCP, doctor). Carries its own schema_version (anvil.protection-claim.v1) so consumers can pin against the claim contract independently of anvil.status.v1. Surfaces are empty in v1 of MLP2-048 because local CLI signals cannot enumerate per-surface state; IPC query_status integration will populate the array in a follow-up.",
+      "type": "object",
+      "required": ["schema_version", "worktree_state", "surfaces"],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "anvil.protection-claim.v1"
+        },
+        "worktree_state": {
+          "type": "string",
+          "enum": [
+            "unprotected",
+            "warming",
+            "pre-write-embedded",
+            "pre-write-daemon",
+            "save-time-only",
+            "full",
+            "degraded-protection",
+            "cross-boundary-mixed",
+            "multi-daemon-detected",
+            "path-uncertain"
+          ]
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["identifier", "state"],
+            "additionalProperties": true,
+            "properties": {
+              "identifier": { "type": "string" },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "unbound",
+                  "attached",
+                  "participating",
+                  "embedded-fallback",
+                  "degraded",
+                  "cross-boundary-refused",
+                  "quarantined",
+                  "detached"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

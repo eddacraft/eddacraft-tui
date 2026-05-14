@@ -43,12 +43,16 @@
 //! reality" hard rule. The wire surface preserves this distinction
 //! through `Option<LatencyRollup>`.
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::SessionRecord;
 use anvil_intercept_proto::status::{
     DaemonStatusV1, FenceStateV1, HealthStateV1, IpcStateV1, LatencyMidEditMapV1, WorktreeStatusV1,
+};
+use anvil_kernel_types::protection_claim::{
+    ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
 };
 
 use crate::fence::{FenceRecord, FenceStore};
@@ -386,6 +390,114 @@ pub fn render_latency_line(rollup: Option<&LatencyRollup>) -> String {
     }
 }
 
+/// MLP2-048: build a [`ProtectionClaim`] describing `worktree` from a
+/// [`DaemonStatus`] snapshot. The mapping closes over the closed-set
+/// vocabulary from
+/// [`anvil_kernel_types::protection_claim::WorktreeClaimState`] so
+/// every renderer (CLI, MCP, doctor, driver) agrees on the exact
+/// state names per spec §14.
+///
+/// Inputs:
+/// - `snapshot` — the daemon's authoritative view of session,
+///   worktree, and fence state.
+/// - `worktree` — the path whose claim is being rendered. Matched
+///   byte-for-byte against `WorktreeStatus::worktree`; callers are
+///   expected to pass an already-canonical path (the daemon
+///   canonicalises at register time).
+///
+/// Mapping (per spec §14.2):
+/// - No sessions on `worktree` → [`WorktreeClaimState::Unprotected`]
+///   with an empty `surfaces` array.
+/// - Sessions present, IPC `Draining` → [`WorktreeClaimState::Warming`].
+///   Surfaces are reported as [`SurfaceClaimState::Detached`] — the
+///   listener is shutting down, so the daemon isn't actively
+///   participating in enforcement decisions on this worktree.
+/// - Sessions present, every session's `WorktreeStatus.fenced = true`
+///   → [`WorktreeClaimState::DegradedProtection`] with all surfaces
+///   [`SurfaceClaimState::Quarantined`].
+/// - Sessions present, some fenced + some not →
+///   [`WorktreeClaimState::DegradedProtection`] with the unfenced
+///   surfaces still [`SurfaceClaimState::Participating`].
+/// - Sessions present, no fences, IPC `Serving` →
+///   [`WorktreeClaimState::PreWriteDaemon`] with each surface
+///   [`SurfaceClaimState::Participating`].
+///
+/// Per-surface `identifier` is the session's `agent_tag` formatted as
+/// `driver/agent#start` when present, otherwise the bare session id.
+/// Surfaces are sorted by identifier so JSON output is deterministic
+/// across daemon-internal `HashMap` iteration order.
+#[must_use]
+pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> ProtectionClaim {
+    let worktree_entries: Vec<&WorktreeStatus> = snapshot
+        .worktrees
+        .iter()
+        .filter(|w| w.worktree == worktree)
+        .collect();
+
+    if worktree_entries.is_empty() {
+        return ProtectionClaim::new(WorktreeClaimState::Unprotected, vec![]);
+    }
+
+    let ipc_draining = matches!(snapshot.health.ipc_state, IpcState::Draining);
+    let all_fenced = worktree_entries.iter().all(|w| w.fenced);
+    let any_fenced = worktree_entries.iter().any(|w| w.fenced);
+
+    let worktree_state = if ipc_draining {
+        WorktreeClaimState::Warming
+    } else if any_fenced {
+        WorktreeClaimState::DegradedProtection
+    } else {
+        WorktreeClaimState::PreWriteDaemon
+    };
+
+    let mut surfaces: Vec<SurfaceClaim> = worktree_entries
+        .iter()
+        .map(|w| {
+            let identifier = snapshot
+                .sessions
+                .iter()
+                .find(|s| s.id == w.session_id)
+                .and_then(|s| s.agent_tag.as_ref().map(format_agent_tag))
+                .unwrap_or_else(|| w.session_id.as_str().to_owned());
+            let state = if ipc_draining {
+                SurfaceClaimState::Detached
+            } else if w.fenced {
+                SurfaceClaimState::Quarantined
+            } else {
+                SurfaceClaimState::Participating
+            };
+            SurfaceClaim { identifier, state }
+        })
+        .collect();
+    surfaces.sort_by(|a, b| a.identifier.cmp(&b.identifier));
+
+    let _ = all_fenced;
+    ProtectionClaim::new(worktree_state, surfaces)
+}
+
+/// MLP2-048: stand-alone "no daemon evidence" claim. Used by surface
+/// renderers that have no live snapshot (e.g. `anvil status` invoked
+/// when the daemon is not running). Equivalent to
+/// `build_protection_claim` against an empty snapshot for the queried
+/// worktree, but expressed as a named helper so the call sites are
+/// self-documenting.
+#[must_use]
+pub fn unprotected_protection_claim() -> ProtectionClaim {
+    ProtectionClaim::new(WorktreeClaimState::Unprotected, vec![])
+}
+
+/// Format an `AgentTag` as a stable per-surface identifier.
+/// `driver/agent#pid_starttime` matches the `AgentTag::label`
+/// convention surfaced in the daemon's tracing spans.
+fn format_agent_tag(tag: &anvil_intercept_proto::session::AgentTag) -> String {
+    format!(
+        "{driver}/{agent}#{start}",
+        driver = tag.driver_id,
+        agent = tag.claimed_agent_id,
+        start = tag.pid_starttime,
+    )
+}
+
 /// 2^53 — the largest integer that round-trips through `f64` exactly.
 /// Floats at or above this point have integer-step precision so any
 /// `round()` is honest only below it. Used as the clamp cap in
@@ -604,6 +716,140 @@ mod tests {
         assert!(
             json["latency"]["mid_edit"].is_null(),
             "no-traffic must wire as null, not zero: {json}",
+        );
+    }
+
+    // MLP2-048: ProtectionClaim mapping from DaemonStatus.
+
+    fn sample_status(
+        sessions: Vec<SessionRecord>,
+        fences: &[FenceRecord],
+        ipc_state: IpcState,
+    ) -> DaemonStatus {
+        let started = Instant::now();
+        build_status(
+            sessions,
+            fences,
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            ipc_state,
+        )
+    }
+
+    fn fence_record(worktree: &str) -> FenceRecord {
+        FenceRecord {
+            worktree: PathBuf::from(worktree),
+            reason: "test fence".into(),
+            fenced_at_unix: 1_700_000_000,
+            aliases: Vec::new(),
+        }
+    }
+
+    /// Empty snapshot → Unprotected. The simplest end of the closed
+    /// set: a queried worktree the daemon has never seen.
+    #[test]
+    fn build_protection_claim_unknown_worktree_is_unprotected() {
+        let snapshot = sample_status(vec![], &[], IpcState::Serving);
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-unknown"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
+        assert!(claim.surfaces.is_empty());
+        // Round-trips through the wire shape (per MLP-009).
+        let wire = serde_json::to_string(&claim).expect("serialise");
+        let back: ProtectionClaim = serde_json::from_str(&wire).expect("deserialise");
+        assert_eq!(back, claim);
+    }
+
+    /// Session present, no fence, IPC Serving → `PreWriteDaemon` with
+    /// one `Participating` surface keyed by session id.
+    #[test]
+    fn build_protection_claim_single_session_is_pre_write_daemon() {
+        let session = sample_session("sess-pre", "/tmp/wt-pre");
+        let snapshot = sample_status(vec![session], &[], IpcState::Serving);
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-pre"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::PreWriteDaemon);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].identifier, "sess-pre");
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
+    }
+
+    /// Session present, fenced → `DegradedProtection` + `Quarantined`
+    /// surface. Pin so a future refactor that drops the fence overlay
+    /// surfaces in review.
+    #[test]
+    fn build_protection_claim_fenced_session_is_degraded() {
+        let session = sample_session("sess-fenced", "/tmp/wt-fenced");
+        let snapshot = sample_status(
+            vec![session],
+            &[fence_record("/tmp/wt-fenced")],
+            IpcState::Serving,
+        );
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-fenced"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Quarantined);
+    }
+
+    /// IPC draining → Warming + Detached surfaces. The listener is
+    /// shutting down; the daemon is not actively participating.
+    #[test]
+    fn build_protection_claim_draining_ipc_is_warming() {
+        let session = sample_session("sess-drain", "/tmp/wt-drain");
+        let snapshot = sample_status(vec![session], &[], IpcState::Draining);
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-drain"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Warming);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Detached);
+    }
+
+    /// Multiple sessions on the same worktree → surfaces deterministically
+    /// sorted by identifier. JSON output must be stable across
+    /// `HashMap` iteration order of the source snapshot.
+    #[test]
+    fn build_protection_claim_surfaces_sorted_deterministically() {
+        let mut s_b = sample_session("sess-bbb", "/tmp/wt-multi");
+        let mut s_a = sample_session("sess-aaa", "/tmp/wt-multi");
+        // Force the two sessions to live on the same worktree
+        // explicitly (sample_session's helper sets unique worktrees by
+        // default).
+        s_a.worktree = PathBuf::from("/tmp/wt-multi");
+        s_b.worktree = PathBuf::from("/tmp/wt-multi");
+        let snapshot = sample_status(vec![s_b, s_a], &[], IpcState::Serving);
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-multi"));
+        assert_eq!(claim.surfaces.len(), 2);
+        assert_eq!(claim.surfaces[0].identifier, "sess-aaa");
+        assert_eq!(claim.surfaces[1].identifier, "sess-bbb");
+    }
+
+    /// The stand-alone helper for "no daemon" surfaces is equivalent
+    /// to building against an empty snapshot. Pin both call sites so
+    /// they cannot drift.
+    #[test]
+    fn unprotected_helper_matches_empty_snapshot_path() {
+        let helper = unprotected_protection_claim();
+        let snapshot = sample_status(vec![], &[], IpcState::Serving);
+        let empty = build_protection_claim(&snapshot, Path::new("/tmp/wt-absent"));
+        assert_eq!(helper, empty);
+        assert_eq!(helper.worktree_state, WorktreeClaimState::Unprotected);
+    }
+
+    /// Agent-tagged surfaces use `driver/agent#start` as the
+    /// identifier — matches the `AgentTag::label` convention in the
+    /// daemon's tracing spans so cross-surface correlation works
+    /// without re-formatting.
+    #[test]
+    fn build_protection_claim_uses_agent_tag_identifier() {
+        use anvil_intercept_proto::session::AgentTag;
+        let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
+        let mut session = sample_session("sess-tag", "/tmp/wt-tag");
+        session.agent_tag = Some(tag);
+        let snapshot = sample_status(vec![session], &[], IpcState::Serving);
+        let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-tag"));
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(
+            claim.surfaces[0].identifier,
+            "anvil-run/claude-code-1#1700000042"
         );
     }
 }

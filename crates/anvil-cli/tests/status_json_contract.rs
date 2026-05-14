@@ -206,6 +206,118 @@ fn status_json_top_level_keys_match_schema_contract() {
     }
 }
 
+/// MLP2-048: the `claim` field carries a nested `ProtectionClaim`
+/// whose `schema_version` pins to `anvil.protection-claim.v1`. Pin
+/// every closed-set state the wire encoding uses so a future variant
+/// rename surfaces in this contract test before any consumer breaks.
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn status_json_carries_pinned_protection_claim() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_status_json(dir.path(), home.path());
+    assert!(
+        out.status.success(),
+        "anvil --json status failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("status JSON did not parse: {err}\n---\n{stdout}"));
+
+    let claim = doc
+        .get("claim")
+        .and_then(|v| v.as_object())
+        .expect("status JSON must carry a `claim` object");
+    assert_eq!(
+        claim.get("schema_version").and_then(|v| v.as_str()),
+        Some("anvil.protection-claim.v1"),
+        "claim.schema_version must pin to anvil.protection-claim.v1: {claim:?}",
+    );
+    let worktree_state = claim
+        .get("worktree_state")
+        .and_then(|v| v.as_str())
+        .expect("claim.worktree_state is a string");
+    let allowed = [
+        "unprotected",
+        "warming",
+        "pre-write-embedded",
+        "pre-write-daemon",
+        "save-time-only",
+        "full",
+        "degraded-protection",
+        "cross-boundary-mixed",
+        "multi-daemon-detected",
+        "path-uncertain",
+    ];
+    assert!(
+        allowed.contains(&worktree_state),
+        "claim.worktree_state {worktree_state:?} not in spec §14.2 closed set",
+    );
+    let surfaces = claim
+        .get("surfaces")
+        .and_then(|v| v.as_array())
+        .expect("claim.surfaces is an array");
+    let allowed_surface_states = [
+        "unbound",
+        "attached",
+        "participating",
+        "embedded-fallback",
+        "degraded",
+        "cross-boundary-refused",
+        "quarantined",
+        "detached",
+    ];
+    for surface in surfaces {
+        let surface = surface.as_object().expect("surface entry is an object");
+        let state = surface
+            .get("state")
+            .and_then(|v| v.as_str())
+            .expect("surface.state is a string");
+        assert!(
+            allowed_surface_states.contains(&state),
+            "surface.state {state:?} not in spec §14.1 closed set",
+        );
+        assert!(
+            surface
+                .get("identifier")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "surface.identifier must be a string",
+        );
+    }
+}
+
+/// MLP2-048: round-trip the emitted `claim` JSON through the
+/// `ProtectionClaim` deserialiser. The emitter and the contract type
+/// must agree byte-for-byte — failing this means the producer (anvil
+/// status --json) wires a shape the consumer type cannot parse,
+/// which would silently break editor extensions and CI hooks.
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn status_json_claim_round_trips_through_protection_claim_type() {
+    use anvil_kernel_types::protection_claim::ProtectionClaim;
+
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_status_json(dir.path(), home.path());
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(&stdout).expect("status JSON must parse");
+    let claim_value = doc.get("claim").expect("claim must be present");
+    let claim: ProtectionClaim = serde_json::from_value(claim_value.clone())
+        .expect("emitted claim must deserialise into ProtectionClaim");
+    // Re-serialise and compare; the wire shape produced by the
+    // contract type must equal what `anvil status --json` emitted (no
+    // missing fields, no extra fields beyond the additive-optional
+    // allowance).
+    let re_emitted: serde_json::Value =
+        serde_json::to_value(&claim).expect("re-serialise to JSON value");
+    assert_eq!(re_emitted["schema_version"], claim_value["schema_version"]);
+    assert_eq!(re_emitted["worktree_state"], claim_value["worktree_state"]);
+    assert_eq!(re_emitted["surfaces"], claim_value["surfaces"]);
+}
+
 /// Pin the schema file itself — typo in `$id`, the `const` lock, or
 /// the required-fields list would be invisible to the runtime
 /// emission test above. Reading the schema in-process guards that
