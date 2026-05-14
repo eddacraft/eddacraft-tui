@@ -238,9 +238,22 @@ Do not tag until these are green and reflected in release evidence.
 **Pre-tag gate.** No amount of test fixture coverage proves "ready to use."
 The only proof is using it.
 
+**Entry criteria — which work must be green before Wave 5 can start:**
+
+| Wave | Required for entry | Rationale |
+| ---- | ------------------ | --------- |
+| Wave 3 (Coordination + INTL) | `MLP-014` + `INTL-001..-005` only | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
+| Wave 3A (Adoption Friction) | All six ADOPT items + DISTRIB-001..-003 | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking. |
+| Wave 3B (Trust Surface) | All six TRUST items | All are load-bearing for the legibility gate. |
+| Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (already Done), INSIGHTS-001 + -004, documentation lanes, release runbook | INSIGHTS-002 / -003 (suppression health, drift sparkline) are not Boring-Week-blocking; they ship in the same release but can land late. |
+
+If any Wave 3 INTL item from the deferrable set (-006..-009) is *not*
+green at freeze time, it must be explicitly listed as deferred-to-v0.7.1
+in the release notes so the cut claim still matches reality.
+
 **Protocol:**
 
-1. After Wave 3 / 3A / 3B / 4 all green, freeze the candidate SHA.
+1. With the entry criteria above met, freeze the candidate SHA.
 2. Three or more internal users install the candidate via the fresh-user
    path (Homebrew install or curl installer; no developer overrides) on
    their primary work machine.

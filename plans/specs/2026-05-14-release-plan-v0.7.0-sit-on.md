@@ -1,17 +1,21 @@
 # Release Plan Proposal — `v0.7.0-beta` "Let's Use This"
 
-**Status:** Draft proposal (2026-05-14). Supersedes the current
-[`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) once accepted. Live release plan is
-unchanged until @aneki promotes this proposal.
+**Status:** **Accepted (2026-05-14).** Reframe landed in the live
+[`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) and
+[`plans/index.aps.md`](../../plans/index.aps.md); the four new modules
+(TRUST, ADOPT, DISTRIB, INSIGHTS) are promoted to `Ready`. This file
+remains as the **acceptance record** — the audit trail for why the cut
+shape changed and what was committed to alongside the change. Open
+items are listed in the Acceptance Checklist below.
 
 **Authoring context:** Conversation 2026-05-14 reframed the next release away
 from "daemon working end-to-end" (a capability claim) and towards "let's use
 this" (a retention claim). The product surface is largely in place; the gap is
 the friction that turns "wow, when's it ready?" into "I've stopped using it."
 
-| Type             | Authority | Owner       | Status                   | Freshness                       |
-| ---------------- | --------- | ----------- | ------------------------ | ------------------------------- |
-| Release proposal | Derived   | APS modules | Draft pending acceptance | Authored 2026-05-14 (@aneki TBD) |
+| Type             | Authority | Owner       | Status                | Freshness                            |
+| ---------------- | --------- | ----------- | --------------------- | ------------------------------------ |
+| Release proposal | Derived   | APS modules | Accepted (2026-05-14) | Live plan reshaped; 2 follow-ups open |
 
 ---
 
@@ -260,16 +264,25 @@ compliance, and wider language coverage remain demand-pulled. See
 
 ## Acceptance Checklist
 
-Before promoting this proposal into `RELEASE-PLAN.md`:
+The first four items were satisfied on 2026-05-14 when this proposal was
+accepted and the live planning surface was reshaped. The last two are
+pre-tag follow-ups the live `RELEASE-PLAN.md` carries.
 
-- [ ] @aneki accepts the cut claim ("the release we sit on") as the v0.7.0
-      shape.
-- [ ] Each new module (TRUST, ADOPT, DISTRIB, INSIGHTS) is reviewed and
+- [x] @aneki accepts the cut claim ("the release we sit on") as the v0.7.0
+      shape. *(Accepted 2026-05-14 during the planning conversation.)*
+- [x] Each new module (TRUST, ADOPT, DISTRIB, INSIGHTS) is reviewed and
       promoted from `Proposed` → `Ready` at the module level (per
-      `plans/aps-rules.md` Status Rules).
-- [ ] Wave 3A / 3B sequencing is reflected in the live `RELEASE-PLAN.md`.
-- [ ] Wave 5 (Boring Week) participants identified (≥3 names).
-- [ ] Hotfix iteration policy added to `RELEASE-PLAN.md` and referenced from
-      the runbook.
-- [ ] `plans/index.aps.md` Contents list and module status tables updated to
-      cite the new modules.
+      `plans/aps-rules.md` Status Rules). *(Done; see individual module
+      headers, all four are `Ready` as of 2026-05-14.)*
+- [x] Wave 3A / 3B sequencing is reflected in the live `RELEASE-PLAN.md`.
+      *(Done; see Wave 3A / 3B / 5 sections.)*
+- [x] `plans/index.aps.md` Contents list and module status tables updated
+      to cite the new modules. *(Done; see the new "Adoption & Sustained
+      Use" section and the N5-N9 pick rows.)*
+- [ ] Wave 5 (Boring Week) participants identified (≥3 names) — pre-tag
+      follow-up owned by @aneki.
+- [ ] Hotfix iteration policy referenced from a release runbook — the
+      policy itself is in `RELEASE-PLAN.md`; runbook cross-link still to
+      land (will be picked up alongside the
+      `v0.7.0-beta-release-runbook.md` cut from the v0.6.0 template,
+      Wave 4 of the live plan).

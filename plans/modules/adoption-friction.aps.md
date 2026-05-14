@@ -212,9 +212,13 @@ disables any check, suppresses without resolution, or bypasses a hook.
     `git status` is clean and `.anvil/` is gone (verified manually on
     fixture; runbook task is to formalise this as a script)
 - **Status:** Done
-- **Dependencies:** ADOPT-001 — note: shipped ahead of ADOPT-001
-  coexistence. The current implementation calls `hooks::run` with
-  Uninstall args; coexistence integration is captured under ADOPT-001.
+- **Coordinates with:** ADOPT-001 — uninstall ships ahead of the hook
+  coexistence work. The shipped implementation calls the silent
+  `hooks::uninstall_all_managed_hooks_silent` helper (which clears
+  both file-mode and Git 2.54 config-mode managed hooks). When
+  ADOPT-001 lands, that helper will need to grow awareness of
+  husky / lefthook / pre-commit-framework managed surfaces — captured
+  under ADOPT-001, not as a blocking dependency for -005.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -255,10 +259,14 @@ disables any check, suppresses without resolution, or bypasses a hook.
 
 ## Sequencing
 
-1. **ADOPT-001** unlocks **ADOPT-005** (uninstall depends on hook removal).
-2. **ADOPT-002**, **ADOPT-003**, **ADOPT-004**, **ADOPT-006** are parallel.
-3. **ADOPT-004** waits for WATCHUX-002 (shared ignore helper) to land — this
-   is already in flight.
+1. **ADOPT-005** (shipped 2026-05-14, PR #1521) is out ahead of
+   ADOPT-001. The two coordinate (uninstall must remove hooks installed
+   under whichever manager ADOPT-001 supports) but neither blocks the
+   other — see the cross-reference in ADOPT-005's task body.
+2. **ADOPT-001**, **ADOPT-002**, **ADOPT-003**, **ADOPT-006** are
+   parallel-safe after that.
+3. **ADOPT-004** waits for WATCHUX-002 (shared ignore helper) to land —
+   this is already in flight.
 4. **ADOPT-003** depends on INTL-001 only for the `anvil-run` half; the
    `anvil start` half is independent.
 
