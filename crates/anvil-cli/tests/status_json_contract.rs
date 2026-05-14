@@ -79,6 +79,10 @@ fn status_json_emits_pinned_schema_version() {
 
 #[cfg(not(target_os = "windows"))]
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "single integration assertion sweep over the full v1 shape; splitting it would scatter the contract across helper functions without any reuse"
+)]
 fn status_json_top_level_keys_match_schema_contract() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
