@@ -4,7 +4,11 @@
 | -------- | ------ | ----------- | -------- |
 | WATCHUX | @aneki | In Progress | 3/8 done |
 
-**Last reviewed:** 2026-05-13 (created from beta-user incident timeline and
+**Last reviewed:** 2026-05-14 (`WATCHUX-005` through `WATCHUX-007` merged via
+PR #1524; `WATCHUX-001` through `WATCHUX-004` remain on the beta hotfix lane and
+`WATCHUX-008` remains Draft.)
+
+Created from beta-user incident timeline and
 [`plans/specs/2026-05-13-watch-warmup-and-advisory-rules.md`](../specs/2026-05-13-watch-warmup-and-advisory-rules.md).
 Module starts In Progress because urgent beta remediation is already underway on
 `fix/beta-user-bug`; follow-up UX/config work remains sequenced below.)
