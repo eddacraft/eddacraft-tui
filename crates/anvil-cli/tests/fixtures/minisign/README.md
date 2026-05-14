@@ -4,19 +4,19 @@ These files are **TEST ONLY**. They are intentionally committed so the
 signature-verification test suite is deterministic without each contributor
 having to regenerate keys.
 
-| File                  | Purpose                                                                |
-| --------------------- | ---------------------------------------------------------------------- |
-| `anvil-test.pub`      | Minisign public key (with comment header)                              |
-| `anvil-test.pub.b64`  | Just the base64 line; mirrors `DEV_PUBLIC_KEY` in `signature.rs`       |
-| `anvil-test.key`      | Unencrypted secret key — committed by design                           |
-| `regenerate.sh`       | Regenerate the keypair (requires `cargo install rsign2`)               |
+| File                 | Purpose                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| `anvil-test.pub`     | Minisign public key (with comment header)                        |
+| `anvil-test.pub.b64` | Just the base64 line; mirrors `DEV_PUBLIC_KEY` in `signature.rs` |
+| `anvil-test.key`     | Unencrypted secret key — committed by design                     |
+| `regenerate.sh`      | Regenerate the keypair (requires `cargo install rsign2`)         |
 
 ## Why is the secret key committed?
 
 The corresponding public key is the development fallback used **only when
-`ANVIL_RELEASE_PUBLIC_KEY` is unset at compile time**. Production builds
-in CI inject the real release public key at compile time; the development
-key has no production trust value.
+`ANVIL_RELEASE_PUBLIC_KEY` is unset at compile time**. Production builds in CI
+inject the real release public key at compile time; the development key has no
+production trust value.
 
 The release-signing workflow (`.github/workflows/release-sign-artefacts.yml`)
 refuses to run when the embedded public key is still the dev fallback (the

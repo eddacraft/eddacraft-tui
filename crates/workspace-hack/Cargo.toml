@@ -28,6 +28,7 @@ either = { version = "1", default-features = false, features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3" }
 futures-sink = { version = "0.3" }
+futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 globset = { version = "0.4", features = ["simd-accel"] }
 idna = { version = "1" }
 indexmap = { version = "2", features = ["serde"] }
@@ -64,8 +65,6 @@ serde_json = { version = "1", features = ["alloc", "preserve_order"] }
 syn = { version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
@@ -75,6 +74,7 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "signal", "socket", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
@@ -82,8 +82,6 @@ cc = { version = "1", default-features = false, features = ["parallel"] }
 libc = { version = "0.2", features = ["extra_traits"] }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
@@ -93,6 +91,7 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "signal", "socket", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
@@ -101,8 +100,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 
 [target.x86_64-apple-darwin.dependencies]
 errno = { version = "0.3" }
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
@@ -112,6 +109,7 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "signal", "socket", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
 [target.x86_64-apple-darwin.build-dependencies]
@@ -120,8 +118,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 
 [target.aarch64-apple-darwin.dependencies]
 errno = { version = "0.3" }
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
@@ -131,6 +127,7 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "signal", "socket", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
@@ -139,14 +136,13 @@ libc = { version = "0.2", features = ["extra_traits"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 errno = { version = "0.3" }
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 ipnet = { version = "2" }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
 windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
@@ -157,14 +153,13 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 
 [target.aarch64-pc-windows-msvc.dependencies]
 errno = { version = "0.3" }
-futures-task = { version = "0.3", default-features = false, features = ["std"] }
-futures-util = { version = "0.3", default-features = false, features = ["async-await-macro", "channel", "io", "sink"] }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 ipnet = { version = "2" }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
 windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
