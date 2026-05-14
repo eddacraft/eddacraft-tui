@@ -222,7 +222,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil commands::start::tests::first_run_recipe_matches_fixture`
   - Manual: a fresh checkout + `anvil start` + recipe steps reproduces the
     described behaviour
-- **Status:** Draft
+- **Status:** In Progress
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
