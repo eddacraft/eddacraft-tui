@@ -7,6 +7,13 @@ use serde_json::{Map, Value};
 
 use crate::GlobalArgs;
 
+struct ProjectConfig {
+    label: String,
+    value: Value,
+    writable_path: std::path::PathBuf,
+    writable_format: ConfigFormat,
+}
+
 #[derive(Debug, Args)]
 pub struct ConfigArgs {
     #[command(subcommand)]
@@ -40,11 +47,12 @@ pub fn run(args: &ConfigArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn show_config(root: &Path) -> anyhow::Result<String> {
-    let (label, value) = load_project_config(root)?;
-    let modes = RuleModes::from_value(&value)?;
+    let config = load_project_config(root)?;
+    let modes = RuleModes::from_value(&config.value)?;
     Ok(format!(
         "config: {label}\nrule modes: {}\n",
-        modes.summary()
+        modes.summary(),
+        label = config.label
     ))
 }
 
@@ -61,23 +69,23 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
         );
     }
 
-    let (_, mut value) = load_project_config(root)?;
-    ensure_rule_mode(&mut value, rule, mode);
-    RuleModes::from_value(&value).with_context(|| format!("invalid rule mode `{mode}`"))?;
+    let mut config = load_project_config(root)?;
+    ensure_rule_mode(&mut config.value, rule, mode);
+    RuleModes::from_value(&config.value).with_context(|| format!("invalid rule mode `{mode}`"))?;
 
-    let (path, format) = writable_config_path(root)?;
-    let text = serialize_config(&value, format)?;
-    std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    let text = serialize_config(&config.value, config.writable_format)?;
+    std::fs::write(&config.writable_path, text)
+        .with_context(|| format!("writing {}", config.writable_path.display()))?;
     Ok(())
 }
 
 fn convert_config(root: &Path, format: &str) -> anyhow::Result<String> {
-    let (_, value) = load_project_config(root)?;
+    let config = load_project_config(root)?;
     let format = parse_output_format(format)?;
-    serialize_config(&value, format)
+    serialize_config(&config.value, format)
 }
 
-fn load_project_config(root: &Path) -> anyhow::Result<(String, Value)> {
+fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     if let Some(discovered) = discover(root, ".anvil")? {
         let value = parse_file(&discovered.path)?;
         let label = discovered
@@ -86,28 +94,39 @@ fn load_project_config(root: &Path) -> anyhow::Result<(String, Value)> {
             .unwrap_or(&discovered.path)
             .to_string_lossy()
             .into_owned();
-        return Ok((label, value));
+        return Ok(ProjectConfig {
+            label,
+            value,
+            writable_path: discovered.path,
+            writable_format: discovered.format,
+        });
     }
 
     let rc_path = root.join(".anvilrc");
     match std::fs::read_to_string(&rc_path) {
         Ok(contents) => {
-            let value = serde_json::from_str(&contents)
-                .or_else(|_| parse_str(&contents, ConfigFormat::Yaml, &rc_path))?;
-            Ok((String::from(".anvilrc"), value))
+            let (value, writable_format) = match serde_json::from_str(&contents) {
+                Ok(value) => (value, ConfigFormat::Json),
+                Err(_) => (
+                    parse_str(&contents, ConfigFormat::Yaml, &rc_path)?,
+                    ConfigFormat::Yaml,
+                ),
+            };
+            Ok(ProjectConfig {
+                label: String::from(".anvilrc"),
+                value,
+                writable_path: rc_path,
+                writable_format,
+            })
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Ok((String::from("defaults"), serde_json::json!({})))
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(ProjectConfig {
+            label: String::from("defaults"),
+            value: serde_json::json!({}),
+            writable_path: root.join(".anvil.yaml"),
+            writable_format: ConfigFormat::Yaml,
+        }),
         Err(error) => Err(error).context("reading .anvilrc"),
     }
-}
-
-fn writable_config_path(root: &Path) -> anyhow::Result<(std::path::PathBuf, ConfigFormat)> {
-    if let Some(discovered) = discover(root, ".anvil")? {
-        return Ok((discovered.path, discovered.format));
-    }
-    Ok((root.join(".anvil.yaml"), ConfigFormat::Yaml))
 }
 
 fn ensure_rule_mode(value: &mut Value, rule: &str, mode: &str) {
@@ -215,6 +234,22 @@ mod tests {
         let contents = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
         assert!(contents.contains("[enforcement.rules.public-api-expansion]"));
         assert!(contents.contains("mode = \"enforce\""));
+    }
+
+    #[test]
+    fn set_updates_existing_anvilrc_in_place() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
+
+        set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
+
+        assert!(!tmp.path().join(".anvil.yaml").exists());
+        let contents = std::fs::read_to_string(tmp.path().join(".anvilrc")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&contents).unwrap();
+        assert_eq!(
+            parsed["enforcement"]["rules"]["public-api-expansion"]["mode"],
+            "enforce"
+        );
     }
 
     #[test]

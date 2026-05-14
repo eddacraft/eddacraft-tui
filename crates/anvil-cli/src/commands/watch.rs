@@ -837,7 +837,11 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         std::io::stdin().is_terminal(),
         std::io::stdout().is_terminal(),
     );
-    let warmup_paths = load_watch_warmup_cache(&workspace_root).unwrap_or(None);
+    let warmup_paths = if watch_root == workspace_root {
+        load_watch_warmup_cache(&workspace_root).unwrap_or(None)
+    } else {
+        None
+    };
     let warmup_path_bufs: Vec<PathBuf> = warmup_paths
         .as_ref()
         .map(|paths| paths.iter().map(PathBuf::from).collect())
