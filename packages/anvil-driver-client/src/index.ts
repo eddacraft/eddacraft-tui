@@ -132,3 +132,16 @@ export {
   makeAgentTag,
   parseAgentTag,
 } from './session/index.js';
+
+export {
+  type DiagnosticLike,
+  type Enforcement,
+  fromMidEditResponse,
+  type GateEvaluatedObservation,
+  KIND_GATE_EVALUATED,
+  type MidEditResponseLike,
+  MIDEDIT_GATE_ID,
+  type ObservationContext,
+  type ObservationInputs,
+  type Outcome,
+} from './kindling/index.js';
