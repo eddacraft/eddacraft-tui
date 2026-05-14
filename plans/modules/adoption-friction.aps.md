@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADOPT | @aneki | Ready  | 1/6 done |
+| ADOPT | @aneki | Ready  | 2/6 done |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -94,10 +94,9 @@ disables any check, suppresses without resolution, or bypasses a hook.
     each host manager; verify hooks fire in expected order; verify
     uninstall restores byte-identical state (deferred to CLI-wiring
     follow-up)
-- **Status:** In Progress
-- **Picked up:** 2026-05-14 (primitive PR open on
-  `feat/adopt-001-hook-coexistence`; CLI wiring + runbook follow-up
-  tracked here)
+- **Status:** Done
+- **Shipped:** 2026-05-15 (primitive + CLI wiring merged to main;
+  runbook filed at `docs/runbooks/anvil-hook-coexistence.md`)
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
