@@ -123,12 +123,24 @@ Concretely:
    - `UpToDate`: skip
    - `UnsafeDrift`: **never overwrite**. Skipped with note. Recovery
      is `anvil uninstall --global && anvil start`.
-3. **User-visible notice.** When the orchestrator rewrites an entry, it
-   prints a single line per affected surface:
+3. **User-visible notice (renderer follow-up).** When the orchestrator
+   rewrites an entry, it should print a single line per affected
+   surface:
    `MCP entry for <Claude Code | Cursor> updated to current Anvil
    backend.` No banner, no extra prompt beyond the existing picker.
    In non-interactive mode the notice is the only signal the user
    gets, so it must be terse and grep-friendly.
+   **Current renderer state:** the activation orchestrator today
+   emits a multi-line `install:` block with messages like
+   "rewrote drifted entry" rather than this specific single-line
+   notice. The wording above is the **contract this ADR establishes
+   for the v0.7.0-beta cut**, not a description of today's output.
+   The renderer change is a small TRUST-aligned follow-up (target:
+   TRUST-001 / TRUST-006 render path) and must land in the same
+   release that ships the Rust MCP backend so the pinned wording
+   matches the shipped product. Until the renderer follow-up lands,
+   the contract is "rewrite happens, with visible output naming the
+   affected surface" — the exact wording is the deliverable.
 4. **Interactive picker stays.** Existing interactive flows that
    present a pre-selected picker continue to do so. The picker is a
    one-keystroke confirmation, not a re-confirm-every-start prompt; it

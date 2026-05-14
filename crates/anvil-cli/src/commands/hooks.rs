@@ -774,38 +774,46 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
     println!("    See {HOOK_COMPAT_DOC} for the coexistence policy.");
 }
 
-/// Remove every Anvil-managed git hook from the current workspace.
+/// Remove every Anvil-managed git hook from the current workspace
+/// without writing anything to stdout/stderr. Used by `anvil uninstall`
+/// so its own output (human or JSON envelope) is not interleaved with
+/// the hooks command's renderer.
 ///
-/// Convenience entry point for `anvil uninstall`: runs the standard
-/// `hooks uninstall` flow twice — once for file-mode hooks (`.husky/`
-/// or `.git/hooks/`) and once for Git 2.54 native `hook.<event>.command`
-/// config-mode hooks. Either invocation may report "nothing to do" and
-/// that is not an error.
+/// Calls the inner primitives (`uninstall_hook`, `uninstall_config_hook`)
+/// directly across both file-mode locations (`.git/hooks/`, `.husky/`)
+/// and config-mode (Git 2.54 `hook.<event>.command`) for the
+/// pre-commit and pre-push events. Each primitive is a no-op when its
+/// target is not present, so the whole call is idempotent.
 ///
-/// Returns the first error encountered; the second invocation is still
-/// attempted so we make best-effort progress even when one mode fails.
-pub fn uninstall_all_managed_hooks(global: &GlobalArgs) -> Result<()> {
-    let file_mode = run(
-        &HooksArgs {
-            command: HooksCommand::Uninstall {
-                pre_commit_only: false,
-                pre_push_only: false,
-                config: false,
-            },
-        },
-        global,
-    );
-    let config_mode = run(
-        &HooksArgs {
-            command: HooksCommand::Uninstall {
-                pre_commit_only: false,
-                pre_push_only: false,
-                config: true,
-            },
-        },
-        global,
-    );
-    file_mode.and(config_mode)
+/// Returns `Ok(())` when invoked outside a git repository — there is
+/// nothing to remove and that is not an error condition for uninstall.
+pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
+    // Any failure to locate a git repo is treated as "nothing to
+    // remove" — uninstall must still proceed for the rest of the
+    // project-local state. The specific error string varies across
+    // git versions (`Not inside a Git repository`, `not a git
+    // repository`, etc.), so swallow them all rather than string-match.
+    let Ok(workspace_root) = find_repo_root() else {
+        return Ok(());
+    };
+    let Ok(git_dir) = resolve_git_dir(&workspace_root) else {
+        return Ok(());
+    };
+
+    // File-mode hooks: `.git/hooks/` and `.husky/`.
+    for dir in [git_dir.join("hooks"), workspace_root.join(".husky")] {
+        if !dir.exists() {
+            continue;
+        }
+        let _ = uninstall_hook(&dir, "pre-commit")?;
+        let _ = uninstall_hook(&dir, "pre-push")?;
+    }
+
+    // Config-mode hooks (Git 2.54 `hook.<event>.command`).
+    let _ = uninstall_config_hook(&workspace_root, "pre-commit")?;
+    let _ = uninstall_config_hook(&workspace_root, "pre-push")?;
+
+    Ok(())
 }
 
 #[allow(clippy::too_many_lines)]

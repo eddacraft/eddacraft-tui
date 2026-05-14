@@ -986,6 +986,18 @@ mod tests {
     }
 
     #[test]
+    fn bypass_auth_uninstall() {
+        // Uninstall is a recovery command. A user with broken or
+        // expired credentials must still be able to clean up before
+        // reinstalling. Pin this in tests so a future change to
+        // `CLI_GATED_COMMANDS` or the canonical name cannot
+        // accidentally regress it.
+        assert!(!requires_auth(&parse_command(&["uninstall"])));
+        assert!(!requires_auth(&parse_command(&["uninstall", "--global"])));
+        assert!(!requires_auth(&parse_command(&["uninstall", "--dry-run",])));
+    }
+
+    #[test]
     fn bypass_auth_validate() {
         assert!(!requires_auth(&parse_command(&["validate", "plan.aps.md"])));
     }
