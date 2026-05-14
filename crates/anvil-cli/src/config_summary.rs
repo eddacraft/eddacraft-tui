@@ -47,9 +47,8 @@ fn load_config_value(root: &Path) -> ConfigLoad {
     }
 
     let rc_path = root.join(".anvilrc");
-    let contents = match std::fs::read_to_string(&rc_path) {
-        Ok(contents) => contents,
-        Err(_) => return ConfigLoad::Missing,
+    let Ok(contents) = std::fs::read_to_string(&rc_path) else {
+        return ConfigLoad::Missing;
     };
     match serde_json::from_str(&contents)
         .or_else(|_| parse_str(&contents, ConfigFormat::Yaml, &rc_path))
@@ -88,7 +87,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
-            r#"
+            r"
 enforcement:
   rules:
     public-api-expansion:
@@ -99,7 +98,7 @@ enforcement:
       mode: enforce
     privilege-expansion:
       mode: block
-"#,
+",
         )
         .unwrap();
 
@@ -128,12 +127,12 @@ enforcement:
         let tmp = TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
-            r#"
+            r"
 enforcement:
   rules:
     public-api-expansion:
       mode: enfroce
-"#,
+",
         )
         .unwrap();
 
