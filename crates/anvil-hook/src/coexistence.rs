@@ -62,6 +62,21 @@ pub fn plan_uninstall(
     Ok(plan)
 }
 
+/// Apply a [`CoexistenceFile`] to a host file's current content.
+///
+/// `existing = Some(bytes)` — host file exists; merge.
+/// `existing = None` — host file does not exist; seed with
+/// `initial_content` then insert the managed block. An empty
+/// `block` removes the Anvil-managed region (uninstall path).
+///
+/// **Round-trip contract.** Install→uninstall returns the input
+/// to its **canonical** byte form: trailing whitespace before the
+/// marker is collapsed to a single `\n`; leading whitespace after
+/// the marker is stripped. Input that already matches the
+/// canonical form (the common case: text files ending in exactly
+/// one `\n`) round-trips byte-exact. The
+/// `install_then_uninstall_preserves_user_content_*` tests pin
+/// both the byte-exact and canonical cases.
 #[must_use]
 pub fn apply(existing: Option<&str>, file: &CoexistenceFile) -> String {
     if existing.is_none() && file.block.is_empty() {
@@ -91,6 +106,11 @@ fn split_at_markers(body: &str) -> Option<(&str, &str)> {
     Some((&body[..start], &body[after_end..]))
 }
 
+/// Remove the marker-bounded region and canonicalise trailing
+/// whitespace. The round-trip contract is **canonical** byte
+/// equality (single trailing newline, no leading whitespace
+/// stripped) — `apply` documents this. Tests assert byte-exact
+/// round-trip on canonical input.
 fn remove_marker_block(before: &str, after: &str) -> String {
     let head = before.trim_end_matches('\n');
     let tail = after.trim_start_matches('\n');
@@ -106,9 +126,7 @@ fn remove_marker_block(before: &str, after: &str) -> String {
     }
     if tail.is_empty() {
         let mut s = head.to_string();
-        if !s.ends_with('\n') {
-            s.push('\n');
-        }
+        s.push('\n');
         return s;
     }
     let mut s = String::with_capacity(head.len() + tail.len() + 2);
@@ -121,17 +139,20 @@ fn remove_marker_block(before: &str, after: &str) -> String {
     s
 }
 
+/// Append a marker block. Canonical insertion: body is normalised
+/// to end with exactly one `\n`, then `MARKER_BEGIN\nblock\nMARKER_END\n`
+/// is appended. This is exactly inverse to [`remove_marker_block`]
+/// on canonical input, so install→uninstall is byte-exact for any
+/// input whose original trailing-whitespace already matches the
+/// canonical form (the common case).
 fn append_marker_block(body: &str, block: &str) -> String {
-    let mut result =
-        String::with_capacity(body.len() + MARKER_BEGIN.len() + MARKER_END.len() + block.len() + 4);
-    result.push_str(body);
-    if !body.is_empty() {
-        if !result.ends_with('\n') {
-            result.push('\n');
-        }
-        if !result.ends_with("\n\n") {
-            result.push('\n');
-        }
+    let trimmed = body.trim_end_matches('\n');
+    let mut result = String::with_capacity(
+        trimmed.len() + MARKER_BEGIN.len() + MARKER_END.len() + block.len() + 4,
+    );
+    if !trimmed.is_empty() {
+        result.push_str(trimmed);
+        result.push('\n');
     }
     result.push_str(MARKER_BEGIN);
     result.push('\n');
@@ -162,6 +183,14 @@ fn husky_block(k: HookKind) -> String {
 }
 
 fn lefthook_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
+    // The managed config file is fully Anvil-owned and listed via
+    // `extends:` in the host `lefthook.yml`. We intentionally do
+    // NOT inject the `extends:` key from a marker block: lefthook
+    // supports at most one top-level `extends:` and many users
+    // already have their own. The CLI consumer is expected to
+    // append `.anvil-lefthook.yml` to the user's `extends:` list
+    // (creating one if absent) and surface a confirmation prompt
+    // — that is wired in the CLI follow-up step of ADOPT-001.
     let managed = CoexistenceFile {
         relative_path: ".anvil-lefthook.yml".to_string(),
         initial_content: lefthook_managed_initial(kinds),
@@ -171,7 +200,7 @@ fn lefthook_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
     let host = CoexistenceFile {
         relative_path: "lefthook.yml".to_string(),
         initial_content: LEFTHOOK_HOST_INITIAL.to_string(),
-        block: "extends:\n  - .anvil-lefthook.yml".to_string(),
+        block: LEFTHOOK_HOST_BLOCK.to_string(),
         executable: false,
     };
     vec![managed, host]
@@ -239,6 +268,8 @@ fn pre_commit_stage(k: HookKind) -> &'static str {
 const HUSKY_INITIAL_HEADER: &str = "#!/usr/bin/env sh\n[ -f \"$(dirname -- \"$0\")/_/husky.sh\" ] && . \"$(dirname -- \"$0\")/_/husky.sh\"\n\n";
 
 const LEFTHOOK_HOST_INITIAL: &str = "# Lefthook configuration — see https://lefthook.dev\n";
+
+const LEFTHOOK_HOST_BLOCK: &str = "# Lefthook supports a single top-level `extends:` key. The Anvil-\n# managed snippet lives in `.anvil-lefthook.yml`. Add it to your\n# existing `extends:` list (creating one if absent) so Lefthook\n# loads the Anvil hooks alongside your own.";
 
 const PRE_COMMIT_HOST_INITIAL: &str =
     "# pre-commit configuration — see https://pre-commit.com\nrepos: []\n";
@@ -312,8 +343,13 @@ mod tests {
         assert!(!managed.executable);
         let host = &plan.files[1];
         assert_eq!(host.relative_path, "lefthook.yml");
-        assert!(host.block.contains("extends:"));
+        // Lefthook supports at most one top-level `extends:`; the
+        // host marker block is a doc-pointer comment, not raw YAML,
+        // so it can never inject a second `extends:` key. The CLI
+        // consumer is responsible for splicing
+        // `.anvil-lefthook.yml` into the user's existing list.
         assert!(host.block.contains(".anvil-lefthook.yml"));
+        assert!(!host.block.contains("extends:\n"));
     }
 
     #[test]
@@ -487,11 +523,60 @@ mod tests {
     }
 
     #[test]
+    fn install_then_uninstall_is_byte_exact_for_canonical_input() {
+        // Canonical input = ends with exactly one `\n`. This is
+        // what `cargo fmt`, editors with "final newline", and the
+        // existing repo policy all produce. Byte-exact round-trip
+        // matters because the host file is git-tracked and even a
+        // whitespace-only delta shows up in `git diff`.
+        let install_file = CoexistenceFile {
+            relative_path: "lefthook.yml".into(),
+            initial_content: "user-config:\n  thing: 1\n".into(),
+            block: "managed-snippet".into(),
+            executable: false,
+        };
+        let uninstall_file = CoexistenceFile {
+            block: String::new(),
+            ..install_file.clone()
+        };
+        let user_existing = "user-config:\n  thing: 1\n";
+        let installed = apply(Some(user_existing), &install_file);
+        let uninstalled = apply(Some(&installed), &uninstall_file);
+        assert_eq!(
+            uninstalled, user_existing,
+            "round-trip must be byte-exact for canonical input"
+        );
+    }
+
+    #[test]
+    fn install_then_uninstall_canonicalises_non_canonical_input() {
+        // Non-canonical inputs (no trailing newline, multiple
+        // trailing newlines) round-trip to canonical form. This is
+        // documented on `apply` and is what makes the inverse safe
+        // without storing per-install state.
+        let install_file = CoexistenceFile {
+            relative_path: "lefthook.yml".into(),
+            initial_content: String::new(),
+            block: "managed".into(),
+            executable: false,
+        };
+        let uninstall_file = CoexistenceFile {
+            block: String::new(),
+            ..install_file.clone()
+        };
+        for raw in ["body", "body\n\n", "body\n\n\n"] {
+            let installed = apply(Some(raw), &install_file);
+            let uninstalled = apply(Some(&installed), &uninstall_file);
+            assert_eq!(uninstalled, "body\n", "input {raw:?}");
+        }
+    }
+
+    #[test]
     fn install_then_uninstall_preserves_user_content_around_marker_block() {
         let install_file = CoexistenceFile {
             relative_path: "lefthook.yml".into(),
             initial_content: "user-config:\n  thing: 1\n".into(),
-            block: "extends:\n  - .anvil-lefthook.yml".into(),
+            block: "managed-snippet".into(),
             executable: false,
         };
         let uninstall_file = CoexistenceFile {
@@ -505,7 +590,7 @@ mod tests {
         assert!(uninstalled.contains("thing: 1"));
         assert!(!uninstalled.contains(MARKER_BEGIN));
         assert!(!uninstalled.contains(MARKER_END));
-        assert!(!uninstalled.contains("extends:"));
+        assert!(!uninstalled.contains("managed-snippet"));
     }
 
     #[test]
