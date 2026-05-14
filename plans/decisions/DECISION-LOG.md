@@ -56,6 +56,7 @@ These define how Anvil behaves by default. All features must align.
 | [016](016-unified-config-format.md) | Consolidate three config files into single TOML with source delegation | Proposed |
 | [021](021-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) (originally drafted as ADR-026; renumbered in DOCGOV-004 to resolve a duplicate-number conflict) | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
+| [044](044-mcp-entry-activation-owned.md) | `mcpServers.anvil` MCP entries are owned by the activation flow; backend swaps overwrite in place on next `anvil start` with a one-line notice; `--keep-mcp` opts out; protocol-shape changes still route through `anvil migrate` | Proposed |
 
 ## Intercept and Enforcement
 
