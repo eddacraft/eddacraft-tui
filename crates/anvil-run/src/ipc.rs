@@ -269,6 +269,7 @@ fn trim_trailing_newline(buf: &[u8]) -> &[u8] {
 pub fn session_register_params(
     session_id: &str,
     worktree: &Path,
+    cwd: &Path,
     driver_id: &str,
     claimed_agent_id: &str,
     pid_starttime: u64,
@@ -279,6 +280,10 @@ pub fn session_register_params(
     params.insert(
         "worktree".into(),
         Value::String(worktree.to_string_lossy().into_owned()),
+    );
+    params.insert(
+        "cwd".into(),
+        Value::String(cwd.to_string_lossy().into_owned()),
     );
     params.insert("driver_id".into(), Value::String(driver_id.into()));
     params.insert(
@@ -351,6 +356,7 @@ mod tests {
         let params = session_register_params(
             "sess_abc",
             Path::new("/tmp/wt"),
+            Path::new("/tmp/wt/sub"),
             "anvil-run",
             "claude-1",
             1_700_000_000,
@@ -358,6 +364,7 @@ mod tests {
         );
         assert_eq!(params["session_id"], "sess_abc");
         assert_eq!(params["worktree"], "/tmp/wt");
+        assert_eq!(params["cwd"], "/tmp/wt/sub");
         assert_eq!(params["driver_id"], "anvil-run");
         assert_eq!(params["claimed_agent_id"], "claude-1");
         assert_eq!(params["pid_starttime"], 1_700_000_000);
@@ -369,12 +376,14 @@ mod tests {
         let params = session_register_params(
             "sess_abc",
             Path::new("/tmp/wt"),
+            Path::new("/tmp/wt"),
             "anvil-run",
             "claude-1",
             42,
             None,
         );
         assert!(params.get("tmux_pane").is_none(), "no tmux_pane key");
+        assert_eq!(params["cwd"], "/tmp/wt");
     }
 
     #[test]

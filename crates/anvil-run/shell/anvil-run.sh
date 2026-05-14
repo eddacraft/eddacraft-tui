@@ -11,8 +11,11 @@
 # The script supports zsh and bash. Fish has a separate file (out of
 # scope for INTL-006 v1; see INTL-008 follow-ups).
 #
-# Wrappers respect `ANVIL_RUN_DISABLE=1` so users who want to bypass
-# the launcher temporarily can do so without unloading the script.
+# Wrappers respect `ANVIL_RUN_DISABLE=1` (or `true`/`yes`/`on`,
+# case-insensitive) so users who want to bypass the launcher
+# temporarily can do so without unloading the script. Any other
+# value — including `0` and `false` — leaves enforcement ON, so
+# explicit-enable defaults cannot accidentally disable it.
 
 if [ -n "${ZSH_VERSION-}" ]; then
   emulate -L bash
@@ -34,10 +37,12 @@ __anvil_run_dispatch() {
   # $2..: the wrapped command + its args
   local tool="$1"
   shift
-  if [ -n "${ANVIL_RUN_DISABLE-}" ]; then
-    command "$@"
-    return $?
-  fi
+  case "${ANVIL_RUN_DISABLE-}" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON|On)
+      command "$@"
+      return $?
+      ;;
+  esac
   local bin
   bin="$(__anvil_run_bin)"
   if [ -z "${bin}" ]; then

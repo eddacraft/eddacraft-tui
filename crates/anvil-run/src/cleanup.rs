@@ -1,11 +1,20 @@
-//! INTL-005: session cleanup on every exit path.
+//! INTL-005: session cleanup on every **unwinding** exit path.
 //!
-//! The launcher must unregister the session with the daemon whether
-//! the child exits normally, takes a signal, or the launcher itself
-//! crashes between `register` and `wait_for_child`. Implemented as
-//! a [`Drop`] guard so the cleanup path is automatic — no matter
-//! how the calling function unwinds, the destructor sends
-//! `session.unregister`.
+//! The launcher unregisters the session with the daemon when the
+//! child exits normally and when a Rust panic unwinds through the
+//! launcher's call stack — Rust runs destructors in both cases.
+//!
+//! Rust destructors do **NOT** run when the launcher process itself
+//! is killed by SIGKILL, by the default SIGINT/SIGTERM action with
+//! no custom handler installed, by `std::process::exit`, or by an
+//! `abort`-panic. On those paths the daemon evicts the session at
+//! TTL (default 30s; see INTL-009 heartbeat). The narrower guarantee
+//! is: the guard covers normal-return and unwinding panics — i.e.
+//! every path where Rust's stack-unwinding machinery actually runs.
+//!
+//! If we ever want stricter coverage we'd install a Unix signal
+//! handler that calls `session.unregister` synchronously and reraises
+//! the signal. That belongs in its own task, not this primitive.
 //!
 //! The guard is intentionally tolerant of daemon errors: if the
 //! daemon went away while the child was running there is nothing

@@ -8,8 +8,10 @@
 `feat/intl-launcher-v1`. New crate `crates/anvil-run/` carries INTL-001..-009
 implementation + 49 unit + 3 shell-integration tests; module status moved
 **Ready → In Progress** ahead of the PR. Each task is **In Progress** until the
-PR merges, at which point the cleanup agent will advance Merged → Complete per
-the lifecycle in `plans/aps-rules.md`.)
+PR merges, at which point the cleanup agent will advance
+**Merged → Released/Shipped → Complete/Archived** per the lifecycle in
+`plans/aps-rules.md`. The `Released/Shipped` step requires release-record
+evidence from the release runbook; do not skip it.)
 
 **Earlier:** 2026-05-13 (Wave 0 readiness review — `AgentTag` stub landed in
 `crates/anvil-intercept-proto/src/session.rs`; INTL-003 and INTL-004 promoted

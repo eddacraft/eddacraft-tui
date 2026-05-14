@@ -16,8 +16,9 @@ use crate::cli::{Cli, Command, HookCommand, WrapArgs};
 use crate::context::LaunchContext;
 use crate::exit_codes::{EXIT_BAD_CONFIG, EXIT_SPAWN_FAILED, EXIT_USAGE, forward_child_status};
 use crate::heartbeat::HeartbeatHandle;
+use crate::hook::HookError;
 use crate::preflight;
-use crate::session::{self, current_pid_starttime};
+use crate::session::{self, RegistrationRequest, pid_starttime_or_fallback};
 use crate::{hook, spawn};
 
 /// Run the launcher. Returns the process exit code the caller
@@ -42,7 +43,31 @@ fn run_hook(args: crate::cli::HookArgs) -> i32 {
                 );
                 0
             }
-            Err(err) => emit_refusal(&RefusalReason::DaemonUnavailable {
+            // Map by failure class so operators get the right
+            // recovery suggestion: a bad `--cwd` is not a daemon
+            // outage, and `--pid 0` is not a registration problem.
+            Err(HookError::InvalidPid) => {
+                let _ = writeln!(
+                    std::io::stderr().lock(),
+                    "anvil-run: hook register: --pid must be a positive integer"
+                );
+                EXIT_USAGE
+            }
+            Err(HookError::ParentPidUnavailable) => {
+                let _ = writeln!(
+                    std::io::stderr().lock(),
+                    "anvil-run: hook register: parent PID unavailable; pass --pid explicitly"
+                );
+                EXIT_BAD_CONFIG
+            }
+            Err(HookError::BadContext(err)) => {
+                let _ = writeln!(
+                    std::io::stderr().lock(),
+                    "anvil-run: hook register: bad launch context: {err}"
+                );
+                EXIT_BAD_CONFIG
+            }
+            Err(HookError::Daemon(err)) => emit_refusal(&RefusalReason::DaemonUnavailable {
                 message: preflight::refusal_message_for(&err),
             }),
         },
@@ -143,20 +168,21 @@ fn run_wrap_spawn(
 ) -> i32 {
     let session_id = session::new_session_id();
     let claimed = claimed_agent_id.unwrap_or_else(|| format!("{tool}-{}", session_id.as_str()));
-    let pid_starttime = current_pid_starttime();
-    let registration = match session::register(
-        &session_id,
-        &ctx.worktree,
-        &tool,
-        &claimed,
-        pid_starttime,
-        ctx.tmux_pane.as_deref(),
-    ) {
+    // Launcher's own pid_starttime; the child's is captured after
+    // spawn and reported separately via `session.report_process`.
+    let launcher_pid_starttime = pid_starttime_or_fallback(std::process::id());
+    let registration = match session::register(&RegistrationRequest {
+        session_id: &session_id,
+        worktree: &ctx.worktree,
+        cwd: &ctx.cwd,
+        driver_id: &tool,
+        claimed_agent_id: &claimed,
+        pid_starttime: launcher_pid_starttime,
+        tmux_pane: ctx.tmux_pane.as_deref(),
+    }) {
         Ok(r) => r,
         Err(err) => {
-            return emit_refusal(&RefusalReason::DaemonUnavailable {
-                message: preflight::refusal_message_for(&err),
-            });
+            return classify_register_failure(&err);
         }
     };
     let guard = SessionGuard::arm(registration.session_id.clone());
@@ -185,11 +211,16 @@ fn run_wrap_spawn(
             return EXIT_SPAWN_FAILED;
         }
     };
-    if let Err(err) = spawn::report_to_daemon(&registration.session_id, &spawned, pid_starttime)
+    if let Err(err) = spawn::report_to_daemon(&registration.session_id, &spawned)
         .context("reporting process metadata to daemon")
     {
         // Non-fatal: the daemon may not yet implement
-        // session.report_process. Log and continue.
+        // `session.report_process` (the helper itself absorbs the
+        // "Method not found" case). Everything else still gets a
+        // warning rather than terminating the child — once the
+        // INTD half lands, `report_to_daemon` will return Ok in the
+        // happy path and operators can tighten this if/when a
+        // failure here turns out to be load-bearing.
         let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}");
     }
 
@@ -211,6 +242,31 @@ fn run_wrap_spawn(
     }
     guard.disarm();
     forward_child_status(status)
+}
+
+/// Map a `session.register` failure to the right launcher exit code.
+/// Transport-level errors render as "daemon unavailable"; daemon-side
+/// rejections (fenced after preflight, params invalid, worktree
+/// owned) get the more generic spawn-failed path so the operator is
+/// not told to restart the daemon for a content-level reject.
+fn classify_register_failure(err: &anyhow::Error) -> i32 {
+    if let Some(client_err) = err.downcast_ref::<crate::ipc::ClientError>() {
+        match client_err {
+            crate::ipc::ClientError::DaemonNotRunning { .. }
+            | crate::ipc::ClientError::DaemonRefused { .. }
+            | crate::ipc::ClientError::Io(_) => {
+                return emit_refusal(&RefusalReason::DaemonUnavailable {
+                    message: preflight::refusal_message_for(err),
+                });
+            }
+            _ => {}
+        }
+    }
+    let _ = writeln!(
+        std::io::stderr().lock(),
+        "anvil-run: session.register rejected: {err:#}"
+    );
+    EXIT_SPAWN_FAILED
 }
 
 fn emit_refusal(reason: &RefusalReason) -> i32 {

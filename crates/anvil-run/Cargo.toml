@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 anvil-intercept-proto = { package = "eddacraft-anvil-intercept-proto", path = "../anvil-intercept-proto" }
 anvil-intercept = { package = "eddacraft-anvil-intercept", path = "../anvil-intercept" }
+anvil-attribution = { package = "eddacraft-anvil-attribution", path = "../anvil-attribution" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }

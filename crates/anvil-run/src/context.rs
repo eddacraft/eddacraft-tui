@@ -59,6 +59,8 @@ pub enum ContextError {
     CwdUnavailable(#[source] std::io::Error),
     #[error("path does not exist: {0}")]
     PathMissing(PathBuf),
+    #[error("path is not a directory: {0}")]
+    NotADirectory(PathBuf),
     #[error("could not canonicalise {path}: {source}")]
     Canonicalise {
         path: PathBuf,
@@ -70,6 +72,17 @@ pub enum ContextError {
 fn canonicalise_existing(p: &Path) -> Result<PathBuf, ContextError> {
     if !p.exists() {
         return Err(ContextError::PathMissing(p.to_path_buf()));
+    }
+    // Reject regular files / sockets / FIFOs masquerading as a
+    // `--cwd` or `--worktree` argument; the child would just fail
+    // later with a generic spawn error and we lose the "bad launch
+    // context" signal.
+    let metadata = p.metadata().map_err(|source| ContextError::Canonicalise {
+        path: p.to_path_buf(),
+        source,
+    })?;
+    if !metadata.is_dir() {
+        return Err(ContextError::NotADirectory(p.to_path_buf()));
     }
     p.canonicalize()
         .map_err(|source| ContextError::Canonicalise {
@@ -154,5 +167,24 @@ mod tests {
         let err = LaunchContext::resolve(Some(PathBuf::from("/no/such/dir/anvil-test")), None)
             .expect_err("missing path must error");
         assert!(matches!(err, ContextError::PathMissing(_)));
+    }
+
+    #[test]
+    fn file_override_is_rejected_as_not_a_directory() {
+        // A regular file passed as `--cwd` or `--worktree` would
+        // pass the old `exists()` check and only fail later as a
+        // generic spawn error; surface it now with the right
+        // diagnostic.
+        let tmp = tempfile::tempdir().expect("tmp");
+        let file_path = tmp.path().join("regular-file");
+        fs::write(&file_path, b"not a directory").unwrap();
+        let err = LaunchContext::resolve(Some(file_path.clone()), None)
+            .expect_err("regular file must error");
+        assert!(matches!(err, ContextError::NotADirectory(_)));
+
+        let wt_err =
+            LaunchContext::resolve(Some(tmp.path().to_path_buf()), Some(file_path.clone()))
+                .expect_err("regular file as --worktree must error");
+        assert!(matches!(wt_err, ContextError::NotADirectory(_)));
     }
 }

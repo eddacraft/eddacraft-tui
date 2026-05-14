@@ -18,8 +18,16 @@
 //! ```
 //!
 //! The 64/69/73/75/78 values are the BSD `sysexits.h` codes — common
-//! enough that operators recognise them, and well outside the
-//! traditional child-status range.
+//! enough that operators recognise them, and most real tools never
+//! exit with values in that range. They DO overlap with forwarded
+//! child statuses in principle: a wrapped tool exiting 69 is
+//! indistinguishable from "daemon unavailable" looking at the exit
+//! code alone. Shell wrappers that must tell the two apart use
+//! stderr — the launcher writes its refusal banner to stderr while
+//! a child controls only its own stdout — or check
+//! `$ANVIL_RUN_REFUSED` (set by the wrapper script when the launcher
+//! itself emits a refusal). Pure exit-code switching is good enough
+//! for the common case; the dual signal exists for the rest.
 
 /// Bad CLI usage (e.g. missing `--tool` or `--`).
 pub const EXIT_USAGE: i32 = 64;

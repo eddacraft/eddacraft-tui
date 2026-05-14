@@ -24,12 +24,12 @@
 //! treats them as proof; the witness chain is the authentication
 //! backstop.
 
-use std::ffi::OsString;
 use std::path::Path;
 use std::process::{Command, ExitStatus, Stdio};
 
+use anvil_attribution::env::set_attribution_env;
 use anvil_intercept_proto::SessionId;
-use anvil_intercept_proto::session::{ANVIL_AGENT_TAG_ENV, ANVIL_TASK_ID_ENV, AgentTag};
+use anvil_intercept_proto::session::AgentTag;
 use anyhow::{Context, Result};
 use serde_json::Value;
 
@@ -93,16 +93,19 @@ pub fn spawn(mut cmd: Command, session_id: &SessionId) -> Result<SpawnedChild> {
 /// Tell the daemon about the new child. The launcher reports
 /// (`pid`, `pgid`, `pid_starttime`, `job_object_name`) so the daemon
 /// can target signals (Unix) or open the `JobObject` (Windows).
-pub fn report_to_daemon(
-    session_id: &SessionId,
-    spawned: &SpawnedChild,
-    pid_starttime: u64,
-) -> Result<()> {
+///
+/// The `pid_starttime` reported here MUST be the child's, not the
+/// launcher's — that is what MLP-014 stores against the registration
+/// for PID-reuse defence. We capture it from
+/// [`anvil_attribution::process::pid_starttime`] after spawn so the
+/// daemon's stored value can match the running child.
+pub fn report_to_daemon(session_id: &SessionId, spawned: &SpawnedChild) -> Result<()> {
+    let child_starttime = crate::session::pid_starttime_or_fallback(spawned.pid);
     let params = serde_json::json!({
         "session_id": session_id.as_str(),
         "pid": spawned.pid,
         "pgid": spawned.pgid,
-        "pid_starttime": pid_starttime,
+        "pid_starttime": child_starttime,
         "job_object_name": spawned.job_object_name,
     });
     let _: Value = ipc::request(
@@ -174,9 +177,10 @@ fn apply_process_group(_cmd: &mut Command) {
 fn apply_process_group(_cmd: &mut Command) {}
 
 fn apply_env_propagation(cmd: &mut Command, session_id: &SessionId, agent_tag: &AgentTag) {
-    let tag_json = serde_json::to_string(agent_tag).unwrap_or_default();
-    cmd.env(ANVIL_TASK_ID_ENV, OsString::from(session_id.as_str()));
-    cmd.env(ANVIL_AGENT_TAG_ENV, OsString::from(tag_json));
+    // Delegate to the shared encoder so `ANVIL_AGENT_TAG` decoding is
+    // identical to the daemon-side attribution path (avoids a silent
+    // empty-string fallback if the encoder ever errors).
+    set_attribution_env(cmd, agent_tag, session_id.as_str());
 }
 
 #[cfg(test)]
@@ -198,12 +202,14 @@ mod tests {
         assert!(a.ends_with("sess_abc"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn build_command_sets_anvil_env_vars_for_the_child() {
-        // We cannot easily inspect Command::env contents without
-        // running the child. Build it, spawn against `printenv`,
-        // capture the output, and assert both vars are present.
-        // Unix-only because `printenv` is not standard on Windows.
+        // Unix-only: hard-codes `/usr/bin/env` and `/`. A Windows
+        // version of this test would need `where /R %PATH% env` or
+        // similar; INTL-006 keeps the shell integration Unix-first.
+        use anvil_intercept_proto::session::{ANVIL_AGENT_TAG_ENV, ANVIL_TASK_ID_ENV};
+
         let session_id = SessionId::new("sess_test");
         let tag = dummy_tag();
         let cmd = build_command("/usr/bin/env", &[], &PathBuf::from("/"), &session_id, &tag);

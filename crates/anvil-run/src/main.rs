@@ -29,10 +29,13 @@ fn main() -> ExitCode {
         }
     };
     let code = run::run(cli);
-    let clamped = if (0..=255).contains(&code) {
-        u8::try_from(code).unwrap_or(1)
-    } else {
-        1
-    };
-    ExitCode::from(clamped)
+    // `ExitCode` only carries the low byte. Match the documented
+    // contract on `forward_child_status`: forward the OS-reported
+    // status modulo 256 instead of collapsing everything outside
+    // 0..=255 to a generic `1`. A wrapped tool returning a value
+    // outside the BSD byte range (e.g. a Windows HRESULT) still
+    // gives the parent shell the same low byte the OS would have.
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+    let truncated = (code & 0xff) as u8;
+    ExitCode::from(truncated)
 }

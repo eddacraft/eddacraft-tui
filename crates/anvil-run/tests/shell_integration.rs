@@ -11,6 +11,12 @@
 //!    that stub with `--tool <name> -- <cmd> [args...]`.
 //! 3. When the binary is not on `$PATH` and `ANVIL_RUN_BIN` is
 //!    unset, the wrapper falls through so the user is not blocked.
+//!
+//! Unix-only: the helpers rely on `std::os::unix::fs::PermissionsExt`,
+//! `chmod +x` semantics, and a POSIX `bash`. The shell wrapper itself
+//! only targets bash/zsh; a Windows port would need a separate test.
+
+#![cfg(unix)]
 
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;

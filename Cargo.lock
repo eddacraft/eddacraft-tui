@@ -1331,6 +1331,7 @@ version = "0.6.2-beta"
 dependencies = [
  "anyhow",
  "clap",
+ "eddacraft-anvil-attribution",
  "eddacraft-anvil-intercept",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-win32",

@@ -45,54 +45,49 @@ pub fn new_session_id() -> SessionId {
     SessionId::new(format!("sess_{}", uuid::Uuid::now_v7().simple()))
 }
 
-/// Read the kernel's reported process start time for the *current*
-/// process. The launcher hands this to the daemon as part of the
-/// `AgentTag` triple so MLP-014 can detect PID reuse.
+/// Read the kernel's reported process start time for `pid` as
+/// **Unix seconds since epoch** (boot_time + ticks/CLK_TCK). The
+/// canonical implementation lives in
+/// [`anvil_attribution::process::pid_starttime`]; using it here
+/// keeps the launcher's `AgentTag` units identical to the daemon's
+/// process-attribution helper so PID-reuse comparisons compare like
+/// for like.
 ///
-/// Unix: `/proc/self/stat` field 22 (`starttime`, jiffies). On
-/// systems without procfs (macOS) the function falls back to the
-/// system clock — which still detects reuse within ~1s but loses
-/// the kernel-anchored guarantee. Documented on
-/// `AgentTag::pid_starttime`.
+/// On non-Linux hosts the upstream helper returns
+/// `ProcessInfoError::Io` with `ErrorKind::Unsupported`; the launcher
+/// degrades to a wall-clock-derived value so the env-propagation
+/// path still works. The daemon authenticates via the witness chain,
+/// so the wall-clock fallback only weakens PID-reuse defence on
+/// macOS / Windows.
 #[must_use]
-pub fn current_pid_starttime() -> u64 {
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(value) = read_linux_starttime() {
-            return value;
-        }
+pub fn pid_starttime_or_fallback(pid: u32) -> u64 {
+    if let Ok(value) = anvil_attribution::process::pid_starttime(pid) {
+        return value;
     }
-    // Fallback for non-Linux / procfs-unavailable hosts. The
-    // daemon detects identity-mismatch by comparing the tag the
-    // launcher sent at register time against the tag it sees
-    // later; a clock-based starttime still distinguishes
-    // back-to-back launches within the same second only if the
-    // OS clock has sub-second monotonic precision (it does in
-    // practice).
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
 }
 
-#[cfg(target_os = "linux")]
-fn read_linux_starttime() -> Option<u64> {
-    let raw = std::fs::read_to_string("/proc/self/stat").ok()?;
-    // Field 22 is `starttime`. The `comm` field (2) may contain
-    // spaces / parens, so we find the closing `)` first and then
-    // count from there.
-    let close = raw.rfind(')')?;
-    let tail = &raw[close + 1..];
-    let mut fields = tail.split_whitespace();
-    // After the closing `)` field 3 begins; we want field 22,
-    // which is 22 - 3 + 1 = 20 entries in.
-    for _ in 0..19 {
-        fields.next()?;
-    }
-    fields.next()?.parse::<u64>().ok()
+/// Inputs for [`register`]. Threaded into the daemon's
+/// `session.register` JSON-RPC method as a single struct so callers
+/// cannot drop a field by accident.
+pub struct RegistrationRequest<'a> {
+    pub session_id: &'a SessionId,
+    pub worktree: &'a Path,
+    pub cwd: &'a Path,
+    pub driver_id: &'a str,
+    pub claimed_agent_id: &'a str,
+    /// Provisional `pid_starttime` (launcher's own at register time —
+    /// the child is reported separately after spawn via
+    /// `session.report_process`). MLP-014 uses the post-spawn value
+    /// for PID-reuse defence; the launcher value is a hint only.
+    pub pid_starttime: u64,
+    pub tmux_pane: Option<&'a str>,
 }
 
 /// Issue the `session.register` JSON-RPC request. The launcher
-/// supplies `(session_id, worktree, driver_id, claimed_agent_id,
+/// supplies `(session_id, worktree, cwd, driver_id, claimed_agent_id,
 /// pid_starttime, tmux_pane?)`; the daemon may either:
 ///
 /// - Echo back an explicit `{"agent_tag": {...}}` object — MLP-014
@@ -100,32 +95,30 @@ fn read_linux_starttime() -> Option<u64> {
 /// - Echo only `{"session_id":..., "worktree":...}` — the pre-MLP-014
 ///   daemon — in which case the launcher synthesises an `AgentTag`
 ///   from its own inputs.
-pub fn register(
-    session_id: &SessionId,
-    worktree: &Path,
-    driver_id: &str,
-    claimed_agent_id: &str,
-    pid_starttime: u64,
-    tmux_pane: Option<&str>,
-) -> Result<Registration> {
+pub fn register(req: &RegistrationRequest<'_>) -> Result<Registration> {
     let params = ipc::session_register_params(
-        session_id.as_str(),
-        worktree,
-        driver_id,
-        claimed_agent_id,
-        pid_starttime,
-        tmux_pane,
+        req.session_id.as_str(),
+        req.worktree,
+        req.cwd,
+        req.driver_id,
+        req.claimed_agent_id,
+        req.pid_starttime,
+        req.tmux_pane,
     );
     let response: Value = ipc::request(
         REGISTER_METHOD,
         params,
-        &format!("anvil-run-register-{}", session_id.as_str()),
+        &format!("anvil-run-register-{}", req.session_id.as_str()),
     )?;
-    let agent_tag =
-        interpret_register_response(&response, driver_id, claimed_agent_id, pid_starttime)
-            .context("interpreting session.register response")?;
+    let agent_tag = interpret_register_response(
+        &response,
+        req.driver_id,
+        req.claimed_agent_id,
+        req.pid_starttime,
+    )
+    .context("interpreting session.register response")?;
     Ok(Registration {
-        session_id: session_id.clone(),
+        session_id: req.session_id.clone(),
         agent_tag,
     })
 }
@@ -193,11 +186,11 @@ mod tests {
     }
 
     #[test]
-    fn current_pid_starttime_is_non_zero() {
+    fn pid_starttime_or_fallback_is_non_zero() {
         // /proc/self/stat is always non-zero on Linux; on other
         // OSes the wall-clock fallback is non-zero too unless the
         // system clock is at the Unix epoch (it isn't).
-        let value = current_pid_starttime();
+        let value = pid_starttime_or_fallback(std::process::id());
         assert!(value > 0, "pid_starttime must be positive, got {value}");
     }
 

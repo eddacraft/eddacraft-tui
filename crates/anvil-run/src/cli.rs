@@ -75,9 +75,14 @@ pub struct WrapArgs {
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Disable the launcher's heartbeat thread (INTL-009).
-    /// Off-switch for tests; production callers should leave it on.
-    #[arg(long, hide = true)]
+    /// **Internal test-only field — never parsed from the command
+    /// line.** `clap::Arg::skip` means the field is excluded from
+    /// argv parsing and always defaults to `false`; tests that need
+    /// to disable the heartbeat thread set this directly when they
+    /// construct `WrapArgs`. Shipping a real `--no-heartbeat` flag
+    /// would let a long-running session age out of the daemon
+    /// registry, weakening the controlled-session guarantee.
+    #[arg(skip)]
     pub no_heartbeat: bool,
 
     /// The wrapped command and its arguments. Everything after `--`
