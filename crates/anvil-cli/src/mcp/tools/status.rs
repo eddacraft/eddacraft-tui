@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
@@ -44,17 +44,18 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
-        .ok_or_else(|| "workspaceRoot must be an absolute path".to_string())?;
+        .ok_or_else(|| "workspaceRoot is required".to_string())?;
     let workspace_path = Path::new(workspace_root);
-    validate_workspace_root(workspace_path, &server_root)?;
+    let (server_root, workspace_path) = validate_workspace_root(workspace_path, &server_root)?;
+    let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
-    let config = load_config_info(workspace_path);
+    let config = load_config_info(&workspace_path);
     let has_baseline = workspace_path.join(".anvil/architecture.json").is_file();
     let available_checks = check_catalog::gate_canonical_names();
 
     Ok(json!({
         "status": "ok",
-        "workspaceRoot": ".",
+        "workspaceRoot": redacted_workspace_root,
         "availableChecks": available_checks,
         "config": config,
         "hasBaseline": has_baseline,
@@ -64,7 +65,10 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     }))
 }
 
-fn validate_workspace_root(workspace_root: &Path, server_root: &Path) -> Result<(), String> {
+fn validate_workspace_root(
+    workspace_root: &Path,
+    server_root: &Path,
+) -> Result<(PathBuf, PathBuf), String> {
     if !workspace_root.is_absolute() {
         return Err("workspaceRoot must be an absolute path".to_string());
     }
@@ -83,7 +87,19 @@ fn validate_workspace_root(workspace_root: &Path, server_root: &Path) -> Result<
     if !workspace_root.starts_with(&server_root) {
         return Err("workspaceRoot must be inside the MCP server root".to_string());
     }
-    Ok(())
+    Ok((server_root, workspace_root))
+}
+
+fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> String {
+    let relative = workspace_root
+        .strip_prefix(server_root)
+        .expect("workspace root containment already validated");
+
+    if relative.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        relative.to_string_lossy().replace('\\', "/")
+    }
 }
 
 fn load_config_info(workspace_root: &Path) -> Value {
@@ -124,18 +140,39 @@ fn load_config_info(workspace_root: &Path) -> Value {
 
 fn parse_config_checks(contents: &str) -> Result<Vec<String>, String> {
     let checks = if let Ok(value) = serde_json::from_str::<Value>(contents) {
-        if !value.is_object() {
-            return Err("Failed to parse .anvilrc: JSON config must be an object".to_string());
+        let Some(object) = value.as_object() else {
+            return Err(
+                "Failed to parse .anvilrc: JSON config must be a non-empty object".to_string(),
+            );
+        };
+        if object.is_empty() {
+            return Err(
+                "Failed to parse .anvilrc: JSON config must be a non-empty object".to_string(),
+            );
         }
         extract_checks_from_json(&value)
     } else if let Ok(value) = toml::from_str::<toml::Value>(contents) {
-        if !value.is_table() {
-            return Err("Failed to parse .anvilrc: TOML config must be a table".to_string());
+        let Some(table) = value.as_table() else {
+            return Err(
+                "Failed to parse .anvilrc: TOML config must be a non-empty table".to_string(),
+            );
+        };
+        if table.is_empty() {
+            return Err(
+                "Failed to parse .anvilrc: TOML config must be a non-empty table".to_string(),
+            );
         }
         extract_checks_from_toml(&value)
     } else if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(contents) {
-        if !value.is_mapping() {
-            return Err("Failed to parse .anvilrc: YAML config must be a mapping".to_string());
+        let Some(mapping) = value.as_mapping() else {
+            return Err(
+                "Failed to parse .anvilrc: YAML config must be a non-empty mapping".to_string(),
+            );
+        };
+        if mapping.is_empty() {
+            return Err(
+                "Failed to parse .anvilrc: YAML config must be a non-empty mapping".to_string(),
+            );
         }
         extract_checks_from_yaml(&value)
     } else {
@@ -252,6 +289,16 @@ mod tests {
     }
 
     #[test]
+    fn status_rejects_missing_workspace_root() {
+        let result = call(&json!({}));
+
+        assert_eq!(result["isError"], true);
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        assert_eq!(payload["error"], "workspaceRoot is required");
+    }
+
+    #[test]
     fn status_reports_missing_config_as_not_loaded() {
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(cwd).expect("workspace exists");
@@ -265,6 +312,28 @@ mod tests {
         assert_eq!(payload["config"]["loaded"], false);
         assert_eq!(payload["backend"], "local");
         assert_eq!(payload["daemonStatus"], "not-wired");
+    }
+
+    #[test]
+    fn status_redacts_nested_workspace_relative_to_server_root() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let parent = tempfile::tempdir_in(&cwd).expect("workspace parent exists");
+        let workspace = parent.path().join("project");
+        std::fs::create_dir(&workspace).expect("nested workspace exists");
+
+        let result = call(&json!({ "workspaceRoot": workspace }));
+
+        assert_eq!(result["isError"], false);
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        let expected = workspace
+            .canonicalize()
+            .expect("workspace canonicalizes")
+            .strip_prefix(cwd.canonicalize().expect("cwd canonicalizes"))
+            .expect("workspace is under cwd")
+            .to_string_lossy()
+            .replace('\\', "/");
+        assert_eq!(payload["workspaceRoot"], expected);
     }
 
     #[test]
@@ -313,5 +382,17 @@ mod tests {
         let error = parse_config_checks("not: [valid").unwrap_err();
 
         assert_eq!(error, "Failed to parse .anvilrc as JSON, YAML, or TOML");
+    }
+
+    #[test]
+    fn config_checks_reject_empty_top_level_config() {
+        assert_eq!(
+            parse_config_checks("{}").unwrap_err(),
+            "Failed to parse .anvilrc: JSON config must be a non-empty object"
+        );
+        assert_eq!(
+            parse_config_checks("").unwrap_err(),
+            "Failed to parse .anvilrc: TOML config must be a non-empty table"
+        );
     }
 }

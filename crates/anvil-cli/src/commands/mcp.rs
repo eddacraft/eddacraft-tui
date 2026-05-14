@@ -11,7 +11,7 @@ use crate::GlobalArgs;
 use crate::auth::credentials;
 use crate::commands::mcp_config::{self, Target};
 use crate::feature_flags;
-use crate::mcp::tools::registry;
+use crate::mcp::tools::{registry, validate_write};
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 const SERVER_INSTRUCTIONS: &str = "This server provides a write-validation tool (anvil_validate_write). Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content and respect a `block` decision. Treat blocks as authoritative; do not bypass them via alternate write tools.";
@@ -363,10 +363,34 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
     let arguments = params.get("arguments").unwrap_or(&empty_arguments);
 
     if tool.requires_auth && !mcp_tool_auth_ok() {
-        return success_response(id, &mcp_auth_required_result(arguments));
+        return success_response(id, &mcp_tool_auth_required_result(tool, arguments));
     }
 
     success_response(id, &tool.call(arguments))
+}
+
+fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Value) -> Value {
+    if tool.name == validate_write::TOOL_NAME {
+        return mcp_auth_required_result(arguments);
+    }
+
+    json!({
+        "content": [
+            {
+                "type": "text",
+                "text": serde_json::to_string(&json!({
+                    "schemaVersion": "anvil.mcp.auth-required.v1",
+                    "decision": "block",
+                    "reason": "Anvil MCP credentials are required for this tool.",
+                    "tool": tool.name,
+                    "correlation": {
+                        "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str()
+                    }
+                })).expect("auth-required payload serialises")
+            }
+        ],
+        "isError": false
+    })
 }
 
 fn mcp_tool_auth_ok() -> bool {
