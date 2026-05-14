@@ -837,7 +837,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         std::io::stdin().is_terminal(),
         std::io::stdout().is_terminal(),
     );
-    let warmup_paths = if watch_root == workspace_root {
+    let warmup_paths = if should_use_warmup_cache(&watch_root, &workspace_root, &patterns) {
         load_watch_warmup_cache(&workspace_root).unwrap_or(None)
     } else {
         None
@@ -982,6 +982,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     drop(dispatcher);
     handle.stop().context("stopping watcher")?;
     Ok(())
+}
+
+fn should_use_warmup_cache(
+    watch_root: &std::path::Path,
+    workspace_root: &std::path::Path,
+    include_patterns: &[String],
+) -> bool {
+    watch_root == workspace_root && include_patterns.is_empty()
 }
 
 fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
@@ -1141,6 +1149,20 @@ mod tests {
                 .canonicalize()
                 .unwrap_or_else(|_| tmp.path().to_path_buf())
         );
+    }
+
+    #[test]
+    fn warmup_cache_only_applies_to_broad_workspace_scope() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+
+        assert!(should_use_warmup_cache(root, root, &[]));
+        assert!(!should_use_warmup_cache(&root.join("src"), root, &[]));
+        assert!(!should_use_warmup_cache(
+            root,
+            root,
+            &["src/**/*.ts".to_string()]
+        ));
     }
 
     #[test]
