@@ -538,7 +538,7 @@ mod tests {
         let wt = make_worktree();
         let now = Instant::now();
         registry
-            .register(&SessionId::new("sess-a"), wt.path(), now)
+            .register(&SessionId::new("sess-a"), wt.path(), None, now)
             .expect("register");
         // Materialise a child file so canonicalisation in
         // `attribute_path` actually finds the worktree ancestor.
@@ -632,7 +632,7 @@ mod tests {
         let wt = make_worktree();
         let t0 = Instant::now();
         registry
-            .register(&SessionId::new("sess-burst"), wt.path(), t0)
+            .register(&SessionId::new("sess-burst"), wt.path(), None, t0)
             .expect("register");
         let f1 = wt.path().join("a.rs");
         let f2 = wt.path().join("b.rs");
@@ -700,10 +700,10 @@ mod tests {
         let wt_b = make_worktree();
         let t0 = Instant::now();
         registry
-            .register(&SessionId::new("sess-a"), wt_a.path(), t0)
+            .register(&SessionId::new("sess-a"), wt_a.path(), None, t0)
             .expect("register a");
         registry
-            .register(&SessionId::new("sess-b"), wt_b.path(), t0)
+            .register(&SessionId::new("sess-b"), wt_b.path(), None, t0)
             .expect("register b");
         let f_a = wt_a.path().join("a.rs");
         let f_b = wt_b.path().join("b.rs");
@@ -746,7 +746,7 @@ mod tests {
         let wt = make_worktree();
         let now = Instant::now();
         registry
-            .register(&SessionId::new("sess-shutdown"), wt.path(), now)
+            .register(&SessionId::new("sess-shutdown"), wt.path(), None, now)
             .expect("register");
         let file = wt.path().join("late.rs");
         std::fs::write(&file, b"x").expect("write fixture");
@@ -776,7 +776,7 @@ mod tests {
         let wt = make_worktree();
         let now = Instant::now();
         registry
-            .register(&SessionId::new("sess-cfg"), wt.path(), now)
+            .register(&SessionId::new("sess-cfg"), wt.path(), None, now)
             .expect("register");
 
         let cache = Arc::new(RuleSetCache::new());
@@ -824,7 +824,7 @@ mod tests {
         let wt = make_worktree();
         let now = Instant::now();
         registry
-            .register(&SessionId::new("sess-keep"), wt.path(), now)
+            .register(&SessionId::new("sess-keep"), wt.path(), None, now)
             .expect("register");
 
         let cache = Arc::new(RuleSetCache::new());

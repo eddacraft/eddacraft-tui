@@ -97,6 +97,7 @@ impl SessionDispatcher for RegistryDispatcher {
         &self,
         id: &anvil_intercept_proto::SessionId,
         worktree: &Path,
+        agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
     ) -> Result<(), RegistryError> {
         let fences =
             self.fence_store
@@ -109,7 +110,7 @@ impl SessionDispatcher for RegistryDispatcher {
                 worktree: worktree.to_path_buf(),
             });
         }
-        SessionDispatcher::register(self.registry.as_ref(), id, worktree)
+        SessionDispatcher::register(self.registry.as_ref(), id, worktree, agent_tag)
     }
 
     fn heartbeat(&self, id: &anvil_intercept_proto::SessionId) -> Result<(), RegistryError> {
@@ -1091,6 +1092,7 @@ mod tests {
         let envelope = IpcEnvelope::notification(IpcCommand::RegisterSession {
             session_id: SessionId::new("sess_foreground"),
             worktree,
+            agent_tag: None,
         });
         let mut line = serde_json::to_string(&envelope).expect("serialise envelope");
         line.push('\n');
@@ -1153,7 +1155,7 @@ mod tests {
         let dispatcher = RegistryDispatcher::new(Arc::clone(&registry), Arc::new(store));
 
         let err = dispatcher
-            .register(&SessionId::new("sess-fenced"), &worktree)
+            .register(&SessionId::new("sess-fenced"), &worktree, None)
             .expect_err("fenced worktree must reject registration");
 
         assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
@@ -1173,13 +1175,13 @@ mod tests {
             .fence_worktree(&worktree, "live fence")
             .expect("fence worktree");
         let err = dispatcher
-            .register(&SessionId::new("sess-fenced"), &worktree)
+            .register(&SessionId::new("sess-fenced"), &worktree, None)
             .expect_err("new fence must affect running dispatcher");
         assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
 
         store.unblock_worktree(&worktree).expect("unblock worktree");
         dispatcher
-            .register(&SessionId::new("sess-unblocked"), &worktree)
+            .register(&SessionId::new("sess-unblocked"), &worktree, None)
             .expect("explicit unblock must affect running dispatcher");
         assert_eq!(registry.active_sessions().len(), 1);
     }

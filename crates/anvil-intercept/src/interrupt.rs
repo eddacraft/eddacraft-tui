@@ -507,6 +507,7 @@ mod tests {
             started_at_unix: started,
             last_heartbeat_unix: started,
             status: SessionStatus::Active,
+            agent_tag: None,
         }
     }
 

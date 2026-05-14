@@ -579,7 +579,7 @@ mod tests {
         let registered_at = Instant::now();
 
         registry
-            .register(&session, worktree.path(), registered_at)
+            .register(&session, worktree.path(), None, registered_at)
             .expect("register session");
         store
             .fence_worktree(worktree.path(), "manual review required")

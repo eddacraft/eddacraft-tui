@@ -431,6 +431,7 @@ mod tests {
             started_at_unix: 1_700_000_000,
             last_heartbeat_unix: 1_700_000_010,
             status: SessionStatus::Active,
+            agent_tag: None,
         }
     }
 

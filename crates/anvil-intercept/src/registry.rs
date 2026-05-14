@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use anvil_intercept_proto::session::AgentTag;
 use anvil_intercept_proto::{SessionId, SessionRecord, SessionStatus};
 use thiserror::Error;
 
@@ -35,9 +36,17 @@ pub const DEFAULT_HEARTBEAT_TTL: Duration = Duration::from_secs(30);
 /// is the part tests actually care about.
 #[derive(Debug, Error)]
 pub enum RegistryError {
-    /// Another session already owns the canonicalised worktree path.
-    /// `existing` is the id of the live owner so the caller can decide
-    /// whether to surface, retry, or refuse.
+    /// Another session already owns the canonicalised worktree path
+    /// **for the same `AgentTag`** (MLP2-023). `existing` is the id of
+    /// the live owner so the caller can decide whether to surface,
+    /// retry, or refuse.
+    ///
+    /// For an untagged registration this still means "another untagged
+    /// session already owns the worktree"; for a tagged registration
+    /// it means "another session with the same tag is already
+    /// registered against this worktree". Two sessions with *distinct*
+    /// tags on the same worktree are allowed and do not produce this
+    /// error.
     #[error("worktree already owned by session {existing:?}")]
     WorktreeAlreadyOwned { existing: SessionId },
 
@@ -150,8 +159,20 @@ pub struct ProcessInfo {
 ///
 /// Lives in `registry.rs` rather than the proto crate because proto is
 /// wire types only; this is a daemon-internal extension point.
+///
+/// MLP2-023: `register` accepts an optional `agent_tag`. Pre-MLP2-023
+/// envelopes deserialise with `agent_tag: None`, preserving the
+/// historical "one session per worktree" path; MLP2-023+ envelopes
+/// supplying a tag opt into the per-task fence isolation that
+/// MLP2-024 / -025 / -026 build on. `None` callers retain the
+/// pre-MLP2-023 semantics exactly.
 pub trait SessionDispatcher: Send + Sync + 'static {
-    fn register(&self, id: &SessionId, worktree: &Path) -> Result<(), RegistryError>;
+    fn register(
+        &self,
+        id: &SessionId,
+        worktree: &Path,
+        agent_tag: Option<&AgentTag>,
+    ) -> Result<(), RegistryError>;
     fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError>;
     fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError>;
     fn list(&self) -> Vec<SessionRecord>;
@@ -171,10 +192,17 @@ pub struct SessionRegistry {
 struct Inner {
     /// `SessionId` -> record. Sole source of truth for the record body.
     sessions: HashMap<SessionId, RegistryEntry>,
-    /// Canonicalised worktree path -> session id. Index for the
-    /// "single session per worktree" constraint and for
-    /// `session_for_worktree`.
-    by_worktree: HashMap<PathBuf, SessionId>,
+    /// Composite `(canonical worktree, Option<AgentTag>)` -> session id
+    /// (MLP2-023). Index for the "single session per (worktree, tag)"
+    /// constraint and for `attribute_path` / `sessions_for_worktree`.
+    ///
+    /// The `Option<AgentTag>` half makes untagged registrations (the
+    /// pre-MLP2-023 path) share the same map as tagged ones —
+    /// `(wt, None)` and `(wt, Some(tag))` are different keys. Two
+    /// distinct tags can coexist on the same worktree; a second
+    /// untagged registration on the same worktree still returns
+    /// `WorktreeAlreadyOwned`.
+    by_composite: HashMap<(PathBuf, Option<AgentTag>), SessionId>,
 }
 
 struct RegistryEntry {
@@ -201,7 +229,7 @@ impl SessionRegistry {
         Self {
             inner: Mutex::new(Inner {
                 sessions: HashMap::new(),
-                by_worktree: HashMap::new(),
+                by_composite: HashMap::new(),
             }),
             ttl,
         }
@@ -213,9 +241,10 @@ impl SessionRegistry {
     /// `std::fs::canonicalize` before use as a registry key, so two
     /// clients spelling the same worktree differently (trailing slash,
     /// `..` segments, symlinks) cannot each "own" the same worktree.
-    /// A path that does not exist yields [`RegistryError::WorktreePathInvalid`]
-    /// — v1 refuses to register sessions for missing worktrees rather
-    /// than silently storing a relative path.
+    /// A path that does not exist yields
+    /// [`RegistryError::WorktreePathInvalid`] — v1 refuses to register
+    /// sessions for missing worktrees rather than silently storing a
+    /// relative path.
     ///
     /// **Crash-safety:** crashed launchers (where `Drop`-fired
     /// unregister never runs because the process was `SIGKILL`-ed or
@@ -223,18 +252,30 @@ impl SessionRegistry {
     /// by [`SessionRegistry::evict_stale`], which the daemon ticks
     /// every 250 ms.
     ///
-    /// Pinned at one session per canonicalised worktree for v1; a
-    /// retry on the same worktree returns
-    /// [`RegistryError::WorktreeAlreadyOwned`] carrying the existing
-    /// owner's id. Reusing a `SessionId` already present in the
-    /// registry — even against a different worktree — returns
+    /// **MLP2-023 composite-key semantics.** The uniqueness invariant
+    /// is one session per `(canonical worktree, Option<AgentTag>)`.
+    /// Concretely:
+    ///
+    /// - `(wt, None)` — the pre-MLP2-023 path. Only one untagged
+    ///   session per worktree. A second untagged registration returns
+    ///   [`RegistryError::WorktreeAlreadyOwned`].
+    /// - `(wt, Some(tag_a))` and `(wt, Some(tag_b))` — two tagged
+    ///   sub-agents on the same worktree coexist. Per-task fence
+    ///   keying (MLP2-026) distinguishes them.
+    /// - `(wt, None)` plus `(wt, Some(tag))` also coexist: the
+    ///   untagged session represents worktree-level enforcement
+    ///   context, while the tagged session represents a specific
+    ///   sub-agent.
+    ///
+    /// Reusing a `SessionId` already in the registry — even against a
+    /// different `(worktree, tag)` — still returns
     /// [`RegistryError::SessionAlreadyExists`]; the caller must
-    /// `unregister` the old id first to avoid orphaning the previous
-    /// worktree index entry.
+    /// `unregister` the old id first.
     pub fn register(
         &self,
         id: &SessionId,
         worktree: &Path,
+        agent_tag: Option<&AgentTag>,
         now: Instant,
     ) -> Result<SessionRecord, RegistryError> {
         let canonical = canonicalise(worktree)?;
@@ -243,7 +284,8 @@ impl SessionRegistry {
         if inner.sessions.contains_key(id) {
             return Err(RegistryError::SessionAlreadyExists(id.clone()));
         }
-        if let Some(existing) = inner.by_worktree.get(&canonical) {
+        let composite_key = (canonical.clone(), agent_tag.cloned());
+        if let Some(existing) = inner.by_composite.get(&composite_key) {
             return Err(RegistryError::WorktreeAlreadyOwned {
                 existing: existing.clone(),
             });
@@ -258,6 +300,7 @@ impl SessionRegistry {
             started_at_unix: now_unix,
             last_heartbeat_unix: now_unix,
             status: SessionStatus::Active,
+            agent_tag: agent_tag.cloned(),
         };
 
         inner.sessions.insert(
@@ -267,7 +310,7 @@ impl SessionRegistry {
                 last_heartbeat: now,
             },
         );
-        inner.by_worktree.insert(canonical, id.clone());
+        inner.by_composite.insert(composite_key, id.clone());
         Ok(record)
     }
 
@@ -315,12 +358,57 @@ impl SessionRegistry {
     /// expected to pass an already-canonicalised path (the listener
     /// canonicalises once at the boundary); paths that fail to
     /// canonicalise yield `None`.
+    ///
+    /// MLP2-023: when multiple sessions are registered against the
+    /// same worktree (any combination of tagged + untagged), this
+    /// returns the **deterministic** first one — sorted by
+    /// `started_at_unix` then `SessionId`. Callers needing all
+    /// matches must use [`Self::sessions_for_worktree`] instead.
+    /// The pre-MLP2-023 single-session call sites are unaffected:
+    /// when only one session matches, the returned record is the
+    /// same as before.
     #[must_use]
     pub fn session_for_worktree(&self, worktree: &Path) -> Option<SessionRecord> {
         let canonical = std::fs::canonicalize(worktree).ok()?;
         let inner = self.lock();
-        let id = inner.by_worktree.get(&canonical)?;
-        inner.sessions.get(id).map(|entry| entry.record.clone())
+        let mut matches: Vec<&RegistryEntry> = inner
+            .by_composite
+            .iter()
+            .filter(|((wt, _), _)| wt == &canonical)
+            .filter_map(|(_, id)| inner.sessions.get(id))
+            .collect();
+        matches.sort_by(|a, b| {
+            a.record
+                .started_at_unix
+                .cmp(&b.record.started_at_unix)
+                .then_with(|| a.record.id.as_str().cmp(b.record.id.as_str()))
+        });
+        matches.first().map(|entry| entry.record.clone())
+    }
+
+    /// All sessions registered against a worktree, sorted deterministically
+    /// by `started_at_unix` then `SessionId`. MLP2-023: a multi-agent
+    /// worktree can host several tagged sub-agents plus an optional
+    /// untagged worktree-level session; this method surfaces them all.
+    #[must_use]
+    pub fn sessions_for_worktree(&self, worktree: &Path) -> Vec<SessionRecord> {
+        let Ok(canonical) = std::fs::canonicalize(worktree) else {
+            return Vec::new();
+        };
+        let inner = self.lock();
+        let mut records: Vec<SessionRecord> = inner
+            .by_composite
+            .iter()
+            .filter(|((wt, _), _)| wt == &canonical)
+            .filter_map(|(_, id)| inner.sessions.get(id))
+            .map(|entry| entry.record.clone())
+            .collect();
+        records.sort_by(|a, b| {
+            a.started_at_unix
+                .cmp(&b.started_at_unix)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
+        records
     }
 
     /// Resolve the [`Attribution`] for an arbitrary changed path —
@@ -368,27 +456,60 @@ impl SessionRegistry {
         };
 
         let inner = self.lock();
-        let mut best: Option<(&PathBuf, &SessionId)> = None;
-        for (worktree, id) in &inner.by_worktree {
-            if canonical.starts_with(worktree)
-                && best.is_none_or(|(current, _)| {
-                    worktree.as_os_str().len() > current.as_os_str().len()
-                })
+
+        // MLP2-023: walk the composite index to find the longest
+        // worktree prefix. With multi-session worktrees the same
+        // prefix may yield several `(wt, tag)` keys; the choice of
+        // which one to return is **deliberately the untagged session
+        // when present**, otherwise the deterministic earliest-by-
+        // start-time tagged session. Reason: a path-only attribution
+        // call has no tag hint, so falling back to the worktree-level
+        // session preserves the pre-MLP2-023 contract; tagged callers
+        // wanting per-tag attribution must use the worktree-level
+        // result plus their own `agent_tag` knowledge (or
+        // [`Self::sessions_for_worktree`] for the full set).
+        let mut best_prefix: Option<&PathBuf> = None;
+        for (wt, _) in inner.by_composite.keys() {
+            if canonical.starts_with(wt)
+                && best_prefix
+                    .is_none_or(|current| wt.as_os_str().len() > current.as_os_str().len())
             {
-                best = Some((worktree, id));
+                best_prefix = Some(wt);
             }
         }
-        match best {
-            Some((_, id)) => match inner.sessions.get(id) {
-                Some(entry) => Attribution::Owned {
-                    session: entry.record.clone(),
-                },
-                // Should not happen: invariants keep `by_worktree`
-                // and `sessions` aligned. Surfacing as `Unknown`
-                // rather than panicking keeps the watcher resilient
-                // to a transient inconsistency.
-                None => Attribution::Unknown,
+        let Some(wt) = best_prefix else {
+            return Attribution::Unknown;
+        };
+        let wt = wt.clone();
+
+        // Collect all sessions that share the winning prefix and pick
+        // deterministically: untagged first; else earliest-started,
+        // tiebreak on SessionId asc.
+        let mut candidates: Vec<&RegistryEntry> = inner
+            .by_composite
+            .iter()
+            .filter(|((p, _), _)| p == &wt)
+            .filter_map(|(_, id)| inner.sessions.get(id))
+            .collect();
+        candidates.sort_by(|a, b| {
+            // Untagged < tagged so the untagged wins after sort.
+            let tag_a = a.record.agent_tag.is_some();
+            let tag_b = b.record.agent_tag.is_some();
+            tag_a.cmp(&tag_b).then_with(|| {
+                a.record
+                    .started_at_unix
+                    .cmp(&b.record.started_at_unix)
+                    .then_with(|| a.record.id.as_str().cmp(b.record.id.as_str()))
+            })
+        });
+        match candidates.first() {
+            Some(entry) => Attribution::Owned {
+                session: entry.record.clone(),
             },
+            // Should not happen: invariants keep `by_composite` and
+            // `sessions` aligned. Surfacing as `Unknown` rather than
+            // panicking keeps the watcher resilient to a transient
+            // inconsistency.
             None => Attribution::Unknown,
         }
     }
@@ -416,12 +537,21 @@ impl SessionRegistry {
     /// removed, `Ok(false)` if the id was unknown — the latter is not
     /// an error, since the launcher's Drop guard may race the daemon's
     /// eviction tick.
+    ///
+    /// MLP2-023: only the specific `(worktree, agent_tag)` entry the
+    /// session owns is removed from the composite index — sibling
+    /// sessions with different tags on the same worktree stay
+    /// registered.
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
         let mut inner = self.lock();
         let Some(entry) = inner.sessions.remove(id) else {
             return Ok(false);
         };
-        inner.by_worktree.remove(&entry.record.worktree);
+        let key = (
+            entry.record.worktree.clone(),
+            entry.record.agent_tag.clone(),
+        );
+        inner.by_composite.remove(&key);
         Ok(true)
     }
 
@@ -453,7 +583,11 @@ impl SessionRegistry {
 
         for id in &stale {
             if let Some(entry) = inner.sessions.remove(id) {
-                inner.by_worktree.remove(&entry.record.worktree);
+                let key = (
+                    entry.record.worktree.clone(),
+                    entry.record.agent_tag.clone(),
+                );
+                inner.by_composite.remove(&key);
             }
         }
 
@@ -461,29 +595,34 @@ impl SessionRegistry {
         stale
     }
 
-    /// Rebuild the `by_worktree` index from `sessions`. Used by
+    /// Rebuild the `by_composite` index from `sessions`. Used by
     /// [`SessionRegistry::lock`] on poison recovery — `register` /
     /// `unregister` mutate two maps in sequence, so a panic between
     /// the inserts can leave the indices inconsistent. We re-derive
-    /// the worktree index from the sessions map (which is the sole
+    /// the composite index from the sessions map (which is the sole
     /// source of truth for record bodies) and panic loudly if the
     /// recovery surfaces a true invariant violation (two records
-    /// claiming the same worktree).
+    /// claiming the same `(worktree, agent_tag)` composite).
     fn repair_after_poison(inner: &mut Inner) {
-        let mut by_worktree = HashMap::with_capacity(inner.sessions.len());
+        let mut by_composite = HashMap::with_capacity(inner.sessions.len());
         for (id, entry) in &inner.sessions {
-            let worktree = entry.record.worktree.clone();
-            if let Some(existing) = by_worktree.insert(worktree.clone(), id.clone()) {
+            let key = (
+                entry.record.worktree.clone(),
+                entry.record.agent_tag.clone(),
+            );
+            let key_for_msg = key.clone();
+            if let Some(existing) = by_composite.insert(key, id.clone()) {
                 panic!(
                     "session registry mutex poisoned and recovery surfaced duplicate \
-                     worktree ownership for {}: {} and {}",
-                    worktree.display(),
+                     (worktree, agent_tag) ownership for ({}, {:?}): {} and {}",
+                    key_for_msg.0.display(),
+                    key_for_msg.1,
                     existing.as_str(),
                     id.as_str(),
                 );
             }
         }
-        inner.by_worktree = by_worktree;
+        inner.by_composite = by_composite;
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -518,8 +657,13 @@ impl Default for SessionRegistry {
 }
 
 impl SessionDispatcher for SessionRegistry {
-    fn register(&self, id: &SessionId, worktree: &Path) -> Result<(), RegistryError> {
-        SessionRegistry::register(self, id, worktree, Instant::now()).map(|_| ())
+    fn register(
+        &self,
+        id: &SessionId,
+        worktree: &Path,
+        agent_tag: Option<&AgentTag>,
+    ) -> Result<(), RegistryError> {
+        SessionRegistry::register(self, id, worktree, agent_tag, Instant::now()).map(|_| ())
     }
 
     fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError> {
@@ -566,6 +710,12 @@ mod tests {
         SessionId::new(name)
     }
 
+    /// MLP2-023 helper: build an `AgentTag` with a fixed `pid_starttime`
+    /// so equality checks across the test suite are reproducible.
+    fn tag(driver: &str, agent: &str, pid_start: u64) -> AgentTag {
+        AgentTag::new(driver, agent, pid_start)
+    }
+
     #[test]
     fn register_list_unregister_round_trip() {
         let registry = SessionRegistry::new();
@@ -574,10 +724,10 @@ mod tests {
         let now = Instant::now();
 
         registry
-            .register(&sid("a"), wt_a.path(), now)
+            .register(&sid("a"), wt_a.path(), None, now)
             .expect("register a");
         registry
-            .register(&sid("b"), wt_b.path(), now)
+            .register(&sid("b"), wt_b.path(), None, now)
             .expect("register b");
 
         let listed = registry.active_sessions();
@@ -609,11 +759,11 @@ mod tests {
         let now = Instant::now();
 
         registry
-            .register(&sid("first"), wt.path(), now)
+            .register(&sid("first"), wt.path(), None, now)
             .expect("first wins");
 
         let err = registry
-            .register(&sid("second"), wt.path(), now)
+            .register(&sid("second"), wt.path(), None, now)
             .expect_err("second must lose");
 
         assert_eq!(
@@ -638,11 +788,11 @@ mod tests {
         let now = Instant::now();
 
         registry
-            .register(&sid("dup"), wt_a.path(), now)
+            .register(&sid("dup"), wt_a.path(), None, now)
             .expect("first wins");
 
         let err = registry
-            .register(&sid("dup"), wt_b.path(), now)
+            .register(&sid("dup"), wt_b.path(), None, now)
             .expect_err("duplicate id must lose");
         assert_eq!(err, RegistryError::SessionAlreadyExists(sid("dup")));
 
@@ -671,13 +821,13 @@ mod tests {
         let registry = SessionRegistry::new();
         let now = Instant::now();
         registry
-            .register(&sid("first"), &real, now)
+            .register(&sid("first"), &real, None, now)
             .expect("register canonical");
 
         // `real/.` should resolve to the same entry.
         let dotted = real.join(".");
         let err = registry
-            .register(&sid("second"), &dotted, now)
+            .register(&sid("second"), &dotted, None, now)
             .expect_err("dotted form must collide");
         assert_eq!(
             err,
@@ -689,7 +839,7 @@ mod tests {
         // `parent/real/../real` should also collide.
         let dotdot = parent.path().join("real").join("..").join("real");
         let err = registry
-            .register(&sid("third"), &dotdot, now)
+            .register(&sid("third"), &dotdot, None, now)
             .expect_err("dotdot form must collide");
         assert_eq!(
             err,
@@ -711,7 +861,7 @@ mod tests {
         let now = Instant::now();
         let missing = std::path::Path::new("/definitely/not/here/anvil-intd-003-ghost");
         let err = registry
-            .register(&sid("a"), missing, now)
+            .register(&sid("a"), missing, None, now)
             .expect_err("missing path");
         match err {
             RegistryError::WorktreePathInvalid { path, .. } => {
@@ -737,7 +887,7 @@ mod tests {
         let wt = make_worktree();
         let t0 = Instant::now();
         registry
-            .register(&sid("a"), wt.path(), t0)
+            .register(&sid("a"), wt.path(), None, t0)
             .expect("register");
 
         let t10 = t0 + Duration::from_secs(10);
@@ -767,7 +917,7 @@ mod tests {
         let wt = make_worktree();
         let t0 = Instant::now();
         registry
-            .register(&sid("a"), wt.path(), t0)
+            .register(&sid("a"), wt.path(), None, t0)
             .expect("register");
 
         let exactly = t0 + ttl;
@@ -789,7 +939,7 @@ mod tests {
         let wt = make_worktree();
         let now = Instant::now();
         registry
-            .register(&sid("a"), wt.path(), now)
+            .register(&sid("a"), wt.path(), None, now)
             .expect("register");
 
         let updated = registry
@@ -852,7 +1002,7 @@ mod tests {
         let b1 = Arc::clone(&barrier);
         let h1 = thread::spawn(move || {
             b1.wait();
-            r1.register(&sid("a"), w1.path(), Instant::now())
+            r1.register(&sid("a"), w1.path(), None, Instant::now())
         });
 
         let r2 = Arc::clone(&registry);
@@ -860,7 +1010,7 @@ mod tests {
         let b2 = Arc::clone(&barrier);
         let h2 = thread::spawn(move || {
             b2.wait();
-            r2.register(&sid("b"), w2.path(), Instant::now())
+            r2.register(&sid("b"), w2.path(), None, Instant::now())
         });
 
         let result_1 = h1.join().expect("thread 1");
@@ -889,7 +1039,7 @@ mod tests {
             let r = Arc::clone(&registry);
             let d = Arc::clone(&dirs);
             handles.push(thread::spawn(move || {
-                r.register(&sid(&format!("s{i}")), d[i].path(), Instant::now())
+                r.register(&sid(&format!("s{i}")), d[i].path(), None, Instant::now())
                     .expect("register");
             }));
         }
@@ -932,7 +1082,7 @@ mod tests {
         let wt = make_worktree();
         let t0 = Instant::now();
         registry
-            .register(&sid("crashed"), wt.path(), t0)
+            .register(&sid("crashed"), wt.path(), None, t0)
             .expect("register");
 
         // Simulate "process gone" by simply not calling unregister and
@@ -943,7 +1093,7 @@ mod tests {
 
         // After eviction, the worktree is free for a fresh registration.
         registry
-            .register(&sid("recovered"), wt.path(), later)
+            .register(&sid("recovered"), wt.path(), None, later)
             .expect("worktree freed by eviction");
     }
 
@@ -960,7 +1110,7 @@ mod tests {
         let wt_a = make_worktree();
         let wt_b = make_worktree();
         registry
-            .register(&sid("alive"), wt_a.path(), Instant::now())
+            .register(&sid("alive"), wt_a.path(), None, Instant::now())
             .expect("register");
 
         // Poison the mutex by panicking while a guard is held.
@@ -986,7 +1136,7 @@ mod tests {
             "poison flag must be cleared after the first recovery",
         );
         registry
-            .register(&sid("after-poison"), wt_b.path(), Instant::now())
+            .register(&sid("after-poison"), wt_b.path(), None, Instant::now())
             .expect("registry remains usable after poison");
         assert_eq!(registry.active_sessions().len(), 2);
     }
@@ -999,11 +1149,277 @@ mod tests {
         let registry: Arc<dyn SessionDispatcher> = Arc::new(SessionRegistry::new());
         let wt = make_worktree();
 
-        registry.register(&sid("a"), wt.path()).expect("register");
+        registry
+            .register(&sid("a"), wt.path(), None)
+            .expect("register");
         assert_eq!(registry.list().len(), 1);
 
         registry.heartbeat(&sid("a")).expect("heartbeat");
         assert!(registry.unregister(&sid("a")).expect("unregister"));
         assert!(registry.list().is_empty());
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // MLP2-023: composite (WorktreeKey, Option<AgentTag>) keying.
+    // ───────────────────────────────────────────────────────────
+
+    /// Two tagged sessions with **distinct** `AgentTag`s register
+    /// against the same worktree without conflict — the registry's
+    /// uniqueness invariant is per-composite, not per-worktree.
+    #[test]
+    fn two_distinct_tags_on_same_worktree_coexist() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+
+        registry
+            .register(&sid("sa"), wt.path(), Some(&tag_a), now)
+            .expect("register sa");
+        registry
+            .register(&sid("sb"), wt.path(), Some(&tag_b), now)
+            .expect("register sb");
+
+        let live = registry.sessions_for_worktree(wt.path());
+        assert_eq!(live.len(), 2, "both tagged sessions live on the worktree");
+        assert!(live.iter().any(|r| r.agent_tag.as_ref() == Some(&tag_a)));
+        assert!(live.iter().any(|r| r.agent_tag.as_ref() == Some(&tag_b)));
+    }
+
+    /// MLP2-023: re-registering the **same** tag on the same worktree
+    /// still surfaces `WorktreeAlreadyOwned` — the composite key is
+    /// what's unique, not the worktree alone.
+    #[test]
+    fn same_tag_on_same_worktree_returns_already_owned() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+
+        registry
+            .register(&sid("first"), wt.path(), Some(&tag_a), now)
+            .expect("first registration");
+        let err = registry
+            .register(&sid("second"), wt.path(), Some(&tag_a), now)
+            .expect_err("duplicate composite must be rejected");
+        match err {
+            RegistryError::WorktreeAlreadyOwned { existing } => {
+                assert_eq!(existing, sid("first"));
+            }
+            other => panic!("expected WorktreeAlreadyOwned, got {other:?}"),
+        }
+    }
+
+    /// MLP2-023: an untagged session and a tagged session on the same
+    /// worktree coexist. The untagged registration represents the
+    /// worktree-level enforcement context (matching the pre-MLP2-023
+    /// path); the tagged registration represents a specific sub-agent.
+    #[test]
+    fn untagged_and_tagged_on_same_worktree_coexist() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+
+        registry
+            .register(&sid("worktree-level"), wt.path(), None, now)
+            .expect("untagged register");
+        registry
+            .register(&sid("sub-agent"), wt.path(), Some(&tag_a), now)
+            .expect("tagged register");
+
+        let live = registry.sessions_for_worktree(wt.path());
+        assert_eq!(live.len(), 2);
+        let untagged = live.iter().find(|r| r.agent_tag.is_none()).unwrap();
+        let tagged = live.iter().find(|r| r.agent_tag.is_some()).unwrap();
+        assert_eq!(untagged.id, sid("worktree-level"));
+        assert_eq!(tagged.id, sid("sub-agent"));
+    }
+
+    /// MLP2-023: a second **untagged** session on the same worktree
+    /// still fails — there can be at most one worktree-level entry.
+    /// This preserves the pre-MLP2-023 semantics for callers that
+    /// haven't opted into tags.
+    #[test]
+    fn second_untagged_session_on_same_worktree_returns_already_owned() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("first"), wt.path(), None, now)
+            .expect("first untagged");
+        let err = registry
+            .register(&sid("second"), wt.path(), None, now)
+            .expect_err("second untagged must be rejected");
+        assert!(matches!(err, RegistryError::WorktreeAlreadyOwned { .. }));
+    }
+
+    /// MLP2-023: `attribute_path` prefers the **untagged** session on
+    /// a multi-session worktree (the worktree-level enforcement
+    /// context), then deterministically picks the earliest-started
+    /// tagged session if no untagged session exists.
+    #[test]
+    fn attribute_path_prefers_untagged_session_then_earliest_tag() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+
+        // Register a tagged session first, then an untagged one. The
+        // untagged should win attribution regardless of insertion order.
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let t0 = Instant::now();
+        registry
+            .register(&sid("tagged"), wt.path(), Some(&tag_a), t0)
+            .expect("tagged");
+        registry
+            .register(
+                &sid("untagged"),
+                wt.path(),
+                None,
+                t0 + Duration::from_millis(5),
+            )
+            .expect("untagged");
+
+        let child = wt.path().join("src.rs");
+        std::fs::write(&child, b"x").unwrap();
+        match registry.attribute_path(&child) {
+            Attribution::Owned { session } => assert_eq!(session.id, sid("untagged")),
+            Attribution::Unknown => panic!("attribute_path returned Unknown"),
+        }
+    }
+
+    /// MLP2-023: with only tagged sessions present, `attribute_path`
+    /// returns a deterministic answer for a hint-less caller. Sort
+    /// order is `started_at_unix` ascending then `SessionId`
+    /// ascending. Two sessions registered within the same Unix second
+    /// therefore fall back to lexicographic `SessionId` order — the
+    /// test pins both behaviours by registering two sessions in the
+    /// same tick and asserting the lexicographically-smaller id wins.
+    /// Per-tag attribution is the caller's responsibility once
+    /// MLP2-026 wires the fence-key path.
+    #[test]
+    fn attribute_path_deterministic_tiebreak_across_tagged_only() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+
+        let tag_a = tag("anvil-run", "claude-a", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-b", 1_700_000_002);
+        // Register B first then A within the same tick — both get the
+        // same `started_at_unix`, so the `SessionId` tiebreak applies.
+        registry
+            .register(&sid("session-b"), wt.path(), Some(&tag_b), now)
+            .expect("tag b");
+        registry
+            .register(&sid("session-a"), wt.path(), Some(&tag_a), now)
+            .expect("tag a");
+
+        let child = wt.path().join("src.rs");
+        std::fs::write(&child, b"x").unwrap();
+        // Lexicographic tiebreak: session-a < session-b → wins.
+        match registry.attribute_path(&child) {
+            Attribution::Owned { session } => {
+                assert_eq!(
+                    session.id,
+                    sid("session-a"),
+                    "SessionId tiebreak picks the lexicographically-smaller id when start times match"
+                );
+            }
+            Attribution::Unknown => panic!("attribute_path returned Unknown"),
+        }
+    }
+
+    /// MLP2-023: unregistering one tagged session leaves siblings on
+    /// the same worktree intact. This is the precondition for
+    /// MLP2-026's per-task fence isolation — one bad sub-agent
+    /// finishing (or being fenced individually) must not affect its
+    /// peers' registrations.
+    #[test]
+    fn unregister_one_tagged_session_leaves_sibling_alive() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+
+        registry
+            .register(&sid("a"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        registry
+            .register(&sid("b"), wt.path(), Some(&tag_b), now)
+            .unwrap();
+        assert!(registry.unregister(&sid("a")).unwrap());
+
+        let live = registry.sessions_for_worktree(wt.path());
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].id, sid("b"));
+        assert_eq!(live[0].agent_tag.as_ref(), Some(&tag_b));
+    }
+
+    /// MLP2-023: `evict_stale` removes only the specific session whose
+    /// heartbeat expired. The sibling tagged session on the same
+    /// worktree keeps its registration. Uses a 25 ms TTL with a 30 ms
+    /// gap between the stale and alive registrations so `evict_stale`
+    /// at `t0 + 30ms` finds the stale session 30 ms old (> 25 ms TTL)
+    /// while the alive session is 0 ms old (under TTL).
+    #[test]
+    fn evict_stale_removes_only_the_expired_tagged_session() {
+        let registry = SessionRegistry::with_ttl(Duration::from_millis(25));
+        let wt = make_worktree();
+        let t0 = Instant::now();
+        let tag_a = tag("anvil-run", "claude-stale", 1);
+        let tag_b = tag("anvil-run", "claude-alive", 2);
+
+        registry
+            .register(&sid("stale"), wt.path(), Some(&tag_a), t0)
+            .unwrap();
+        let alive_at = t0 + Duration::from_millis(30);
+        registry
+            .register(&sid("alive"), wt.path(), Some(&tag_b), alive_at)
+            .unwrap();
+
+        let evicted = registry.evict_stale(alive_at);
+        assert_eq!(evicted, vec![sid("stale")]);
+
+        let live = registry.sessions_for_worktree(wt.path());
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].id, sid("alive"));
+    }
+
+    /// MLP2-023: the `agent_tag` field round-trips through registry
+    /// state — `register` → `active_sessions` → wire-shape
+    /// `SessionRecord.agent_tag` matches what the caller supplied.
+    #[test]
+    fn agent_tag_round_trips_through_active_sessions() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-tag", 1_700_000_042);
+
+        registry
+            .register(&sid("tagged"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        let records = registry.active_sessions();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].agent_tag.as_ref(), Some(&tag_a));
+    }
+
+    /// MLP2-023: `SessionDispatcher::register` honours `agent_tag`
+    /// through the trait surface (the IPC listener and the fence-
+    /// gated `RegistryDispatcher` in `lib.rs` route through this trait).
+    #[test]
+    fn session_dispatcher_trait_propagates_agent_tag() {
+        let registry: Arc<dyn SessionDispatcher> = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let tag_a = tag("anvil-run", "via-dispatcher", 1_700_000_007);
+
+        registry
+            .register(&sid("d1"), wt.path(), Some(&tag_a))
+            .unwrap();
+        let listed = registry.list();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].agent_tag.as_ref(), Some(&tag_a));
     }
 }

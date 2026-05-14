@@ -28,7 +28,12 @@ use tokio::net::UnixStream;
 struct RejectingDispatcher;
 
 impl SessionDispatcher for RejectingDispatcher {
-    fn register(&self, _id: &SessionId, _worktree: &Path) -> Result<(), RegistryError> {
+    fn register(
+        &self,
+        _id: &SessionId,
+        _worktree: &Path,
+        _agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+    ) -> Result<(), RegistryError> {
         Err(RegistryError::UnknownSession(SessionId::new("internal")))
     }
 

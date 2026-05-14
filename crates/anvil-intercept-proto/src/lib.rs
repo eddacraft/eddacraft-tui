@@ -62,13 +62,30 @@ impl SessionId {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "kebab-case")]
 pub enum IpcCommand {
-    /// Register a new session with the daemon. The worktree path is the
-    /// authority key for the daemon's "single session per worktree"
-    /// constraint (INTD-003); the registry canonicalises it before use.
-    /// PID / PGID arrive later via a follow-up update command.
+    /// Register a new session with the daemon. The worktree path is
+    /// the authority key the registry canonicalises before use. PID
+    /// / PGID arrive later via a follow-up update command.
+    ///
+    /// MLP2-023: `agent_tag` is optional. When omitted (the wire
+    /// shape pre-MLP2-023 daemons emit), the registry enforces the
+    /// historical "one session per worktree" constraint. When
+    /// supplied, multiple sessions with distinct tags can co-exist
+    /// on the same canonical worktree — the daemon's per-task fence
+    /// keying (MLP2-026) distinguishes them.
+    ///
+    /// Backward-compat: `#[serde(default, skip_serializing_if)]`
+    /// means a pre-MLP2-023 envelope (no `agent_tag` key)
+    /// deserialises as `None`; a new envelope with `Some` is parsed
+    /// by older daemons that tolerate unknown fields (none of the
+    /// in-tree daemons use `deny_unknown_fields` on this variant —
+    /// pinned by
+    /// `register_session_without_agent_tag_round_trips` and
+    /// `register_session_with_agent_tag_round_trips`).
     RegisterSession {
         session_id: SessionId,
         worktree: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agent_tag: Option<session::AgentTag>,
     },
     /// Heartbeat from a registered session to refresh its liveness TTL
     /// (INTD-003 will enforce a 30 s default).
@@ -150,6 +167,24 @@ pub struct SessionRecord {
     /// `heartbeat`. Compared against the TTL by `evict_stale`.
     pub last_heartbeat_unix: u64,
     pub status: SessionStatus,
+    /// MLP2-023: composite identity of the agent owning this session,
+    /// when one was supplied at registration. `None` for legacy single-
+    /// agent worktrees (the daemon's existing "one session per
+    /// worktree" path). When `Some(tag)` is set, multiple sessions can
+    /// co-exist on the same canonical worktree provided their tags
+    /// differ — that is what makes per-task fence isolation possible.
+    ///
+    /// Backward-compatible on the wire via `skip_serializing_if`: a
+    /// pre-MLP2-023 daemon emitting a record without the field
+    /// continues to deserialise here as `None`; a new daemon emitting
+    /// a record with `Some` is parsed correctly by older clients that
+    /// haven't declared the field as long as they tolerate unknown
+    /// keys (none of the in-tree consumers use `deny_unknown_fields`
+    /// on this struct — pinned by the
+    /// `session_record_round_trips_without_agent_tag_field` and
+    /// `session_record_with_agent_tag_is_optional_on_the_wire` tests).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_tag: Option<session::AgentTag>,
 }
 
 /// Liveness state of a `SessionRecord`. The registry snapshot only
@@ -192,6 +227,7 @@ mod tests {
             IpcCommand::RegisterSession {
                 session_id: SessionId::new("sess_abc"),
                 worktree: PathBuf::from("/tmp/wt"),
+                agent_tag: None,
             },
         );
 
@@ -201,6 +237,61 @@ mod tests {
         assert_eq!(parsed["command"], "register-session");
         assert_eq!(parsed["session_id"], "sess_abc");
         assert_eq!(parsed["worktree"], "/tmp/wt");
+        assert!(
+            parsed.get("agent_tag").is_none(),
+            "agent_tag absent from envelope when None: got {line}"
+        );
+    }
+
+    /// MLP2-023 wire-compat: a pre-MLP2-023 envelope (no `agent_tag`
+    /// key) deserialises with the field defaulted to `None`.
+    #[test]
+    fn register_session_without_agent_tag_round_trips() {
+        let wire = r#"{"id":"req-1","command":"register-session","session_id":"sess_abc","worktree":"/tmp/wt"}"#;
+        let envelope: IpcEnvelope = serde_json::from_str(wire).expect("deserialise legacy");
+        match envelope.command {
+            IpcCommand::RegisterSession {
+                session_id,
+                worktree,
+                agent_tag,
+            } => {
+                assert_eq!(session_id, SessionId::new("sess_abc"));
+                assert_eq!(worktree, PathBuf::from("/tmp/wt"));
+                assert!(
+                    agent_tag.is_none(),
+                    "missing agent_tag field defaults to None"
+                );
+            }
+            other => panic!("expected RegisterSession, got {other:?}"),
+        }
+    }
+
+    /// MLP2-023: a new envelope carrying an `agent_tag` parses
+    /// correctly and survives a round-trip without dropping the
+    /// composite identity.
+    #[test]
+    fn register_session_with_agent_tag_round_trips() {
+        let envelope = IpcEnvelope::request(
+            "req-2",
+            IpcCommand::RegisterSession {
+                session_id: SessionId::new("sess_abc"),
+                worktree: PathBuf::from("/tmp/wt"),
+                agent_tag: Some(session::AgentTag::new(
+                    "anvil-run",
+                    "claude-code-1",
+                    1_700_000_042,
+                )),
+            },
+        );
+
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("parse back");
+        assert_eq!(parsed["agent_tag"]["driver_id"], "anvil-run");
+        assert_eq!(parsed["agent_tag"]["claimed_agent_id"], "claude-code-1");
+        assert_eq!(parsed["agent_tag"]["pid_starttime"], 1_700_000_042);
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope, "agent_tag round-trips losslessly");
     }
 
     #[test]
@@ -268,11 +359,64 @@ mod tests {
             started_at_unix: 1_700_000_000,
             last_heartbeat_unix: 1_700_000_010,
             status: SessionStatus::Active,
+            agent_tag: None,
         };
 
         let line = serde_json::to_string(&record).expect("serialise");
         assert!(line.contains("\"active\""), "kebab-case status: {line}");
+        assert!(
+            !line.contains("agent_tag"),
+            "agent_tag absent on wire when None: {line}"
+        );
 
+        let back: SessionRecord = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, record);
+    }
+
+    /// MLP2-023 wire-compat: a pre-MLP2-023 `SessionRecord`
+    /// serialisation (no `agent_tag` key) deserialises with the field
+    /// defaulted to `None`. This keeps the daemon ↔ launcher
+    /// contract additive-only.
+    #[test]
+    fn session_record_round_trips_without_agent_tag_field() {
+        let wire = r#"{
+            "id":"sess_abc",
+            "worktree":"/tmp/wt",
+            "pid":null,
+            "pgid":null,
+            "started_at_unix":1700000000,
+            "last_heartbeat_unix":1700000010,
+            "status":"active"
+        }"#;
+        let record: SessionRecord = serde_json::from_str(wire).expect("legacy deserialise");
+        assert!(record.agent_tag.is_none(), "missing field defaults to None");
+        assert_eq!(record.id, SessionId::new("sess_abc"));
+    }
+
+    /// MLP2-023: a `SessionRecord` carrying an `agent_tag` round-
+    /// trips losslessly and surfaces the composite identity to
+    /// consumers.
+    #[test]
+    fn session_record_with_agent_tag_is_optional_on_the_wire() {
+        let record = SessionRecord {
+            id: SessionId::new("sess_tagged"),
+            worktree: std::path::PathBuf::from("/tmp/wt"),
+            pid: None,
+            pgid: None,
+            started_at_unix: 1_700_000_000,
+            last_heartbeat_unix: 1_700_000_010,
+            status: SessionStatus::Active,
+            agent_tag: Some(session::AgentTag::new(
+                "anvil-run",
+                "claude-code-2",
+                1_700_000_042,
+            )),
+        };
+        let line = serde_json::to_string(&record).expect("serialise");
+        assert!(
+            line.contains("\"agent_tag\""),
+            "agent_tag present on wire when Some: {line}"
+        );
         let back: SessionRecord = serde_json::from_str(&line).expect("deserialise");
         assert_eq!(back, record);
     }

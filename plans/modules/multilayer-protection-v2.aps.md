@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 2/60 done |
+| MLP2 | @aneki | In Progress | 3/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -664,24 +664,61 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-023: Registry session key change to `(WorktreeKey, AgentTag)`
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Extend
   `crates/anvil-intercept/src/registry.rs` session key from
-  `WorktreeKey` to `(WorktreeKey, AgentTag)` so multiple sub-
-  agents per worktree are first-class.
+  `WorktreeKey` to `(WorktreeKey, Option<AgentTag>)` so multiple
+  sub-agents per worktree are first-class.
 - **Expected Outcome:**
   - `SessionRegistry::register` accepts the composite key.
   - `attribute_path` returns the right
-    `(WorktreeKey, AgentTag)` for a writer.
+    `(WorktreeKey, AgentTag)` for a writer (deterministic
+    tiebreak: untagged first, then earliest-started + lexicographic
+    `SessionId`).
   - Per-task fence: fence is keyed on the composite, so a bad
-    sub-agent doesn't cascade-fence the whole worktree.
+    sub-agent doesn't cascade-fence the whole worktree (MLP2-026
+    consumes this surface).
   - Worktree-level fence remains for unattributable writers.
-- **Files:** `crates/anvil-intercept/src/registry.rs` (1000+
-  lines; substantial), `crates/anvil-intercept-proto/src/lib.rs`
-  (extend `SessionRecord`).
+- **Files:** `crates/anvil-intercept-proto/src/lib.rs`
+  (`SessionRecord.agent_tag: Option<AgentTag>` + matching
+  `IpcCommand::RegisterSession.agent_tag`, both wire-additive via
+  `serde(default, skip_serializing_if)`),
+  `crates/anvil-intercept/src/registry.rs` (composite
+  `by_composite: HashMap<(PathBuf, Option<AgentTag>), SessionId>`
+  index + new `sessions_for_worktree` accessor + deterministic
+  `attribute_path` tiebreak + per-tag `unregister`/`evict_stale`),
+  plus mechanical call-site updates in
+  `crates/anvil-intercept/src/{lib,ipc,fence,interrupt,status,auth}.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs` test fixtures, and
+  `crates/anvil-intercept/tests/jsonrpc_conformance.rs`.
 - **Validation:** Two sessions same worktree distinguished by
   AgentTag; per-task fence does not affect siblings; worktree
   fence on unattributable still applies to all.
+  **Evidence (Done 2026-05-14):** `cargo test -p
+  eddacraft-anvil-intercept` — 252 lib tests green (was 242
+  baseline; +10 MLP2-023 tests in `registry::tests::*`:
+  `two_distinct_tags_on_same_worktree_coexist`,
+  `same_tag_on_same_worktree_returns_already_owned`,
+  `untagged_and_tagged_on_same_worktree_coexist`,
+  `second_untagged_session_on_same_worktree_returns_already_owned`,
+  `attribute_path_prefers_untagged_session_then_earliest_tag`,
+  `attribute_path_deterministic_tiebreak_across_tagged_only`,
+  `unregister_one_tagged_session_leaves_sibling_alive`,
+  `evict_stale_removes_only_the_expired_tagged_session`,
+  `agent_tag_round_trips_through_active_sessions`,
+  `session_dispatcher_trait_propagates_agent_tag`). Proto crate
+  +4 wire-compat tests: legacy `SessionRecord` /
+  `RegisterSession` shapes deserialise with `agent_tag: None`;
+  new shapes round-trip with `Some`. **Backward-compat:** every
+  existing caller passes `agent_tag: None` and observes the
+  pre-MLP2-023 single-session-per-worktree semantics exactly;
+  the new composite key only widens the invariant when a tag is
+  supplied. **Wire-additive:** `agent_tag` is
+  `#[serde(default, skip_serializing_if = "Option::is_none")]`
+  on both `SessionRecord` and `IpcCommand::RegisterSession`, so
+  older daemons / launchers parse new payloads cleanly when they
+  don't declare the field (none of the in-tree consumers use
+  `deny_unknown_fields`).
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** MLP-002, MLP-003, MLP-014
@@ -1610,7 +1647,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 2/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 0/5 |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
-| D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 0/4 |
+| D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 1/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 0/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 0/6 |
@@ -1619,7 +1656,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
-| **Total** | **60** | **2/60** |
+| **Total** | **60** | **3/60** |
 
 ## Recommended landing order
 

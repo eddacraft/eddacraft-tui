@@ -558,6 +558,7 @@ mod tests {
             started_at_unix: 0,
             last_heartbeat_unix: 0,
             status: anvil_intercept_proto::SessionStatus::Active,
+            agent_tag: None,
         }];
         let rendered = render_status_lines(&status);
         assert!(rendered.contains("sessions:  1 active"));

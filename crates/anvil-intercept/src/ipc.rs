@@ -109,6 +109,7 @@ impl SessionDispatcher for NoopDispatcher {
         &self,
         _id: &anvil_intercept_proto::SessionId,
         _worktree: &Path,
+        _agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
     ) -> Result<(), crate::registry::RegistryError> {
         Ok(())
     }
@@ -2159,9 +2160,31 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                     method,
                 )?);
                 let worktree = required_string(params, "worktree", method)?;
+                // MLP2-023: `agent_tag` is optional. Absence yields
+                // the legacy single-session-per-worktree path; a
+                // present `agent_tag` opts into the composite key.
+                // Malformed objects (wrong shape) surface as
+                // invalid-params rather than being silently dropped
+                // so a typo at the launcher is caught at the boundary.
+                let agent_tag = match params.get("agent_tag") {
+                    Some(value) if value.is_null() => None,
+                    Some(value) => Some(
+                        serde_json::from_value::<anvil_intercept_proto::session::AgentTag>(
+                            value.clone(),
+                        )
+                        .map_err(|err| {
+                            invalid_params(
+                                method,
+                                format!("agent_tag failed to deserialise: {err}"),
+                            )
+                        })?,
+                    ),
+                    None => None,
+                };
                 Ok(IpcCommand::RegisterSession {
                     session_id,
                     worktree: PathBuf::from(worktree.as_str()),
+                    agent_tag,
                 })
             })
         }
@@ -2450,9 +2473,10 @@ fn dispatch_command<D: SessionDispatcher>(
         IpcCommand::RegisterSession {
             session_id,
             worktree,
+            agent_tag,
         } => {
             dispatcher
-                .register(session_id, worktree)
+                .register(session_id, worktree, agent_tag.as_ref())
                 .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
@@ -2643,7 +2667,11 @@ mod tests {
     #[derive(Debug, Clone, PartialEq, Eq)]
     #[cfg(unix)]
     enum RecordedCall {
-        Register { id: String, worktree: PathBuf },
+        Register {
+            id: String,
+            worktree: PathBuf,
+            agent_tag: Option<anvil_intercept_proto::session::AgentTag>,
+        },
         Heartbeat(String),
         Unregister(String),
         List,
@@ -2658,10 +2686,16 @@ mod tests {
 
     #[cfg(unix)]
     impl SessionDispatcher for Arc<RecordingDispatcher> {
-        fn register(&self, id: &SessionId, worktree: &Path) -> Result<(), RegistryError> {
+        fn register(
+            &self,
+            id: &SessionId,
+            worktree: &Path,
+            agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+        ) -> Result<(), RegistryError> {
             self.calls.lock().unwrap().push(RecordedCall::Register {
                 id: id.as_str().to_owned(),
                 worktree: worktree.to_path_buf(),
+                agent_tag: agent_tag.cloned(),
             });
             Ok(())
         }
@@ -3244,6 +3278,7 @@ mod tests {
                 IpcCommand::RegisterSession {
                     session_id: SessionId::new("sess_abc"),
                     worktree: PathBuf::from("/tmp/wt-abc"),
+                    agent_tag: None,
                 },
             );
             let mut line = serde_json::to_string(&envelope).unwrap();
@@ -3263,6 +3298,7 @@ mod tests {
                 vec![RecordedCall::Register {
                     id: "sess_abc".into(),
                     worktree: PathBuf::from("/tmp/wt-abc"),
+                    agent_tag: None,
                 }]
             );
 
