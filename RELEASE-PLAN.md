@@ -51,7 +51,7 @@ chain, baseline, and wrapped agent launch surfaces."
 **Claim:** _Anvil is ready to live on a senior engineer's machine for a month
 without being uninstalled._ Daemon working end-to-end is necessary but no longer
 sufficient. The cut also requires the protection claim is legible during
-sustained use (TRUST), first-week friction is removed (ADOPT), the update path
+sustained use (ADTRUST), first-week friction is removed (ADOPT), the update path
 actually reaches users (DISTRIB), and at least three internal users have run the
 candidate on real work for a full week without disabling, suppressing, or
 bypassing anything (Wave 5 — Boring Week).
@@ -70,7 +70,7 @@ and was accepted on 2026-05-14.
 | N3   | Carry-forward gates                                         | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                       |
 | N4   | Documentation lanes                                         | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                    |
 | N5   | [`WATCHUX`](./plans/modules/watch-ux-advisory-rules.aps.md) | In Progress | 0/8      | Beta incident remediation and first-run/watch UX: Homebrew installer detection, local-noise ignore policy, initial watch scan baseline semantics, immediate watch startup feedback; later items cover warning/failing language, warm-up TUI, rule modes, and config visibility. |
-| N6   | [`TRUST`](./plans/modules/adoption-trust-surface.aps.md)    | Ready       | 0/6      | Adoption Trust Surface: `anvil status` legibility, degraded-state surfacing, `anvil doctor --fix`, daemon-down recovery, JSON schema pin, first-run verification recipe. Wave 3B.                                                                                               |
+| N6   | [`ADTRUST`](./plans/modules/adoption-trust-surface.aps.md)  | Ready       | 0/6      | Adoption Trust Surface: `anvil status` legibility, degraded-state surfacing, `anvil doctor --fix`, daemon-down recovery, JSON schema pin, first-run verification recipe. Wave 3B.                                                                                               |
 | N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)         | Ready       | 1/6      | Adoption Friction Removal: hook coexistence, resource budget, AI auto-detect, complete ignore policy, **clean uninstall (ADOPT-005) shipped 2026-05-14 via PR #1521**, editor coexistence. Wave 3A.                                                                             |
 | N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md) | Ready       | 0/5      | Distribution & Self-Update: signature verification, `anvil version --check` advisory surface, Homebrew formula automation, cadence policy, `anvil migrate`. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A.                   |
 | N9   | [`INSIGHTS`](./plans/modules/usage-insights.aps.md)         | Ready       | 0/4      | Usage Insights: local-only `anvil insights` weekly summary, suppression health, drift trend, first-week adoption hint. Wave 4.                                                                                                                                                  |
@@ -78,9 +78,9 @@ and was accepted on 2026-05-14.
 **Hard release gates:**
 
 1. `MLP-009` protection-claim contract suite — Done.
-2. `TRUST-001` and `TRUST-002` — a non-Anvil developer reads `anvil status` once
-   and explains what it means, and degraded states surface within 60s of next
-   save-time interaction.
+2. `ADTRUST-001` and `ADTRUST-002` — a non-Anvil developer reads `anvil status`
+   once and explains what it means, and degraded states surface within 60s of
+   next save-time interaction.
 3. `ADOPT-001` hook coexistence with lefthook/husky/pre-commit-framework.
 4. `ADOPT-002` measured resource ceiling (CPU < 5% steady-state, RSS < 200MB on
    reference repo) green in CI.
@@ -203,17 +203,17 @@ the rest are independent.
 
 ### Wave 3B: Trust Surface
 
-Parallel-safe with Wave 3 and 3A. TRUST-001 unblocks TRUST-002 and TRUST-005;
-TRUST-003 / -004 / -006 are parallel after TRUST-001.
+Parallel-safe with Wave 3 and 3A. ADTRUST-001 unblocks ADTRUST-002 and
+ADTRUST-005; ADTRUST-003 / -004 / -006 are parallel after ADTRUST-001.
 
-| Work        | Parallel?         | Status | Notes                                                                                                      |
-| ----------- | ----------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
-| `TRUST-001` | First             | Draft  | `anvil status` plain-mode legibility — single screen, names the protection state, single next-action line. |
-| `TRUST-002` | After `TRUST-001` | Draft  | Degraded-state surfacing within 60s of next save-time interaction; banner rate-limited.                    |
-| `TRUST-003` | Parallel          | Draft  | `anvil doctor --fix` recovery for documented bad states.                                                   |
-| `TRUST-004` | Parallel          | Draft  | Daemon-down auto-recovery — hooks detect and re-arm; `anvil start` is idempotent.                          |
-| `TRUST-005` | After `TRUST-001` | Draft  | `anvil status --json` schema pinned at `anvil-status.v1`.                                                  |
-| `TRUST-006` | Parallel          | Draft  | First-run claim summary + verification recipe.                                                             |
+| Work          | Parallel?           | Status | Notes                                                                                                      |
+| ------------- | ------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| `ADTRUST-001` | First               | Draft  | `anvil status` plain-mode legibility — single screen, names the protection state, single next-action line. |
+| `ADTRUST-002` | After `ADTRUST-001` | Draft  | Degraded-state surfacing within 60s of next save-time interaction; banner rate-limited.                    |
+| `ADTRUST-003` | Parallel            | Draft  | `anvil doctor --fix` recovery for documented bad states.                                                   |
+| `ADTRUST-004` | Parallel            | Draft  | Daemon-down auto-recovery — hooks detect and re-arm; `anvil start` is idempotent.                          |
+| `ADTRUST-005` | After `ADTRUST-001` | Draft  | `anvil status --json` schema pinned at `anvil-status.v1`.                                                  |
+| `ADTRUST-006` | Parallel            | Draft  | First-run claim summary + verification recipe.                                                             |
 
 ### Wave 4: Release-Gate Closure
 
@@ -243,7 +243,7 @@ only proof is using it.
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Wave 3 (Coordination + INTL)  | `MLP-014` + `INTL-001..-005` only                                                                             | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
 | Wave 3A (Adoption Friction)   | All six ADOPT items + DISTRIB-001..-003                                                                       | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking.                                                                                                                                                                                                                                    |
-| Wave 3B (Trust Surface)       | All six TRUST items                                                                                           | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
+| Wave 3B (Trust Surface)       | All six ADTRUST items                                                                                         | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
 | Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (already Done), INSIGHTS-001 + -004, documentation lanes, release runbook | INSIGHTS-002 / -003 (suppression health, drift sparkline) are not Boring-Week-blocking; they ship in the same release but can land late.                                                                                                                                                                                     |
 
 If any Wave 3 INTL item from the deferrable set (-006..-009) is _not_ green at
@@ -285,7 +285,7 @@ without being uninstalled") without caveats.
 | Criterion                    | Required Evidence                                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Protection claim correctness | `MLP-009` green: every allowed state is reachable in fixtures and rendered honestly.                                            |
-| Protection claim legibility  | `TRUST-001` and `TRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.                  |
+| Protection claim legibility  | `ADTRUST-001` and `ADTRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.              |
 | Save-time and hook layers    | Pre-commit, pre-push, post-commit/post-merge/post-rewrite hooks run with ADR-038 noise discipline.                              |
 | Hook coexistence             | `ADOPT-001` green: install + run alongside lefthook / husky / pre-commit-framework on representative configs.                   |
 | Witness integrity            | Concurrent writes, rollover, tamper detection, DAG verification, and worktree survival tests pass.                              |
@@ -299,7 +299,7 @@ without being uninstalled") without caveats.
 | Docs/runbooks                | User-facing docs and runbooks match the shipped claim; no protection state is described more strongly than evidence.            |
 | Boring Week                  | Wave 5 protocol completed; no cut blockers raised.                                                                              |
 
-**Anti-goal:** do not ship a partial MLP/INTL/TRUST/ADOPT slice under the full
+**Anti-goal:** do not ship a partial MLP/INTL/ADTRUST/ADOPT slice under the full
 "let's use this" claim. If scope must be cut, rename the release claim before
 tagging.
 
@@ -335,7 +335,7 @@ DISTRIB-004 (cadence + EOL policy doc).
 | Scope expansion makes ship date slip indefinitely.              | Each new module has explicit defer-to-`v0.7.x` items marked in its task body. Cut to the gate criteria, not below.                        |
 | Boring Week protocol is performative, not real.                 | Require journal artefacts as a release record. Journals land in `plans/audits/2026-XX-XX-boring-week-v0.7.0.md`.                          |
 | `anvil-run` (INTL) is not actually needed for "let's use this." | Defer cleanly: INTL-001..-005 ship in `v0.7.0`; INTL-006..-009 can land in `v0.7.1` if Wave 3 slips and they would block Boring Week.     |
-| TRUST surface increases noise.                                  | TRUST-002 has an explicit noise budget (≤1 banner per 60s, never more than one concurrent). Tests pin this.                               |
+| ADTRUST surface increases noise.                                | ADTRUST-002 has an explicit noise budget (≤1 banner per 60s, never more than one concurrent). Tests pin this.                             |
 | MCP-backend swap silently fails for existing users.             | ADR-044 §9 + DISTRIB-001 / -002. Until DISTRIB ships, the release notes carry the manual "run `anvil start` after upgrading" instruction. |
 | New modules clash with existing in-flight work.                 | All Wave 3A / 3B work depends only on Done MLP surfaces and one WATCHUX item (WATCHUX-002, already in flight).                            |
 

@@ -135,8 +135,8 @@ Concretely:
    "rewrote drifted entry" rather than this specific single-line
    notice. The wording above is the **contract this ADR establishes
    for the v0.7.0-beta cut**, not a description of today's output.
-   The renderer change is a small TRUST-aligned follow-up (target:
-   TRUST-001 / TRUST-006 render path) and must land in the same
+   The renderer change is a small ADTRUST-aligned follow-up (target:
+   ADTRUST-001 / ADTRUST-006 render path) and must land in the same
    release that ships the Rust MCP backend so the pinned wording
    matches the shipped product. Until the renderer follow-up lands,
    the contract is "rewrite happens, with visible output naming the
@@ -290,8 +290,8 @@ backend is about to swap from a Node-based shim to a Rust binary.
     `anvil migrate` for protocol-change cases
   - `ADOPT-005` (clean uninstall, shipped 2026-05-14) — the heavy-reset
     path
-  - `TRUST` (Adoption Trust Surface, proposed) — the notice copy should
-    align with TRUST's status-line conventions; the binary-version
+  - `ADTRUST` (Adoption Trust Surface, proposed) — the notice copy should
+    align with ADTRUST's status-line conventions; the binary-version
     marker informs `anvil status` and `anvil doctor`
 - Code:
   - `crates/anvil-cli/src/activation/mcp_client/cursor.rs`

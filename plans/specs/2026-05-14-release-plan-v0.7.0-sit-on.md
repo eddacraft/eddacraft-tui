@@ -3,7 +3,7 @@
 **Status:** **Accepted (2026-05-14).** Reframe landed in the live
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) and
 [`plans/index.aps.md`](../../plans/index.aps.md); the four new modules
-(TRUST, ADOPT, DISTRIB, INSIGHTS) are promoted to `Ready`. This file
+(ADTRUST, ADOPT, DISTRIB, INSIGHTS) are promoted to `Ready`. This file
 remains as the **acceptance record** — the audit trail for why the cut
 shape changed and what was committed to alongside the change. Open
 items are listed in the Acceptance Checklist below.
@@ -51,7 +51,7 @@ items:
    caught X this week" output question the value. `anvil insights` closes the
    silent-middle gap.
 
-This proposal adds four new APS modules — **TRUST**, **ADOPT**, **DISTRIB**,
+This proposal adds four new APS modules — **ADTRUST**, **ADOPT**, **DISTRIB**,
 **INSIGHTS** — covering items 1–4. It also adds a Wave 5 *Boring Week* gate to
 the cut criteria: before the tag ships, the team uses Anvil on their own real
 work for one full week under a fresh-user configuration. Any disabled check,
@@ -85,7 +85,7 @@ first minute.
 | MLP       | In Progress                     | 17/18    | Protection backbone. MLP-018 closeout backlog is the only remaining work.       |
 | INTL      | Ready (ready-to-start-Wave-3)   | 0/9      | Wrapped-launch ingress (`anvil-run`).                                           |
 | WATCHUX   | In Progress                     | 0/8      | First-run watch UX. WATCHUX-001..-004 in flight, -005..-008 sequenced.          |
-| TRUST     | **Proposed (new)**              | 0/6      | Make the protection claim legible and verifiable during sustained daily use.    |
+| ADTRUST     | **Proposed (new)**              | 0/6      | Make the protection claim legible and verifiable during sustained daily use.    |
 | ADOPT     | **Proposed (new)**              | 0/6      | Remove first-week adoption friction — coexistence, resource budget, uninstall. |
 | DISTRIB   | **Proposed (new)**              | 0/5      | Harden the update/distribution loop so hotfix iteration actually reaches users. |
 | INSIGHTS  | **Proposed (new)**              | 0/4      | Provide a periodic value signal during the silent middle.                       |
@@ -109,7 +109,7 @@ Existing waves remain. New waves slot in alongside them.
 | **2**  | Hook, Policy, Baseline               | Done          | MLP-003 / -005 / -006 / -007 / -008 / -012.                                                |
 | **3**  | Coordination + Launcher Ingress      | Ready/Active  | MLP-014 / INTL-001..-009.                                                                  |
 | **3A** | Adoption Friction (NEW)              | Ready on accept | ADOPT-001..-006, DISTRIB-001..-005.                                                      |
-| **3B** | Trust Surface (NEW)                  | Ready on accept | TRUST-001..-006.                                                                         |
+| **3B** | Trust Surface (NEW)                  | Ready on accept | ADTRUST-001..-006.                                                                         |
 | **4**  | Release-Gate Closure                 | Active        | MLP-018, WATCHUX-005..-008, INSIGHTS-001..-004, documentation lanes.                       |
 | **5**  | Boring Week Validation (NEW gate)    | Pre-tag       | Internal users run Anvil on real work for one full calendar week under fresh-user config.  |
 
@@ -142,12 +142,12 @@ of-failure inside the wave.
 
 | Work          | Parallel?       | Notes                                                                                              |
 | ------------- | --------------- | -------------------------------------------------------------------------------------------------- |
-| `TRUST-001`   | First           | `anvil status` plain-mode is readable at a glance (state, hooks, daemon, last witness).            |
-| `TRUST-002`   | After TRUST-001 | Degraded state surfacing — user is told within 60s of next save-time interaction.                  |
-| `TRUST-003`   | Parallel        | `anvil doctor` diagnose-and-fix recovery for the common bad states.                                |
-| `TRUST-004`   | Parallel        | Daemon-down auto-recovery — hooks detect, re-arm; `anvil start` is idempotent.                     |
-| `TRUST-005`   | After TRUST-001 | Pin the `anvil status --json` schema for editor/CI consumption.                                    |
-| `TRUST-006`   | Parallel        | First `anvil start` prints a short, accurate claim summary the user can verify themselves.        |
+| `ADTRUST-001`   | First           | `anvil status` plain-mode is readable at a glance (state, hooks, daemon, last witness).            |
+| `ADTRUST-002`   | After ADTRUST-001 | Degraded state surfacing — user is told within 60s of next save-time interaction.                  |
+| `ADTRUST-003`   | Parallel        | `anvil doctor` diagnose-and-fix recovery for the common bad states.                                |
+| `ADTRUST-004`   | Parallel        | Daemon-down auto-recovery — hooks detect, re-arm; `anvil start` is idempotent.                     |
+| `ADTRUST-005`   | After ADTRUST-001 | Pin the `anvil status --json` schema for editor/CI consumption.                                    |
+| `ADTRUST-006`   | Parallel        | First `anvil start` prints a short, accurate claim summary the user can verify themselves.        |
 
 ## Wave 4 (extended) — Release-Gate Closure
 
@@ -199,7 +199,7 @@ proposal.
 | Criterion                             | Required Evidence                                                                                                    |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Protection claim correctness          | `MLP-009` green: every allowed state is reachable in fixtures and rendered honestly.                                 |
-| Protection claim legibility (**NEW**) | `TRUST-001` and `TRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.       |
+| Protection claim legibility (**NEW**) | `ADTRUST-001` and `ADTRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.       |
 | Save-time and hook layers             | Pre-commit, pre-push, post-commit/-merge/-rewrite hooks run with ADR-038 noise discipline.                           |
 | Hook coexistence (**NEW**)            | `ADOPT-001` green: install + run alongside lefthook/husky/pre-commit-framework on representative configs.            |
 | Witness integrity                     | Concurrent writes, rollover, tamper detection, DAG verification, and worktree survival tests pass.                   |
@@ -248,7 +248,7 @@ release plan — it is what makes the *next* release plan trustworthy.
 | Scope expansion makes ship date slip indefinitely.              | Each new module has explicit defer-to-`v0.7.x` items marked in its task body. Cut to the gate criteria, not below.                                          |
 | Boring Week protocol is performative, not real.                 | Require journal artefacts as a release record. Journals land in `plans/audits/2026-XX-XX-boring-week-vN.md`.                                                |
 | `anvil-run` (INTL) is not actually needed for "let's use this." | Defer cleanly: INTL-001..-005 ship in `v0.7.0`; INTL-006..-009 can land in `v0.7.1` if Wave 3 slips and they would block Boring Week.                       |
-| TRUST surface increases noise.                                  | TRUST-002 has an explicit noise budget (≤1 banner per 60s, never more than one concurrent). Tests pin this.                                                 |
+| ADTRUST surface increases noise.                                  | ADTRUST-002 has an explicit noise budget (≤1 banner per 60s, never more than one concurrent). Tests pin this.                                                 |
 | New modules clash with existing in-flight work.                 | All Wave 3A / 3B work depends only on Done MLP surfaces and one WATCHUX item (WATCHUX-002, already in flight).                                              |
 
 ---
@@ -270,7 +270,7 @@ pre-tag follow-ups the live `RELEASE-PLAN.md` carries.
 
 - [x] @aneki accepts the cut claim ("the release we sit on") as the v0.7.0
       shape. *(Accepted 2026-05-14 during the planning conversation.)*
-- [x] Each new module (TRUST, ADOPT, DISTRIB, INSIGHTS) is reviewed and
+- [x] Each new module (ADTRUST, ADOPT, DISTRIB, INSIGHTS) is reviewed and
       promoted from `Proposed` → `Ready` at the module level (per
       `plans/aps-rules.md` Status Rules). *(Done; see individual module
       headers, all four are `Ready` as of 2026-05-14.)*

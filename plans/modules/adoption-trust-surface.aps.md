@@ -4,14 +4,14 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| TRUST | @aneki | Ready  | 0/6 done |
+| ADTRUST | @aneki | Ready  | 0/6 done |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Module-level `Ready` means "ready to begin Wave 3B"; individual tasks
 remain `Draft` until each is picked up — matches the INTL precedent.
-TRUST-001 is the load-bearing item; the other five extend its render
+ADTRUST-001 is the load-bearing item; the other five extend its render
 path or sit alongside it.)
 
 ## Purpose
@@ -70,7 +70,7 @@ rather than a product feature — and sustained-use trust never forms.
 
 ## Tasks
 
-### TRUST-001: `anvil status` Plain-Mode Legibility
+### ADTRUST-001: `anvil status` Plain-Mode Legibility
 
 - **Intent:** Make the default `anvil status` output understandable in one read
   by a developer who has not read the docs.
@@ -96,7 +96,7 @@ rather than a product feature — and sustained-use trust never forms.
   - text: "`anvil status` now fits a single screen and reports the protection
     state from the closed-set vocabulary."
 
-### TRUST-002: Degraded-State Surfacing During Normal Use
+### ADTRUST-002: Degraded-State Surfacing During Normal Use
 
 - **Intent:** When the protection claim drops below `full`, tell the user
   visibly within 60 seconds of their next save-time interaction.
@@ -113,7 +113,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil-tui watch::tests::degraded_banner_rate_limited`
   - `cargo test -p eddacraft-anvil-kernel watch::tests::degraded_emits_within_60s`
 - **Status:** Draft
-- **Dependencies:** TRUST-001
+- **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -123,7 +123,7 @@ rather than a product feature — and sustained-use trust never forms.
   - text: "Watch and hooks now surface degraded protection states with a
     pointer to `anvil doctor`."
 
-### TRUST-003: `anvil doctor` Diagnose-And-Fix Recovery
+### ADTRUST-003: `anvil doctor` Diagnose-And-Fix Recovery
 
 - **Intent:** Make recovery from the common bad states a single-command
   operation, not a knowledge-base scavenger hunt.
@@ -149,7 +149,7 @@ rather than a product feature — and sustained-use trust never forms.
   - text: "`anvil doctor --fix` recovers from the common documented bad
     states."
 
-### TRUST-004: Daemon-Down Auto-Recovery
+### ADTRUST-004: Daemon-Down Auto-Recovery
 
 - **Intent:** Daemon crashes happen. The user experience when they happen
   should be silent re-arm, not silent failure.
@@ -178,7 +178,7 @@ rather than a product feature — and sustained-use trust never forms.
   - text: "Anvil now degrades cleanly when the daemon is unavailable instead
     of silently failing."
 
-### TRUST-005: Pin `anvil status --json` Schema
+### ADTRUST-005: Pin `anvil status --json` Schema
 
 - **Intent:** Editor extensions and CI consumers need a stable contract
   before they invest in integrating.
@@ -195,7 +195,7 @@ rather than a product feature — and sustained-use trust never forms.
   - `cargo test -p eddacraft-anvil --test status_json_contract`
   - `pnpm run validate:schemas` (extend to cover the new schema)
 - **Status:** Draft
-- **Dependencies:** TRUST-001
+- **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -205,7 +205,7 @@ rather than a product feature — and sustained-use trust never forms.
   - text: "`anvil status --json` is now schema-pinned at `anvil-status.v1` for
     stable editor/CI consumption."
 
-### TRUST-006: First-Run Claim Summary
+### ADTRUST-006: First-Run Claim Summary
 
 - **Intent:** When `anvil start` lands, print a short, accurate summary of
   what protection the user just turned on, plus a verification recipe they
@@ -234,12 +234,12 @@ rather than a product feature — and sustained-use trust never forms.
 
 ## Sequencing
 
-1. **TRUST-001** establishes the legible default output; everything else
+1. **ADTRUST-001** establishes the legible default output; everything else
    reuses its render path.
-2. **TRUST-002** layers degraded-state surfacing onto the render path from
+2. **ADTRUST-002** layers degraded-state surfacing onto the render path from
    -001.
-3. **TRUST-005** pins the JSON contract once -001 is settled.
-4. **TRUST-003**, **TRUST-004**, **TRUST-006** are parallel after -001.
+3. **ADTRUST-005** pins the JSON contract once -001 is settled.
+4. **ADTRUST-003**, **ADTRUST-004**, **ADTRUST-006** are parallel after -001.
 
 ## Release Notes
 
