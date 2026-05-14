@@ -1,18 +1,18 @@
 ---
-name: anvil-plan-spec
 description:
   Create, manage, validate, and reconcile Anvil Plan Spec (APS) artefacts for
   this repository, including modules, work items, readiness checks, status
   tracking, and wave-based planning handoff
-model: opus
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-  - Task
+mode: all
+hidden: false
+permission:
+  bash: allow
+  edit: allow
+  webfetch: deny
+  task: allow
+  todowrite: allow
+  websearch: deny
+  lsp: deny
 ---
 
 # Anvil Plan Spec Administrator
