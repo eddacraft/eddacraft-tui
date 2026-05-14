@@ -19,5 +19,5 @@ Add a new fixture when:
 1. Introducing a new `event_type` value (still within `v1` — additive).
 2. Documenting a new optional payload field shape.
 
-Never edit an existing fixture in a way that removes or renames a required
-field within v1. That is a `v2` breaking change.
+Never edit an existing fixture in a way that removes or renames a required field
+within v1. That is a `v2` breaking change.

@@ -406,12 +406,42 @@ fn fixture_engine_wide_error_envelope_omits_file_field() {
         serde_json::from_str(&line).expect("engine-wide error fixture round-trips");
 }
 
+/// Extract every fenced `json` block from a markdown document, parse
+/// each block as `serde_json::Value`, and return them in document order.
+/// Used by `public_docs_examples_match_fixtures` to compare documented
+/// examples against fixtures semantically — `oxfmt` pretty-prints fenced
+/// JSON, so a byte-string match against single-line fixtures would
+/// break on every doc reflow.
+fn extract_json_blocks(markdown: &str) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let mut iter = markdown.lines().peekable();
+    while let Some(line) = iter.next() {
+        if line.trim_start().starts_with("```json") {
+            let mut buf = String::new();
+            for inner in iter.by_ref() {
+                if inner.trim_start().starts_with("```") {
+                    break;
+                }
+                buf.push_str(inner);
+                buf.push('\n');
+            }
+            if let Ok(value) = serde_json::from_str(&buf) {
+                out.push(value);
+            }
+        }
+    }
+    out
+}
+
 #[test]
 fn public_docs_examples_match_fixtures() {
     // The consumer docs in docs/public/anvil/integrations/watch-output.md
-    // ship copy-pasteable NDJSON examples. They must stay byte-identical
-    // to the fixtures so a `jq` example a reader copies still parses
-    // against the same shape the binary emits.
+    // ship copy-pasteable NDJSON examples. They must stay *semantically*
+    // identical to the fixtures so a `jq` example a reader copies still
+    // parses against the same shape the binary emits. We do not assert
+    // byte-equality because `oxfmt` pretty-prints fenced JSON in
+    // markdown, which is a deliberate house-style choice — what matters
+    // is the parsed shape, not the whitespace.
     let docs_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
@@ -422,6 +452,7 @@ fn public_docs_examples_match_fixtures() {
         .join("watch-output.md");
     let docs = std::fs::read_to_string(&docs_path)
         .unwrap_or_else(|err| panic!("read {}: {err}", docs_path.display()));
+    let documented_examples = extract_json_blocks(&docs);
 
     // `error-engine-wide.jsonl` is intentionally not checked against the
     // public docs: the docs show the common `error` shape with a `file`
@@ -434,10 +465,14 @@ fn public_docs_examples_match_fixtures() {
         "violation.jsonl",
         "error.jsonl",
     ] {
-        let line = read_fixture_line(fixture);
+        let fixture_line = read_fixture_line(fixture);
+        let fixture_value: serde_json::Value =
+            serde_json::from_str(&fixture_line).expect("fixture parses");
         assert!(
-            docs.contains(line.trim_end()),
-            "public consumer docs missing fixture line for {fixture}:\nexpected: {line}",
+            documented_examples.contains(&fixture_value),
+            "public consumer docs missing example with the same shape as {fixture}:\n\
+             fixture parsed: {fixture_value}\n\
+             documented examples: {documented_examples:#?}",
         );
     }
 }
