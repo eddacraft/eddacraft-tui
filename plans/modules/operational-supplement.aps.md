@@ -1,5 +1,12 @@
-<!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
-<!-- Executable only if tasks exist and status is Ready or In Progress. -->
+<!--
+APS Module: Operational Supplement
+==================================
+Cross-cutting infrastructure for the Language & Coverage tracks. Owns shared
+operational work items but coordinates with Track 3 governance surfaces and
+Track 4 semantic packs.
+
+Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
+-->
 
 # Operational Supplement (Cross-Track Infrastructure)
 
@@ -7,7 +14,20 @@
 | ----- | ------- | ----------- | -------- |
 | OPSUP | OpenCode | In Progress | 1/7      |
 
-**Last reviewed:** 2026-04-29
+**Last reviewed:** 2026-05-14
+
+## Cross-cutting convention
+
+This module follows the cross-cutting convention. The normative spec lives in
+[`plans/aps-rules.md#cross-cutting-modules`][rules]; OPSUP owns only the shared
+operational prerequisites it lists below. Surface and pack modules own their own
+rule catalogues, validation runs, and task counts.
+
+[rules]: ../aps-rules.md#cross-cutting-modules
+
+Task bodies that depend on OPSUP slices should use `Blocks on:` or
+`Coordinates with:` callouts and close those callouts when the dependent task is
+completed, per ADR-034.
 
 > Note (2026-04-27): the old spec-level reference to a hardcoded
 > `AVAILABLE_CHECKS` array in `gate.rs` is stale. The current Rust CLI

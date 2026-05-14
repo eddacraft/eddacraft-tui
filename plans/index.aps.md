@@ -488,18 +488,35 @@ TCOV/TINT/TEXT depend on it.
 
 Coverage strategy is defined by the
 [2026-04-08 Language and Coverage Design](./specs/2026-04-08-language-and-coverage-design.md)
-(refreshed 2026-04-19). The flat "ten languages" placeholder list has been
+(refreshed 2026-05-14). The flat "ten languages" placeholder list has been
 replaced with **five parallel tracks**, ranked against demand × blast radius ×
 strategic fit per spec §6. The original `lang-*.aps.md` placeholders for Dart,
 Go, Java, Kotlin, .NET, C/C++, Swift, Zig have been **archived** now that their
 content is folded into the new modules; `lang-rust.aps.md` and
 `lang-python.aps.md` have been **rewritten in place** as Track 1 anchors.
 
-- **Phase 1 (MVP)**: TS audit + SQL migrations T2 + Pulumi pack + LLM Provider
-  pack (warn-only). Spec §9 steps 1–4.
-- **Phase 2** (named deliverables complete): Rust → T3, GH Actions T2, Drizzle
-  pack, tail T1 wave, Python → T3, Python-substrate LLM Provider, Next.js, Hono,
-  Tokio packs, Markdown M1. Spec §9 steps 5–14.
+This section is the canonical APS definition for the next Language & Coverage
+target set. Treat the five tracks as a cross-cutting module family under
+[ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md) and
+[`plans/aps-rules.md#cross-cutting-modules`](./aps-rules.md#cross-cutting-modules):
+each track module owns and counts its own work items, while cross-track
+coordination uses prose callouts (`Coordinates with:`, `Blocks on:`,
+`Supersedes:`, `Superseded by:`) that must be swept when tasks close. OPSUP owns
+shared operational prerequisites for Track 3 surfaces and Track 4 packs; it does
+not duplicate their rule-catalogue work.
+
+**Next executable target:** Phase 1 stays the first cut unless re-scored:
+`LANGTS` anchor zero, `RSTLAN`, `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
+needed OPSUP slices and FLAGCAT catalogue-bootstrap slice completed first or
+cited as `Blocks on:` callouts in the owning tasks.
+
+- **Phase 1 (MVP + Rust dogfood)**: TS audit + Rust → T3 + SQL migrations T2 +
+  Pulumi pack + LLM Provider pack (warn-only). Spec §9 steps 1–5 after the
+  2026-05-14 Rust reprioritisation.
+- **Phase 2** (named deliverables complete): GH Actions T2, Drizzle pack, tail
+  T1 wave, Python → T3, Python-substrate LLM Provider, Next.js, Hono, Tokio
+  packs, Markdown M1. Spec §9 steps 6–14 after removing Rust from later-phase
+  scope.
 - **Phase 3 / open-ended**: remaining surfaces (Dockerfile, shell, `.env`),
   remaining packs (Django, FastAPI, Axum). Demand-pulled.
 - **Cut entirely** (spec §13): Swift, Zig, Express, NestJS, Flask, Spring,
@@ -514,7 +531,7 @@ Python must hit. Spec §7, §8.1.
 | Module                                          | Scope  | Status | Phase | Spec ref                                                                                                                                                   |
 | ----------------------------------------------- | ------ | ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready  | 1     | §7.3, §8.1 — 2/5; promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval) |
-| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Draft  | 2     | §8.1                                                                                                                                                       |
+| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Draft  | 1     | §8.1 — promoted into first-phase target set 2026-05-14; remains Draft until LANGTS/kernel/ADR readiness gates close                                          |
 | [lang-python](./modules/lang-python.aps.md)     | PYLAN  | Draft  | 2     | §8.1                                                                                                                                                       |
 
 #### Track 2 — Tail T1 wave (single batched sprint)
@@ -600,9 +617,9 @@ it, each new module would re-design the same plumbing.
 
 | ADR                                                        | Decision                                                                                      | Status   | Gates                       |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------- | --------------------------- |
-| [ADR-027](./decisions/027-pack-architecture.md)            | Per-pack crate, symbol-graph access, compiled-in activation                                   | Proposed | All Track 4 packs           |
-| [ADR-028](./decisions/028-markdown-governance-crate.md)    | Standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark`               | Proposed | MDGOV                       |
-| [ADR-029](./decisions/029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles in TS parser | Proposed | All Track 3 surfaces, MDGOV |
+| [ADR-027](./decisions/027-pack-architecture.md)            | Per-pack crate, symbol-graph access, compiled-in activation                                   | Accepted | All Track 4 packs           |
+| [ADR-028](./decisions/028-markdown-governance-crate.md)    | Standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark`               | Accepted | MDGOV                       |
+| [ADR-029](./decisions/029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles in TS parser | Accepted | All Track 3 surfaces, MDGOV |
 
 #### Supporting process
 

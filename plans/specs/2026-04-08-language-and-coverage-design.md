@@ -6,7 +6,7 @@
 > strategy grounded in real early-access user stacks.
 
 **Date:** 2026-04-08
-**Last refreshed:** 2026-04-19
+**Last refreshed:** 2026-05-14
 **Status:** Accepted in principle (pending §10 + §17 actions)
 **Relates to:** All `lang-*` placeholder modules in `plans/modules/`, the `### Multi-Language Support (Draft)` section of `plans/index.aps.md`, and the `### Task Status — Multi-Language (Draft)` section of `plans/index.aps.md`
 **Supersedes:** The Multi-Language Support section of `plans/index.aps.md` and all ten `lang-*.aps.md` placeholders (to be rewritten, merged, or archived per §10)
@@ -40,6 +40,16 @@ Eleven days after the original draft. Changes:
    **not inlined here** — they belong in the implementation plans
    produced downstream per §15. §16 remains the canonical record of the
    council session; amendments that reshape §1–15 are listed in §17.
+
+## Refresh log — 2026-05-14
+
+Founder reprioritisation after the daemon-working product slate: Rust coverage
+must be in the first Language & Coverage cut because Anvil's primary
+implementation surface is now Rust-heavy and the product needs to audit itself.
+This moves **Track 1 item 1 — Rust → T3** above the Phase 1 line while keeping
+its readiness gates intact: LANGTS must publish/close the T3 checklist and
+kernel prerequisites, and RSTLAN still needs the Rust T3 architecture-enforcement
+ADR before execution.
 
 ---
 
@@ -636,19 +646,23 @@ Tracks do not share engineering attention equally:
 4. Track 4 item 4 — TS LLM Provider pack, warn-only (unblocks after step 1
    — see §8.4.1)
 
-**━━━ Phase 1 line (MVP) ━━━**
+5. Track 1 item 1 — Rust → T3 (promoted into first-phase dogfood coverage on
+   2026-05-14; still gated on LANGTS/kernel prerequisites and the Rust T3
+   architecture-enforcement ADR)
 
-Steps 1–4 constitute the hard Phase 1 / MVP boundary added per council
-findings C-011/C-021. On completion of step 4, Anvil has a shippable
+**━━━ Phase 1 line (MVP + Rust dogfood) ━━━**
+
+Steps 1–5 constitute the hard Phase 1 / MVP boundary added per council
+findings C-011/C-021. On completion of step 5, Anvil has a shippable
 "coverage + governance + strategic narrative" bundle: TS at audited T3,
-SQL migrations governed, Pulumi infrastructure governed, and the AI/ML
-governance story provable via warn-only LLM Provider detection. Every
-item below this line is Phase 2+ and is not required to declare the
-language-and-coverage design a success.
+Rust at T3 for dogfooding, SQL migrations governed, Pulumi infrastructure
+governed, and the AI/ML governance story provable via warn-only LLM Provider
+detection. Every item below this line is Phase 2+ and is not required to declare
+the language-and-coverage design a success, but Rust is now included in the
+first cut so Anvil can audit its own Rust substrate before later packs expand.
 
-5. Track 5 — Markdown M1 (parallel; self-contained — can slot anywhere
+6. Track 5 — Markdown M1 (parallel; self-contained — can slot anywhere
    in Phase 2 or earlier if bandwidth allows)
-6. Track 1 item 1 — Rust → T3
 7. Track 3 item 2 — GitHub Actions YAML T2
 8. Track 4 item 2 — Drizzle pack
 9. Track 2 — Tail T1 wave (single sprint)
@@ -657,12 +671,12 @@ language-and-coverage design a success.
     after step 10 — see §8.4.1, §12.9)
 12. Track 4 item 3 — Next.js pack
 13. Track 4 item 5 — Hono pack
-14. Track 4 item 6 — Tokio pack (unblocks after Rust T2+ in step 6)
+14. Track 4 item 6 — Tokio pack (unblocks after Rust T2+ in step 5)
 
 **━━━ Phase 2 line (named deliverables complete) ━━━**
 
-Steps 5–14 constitute Phase 2 — every named, user-visible deliverable
-scoped by this design. On completion of step 14, all three anchors are
+Steps 6–14 constitute Phase 2 — every named, user-visible deliverable scoped by
+this design beyond the first cut. On completion of step 14, all three anchors are
 at T3, all five named TS packs ship, the Python-substrate LLM Provider
 extension ships, the top two governance surfaces (SQL, GitHub Actions)
 are at T2, the tail T1 wave has shipped, and the Tokio pack rides on

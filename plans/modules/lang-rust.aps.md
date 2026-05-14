@@ -7,7 +7,14 @@
 | ------ | ----- | ------ |
 | RSTLAN | —     | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-14
+
+> **Priority update (2026-05-14):** RSTLAN is now part of the first Language &
+> Coverage target set because Anvil's primary implementation surface is Rust and
+> founder priority is to get Rust coverage sorted before later packs expand. The
+> module remains `Draft` until the readiness gates below close; this priority
+> change does not authorise implementation before LANGTS/kernel prerequisites and
+> the Rust T3 architecture-enforcement ADR are ready.
 
 ## Purpose
 
@@ -76,7 +83,8 @@ shape entirely.
 
 **Exposes:**
 
-- Rust at T3 — substrate-tier prerequisite for `pack-tokio` and (Phase 3) `pack-axum`.
+- Rust at T3 — first-phase dogfood coverage for Anvil's own crates and
+  substrate-tier prerequisite for `pack-tokio` and (Phase 3) `pack-axum`.
 - Rust portion of T3 acceptance evidence — calibration data for Python anchor.
 
 ## Prerequisites
