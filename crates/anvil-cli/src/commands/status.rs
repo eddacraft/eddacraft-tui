@@ -872,8 +872,17 @@ const fn next_action_for(state: WorktreeClaimState, daemon: &DaemonSummary) -> &
 // Output: JSON
 // ---------------------------------------------------------------------------
 
+/// Schema version pinned for `anvil status --json` (ADTRUST-005).
+/// Editor extensions and CI consumers parse against this constant
+/// and refuse any other value. Patch releases keep the version
+/// stable; minor releases bump it explicitly with a JSON Schema
+/// migration. The companion schema lives at
+/// `schemas/anvil-status.v1.json`.
+pub const STATUS_SCHEMA_VERSION: &str = "anvil.status.v1";
+
 #[derive(Serialize)]
 struct StatusOutput {
+    schema_version: &'static str,
     activation: serde_json::Value,
     hooks: Vec<HookOutput>,
     profile: ProfileOutput,
@@ -909,6 +918,7 @@ fn print_json(
     activation_diag: &activation::ActivationDiagnostic,
 ) -> anyhow::Result<()> {
     let output = StatusOutput {
+        schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
         hooks: data
             .hooks

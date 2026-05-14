@@ -194,7 +194,7 @@ rather than a product feature — and sustained-use trust never forms.
 - **Validation:**
   - `cargo test -p eddacraft-anvil --test status_json_contract`
   - `pnpm run validate:schemas` (extend to cover the new schema)
-- **Status:** Draft
+- **Status:** In Progress
 - **Dependencies:** ADTRUST-001
 - **changeType:** feature
 - **releaseIntent:** candidate
