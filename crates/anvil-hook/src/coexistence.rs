@@ -661,10 +661,14 @@ mod tests {
                     .contains(&format!("id: anvil-{}", k.filename())),
                 "missing id for {k:?}"
             );
+            // Use the actual stage helper so a future divergence
+            // between `filename()` and `pre_commit_stage()` (e.g.
+            // adding `HookKind::CommitMsg` whose stage name differs
+            // from its filename) trips this test.
             assert!(
                 managed
                     .initial_content
-                    .contains(&format!("stages: [{}]", k.filename())),
+                    .contains(&format!("stages: [{}]", pre_commit_stage(*k))),
                 "missing stage for {k:?}"
             );
         }
