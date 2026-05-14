@@ -308,15 +308,71 @@ retirement decisions:
 
 ### RMCPF-011: Port fix/suppress/boundary tools
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
   validation and redaction boundaries.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_fix`,
   `anvil_suppress`, and `anvil_query_boundary` or documented successors.
 - **Validation:** Compatibility tests cover success, failure, workspace escape,
-  and dry-run cases
-- **Files:** `crates/anvil-cli/src/mcp/tools/`,
-  `archive/anvil-mcp-server/src/tools/`
+  and dry-run cases. The new tools sit beside `anvil_check`/`anvil_gate` in
+  the Rust registry; `cargo test -p eddacraft-anvil --bin anvil mcp::tools`
+  and `cargo test -p eddacraft-anvil --test mcp_serve_stdio` pass with all
+  three new tools wired in. Unit tests cover happy path, missing fields,
+  workspace-outside-server-root, parent-dir escape, absolute-path rejection,
+  blank/over-limit reasons, expiryDays clamp, symlink-target containment, and
+  line-out-of-range. Integration tests cover `tools/list` exposing all seven
+  tools, `tools/call` on each new tool, and the prompts capability negation
+  (RMCPF-012). Closeout evidence is reproduced under §RMCPF-011 closeout
+  evidence below.
+- **Files:** `crates/anvil-cli/src/mcp/tools/query_boundary.rs`,
+  `crates/anvil-cli/src/mcp/tools/suppress.rs`,
+  `crates/anvil-cli/src/mcp/tools/fix.rs`,
+  `crates/anvil-cli/src/mcp/tools/registry.rs`,
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs`,
+  `crates/anvil-architecture/src/lib.rs` (re-export `assign_layers` +
+  `BoundarySeverity` for the MCP query layer),
+  `archive/anvil-mcp-server/src/tools/` (frozen reference).
+- **Closeout evidence:** Rust MCP registry now dispatches seven tools
+  (`anvil_validate_write`, `anvil_status`, `anvil_check`, `anvil_gate`,
+  `anvil_query_boundary`, `anvil_suppress`, `anvil_fix`). All three RMCPF-011
+  tools reuse the shared workspace-containment / redaction helpers from
+  `crates/anvil-cli/src/mcp/tools/shared.rs` so a future hardening tweak lands
+  in one place. `anvil_query_boundary` is MCP-driver-local composition: it
+  reads `.anvil/architecture.json` through `anvil_architecture::load_baseline`
+  and matches layers through `assign_layers` so the verdict aligns with
+  `anvil check` for the same file pair. The handler covers the
+  archived-TS reason set (`no-baseline`, `baseline-load-failed`,
+  `unassigned-layer`, `same-layer`, `boundary-ok`, `boundary-violation`) and
+  only treats Error-severity boundaries as blocking, so an explicit
+  warning-level rule downgrades a default deny to `boundary-ok` rather than
+  blocking. `anvil_suppress` ships as the daemon-RPC translator's
+  correctness-equivalent embedded fallback because no INTD-owned
+  `suppression.apply` exists yet; it validates workspace-relative
+  containment, canonicalises symlink targets, sanitises CR/LF from `reason`,
+  enforces a 512-byte reason cap and a 1–365 day `expiryDays` range, holds
+  a same-process exclusive lock around the read-modify-write, and inserts
+  `// @anvil-ignore-until YYYY-MM-DD <warningId>: <reason>` above the target
+  line preserving its indent. The response carries
+  `backend: "embedded"` / `daemonStatus: "not-wired"` so a future flip to
+  daemon-authorised mutation does not change the wire shape. `anvil_fix` is
+  MCP-driver-local composition: AP-001 / AP-003 / AP-004 are line-by-line
+  deterministic transforms with the same string-literal/comment-aware
+  character walker the archived TS tool used. Unknown warning IDs return a
+  `fixed: false` payload with the supported-pattern list rather than an
+  error so the LLM can fall back to manual editing. Both mutating tools
+  reuse the embedded-fallback `backend` field so the MCP correlation envelope
+  matches RMCPF-010.
+- **Validation Evidence:** Validated on 2026-05-14 with
+  `cargo test -p eddacraft-anvil --bin anvil mcp::tools` (95 unit tests
+  green, including the 23 new tests across `query_boundary`, `suppress`, and
+  `fix`) and
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio` (24 integration
+  tests green, including
+  `mcp_serve_stdio_tools_list_returns_registered_tools` updated for the
+  seven-tool registry,
+  `mcp_serve_stdio_tools_call_query_boundary_returns_no_baseline_for_clean_workspace`,
+  `mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file`,
+  and `mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown`).
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RMCPF-010
@@ -325,15 +381,52 @@ retirement decisions:
 
 ### RMCPF-012: Port or retire MCP prompts
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be
   retired in favour of docs and tool descriptions.
 - **Expected Outcome:** Prompt parity exists where still useful; retired prompts
   have migration notes and tests updated accordingly.
-- **Validation:** Prompt list from Rust matches the inventory disposition
-- **Files:** `crates/anvil-cli/src/mcp/prompts/`,
-  `archive/anvil-mcp-server/src/prompts/`
-- **Confidence:** medium
+- **Validation:** Prompt list from Rust matches the inventory disposition.
+  Integration tests pin both the capability omission and the JSON-RPC
+  `Method not found` for `prompts/list`.
+- **Files:** `plans/specs/rust-mcp-full-port-inventory.md` (per-prompt
+  retirement matrix and migration text),
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs` (capability + method assertions),
+  `archive/anvil-mcp-server/src/prompts/` (frozen reference).
+- **Closeout decision (2026-05-14):** All four archived prompts —
+  `fix-violation`, `suppress-violation`, `architecture-review`,
+  `pre-generation` — are **retired**. Rationale:
+  - Phase 0 (RMCPF-003) confirmed Phase 1 clients (Claude Code, Cursor) do
+    not depend on the archived prompts to call `anvil_check` /
+    `anvil_gate` / `anvil_suppress`.
+  - `docs/architecture/rust-mcp-server-spec.md` §"Prompt Strategy"
+    explicitly warns that prompt content must not become a hidden
+    architecture policy surface. Re-porting the prompts would re-introduce
+    that hidden surface.
+  - The new RMCPF-010 / RMCPF-011 tool descriptions already carry the
+    actionable guidance (limitations, expected next call), so clients
+    surface the same hints without a `prompts/get` round-trip.
+
+  Enforcement landed in two places:
+  - `initialize` `capabilities` omits `prompts`, so MCP clients negotiate
+    without it. Pinned by
+    `mcp_serve_stdio_initialize_does_not_advertise_prompts_capability`.
+  - `prompts/list` returns JSON-RPC error `-32601 Method not found` rather
+    than an empty list. Pinned by
+    `mcp_serve_stdio_prompts_list_returns_method_not_found`.
+
+  Per-prompt migration notes live in
+  `plans/specs/rust-mcp-full-port-inventory.md` §Prompts and §"Prompts —
+  RMCPF-012 disposition". RMCPF-030 must include the retirement in its
+  compatibility matrix and migration docs. The archived TS prompts stay
+  frozen under `archive/anvil-mcp-server/src/prompts/` until RMCPF-031.
+- **Validation Evidence:** Validated on 2026-05-14 with
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio` — the
+  RMCPF-012 cases
+  `mcp_serve_stdio_initialize_does_not_advertise_prompts_capability` and
+  `mcp_serve_stdio_prompts_list_returns_method_not_found` are green
+  (24/24 integration tests pass).
+- **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** RMCPF-001
 
@@ -449,7 +542,7 @@ retirement decisions:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
-| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 Draft |
+| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 In Progress |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
 | **Total** | **10** | **4/10 done** |

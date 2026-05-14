@@ -211,7 +211,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 4);
+    assert_eq!(tools.len(), 7);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
@@ -228,6 +228,18 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .iter()
         .find(|tool| tool["name"] == "anvil_gate")
         .expect("tools/list includes anvil_gate");
+    let query_boundary = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_query_boundary")
+        .expect("tools/list includes anvil_query_boundary");
+    let suppress = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_suppress")
+        .expect("tools/list includes anvil_suppress");
+    let fix = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_fix")
+        .expect("tools/list includes anvil_fix");
     let description = validate_write["description"]
         .as_str()
         .expect("tool descriptor must include a description");
@@ -252,6 +264,22 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
             .get("targetFiles")
             .is_some()
     );
+    assert_eq!(query_boundary["inputSchema"]["type"], "object");
+    let qb_required = query_boundary["inputSchema"]["required"]
+        .as_array()
+        .expect("anvil_query_boundary required is an array");
+    assert!(qb_required.contains(&json!("sourceFile")));
+    assert!(qb_required.contains(&json!("targetFile")));
+    assert_eq!(suppress["inputSchema"]["type"], "object");
+    let suppress_required = suppress["inputSchema"]["required"]
+        .as_array()
+        .expect("anvil_suppress required is an array");
+    assert!(suppress_required.contains(&json!("reason")));
+    assert_eq!(fix["inputSchema"]["type"], "object");
+    let fix_required = fix["inputSchema"]["required"]
+        .as_array()
+        .expect("anvil_fix required is an array");
+    assert!(fix_required.contains(&json!("warningId")));
 }
 
 #[test]
@@ -943,6 +971,275 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content() {
     );
     assert_eq!(payload["correlation"]["backend"], "daemon");
     assert_eq!(payload["correlation"]["daemonStatus"], "available");
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_query_boundary_returns_no_baseline_for_clean_workspace() {
+    let workspace = tempfile::tempdir().expect("workspace exists");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 30,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_query_boundary",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "sourceFile": "src/controllers/user.ts",
+                        "targetFile": "src/domain/user.ts"
+                    }
+                }
+            })
+        )
+        .expect("failed to send query_boundary tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after query_boundary call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("query_boundary response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 30);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["allowed"], true);
+    assert_eq!(payload["reason"], "no-baseline");
+    assert_eq!(payload["backend"], "local");
+    assert_eq!(payload["daemonStatus"], "not-wired");
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file() {
+    let workspace = tempfile::tempdir().expect("workspace exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(src.join("a.ts"), "const x: any = 1;\n").expect("fixture written");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 31,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_suppress",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "filePath": "src/a.ts",
+                        "warningId": "AP-003",
+                        "line": 1,
+                        "reason": "legacy contract under TICKET-123"
+                    }
+                }
+            })
+        )
+        .expect("failed to send suppress tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after suppress call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("suppress response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 31);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["suppressed"], true);
+    assert_eq!(payload["warningId"], "AP-003");
+    assert_eq!(payload["backend"], "embedded");
+    assert_eq!(payload["daemonStatus"], "not-wired");
+
+    let on_disk =
+        std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+    assert!(on_disk.contains("@anvil-ignore-until"));
+    assert!(on_disk.contains("AP-003: legacy contract under TICKET-123"));
+}
+
+#[test]
+fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
+    let workspace = tempfile::tempdir().expect("workspace exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(src.join("a.ts"), "const x: any = 1;\n").expect("fixture written");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 32,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_fix",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "filePath": "src/a.ts",
+                        "warningId": "AP-003",
+                        "line": 1
+                    }
+                }
+            })
+        )
+        .expect("failed to send fix tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after fix call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("fix response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 32);
+    assert_eq!(parsed["result"]["isError"], false);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["fixed"], true);
+    assert_eq!(payload["before"], "const x: any = 1;");
+    assert_eq!(payload["after"], "const x: unknown = 1;");
+
+    let on_disk =
+        std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+    assert!(on_disk.contains("const x: unknown = 1;"));
+}
+
+#[test]
+fn mcp_serve_stdio_initialize_does_not_advertise_prompts_capability() {
+    // RMCPF-012: prompts are deferred-then-retired per
+    // `plans/specs/rust-mcp-full-port-inventory.md` §Prompts. The Rust MCP
+    // server must NOT advertise a `prompts` capability so clients don't
+    // try to call `prompts/list` against a surface we don't ship.
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 40,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": { "name": "rmcpf012-test-client", "version": "0.0.0" }
+                }
+            })
+        )
+        .expect("failed to send initialize frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after initialize and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("initialize response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 40);
+    let capabilities = parsed["result"]["capabilities"]
+        .as_object()
+        .expect("capabilities is an object");
+    assert!(
+        capabilities.get("prompts").is_none(),
+        "RMCPF-012 retires prompts — initialize must not advertise the capability, got {capabilities:?}",
+    );
+    assert!(
+        capabilities.get("tools").is_some(),
+        "tools capability must still be advertised",
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_prompts_list_returns_method_not_found() {
+    // RMCPF-012: `prompts/list` is not implemented because no prompts are
+    // ported. The server must return JSON-RPC `Method not found` rather
+    // than silently succeeding with an empty list, so clients see the
+    // retirement decision rather than guess.
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 41,
+                "method": "prompts/list"
+            })
+        )
+        .expect("failed to send prompts/list frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after prompts/list and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("prompts/list response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 41);
+    assert_eq!(parsed["error"]["code"], -32601);
+    assert_eq!(parsed["error"]["message"], "Method not found");
 }
 
 #[test]

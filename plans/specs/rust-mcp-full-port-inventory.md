@@ -25,9 +25,9 @@ the TypeScript package as a runtime dependency.
 
 | Surface | Archived count | Rust full-port disposition |
 | --- | ---: | --- |
-| Tools | 6 | Port all, with `anvil_suppress` authority resolved before mutation ships |
+| Tools | 6 | All ported under RMCPF-010 / RMCPF-011. `anvil_suppress` ships as the daemon-RPC translator's correctness-equivalent embedded fallback pending an INTD-owned `suppression.apply` (see RMCPF-011 disposition below). |
 | Resources | 8 | Port with Rust-owned sources of truth |
-| Prompts | 4 | Defer unless supported clients prove prompt usage |
+| Prompts | 4 | Retired under RMCPF-012 (2026-05-14). Rust MCP server does not advertise the `prompts` capability and `prompts/list` returns JSON-RPC `Method not found`. See "Prompts — RMCPF-012 disposition" below for the per-prompt migration notes. |
 | Transports | 2 | Keep stdio canonical for Phase 1; retire Streamable HTTP unless supported-client demand is proven before RMCPF-021 |
 | Client config targets | 4 | Support Claude Code and Cursor first; defer Windsurf and VS Code |
 
@@ -77,10 +77,47 @@ and covered by `archive/anvil-mcp-server/src/prompts/prompts.test.ts`.
 
 | Prompt | File | Args | Behaviour | Current tests | Owner / follow-on item | Disposition |
 | --- | --- | --- | --- | --- | --- | --- |
-| `fix-violation` | `archive/anvil-mcp-server/src/prompts/fix-violation.prompt.ts` | `{ warningId, filePath, line?, message? }` | Returns fix guidance and reminds the client to run `anvil_check`; sanitises newlines/backticks. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | Defer. Port only if Cursor or Claude Code prompt usage is product-critical. |
-| `suppress-violation` | `archive/anvil-mcp-server/src/prompts/suppress-violation.prompt.ts` | `{ warningId, filePath, line, reason? }` | Guides suppression decisions and the `anvil_suppress` call. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012; coordinates with RMCPF-011 suppress authority. | Defer with `anvil_suppress` authority decision. |
-| `architecture-review` | `archive/anvil-mcp-server/src/prompts/architecture-review.prompt.ts` | `{ filePath, workspaceRoot? }` | Produces a boundary-review checklist and suggests `anvil_query_boundary` / `anvil_check`. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | Defer; consider documentation instead of MCP prompt parity. |
-| `pre-generation` | `archive/anvil-mcp-server/src/prompts/pre-generation.prompt.ts` | `{ workspaceRoot, targetFile? }` | Emits generic architecture and anti-pattern constraints before generation. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | Defer or retire. |
+| `fix-violation` | `archive/anvil-mcp-server/src/prompts/fix-violation.prompt.ts` | `{ warningId, filePath, line?, message? }` | Returns fix guidance and reminds the client to run `anvil_check`; sanitises newlines/backticks. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | **Retired** (2026-05-14). Guidance now lives in the `anvil_fix` tool description and in `docs/public/anvil/integrations/mcp.md`. |
+| `suppress-violation` | `archive/anvil-mcp-server/src/prompts/suppress-violation.prompt.ts` | `{ warningId, filePath, line, reason? }` | Guides suppression decisions and the `anvil_suppress` call. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012; coordinates with RMCPF-011 suppress authority. | **Retired** (2026-05-14). Suppression policy is owned by ADR-004 and surfaced through the `anvil_suppress` tool description; MCP prompts are not the right place for policy text. |
+| `architecture-review` | `archive/anvil-mcp-server/src/prompts/architecture-review.prompt.ts` | `{ filePath, workspaceRoot? }` | Produces a boundary-review checklist and suggests `anvil_query_boundary` / `anvil_check`. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | **Retired** (2026-05-14). Replaced by `anvil_query_boundary` (RMCPF-011) and `docs/architecture/rust-mcp-server-spec.md`. |
+| `pre-generation` | `archive/anvil-mcp-server/src/prompts/pre-generation.prompt.ts` | `{ workspaceRoot, targetFile? }` | Emits generic architecture and anti-pattern constraints before generation. | `archive/anvil-mcp-server/src/prompts/prompts.test.ts` | RMCPF-012. | **Retired** (2026-05-14). The constraints belong in tool descriptions and authoritative docs, not in a transient prompt list that bypasses ADR review. |
+
+### Prompts — RMCPF-012 disposition (2026-05-14)
+
+All four archived prompts are **retired**. The Rust MCP server does not ship a
+prompts surface for these reasons:
+
+1. **Phase 0 demand check is negative.** RMCPF-003 confirmed that supported
+   Phase 1 clients (Claude Code and Cursor) do not depend on the archived
+   prompts to call `anvil_check` / `anvil_gate` / `anvil_suppress`. The prompts
+   were convenience text in the TS server, not policy.
+2. **Policy belongs in ADRs and docs.** `docs/architecture/rust-mcp-server-spec.md`
+   §"Prompt Strategy" warns that prompt content "must not become a hidden source
+   of architecture policy. Durable policy remains in ADRs, APS, docs, schemas,
+   and code." Re-porting the prompts would re-introduce that hidden surface.
+3. **Tool descriptions carry the actionable text.** The new RMCPF-011 tools
+   (`anvil_fix`, `anvil_suppress`, `anvil_query_boundary`) include the
+   limitations and call-out hints inline so any MCP client surfaces them
+   automatically — clients do not need a separate `prompts/get` round trip.
+
+The Rust server enforces the disposition in two ways:
+
+- `initialize` capabilities omit `prompts`, so MCP clients negotiate without it.
+  Integration test:
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs::mcp_serve_stdio_initialize_does_not_advertise_prompts_capability`.
+- `prompts/list` returns JSON-RPC error code `-32601 Method not found`, so any
+  caller that ignores the capability negotiation sees a clear failure rather
+  than an empty list. Integration test:
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs::mcp_serve_stdio_prompts_list_returns_method_not_found`.
+
+The archived TS prompts remain in `archive/anvil-mcp-server/src/prompts/` as
+frozen reference until RMCPF-031 closes out the archive itself. RMCPF-030 must
+include the retirement in its compatibility matrix and migration docs.
+
+If a supported client surfaces fresh demand for any of these prompts, re-open
+RMCPF-012 with the client name, the contract the client expects, and an ADR
+update covering whose responsibility the policy is. **Do not** re-add prompts
+silently.
 
 ## Transports
 

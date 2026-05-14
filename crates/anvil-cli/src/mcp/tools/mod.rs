@@ -1,6 +1,9 @@
 pub mod check;
+pub mod fix;
 pub mod gate;
+pub mod query_boundary;
 pub mod registry;
 pub mod shared;
 pub mod status;
+pub mod suppress;
 pub mod validate_write;

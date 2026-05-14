@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::{check, gate, status, validate_write};
+use super::{check, fix, gate, query_boundary, status, suppress, validate_write};
 
 pub struct ToolDefinition {
     pub name: &'static str,
@@ -44,6 +44,29 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: gate::descriptor,
         call: gate::call,
     },
+    ToolDefinition {
+        name: query_boundary::TOOL_NAME,
+        requires_auth: false,
+        descriptor: query_boundary::descriptor,
+        call: query_boundary::call,
+    },
+    // `anvil_suppress` and `anvil_fix` mutate workspace files. They keep the
+    // same path-containment, redaction, and embedded-fallback contract as
+    // `anvil_check`. `requires_auth` stays `false` for parity with the
+    // archived TS server until RMCPF-011 reviewers ratify a stricter
+    // authority surface (e.g. forcing daemon-RPC `suppression.apply`).
+    ToolDefinition {
+        name: suppress::TOOL_NAME,
+        requires_auth: false,
+        descriptor: suppress::descriptor,
+        call: suppress::call,
+    },
+    ToolDefinition {
+        name: fix::TOOL_NAME,
+        requires_auth: false,
+        descriptor: fix::descriptor,
+        call: fix::call,
+    },
 ];
 
 pub fn all() -> &'static [ToolDefinition] {
@@ -62,15 +85,23 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 4);
-        assert_eq!(tools[0].name, validate_write::TOOL_NAME);
-        assert_eq!(tools[0].descriptor()["name"], validate_write::TOOL_NAME);
-        assert_eq!(tools[1].name, status::TOOL_NAME);
-        assert_eq!(tools[1].descriptor()["name"], status::TOOL_NAME);
-        assert_eq!(tools[2].name, check::TOOL_NAME);
-        assert_eq!(tools[2].descriptor()["name"], check::TOOL_NAME);
-        assert_eq!(tools[3].name, gate::TOOL_NAME);
-        assert_eq!(tools[3].descriptor()["name"], gate::TOOL_NAME);
+        assert_eq!(tools.len(), 7);
+        let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
+        assert_eq!(
+            names,
+            vec![
+                validate_write::TOOL_NAME,
+                status::TOOL_NAME,
+                check::TOOL_NAME,
+                gate::TOOL_NAME,
+                query_boundary::TOOL_NAME,
+                suppress::TOOL_NAME,
+                fix::TOOL_NAME,
+            ],
+        );
+        for tool in tools {
+            assert_eq!(tool.descriptor()["name"], tool.name);
+        }
     }
 
     #[test]
@@ -79,6 +110,9 @@ mod tests {
         assert!(find(status::TOOL_NAME).is_some());
         assert!(find(check::TOOL_NAME).is_some());
         assert!(find(gate::TOOL_NAME).is_some());
-        assert!(find("anvil_suppress").is_none());
+        assert!(find(query_boundary::TOOL_NAME).is_some());
+        assert!(find(suppress::TOOL_NAME).is_some());
+        assert!(find(fix::TOOL_NAME).is_some());
+        assert!(find("anvil_does_not_exist").is_none());
     }
 }

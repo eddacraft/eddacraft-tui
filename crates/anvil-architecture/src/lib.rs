@@ -19,12 +19,13 @@ pub use definition::{
     ArchitectureDefinition, ArchitectureTemplate, get_available_templates, validate_definition,
 };
 pub use types::{
-    ArchitectureBaseline, Boundary, BoundaryViolation, EntryPoint, Layer, LayerAssignment, Layers,
-    create_default_boundaries, create_default_layers, create_violation_id, is_existing_violation,
+    ArchitectureBaseline, Boundary, BoundarySeverity, BoundaryViolation, EntryPoint, Layer,
+    LayerAssignment, Layers, create_default_boundaries, create_default_layers, create_violation_id,
+    is_existing_violation,
 };
 pub use validator::{
-    ImportEdge, ValidationResult, collect_source_files, validate, validate_with_edges,
-    validate_with_files_and_edges,
+    ImportEdge, ValidationResult, assign_layers, collect_source_files, validate,
+    validate_with_edges, validate_with_files_and_edges,
 };
 pub use yaml_parser::{
     architecture_yaml_exists, create_definition_from_template, get_template_defaults,
