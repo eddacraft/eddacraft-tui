@@ -50,7 +50,7 @@
  * deserialise.
  */
 
-import type { Diagnostic, Severity } from '../diagnostics/index.js';
+import type { Severity } from '../diagnostics/index.js';
 
 /**
  * Pinned Kindling observation kind. Schema-matches
@@ -168,13 +168,13 @@ export interface GateEvaluatedObservation {
 }
 
 /**
- * Minimal subset of {@link Diagnostic} this helper actually reads.
- * Lifting the constraint via an interface (rather than reusing
- * `Diagnostic` directly) means the helper can be invoked with
- * either the full driver-client `Diagnostic` shape or any shape
- * carrying just the two fields we touch. Keeps the public surface
- * unsurprising for embedded-fallback callers that produce their
- * own diagnostic-like objects.
+ * Minimal subset of the driver-client `Diagnostic` shape this
+ * helper actually reads. Lifting the constraint via an interface
+ * (rather than reusing the full `Diagnostic` type directly) means
+ * the helper can be invoked with either the full driver-client
+ * shape or any object carrying just the two fields we touch. Keeps
+ * the public surface unsurprising for embedded-fallback callers
+ * that produce their own diagnostic-like objects.
  */
 export interface DiagnosticLike {
   readonly severity: Severity;
