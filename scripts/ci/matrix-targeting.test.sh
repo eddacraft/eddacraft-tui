@@ -63,6 +63,21 @@ assert_block_not_contains() {
   fi
 }
 
+assert_step_contains() {
+  local file="$1"
+  local step_marker="$2"
+  local expected="$3"
+  if ! awk -v marker="${step_marker}" -v expected="${expected}" '
+    index($0, marker) > 0 { inside = 1; next }
+    inside && /^      - / { inside = 0 }
+    inside && index($0, expected) > 0 { found = 1 }
+    END { exit (found ? 0 : 1) }
+  ' "${file}"; then
+    echo "expected step matching '${step_marker}' in ${file} to contain: ${expected}" >&2
+    exit 1
+  fi
+}
+
 # ── ci.yml: test-release-gate gates on source-changed ───────────
 # Docs-only release PRs and docs-only release-sync pushes must not
 # spin up the macOS + Windows matrix.
@@ -118,8 +133,8 @@ assert_contains "${napi_workflow}" "      - 'napi-v*'"
 # NAPI macOS builds must not restore ~/.cargo/bin. A poisoned cached cargo shim
 # has resolved to rustup-init, causing rust-cache and @napi-rs/cli to fail at
 # `cargo metadata` before any crate code compiles.
-assert_block_contains "${napi_workflow}" "^  build:" "cache: false"
-assert_block_contains "${napi_workflow}" "^  build:" "cache-bin: false"
+assert_step_contains "${napi_workflow}" "actions-rust-lang/setup-rust-toolchain" "cache: false"
+assert_step_contains "${napi_workflow}" "Swatinem/rust-cache" "cache-bin: false"
 
 # ── bench.yml: release-gate (push-to-main + dispatch) ───────────
 assert_contains "${bench_workflow}" "    branches: [main]"
