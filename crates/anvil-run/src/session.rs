@@ -46,7 +46,7 @@ pub fn new_session_id() -> SessionId {
 }
 
 /// Read the kernel's reported process start time for `pid` as
-/// **Unix seconds since epoch** (boot_time + ticks/CLK_TCK). The
+/// **Unix seconds since epoch** (`boot_time + ticks/CLK_TCK`). The
 /// canonical implementation lives in
 /// [`anvil_attribution::process::pid_starttime`]; using it here
 /// keeps the launcher's `AgentTag` units identical to the daemon's
@@ -107,7 +107,7 @@ pub fn register(req: &RegistrationRequest<'_>) -> Result<Registration> {
     );
     let response: Value = ipc::request(
         REGISTER_METHOD,
-        params,
+        &params,
         &format!("anvil-run-register-{}", req.session_id.as_str()),
     )?;
     let agent_tag = interpret_register_response(
@@ -149,7 +149,7 @@ pub fn unregister(session_id: &SessionId) -> Result<()> {
     let params = serde_json::json!({"session_id": session_id.as_str()});
     let _: Value = ipc::request(
         UNREGISTER_METHOD,
-        params,
+        &params,
         &format!("anvil-run-unregister-{}", session_id.as_str()),
     )?;
     Ok(())
@@ -159,7 +159,7 @@ pub fn unregister(session_id: &SessionId) -> Result<()> {
 /// expect a response.
 pub fn heartbeat(session_id: &SessionId) -> Result<()> {
     let params = serde_json::json!({"session_id": session_id.as_str()});
-    ipc::notify(HEARTBEAT_METHOD, params)
+    ipc::notify(HEARTBEAT_METHOD, &params)
 }
 
 #[cfg(test)]

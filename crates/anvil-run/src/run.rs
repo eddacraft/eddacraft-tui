@@ -85,7 +85,7 @@ fn run_wrap(args: WrapArgs) -> i32 {
         command,
     } = args;
 
-    let (tool, program, program_args) = match validate_wrap_args(tool, command) {
+    let (tool, program, program_args) = match validate_wrap_args(tool, &command) {
         Ok(parts) => parts,
         Err(code) => return code,
     };
@@ -124,19 +124,19 @@ fn run_wrap(args: WrapArgs) -> i32 {
         return 0;
     }
 
-    run_wrap_spawn(
+    run_wrap_spawn(WrapSpawn {
         tool,
         claimed_agent_id,
         program,
         program_args,
         ctx,
         no_heartbeat,
-    )
+    })
 }
 
 fn validate_wrap_args(
     tool: Option<String>,
-    command: Vec<String>,
+    command: &[String],
 ) -> Result<(String, String, Vec<String>), i32> {
     let Some(tool) = tool else {
         let _ = writeln!(
@@ -145,27 +145,39 @@ fn validate_wrap_args(
         );
         return Err(EXIT_USAGE);
     };
-    if command.is_empty() {
+    let Some((program, rest)) = command.split_first() else {
         let _ = writeln!(
             std::io::stderr().lock(),
             "anvil-run: no wrapped command supplied. Use `anvil-run --tool <name> -- <cmd> [args...]`."
         );
         return Err(EXIT_USAGE);
-    }
-    match command.split_first() {
-        Some((p, rest)) => Ok((tool, p.clone(), rest.to_vec())),
-        None => Err(EXIT_USAGE),
-    }
+    };
+    Ok((tool, program.clone(), rest.to_vec()))
 }
 
-fn run_wrap_spawn(
+/// Bundle of arguments threaded into [`run_wrap_spawn`]. Pulled into
+/// a struct so the helper does not trip
+/// `clippy::needless_pass_by_value` for the by-value `String` /
+/// `Vec<String>` fields that the wrap path needs to keep referencing
+/// across the spawn / register / wait stages.
+struct WrapSpawn {
     tool: String,
     claimed_agent_id: Option<String>,
     program: String,
     program_args: Vec<String>,
     ctx: LaunchContext,
     no_heartbeat: bool,
-) -> i32 {
+}
+
+fn run_wrap_spawn(spawn_args: WrapSpawn) -> i32 {
+    let WrapSpawn {
+        tool,
+        claimed_agent_id,
+        program,
+        program_args,
+        ctx,
+        no_heartbeat,
+    } = spawn_args;
     let session_id = session::new_session_id();
     let claimed = claimed_agent_id.unwrap_or_else(|| format!("{tool}-{}", session_id.as_str()));
     // Launcher's own pid_starttime; the child's is captured after
@@ -250,17 +262,15 @@ fn run_wrap_spawn(
 /// owned) get the more generic spawn-failed path so the operator is
 /// not told to restart the daemon for a content-level reject.
 fn classify_register_failure(err: &anyhow::Error) -> i32 {
-    if let Some(client_err) = err.downcast_ref::<crate::ipc::ClientError>() {
-        match client_err {
-            crate::ipc::ClientError::DaemonNotRunning { .. }
-            | crate::ipc::ClientError::DaemonRefused { .. }
-            | crate::ipc::ClientError::Io(_) => {
-                return emit_refusal(&RefusalReason::DaemonUnavailable {
-                    message: preflight::refusal_message_for(err),
-                });
-            }
-            _ => {}
-        }
+    if let Some(
+        crate::ipc::ClientError::DaemonNotRunning { .. }
+        | crate::ipc::ClientError::DaemonRefused { .. }
+        | crate::ipc::ClientError::Io(_),
+    ) = err.downcast_ref::<crate::ipc::ClientError>()
+    {
+        return emit_refusal(&RefusalReason::DaemonUnavailable {
+            message: preflight::refusal_message_for(err),
+        });
     }
     let _ = writeln!(
         std::io::stderr().lock(),

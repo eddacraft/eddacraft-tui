@@ -110,7 +110,7 @@ pub fn report_to_daemon(session_id: &SessionId, spawned: &SpawnedChild) -> Resul
     });
     let _: Value = ipc::request(
         "session.report_process",
-        params,
+        &params,
         &format!("anvil-run-report-{}", session_id.as_str()),
     )
     .or_else(|err| {

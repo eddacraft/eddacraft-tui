@@ -48,7 +48,7 @@ const QUERY_STATUS_REQUEST_ID: &str = "anvil-run-preflight";
 /// successful decision, not an error.
 pub fn run(worktree: &Path) -> Result<PreflightDecision> {
     let status: DaemonStatusV1 =
-        ipc::request(QUERY_STATUS_METHOD, Value::Null, QUERY_STATUS_REQUEST_ID)?;
+        ipc::request(QUERY_STATUS_METHOD, &Value::Null, QUERY_STATUS_REQUEST_ID)?;
     Ok(decision_for(&status, worktree))
 }
 

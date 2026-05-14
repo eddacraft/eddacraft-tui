@@ -58,25 +58,26 @@ pub enum HookError {
 /// Run the hook subcommand. The function is small on purpose —
 /// `main` calls it directly and exits on its result.
 pub fn run_register(args: &HookRegisterArgs) -> Result<HookRegistration, HookError> {
-    let pid = match args.pid {
+    let caller_pid = match args.pid {
         Some(0) => return Err(HookError::InvalidPid),
         Some(p) => p,
         None => parent_pid().ok_or(HookError::ParentPidUnavailable)?,
     };
     let ctx = LaunchContext::resolve(args.cwd.clone(), None)?;
     let session_id = new_session_id();
-    let pgid = current_pgid_for(pid);
-    let params = build_hook_register_params(&session_id, &ctx.worktree, &args.tool, pid, pgid);
+    let group_id = current_pgid_for(caller_pid);
+    let params =
+        build_hook_register_params(&session_id, &ctx.worktree, &args.tool, caller_pid, group_id);
     let _: Value = ipc::request(
         REGISTER_METHOD,
-        params,
+        &params,
         &format!("anvil-run-hook-register-{}", session_id.as_str()),
     )
     .map_err(HookError::Daemon)?;
     Ok(HookRegistration {
         session_id,
         worktree: ctx.worktree,
-        pid,
+        pid: caller_pid,
     })
 }
 
@@ -91,8 +92,8 @@ pub fn build_hook_register_params(
     session_id: &SessionId,
     worktree: &std::path::Path,
     tool: &str,
-    pid: u32,
-    pgid: Option<i32>,
+    caller_pid: u32,
+    group_id: Option<i32>,
 ) -> Value {
     let mut params = serde_json::Map::new();
     params.insert(
@@ -105,15 +106,14 @@ pub fn build_hook_register_params(
     );
     params.insert("driver_id".into(), Value::String(tool.into()));
     params.insert("claimed_agent_id".into(), Value::String(tool.into()));
-    params.insert("pid".into(), Value::Number(serde_json::Number::from(pid)));
-    match pgid {
-        Some(g) => {
-            params.insert("pgid".into(), Value::Number(serde_json::Number::from(g)));
-        }
-        None => {
-            params.insert("pgid".into(), Value::Null);
-        }
-    }
+    params.insert(
+        "pid".into(),
+        Value::Number(serde_json::Number::from(caller_pid)),
+    );
+    let pgid_value = group_id
+        .map(|g| Value::Number(serde_json::Number::from(g)))
+        .unwrap_or(Value::Null);
+    params.insert("pgid".into(), pgid_value);
     params.insert("hook_registered".into(), Value::Bool(true));
     Value::Object(params)
 }
@@ -136,7 +136,9 @@ fn parent_pid() -> Option<u32> {
 fn current_pgid_for(pid: u32) -> Option<i32> {
     use nix::unistd::{Pid, getpgid};
     let raw = i32::try_from(pid).ok()?;
-    getpgid(Some(Pid::from_raw(raw))).ok().map(|p| p.as_raw())
+    getpgid(Some(Pid::from_raw(raw)))
+        .ok()
+        .map(nix::unistd::Pid::as_raw)
 }
 
 #[cfg(windows)]

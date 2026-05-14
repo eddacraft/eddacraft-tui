@@ -76,8 +76,8 @@ pub fn resolve_endpoint() -> Result<String, ClientError> {
 /// connecting — same posture as the daemon's listener, and same
 /// posture as `anvil intercept status`. On Windows the helper opens
 /// the per-user named pipe synchronously.
-pub fn request<R: DeserializeOwned>(method: &str, params: Value, id: &str) -> Result<R> {
-    let body = jsonrpc_request_line(method, &params, id);
+pub fn request<R: DeserializeOwned>(method: &str, params: &Value, id: &str) -> Result<R> {
+    let body = jsonrpc_request_line(method, params, id);
     let response = round_trip(&body)?;
     let value: Value = serde_json::from_str(&response).map_err(|err| {
         anyhow!(ClientError::BadJson(format!(
@@ -96,8 +96,8 @@ pub fn request<R: DeserializeOwned>(method: &str, params: Value, id: &str) -> Re
 
 /// Send a JSON-RPC notification (no `id`). Used by the heartbeat
 /// loop, where we explicitly do not want a response.
-pub fn notify(method: &str, params: Value) -> Result<()> {
-    let body = jsonrpc_notification_line(method, &params);
+pub fn notify(method: &str, params: &Value) -> Result<()> {
+    let body = jsonrpc_notification_line(method, params);
     send_one_way(&body)
 }
 
