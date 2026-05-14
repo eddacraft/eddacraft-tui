@@ -2,6 +2,7 @@ mod activation;
 mod auth;
 mod capacity;
 mod commands;
+mod config_summary;
 mod feature_flags;
 mod mcp;
 mod output;

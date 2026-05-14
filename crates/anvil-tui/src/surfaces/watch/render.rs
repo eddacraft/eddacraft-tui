@@ -7,6 +7,21 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::{ActionResultLine, WatchPanel, WatchState, WatchStatus};
 
+fn advisory_warning_count(state: &WatchState) -> usize {
+    state
+        .data
+        .queue
+        .iter()
+        .filter(|queued| {
+            matches!(
+                queued.notification.class,
+                anvil_kernel_types::NotificationClass::Finding
+                    | anvil_kernel_types::NotificationClass::Warning
+            )
+        })
+        .count()
+}
+
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
     // Reserve a 1-line footer at the bottom for the most recent --action
     // outcome (LAUNCH-002). Hidden when no action has run yet, so the 2x2
@@ -150,6 +165,35 @@ fn render_status_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme:
             Style::default().fg(theme.muted()),
         )),
     ];
+
+    let warning_count = advisory_warning_count(state);
+    if warning_count > 0 {
+        lines.push(Line::from(Span::styled(
+            format!("  Warnings: {warning_count}"),
+            Style::default()
+                .fg(theme.warning())
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    if let Some(warmup) = state.data.warmup.as_ref() {
+        let progress = if warmup.total == 0 {
+            String::from("starting")
+        } else {
+            format!("{}/{}", warmup.current.min(warmup.total), warmup.total)
+        };
+        lines.push(Line::default());
+        lines.push(Line::from(Span::styled(
+            format!("  {} ({progress})", warmup.phase),
+            Style::default().fg(theme.accent()),
+        )));
+        if warmup.total >= 1_000 {
+            lines.push(Line::from(Span::styled(
+                "  Large repository warm-up may take a moment",
+                Style::default().fg(theme.muted()),
+            )));
+        }
+    }
 
     // When failing, surface the most recent violation/error so the user
     // doesn't have to switch panels to see what went wrong.
@@ -359,8 +403,11 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel_types::{Notification, NotificationClass, NotificationPriority};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
+
+    use super::super::QueuedNotification;
 
     fn sample_state() -> WatchState {
         use super::super::{QueuedNotification, RunHistory, WatchData, WatchStats};
@@ -410,6 +457,7 @@ mod tests {
                 avg_duration_ms: 1050,
                 files_watched: 128,
             },
+            warmup: None,
             last_action: None,
         })
     }
@@ -475,6 +523,7 @@ mod tests {
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            warmup: None,
             last_action: None,
         });
         let theme = EddaCraftTheme;
@@ -561,5 +610,59 @@ mod tests {
                 "unzoomed render must show panel `{panel}`; got:\n{rendered}"
             );
         }
+    }
+
+    #[test]
+    fn advisory_warning_does_not_render_failing_status() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.status = WatchStatus::Passing;
+        state.data.queue = std::collections::VecDeque::from([QueuedNotification {
+            notification: Notification::new(
+                NotificationClass::Warning,
+                NotificationPriority::Normal,
+                "src/lib.rs",
+                "new public symbol detected",
+            ),
+            timestamp: "10:30:03".to_string(),
+        }]);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("Warnings"),
+            "advisory findings should render as warnings; got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("Failing"),
+            "advisory findings must not render as Failing; got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn warmup_progress_renders_phase_and_progress() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.status = WatchStatus::Running;
+        state.data.warmup = Some(super::super::WatchWarmup {
+            phase: "Building graph".to_string(),
+            current: 3,
+            total: 10,
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(rendered.contains("Building graph"), "got:\n{rendered}");
+        assert!(rendered.contains("3/10"), "got:\n{rendered}");
     }
 }

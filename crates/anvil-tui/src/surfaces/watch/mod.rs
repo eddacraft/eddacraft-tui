@@ -43,10 +43,10 @@ impl WatchStatus {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Idle => "Idle",
-            Self::Running => "Running",
-            Self::Passing => "Passing",
-            Self::Failing => "Failing",
+            Self::Idle => "Starting",
+            Self::Running => "Warming up",
+            Self::Passing => "Watching",
+            Self::Failing => "Error",
         }
     }
 }
@@ -75,6 +75,14 @@ pub struct WatchStats {
     pub pass_rate: f64,
     pub avg_duration_ms: u64,
     pub files_watched: usize,
+}
+
+/// Current watch warm-up progress from kernel Progress events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WatchWarmup {
+    pub phase: String,
+    pub current: u64,
+    pub total: u64,
 }
 
 /// Outcome of the most recent `--action` dispatch (LAUNCH-002 v1).
@@ -138,6 +146,7 @@ pub struct WatchData {
     pub queue: VecDeque<QueuedNotification>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
+    pub warmup: Option<WatchWarmup>,
     /// Most recent `--action` outcome (LAUNCH-002). `None` until the first
     /// action completes. See `ActionResultLine` for the isolation invariant.
     pub last_action: Option<ActionResultLine>,
@@ -466,6 +475,7 @@ mod tests {
                 avg_duration_ms: 1050,
                 files_watched: 128,
             },
+            warmup: None,
             last_action: None,
         }
     }
@@ -603,10 +613,10 @@ mod tests {
         assert_eq!(WatchStatus::Passing.icon(), "*");
         assert_eq!(WatchStatus::Failing.icon(), "x");
 
-        assert_eq!(WatchStatus::Idle.label(), "Idle");
-        assert_eq!(WatchStatus::Running.label(), "Running");
-        assert_eq!(WatchStatus::Passing.label(), "Passing");
-        assert_eq!(WatchStatus::Failing.label(), "Failing");
+        assert_eq!(WatchStatus::Idle.label(), "Starting");
+        assert_eq!(WatchStatus::Running.label(), "Warming up");
+        assert_eq!(WatchStatus::Passing.label(), "Watching");
+        assert_eq!(WatchStatus::Failing.label(), "Error");
     }
 
     #[test]

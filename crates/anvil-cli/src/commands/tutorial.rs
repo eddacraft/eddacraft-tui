@@ -126,6 +126,7 @@ fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
             avg_duration_ms: 0,
             files_watched: 0,
         },
+        warmup: None,
         last_action: None,
     };
 

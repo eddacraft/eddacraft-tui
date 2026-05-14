@@ -2,7 +2,7 @@
 
 | ID       | Owner  | Status      | Progress |
 | -------- | ------ | ----------- | -------- |
-| WATCHUX | @aneki | In Progress | 0/8 done |
+| WATCHUX | @aneki | In Progress | 3/8 done |
 
 **Last reviewed:** 2026-05-13 (created from beta-user incident timeline and
 [`plans/specs/2026-05-13-watch-warmup-and-advisory-rules.md`](../specs/2026-05-13-watch-warmup-and-advisory-rules.md).
@@ -135,7 +135,7 @@ WATCHUX owns the user-facing correction of those behaviours:
   `crates/anvil-cli/src/commands/watch.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-tui watch --lib` and
   `cargo test -p eddacraft-anvil commands::watch`
-- **Status:** Ready
+- **Status:** Complete
 
 ### WATCHUX-006: Progressive Watch Warm-Up TUI
 
@@ -153,7 +153,9 @@ WATCHUX owns the user-facing correction of those behaviours:
 - **Validation:** `cargo test -p eddacraft-anvil-kernel watch --lib`,
   `cargo test -p eddacraft-anvil-tui watch --lib`, and a manual large-repo smoke
   run showing immediate TUI entry
-- **Status:** Draft
+- **Authorisation:** Operator requested continuing WATCHUX work on 2026-05-14;
+  `WATCHUX-006` is the next sequenced slice after completed `WATCHUX-005`.
+- **Status:** Complete
 
 ### WATCHUX-007: Configured Rule Modes and Start Summary
 
@@ -168,9 +170,13 @@ WATCHUX owns the user-facing correction of those behaviours:
   `crates/anvil-cli/src/activation/render.rs`,
   `crates/anvil-kernel/src/policy/*`
 - **Validation:** `cargo test -p eddacraft-anvil-config`,
-  `cargo test -p eddacraft-anvil start status`, and fixture tests for default
-  advisory rule modes
-- **Status:** Draft
+  `cargo test -p eddacraft-anvil start`,
+  `cargo test -p eddacraft-anvil status`, and fixture tests for default advisory
+  rule modes
+- **Authorisation:** Operator requested continuing WATCHUX work on 2026-05-14;
+  implementation is bounded to the narrow typed rule-mode view and start/status
+  summaries, not full config command editing.
+- **Status:** Complete
 
 ### WATCHUX-008: Config Command Surface and Warm-Up Cache
 

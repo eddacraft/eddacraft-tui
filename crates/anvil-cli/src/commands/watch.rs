@@ -934,6 +934,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     avg_duration_ms: 0,
                     files_watched: 0,
                 },
+                warmup: None,
                 last_action: None,
             });
         let link = action_rx

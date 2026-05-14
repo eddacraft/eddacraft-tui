@@ -5,7 +5,9 @@ use anvil_kernel_types::{
     NotificationPriority,
 };
 
-use super::{ActionResultLine, QueuedNotification, RunHistory, WatchData, WatchStatus};
+use super::{
+    ActionResultLine, QueuedNotification, RunHistory, WatchData, WatchStatus, WatchWarmup,
+};
 
 /// Maximum number of entries retained in the change queue.
 const MAX_QUEUE_LEN: usize = 200;
@@ -91,8 +93,13 @@ impl WatchEventAdapter {
         data.last_action = Some(line.clone());
     }
 
-    fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
+    fn handle_progress(&mut self, phase: &str, current: u64, total: u64, data: &mut WatchData) {
         data.status = WatchStatus::Running;
+        data.warmup = Some(WatchWarmup {
+            phase: phase.to_string(),
+            current,
+            total,
+        });
 
         if current >= total && total > 0 {
             #[allow(clippy::cast_possible_truncation)]
@@ -102,7 +109,7 @@ impl WatchEventAdapter {
             // Update status but don't record a history entry — the
             // subsequent Snapshot event is the authoritative end-of-cycle
             // marker and records the run to avoid double-counting.
-            let passed = self.violation_count == 0 && self.error_count == 0;
+            let passed = self.error_count == 0;
             data.status = if passed {
                 WatchStatus::Passing
             } else {
@@ -116,11 +123,12 @@ impl WatchEventAdapter {
         {
             data.stats.files_watched = files_watched as usize;
         }
+        data.warmup = None;
 
         // Each snapshot represents a completed watch cycle.
         // Record the result and reset violation/error state for the next cycle.
-        let passed = self.violation_count == 0 && self.error_count == 0;
-        let checks_passed = self.check_count.saturating_sub(self.violation_count);
+        let passed = self.error_count == 0;
+        let checks_passed = self.check_count.saturating_sub(self.error_count);
 
         let duration_ms = self.cycle_start.take().map_or(0, |s| {
             let ms = s.elapsed().as_millis();
@@ -162,13 +170,12 @@ impl WatchEventAdapter {
         data: &mut WatchData,
     ) {
         self.violation_count += 1;
-        data.status = WatchStatus::Failing;
 
         Self::push_queue(
             data,
             Notification::new(
-                NotificationClass::Finding,
-                NotificationPriority::High,
+                NotificationClass::Warning,
+                NotificationPriority::Normal,
                 file,
                 message,
             )
@@ -189,6 +196,7 @@ impl WatchEventAdapter {
     ) {
         self.error_count += 1;
         data.status = WatchStatus::Failing;
+        data.warmup = None;
         // Prefer the offending file as the title when available so the watch
         // queue is immediately actionable; fall back to a generic label.
         let title = file.unwrap_or("Watch error");
@@ -269,6 +277,7 @@ mod tests {
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            warmup: None,
             last_action: None,
         }
     }
@@ -340,9 +349,13 @@ mod tests {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
-        adapter.handle_event(&progress_event("scan", 1, 10), &mut data);
+        adapter.handle_event(&progress_event("Building graph", 1, 10), &mut data);
 
         assert_eq!(data.status, WatchStatus::Running);
+        let warmup = data.warmup.as_ref().expect("warm-up progress stored");
+        assert_eq!(warmup.phase, "Building graph");
+        assert_eq!(warmup.current, 1);
+        assert_eq!(warmup.total, 10);
     }
 
     #[test]
@@ -378,13 +391,14 @@ mod tests {
         adapter.handle_event(&snapshot_event(10), &mut data);
 
         assert_eq!(data.status, WatchStatus::Passing);
+        assert!(data.warmup.is_none());
         assert_eq!(data.stats.total_runs, 1);
         assert_eq!(data.history.len(), 1);
         assert!(data.history[0].passed);
     }
 
     #[test]
-    fn snapshot_after_violation_records_failing_run() {
+    fn snapshot_after_violation_records_warning_run() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
@@ -394,10 +408,10 @@ mod tests {
         );
         adapter.handle_event(&snapshot_event(10), &mut data);
 
-        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.status, WatchStatus::Passing);
         assert_eq!(data.stats.total_runs, 1);
         assert_eq!(data.history.len(), 1);
-        assert!(!data.history[0].passed);
+        assert!(data.history[0].passed);
     }
 
     #[test]
@@ -411,7 +425,7 @@ mod tests {
             &mut data,
         );
         adapter.handle_event(&snapshot_event(10), &mut data);
-        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.status, WatchStatus::Passing);
 
         // Second cycle: clean snapshot — should transition to Passing
         adapter.handle_event(&snapshot_event(10), &mut data);
@@ -420,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn violation_event_adds_to_queue() {
+    fn violation_event_adds_advisory_warning_to_queue() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
@@ -429,10 +443,14 @@ mod tests {
             &mut data,
         );
 
-        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.status, WatchStatus::Idle);
         assert_eq!(data.queue.len(), 1);
         assert_eq!(data.queue[0].notification.title, "src/bad.ts");
-        assert_eq!(data.queue[0].notification.class, NotificationClass::Finding);
+        assert_eq!(data.queue[0].notification.class, NotificationClass::Warning);
+        assert_eq!(
+            data.queue[0].notification.priority,
+            NotificationPriority::Normal
+        );
     }
 
     #[test]
@@ -585,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn run_with_violations_produces_failing_history() {
+    fn run_with_only_violations_produces_warning_history() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
@@ -594,9 +612,9 @@ mod tests {
         adapter.handle_event(&progress_event("scan", 3, 3), &mut data);
         adapter.handle_event(&snapshot_event(10), &mut data);
 
-        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.status, WatchStatus::Passing);
         assert_eq!(data.history.len(), 1);
-        assert!(!data.history[0].passed);
+        assert!(data.history[0].passed);
         assert_eq!(data.stats.total_runs, 1);
     }
 

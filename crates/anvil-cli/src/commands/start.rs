@@ -62,6 +62,7 @@ use crate::GlobalArgs;
 use crate::activation;
 use crate::activation::orchestrator::InstallOutcome;
 use crate::commands::watch as watch_cmd;
+use crate::config_summary::render_rule_mode_summary;
 
 #[derive(Debug, Args)]
 pub struct StartArgs {
@@ -157,6 +158,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             "{}",
             activation::render_human_with_install(&diagnostic, &install_report)
         );
+        print!("{}", render_rule_mode_summary(root));
     }
 
     // If any client's install step actually failed, propagate as a

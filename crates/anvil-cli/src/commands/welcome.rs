@@ -883,6 +883,7 @@ fn run_watch_demo_from_tutorial(
             avg_duration_ms: 0,
             files_watched: 0,
         },
+        warmup: None,
         last_action: None,
     };
 
@@ -936,6 +937,7 @@ fn start_watch_from_hub(
                 avg_duration_ms: 0,
                 files_watched: 0,
             },
+            warmup: None,
             last_action: None,
         });
 

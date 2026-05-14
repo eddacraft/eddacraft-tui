@@ -118,6 +118,7 @@ fn initial_scan(
     stop: &AtomicBool,
 ) {
     let mut scanned_files: Vec<PathBuf> = Vec::new();
+    emitter.progress("Discovering files", 0, 0);
 
     // SCAN-001: noise-pruning discovery (skips target/, node_modules/, etc; .gitignore is intentionally not applied so security scans see every file) (same shape as the welcome
     // walker). Per-file parsing below already runs on rayon, so the only
@@ -166,10 +167,13 @@ fn initial_scan(
             }
         })
         .collect();
+    let total_paths = all_paths.len() as u64;
+    emitter.progress("Discovering files", total_paths, total_paths);
 
     if stop.load(Ordering::Relaxed) {
         return;
     }
+    emitter.progress("Building graph", 0, total_paths);
 
     // Phase 1: parse all files in parallel (embarrassingly parallel — no shared state).
     // Errors are collected as Err variants and surfaced via emitter after the parallel phase.
@@ -205,7 +209,7 @@ fn initial_scan(
 
     // Phase 2: apply parsed results to graph sequentially (graph requires &mut).
     // Surface errors so callers know which files were skipped.
-    for result in parse_results {
+    for (idx, result) in parse_results.into_iter().enumerate() {
         let (rel_path, mut file_symbols) = match result {
             Ok(v) => v,
             Err((_, msg)) if msg == "cancelled" => continue,
@@ -237,6 +241,7 @@ fn initial_scan(
         state.file_count += 1;
         state.tracked_files.insert(rel_str);
         scanned_files.push(rel_path);
+        emitter.progress("Building graph", (idx + 1) as u64, total_paths);
     }
 
     re_resolve_imports(&mut state.graph, &state.all_imports);
@@ -523,6 +528,11 @@ pub fn run_watch(
     let thread = thread::spawn(move || {
         let emitter = EventEmitter::new(event_tx, EngineId::Rust);
         let mut state = WatchState::new();
+        emitter.progress(
+            "Registering watchers",
+            setup_diagnostics.registered,
+            setup_diagnostics.registered + setup_diagnostics.failed,
+        );
 
         // If some directories couldn't register a watch (commonly: inotify
         // `max_user_watches` reached), emit a warning up-front so the user
@@ -629,6 +639,58 @@ mod tests {
             .iter()
             .any(|e| e.event_type == anvil_kernel_types::EventType::Snapshot);
         assert!(has_snapshot, "should emit a snapshot after initial scan");
+    }
+
+    #[test]
+    fn initial_scan_emits_warmup_progress_before_snapshot() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("main.ts"), "export function hello() {}").unwrap();
+
+        let (event_tx, event_rx) = mpsc::channel();
+
+        let config = WatchConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            watcher: WatcherConfig {
+                root: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
+        };
+
+        let handle = run_watch(&config, event_tx).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut events = Vec::new();
+        while std::time::Instant::now() < deadline {
+            match event_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(event) => {
+                    let saw_snapshot = event.event_type == anvil_kernel_types::EventType::Snapshot;
+                    events.push(event);
+                    if saw_snapshot {
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        handle.stop().unwrap();
+
+        let phases: Vec<&str> = events
+            .iter()
+            .filter_map(|event| match &event.payload {
+                anvil_kernel_types::EventPayload::Progress { phase, .. } => Some(phase.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        assert!(
+            phases.contains(&"Registering watchers")
+                && phases.contains(&"Discovering files")
+                && phases.contains(&"Building graph"),
+            "initial scan should emit warm-up phases before the snapshot, got {phases:?}"
+        );
     }
 
     #[test]

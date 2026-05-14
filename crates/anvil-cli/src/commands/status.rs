@@ -11,6 +11,7 @@ use serde::Serialize;
 use crate::GlobalArgs;
 use crate::activation;
 use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
+use crate::config_summary::render_rule_mode_summary;
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
@@ -57,6 +58,7 @@ fn run_verify(global: &GlobalArgs) -> anyhow::Result<()> {
         println!("{json}");
     } else {
         print!("{}", activation::render_human(&activation));
+        print!("{}", render_rule_mode_summary(Path::new(".")));
     }
     Ok(())
 }
@@ -451,6 +453,7 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
     // to scroll past hooks/profile/runs to learn whether Anvil is
     // protecting their repo.
     print!("{}", activation::render_human(activation_diag));
+    print!("{}", render_rule_mode_summary(Path::new(".")));
     println!();
 
     println!("HOOKS");
