@@ -159,6 +159,20 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::render_human_with_install(&diagnostic, &install_report)
         );
         print!("{}", render_rule_mode_summary(root));
+        // ADTRUST-006: first-run claim summary + verification recipe.
+        // Only emit when activation actually ran (`read_only` is the
+        // verify path — that surface already names the state) and
+        // when the install side at least reached a renderable
+        // protection layer (skip on hard `Error` so the recipe does
+        // not race ahead of the cause line).
+        if !read_only
+            && !matches!(
+                diagnostic.protection_state(),
+                activation::state::ProtectionState::Error
+            )
+        {
+            print!("{}", render_first_run_recipe(&diagnostic));
+        }
     }
 
     // If any client's install step actually failed, propagate as a
@@ -297,5 +311,152 @@ impl WatchDecision {
             return Self::SkipNoCoverage;
         }
         Self::Spawn
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ADTRUST-006: First-run claim summary + verification recipe
+// ---------------------------------------------------------------------------
+//
+// When `anvil start` lands, print a short summary the user can verify
+// themselves. Names the current claim state (reusing the closed-set
+// vocabulary from `activation::state::ProtectionState`), lists the
+// active layers in one line each, and ends with a recipe pointing at
+// a real shipping check so reproducing the steps actually produces
+// the documented signal (`secret-detection` is the load-bearing
+// example because it is the broadest single check in the v0.6.x
+// release surface).
+//
+// The recipe text is intentionally a `const &str` so the contract
+// surface and the test fixture stay in lock — a future copy change
+// breaks the pinned test before it can ship.
+
+/// Pinned recipe copy referenced by both the user-facing block and
+/// the contract test. `RECIPE_CHECK_NAME` names the check the recipe
+/// triggers; the test pins both so a typo cannot drift the surface
+/// away from a check that actually ships.
+const RECIPE_CHECK_NAME: &str = "secret-detection";
+
+const RECIPE_LINES: &[&str] = &[
+    "    1. echo 'const KEY = \"AKIAEXAMPLE1234567\";' >> .anvil-smoke-test.ts",
+    "    2. expect: `anvil status` reports a secret-detection finding in the baseline summary",
+    "    3. rm .anvil-smoke-test.ts when done",
+];
+
+fn render_first_run_recipe(diag: &activation::ActivationDiagnostic) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    out.push_str("\nverify:\n");
+    let _ = writeln!(out, "  state: {}", diag.protection_state().label());
+    out.push_str("  active layers:\n");
+    if diag.mcp_pre_write_wired_or_live() {
+        out.push_str("    - L0 mcp pre-write\n");
+    }
+    if matches!(diag.watch, activation::diagnostic::WatchTier::Running) {
+        out.push_str("    - L2 save-time watch\n");
+    }
+    // L3/L4 hooks land via `anvil init`; the `anvil start` flow does
+    // not install them in v1, so name the deterministic backbone
+    // without claiming it is wired. Hook installation status is
+    // surfaced separately by `anvil status`.
+    out.push_str("    - L3/L4 commit + push hooks (via `anvil init`)\n");
+    let _ = writeln!(
+        out,
+        "  recipe (try this now — triggers `{RECIPE_CHECK_NAME}`):"
+    );
+    for line in RECIPE_LINES {
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn synth_diagnostic(
+        state_seed: activation::state::ProtectionState,
+    ) -> activation::ActivationDiagnostic {
+        use activation::diagnostic::{
+            ActivationDiagnostic, ConfigStatus, McpClientId, McpTier, WatchTier,
+        };
+
+        let mut mcp = BTreeMap::new();
+        if matches!(state_seed, activation::state::ProtectionState::Protecting) {
+            mcp.insert(McpClientId::ClaudeCode, McpTier::LiveValidation.into());
+        }
+        let watch = if matches!(state_seed, activation::state::ProtectionState::Watching) {
+            WatchTier::Running
+        } else {
+            WatchTier::NotRequested
+        };
+        let config = if matches!(state_seed, activation::state::ProtectionState::NeedsAction) {
+            ConfigStatus::Absent
+        } else {
+            ConfigStatus::Valid
+        };
+        ActivationDiagnostic {
+            config,
+            mcp,
+            watch,
+            baseline_present: false,
+            baseline_summary: None,
+            last_error: None,
+            all_languages_unsupported: false,
+            language_profile: activation::language_profile::RepoLanguageProfile::default(),
+        }
+    }
+
+    /// ADTRUST-006 validation: the first-run recipe names a real
+    /// shipping check, embeds the canonical state vocabulary, and
+    /// preserves the pinned recipe lines verbatim so the contract
+    /// surface cannot drift.
+    #[test]
+    fn first_run_recipe_matches_fixture() {
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let rendered = render_first_run_recipe(&diag);
+
+        assert!(
+            rendered.contains("verify:"),
+            "recipe must lead with a verify header: {rendered}"
+        );
+        assert!(
+            rendered.contains("state: protecting"),
+            "recipe must name the closed-set state: {rendered}"
+        );
+        assert!(
+            rendered.contains(RECIPE_CHECK_NAME),
+            "recipe must reference a real shipping check ({RECIPE_CHECK_NAME}): {rendered}"
+        );
+        for line in RECIPE_LINES {
+            assert!(
+                rendered.contains(line),
+                "recipe missing pinned line: {line:?}\nfull render:\n{rendered}",
+            );
+        }
+    }
+
+    /// Recipe enumerates the layers honestly: a `Protecting` diagnostic
+    /// includes the L0 line; a bare `NeedsAction` diagnostic does not.
+    #[test]
+    fn first_run_recipe_layer_lines_reflect_diagnostic() {
+        let protecting = render_first_run_recipe(&synth_diagnostic(
+            activation::state::ProtectionState::Protecting,
+        ));
+        assert!(
+            protecting.contains("L0 mcp pre-write"),
+            "protecting render must name the active L0 line: {protecting}"
+        );
+
+        let needs_action = render_first_run_recipe(&synth_diagnostic(
+            activation::state::ProtectionState::NeedsAction,
+        ));
+        assert!(
+            !needs_action.contains("L0 mcp pre-write"),
+            "needs_action render must NOT claim L0 is live: {needs_action}"
+        );
     }
 }
