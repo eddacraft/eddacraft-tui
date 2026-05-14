@@ -1,14 +1,16 @@
 # Multi-Layer Protection v2 (Integration + Follow-ups)
 
-| ID   | Owner  | Status      | Progress  |
-| ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 9/60 done |
+| ID   | Owner  | Status      | Progress   |
+| ---- | ------ | ----------- | ---------- |
+| MLP2 | @aneki | In Progress | 13/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
-v1-scope footnotes promoted to its own MLP2-NNN task; 2026-05-14
-wave 1C started — MLP2-016 + MLP2-048 + MLP2-057 + MLP2-052 moved
-to In Progress on branch `feat/mlp2-wave-016-048-057-052`).
+v1-scope footnotes promoted to its own MLP2-NNN task; wave 1C
+shipped 2026-05-14 — MLP2-052, MLP2-057, MLP2-048, MLP2-016 closed
+together on branch `feat/mlp2-wave-016-048-057-052` with one
+Council remediation pass on top — Council #C-016A `on_warn`
+consultation fix folded into MLP2-016).
 
 > **Scope.** MLP2 ships the integration work that closes every v1
 > primitive landed by the MLP module into a full surface. MLP
@@ -563,7 +565,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-016: `validate_at_l4` server-side rule-engine execution
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Pre-push's `NeedsL4Validation` decisions currently
   emit `InternalError { TimedOut }` because the L4 engine isn't
   wired. This task swaps in the real rule-engine call.
@@ -1397,7 +1399,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-048: `anvil status --json` render path
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** `crates/anvil-cli/src/commands/status.rs`
   emits `ProtectionClaim` from a daemon-snapshot input.
   Closes the HARD-GATE rendering surface.
@@ -1488,7 +1490,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-052: Additive-optional-fields forward-compat test
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Pin that adding an optional `degraded_reasons`
   / `cross_boundary_token` field doesn't bump
   `schema_version` and consumers ignore unknown optional
@@ -1612,7 +1614,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-057: Bounded rule-set cache with LRU eviction + unregister hook
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** `RuleSetCache` today is unbounded
   (`Mutex<HashMap<WorktreeKey, RuleSetEntry>>` with no cap) and no
   callback fires when a session is unregistered, so a long-running
