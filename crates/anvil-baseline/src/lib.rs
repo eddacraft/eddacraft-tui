@@ -32,9 +32,13 @@
 //!   `anvil-checks` runs through that crate's own pipeline; the
 //!   baseline crate is engine-agnostic.
 //! - `cutoff_commit` pinning into `anvil/policy.yml` — owned by
-//!   MLP-006 (L4 policy framework). The shape exposes the field on
-//!   the baseline record itself for round-trip; writing it back
-//!   into a policy file is policy-crate work.
+//!   MLP-006 (L4 policy framework) and implemented in
+//!   `anvil_l4::pin_cutoff_commit` (MLP2-031). The baseline crate
+//!   exposes the SHA on the on-disk record itself for round-trip;
+//!   the higher-level `anvil baseline` orchestrator (MLP2-032)
+//!   calls `anvil_l4::pin_cutoff_commit` after `save()` so that
+//!   `anvil/baseline.json` and `anvil/policy.yml` agree on the
+//!   cutoff in one flow.
 //! - Witness genesis-line emission (`GENESIS-BASELINED`) — owned by
 //!   MLP-002's writer + the MLP-003 hook lane.
 //! - Hook installation — MLP-003 / MLP-008 own framework-specific

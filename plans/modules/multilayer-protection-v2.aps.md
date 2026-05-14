@@ -612,7 +612,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-018: `required_anvil_version` policy evaluation
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `BranchRule.required_anvil_version` is parsed but
   not enforced. Adds the evaluation pass: refuse pushes from
   anvil versions below the floor.
@@ -633,7 +633,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-019: L4 verification of witness `rules_sha` against recognised version
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** L4 confirms the witness's `rules_sha` value
   resolves to a rule set the L4 server recognises (allows
   matching its policy floor).
@@ -1080,7 +1080,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-031: `cutoff_commit` pinning into `anvil/policy.yml`
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `anvil baseline` writes the cutoff commit back
   into `anvil/policy.yml` so the L4 policy lane (anvil-l4)
   reads it from the policy file rather than from

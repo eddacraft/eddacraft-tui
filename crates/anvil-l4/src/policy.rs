@@ -1,7 +1,10 @@
-use std::path::Path;
+use std::fs;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 use anvil_config::{ConfigFormat, ParseError, parse_str};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use thiserror::Error;
 
 /// What an arriving commit must carry to be accepted.
@@ -194,6 +197,236 @@ impl Policy {
 fn is_hex_sha_shape(raw: &str) -> bool {
     let len = raw.len();
     (4..=64).contains(&len) && raw.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// MLP2-031: errors from [`pin_cutoff_commit`].
+#[derive(Debug, Error)]
+pub enum PolicyPinError {
+    /// I/O error reading or writing the policy file.
+    #[error("io: {0}")]
+    Io(#[from] io::Error),
+    /// `anvil-config` could not decode the existing file. The pin
+    /// operation refuses to overwrite an unreadable policy file —
+    /// surfaces the parse error so the operator can fix it rather
+    /// than silently replacing their (possibly comment-rich) policy
+    /// with the minimal schema.
+    #[error("existing policy parse: {0}")]
+    Parse(#[from] ParseError),
+    /// The existing file's root JSON value is not an object — e.g. a
+    /// bare list or scalar. Refuse rather than wrap it in an object,
+    /// because that would silently lose user data.
+    #[error("existing policy root is not a JSON object")]
+    NotAnObject,
+    /// The existing file has a `baseline` key but it's not a map (it's
+    /// a scalar or list). Pinning `baseline.cutoff_commit` would
+    /// require overwriting that value with a fresh map, which would
+    /// silently lose the user's data; surface it instead.
+    #[error(
+        "policy `baseline` field is not a map; cannot pin `cutoff_commit` without overwriting user data"
+    )]
+    BaselineNotAMap,
+    /// `cutoff_commit` failed the hex-shape check that
+    /// [`Policy::validate`] applies on read. Refuse at the pin
+    /// boundary so a typo doesn't write a no-op cutoff to disk.
+    #[error("cutoff_commit must be a hex-only SHA (4–64 chars); got {raw:?}")]
+    InvalidCutoffCommit { raw: String },
+    /// Re-serialising the updated value back to the on-disk format
+    /// failed. Surfaced separately from `Io` so a transient encoder
+    /// bug doesn't masquerade as a disk error.
+    #[error("serialise updated policy as {format:?}: {message}")]
+    Serialise {
+        format: ConfigFormat,
+        message: String,
+    },
+    /// `path` is a symlink. Mirrors the
+    /// `anvil_baseline::io::BaselineIoError::SymlinkRefusal` pattern
+    /// so a hostile worktree state cannot redirect the policy write
+    /// out of the repo.
+    #[error("`{path}` is a symlink; refusing to write policy through it")]
+    SymlinkRefusal { path: PathBuf },
+}
+
+/// MLP2-031: write `cutoff_commit` into an existing `anvil/policy.yml`
+/// (or `.json` / `.toml`), preserving every other top-level field and
+/// the existing format on disk.
+///
+/// This is the producer side of MLP2-021 (the consumer):
+/// `anvil baseline` runs after the baseline scan completes, computes
+/// the cutoff SHA, and calls this to pin it into the policy file so
+/// the pre-push hook reads it from policy rather than from
+/// `baseline.json`. Round-trip: `pin_cutoff_commit(...)` →
+/// [`Policy::parse`] → `policy.baseline.cutoff_commit` matches.
+///
+/// ### Semantics
+///
+/// - **Format is detected from the path's extension** (yaml / yml /
+///   json / toml). An unrecognised extension is rejected at the
+///   `anvil-config` boundary via [`ParseError`].
+/// - **Existing file required** — refuse to bootstrap a policy file
+///   that doesn't exist yet. The opinionated reason: a missing policy
+///   file means the operator never ran `anvil init` (or equivalent)
+///   to seed defaults, and silently creating one here would skip the
+///   `branches:` block, leaving the policy with no rules. The
+///   higher-level orchestrator (`anvil baseline`) is the right place
+///   to bootstrap; this primitive only updates an existing file.
+/// - **Hex-shape validation** runs before any disk I/O so a malformed
+///   cutoff doesn't reach the file.
+/// - **Atomic write** — serialises the updated value to a temp file
+///   in the same directory, fsyncs, then renames into place.
+/// - **Symlink refusal** mirrors [`anvil_baseline::io::save`]: the
+///   path itself and the temp sibling are both checked.
+/// - **Comments are NOT preserved**. The on-disk value round-trips
+///   through `serde_json::Value` → re-encode, which is shape-faithful
+///   but strips comments and reorders keys. Documented as a follow-up
+///   limitation; the v1 baseline contract is shape-level round-trip.
+///
+/// `#[allow(dead_code)]` until MLP2-032's `anvil baseline` CLI
+/// command wires this into the orchestrator. The function is fully
+/// exercised by the tests in this file in the meantime.
+#[allow(dead_code)]
+pub fn pin_cutoff_commit(path: &Path, cutoff: &str) -> Result<(), PolicyPinError> {
+    // Hex-shape validation first so a malformed cutoff never reaches
+    // disk and never triggers a partial write.
+    if !is_hex_sha_shape(cutoff) {
+        return Err(PolicyPinError::InvalidCutoffCommit {
+            raw: cutoff.to_string(),
+        });
+    }
+
+    refuse_if_symlink(path)?;
+
+    let format = ConfigFormat::from_path(path).ok_or_else(|| {
+        PolicyPinError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unrecognised policy file extension: {}", path.display()),
+        ))
+    })?;
+
+    let raw = fs::read_to_string(path)?;
+    let value = parse_str(&raw, format, path)?;
+    let Value::Object(mut object) = value else {
+        return Err(PolicyPinError::NotAnObject);
+    };
+
+    // Replace (or insert) the `baseline.cutoff_commit` field while
+    // preserving every other key under `baseline` (and at the root).
+    let baseline_entry = object
+        .entry("baseline".to_string())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let Value::Object(baseline_map) = baseline_entry else {
+        return Err(PolicyPinError::BaselineNotAMap);
+    };
+    baseline_map.insert(
+        "cutoff_commit".to_string(),
+        Value::String(cutoff.to_string()),
+    );
+
+    let updated = Value::Object(object);
+    let bytes = serialise_in_format(&updated, format)?;
+
+    // Atomic temp-then-rename to avoid a half-written file under
+    // crash or concurrent reload. Refuse a pre-existing symlink at
+    // the temp path so a hostile state can't redirect the write.
+    let parent = path
+        .parent()
+        .ok_or_else(|| PolicyPinError::Io(io::Error::other("policy path has no parent")))?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| PolicyPinError::Io(io::Error::other("policy path has no file name")))?;
+    let mut tmp_name = std::ffi::OsString::from(".");
+    tmp_name.push(file_name);
+    tmp_name.push(".tmp");
+    let tmp_path = parent.join(&tmp_name);
+    refuse_if_symlink(&tmp_path)?;
+
+    {
+        let mut f = fs::File::create(&tmp_path)?;
+        f.write_all(&bytes)?;
+        f.sync_all()?;
+    }
+    refuse_if_symlink(path)?;
+    atomic_replace(&tmp_path, path)?;
+    Ok(())
+}
+
+fn serialise_in_format(value: &Value, format: ConfigFormat) -> Result<Vec<u8>, PolicyPinError> {
+    match format {
+        ConfigFormat::Yaml | ConfigFormat::Yml => serde_yaml::to_string(value)
+            .map(|s| {
+                // serde_yaml emits a trailing newline already; the
+                // contract here is "ends with \n", so the conversion
+                // is a straight `into_bytes`.
+                s.into_bytes()
+            })
+            .map_err(|e| PolicyPinError::Serialise {
+                format,
+                message: e.to_string(),
+            }),
+        ConfigFormat::Json => serde_json::to_vec_pretty(value)
+            .map(|mut v| {
+                v.push(b'\n');
+                v
+            })
+            .map_err(|e| PolicyPinError::Serialise {
+                format,
+                message: e.to_string(),
+            }),
+        ConfigFormat::Toml => {
+            // toml's encoder works on `toml::Value`, so convert via
+            // its serde bridge. A toml policy is unusual in practice
+            // (yaml is the canonical format) but we support it for
+            // multi-format parity per the MLP2-031 expected outcome.
+            let toml_value: toml::Value =
+                serde_json::from_value(value.clone()).map_err(|e| PolicyPinError::Serialise {
+                    format,
+                    message: format!("json→toml bridge: {e}"),
+                })?;
+            toml::to_string(&toml_value)
+                .map(String::into_bytes)
+                .map_err(|e| PolicyPinError::Serialise {
+                    format,
+                    message: e.to_string(),
+                })
+        }
+    }
+}
+
+fn refuse_if_symlink(path: &Path) -> Result<(), PolicyPinError> {
+    match path.symlink_metadata() {
+        Ok(meta) if meta.file_type().is_symlink() => Err(PolicyPinError::SymlinkRefusal {
+            path: path.to_path_buf(),
+        }),
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Atomic replace mirroring `anvil_baseline::io::atomic_replace`.
+///
+/// On POSIX, `rename` overwrites silently and is atomic; the outer
+/// caller's `refuse_if_symlink(path)` immediately before this call
+/// is the load-bearing TOCTOU guard.
+///
+/// On Windows, `std::fs::rename` calls `MoveFileExW` which can fail
+/// with `AlreadyExists` (this fallback's specialised path) but may
+/// also fail with `PermissionDenied` for an open destination — that
+/// case surfaces as a raw `Io` error rather than a refusal, because
+/// Anvil's pre-push lane is POSIX-only today. The Windows path is
+/// best-effort here; full Windows-atomic policy writes are tracked
+/// alongside the broader MLP2 Windows-driver work.
+#[allow(dead_code)]
+fn atomic_replace(src: &Path, dest: &Path) -> Result<(), PolicyPinError> {
+    match fs::rename(src, dest) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            refuse_if_symlink(dest)?;
+            fs::remove_file(dest)?;
+            fs::rename(src, dest)?;
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(test)]
@@ -422,5 +655,251 @@ branches:
                 .unwrap_or_else(|e| panic!("{good:?} should parse, got {e}"));
             assert_eq!(p.baseline.cutoff_commit.as_deref(), Some(good));
         }
+    }
+
+    // ---- MLP2-031: pin_cutoff_commit ---------------------------------
+
+    fn yaml_without_cutoff() -> &'static str {
+        r"required_anvil_version: '0.7.0'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+"
+    }
+
+    #[test]
+    fn pin_inserts_cutoff_into_yaml_policy_round_trip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        fs::write(&path, yaml_without_cutoff()).unwrap();
+
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Yaml, &path).unwrap();
+        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(p.required_anvil_version.as_deref(), Some("0.7.0"));
+        assert_eq!(p.branches.len(), 1);
+        assert_eq!(p.branches[0].pattern, "main");
+    }
+
+    #[test]
+    fn pin_updates_existing_cutoff_in_yaml_policy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        let with_old = r"baseline:
+  cutoff_commit: 'aaaaaaaa'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        fs::write(&path, with_old).unwrap();
+
+        pin_cutoff_commit(&path, "bbbbbbbb").unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Yaml, &path).unwrap();
+        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("bbbbbbbb"));
+    }
+
+    #[test]
+    fn pin_round_trips_through_json_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.json");
+        let json = r#"{"branches":[{"pattern":"main","require":"l4_or_l3","on_no_witness":"validate_at_l4"}]}"#;
+        fs::write(&path, json).unwrap();
+
+        pin_cutoff_commit(&path, &"a".repeat(40)).unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Json, &path).unwrap();
+        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some(&*"a".repeat(40)));
+    }
+
+    #[test]
+    fn pin_round_trips_through_toml_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.toml");
+        let toml_str = r#"
+[[branches]]
+pattern = "main"
+require = "l4_or_l3"
+on_no_witness = "validate_at_l4"
+"#;
+        fs::write(&path, toml_str).unwrap();
+
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Toml, &path).unwrap();
+        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+    }
+
+    #[test]
+    fn pin_refuses_invalid_cutoff_before_io() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        fs::write(&path, yaml_without_cutoff()).unwrap();
+
+        // Symbolic ref shape — rejected by the hex-shape check.
+        let err = pin_cutoff_commit(&path, "HEAD").unwrap_err();
+        match err {
+            PolicyPinError::InvalidCutoffCommit { raw } => assert_eq!(raw, "HEAD"),
+            other => panic!("expected InvalidCutoffCommit, got {other:?}"),
+        }
+        // Empty cutoff — rejected.
+        let err = pin_cutoff_commit(&path, "").unwrap_err();
+        assert!(matches!(err, PolicyPinError::InvalidCutoffCommit { .. }));
+        // Too short (3 chars) — rejected.
+        let err = pin_cutoff_commit(&path, "abc").unwrap_err();
+        assert!(matches!(err, PolicyPinError::InvalidCutoffCommit { .. }));
+        // Non-hex char — rejected.
+        let err = pin_cutoff_commit(&path, "gggggg").unwrap_err();
+        assert!(matches!(err, PolicyPinError::InvalidCutoffCommit { .. }));
+
+        // The original file is untouched after refusals.
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains("cutoff_commit"));
+    }
+
+    #[test]
+    fn pin_refuses_when_policy_file_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        assert!(matches!(err, PolicyPinError::Io(_)));
+    }
+
+    #[test]
+    fn pin_preserves_unknown_top_level_fields() {
+        // Forward-compatibility: a policy file may contain top-level
+        // fields the current crate doesn't model yet. The pin operation
+        // must round-trip them, not drop them. Use a future-proofing
+        // marker `_x_experiment_flag` so the test pins the contract
+        // even as the schema grows.
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        let with_extra = r"_x_experiment_flag: keep-me
+required_anvil_version: '0.7.0'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        fs::write(&path, with_extra).unwrap();
+
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(
+            raw.contains("_x_experiment_flag") && raw.contains("keep-me"),
+            "unknown field dropped: {raw}",
+        );
+        assert!(raw.contains("a3b2ea4e"), "cutoff_commit not written: {raw}");
+    }
+
+    #[test]
+    fn pin_writes_atomically_via_temp_then_rename() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        fs::write(&path, yaml_without_cutoff()).unwrap();
+
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        // After pin, the .tmp sibling must not linger.
+        let tmp_path = tmp.path().join(".policy.yaml.tmp");
+        assert!(!tmp_path.exists(), "temp file leaked: {tmp_path:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pin_refuses_when_policy_path_is_symlink() {
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tempfile::tempdir().unwrap();
+        let real_path = real.path().join("real_policy.yaml");
+        fs::write(&real_path, yaml_without_cutoff()).unwrap();
+        let link = tmp.path().join("policy.yaml");
+        symlink(&real_path, &link).unwrap();
+
+        let err = pin_cutoff_commit(&link, "a3b2ea4e").unwrap_err();
+        assert!(matches!(err, PolicyPinError::SymlinkRefusal { .. }));
+        // Real file unchanged.
+        let raw = fs::read_to_string(&real_path).unwrap();
+        assert!(!raw.contains("cutoff_commit"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pin_refuses_when_temp_sibling_is_symlink_pre_write() {
+        // A hostile worktree could pre-create the temp sibling as a
+        // symlink pointing outside the repo; without the temp-path
+        // refusal, `File::create` would happily write *through* it.
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        fs::write(&path, yaml_without_cutoff()).unwrap();
+        let outside = tmp.path().join("outside.yaml");
+        symlink(&outside, tmp.path().join(".policy.yaml.tmp")).unwrap();
+
+        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        assert!(matches!(err, PolicyPinError::SymlinkRefusal { .. }));
+        assert!(!outside.exists(), "temp symlink wrote through to outside");
+    }
+
+    #[test]
+    fn pin_refuses_when_baseline_field_is_not_a_map() {
+        // Council #C-MLP2-031-1: a hand-edited policy file that puts a
+        // scalar or list under `baseline:` must not be silently
+        // overwritten with a fresh map — that would lose the user's
+        // data. Refuse with `BaselineNotAMap` so the typo surfaces.
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yaml");
+        let with_scalar_baseline = r"baseline: 'oops a scalar'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        fs::write(&path, with_scalar_baseline).unwrap();
+
+        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        assert!(matches!(err, PolicyPinError::BaselineNotAMap));
+
+        // Original file untouched.
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(raw.contains("oops a scalar"));
+        assert!(!raw.contains("a3b2ea4e"));
+    }
+
+    #[test]
+    fn pin_refuses_when_root_is_not_a_json_object() {
+        // A policy file whose root is a list or scalar is invalid by
+        // schema, but `parse_str` admits it before `Policy::parse`
+        // would. Pin surfaces it as `NotAnObject` rather than
+        // attempting to wrap.
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.json");
+        fs::write(&path, "[1,2,3]").unwrap();
+
+        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        assert!(matches!(err, PolicyPinError::NotAnObject));
+    }
+
+    #[test]
+    fn pin_writes_yaml_to_yml_extension_too() {
+        // `.yml` and `.yaml` are both yaml — pin both extensions so a
+        // policy file using either lands in the same shape on disk.
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("policy.yml");
+        fs::write(&path, yaml_without_cutoff()).unwrap();
+
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        let raw = fs::read_to_string(&path).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Yml, &path).unwrap();
+        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
     }
 }

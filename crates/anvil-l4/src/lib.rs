@@ -63,13 +63,17 @@
 
 mod decide;
 mod policy;
+mod recognised_rules;
 mod resolve;
 mod validate;
 
-pub use decide::{BlockKind, CommitDecision};
+pub use decide::{BlockKind, CommitDecision, VersionFloorOutcome, evaluate_version_floor};
 pub use policy::{
     BaselineSection, BranchRule, OnBlock, OnNoWitness, OnWarn, Policy, PolicyParseError,
-    Requirement,
+    PolicyPinError, Requirement,
+};
+pub use recognised_rules::{
+    RecognisedRulesRegistry, RegistryError, RuleSetMetadata, RulesShaOutcome, evaluate_rules_sha,
 };
 pub use resolve::ResolveError;
 pub use validate::{

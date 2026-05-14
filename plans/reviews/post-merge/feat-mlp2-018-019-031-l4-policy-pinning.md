@@ -1,0 +1,106 @@
+# Post-merge: feat/mlp2-018-019-031-l4-policy-pinning
+
+PR: #NNN
+Branch: `feat/mlp2-018-019-031-l4-policy-pinning`
+APS: MLP2 (multilayer-protection-v2)
+Merged: <!-- filled by cleanup agent -->
+Verified: <!-- filled by cleanup agent -->
+
+## Steps
+
+- [ ] Advance MLP2-018 status `In Progress → Merged` in
+  `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
+  with PR + merge SHA. (agent: yes)
+- [ ] Advance MLP2-019 status `In Progress → Merged` in
+  `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
+  with PR + merge SHA. (agent: yes)
+- [ ] Advance MLP2-031 status `In Progress → Merged` in
+  `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
+  with PR + merge SHA. (agent: yes)
+- [ ] Bump Group C done/total `0/7 → 2/7` (MLP2-018 + MLP2-019 land in
+  C; MLP2-016 already shipped is counted separately — verify the
+  module's group counters reflect the wave). (agent: yes)
+- [ ] Bump Group G done/total `0/6 → 1/6` (MLP2-031). (agent: yes)
+- [ ] Update the module's overall counter from `16/60 → 19/60` after
+  Phase 1 / 2 picks land. (agent: yes)
+- [ ] Update `plans/index.aps.md` MLP2 progress line to reflect the
+  new count + add wave-1F evidence sentence. (agent: yes)
+- [ ] Confirm `anvil-cli/src/commands/l4_validate.rs` does NOT yet
+  call `evaluate_version_floor` / `evaluate_rules_sha` /
+  `pin_cutoff_commit` — wiring belongs to MLP2-032 (`anvil baseline`
+  CLI) and a follow-up L4 validate engine integration. The library
+  surface is intentionally deferred-wired and carries
+  `#[allow(dead_code)]` until the consumers land. (agent: yes)
+- [ ] After MLP2-032 lands and calls `pin_cutoff_commit` from the
+  baseline orchestrator, remove the `#[allow(dead_code)]` on
+  `crates/anvil-l4/src/policy.rs::pin_cutoff_commit`. (human required
+  — gated by MLP2-032 PR)
+- [ ] Consider hoisting `semver = "1"` and `tempfile = "3"` to
+  `[workspace.dependencies]` (filed as a separate workspace-hygiene
+  follow-up, not blocking this PR). 13 crates currently declare
+  `tempfile = "3"` as a bare string; the workspace-hoisting refactor
+  is best done in a single dedicated PR rather than partially in this
+  one. (human required)
+
+## Notes
+
+This is a paired three-item wave on the L4 lane:
+
+- **MLP2-018** — `evaluate_version_floor(...)` in
+  `crates/anvil-l4/src/decide.rs`. Server-side mirror of MLP2-020's
+  hook-side floor check; uses `semver::Version` directly to match
+  `anvil_rules::RequiredAnvilVersion::parse` byte-for-byte.
+- **MLP2-019** — `crates/anvil-l4/src/recognised_rules.rs` (new file)
+  with `RecognisedRulesRegistry` (HashMap O(1) lookup),
+  `RuleSetMetadata`, and `evaluate_rules_sha(...)` routing through
+  `OnNoWitness`. The `OnNoWitness` reuse is documented as the v1
+  policy axis — a future schema bump may introduce a dedicated
+  `on_unrecognised_rules_sha` field, at which point the L4 caller
+  threads that value in instead.
+- **MLP2-031** — `pin_cutoff_commit(...)` in
+  `crates/anvil-l4/src/policy.rs`. Atomic temp-then-rename writer
+  with symlink refusal, hex-shape validation, multi-format round-trip
+  (yaml / yml / json / toml). Comments are NOT preserved (documented
+  limitation); shape-level round-trip is the v1 contract.
+
+All three primitives are exported but `#[allow(dead_code)]`-marked
+because the consumer wiring (anvil-cli's baseline command for
+MLP2-031, and the daemon-side L4 validate engine for MLP2-018 /
+MLP2-019) lands in subsequent waves. The library tests exercise every
+public surface so the dead-code suppression is purely about the
+*cross-crate* consumer not yet existing.
+
+Council quick review found 3 MAJOR + 2 MINOR + 2 NIT findings:
+
+- MAJOR — `NotAnObject` ambiguity → fixed by adding
+  `PolicyPinError::BaselineNotAMap` variant + dedicated test.
+- MAJOR — `atomic_replace` Windows comment over-claimed coverage →
+  rewritten to explicitly call out the POSIX outer-refuse guard as
+  load-bearing and the Windows edge as best-effort with a follow-up
+  pointer.
+- MAJOR — `semver = "1"` / `tempfile = "3"` not hoisted to workspace
+  deps → punted. The convention across 13 other crates is bare
+  per-crate strings; hoisting just this crate would diverge from
+  pattern. Filed as a separate workspace-hygiene follow-up above.
+- MINOR — build-metadata semver case missing → added test pinning
+  spec §10 behaviour (build metadata ignored in precedence).
+- MINOR — `OnNoWitness` parameter reused without doc note → added
+  the "knob name" doc paragraph in `evaluate_rules_sha`.
+- NIT — redundant `#[allow(dead_code)]` on private helpers → removed
+  from `serialise_in_format` and `refuse_if_symlink`; kept on
+  `atomic_replace` because its dead-code analysis is also driven by
+  the `_replace` fallback being unreachable when `rename` succeeds.
+
+Test deltas:
+- `crates/anvil-l4` lib tests: **67 → 82** (+15)
+  - decide.rs: +9 floor pins (boundary, prerelease, build metadata,
+    invalid floor, invalid witness, precedence)
+  - recognised_rules.rs: +15 new (registry shape, conflict, routing
+    by OnNoWitness, empty registry)
+  - policy.rs: +9 pin pins (yaml/yml/json/toml round-trip, refusal
+    on invalid cutoff / missing file / non-object root / non-map
+    baseline / symlink path / symlink temp / atomicity, unknown-field
+    preservation)
+- Workspace `cargo test --workspace`: all crates green;
+  `cargo clippy --workspace --all-targets -- -D warnings` clean;
+  `cargo fmt --check` clean.

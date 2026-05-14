@@ -1271,9 +1271,13 @@ version = "0.6.2-beta"
 dependencies = [
  "eddacraft-anvil-config",
  "globset",
+ "semver",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "tempfile",
  "thiserror 2.0.18",
+ "toml",
  "workspace-hack",
 ]
 
