@@ -5,14 +5,14 @@
 
 | ID     | Owner | Status |
 | ------ | ----- | ------ |
-| RSTLAN | —     | Draft  |
+| RSTLAN | —     | Proposed |
 
 **Last reviewed:** 2026-05-14
 
 > **Priority update (2026-05-14):** RSTLAN is now part of the first Language &
 > Coverage target set because Anvil's primary implementation surface is Rust and
 > founder priority is to get Rust coverage sorted before later packs expand. The
-> module remains `Draft` until the readiness gates below close; this priority
+> module remains `Proposed` until the readiness gates below close; this priority
 > change does not authorise implementation before LANGTS/kernel prerequisites and
 > the Rust T3 architecture-enforcement ADR are ready.
 
@@ -126,7 +126,7 @@ Tasks will be defined when this module moves to Ready. Anticipated shape:
 | `unsafe` false positives in FFI crates | Medium | Allowlist for FFI crates; severity: info |
 | Macro-generated imports invisible | Low | Document limitation; revisit if proc-macro analysis arrives |
 | Workspace vs single-crate layouts confuse extraction | Medium | Detect via `Cargo.toml` `[workspace]`; validate against Anvil's own monorepo first |
-| Architecture-enforcement decision (council §16.5 #5) deferred indefinitely | High | ADR is a Ready prerequisite; module cannot move past Draft without it |
+| Architecture-enforcement decision (council §16.5 #5) deferred indefinitely | High | ADR is a Ready prerequisite; module cannot move past Proposed without it |
 
 ## Open Questions
 

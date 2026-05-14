@@ -505,10 +505,12 @@ coordination uses prose callouts (`Coordinates with:`, `Blocks on:`,
 shared operational prerequisites for Track 3 surfaces and Track 4 packs; it does
 not duplicate their rule-catalogue work.
 
-**Next executable target:** Phase 1 stays the first cut unless re-scored:
+**Next target set:** Phase 1 stays the first cut unless re-scored:
 `LANGTS` anchor zero, `RSTLAN`, `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
 needed OPSUP slices and FLAGCAT catalogue-bootstrap slice completed first or
-cited as `Blocks on:` callouts in the owning tasks.
+cited as `Blocks on:` callouts in the owning tasks. Modules still marked
+`Proposed` must be promoted to `Ready` with executable tasks before
+implementation is authorised.
 
 - **Phase 1 (MVP + Rust dogfood)**: TS audit + Rust → T3 + SQL migrations T2 +
   Pulumi pack + LLM Provider pack (warn-only). Spec §9 steps 1–5 after the
@@ -531,7 +533,7 @@ Python must hit. Spec §7, §8.1.
 | Module                                          | Scope  | Status | Phase | Spec ref                                                                                                                                                   |
 | ----------------------------------------------- | ------ | ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | Ready  | 1     | §7.3, §8.1 — 2/5; promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval) |
-| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Draft  | 1     | §8.1 — promoted into first-phase target set 2026-05-14; remains Draft until LANGTS/kernel/ADR readiness gates close                                          |
+| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Proposed | 1     | §8.1 — promoted into first-phase target set 2026-05-14; remains Proposed until LANGTS/kernel/ADR readiness gates close                                      |
 | [lang-python](./modules/lang-python.aps.md)     | PYLAN  | Draft  | 2     | §8.1                                                                                                                                                       |
 
 #### Track 2 — Tail T1 wave (single batched sprint)
@@ -645,15 +647,15 @@ it, each new module would re-design the same plumbing.
 | Item                                                                                                                                                | Status                                                                           |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | §16.5 #3 — kernel prerequisite work (extractor refactor, grammar version in cache key, parser thread-safety, panic removal, grammar maturity audit) | Captured in LANGTS Ready Checklist; needs implementation                         |
-| §16.5 #4 — pack architecture                                                                                                                        | ✅ ADR-027 (Proposed)                                                            |
+| §16.5 #4 — pack architecture                                                                                                                        | ✅ ADR-027 (Accepted)                                                            |
 | §16.5 #5 — Rust T3 architecture enforcement location                                                                                                | Captured in RSTLAN Ready Checklist; ADR not yet written                          |
 | §16.5 #7 — operational supplement                                                                                                                   | ✅ OPSUP module created                                                          |
 | §16.5 #8 — anchor re-scoring process gate                                                                                                           | ✅ Process guide created; permanent owner still open                             |
 | §16.5 #9 — acceptance bar revision (FP rate < N% AND ≥1 external codebase)                                                                          | Captured in each module's Ready Checklist; canonical wording not yet centralised |
 | §16.5 #10 — Markdown M1 acceptance softening                                                                                                        | Captured inline in MDGOV                                                         |
-| §16.5 #11 — Markdown crate assignment                                                                                                               | ✅ ADR-028 (Proposed)                                                            |
+| §16.5 #11 — Markdown crate assignment                                                                                                               | ✅ ADR-028 (Accepted)                                                            |
 | §16.5 #12 — parallelism-is-logical-dependency clarification                                                                                         | Inline in spec §9; track modules inherit                                         |
-| Council C-025 — suppression parser authority                                                                                                        | ✅ ADR-029 (Proposed)                                                            |
+| Council C-025 — suppression parser authority                                                                                                        | ✅ ADR-029 (Accepted)                                                            |
 
 ### Config Intelligence
 
