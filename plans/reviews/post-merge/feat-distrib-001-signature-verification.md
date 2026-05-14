@@ -1,43 +1,40 @@
 # Post-merge: feat-distrib-001-signature-verification
 
-PR: #NNN
+PR: #1562
 Branch: `feat/distrib-001-signature-verification`
 APS: DISTRIB-001 (in module DISTRIB)
-Merged: <!-- filled by cleanup agent -->
-Verified: <!-- filled by cleanup agent -->
+Merged: 2026-05-14 (rebased onto main as ceadb1c5, 44c5df3e, ae36e615)
+Verified: <!-- filled by cleanup agent once steps 5+7 confirm -->
 
 ## Steps
 
-- [ ] Step 1 — Generate the production minisign keypair offline per
+- [x] Step 1 — Generate the production minisign keypair offline per
       `docs/runbooks/release-signing.md` §"One-time setup" (human required;
       the key must never leave a secure store). Owner: release maintainer.
-- [ ] Step 2 — Add the base64-encoded private key as
+      **Done 2026-05-15.**
+- [x] Step 2 — Add the base64-encoded private key as
       `secrets.ANVIL_MINISIGN_PRIVATE_KEY` in the `eddacraft/anvil` repo
-      Settings → Secrets → Actions (human required).
-- [ ] Step 3 — Add the public key base64 (just the second line of the
+      Settings → Secrets → Actions (human required). **Done 2026-05-15.**
+- [x] Step 3 — Add the public key base64 (just the second line of the
       `.pub` file, no comment header) as `vars.ANVIL_MINISIGN_PUBLIC_KEY`
       in repo Settings → Variables → Actions (human required).
-- [ ] Step 4 — Smoke-test the `release-sign-artefacts.yml` workflow on a
+      **Done 2026-05-15.**
+- [x] Step 4 — Smoke-test the `release-sign-artefacts.yml` workflow on a
       pre-existing release tag via `workflow_dispatch` and confirm
-      `.minisig` files are uploaded (agent: yes — `gh workflow run
-      release-sign-artefacts.yml -f tag=v0.6.2-beta` then `gh release view
-      v0.6.2-beta --json assets` and assert at least one `*.minisig` is
-      present).
+      `.minisig` files are uploaded. **Done 2026-05-15.**
 - [ ] Step 5 — Update the v0.7.0-beta release notes to direct legacy-
       binary users to re-install via curl-installer or Homebrew before
       relying on `anvil update` for future hotfixes (bootstrap step, see
       `docs/runbooks/release-signing.md` §"Initial bootstrap"). Owner:
-      release maintainer.
-- [ ] Step 6 — Move DISTRIB module status from `In Progress` to `In
-      Progress 1/5` (mark DISTRIB-001 Merged) once PR merges. The cleanup
-      agent advances the module status; this entry is the trigger
-      record. (agent: yes — read `plans/modules/distribution-and-update.aps.md`
-      and update the progress count + DISTRIB-001 Status to Merged.)
+      release maintainer. **Blocked on v0.7.0-beta tag.**
+- [x] Step 6 — Move DISTRIB module status from `In Progress 0/5` to
+      `In Progress 1/5` and mark DISTRIB-001 Merged. **Done 2026-05-14
+      via commit a89baf87.**
 - [ ] Step 7 — When `v0.7.0-beta` ships, confirm a downstream `anvil
       update` against the signed release works end-to-end on a clean
       macOS arm64 + Linux x86_64 machine (manual; this is the real-user
       validation the spec calls for). Owner: release maintainer or QA
-      participant from N9 Boring-Week gate.
+      participant from N9 Boring-Week gate. **Blocked on v0.7.0-beta tag.**
 
 ## Notes
 
