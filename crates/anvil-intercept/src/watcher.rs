@@ -57,6 +57,7 @@ use anvil_intercept_rules::ChangeKind;
 
 use crate::enforcement::{EnforcementDecision, EnforcementPipeline, FileChange};
 use crate::registry::{Attribution, SessionRegistry};
+use crate::rule_cache::{RuleSetCache, WorktreeKey};
 
 /// Default watcher coalescing window. Pinned at 50 ms by the
 /// intercept-rules `ChangeBatch` coalescing contract: agent edits
@@ -161,8 +162,14 @@ pub struct WatcherIntegration {
     registry: Arc<SessionRegistry>,
     pipeline: Arc<EnforcementPipeline>,
     unregistered: Arc<dyn UnregisteredHandler>,
+    /// MLP2-001: rule-set cache invalidated on `.anvil.*` writes.
+    /// Optional so callers that don't yet wire the cache (tests,
+    /// embedded harnesses) opt out cleanly. When `None`, the
+    /// invalidation step is a no-op.
+    rule_cache: Option<Arc<RuleSetCache>>,
     config: WatcherIntegrationConfig,
     coalescer: Coalescer,
+    invalidated: Vec<WorktreeKey>,
 }
 
 impl WatcherIntegration {
@@ -191,9 +198,30 @@ impl WatcherIntegration {
             registry,
             pipeline,
             unregistered,
+            rule_cache: None,
             config,
             coalescer: Coalescer::new(),
+            invalidated: Vec::new(),
         }
+    }
+
+    /// MLP2-001: attach a rule-set cache that this watcher will
+    /// invalidate when `.anvil.{yaml,yml,json,toml}` files change.
+    /// Wired by the daemon during startup; tests may opt out by not
+    /// calling this method.
+    #[must_use]
+    pub fn with_rule_cache(mut self, cache: Arc<RuleSetCache>) -> Self {
+        self.rule_cache = Some(cache);
+        self
+    }
+
+    /// Worktree keys whose rule-set cache entries were invalidated
+    /// during the most recent [`Self::ingest_at`] call. Cleared at the
+    /// start of each ingest. Used by tests + telemetry to observe
+    /// invalidation without scraping the cache map.
+    #[must_use]
+    pub fn last_invalidations(&self) -> &[WorktreeKey] {
+        &self.invalidated
     }
 
     /// Ingest a single batch from the watcher channel. Routes each
@@ -206,12 +234,21 @@ impl WatcherIntegration {
     /// `Instant::now()` (see [`run`]).
     pub fn ingest_at(&mut self, batch: WatcherChangeBatch, now: Instant) -> Vec<AttributedBatch> {
         let coalesce_window = self.config.coalesce_window;
+        self.invalidated.clear();
 
         for change in batch.changes {
             let file_change = FileChange {
                 path: change.path.clone(),
                 change_kind: change.kind,
             };
+            // MLP2-001: invalidate the resolved-rule-set cache when a
+            // `.anvil.*` file moves. Done *before* attribution so the
+            // cache reaches the next evaluation already cleared even
+            // if the writer was unattributable.
+            if let Some(cache) = self.rule_cache.as_ref() {
+                let hits = cache.invalidate_on_change(&change.path);
+                self.invalidated.extend(hits);
+            }
             match self.registry.attribute_path(&change.path) {
                 Attribution::Owned { session } => {
                     self.coalescer.record_owned(
@@ -728,5 +765,97 @@ mod tests {
         let flushed = integration.flush_all(now);
         assert_eq!(flushed.len(), 1);
         assert!(matches!(flushed[0], AttributedBatch::Owned { .. }));
+    }
+
+    /// MLP2-001: a `.anvil.*` write inside a worktree invalidates the
+    /// rule-set cache entry for that worktree before enforcement
+    /// re-evaluates.
+    #[test]
+    fn anvil_config_write_invalidates_rule_cache() {
+        let registry = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&SessionId::new("sess-cfg"), wt.path(), now)
+            .expect("register");
+
+        let cache = Arc::new(RuleSetCache::new());
+        let key = WorktreeKey::canonicalise(wt.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&key, |_| {
+                Ok(crate::rule_cache::RuleSetEntry {
+                    rules_sha: "stale".into(),
+                    resolved: crate::rule_cache::ResolvedRuleSet {
+                        config: serde_json::json!({"mode":"warn"}),
+                    },
+                })
+            })
+            .unwrap();
+        assert_eq!(cache.len(), 1, "cache primed");
+
+        let mut integration = WatcherIntegration::new(
+            Arc::clone(&registry),
+            setup_pipeline_empty(),
+            Arc::new(NoopUnregisteredHandler),
+        )
+        .with_rule_cache(Arc::clone(&cache));
+
+        let cfg = wt.path().join(".anvil.yaml");
+        std::fs::write(&cfg, b"mode: fence\n").expect("write config");
+        let batch = WatcherChangeBatch {
+            changes: vec![change(cfg, ChangeKind::Modified)],
+            received_at: now,
+        };
+        let _ = integration.ingest_at(batch, now);
+
+        assert!(cache.is_empty(), "stale entry must be evicted");
+        assert_eq!(
+            integration.last_invalidations(),
+            &[key],
+            "invalidation telemetry must observe the eviction"
+        );
+    }
+
+    /// MLP2-001 guard: writes to unrelated files inside the worktree
+    /// must not flush the rule-set cache.
+    #[test]
+    fn unrelated_write_does_not_invalidate_rule_cache() {
+        let registry = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&SessionId::new("sess-keep"), wt.path(), now)
+            .expect("register");
+
+        let cache = Arc::new(RuleSetCache::new());
+        let key = WorktreeKey::canonicalise(wt.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&key, |_| {
+                Ok(crate::rule_cache::RuleSetEntry {
+                    rules_sha: "keep".into(),
+                    resolved: crate::rule_cache::ResolvedRuleSet {
+                        config: serde_json::json!({}),
+                    },
+                })
+            })
+            .unwrap();
+
+        let mut integration = WatcherIntegration::new(
+            Arc::clone(&registry),
+            setup_pipeline_empty(),
+            Arc::new(NoopUnregisteredHandler),
+        )
+        .with_rule_cache(Arc::clone(&cache));
+
+        let unrelated = wt.path().join("src.rs");
+        std::fs::write(&unrelated, b"fn main() {}").expect("write fixture");
+        let batch = WatcherChangeBatch {
+            changes: vec![change(unrelated, ChangeKind::Modified)],
+            received_at: now,
+        };
+        let _ = integration.ingest_at(batch, now);
+
+        assert_eq!(cache.len(), 1, "unrelated write must not invalidate");
+        assert!(integration.last_invalidations().is_empty());
     }
 }

@@ -41,6 +41,7 @@ pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
 pub mod registry;
+pub mod rule_cache;
 pub mod status;
 pub mod telemetry;
 pub mod unregistered;

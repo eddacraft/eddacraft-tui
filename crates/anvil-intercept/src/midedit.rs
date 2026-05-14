@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use anvil_intercept_rules::ChangeKind;
@@ -54,6 +55,15 @@ pub struct ScanBufferResponse {
     pub version: u64,
     pub diagnostics: Vec<Diagnostic>,
     pub truncated: bool,
+    /// MLP2-002: `rules_sha` pinned at evaluation start. The
+    /// scheduler resolves the rule set against the worktree once,
+    /// records the sha, and threads it through to the response so
+    /// the witness chain (when wired by MLP2-014) can attribute the
+    /// evaluation to a specific rule version even when the cache is
+    /// invalidated mid-call. `None` for v1 callers that haven't
+    /// wired the rule-set cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules_sha: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -89,6 +99,13 @@ pub struct ScanBufferService {
     /// those `validation.roundtrip` and treats them as a separate
     /// dimension owned by the driver-side benchmarks.
     latency: LatencyAggregator,
+    /// MLP2-002: count of evaluations currently in flight. Bumped at
+    /// permit acquisition, decremented when the caller returns
+    /// (success, timeout, or worker failure). Observable via
+    /// [`Self::in_flight`] so the daemon's status surface and
+    /// burst-coalescing telemetry can see how many evaluations a
+    /// config write would have to wait out without disturbing.
+    in_flight: Arc<AtomicUsize>,
 }
 
 impl std::fmt::Debug for ScanBufferService {
@@ -116,7 +133,20 @@ impl ScanBufferService {
             permits: Arc::new(Semaphore::new(MAX_CONCURRENT_SCAN_BUFFERS)),
             timeout,
             latency: LatencyAggregator::new(),
+            in_flight: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// MLP2-002: number of evaluations currently held by a permit.
+    /// Reads with `Relaxed` ordering — the value is advisory
+    /// telemetry, not a synchronisation point. Burst-coalescing logic
+    /// that wants to know "how many evaluations would a config write
+    /// have to wait out" reads this counter; pinning correctness is
+    /// guaranteed by each evaluation cloning the pinned `rules_sha`
+    /// before the cache mutates, not by reading this number.
+    #[must_use]
+    pub fn in_flight(&self) -> usize {
+        self.in_flight.load(Ordering::Relaxed)
     }
 
     /// Borrow the latency aggregator. The IPC `query_status` handler
@@ -130,6 +160,30 @@ impl ScanBufferService {
     pub async fn scan_buffer(
         &self,
         request: ScanBufferRequest,
+    ) -> Result<ScanBufferResponse, ScanBufferError> {
+        self.scan_buffer_with_pin(request, None).await
+    }
+
+    /// MLP2-002: variant of [`Self::scan_buffer`] that pins the
+    /// resolved `rules_sha` for the duration of the evaluation.
+    ///
+    /// The scheduler (CLI / IPC handler) resolves the active rule
+    /// set against the worktree before calling, captures the
+    /// `rules_sha` from
+    /// [`crate::rule_cache::RuleSetCache::lookup`], and passes it
+    /// here. The value is **moved** into the request scope: a
+    /// concurrent watcher-driven `invalidate_on_change` may clear
+    /// the cache, but the in-flight evaluation keeps operating
+    /// against this pinned sha. The next call resolves freshly and
+    /// picks up the new set.
+    ///
+    /// The pinned sha is round-tripped to the response so the
+    /// witness-chain layer (MLP2-014) can record which rule set
+    /// produced the evaluation without re-querying the cache.
+    pub async fn scan_buffer_with_pin(
+        &self,
+        request: ScanBufferRequest,
+        pinned_rules_sha: Option<String>,
     ) -> Result<ScanBufferResponse, ScanBufferError> {
         // The permit is held by the *caller* for the lifetime of this
         // future, NOT by the worker thread. If the caller times out,
@@ -146,6 +200,12 @@ impl ScanBufferService {
                 TryAcquireError::NoPermits => ScanBufferError::Busy,
                 TryAcquireError::Closed => ScanBufferError::ServiceUnavailable,
             })?;
+        // MLP2-002: bump the in-flight counter under an RAII guard so
+        // the count reflects active evaluations regardless of which
+        // exit path the call takes (success, timeout, worker
+        // failure). Held alongside the permit; both drop when the
+        // future returns.
+        let _inflight = InFlightGuard::new(Arc::clone(&self.in_flight));
         // INTD-011: capture the request mode before moving `request`
         // into the worker thread. Only `mode = midEdit` samples are
         // recorded — the latency aggregator is the daemon-side
@@ -192,7 +252,10 @@ impl ScanBufferService {
                 if matches!(request_mode, ScanBufferMode::MidEdit) && result.is_ok() {
                     self.latency.record(Instant::now(), elapsed);
                 }
-                result
+                result.map(|mut r| {
+                    r.rules_sha = pinned_rules_sha;
+                    r
+                })
             }
             Ok(Err(err)) => Err(ScanBufferError::WorkerFailed(err.to_string())),
             Err(_) => {
@@ -203,6 +266,27 @@ impl ScanBufferService {
                 Err(ScanBufferError::TimedOut)
             }
         }
+    }
+}
+
+/// MLP2-002: RAII guard that increments the in-flight counter on
+/// construction and decrements on drop. Held next to the permit so
+/// the counter always reflects "evaluations holding a permit", even
+/// if the caller's future is cancelled mid-await.
+struct InFlightGuard {
+    counter: Arc<AtomicUsize>,
+}
+
+impl InFlightGuard {
+    fn new(counter: Arc<AtomicUsize>) -> Self {
+        counter.fetch_add(1, Ordering::Relaxed);
+        Self { counter }
+    }
+}
+
+impl Drop for InFlightGuard {
+    fn drop(&mut self) {
+        self.counter.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -229,6 +313,7 @@ pub fn scan_buffer_with_pipeline(
             version: request.version,
             diagnostics: Vec::new(),
             truncated: false,
+            rules_sha: None,
         });
     }
 
@@ -249,6 +334,11 @@ pub fn scan_buffer_with_pipeline(
         version: request.version,
         diagnostics,
         truncated,
+        // MLP2-002: the pure-pipeline path has no notion of the
+        // cache; the async [`ScanBufferService::scan_buffer_with_pin`]
+        // overwrites this with the pinned value if the caller
+        // supplied one.
+        rules_sha: None,
     })
 }
 
@@ -642,6 +732,129 @@ mod tests {
         assert!(
             matches!(outcome, Err(ScanBufferError::TimedOut)),
             "permit must release on caller timeout; got {outcome:?}",
+        );
+    }
+
+    /// MLP2-002: a pinned `rules_sha` survives the round-trip through
+    /// the worker thread and is returned to the caller verbatim.
+    #[tokio::test]
+    async fn scan_buffer_with_pin_returns_pinned_rules_sha() {
+        let service = ScanBufferService::new(EnforcementPipeline::new(default_rule_registry()));
+        let response = service
+            .scan_buffer_with_pin(secret_request(), Some("sha-pinned-v1".into()))
+            .await
+            .expect("scan_buffer with pin");
+        assert_eq!(response.rules_sha.as_deref(), Some("sha-pinned-v1"));
+    }
+
+    /// MLP2-002: the default `scan_buffer` (no pin) leaves
+    /// `rules_sha` empty so existing call sites stay byte-compatible.
+    #[tokio::test]
+    async fn scan_buffer_without_pin_omits_rules_sha() {
+        let service = ScanBufferService::new(EnforcementPipeline::new(default_rule_registry()));
+        let response = service
+            .scan_buffer(secret_request())
+            .await
+            .expect("scan_buffer");
+        assert!(response.rules_sha.is_none());
+    }
+
+    /// MLP2-002: in-flight counter reflects evaluations holding a
+    /// permit. Zero before, one during, zero after.
+    #[tokio::test]
+    async fn scan_buffer_in_flight_counter_tracks_active_evaluations() {
+        // A rule that blocks on a barrier so the test can observe the
+        // counter mid-evaluation. Reaches the worker thread because
+        // `needs_content` is true; releases when the test calls
+        // `barrier.wait()` on the controlling side.
+        struct GateRule(Arc<Barrier>);
+        impl InterceptRule for GateRule {
+            fn rule_id(&self) -> &'static str {
+                "test.gate"
+            }
+            fn needs_content(&self) -> bool {
+                true
+            }
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                self.0.wait();
+                RuleDecision::allow()
+            }
+        }
+
+        let barrier = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule(Arc::clone(&barrier)))])
+            .expect("registry");
+        let service = ScanBufferService::new(EnforcementPipeline::new(registry));
+        assert_eq!(service.in_flight(), 0);
+
+        let service_clone = service.clone();
+        let handle = tokio::spawn(async move { service_clone.scan_buffer(secret_request()).await });
+
+        // Spin until we observe the counter increment — the worker
+        // thread may not have started before the await returns, so
+        // poll without sleeping.
+        let mut observed = 0;
+        for _ in 0..200 {
+            observed = service.in_flight();
+            if observed == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(observed, 1, "in-flight must observe the held permit");
+
+        // Release the barrier so the worker exits.
+        barrier.wait();
+        let _ = handle.await.expect("join");
+        assert_eq!(service.in_flight(), 0, "counter must clear after exit");
+    }
+
+    /// MLP2-002 adversarial test: a config-cache invalidation during
+    /// an in-flight evaluation must NOT change the pinned `rules_sha`
+    /// that returns to the caller.
+    #[tokio::test]
+    async fn config_invalidation_mid_evaluation_does_not_swap_pinned_rules_sha() {
+        use crate::rule_cache::{ResolvedRuleSet, RuleSetCache, RuleSetEntry, WorktreeKey};
+        let cache = Arc::new(RuleSetCache::new());
+        let dir = tempfile::tempdir().expect("tempdir");
+        let key = WorktreeKey::canonicalise(dir.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&key, |_| {
+                Ok(RuleSetEntry {
+                    rules_sha: "v-original".into(),
+                    resolved: ResolvedRuleSet {
+                        config: serde_json::json!({"mode":"warn"}),
+                    },
+                })
+            })
+            .unwrap();
+
+        let pinned = match cache.lookup(&key) {
+            crate::rule_cache::CacheOutcome::Hit(entry) => Some(entry.rules_sha),
+            crate::rule_cache::CacheOutcome::Miss => None,
+        };
+        assert_eq!(pinned.as_deref(), Some("v-original"));
+
+        let service = ScanBufferService::new(EnforcementPipeline::new(default_rule_registry()));
+        let pin_clone = pinned.clone();
+        let cache_clone = Arc::clone(&cache);
+        let key_clone = key.clone();
+        let racer = tokio::spawn(async move {
+            // Simulate the watcher invalidating the cache while the
+            // evaluation is in flight.
+            cache_clone.invalidate(&key_clone);
+        });
+        let response = service
+            .scan_buffer_with_pin(secret_request(), pin_clone)
+            .await
+            .expect("scan_buffer with pin");
+        racer.await.expect("racer");
+
+        assert!(cache.is_empty(), "cache should be invalidated");
+        assert_eq!(
+            response.rules_sha.as_deref(),
+            Some("v-original"),
+            "in-flight pin must not be replaced by mid-flight invalidation"
         );
     }
 }

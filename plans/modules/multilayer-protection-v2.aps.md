@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | Draft       | 0/56 done |
+| MLP2 | @aneki | In Progress | 2/56 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -84,7 +84,7 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 
 #### MLP2-001: Daemon-side `(worktree_key, rules_sha) → ResolvedRuleSet` cache with `.anvil.*` watcher invalidation
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Daemon caches resolved rule sets keyed by
   `(worktree_key, rules_sha)` and invalidates on `.anvil.*` file
   changes so config edits propagate without restart.
@@ -94,22 +94,44 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
     / `.anvil.yml` / `.anvil.json` / `.anvil.toml` writes.
   - Cache miss falls back to `anvil-config::parse_file` +
     `anvil-rules::rules_sha` recompute.
-  - Coordinates with MLP2-023 (session-key change) so the cache
-    survives the registry-key extension.
 - **Files:** `crates/anvil-intercept/src/registry.rs`,
   `crates/anvil-intercept/src/watcher.rs`,
   `crates/anvil-intercept/src/config.rs`.
 - **Validation:** Cache hit/miss telemetry; watcher event delivers
   invalidation within 250ms; concurrent writers don't race the
-  cache.
+  cache. **Evidence (Done 2026-05-14):**
+  `cargo test -p eddacraft-anvil-intercept` — 239 lib tests green,
+  including 15 `rule_cache::` unit tests (lookup hit/miss, miss-on-
+  populated, resolver failure does not poison, invalidate idempotency,
+  format-agnostic `rules_sha`, `.anvil.*` case-insensitive
+  recognition, multi-worktree isolation, concurrent invalidate +
+  store) and 2 `watcher::` integration tests (config write
+  invalidates cache; unrelated write does not). Coalesce window is
+  50ms so the watcher delivers invalidation well inside the 250ms
+  budget; the cache uses `Mutex<HashMap>` for race-free concurrent
+  mutation. New files:
+  `crates/anvil-intercept/src/rule_cache.rs`; modified:
+  `crates/anvil-intercept/src/watcher.rs`,
+  `crates/anvil-intercept/src/lib.rs`,
+  `crates/anvil-intercept/Cargo.toml`,
+  `crates/anvil-intercept/src/kindling_observation.rs`.
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** MLP-012, MLP-011, MLP2-023
-- **Source:** MLP-012 footnote 1.
+- **Dependencies:** MLP-012, MLP-011
+- **Coordinates with:** MLP2-023 (session-key change) — the cache
+  is keyed on the worktree path (`worktree_key`), which is
+  unaffected by the session registry's `(WorktreeKey, AgentTag)`
+  extension because resolved rule sets are worktree-scoped, not
+  per-agent. MLP2-023 may rename `WorktreeKey` shape; the cache
+  takes a forward-compatible newtype so the rename is mechanical.
+- **Source:** MLP-012 footnote 1. Downgraded MLP2-023 from
+  `Dependencies` to `Coordinates with` 2026-05-14 after the
+  contradiction with this task's own description was flagged in
+  dependency audit.
 
 #### MLP2-002: In-flight evaluation pinning during config-update bursts
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** A config write during an in-flight evaluation MUST
   NOT swap the rule set mid-evaluation. The scheduler pins the
   resolved set for the duration of the call.
@@ -119,10 +141,28 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
     in-flight evaluations; new evaluations pick up the new set.
   - Burst-handling: multiple config writes within a window
     coalesce; in-flight evaluation count is observable.
-- **Files:** `crates/anvil-intercept/src/enforcement.rs`,
-  `crates/anvil-intercept/src/midedit.rs` (scan_buffer worker).
+- **Files:** `crates/anvil-intercept/src/midedit.rs` (scan_buffer
+  service, `ScanBufferResponse.rules_sha`, in-flight counter, RAII
+  `InFlightGuard`); `crates/anvil-intercept/src/kindling_observation.rs`
+  (test fixture call sites updated for the new field).
 - **Validation:** Adversarial test — write config mid-evaluation,
   assert in-flight call returns with the original `rules_sha`.
+  **Evidence (Done 2026-05-14):** `cargo test -p
+  eddacraft-anvil-intercept midedit::` — 14 tests green, including
+  4 new MLP2-002 tests:
+  `scan_buffer_with_pin_returns_pinned_rules_sha`,
+  `scan_buffer_without_pin_omits_rules_sha`,
+  `scan_buffer_in_flight_counter_tracks_active_evaluations` (gated
+  rule + barrier observes the 0 → 1 → 0 transition without
+  sleeping), and
+  `config_invalidation_mid_evaluation_does_not_swap_pinned_rules_sha`
+  (the adversarial test). Burst-coalescing is delivered by the
+  watcher coalescer (50 ms window); in-flight count exposed via
+  `ScanBufferService::in_flight()`. The wire shape stays backward-
+  compatible: `rules_sha` is `#[serde(default,
+  skip_serializing_if = "Option::is_none")]`, so the existing
+  MCP deserialiser in `anvil-cli/src/mcp/validation.rs` keeps
+  parsing v1 responses without change.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP2-001
@@ -1332,7 +1372,7 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 0/10 |
+| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 2/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 0/5 |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 0/4 |
@@ -1343,7 +1383,7 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
-| **Total** | **56** | **0/56** |
+| **Total** | **56** | **2/56** |
 
 ## Recommended landing order
 
@@ -1384,13 +1424,14 @@ ahead of the rest of their respective groups in Phase 1.
 | **MLP2-048** | J | `anvil status --json` render path unblocks the entire J group's HARD-GATE closure |
 | **MLP2-001** | A | Daemon-side rules-sha cache unblocks A2 + B4 (writer wiring), plus is the natural integration point for A6/A7 |
 
-### Phase 1 — Day-0 starters (31 tasks, fully parallel up to file conflicts)
+### Phase 1 — Day-0 starters (32 tasks, fully parallel up to file conflicts)
 
 Every task here depends only on Done MLP items. Can start
 immediately; the only coordination is around shared files (see
 "Parallelisation notes" below).
 
-- **A:** MLP2-004, MLP2-005, MLP2-007, MLP2-008, MLP2-009¹
+- **A:** MLP2-001¹, MLP2-004, MLP2-005, MLP2-007, MLP2-008,
+  MLP2-009¹
 - **B:** MLP2-011, MLP2-012, MLP2-013, MLP2-015
 - **C:** MLP2-016¹, MLP2-018, MLP2-020, MLP2-021, MLP2-022
 - **D:** MLP2-023¹
@@ -1402,15 +1443,20 @@ immediately; the only coordination is around shared files (see
 - **J:** MLP2-048¹, MLP2-052
 - **K:** MLP2-053
 
-¹ = load-bearing for Phase 2; land first within the group.
+¹ = load-bearing for Phase 2; land first within the group. **Note:**
+MLP2-001 moved from Phase 2 → Phase 1 on 2026-05-14 after audit
+resolved its `MLP2-023` listing to a `Coordinates with:` callout
+(see MLP2-001 body); the cache is worktree-scoped and is
+forward-compatible with MLP2-023's session-key extension.
 
-### Phase 2 — Phase-1-gated (16 tasks)
+### Phase 2 — Phase-1-gated (17 tasks)
 
 Each entry shows its gating Phase-1 dependency:
 
 | Task | Gated by |
 | --- | --- |
-| MLP2-001, MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
+| MLP2-002, MLP2-014 | MLP2-001 |
+| MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
 | MLP2-026 | MLP2-023 + MLP2-009 |
 | MLP2-006 | MLP2-009 |
 | MLP2-017, MLP2-019, MLP2-042, MLP2-046, MLP2-055 | MLP2-016 |
@@ -1418,11 +1464,10 @@ Each entry shows its gating Phase-1 dependency:
 | MLP2-033 | MLP2-032 |
 | MLP2-035, MLP2-036 | MLP2-034 |
 
-### Phase 3 — Phase-2-gated (8 tasks)
+### Phase 3 — Phase-2-gated (6 tasks)
 
 | Task | Gated by |
 | --- | --- |
-| MLP2-002, MLP2-014 | MLP2-001 |
 | MLP2-010, MLP2-054 | MLP2-006 |
 | MLP2-044, MLP2-045 | MLP2-042 |
 | MLP2-050 | MLP2-049 |

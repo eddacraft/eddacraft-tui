@@ -297,6 +297,7 @@ mod tests {
             version: 1,
             diagnostics: Vec::new(),
             truncated: false,
+            rules_sha: None,
         }
     }
 
@@ -305,6 +306,7 @@ mod tests {
             version: 1,
             diagnostics,
             truncated: false,
+            rules_sha: None,
         }
     }
 
