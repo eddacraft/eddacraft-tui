@@ -612,7 +612,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-018: `required_anvil_version` policy evaluation
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `BranchRule.required_anvil_version` is parsed but
   not enforced. Adds the evaluation pass: refuse pushes from
   anvil versions below the floor.
@@ -630,10 +630,24 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-006, MLP-012
 - **Source:** MLP-006 deferred outcome.
+- **Evidence (Merged 2026-05-14 via PR #1567 at `96ad5d2d`):**
+  Server-side mirror of MLP2-020's hook-side `check_version_floor`.
+  New `evaluate_version_floor(policy_floor, witness_anvil_version)`
+  in `crates/anvil-l4/src/decide.rs` returning typed
+  `VersionFloorOutcome`: `Satisfied` / `WitnessVersionAbsent` /
+  `BelowFloor { required, observed }` / `InvalidFloor { raw }` /
+  `InvalidWitnessVersion { raw }`. Uses `semver::Version` directly
+  so prerelease + build-metadata precedence matches
+  `anvil_rules::RequiredAnvilVersion::parse` byte-for-byte. +9
+  boundary pins including equal/above/below-floor, prerelease,
+  build metadata, invalid floor, invalid witness, precedence
+  ordering. Marked `#[allow(dead_code)]` until the L4 validate
+  engine wires it through (Council quick reviewed, no MAJOR
+  findings against the floor evaluator).
 
 #### MLP2-019: L4 verification of witness `rules_sha` against recognised version
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** L4 confirms the witness's `rules_sha` value
   resolves to a rule set the L4 server recognises (allows
   matching its policy floor).
@@ -650,6 +664,24 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-012, MLP2-016
 - **Source:** MLP-012 footnote 4.
+- **Evidence (Merged 2026-05-14 via PR #1567 at `96ad5d2d`):**
+  New `crates/anvil-l4/src/recognised_rules.rs` with
+  `RecognisedRulesRegistry` (HashMap-backed O(1) lookup keyed by
+  64-char lowercase-hex digest), `RuleSetMetadata { rules_sha,
+  anvil_version, opa_runtime_version, rule_ids, config_sha,
+  recognised_at }`, and `evaluate_rules_sha(registry,
+  witness_rules_sha, on_no_witness)` returning typed
+  `RulesShaOutcome::{ Absent, Recognised, AdmitUnrecognised,
+  NeedsRevalidation, Block }`. Registry refuses empty /
+  short / long / uppercase / non-hex digests at insert
+  (`RegistryError::EmptyDigest` / `InvalidDigestShape`); refuses
+  conflicting metadata under the same digest
+  (`RegistryError::Conflict`); idempotent re-insert of identical
+  records. Routing reuses `OnNoWitness` vocabulary as the v1
+  unrecognised-rules_sha policy axis (documented; future schema
+  bump may introduce a dedicated `on_unrecognised_rules_sha`
+  field). +15 unit pins. Marked `#[allow(dead_code)]` until the
+  daemon-side L4 validate engine wires it through.
 
 #### MLP2-020: Hook-side `required_anvil_version` floor check at fire time
 
@@ -1080,7 +1112,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-031: `cutoff_commit` pinning into `anvil/policy.yml`
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `anvil baseline` writes the cutoff commit back
   into `anvil/policy.yml` so the L4 policy lane (anvil-l4)
   reads it from the policy file rather than from
@@ -1093,6 +1125,33 @@ task's `Source:` line cites the Council finding IDs.
 - **Files:** `crates/anvil-baseline/src/io.rs`,
   `crates/anvil-l4/src/policy.rs`,
   `crates/anvil-policy/` (if a higher-level writer exists).
+- **Evidence (Merged 2026-05-14 via PR #1567 at `96ad5d2d`):**
+  New `pin_cutoff_commit(path, cutoff)` in
+  `crates/anvil-l4/src/policy.rs` with typed `PolicyPinError::{Io,
+  Parse, NotAnObject, BaselineNotAMap, InvalidCutoffCommit,
+  Serialise, SymlinkRefusal}`. Atomic temp-then-rename writer with
+  hex-shape pre-flight (so a malformed cutoff never reaches disk),
+  symlink refusal on both the policy path and the temp sibling
+  (mirrors `anvil_baseline::io::save`'s TOCTOU pattern), and
+  multi-format round-trip (yaml / yml / json / toml). Preserves
+  additive top-level fields (forward-compat); does not preserve
+  comments (documented v1 limitation). Refuses on non-object root
+  and on non-map `baseline:` field so a hand-edited scalar under
+  `baseline:` is never silently overwritten with a fresh map.
+  +9 unit pins covering round-trip across all four formats,
+  invalid-cutoff refusals, missing-file refusal, non-object root,
+  non-map baseline, atomic write, unknown-field preservation,
+  symlink refusal on path and temp sibling. The
+  `anvil-baseline/src/lib.rs` "out of scope" note updated to point
+  callers at `anvil_l4::pin_cutoff_commit`; the higher-level
+  `anvil baseline` orchestrator wires it in via MLP2-032 (separate
+  PR). Marked `#[allow(dead_code)]` until that orchestrator
+  picks it up. Council quick review flagged 3 MAJOR — all fixed
+  (`NotAnObject` ambiguity → split into `BaselineNotAMap`;
+  `atomic_replace` Windows comment rewritten; redundant
+  `#[allow(dead_code)]` cleaned up). semver/tempfile workspace-dep
+  hoisting punted (codebase convention is bare per-crate strings
+  across 13 crates).
 - **Validation:** Round-trip + a multi-format check (yaml /
   json / toml policy all accept the field).
 - **Confidence:** medium
@@ -1877,17 +1936,17 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | ----- | ----- | ------ |
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 0/5 |
-| C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
+| C. L4 policy execution | 7 (MLP2-016..-022) | 2/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
-| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 0/6 |
+| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 1/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 0/5 |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 1/4 |
-| **Total** | **60** | **9/60** |
+| **Total** | **60** | **12/60** |
 
 ## Recommended landing order
 
