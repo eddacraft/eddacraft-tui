@@ -263,10 +263,11 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-007: Workspace-crate `license` field lint
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Make cargo-about's "no license field" warning a hard error so missing fields can't slip past review.
 - **Expected Outcome:** CI step fails when a workspace crate lacks a `license` (or `license-file`) field. Existing crates already comply (per RUSTNX-009); this prevents regression.
 - **Validation:** Test crate without a `license` field triggers the lint locally and in CI.
+- **Shipped:** 2026-05-14 via PR #1546 (merged at `139606ec`). `cargo about generate --fail` is now passed by `tools/starters/acknowledgements/generate-acknowledgements.sh`; `tools/starters/acknowledgements/tests/strict-license-field.sh` pins the contract; the Acknowledgements freshness CI job runs the fixture test alongside the existing freshness check; downstream consumers pick up the same coverage via the kit's `ci-freshness.yml.snippet`. Anvil's real workspace `--check` still exits 0 (every crate complies per RUSTNX-009).
 
 ### ATTRIB-008: Multi-block marker support
 
