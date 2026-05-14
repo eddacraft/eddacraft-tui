@@ -129,9 +129,21 @@ fn status_json_top_level_keys_match_schema_contract() {
         .expect("hooks is an array");
     for hook in hooks {
         let hook = hook.as_object().expect("hook entry is an object");
-        assert!(hook.get("name").and_then(|v| v.as_str()).is_some());
-        assert!(hook.get("active").and_then(|v| v.as_bool()).is_some());
-        assert!(hook.get("path").and_then(|v| v.as_str()).is_some());
+        assert!(
+            hook.get("name")
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        );
+        assert!(
+            hook.get("active")
+                .and_then(serde_json::Value::as_bool)
+                .is_some()
+        );
+        assert!(
+            hook.get("path")
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        );
     }
 
     // Profile shape: name + checks + path.
@@ -157,12 +169,36 @@ fn status_json_top_level_keys_match_schema_contract() {
         .expect("recent_runs is an array");
     for run in runs {
         let run = run.as_object().expect("recent_runs entry is an object");
-        assert!(run.get("timestamp").and_then(|v| v.as_str()).is_some());
-        assert!(run.get("passed").and_then(|v| v.as_bool()).is_some());
-        assert!(run.get("score").and_then(|v| v.as_f64()).is_some());
-        assert!(run.get("checks_run").and_then(|v| v.as_u64()).is_some());
-        assert!(run.get("checks_passed").and_then(|v| v.as_u64()).is_some());
-        assert!(run.get("duration_ms").and_then(|v| v.as_u64()).is_some());
+        assert!(
+            run.get("timestamp")
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        );
+        assert!(
+            run.get("passed")
+                .and_then(serde_json::Value::as_bool)
+                .is_some()
+        );
+        assert!(
+            run.get("score")
+                .and_then(serde_json::Value::as_f64)
+                .is_some()
+        );
+        assert!(
+            run.get("checks_run")
+                .and_then(serde_json::Value::as_u64)
+                .is_some()
+        );
+        assert!(
+            run.get("checks_passed")
+                .and_then(serde_json::Value::as_u64)
+                .is_some()
+        );
+        assert!(
+            run.get("duration_ms")
+                .and_then(serde_json::Value::as_u64)
+                .is_some()
+        );
     }
 }
 
