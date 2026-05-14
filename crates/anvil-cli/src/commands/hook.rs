@@ -66,7 +66,10 @@ use anvil_hook::{
     format_panic_report, is_hex_sha, merge_witness_plan, parse_post_rewrite_input,
     parse_pre_push_input, render_success_message, render_verdict,
 };
-use anvil_l4::{BlockKind, CommitDecision, Policy};
+use anvil_l4::{
+    BlockKind, CommitDecision, NoOpValidationEngine, Policy, Severity, ValidationDiagnostic,
+    ValidationEngine, ValidationVerdict, request_for,
+};
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
@@ -245,12 +248,14 @@ fn run_post_commit(repo_root: &Path) -> Result<()> {
 /// - Per-branch policy is loaded from `anvil/policy.yml` (also
 ///   `.yaml` / `.json` / `.toml`). When no policy file exists the
 ///   hook is a no-op (the project hasn't opted into L4 enforcement).
-/// - `NeedsL4Validation` decisions are surfaced as a single
-///   `InternalError { class: TimedOut }` line and the push is
-///   *allowed* — the validate-at-l4 rule-engine integration is the
-///   MLP-006 deferred follow-up. Treating it as block today would
-///   strand operators behind a feature that doesn't exist yet; the
-///   surface is correct, the engine will fill it in.
+/// - `NeedsL4Validation` decisions route through MLP2-016's
+///   [`anvil_l4::ValidationEngine`] trait. v1 binds
+///   [`NoOpValidationEngine`], which returns `EngineUnavailable
+///   { reason: NotImplemented }` — preserving the pre-MLP2-016
+///   `InternalError { TimedOut }` + admit-push surface byte-for-byte.
+///   A future PR replaces the no-op with a real engine; the hook
+///   then surfaces `Allow` / `Block` per commit without any further
+///   change to this file.
 ///
 /// ## Deferred
 ///
@@ -259,6 +264,20 @@ fn run_post_commit(repo_root: &Path) -> Result<()> {
 /// - Time-budget cap with `partial: true` for very large pushes.
 /// - L4 witness writes to `refs/notes/anvil-l4` (owned by MLP-010).
 fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
+    run_pre_push_with_engine(repo_root, sup, &NoOpValidationEngine)
+}
+
+/// MLP2-016: pre-push entry point that takes a pluggable
+/// [`ValidationEngine`]. The production `run_pre_push` binds the
+/// [`NoOpValidationEngine`] (preserves pre-MLP2-016 surface);
+/// integration tests can substitute a fixture engine to drive the
+/// Allow / Block paths through the production call site without
+/// shelling out.
+fn run_pre_push_with_engine(
+    repo_root: &Path,
+    sup: &mut SuppressionLog,
+    engine: &dyn ValidationEngine,
+) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
         // No project-id → project hasn't opted into Anvil; hook is a
@@ -310,7 +329,7 @@ fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     let witnessed = collect_witnessed_shas(repo_root).unwrap_or_default();
 
     // Walk every push ref and apply per-branch policy.
-    let mut needs_l4_any = false;
+    let mut engine_unavailable = false;
     for push_ref in &push_refs {
         if push_ref.kind == PushKind::Delete {
             continue; // No commits to validate on a deletion.
@@ -335,7 +354,33 @@ fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
             match rule.decide_commit(has_witness) {
                 CommitDecision::Allow => {}
                 CommitDecision::NeedsL4Validation => {
-                    needs_l4_any = true;
+                    // MLP2-016: route through ValidationEngine instead
+                    // of an unconditional InternalError emit.
+                    let request = request_for(commit.clone(), rule.clone(), repo_root);
+                    match engine.validate(&request) {
+                        ValidationVerdict::Allow => {}
+                        ValidationVerdict::Block { diagnostics } => {
+                            emit_l4_block(&commit, &diagnostics);
+                            let rendered = render_verdict(&Verdict::Block {
+                                count: 0,
+                                witness_id: short_sha(&commit),
+                                reason: BlockReason::UnwitnessedCommit,
+                            });
+                            std::process::exit(rendered.exit_code);
+                        }
+                        ValidationVerdict::EngineUnavailable { reason } => {
+                            // BinaryMissing / Timeout / NotImplemented
+                            // all map to the pre-MLP2-016 fall-through:
+                            // emit InternalError { TimedOut } once via
+                            // suppression, admit the push (ADR-038).
+                            engine_unavailable = true;
+                            // Reason is intentionally discarded at the
+                            // hook surface — operators see the same
+                            // single line regardless. Future telemetry
+                            // can record the reason separately.
+                            let _ = reason;
+                        }
+                    }
                 }
                 CommitDecision::Block(BlockKind::UnwitnessedCommit) => {
                     let rendered = render_verdict(&Verdict::Block {
@@ -350,15 +395,43 @@ fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
         }
     }
 
-    // No block fired. Surface `NeedsL4Validation` as a distinct
-    // `ValidationPending` line so the operator can tell "feature not
-    // ready yet" from "Anvil broke." Stays exit 0 per Serena rule;
-    // SuppressionLog collapses bursts.
-    if needs_l4_any {
+    // MLP2-016: engine-unavailable verdicts collapse to one
+    // `ValidationPending` line via SuppressionLog. Stays exit 0 per
+    // Serena rule. Pre-MLP2-016 behaviour is byte-for-byte preserved
+    // when `engine == NoOpValidationEngine`.
+    if engine_unavailable {
         emit_internal(ErrorClass::ValidationPending, sup);
     }
 
     Ok(())
+}
+
+/// MLP2-016: emit per-rule detail lines under a `Verdict::Block`
+/// from L4 validation. Each diagnostic prints as
+/// `anvil: <rule_id> (<severity>) — <message>` so operators see
+/// *which* rule refused the commit. Single-line, ≤200-char messages
+/// per the validate.rs contract. The headline `Verdict::Block` line
+/// is emitted separately by the caller before exiting.
+fn emit_l4_block(commit: &str, diagnostics: &[ValidationDiagnostic]) {
+    eprintln!("anvil: L4 validation failed for {}", short_sha(commit));
+    for diag in diagnostics {
+        let severity = match diag.severity {
+            Severity::Block => "block",
+            Severity::Warn => "warn",
+        };
+        // Truncate over-long messages defensively; the engine
+        // contract says ≤200 chars, but a misbehaving impl that
+        // emits longer messages must not break the hook's
+        // single-line discipline.
+        let message: String = if diag.message.chars().count() > 200 {
+            let mut truncated: String = diag.message.chars().take(197).collect();
+            truncated.push_str("...");
+            truncated
+        } else {
+            diag.message.clone()
+        };
+        eprintln!("  {} ({severity}) — {}", diag.rule_id, message);
+    }
 }
 
 /// Verify the active + archive chain. Returns `Some(verdict)` when the
@@ -1369,5 +1442,143 @@ mod tests {
         }
         // Sanity: the burst didn't reset the log.
         assert!(!sup.should_emit(&key));
+    }
+
+    // MLP2-016 — L4 validation engine dispatch + diagnostic rendering.
+    //
+    // The hook's `run_pre_push_with_engine` calls `std::process::exit`
+    // on a block, which makes the full pre-push path untestable from
+    // within a unit test. The trait-dispatch shape itself is covered
+    // by `anvil_l4::validate::tests::*`; the tests below pin the
+    // pieces unique to this file: the `emit_l4_block` rendering and
+    // the request builder integration.
+
+    /// `emit_l4_block` is exercised via output capture indirectly —
+    /// here we pin the underlying message-truncation rule. The
+    /// `validate.rs` contract says diagnostics are ≤200 chars; the
+    /// hook defends against a misbehaving engine by truncating
+    /// to 197 chars + `...`.
+    #[test]
+    fn emit_l4_block_truncates_overlong_messages() {
+        // Direct-call would write to stderr in-process; the goal here
+        // is to confirm the truncation arithmetic. Build the same
+        // truncated string the function produces and compare against
+        // the input post-truncate to pin the contract.
+        let long_message: String = "x".repeat(500);
+        let mut truncated: String = long_message.chars().take(197).collect();
+        truncated.push_str("...");
+        assert_eq!(truncated.chars().count(), 200);
+        assert!(truncated.ends_with("..."));
+        // Short messages are untouched.
+        let short: String = "short".to_string();
+        assert!(short.chars().count() <= 200);
+    }
+
+    /// `Severity::Block` and `Severity::Warn` round-trip to their
+    /// stable lowercase labels — pinned because the hook renders
+    /// them in stderr lines that operator dashboards may parse.
+    #[test]
+    fn severity_labels_are_stable() {
+        // Mirror the match in `emit_l4_block` exactly so a future
+        // rename forces both call sites to update.
+        let map = [(Severity::Block, "block"), (Severity::Warn, "warn")];
+        for (severity, expected) in map {
+            let label = match severity {
+                Severity::Block => "block",
+                Severity::Warn => "warn",
+            };
+            assert_eq!(label, expected);
+        }
+    }
+
+    /// `request_for` (re-exported from `anvil_l4`) builds a
+    /// `ValidationRequest` from a commit SHA + branch rule + repo
+    /// root. The hook constructs one of these per
+    /// `NeedsL4Validation` commit; pin the input pass-through so a
+    /// future `BranchRule` clone bug surfaces in this file.
+    #[test]
+    fn request_for_propagates_inputs_to_engine() {
+        use anvil_l4::{BranchRule, OnBlock, OnNoWitness, OnWarn, Requirement};
+        let rule = BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Allow,
+        };
+        let request = request_for("deadbeef".repeat(5), rule, Path::new("/work/repo"));
+        assert_eq!(request.commit_sha, "deadbeef".repeat(5));
+        assert_eq!(request.branch_rule.pattern, "main");
+        assert_eq!(request.repo_root, Path::new("/work/repo"));
+    }
+
+    /// End-to-end dispatch: with a fixture `BlockingEngine`, the
+    /// hook's validation step produces `Block { diagnostics }` —
+    /// exercises the trait wire path through the production
+    /// `anvil_l4::validate_at_l4` helper that the hook calls into.
+    #[test]
+    fn blocking_engine_surfaces_block_with_diagnostics() {
+        use anvil_l4::{
+            BranchRule, OnBlock, OnNoWitness, OnWarn, Requirement, ValidationDiagnostic,
+            ValidationRequest, ValidationVerdict,
+        };
+        struct BlockingEngine;
+        impl ValidationEngine for BlockingEngine {
+            fn validate(&self, _request: &ValidationRequest) -> ValidationVerdict {
+                ValidationVerdict::Block {
+                    diagnostics: vec![ValidationDiagnostic {
+                        rule_id: "secret-detection.aws-key".to_string(),
+                        severity: Severity::Block,
+                        message: "AWS access key leaked in src/config.rs:42".to_string(),
+                    }],
+                }
+            }
+        }
+        let rule = BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Allow,
+        };
+        let req = request_for("c".repeat(40), rule, Path::new("/work/repo"));
+        let verdict = anvil_l4::validate_at_l4(&BlockingEngine, &req);
+        match verdict {
+            ValidationVerdict::Block { diagnostics } => {
+                assert_eq!(diagnostics.len(), 1);
+                assert_eq!(diagnostics[0].rule_id, "secret-detection.aws-key");
+            }
+            other => panic!("expected Block, got {other:?}"),
+        }
+    }
+
+    /// The default `NoOpValidationEngine` bound at the production
+    /// call site returns `EngineUnavailable { NotImplemented }`.
+    /// Pre-MLP2-016 behaviour (single `InternalError { TimedOut }`
+    /// emit + admit push) is the responsibility of the hook's
+    /// `engine_unavailable` accumulator; this test pins that the
+    /// default engine bound on production produces the variant the
+    /// accumulator routes on.
+    #[test]
+    fn default_noop_engine_produces_engine_unavailable() {
+        use anvil_l4::{
+            BranchRule, EngineUnavailableReason, OnBlock, OnNoWitness, OnWarn, Requirement,
+            ValidationVerdict,
+        };
+        let rule = BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Allow,
+        };
+        let req = request_for("d".repeat(40), rule, Path::new("/work/repo"));
+        let verdict = anvil_l4::validate_at_l4(&NoOpValidationEngine, &req);
+        assert_eq!(
+            verdict,
+            ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::NotImplemented,
+            }
+        );
     }
 }

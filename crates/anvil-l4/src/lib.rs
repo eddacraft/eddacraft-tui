@@ -64,6 +64,7 @@
 mod decide;
 mod policy;
 mod resolve;
+mod validate;
 
 pub use decide::{BlockKind, CommitDecision};
 pub use policy::{
@@ -71,3 +72,8 @@ pub use policy::{
     Requirement,
 };
 pub use resolve::ResolveError;
+pub use validate::{
+    EngineUnavailableReason, NoOpValidationEngine, Severity, ValidationDiagnostic,
+    ValidationEngine, ValidationRequest, ValidationVerdict, request_for, validate_at_l4,
+    validate_range,
+};
