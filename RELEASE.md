@@ -2,13 +2,13 @@
 
 ## Branches
 
-- **dev** — default working branch, all development happens here
-- **main** — published branch, only receives merged PRs from dev
+Trunk-based — `main` is the only long-lived branch. Releases are cut
+from a semver tag on `main`.
 
 ## Pre-release checklist
 
-1. All checks pass locally (`cargo fmt --check`, `clippy`, `test`, `publish --dry-run`)
-   CI runs automatically on PRs targeting main, not on dev pushes.
+1. All checks pass locally (`cargo fmt --check`, `clippy`, `test`, `publish --dry-run`).
+   CI runs automatically on PRs targeting `main`.
 2. Update version in `Cargo.toml`
 3. Update snapshot tests if the version string appears in rendered output:
    ```sh
@@ -21,9 +21,10 @@
 Use a pre-release version to validate the pipeline without publishing:
 
 ```sh
-# 1. Set version in Cargo.toml to e.g. 0.1.0-rc.0
-# 2. Commit, push to dev
-# 3. Tag with pre-release suffix
+# 1. Branch from main, set version in Cargo.toml to e.g. 0.1.0-rc.0
+# 2. Open a PR, merge to main once CI is green
+# 3. Tag main with the pre-release suffix
+git checkout main && git pull
 git tag v0.1.0-rc.0
 git push origin v0.1.0-rc.0
 ```
@@ -35,20 +36,16 @@ validate packaging.
 ## Release
 
 ```sh
-# 1. Ensure dev is up to date and CI is green
-# 2. Set final version in Cargo.toml (e.g. 0.1.0)
-# 3. Update snapshots
-INSTA_UPDATE=always cargo test
-
-# 4. Commit and push
+# 1. Open a release PR targeting main with the version bump
+git checkout -b release/v0.1.0
+# Set final version in Cargo.toml (e.g. 0.1.0), then:
+INSTA_UPDATE=always cargo test   # refresh snapshots if affected
 git add Cargo.toml src/snapshots/
-git commit -m "chore: bump version to 0.1.0"
-git push origin dev
+git commit -m "chore(release): prepare v0.1.0"
+git push -u origin release/v0.1.0
+gh pr create --base main --title "release: v0.1.0"
 
-# 5. Merge dev into main via PR
-gh pr create --base main --head dev --title "release: v0.1.0"
-
-# 6. After PR is merged, tag main
+# 2. After CI is green and the PR is merged, tag main from the merge commit
 git checkout main && git pull
 git tag v0.1.0
 git push origin v0.1.0

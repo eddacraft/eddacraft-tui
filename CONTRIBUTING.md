@@ -38,13 +38,13 @@ If any command fails, fix the issue before pushing.
 
 ## Branching Model
 
-- **`dev`** — default working branch. All feature branches and fixes
-  target `dev`.
-- **`main`** — published branch. Only receives merged PRs from `dev`
-  via release PRs. Do not push feature work here.
-- **Feature branches** — short-lived, branched from `dev`. Naming:
+Trunk-based — there is exactly one long-lived branch.
+
+- **`main`** — the trunk. All work lands here via PR. Releases are
+  cut from a tag on `main`.
+- **Feature branches** — short-lived, branched from `main`. Naming:
   `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `refactor/<topic>`,
-  `chore/<topic>`.
+  `chore/<topic>`. Delete after merge.
 
 ## Commit Messages
 
@@ -74,19 +74,20 @@ docs: clarify shell branding options in README
 
 ## Pull Requests
 
-1. **Branch from `dev`** and target `dev` when opening the PR.
+1. **Branch from `main`** and target `main` when opening the PR.
 2. **Keep PRs focused.** One feature or fix per PR. Split mechanical
    refactors from behavioural changes when feasible.
 3. **Fill in a short summary** of what changed and why. Include a
    test plan — what you verified locally.
-4. **CI must be green.** `main` requires `Check (default)`,
-   `Check (all-features)`, `Check (no-default-features)`,
-   `MSRV (1.88.0)`, `Supply chain (audit + deny)`, and `CodeQL`.
-   `dev` runs the same matrix without enforcing required contexts.
+4. **CI must be green.** `main` is protected and requires
+   `Check (default)`, `Check (all-features)`,
+   `Check (no-default-features)`, `MSRV (1.88.0)`,
+   `Supply chain (audit + deny)`, and `CodeQL`. The branch must also
+   be up to date with `main` before merge (`strict` status checks).
 5. **Resolve every review thread.** Either apply the change or reply
    with the reasoning; do not leave threads unanswered.
 6. **No force-pushing after review starts** unless you are rebasing
-   on `dev` and you tell the reviewer.
+   on `main` and you tell the reviewer.
 
 ### Snapshot tests
 

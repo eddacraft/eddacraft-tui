@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 # Default GITHUB_TOKEN to read-only at the workflow level. Individual
 # jobs/steps can opt into broader scopes if ever needed (none currently
