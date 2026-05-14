@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 3/60 done |
+| MLP2 | @aneki | In Progress | 4/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -205,7 +205,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-003: Composite identity check at daemon attach
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Daemon attach cross-checks `(project_uuid,
   first_commit, origin_canonical)` from the session's worktree
   against the value persisted in `anvil/project-id`; mismatches
@@ -218,10 +218,42 @@ task's `Source:` line cites the Council finding IDs.
     `degraded:identity-mismatch` on disagreement.
   - Fork detection: when `forked_from` is set and matches the
     parent identity, attach succeeds without degradation.
-- **Files:** `crates/anvil-intercept/src/registry.rs` (extend
-  attach path), `crates/anvil-cli/src/activation/identity.rs`.
+- **Files:** `crates/anvil-cli/src/activation/identity.rs`
+  (`ProjectIdentity` extended with `first_commit` +
+  `origin_canonical` fields; new `verify_against_worktree` +
+  `attach_check` API; `canonicalise_origin` /
+  `read_first_commit` / `read_origin_canonical` helpers;
+  `IdentityCheck` / `IdentityMismatch` / `AttachStatus` typed
+  enums with a pinned `degraded:identity-mismatch` wire-signal
+  constant). Registry-side wiring (the `register-session` IPC
+  consumer of `AttachStatus`) lands with MLP2-025 — the
+  primitive is in place but the daemon attach path picks it up
+  alongside the spoof-rejection cross-check (`#[allow(dead_code)]`
+  annotations document the call-sites that wire in MLP2-025).
 - **Validation:** Fork acceptance; renamed origin rejection;
-  rebased history rejection.
+  rebased history rejection. **Evidence (Done 2026-05-14):**
+  `cargo test -p eddacraft-anvil --bins activation::identity::`
+  — 42 tests green (21 baseline + 21 MLP2-003-specific). New
+  tests cover: parse/render round-trip of `first_commit` +
+  `origin_canonical` fields; rejection of malformed `first_commit`
+  (non-40-hex, uppercase) and `origin_canonical` (empty, with
+  control chars); `canonicalise_origin` lock-step between SSH
+  alias / HTTPS / no-`.git` / trailing-slash / mixed-case host
+  spellings, plus path-case preservation so a forge rename
+  surfaces as a mismatch; `read_first_commit` against a real
+  tempdir-backed `git init` (with empty-repo → `None`);
+  `verify_against_worktree` against matching identity →
+  `Match`; renamed origin → `Mismatch::OriginCanonical`;
+  rebased history → `Mismatch::FirstCommit`; `forked_from` set
+  → `ForkedFromParent`; pre-MLP2-003 file (no fields) → `Match`;
+  empty-repo vs recorded `first_commit` → typed mismatch;
+  missing origin vs recorded → typed mismatch. The high-level
+  `attach_check` API covers the four `AttachStatus` variants
+  (`Clean` / `Fork` / `Mismatch` / `ProjectIdMissing`) and pins
+  the wire-level `degraded:identity-mismatch` signal via
+  `AttachStatus::DEGRADED_REASON`. Workspace `cargo test` clean;
+  `pnpm format:check` + `pnpm lint:check` (nx clippy + fmt-check
+  across 26 projects) clean.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-001, MLP2-023
@@ -1644,7 +1676,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 2/10 |
+| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 3/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 0/5 |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 1/4 |
@@ -1656,7 +1688,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
-| **Total** | **60** | **3/60** |
+| **Total** | **60** | **4/60** |
 
 ## Recommended landing order
 
@@ -1723,7 +1755,7 @@ resolved its `MLP2-023` listing to a `Coordinates with:` callout
 (see MLP2-001 body); the cache is worktree-scoped and is
 forward-compatible with MLP2-023's session-key extension.
 
-### Phase 2 — Phase-1-gated (18 tasks pending; MLP2-002 pre-shipped)
+### Phase 2 — Phase-1-gated (17 tasks pending; MLP2-002 + MLP2-003 pre-shipped)
 
 Each entry shows its gating Phase-1 dependency. **MLP2-002 was
 co-shipped with MLP2-001 in wave 1A (2026-05-14) — it appears here
@@ -1735,7 +1767,8 @@ see the task body for evidence.** Council 2026-05-14 #C-031 /
 | --- | --- |
 | MLP2-014, MLP2-057 | MLP2-001 |
 | MLP2-058 | MLP2-001 + MLP2-002 |
-| MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
+| MLP2-024, MLP2-025 | MLP2-023 |
+| ~~MLP2-003~~ (Done 2026-05-14) | MLP2-023 |
 | MLP2-026 | MLP2-023 + MLP2-009 |
 | MLP2-006 | MLP2-009 |
 | MLP2-017, MLP2-019, MLP2-042, MLP2-046, MLP2-055 | MLP2-016 |

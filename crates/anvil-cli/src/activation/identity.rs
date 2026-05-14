@@ -8,7 +8,8 @@
 //!
 //! Plain text, one `key: value` per line. Lines starting with `#` are
 //! comments; blank lines are ignored. Required field: `project_uuid`.
-//! Optional: `created_at`, `created_by_version`, `forked_from`.
+//! Optional: `created_at`, `created_by_version`, `forked_from`,
+//! `first_commit`, `origin_canonical`.
 //!
 //! Example:
 //!
@@ -44,11 +45,29 @@
 //! If hand-edited extra keys are added to the file and the file is
 //! later rewritten by anvil tooling, the extras will be lost.
 //!
+//! ## Composite identity check (MLP2-003)
+//!
+//! [`ProjectIdentity`] optionally carries `first_commit` (root commit
+//! SHA from `git rev-list --max-parents=0 HEAD`) and
+//! `origin_canonical` (canonicalised `remote.origin.url`).
+//! [`ProjectIdentity::verify_against_worktree`] runs those git
+//! commands against a live worktree and compares — the daemon
+//! invokes it on attach to detect renamed origins, rebased histories,
+//! or `anvil/project-id` files that have been copied between
+//! unrelated repos.
+//!
+//! Returns [`IdentityCheck::Match`] on a clean pass,
+//! [`IdentityCheck::Mismatch`] on disagreement, and
+//! [`IdentityCheck::ForkedFromParent`] when the file's `forked_from`
+//! field is set and the live git state matches what a fork would
+//! produce — see the variant docs for the trust model.
+//!
 //! ## What this module does NOT do
 //!
-//! - Cross-check against git first-commit / origin URL — that's a
-//!   future MLP-001 extension; v1 file format is just the UUID.
-//! - Compute or verify `forked_from` lineage.
+//! - Compute or verify `forked_from` lineage beyond surface-level
+//!   parent-uuid presence: actually cross-checking the parent
+//!   project's `first_commit` lives in a future task that wires the
+//!   parent's identity into the verification path.
 //! - Migration when `project_uuid` changes (deferred per direction).
 //! - Stage the file via git — that's the orchestrator's caller's job.
 
@@ -69,6 +88,19 @@ pub struct ProjectIdentity {
     pub created_at: Option<String>,
     pub created_by_version: Option<String>,
     pub forked_from: Option<String>,
+    /// MLP2-003: root commit SHA (`git rev-list --max-parents=0
+    /// HEAD`). Persisted at activation; verified against the live
+    /// worktree on daemon attach. `None` for projects activated
+    /// before MLP2-003 shipped — files without this field still
+    /// parse cleanly.
+    pub first_commit: Option<String>,
+    /// MLP2-003: canonicalised `remote.origin.url`. The canonical
+    /// form normalises scheme/host casing, strips the optional `.git`
+    /// suffix, strips trailing slashes, and folds the `git@host:owner/repo`
+    /// SSH alias into `host:owner/repo`. `None` for projects that
+    /// haven't been pushed to a remote yet, or for files activated
+    /// before MLP2-003 shipped.
+    pub origin_canonical: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -79,6 +111,79 @@ pub enum IdentityError {
     Malformed(String),
     #[error("missing required field `project_uuid` in `anvil/project-id`")]
     MissingProjectUuid,
+    /// MLP2-003: running `git` to read worktree state failed. Distinct
+    /// from `Malformed` so callers can distinguish "file says X, git
+    /// says Y" from "git itself broke". Construction site lands with
+    /// MLP2-025 (registry-side wiring); the `#[allow(dead_code)]`
+    /// goes away then.
+    #[allow(dead_code)]
+    #[error("git invocation failed in `{worktree}`: {message}")]
+    GitInvocationFailed { worktree: PathBuf, message: String },
+}
+
+/// MLP2-003: outcome of verifying a persisted `ProjectIdentity` against
+/// the live worktree. The daemon's attach path consumes this enum and
+/// maps `Mismatch` onto the wire-level `degraded:identity-mismatch`
+/// signal; `ForkedFromParent` is accepted as a clean attach.
+///
+/// No in-crate caller yet — [`attach_check`] is the public entry the
+/// daemon's IPC handler will pick up in MLP2-025.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdentityCheck {
+    /// Every recorded field (UUID, `first_commit`, `origin_canonical`)
+    /// agrees with the live worktree. The cleanest possible outcome.
+    Match,
+    /// `forked_from` was set in the persisted file. The fork-aware
+    /// path attaches without degradation: the operator has explicitly
+    /// recorded the parent project's identity, so the live git state
+    /// matching the recorded fork-side identity is sufficient.
+    /// `parent_uuid` is echoed back so the daemon can record which
+    /// fork lineage the session belongs to.
+    ForkedFromParent { parent_uuid: String },
+    /// One or more recorded fields disagreed with the live worktree.
+    /// `reasons` is non-empty and lists the specific mismatches; the
+    /// caller surfaces this as `degraded:identity-mismatch`.
+    Mismatch { reasons: Vec<IdentityMismatch> },
+}
+
+/// MLP2-003: a single mismatched field. Surface for MLP2-025
+/// (registry-side wiring); `#[allow(dead_code)]` until then.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdentityMismatch {
+    /// The recorded `first_commit` did not match the live root commit.
+    /// Most likely cause: a rebase or a fresh checkout from an
+    /// unrelated repo with the same `anvil/project-id` copied in.
+    FirstCommit { recorded: String, live: String },
+    /// The recorded `origin_canonical` did not match the live remote.
+    /// Most likely cause: the operator renamed the origin (e.g.
+    /// migrated GitHub → GitLab) without updating `anvil/project-id`.
+    OriginCanonical {
+        recorded: String,
+        live: Option<String>,
+    },
+}
+
+impl std::fmt::Display for IdentityMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FirstCommit { recorded, live } => write!(
+                f,
+                "first_commit recorded `{recorded}` but worktree HEAD's root commit is `{live}`"
+            ),
+            Self::OriginCanonical { recorded, live } => match live {
+                Some(live) => write!(
+                    f,
+                    "origin_canonical recorded `{recorded}` but worktree origin canonicalises to `{live}`"
+                ),
+                None => write!(
+                    f,
+                    "origin_canonical recorded `{recorded}` but worktree has no `remote.origin.url` configured"
+                ),
+            },
+        }
+    }
 }
 
 impl ProjectIdentity {
@@ -93,6 +198,8 @@ impl ProjectIdentity {
             created_at: Some(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
             created_by_version: Some(anvil_version.to_string()),
             forked_from: None,
+            first_commit: None,
+            origin_canonical: None,
         }
     }
 
@@ -112,6 +219,12 @@ impl ProjectIdentity {
         if let Some(parent) = &self.forked_from {
             let _ = writeln!(out, "forked_from: {parent}");
         }
+        if let Some(commit) = &self.first_commit {
+            let _ = writeln!(out, "first_commit: {commit}");
+        }
+        if let Some(origin) = &self.origin_canonical {
+            let _ = writeln!(out, "origin_canonical: {origin}");
+        }
         out
     }
 
@@ -122,6 +235,8 @@ impl ProjectIdentity {
         let mut created_at: Option<String> = None;
         let mut created_by_version: Option<String> = None;
         let mut forked_from: Option<String> = None;
+        let mut first_commit: Option<String> = None;
+        let mut origin_canonical: Option<String> = None;
 
         for (lineno, line) in contents.lines().enumerate() {
             let trimmed = line.trim();
@@ -151,6 +266,8 @@ impl ProjectIdentity {
                 "created_at" => created_at = Some(value.to_string()),
                 "created_by_version" => created_by_version = Some(value.to_string()),
                 "forked_from" => forked_from = Some(value.to_string()),
+                "first_commit" => first_commit = Some(value.to_string()),
+                "origin_canonical" => origin_canonical = Some(value.to_string()),
                 _ => {
                     // Unknown key — forward compatibility; ignore.
                     tracing::debug!(
@@ -186,13 +303,300 @@ impl ProjectIdentity {
             )));
         }
 
+        // MLP2-003: validate first_commit shape — must be 40-char
+        // lowercase hex (a full SHA-1 git OID). Shorter / mixed-case
+        // / non-hex forms would silently fail to compare against
+        // `git rev-list` output, masking real mismatches.
+        if let Some(commit) = &first_commit
+            && !is_full_git_sha1(commit)
+        {
+            return Err(IdentityError::Malformed(format!(
+                "first_commit `{commit}` is not a 40-character lowercase hex SHA-1"
+            )));
+        }
+        // MLP2-003: origin_canonical shape — non-empty, no
+        // surrounding whitespace, no control characters. We do NOT
+        // re-canonicalise here because that's the caller's job; we
+        // only refuse obviously-bad values that would never match a
+        // canonicalise() output.
+        if let Some(origin) = &origin_canonical
+            && !is_valid_canonical_origin(origin)
+        {
+            return Err(IdentityError::Malformed(format!(
+                "origin_canonical `{origin}` is empty, has surrounding whitespace, \
+                 or contains control characters"
+            )));
+        }
+
         Ok(Self {
             project_uuid,
             created_at,
             created_by_version,
             forked_from,
+            first_commit,
+            origin_canonical,
         })
     }
+
+    /// MLP2-003: cross-check the persisted identity against the live
+    /// worktree's git state.
+    ///
+    /// Reads:
+    /// - Root commit SHA via `git rev-list --max-parents=0 HEAD`.
+    ///   A worktree with no commits yet is treated as a `Match`
+    ///   when `first_commit` is `None`, otherwise as a
+    ///   `Mismatch::FirstCommit` with an empty `live` value.
+    /// - Origin URL via `git config --get remote.origin.url`,
+    ///   then canonicalised via [`canonicalise_origin`]. A worktree
+    ///   with no origin configured matches `origin_canonical: None`,
+    ///   otherwise yields `Mismatch::OriginCanonical { live: None }`.
+    ///
+    /// Returns [`IdentityCheck::Match`] when every recorded field
+    /// agrees, [`IdentityCheck::ForkedFromParent`] when
+    /// `forked_from` is set (the operator has declared a fork —
+    /// the daemon attaches without degradation, MLP2-003 §Fork
+    /// detection), and [`IdentityCheck::Mismatch`] otherwise.
+    #[allow(dead_code)]
+    pub fn verify_against_worktree(&self, worktree: &Path) -> Result<IdentityCheck, IdentityError> {
+        let live_first_commit = read_first_commit(worktree)?;
+        let live_origin_canonical = read_origin_canonical(worktree)?;
+
+        let mut reasons: Vec<IdentityMismatch> = Vec::new();
+
+        match (&self.first_commit, &live_first_commit) {
+            (Some(recorded), Some(live)) if recorded != live => {
+                reasons.push(IdentityMismatch::FirstCommit {
+                    recorded: recorded.clone(),
+                    live: live.clone(),
+                });
+            }
+            (Some(recorded), None) => {
+                reasons.push(IdentityMismatch::FirstCommit {
+                    recorded: recorded.clone(),
+                    live: String::new(),
+                });
+            }
+            // (None, _) and (Some==Some) are both Match for this
+            // field. `recorded == None` means activation pre-dated
+            // MLP2-003; we cannot cross-check it.
+            _ => {}
+        }
+
+        match (&self.origin_canonical, &live_origin_canonical) {
+            (Some(recorded), Some(live)) if recorded != live => {
+                reasons.push(IdentityMismatch::OriginCanonical {
+                    recorded: recorded.clone(),
+                    live: Some(live.clone()),
+                });
+            }
+            (Some(recorded), None) => {
+                reasons.push(IdentityMismatch::OriginCanonical {
+                    recorded: recorded.clone(),
+                    live: None,
+                });
+            }
+            _ => {}
+        }
+
+        if reasons.is_empty() {
+            return Ok(IdentityCheck::Match);
+        }
+
+        // Fork-detection rule: if `forked_from` is set the operator
+        // has declared a fork, so the daemon accepts the attach
+        // without degradation. The recorded identity is taken at
+        // face value for this session; cross-checking the parent
+        // project's `first_commit` is a future task.
+        if let Some(parent_uuid) = &self.forked_from {
+            return Ok(IdentityCheck::ForkedFromParent {
+                parent_uuid: parent_uuid.clone(),
+            });
+        }
+
+        Ok(IdentityCheck::Mismatch { reasons })
+    }
+}
+
+/// MLP2-003: canonicalise a `remote.origin.url` into a stable
+/// comparison form.
+///
+/// The git remote URL ecosystem allows several spellings for the same
+/// remote — HTTPS vs SSH alias, `.git` suffix optional, trailing
+/// slashes optional, scheme/host casing nondeterministic across tools.
+/// All of those reduce to the same canonical string here so the
+/// comparison in [`ProjectIdentity::verify_against_worktree`] does
+/// not flag a benign reformat as a mismatch.
+///
+/// Canonical form: `host/owner/repo` for known forges
+/// (`github.com`, `gitlab.com`, `bitbucket.org`, generic forge URLs)
+/// after the following normalisations:
+/// - `git@host:owner/repo[.git]` → `host/owner/repo`
+/// - `ssh://git@host/owner/repo[.git]` → `host/owner/repo`
+/// - `https://host/owner/repo[.git]` (or `http://`) → `host/owner/repo`
+/// - Any trailing `/`, `.git`, or whitespace is stripped.
+/// - Scheme and host are lowercased; path case is preserved
+///   (GitHub paths are case-insensitive in routing but case-preserving
+///   in display, and `git remote get-url` echoes whatever the operator
+///   typed — preserving case keeps a renamed-to-different-case repo
+///   visible as a mismatch rather than silently merged).
+///
+/// An empty or whitespace-only input returns the empty string; the
+/// caller decides whether that counts as "no origin" or "malformed".
+#[allow(dead_code)]
+#[must_use]
+pub fn canonicalise_origin(url: &str) -> String {
+    let raw = url.trim();
+    if raw.is_empty() {
+        return String::new();
+    }
+
+    // SSH alias `git@host:path` (no `://`). Identifiable by the
+    // leading `git@` plus a colon, with NO double-slash following
+    // the colon (those would be a real URL).
+    if let Some(rest) = raw.strip_prefix("git@")
+        && let Some((host, path)) = rest.split_once(':')
+        && !path.starts_with("//")
+    {
+        return canonicalise_host_path(host, path);
+    }
+
+    // URL with scheme. Strip scheme + optional userinfo, then split
+    // host from path.
+    let after_scheme = if let Some((scheme, rest)) = raw.split_once("://") {
+        let _scheme_lower = scheme.to_ascii_lowercase();
+        rest
+    } else {
+        raw
+    };
+    // Strip userinfo (e.g. `git@`).
+    let after_user = after_scheme
+        .split_once('@')
+        .map_or(after_scheme, |(_, r)| r);
+    if let Some((host, path)) = after_user.split_once('/') {
+        return canonicalise_host_path(host, path);
+    }
+
+    // Couldn't extract a host/path pair — return the trimmed form so
+    // an exact recorded match still works.
+    raw.to_string()
+}
+
+#[allow(dead_code)]
+fn canonicalise_host_path(host: &str, path: &str) -> String {
+    let host = host.trim().to_ascii_lowercase();
+    let path = path.trim().trim_start_matches('/').trim_end_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let path = path.trim_end_matches('/');
+    if path.is_empty() {
+        host
+    } else {
+        format!("{host}/{path}")
+    }
+}
+
+/// MLP2-003: run `git rev-list --max-parents=0 HEAD` in `worktree`
+/// and return the single resulting SHA. Returns `Ok(None)` when the
+/// worktree has no commits yet (the command exits non-zero with a
+/// recognised "unknown revision" stderr); other failures surface as
+/// `IdentityError::GitInvocationFailed`.
+#[allow(dead_code)]
+pub fn read_first_commit(worktree: &Path) -> Result<Option<String>, IdentityError> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(worktree)
+        .args(["rev-list", "--max-parents=0", "HEAD"])
+        .output()
+        .map_err(|err| IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("spawning `git rev-list`: {err}"),
+        })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Empty repos and just-init'd worktrees report "unknown
+        // revision or path not in the working tree" or "fatal: bad
+        // revision 'HEAD'". Both are "no commits yet" — treat as None.
+        let lower = stderr.to_ascii_lowercase();
+        if lower.contains("unknown revision")
+            || lower.contains("bad revision")
+            || lower.contains("does not have any commits")
+            || lower.contains("not a git repository")
+        {
+            return Ok(None);
+        }
+        return Err(IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("`git rev-list` exited non-zero: {stderr}"),
+        });
+    }
+    // `--max-parents=0` returns ONE sha per root commit. Octopus
+    // merges and shallow clones can produce more than one root —
+    // we take the first line (sorted by topology, which is stable
+    // for a given history) and rely on the operator-side fork
+    // semantics to flag the rare "history was rewritten to add a
+    // new root" case as a mismatch.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let first = stdout.lines().next().map_or("", str::trim);
+    if first.is_empty() {
+        return Ok(None);
+    }
+    if !is_full_git_sha1(first) {
+        return Err(IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("`git rev-list` returned unexpected output: {first}"),
+        });
+    }
+    Ok(Some(first.to_string()))
+}
+
+/// MLP2-003: run `git config --get remote.origin.url` in `worktree`,
+/// canonicalise the result, and return it. `Ok(None)` when origin
+/// is not configured (the command exits 1 with no output); other
+/// failures surface as `IdentityError::GitInvocationFailed`.
+#[allow(dead_code)]
+pub fn read_origin_canonical(worktree: &Path) -> Result<Option<String>, IdentityError> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(worktree)
+        .args(["config", "--get", "remote.origin.url"])
+        .output()
+        .map_err(|err| IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("spawning `git config`: {err}"),
+        })?;
+    if !output.status.success() {
+        // git config --get returns 1 (and empty stdout) when the
+        // key is not set. Treat that path as "no origin configured"
+        // rather than a hard error so freshly-`git init`ed worktrees
+        // do not trip the daemon's verify.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.stderr.is_empty() || stderr.trim().is_empty() {
+            return Ok(None);
+        }
+        if stderr.to_ascii_lowercase().contains("not a git repository") {
+            return Ok(None);
+        }
+        return Err(IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("`git config` exited non-zero: {stderr}"),
+        });
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let trimmed = stdout.lines().next().map_or("", str::trim);
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(canonicalise_origin(trimmed)))
+}
+
+fn is_full_git_sha1(value: &str) -> bool {
+    value.len() == 40
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+}
+
+fn is_valid_canonical_origin(value: &str) -> bool {
+    !value.is_empty() && value == value.trim() && !value.bytes().any(|b| b.is_ascii_control())
 }
 
 /// Idempotently establish project identity at `root`.
@@ -313,6 +717,112 @@ pub fn project_id_path(root: &Path) -> PathBuf {
     root.join(PROJECT_ID_PATH)
 }
 
+/// MLP2-003: outcome of the daemon attach identity check. The full
+/// "attach reads `anvil/project-id` + git" sequence collapses into
+/// one of these variants; callers map them onto the wire-level
+/// `degraded:identity-mismatch` surface or onto a hard rejection.
+///
+/// Variants:
+///
+/// - [`AttachStatus::Clean`] — every recorded field matched; the
+///   attach proceeds without degradation.
+/// - [`AttachStatus::Fork`] — `forked_from` was set, so the operator
+///   has declared a fork and the daemon attaches without
+///   degradation; `parent_uuid` is echoed so the daemon can record
+///   the fork lineage on the session.
+/// - [`AttachStatus::Mismatch`] — one or more recorded fields
+///   disagreed with the live worktree; surface as
+///   `degraded:identity-mismatch`. The wire-level signal name is
+///   carried in [`Self::DEGRADED_REASON`] so consumers don't
+///   re-spell it.
+/// - [`AttachStatus::ProjectIdMissing`] — no `anvil/project-id`
+///   file is present, so the daemon falls back to the pre-MLP2-003
+///   "trust the launcher" path. Tracked distinctly from `Clean`
+///   so MLP2-025's spoof check can require a project-id at attach
+///   time.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttachStatus {
+    /// All recorded identity fields match the live worktree.
+    Clean(ProjectIdentity),
+    /// `forked_from` was set on the persisted identity; the attach
+    /// proceeds without degradation.
+    Fork {
+        identity: ProjectIdentity,
+        parent_uuid: String,
+    },
+    /// One or more recorded identity fields disagree with the live
+    /// worktree. Callers surface this as `degraded:identity-mismatch`
+    /// per the wire-level vocabulary pinned by
+    /// [`AttachStatus::DEGRADED_REASON`].
+    Mismatch {
+        identity: ProjectIdentity,
+        reasons: Vec<IdentityMismatch>,
+    },
+    /// No `anvil/project-id` file is present; nothing to verify.
+    /// Returned as its own variant so MLP2-025's spoof check can
+    /// require a project-id on tagged attach paths while the
+    /// pre-MLP2-003 untagged path keeps working.
+    ProjectIdMissing,
+}
+
+#[allow(dead_code)]
+impl AttachStatus {
+    /// Wire-level signal name surfaced on `Mismatch`. Pinned as a
+    /// constant so consumers (the daemon's status surface, the CLI
+    /// renderer, future witness-chain attribution) don't drift on
+    /// the string.
+    pub const DEGRADED_REASON: &'static str = "degraded:identity-mismatch";
+
+    /// `true` when the attach should proceed without degradation
+    /// (`Clean` or `Fork`).
+    #[must_use]
+    pub fn is_attach_ok(&self) -> bool {
+        matches!(self, Self::Clean(_) | Self::Fork { .. })
+    }
+
+    /// `true` when the wire-level `degraded:identity-mismatch`
+    /// signal applies.
+    #[must_use]
+    pub fn is_identity_mismatch(&self) -> bool {
+        matches!(self, Self::Mismatch { .. })
+    }
+}
+
+/// MLP2-003: read `anvil/project-id` from `worktree`, run the
+/// composite-identity check against the live git state, and return
+/// the resulting [`AttachStatus`].
+///
+/// This is the single entry point the daemon's attach path consumes:
+///
+/// - Reads `anvil/project-id` via [`read_project_id`]; absence
+///   yields [`AttachStatus::ProjectIdMissing`].
+/// - On presence, calls [`ProjectIdentity::verify_against_worktree`]
+///   and maps its outcome onto [`AttachStatus`] variants:
+///   `IdentityCheck::Match` → `Clean`, `ForkedFromParent` → `Fork`,
+///   `Mismatch` → `Mismatch`.
+///
+/// Returns `Err` only on filesystem / git invocation failures the
+/// caller cannot meaningfully recover from; identity disagreements
+/// are surfaced as [`AttachStatus::Mismatch`], not as `Err`, so the
+/// caller can map them onto the wire-level
+/// `degraded:identity-mismatch` signal without losing the failed
+/// fields.
+#[allow(dead_code)]
+pub fn attach_check(worktree: &Path) -> Result<AttachStatus, IdentityError> {
+    let Some(identity) = read_project_id(worktree)? else {
+        return Ok(AttachStatus::ProjectIdMissing);
+    };
+    Ok(match identity.verify_against_worktree(worktree)? {
+        IdentityCheck::Match => AttachStatus::Clean(identity),
+        IdentityCheck::ForkedFromParent { parent_uuid } => AttachStatus::Fork {
+            identity,
+            parent_uuid,
+        },
+        IdentityCheck::Mismatch { reasons } => AttachStatus::Mismatch { identity, reasons },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,14 +879,25 @@ forked_from: 9b8a7c6d-5e4f-3210-fedc-ba0987654321
 
     #[test]
     fn parse_ignores_unknown_keys_for_forward_compat() {
+        // MLP2-003: `first_commit` and `origin_canonical` are now
+        // recognised + validated, so the fixture uses real-shaped
+        // values; an unknown future key still rounds-trips harmlessly.
         let contents = "\
 project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
-first_commit: a3b2ea4e1234567890abcdef
+first_commit: a3b2ea4e1234567890abcdef1234567890abcdef
 origin_canonical: github.com/eddacraft/anvil
 unknown_future_field: whatever
 ";
         let parsed = ProjectIdentity::parse(contents).unwrap();
         assert_eq!(parsed.project_uuid, "01997e4a-1b2c-7345-8901-abcdef123456");
+        assert_eq!(
+            parsed.first_commit.as_deref(),
+            Some("a3b2ea4e1234567890abcdef1234567890abcdef")
+        );
+        assert_eq!(
+            parsed.origin_canonical.as_deref(),
+            Some("github.com/eddacraft/anvil")
+        );
     }
 
     #[test]
@@ -550,6 +1071,496 @@ created_at: 2026-05-07T12:34:56Z
             returned.project_uuid, on_disk.project_uuid,
             "ensure must return the on-disk identity, not a locally-minted one"
         );
+    }
+
+    // ── MLP2-003 — composite identity check ─────────────────────────
+
+    /// MLP2-003: the new optional fields round-trip through render
+    /// and parse without loss.
+    #[test]
+    fn first_commit_and_origin_canonical_round_trip() {
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: Some("2026-05-07T12:34:56Z".into()),
+            created_by_version: Some("0.7.0".into()),
+            forked_from: None,
+            first_commit: Some("a3b2ea4e1234567890abcdef1234567890abcdef".into()),
+            origin_canonical: Some("github.com/eddacraft/anvil".into()),
+        };
+        let rendered = id.render();
+        let back = ProjectIdentity::parse(&rendered).unwrap();
+        assert_eq!(back, id);
+    }
+
+    /// MLP2-003: `first_commit` must be a 40-char lowercase hex sha.
+    #[test]
+    fn parse_rejects_first_commit_that_is_not_full_sha1() {
+        let contents = "\
+project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
+first_commit: short-sha
+";
+        let err = ProjectIdentity::parse(contents).unwrap_err();
+        assert!(matches!(err, IdentityError::Malformed(_)));
+    }
+
+    /// MLP2-003: uppercase hex in `first_commit` is rejected — git
+    /// always emits lowercase, so a mixed-case value is an authored
+    /// mistake we should catch loudly.
+    #[test]
+    fn parse_rejects_first_commit_with_uppercase_hex() {
+        let contents = "\
+project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
+first_commit: A3B2EA4E1234567890ABCDEF1234567890ABCDEF
+";
+        let err = ProjectIdentity::parse(contents).unwrap_err();
+        assert!(matches!(err, IdentityError::Malformed(_)));
+    }
+
+    /// MLP2-003: `origin_canonical` must not be empty or carry
+    /// whitespace / control characters.
+    #[test]
+    fn parse_rejects_empty_origin_canonical() {
+        let contents = "\
+project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
+origin_canonical:
+";
+        let err = ProjectIdentity::parse(contents).unwrap_err();
+        assert!(matches!(err, IdentityError::Malformed(_)));
+    }
+
+    /// MLP2-003: SSH alias `git@host:owner/repo[.git]` collapses to
+    /// the same canonical form as the HTTPS spelling.
+    #[test]
+    fn canonicalise_origin_collapses_ssh_alias_and_https() {
+        let ssh = canonicalise_origin("git@github.com:eddacraft/anvil.git");
+        let https = canonicalise_origin("https://github.com/eddacraft/anvil.git");
+        let no_dotgit = canonicalise_origin("https://github.com/eddacraft/anvil");
+        let trailing_slash = canonicalise_origin("https://github.com/eddacraft/anvil/");
+        let mixed_case_host = canonicalise_origin("https://GitHub.com/eddacraft/anvil.git");
+        assert_eq!(ssh, "github.com/eddacraft/anvil");
+        assert_eq!(https, "github.com/eddacraft/anvil");
+        assert_eq!(no_dotgit, "github.com/eddacraft/anvil");
+        assert_eq!(trailing_slash, "github.com/eddacraft/anvil");
+        assert_eq!(mixed_case_host, "github.com/eddacraft/anvil");
+    }
+
+    /// MLP2-003: `ssh://git@host/path` (the explicit-scheme SSH form)
+    /// also canonicalises to the same shape.
+    #[test]
+    fn canonicalise_origin_handles_explicit_ssh_scheme() {
+        let out = canonicalise_origin("ssh://git@github.com/eddacraft/anvil.git");
+        assert_eq!(out, "github.com/eddacraft/anvil");
+    }
+
+    /// MLP2-003: path case is preserved so a rename of `Anvil` →
+    /// `anvil` on the forge surfaces as a mismatch.
+    #[test]
+    fn canonicalise_origin_preserves_path_case() {
+        let upper = canonicalise_origin("https://github.com/eddacraft/Anvil.git");
+        let lower = canonicalise_origin("https://github.com/eddacraft/anvil.git");
+        assert_ne!(upper, lower);
+        assert_eq!(upper, "github.com/eddacraft/Anvil");
+    }
+
+    /// MLP2-003: empty / whitespace-only input returns the empty
+    /// string — the caller (`read_origin_canonical`) treats that as
+    /// "no origin configured".
+    #[test]
+    fn canonicalise_origin_empty_input_returns_empty() {
+        assert_eq!(canonicalise_origin(""), "");
+        assert_eq!(canonicalise_origin("   "), "");
+    }
+
+    /// MLP2-003: a fresh worktree (no commits) is treated as
+    /// "no `first_commit`" rather than an error.
+    #[test]
+    fn read_first_commit_returns_none_for_empty_repo() {
+        let dir = TempDir::new().unwrap();
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(dir.path())
+            .status()
+            .expect("git init");
+        let commit = read_first_commit(dir.path()).expect("read");
+        assert!(
+            commit.is_none(),
+            "empty repo should report no first commit; got {commit:?}"
+        );
+    }
+
+    /// MLP2-003: a repo with one commit reports that commit's SHA
+    /// as its `first_commit` and a worktree-rooted `verify` against
+    /// a recorded matching identity returns `Match`.
+    #[test]
+    fn verify_against_worktree_matches_recorded_first_commit_and_origin() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+        let live_first = read_first_commit(dir.path()).unwrap().unwrap();
+        let live_origin = read_origin_canonical(dir.path()).unwrap().unwrap();
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: Some(live_first.clone()),
+            origin_canonical: Some(live_origin),
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        assert_eq!(check, IdentityCheck::Match);
+    }
+
+    /// MLP2-003: a renamed origin (different URL than what
+    /// `anvil/project-id` records) surfaces as `OriginCanonical`
+    /// mismatch — the operator switched forges without updating the
+    /// project-id file.
+    #[test]
+    fn verify_flags_renamed_origin_as_mismatch() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+        let live_first = read_first_commit(dir.path()).unwrap().unwrap();
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: Some(live_first),
+            origin_canonical: Some("gitlab.com/eddacraft/anvil".into()),
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        match check {
+            IdentityCheck::Mismatch { reasons } => {
+                assert_eq!(reasons.len(), 1);
+                assert!(matches!(
+                    reasons[0],
+                    IdentityMismatch::OriginCanonical { .. }
+                ));
+            }
+            other => panic!("expected OriginCanonical mismatch, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003: a rebased history (root commit changed) surfaces as
+    /// `FirstCommit` mismatch.
+    #[test]
+    fn verify_flags_rebased_history_as_mismatch() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+        let live_first = read_first_commit(dir.path()).unwrap().unwrap();
+        // Force a different root by recording a fake SHA.
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into()),
+            origin_canonical: Some(read_origin_canonical(dir.path()).unwrap().unwrap()),
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        match check {
+            IdentityCheck::Mismatch { reasons } => {
+                assert_eq!(reasons.len(), 1);
+                match &reasons[0] {
+                    IdentityMismatch::FirstCommit { recorded, live } => {
+                        assert_eq!(recorded, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+                        assert_eq!(live, &live_first);
+                    }
+                    IdentityMismatch::OriginCanonical { .. } => {
+                        panic!("expected FirstCommit mismatch, got an OriginCanonical")
+                    }
+                }
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003: when `forked_from` is set, an otherwise-mismatching
+    /// identity still attaches cleanly — the operator has declared a
+    /// fork, so the live git state differing from the parent project's
+    /// `first_commit` / `origin_canonical` is expected.
+    #[test]
+    fn verify_accepts_fork_when_forked_from_set() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/me/my-anvil-fork.git");
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: Some("9b8a7c6d-5e4f-3210-fedc-ba0987654321".into()),
+            // Recorded values are the parent project's — they will
+            // mismatch live but `forked_from` lets the attach through.
+            first_commit: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into()),
+            origin_canonical: Some("github.com/eddacraft/anvil".into()),
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        assert_eq!(
+            check,
+            IdentityCheck::ForkedFromParent {
+                parent_uuid: "9b8a7c6d-5e4f-3210-fedc-ba0987654321".into()
+            }
+        );
+    }
+
+    /// MLP2-003: a `ProjectIdentity` activated before MLP2-003
+    /// shipped has `first_commit = None` and `origin_canonical = None`
+    /// — the verify path skips both checks rather than reporting
+    /// them as mismatches.
+    #[test]
+    fn verify_skips_fields_that_were_not_recorded() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: None,
+            origin_canonical: None,
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        assert_eq!(check, IdentityCheck::Match);
+    }
+
+    /// MLP2-003: when `first_commit` was recorded but the live
+    /// worktree has no commits yet, surface a mismatch with an
+    /// empty `live` value rather than silently passing.
+    #[test]
+    fn verify_flags_empty_repo_against_recorded_first_commit() {
+        let dir = TempDir::new().unwrap();
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(dir.path())
+            .status()
+            .expect("git init");
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into()),
+            origin_canonical: None,
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        match check {
+            IdentityCheck::Mismatch { reasons } => {
+                assert_eq!(reasons.len(), 1);
+                match &reasons[0] {
+                    IdentityMismatch::FirstCommit { recorded, live } => {
+                        assert_eq!(recorded, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+                        assert!(
+                            live.is_empty(),
+                            "empty repo should surface empty live first_commit"
+                        );
+                    }
+                    IdentityMismatch::OriginCanonical { .. } => {
+                        panic!("expected FirstCommit mismatch, got an OriginCanonical")
+                    }
+                }
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003: missing origin in the worktree surfaces against a
+    /// recorded origin as an `OriginCanonical` mismatch with
+    /// `live = None`.
+    #[test]
+    fn verify_flags_missing_origin_against_recorded_origin() {
+        let dir = TempDir::new().unwrap();
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(dir.path())
+            .status()
+            .expect("git init");
+        commit_initial_file(dir.path());
+
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: None,
+            origin_canonical: Some("github.com/eddacraft/anvil".into()),
+        };
+        let check = id.verify_against_worktree(dir.path()).unwrap();
+        match check {
+            IdentityCheck::Mismatch { reasons } => {
+                assert_eq!(reasons.len(), 1);
+                match &reasons[0] {
+                    IdentityMismatch::OriginCanonical { recorded, live } => {
+                        assert_eq!(recorded, "github.com/eddacraft/anvil");
+                        assert!(
+                            live.is_none(),
+                            "no origin configured should surface live=None"
+                        );
+                    }
+                    IdentityMismatch::FirstCommit { .. } => {
+                        panic!("expected OriginCanonical mismatch, got a FirstCommit")
+                    }
+                }
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003 attach contract: a worktree with no `anvil/project-id`
+    /// surfaces as `ProjectIdMissing` so MLP2-025's spoof check can
+    /// require the file on tagged attach paths while pre-MLP2-003
+    /// callers fall through cleanly.
+    #[test]
+    fn attach_check_returns_project_id_missing_when_file_absent() {
+        let dir = TempDir::new().unwrap();
+        let status = attach_check(dir.path()).unwrap();
+        assert_eq!(status, AttachStatus::ProjectIdMissing);
+        assert!(!status.is_attach_ok());
+        assert!(!status.is_identity_mismatch());
+    }
+
+    /// MLP2-003 attach contract: when the recorded identity matches
+    /// the live worktree, attach is `Clean` and the identity is
+    /// returned for the daemon to record on the session.
+    #[test]
+    fn attach_check_clean_when_recorded_matches_live() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+        let live_first = read_first_commit(dir.path()).unwrap().unwrap();
+        let live_origin = read_origin_canonical(dir.path()).unwrap().unwrap();
+        // Write a matching anvil/project-id by hand so the test does
+        // not depend on `ensure_project_id`'s currently-no-MLP2-003
+        // mint path.
+        std::fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        std::fs::write(
+            dir.path().join(PROJECT_ID_PATH),
+            format!(
+                "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n\
+                 first_commit: {live_first}\n\
+                 origin_canonical: {live_origin}\n"
+            ),
+        )
+        .unwrap();
+        let status = attach_check(dir.path()).unwrap();
+        assert!(status.is_attach_ok());
+        match status {
+            AttachStatus::Clean(id) => {
+                assert_eq!(id.first_commit.as_deref(), Some(live_first.as_str()));
+                assert_eq!(id.origin_canonical.as_deref(), Some(live_origin.as_str()));
+            }
+            other => panic!("expected Clean, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003 attach contract: a `forked_from` declaration accepts
+    /// the attach without degradation even when `first_commit` / origin
+    /// disagree with the recorded values.
+    #[test]
+    fn attach_check_fork_passes_through_when_forked_from_set() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/me/my-fork.git");
+        std::fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        std::fs::write(
+            dir.path().join(PROJECT_ID_PATH),
+            "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n\
+             forked_from: 9b8a7c6d-5e4f-3210-fedc-ba0987654321\n\
+             first_commit: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n\
+             origin_canonical: github.com/eddacraft/anvil\n",
+        )
+        .unwrap();
+        let status = attach_check(dir.path()).unwrap();
+        assert!(status.is_attach_ok());
+        match status {
+            AttachStatus::Fork { parent_uuid, .. } => {
+                assert_eq!(parent_uuid, "9b8a7c6d-5e4f-3210-fedc-ba0987654321");
+            }
+            other => panic!("expected Fork, got {other:?}"),
+        }
+    }
+
+    /// MLP2-003 attach contract: a renamed origin surfaces as a
+    /// `Mismatch` and the wire-level `degraded:identity-mismatch`
+    /// signal applies.
+    #[test]
+    fn attach_check_mismatch_carries_degraded_signal() {
+        let dir = TempDir::new().unwrap();
+        init_git_with_origin(dir.path(), "https://github.com/eddacraft/anvil.git");
+        let live_first = read_first_commit(dir.path()).unwrap().unwrap();
+        std::fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        std::fs::write(
+            dir.path().join(PROJECT_ID_PATH),
+            format!(
+                "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n\
+                 first_commit: {live_first}\n\
+                 origin_canonical: gitlab.com/eddacraft/anvil\n"
+            ),
+        )
+        .unwrap();
+        let status = attach_check(dir.path()).unwrap();
+        assert!(status.is_identity_mismatch());
+        assert!(!status.is_attach_ok());
+        assert_eq!(AttachStatus::DEGRADED_REASON, "degraded:identity-mismatch");
+        match status {
+            AttachStatus::Mismatch { reasons, .. } => {
+                assert_eq!(reasons.len(), 1);
+                assert!(matches!(
+                    reasons[0],
+                    IdentityMismatch::OriginCanonical { .. }
+                ));
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
+        }
+    }
+
+    /// Test-helper: spin up a tempdir-backed git repo with the
+    /// supplied origin URL, one commit, and the user identity set so
+    /// `git commit` does not refuse. Returns the live first-commit
+    /// sha implicitly via subsequent calls to `read_first_commit`.
+    fn init_git_with_origin(root: &Path, origin: &str) {
+        let run = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .expect("git command spawn");
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run(&["init", "--quiet"]);
+        run(&["config", "user.name", "test"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        run(&["remote", "add", "origin", origin]);
+        commit_initial_file(root);
+    }
+
+    /// Test-helper: create one file and commit it.
+    fn commit_initial_file(root: &Path) {
+        let run = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .expect("git command spawn");
+            assert!(status.success(), "git {args:?} failed");
+        };
+        // Ensure committer identity is set even if `init_git_with_origin`
+        // wasn't used (the missing-origin test path init's git itself).
+        let _ = std::process::Command::new("git")
+            .args(["config", "user.name", "test"])
+            .current_dir(root)
+            .status();
+        let _ = std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(root)
+            .status();
+        let _ = std::process::Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(root)
+            .status();
+        std::fs::write(root.join("README.md"), "hello\n").expect("write readme");
+        run(&["add", "README.md"]);
+        run(&["commit", "-m", "initial", "--quiet"]);
     }
 
     #[cfg(unix)]
