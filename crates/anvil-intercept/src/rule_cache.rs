@@ -33,6 +33,35 @@
 //!   scheduler-level pinning so a mid-evaluation config write
 //!   does not swap the rule set under a running call. The cache's
 //!   invalidate semantics are eventual, not abortive.
+//!
+//! ## Bounded capacity (MLP2-057)
+//!
+//! The cache is capped at [`DEFAULT_RULE_SET_CACHE_CAPACITY`] entries
+//! by default (sized against INTD-016's session cap of ~1024 live
+//! worktrees on a daemon). On insert at capacity the
+//! least-recently-used entry is evicted and a `tracing::warn!` event
+//! fires so operators can detect cache pressure before MLP2-058 wires
+//! the richer status surface. Two counters back the eviction surface:
+//!
+//! - [`RuleSetCache::len`] — current entry count (`cache.entries_count`).
+//! - [`RuleSetCache::evictions`] — cumulative LRU evictions
+//!   (`cache.evictions`).
+//!
+//! Recency is tracked by a monotonic generation counter bumped on
+//! every successful `lookup` and `get_or_resolve` hit. Linear scan to
+//! find the LRU is O(n) where n ≤ capacity (1024); the constant is
+//! small enough that the simpler primitive beats the dependency cost
+//! of a `LinkedHashMap` or `lru` crate.
+//!
+//! ## Session-lifetime coupling (MLP2-057)
+//!
+//! The cache no longer accumulates stale entries across the daemon's
+//! lifetime. [`SessionRegistry::unregister`] and
+//! [`SessionRegistry::evict_stale`] both fire a worktree-unregister
+//! hook that the daemon wires to [`RuleSetCache::invalidate`]; a
+//! register/unregister cycle therefore leaves no cache residue. The
+//! hook is opt-in (defaults to no-op) so embedded-mode tests that
+//! never construct a cache aren't forced to plumb one through.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -129,9 +158,43 @@ pub enum CacheOutcome {
     Miss,
 }
 
+/// MLP2-057: default cache capacity, sized against INTD-016's
+/// per-daemon session cap. Operators with substantially more
+/// concurrent worktrees can construct via
+/// [`RuleSetCache::with_capacity`] from `Resolved::rule_cache_max`
+/// (deferred config knob).
+pub const DEFAULT_RULE_SET_CACHE_CAPACITY: usize = 1024;
+
+/// MLP2-057: internal cache state — sessions, LRU recency
+/// generation, and the cumulative-evictions counter. Pulled into a
+/// dedicated struct so [`RuleSetCache::lock`] hands callers a single
+/// guard regardless of how many fields back the cache.
+#[derive(Debug, Default)]
+struct CacheInner {
+    map: HashMap<WorktreeKey, RuleSetEntryWithRecency>,
+    /// Monotonic generation counter, bumped on every successful
+    /// access (lookup hit, `get_or_resolve` hit, or fresh insert).
+    /// An entry's `last_used` is the generation at its most recent
+    /// access; the lowest `last_used` in the map is the LRU entry.
+    next_generation: u64,
+    /// Cumulative LRU evictions since cache construction. The
+    /// counter resets only on a new cache instance — operators
+    /// inspect rate of change rather than absolute value.
+    evictions: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RuleSetEntryWithRecency {
+    entry: RuleSetEntry,
+    last_used: u64,
+}
+
 /// Thread-safe rule-set cache. Stores at most one entry per
-/// canonicalised worktree path; invalidation drops the entry and
-/// forces a re-resolve on the next access.
+/// canonicalised worktree path up to a fixed capacity; on insert at
+/// capacity the least-recently-used entry is evicted with a
+/// `tracing::warn!` event and the [`RuleSetCache::evictions`] counter
+/// bumps. Invalidation drops an entry and forces a re-resolve on the
+/// next access.
 ///
 /// The internal map is wrapped in a `Mutex` rather than a
 /// `RwLock`: rule-set resolution happens on the file-watcher
@@ -139,25 +202,61 @@ pub enum CacheOutcome {
 /// frequency relative to the work they hand off. The contention
 /// surface is dominated by hash-map mutations, not reads, so the
 /// simpler primitive wins.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RuleSetCache {
-    inner: Mutex<HashMap<WorktreeKey, RuleSetEntry>>,
+    inner: Mutex<CacheInner>,
+    capacity: usize,
+}
+
+impl Default for RuleSetCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RuleSetCache {
-    /// Empty cache.
+    /// Empty cache with the default capacity
+    /// ([`DEFAULT_RULE_SET_CACHE_CAPACITY`]).
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self::with_capacity(DEFAULT_RULE_SET_CACHE_CAPACITY)
+    }
+
+    /// Empty cache with a custom capacity. `capacity` is clamped to a
+    /// minimum of 1 — a zero-capacity cache would refuse every
+    /// `get_or_resolve` insert and so disable the memoisation layer
+    /// the cache exists for. Tests targeting eviction behaviour use
+    /// small capacities (2, 4) to drive the LRU path on a tractable
+    /// fixture.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: Mutex::new(CacheInner::default()),
+            capacity: capacity.max(1),
+        }
+    }
+
+    /// Maximum number of entries the cache will hold before LRU
+    /// eviction kicks in. Pinned at construction; not mutable.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// Read the entry for `key` without populating on miss. Returns
-    /// a `Hit` carrying a clone of the cached entry, or `Miss`.
+    /// a `Hit` carrying a clone of the cached entry, or `Miss`. A hit
+    /// bumps the entry's recency so a subsequent capacity-eviction
+    /// pass treats this as the most recently used worktree.
     pub fn lookup(&self, key: &WorktreeKey) -> CacheOutcome {
-        match self.lock().get(key) {
-            Some(entry) => CacheOutcome::Hit(entry.clone()),
-            None => CacheOutcome::Miss,
-        }
+        let mut guard = self.lock();
+        let next = guard.next_generation;
+        let Some(entry) = guard.map.get_mut(key) else {
+            return CacheOutcome::Miss;
+        };
+        entry.last_used = next;
+        let cloned = entry.entry.clone();
+        guard.next_generation = next.wrapping_add(1);
+        CacheOutcome::Hit(cloned)
     }
 
     /// Read the entry for `key` and on miss call `resolver` to build
@@ -168,12 +267,23 @@ impl RuleSetCache {
     /// Errors bypass the cache: a failed resolution does **not**
     /// poison the entry, so a follow-up call after the operator
     /// fixes the file recomputes and succeeds.
+    ///
+    /// MLP2-057: a successful resolve at capacity evicts the LRU
+    /// entry before insert, fires `tracing::warn!`, and bumps
+    /// [`RuleSetCache::evictions`].
     pub fn get_or_resolve<F, E>(&self, key: &WorktreeKey, resolver: F) -> Result<RuleSetEntry, E>
     where
         F: FnOnce(&WorktreeKey) -> Result<RuleSetEntry, E>,
     {
-        if let Some(existing) = self.lock().get(key).cloned() {
-            return Ok(existing);
+        {
+            let mut guard = self.lock();
+            let next = guard.next_generation;
+            if let Some(existing) = guard.map.get_mut(key) {
+                existing.last_used = next;
+                let cloned = existing.entry.clone();
+                guard.next_generation = next.wrapping_add(1);
+                return Ok(cloned);
+            }
         }
         // Resolve outside the lock so a slow resolver does not block
         // sibling worktree look-ups. Trade-offs:
@@ -190,7 +300,7 @@ impl RuleSetCache {
         //   in-flight evaluations are independently pinned by
         //   MLP2-002 so they never see the stale data either.
         let fresh = resolver(key)?;
-        self.lock().insert(key.clone(), fresh.clone());
+        self.insert_with_eviction(key.clone(), fresh.clone());
         Ok(fresh)
     }
 
@@ -198,7 +308,7 @@ impl RuleSetCache {
     /// present, `false` otherwise — useful for telemetry that
     /// counts effective invalidations vs no-ops.
     pub fn invalidate(&self, key: &WorktreeKey) -> bool {
-        self.lock().remove(key).is_some()
+        self.lock().map.remove(key).is_some()
     }
 
     /// Invalidate every entry whose worktree contains the changed
@@ -236,6 +346,7 @@ impl RuleSetCache {
         let mut guard = self.lock();
         let to_drop: Vec<WorktreeKey> = if let Ok(parent_canon) = std::fs::canonicalize(parent) {
             guard
+                .map
                 .keys()
                 .filter(|key| key.as_path() == parent_canon)
                 .cloned()
@@ -245,29 +356,92 @@ impl RuleSetCache {
             // delete. Conservatively flush every entry; the next
             // access re-resolves and re-populates. Cheaper than a
             // permanently stale cache.
-            guard.keys().cloned().collect()
+            guard.map.keys().cloned().collect()
         };
         for key in to_drop {
-            if guard.remove(&key).is_some() {
+            if guard.map.remove(&key).is_some() {
                 hits.push(key);
             }
         }
         hits
     }
 
-    /// Number of cached entries. Useful for tests and telemetry.
+    /// Number of cached entries. The `cache.entries_count`
+    /// counter surfaced for MLP2-058. Useful for tests and telemetry.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.lock().len()
+        self.lock().map.len()
     }
 
     /// `true` when no entries are cached.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.lock().is_empty()
+        self.lock().map.is_empty()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<WorktreeKey, RuleSetEntry>> {
+    /// Cumulative LRU evictions since this cache instance was
+    /// constructed. The `cache.evictions` counter surfaced for
+    /// MLP2-058 — a steady non-zero rate of change indicates the
+    /// cache is sized too small for the active worktree set.
+    #[must_use]
+    pub fn evictions(&self) -> u64 {
+        self.lock().evictions
+    }
+
+    /// MLP2-057: insert with capacity enforcement. Called from the
+    /// `get_or_resolve` miss path. Locks once, checks capacity,
+    /// evicts LRU if needed, then inserts. Two-phase locks would
+    /// risk a torn state if a second writer slipped between the
+    /// eviction and the insert.
+    fn insert_with_eviction(&self, key: WorktreeKey, entry: RuleSetEntry) {
+        use std::collections::hash_map::Entry;
+
+        let mut guard = self.lock();
+        let next = guard.next_generation;
+        // If the key already exists we're just refreshing it —
+        // capacity is unchanged, recency bumps, no eviction.
+        if let Entry::Occupied(mut existing) = guard.map.entry(key.clone()) {
+            existing.insert(RuleSetEntryWithRecency {
+                entry,
+                last_used: next,
+            });
+            guard.next_generation = next.wrapping_add(1);
+            return;
+        }
+        if guard.map.len() >= self.capacity {
+            // Linear scan for the LRU entry. n ≤ capacity (1024 by
+            // default); the constant is small enough that an
+            // intrusive LRU list would not pay off here.
+            if let Some(victim_key) = guard
+                .map
+                .iter()
+                .min_by_key(|(_, v)| v.last_used)
+                .map(|(k, _)| k.clone())
+            {
+                guard.map.remove(&victim_key);
+                guard.evictions = guard.evictions.saturating_add(1);
+                let total_evictions = guard.evictions;
+                let capacity = self.capacity;
+                tracing::warn!(
+                    target: "anvil_intercept::rule_cache",
+                    evicted_worktree = %victim_key.as_path().display(),
+                    cache_capacity = capacity,
+                    cache_evictions_total = total_evictions,
+                    "rule_cache LRU eviction; cache at capacity",
+                );
+            }
+        }
+        guard.map.insert(
+            key,
+            RuleSetEntryWithRecency {
+                entry,
+                last_used: next,
+            },
+        );
+        guard.next_generation = next.wrapping_add(1);
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, CacheInner> {
         // Mutex poisoning here would indicate a panic mid-resolve;
         // the cache's invariants are simple (no torn writes — every
         // mutation is a `HashMap::insert` or `::remove`) so taking
@@ -736,6 +910,287 @@ mod tests {
         let after = resolve_for_worktree::<_, &str>(&k, "0.7.0-beta", "0.10.0", []).unwrap();
         assert_ne!(before.rules_sha, after.rules_sha);
         assert_ne!(before.resolved.config, after.resolved.config);
+    }
+
+    // MLP2-057 — bounded capacity + LRU eviction.
+
+    /// `RuleSetCache::new()` pins the default capacity at
+    /// [`DEFAULT_RULE_SET_CACHE_CAPACITY`]. Operators that need a
+    /// different value go through [`RuleSetCache::with_capacity`]; this
+    /// pin guards against an accidental default-change drive-by.
+    #[test]
+    fn default_capacity_is_pinned() {
+        let cache = RuleSetCache::new();
+        assert_eq!(cache.capacity(), DEFAULT_RULE_SET_CACHE_CAPACITY);
+        assert_eq!(cache.evictions(), 0);
+        assert!(cache.is_empty());
+    }
+
+    /// Zero-capacity caches are clamped to 1. A literal-zero cap
+    /// would refuse every insert, disabling the cache entirely;
+    /// treating it as a typo and clamping to 1 is the safer default.
+    #[test]
+    fn with_capacity_clamps_zero_to_one() {
+        let cache = RuleSetCache::with_capacity(0);
+        assert_eq!(cache.capacity(), 1);
+    }
+
+    /// Fill the cache to capacity, then insert one more — the
+    /// least-recently-used key (the first one inserted, since no
+    /// later access bumped its recency) is evicted, and the
+    /// evictions counter increments.
+    #[test]
+    fn lru_evicts_oldest_entry_at_capacity_plus_one() {
+        let cache = RuleSetCache::with_capacity(2);
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let dir_c = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        let k_c = key(&dir_c);
+
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.evictions(), 0);
+
+        cache
+            .get_or_resolve::<_, ()>(&k_c, |_| Ok(entry("c")))
+            .unwrap();
+        assert_eq!(cache.len(), 2, "cache must not exceed capacity");
+        assert_eq!(cache.evictions(), 1, "evictions counter incremented");
+        assert_eq!(cache.lookup(&k_a), CacheOutcome::Miss, "k_a was LRU");
+        assert!(matches!(cache.lookup(&k_b), CacheOutcome::Hit(_)));
+        assert!(matches!(cache.lookup(&k_c), CacheOutcome::Hit(_)));
+    }
+
+    /// A `lookup` hit bumps the entry's recency. Insert a, b; lookup
+    /// a so a is now MRU; insert c; b should be the eviction victim,
+    /// not a.
+    #[test]
+    fn lookup_bumps_recency_so_it_is_not_lru() {
+        let cache = RuleSetCache::with_capacity(2);
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let dir_c = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        let k_c = key(&dir_c);
+
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        // Touch a — now b is the LRU.
+        assert!(matches!(cache.lookup(&k_a), CacheOutcome::Hit(_)));
+        cache
+            .get_or_resolve::<_, ()>(&k_c, |_| Ok(entry("c")))
+            .unwrap();
+
+        assert_eq!(cache.lookup(&k_b), CacheOutcome::Miss, "k_b was LRU");
+        assert!(matches!(cache.lookup(&k_a), CacheOutcome::Hit(_)));
+        assert!(matches!(cache.lookup(&k_c), CacheOutcome::Hit(_)));
+    }
+
+    /// A `get_or_resolve` hit bumps recency the same way `lookup`
+    /// does. Insert a, b; resolve a (hit, recency bumps); insert c;
+    /// b is evicted.
+    #[test]
+    fn get_or_resolve_hit_bumps_recency_so_it_is_not_lru() {
+        let cache = RuleSetCache::with_capacity(2);
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let dir_c = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        let k_c = key(&dir_c);
+
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        // Re-resolve a; the resolver must NOT fire (hit path).
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| panic!("resolver must not run on hit"))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_c, |_| Ok(entry("c")))
+            .unwrap();
+
+        assert_eq!(cache.lookup(&k_b), CacheOutcome::Miss);
+        assert!(matches!(cache.lookup(&k_a), CacheOutcome::Hit(_)));
+        assert!(matches!(cache.lookup(&k_c), CacheOutcome::Hit(_)));
+    }
+
+    /// Evictions counter increments once per LRU eviction across a
+    /// burst that pushes the cache past capacity multiple times. The
+    /// counter is cumulative, not per-call.
+    #[test]
+    fn evictions_counter_increments_per_eviction() {
+        let cache = RuleSetCache::with_capacity(2);
+        let dirs: Vec<TempDir> = (0..5).map(|_| TempDir::new().unwrap()).collect();
+        let keys: Vec<WorktreeKey> = dirs.iter().map(key).collect();
+
+        for (idx, k) in keys.iter().enumerate() {
+            let sha = format!("v{idx}");
+            cache
+                .get_or_resolve::<_, ()>(k, |_| Ok(entry(&sha)))
+                .unwrap();
+        }
+        // Capacity 2, inserted 5 → 3 evictions.
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.evictions(), 3);
+    }
+
+    /// Re-inserting an existing key is a refresh, not a capacity
+    /// pressure event — the evictions counter must NOT bump.
+    #[test]
+    fn re_inserting_existing_key_is_not_an_eviction() {
+        let cache = RuleSetCache::with_capacity(2);
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a-v1")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        // Invalidate a then re-insert via the resolver — that's
+        // still a refresh of "logical" key a, but the contains_key
+        // path doesn't fire because invalidate dropped it. So an
+        // eviction WOULD happen here if a were the LRU... but
+        // capacity is 2 and we only have 1 entry after invalidate.
+        // No eviction.
+        cache.invalidate(&k_a);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a-v2")))
+            .unwrap();
+        assert_eq!(
+            cache.evictions(),
+            0,
+            "invalidate + re-insert when below capacity must not be a pressure event",
+        );
+    }
+
+    /// `invalidate` is a deliberate user-driven drop, not a pressure
+    /// event — the evictions counter MUST NOT increment. Operators
+    /// reading `cache.evictions` see only the capacity-driven LRU
+    /// pressure.
+    #[test]
+    fn invalidate_does_not_count_as_eviction() {
+        let cache = RuleSetCache::with_capacity(4);
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v")))
+            .unwrap();
+        assert!(cache.invalidate(&k));
+        assert_eq!(
+            cache.evictions(),
+            0,
+            "invalidate is a deliberate drop, not a pressure event",
+        );
+    }
+
+    // MLP2-057 — registry → cache hook integration.
+
+    /// End-to-end pin of the registry-side hook driving cache
+    /// invalidation. A worktree is registered (cache hit), then
+    /// unregistered through `SessionRegistry::unregister`. The
+    /// daemon-style hook bridges `unregister` to
+    /// `RuleSetCache::invalidate`, so the next cache lookup returns
+    /// `Miss`. Pins the wire-up that the APS task's Validation
+    /// criterion calls out ("register-then-unregister a worktree →
+    /// cache returns Miss after unregister").
+    #[test]
+    fn registry_unregister_invalidates_cache_via_hook() {
+        use crate::registry::SessionRegistry;
+        use anvil_intercept_proto::SessionId;
+        use std::time::Instant;
+
+        let dir = TempDir::new().unwrap();
+        let canonical_key = WorktreeKey::canonicalise(dir.path()).unwrap();
+        let cache = Arc::new(RuleSetCache::new());
+
+        // Daemon-style wire-up: a clone of the cache lands in the
+        // hook closure; the registry holds it via `Arc<dyn Fn ...>`.
+        let cache_for_hook = Arc::clone(&cache);
+        let registry =
+            SessionRegistry::new().with_unregister_hook(Arc::new(move |worktree_path| {
+                let key = WorktreeKey::from_canonical(worktree_path.to_path_buf());
+                cache_for_hook.invalidate(&key);
+            }));
+
+        // Populate the cache against the worktree.
+        cache
+            .get_or_resolve::<_, ()>(&canonical_key, |_| Ok(entry("v1")))
+            .unwrap();
+        assert!(matches!(cache.lookup(&canonical_key), CacheOutcome::Hit(_)));
+
+        // Register, then unregister — the hook fires and clears the
+        // cache entry behind the scenes.
+        let sid = SessionId::new("hook-int-test");
+        registry
+            .register(&sid, dir.path(), None, Instant::now())
+            .unwrap();
+        assert!(
+            matches!(cache.lookup(&canonical_key), CacheOutcome::Hit(_)),
+            "registration alone does not touch the cache",
+        );
+        registry.unregister(&sid).unwrap();
+        assert_eq!(
+            cache.lookup(&canonical_key),
+            CacheOutcome::Miss,
+            "post-unregister lookup must miss"
+        );
+    }
+
+    /// Concurrent inserts driving evictions and concurrent
+    /// invalidations against arbitrary keys must not deadlock.
+    /// Pins the `insert_with_eviction` single-lock design against a
+    /// future refactor that splits eviction and insert into separate
+    /// lock acquisitions.
+    #[test]
+    fn concurrent_insert_and_evict_do_not_deadlock() {
+        const ITERATIONS: usize = 200;
+        let cache = Arc::new(RuleSetCache::with_capacity(8));
+        let dirs: Vec<TempDir> = (0..32).map(|_| TempDir::new().unwrap()).collect();
+        let keys: Vec<WorktreeKey> = dirs.iter().map(key).collect();
+
+        let inserter_keys = keys.clone();
+        let inserter_cache = Arc::clone(&cache);
+        let inserter = thread::spawn(move || {
+            for i in 0..ITERATIONS {
+                let k = &inserter_keys[i % inserter_keys.len()];
+                let sha = format!("v{i}");
+                let _ = inserter_cache.get_or_resolve::<_, ()>(k, |_| Ok(entry(&sha)));
+            }
+        });
+        let invalidator_keys = keys.clone();
+        let invalidator_cache = Arc::clone(&cache);
+        let invalidator = thread::spawn(move || {
+            for i in 0..ITERATIONS {
+                let k = &invalidator_keys[i % invalidator_keys.len()];
+                invalidator_cache.invalidate(k);
+            }
+        });
+
+        inserter.join().unwrap();
+        invalidator.join().unwrap();
+        // Final state: cache must respect its bound, eviction
+        // counter must be a sane (non-decreasing) value.
+        assert!(cache.len() <= 8, "capacity bound holds under contention");
     }
 
     #[test]

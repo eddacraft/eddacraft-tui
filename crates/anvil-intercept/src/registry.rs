@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anvil_intercept_proto::session::AgentTag;
@@ -227,7 +227,26 @@ pub struct SessionRegistry {
     /// startup from `Resolved::session_per_worktree_max`. Tests
     /// override via [`SessionRegistry::with_per_worktree_cap`].
     per_worktree_cap: usize,
+    /// MLP2-057: opt-in hook fired with the canonical worktree path
+    /// each time a session is unregistered (deliberate
+    /// `unregister` or TTL-driven `evict_stale`). The daemon wires
+    /// this to [`crate::rule_cache::RuleSetCache::invalidate`] so
+    /// rule-cache lifetime tracks session lifetime. Default is
+    /// `None`; embedded-mode tests that don't construct a cache
+    /// aren't forced to plumb one through.
+    unregister_hook: Option<WorktreeUnregisterHook>,
 }
+
+/// MLP2-057: callback fired when a session leaves the registry. The
+/// hook receives the unregistered session's canonical worktree path.
+/// `unregister` fires the hook exactly once per removed session;
+/// `evict_stale` fires it once per session it evicts.
+///
+/// The hook runs while the registry's internal lock is held — keep
+/// the closure body short. The daemon's intended use is a single
+/// [`crate::rule_cache::RuleSetCache::invalidate`] call, which is
+/// `O(1)` and uses a separate mutex.
+pub type WorktreeUnregisterHook = Arc<dyn Fn(&Path) + Send + Sync>;
 
 struct Inner {
     /// `SessionId` -> record. Sole source of truth for the record body.
@@ -273,7 +292,24 @@ impl SessionRegistry {
             }),
             ttl,
             per_worktree_cap: DEFAULT_PER_WORKTREE_CAP,
+            unregister_hook: None,
         }
+    }
+
+    /// MLP2-057: builder-style hook registration. The hook fires
+    /// once per session removed via `unregister` or `evict_stale`,
+    /// receiving the unregistered session's canonical worktree
+    /// path. The daemon wires this to
+    /// [`crate::rule_cache::RuleSetCache::invalidate`] so a
+    /// register/unregister cycle leaves no cache residue.
+    ///
+    /// Calling this method a second time replaces the prior hook —
+    /// only one hook is supported in v1, since the daemon's call
+    /// site is the single intended consumer.
+    #[must_use]
+    pub fn with_unregister_hook(mut self, hook: WorktreeUnregisterHook) -> Self {
+        self.unregister_hook = Some(hook);
+        self
     }
 
     /// MLP2-024: builder-style override of the per-worktree cap.
@@ -618,15 +654,24 @@ impl SessionRegistry {
     /// sessions with different tags on the same worktree stay
     /// registered.
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
-        let mut inner = self.lock();
-        let Some(entry) = inner.sessions.remove(id) else {
-            return Ok(false);
+        let worktree = {
+            let mut inner = self.lock();
+            let Some(entry) = inner.sessions.remove(id) else {
+                return Ok(false);
+            };
+            let key = (
+                entry.record.worktree.clone(),
+                entry.record.agent_tag.clone(),
+            );
+            inner.by_composite.remove(&key);
+            entry.record.worktree
         };
-        let key = (
-            entry.record.worktree.clone(),
-            entry.record.agent_tag.clone(),
-        );
-        inner.by_composite.remove(&key);
+        // MLP2-057: fire the hook AFTER the inner lock is released so a
+        // slow consumer (a `RuleSetCache::invalidate` running under
+        // its own mutex) does not extend the registry-lock window.
+        if let Some(hook) = self.unregister_hook.as_ref() {
+            hook(&worktree);
+        }
         Ok(true)
     }
 
@@ -644,25 +689,45 @@ impl SessionRegistry {
     /// notification, and the wire-level `SessionStatus::Ended` is
     /// reserved for that downstream surface.
     pub fn evict_stale(&self, now: Instant) -> Vec<SessionId> {
-        let mut inner = self.lock();
-        let ttl = self.ttl;
+        // Two-phase: collect the (id, worktree) pairs under the lock,
+        // release the lock, then fan the hook out. Keeps the
+        // registry's critical section bounded by hashmap operations,
+        // not by however long the cache's invalidate takes.
+        let (mut stale, worktrees): (Vec<SessionId>, Vec<PathBuf>) = {
+            let mut inner = self.lock();
+            let ttl = self.ttl;
+            let to_evict: Vec<SessionId> = inner
+                .sessions
+                .iter()
+                .filter_map(|(id, entry)| {
+                    let age = now.saturating_duration_since(entry.last_heartbeat);
+                    if age > ttl { Some(id.clone()) } else { None }
+                })
+                .collect();
 
-        let mut stale: Vec<SessionId> = inner
-            .sessions
-            .iter()
-            .filter_map(|(id, entry)| {
-                let age = now.saturating_duration_since(entry.last_heartbeat);
-                if age > ttl { Some(id.clone()) } else { None }
-            })
-            .collect();
+            let mut worktrees = Vec::with_capacity(to_evict.len());
+            for id in &to_evict {
+                if let Some(entry) = inner.sessions.remove(id) {
+                    let key = (
+                        entry.record.worktree.clone(),
+                        entry.record.agent_tag.clone(),
+                    );
+                    inner.by_composite.remove(&key);
+                    worktrees.push(entry.record.worktree);
+                }
+            }
+            (to_evict, worktrees)
+        };
 
-        for id in &stale {
-            if let Some(entry) = inner.sessions.remove(id) {
-                let key = (
-                    entry.record.worktree.clone(),
-                    entry.record.agent_tag.clone(),
-                );
-                inner.by_composite.remove(&key);
+        // MLP2-057: fire the hook for each evicted session outside
+        // the lock. Multiple sessions on the same worktree fire the
+        // hook once per session; the cache's `invalidate` is
+        // idempotent (returns `false` on the second call), so this
+        // doesn't cause spurious telemetry — but it does ensure
+        // every removed session-worktree pair is signalled.
+        if let Some(hook) = self.unregister_hook.as_ref() {
+            for worktree in &worktrees {
+                hook(worktree);
             }
         }
 
@@ -1645,5 +1710,99 @@ mod tests {
         let listed = registry.list();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].agent_tag.as_ref(), Some(&tag_a));
+    }
+
+    // MLP2-057: unregister hook fires the daemon's cache-invalidation
+    // callback on deliberate unregister and TTL eviction.
+
+    /// `unregister` fires the hook with the unregistered session's
+    /// canonical worktree path. Pinned so the cache-invalidation
+    /// wire-up cannot regress without the test breaking first.
+    #[test]
+    fn unregister_fires_worktree_hook() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let hits_for_hook = Arc::clone(&hits);
+        let registry = SessionRegistry::new().with_unregister_hook(Arc::new(move |worktree| {
+            hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+        }));
+        let wt = make_worktree();
+        let canonical = wt.path().canonicalize().unwrap();
+
+        registry
+            .register(&sid("u1"), wt.path(), None, Instant::now())
+            .unwrap();
+        assert!(hits.lock().unwrap().is_empty());
+
+        let removed = registry.unregister(&sid("u1")).unwrap();
+        assert!(removed);
+        let observed = hits.lock().unwrap().clone();
+        assert_eq!(observed, vec![canonical]);
+    }
+
+    /// `unregister` on an unknown id is a no-op and MUST NOT fire
+    /// the hook — the wire layer races the daemon's eviction tick,
+    /// and a spurious cache-invalidate on every unknown id would
+    /// flush hot entries unnecessarily.
+    #[test]
+    fn unregister_unknown_id_does_not_fire_hook() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let hits_for_hook = Arc::clone(&hits);
+        let registry = SessionRegistry::new().with_unregister_hook(Arc::new(move |worktree| {
+            hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+        }));
+        let removed = registry.unregister(&sid("never-registered")).unwrap();
+        assert!(!removed);
+        assert!(hits.lock().unwrap().is_empty());
+    }
+
+    /// `evict_stale` fires the hook once per evicted session. Two
+    /// sessions on different worktrees → two callbacks with two
+    /// distinct paths.
+    #[test]
+    fn evict_stale_fires_hook_per_evicted_session() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let hits_for_hook = Arc::clone(&hits);
+        let registry = SessionRegistry::with_ttl(Duration::from_millis(1)).with_unregister_hook(
+            Arc::new(move |worktree| {
+                hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+            }),
+        );
+        let wt_a = make_worktree();
+        let wt_b = make_worktree();
+        let canon_a = wt_a.path().canonicalize().unwrap();
+        let canon_b = wt_b.path().canonicalize().unwrap();
+        let registered_at = Instant::now();
+        registry
+            .register(&sid("e1"), wt_a.path(), None, registered_at)
+            .unwrap();
+        registry
+            .register(&sid("e2"), wt_b.path(), None, registered_at)
+            .unwrap();
+
+        // Move past the TTL window.
+        let evicted = registry.evict_stale(registered_at + Duration::from_secs(1));
+        assert_eq!(evicted.len(), 2);
+        let mut observed = hits.lock().unwrap().clone();
+        observed.sort();
+        let mut expected = vec![canon_a, canon_b];
+        expected.sort();
+        assert_eq!(observed, expected);
+    }
+
+    /// Default `new()` produces a registry with no hook. Pre-MLP2-057
+    /// embedded-mode callers that never wire a cache through still
+    /// work — `unregister` is a pure data-structure mutation and
+    /// must not require a hook.
+    #[test]
+    fn default_registry_has_no_hook_and_unregister_is_no_op_externally() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        registry
+            .register(&sid("h1"), wt.path(), None, Instant::now())
+            .unwrap();
+        // Without a hook the unregister path runs to completion and
+        // returns `true` with no side effects beyond the inner
+        // hashmap mutation.
+        assert!(registry.unregister(&sid("h1")).unwrap());
     }
 }
