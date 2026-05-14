@@ -256,10 +256,11 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-006: Single-source-of-truth licence allow-list
 
-- **Status:** Pending
+- **Status:** In Progress
 - **Intent:** Eliminate the `about.toml.accepted` ↔ `deny.toml.[licenses].allow` drift smell.
 - **Expected Outcome:** Canonical `licences.toml` at repo root; expander script produces both `about.toml`-shaped and `deny.toml`-shaped fragments at run time. CI lints for drift.
 - **Validation:** Contributor adds a licence to `licences.toml`; both consumers reflect it without further edits. Removing from one without `licences.toml` triggers CI failure.
+- **Implementation:** `licences.toml` is the canonical source — each `[[licences]]` entry tags itself with `about = true|false` and `deny = true|false` so consumer-specific entries (defensive `OpenSSL` for cargo-about's ring workaround, `LicenseRef-Proprietary` for cargo-deny's allowance of internal crates) live alongside the shared majority. `tools/starters/acknowledgements/expand-licences.sh` rebuilds the two consumer arrays between BEGIN/END marker comments and supports `--check` for drift detection. CI runs both the drift check against the real `licences.toml` and a three-scenario fixture self-test (`tests/licences-drift.sh`) that pins the matcher.
 
 ### ATTRIB-007: Workspace-crate `license` field lint
 

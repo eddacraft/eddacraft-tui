@@ -28,7 +28,15 @@ ignore = []
 [licenses]
 version = 2
 confidence-threshold = 0.93
+# The `allow` array is generated from `licences.toml` by
+# tools/starters/acknowledgements/expand-licences.sh (ATTRIB-006).
+# Edit `licences.toml`, not this file, when adding or removing entries.
 allow = [
+  # BEGIN AUTO-GENERATED FROM licences.toml — allow
+  # Generated from licences.toml — do not edit between the BEGIN/END markers.
+  # Update licences.toml and rerun tools/starters/acknowledgements/expand-licences.sh.
+  #
+  # Source: licences.toml ([[licences]] entries where deny = true)
   "MIT",
   "MIT-0",
   "Apache-2.0",
@@ -41,7 +49,11 @@ allow = [
   "CC0-1.0",
   "Zlib",
   "MPL-2.0",
+  # Anvil's internal crates carry `license = "LicenseRef-Proprietary"`; 
+  # about.toml's private.ignore filters them out of the generated attribution, 
+  # so this entry never needs to appear in about.toml.accepted.
   "LicenseRef-Proprietary",
+  # END AUTO-GENERATED FROM licences.toml — allow
 ]
 exceptions = []
 

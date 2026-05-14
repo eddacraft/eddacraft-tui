@@ -15,11 +15,13 @@ edits required.
 | File                           | Purpose                                              |
 | ------------------------------ | ---------------------------------------------------- |
 | `generate-acknowledgements.sh` | The parameterised generator                          |
+| `expand-licences.sh`           | ATTRIB-006 single-source allow-list expander         |
 | `attribution.toml.example`     | Annotated template for the consumer-side config      |
 | `about.toml.template`          | cargo-about config template (licence allow-list etc) |
 | `about.hbs.template`           | cargo-about handlebars render template               |
 | `ACKNOWLEDGEMENTS.md.template` | Bootstrap target file with markers in place          |
 | `ci-freshness.yml.snippet`     | GitHub Actions freshness-gate job                    |
+| `tests/`                       | Self-tests pinning the kit's invariants              |
 | `README.md`                    | This file (the marker-splice contract)               |
 
 ## Adoption checklist (downstream consumer)
@@ -209,6 +211,26 @@ strict check doesn't fire against them.
 
 The fixture test under `tests/strict-license-field.sh` pins this contract. CI
 runs it alongside the freshness check.
+
+### Single-source licence allow-list (ATTRIB-006)
+
+The `accepted` array in `about.toml` and the `[licenses].allow` array in
+`deny.toml` are generated from a single canonical `licences.toml` at the repo
+root. The kit's `expand-licences.sh` reads `licences.toml` and rewrites the two
+consumer arrays between BEGIN/END marker comments — the same splice pattern the
+acknowledgements generator uses on `ACKNOWLEDGEMENTS.md`. CI runs the expander
+in `--check` mode so drift between `licences.toml` and either consumer fails the
+build.
+
+To add or remove a licence: edit `licences.toml`, run
+`tools/starters/acknowledgements/expand-licences.sh`, and commit all three files
+together. The schema (single-line strings only) is documented at the top of
+`licences.toml` itself.
+
+The fixture test under `tests/licences-drift.sh` walks three scenarios — clean
+expand → check passes, new licence in source → drift detected, hand-edit in
+consumer → drift detected — so a regression that loosens the matcher is caught
+in CI.
 
 ### Empty-output guard
 

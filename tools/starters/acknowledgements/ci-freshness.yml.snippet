@@ -31,3 +31,11 @@ acknowledgements-diff:
     # check; cheap (sub-second) and self-contained.
     - name: Strict license-field regression test
       run: tools/starters/acknowledgements/tests/strict-license-field.sh
+    # ATTRIB-006: drift between licences.toml and the two consumer
+    # files (about.toml.accepted, deny.toml.[licenses].allow) fails CI.
+    - name: Licences single-source drift check
+      run: tools/starters/acknowledgements/expand-licences.sh --check
+    # ATTRIB-006 regression guard: prove the drift detector itself
+    # still detects drift in three scenarios.
+    - name: Licences drift detector self-test
+      run: tools/starters/acknowledgements/tests/licences-drift.sh

@@ -391,6 +391,15 @@ jobs:
       # member and asserts the strict diagnostic fires.
       - name: Strict license-field regression test
         run: tools/starters/acknowledgements/tests/strict-license-field.sh
+      # ATTRIB-006: catch drift between licences.toml and the two
+      # consumer files (about.toml.accepted, deny.toml.[licenses].allow).
+      - name: Licences single-source drift check
+        run: tools/starters/acknowledgements/expand-licences.sh --check
+      # ATTRIB-006 regression guard: the drift detector itself must
+      # actually detect drift. Three-scenario fixture test pins the
+      # contract so a regression that loosens the matcher is caught.
+      - name: Licences drift detector self-test
+        run: tools/starters/acknowledgements/tests/licences-drift.sh
 
   # #1438 follow-up: collapse the six-leg fail-loud pattern (one
   # `::error::` per matrix target on detect-rust-changes failure) into
