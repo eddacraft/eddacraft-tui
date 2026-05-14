@@ -61,9 +61,18 @@ impl BudgetStatus {
     }
 }
 
+/// Schema version for the [`BudgetVerdict`] JSON shape. Bump
+/// when adding or renaming fields — the CI script reads this to
+/// decide whether its parser still understands the verdict. See
+/// `docs/policies/resource-budget.md` for the schema contract.
+pub const BUDGET_VERDICT_SCHEMA_VERSION: u32 = 1;
+
 /// Structured verdict returned by [`evaluate`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BudgetVerdict {
+    /// Schema version of this JSON document. Always equals
+    /// [`BUDGET_VERDICT_SCHEMA_VERSION`] on emission.
+    pub schema_version: u32,
     pub status: BudgetStatus,
     pub budget: ResourceBudget,
     pub sample: MeasurementSample,
@@ -80,6 +89,16 @@ pub struct BudgetVerdict {
 /// Exact equality on either axis is a Pass (the budget is the
 /// **ceiling**; touching it is allowed). Strictly greater on
 /// either axis is a Fail.
+///
+/// # Measurement precision
+///
+/// The boundary semantics rely on the caller producing
+/// `MeasurementSample` values at a documented precision floor.
+/// The bench-scenario follow-up samples CPU to 0.1% resolution
+/// and RSS to 1 MiB resolution from `/proc/stat` /
+/// `MemoryGuard`; anything noisier would make the
+/// "exactly-at-budget passes" rule moot. The policy doc at
+/// `docs/policies/resource-budget.md` pins both numbers.
 #[must_use]
 pub fn evaluate(budget: ResourceBudget, sample: MeasurementSample) -> BudgetVerdict {
     let cpu_over_pct = sample.steady_state_cpu_pct - budget.steady_state_cpu_pct;
@@ -93,6 +112,7 @@ pub fn evaluate(budget: ResourceBudget, sample: MeasurementSample) -> BudgetVerd
         (true, true) => BudgetStatus::FailBoth,
     };
     BudgetVerdict {
+        schema_version: BUDGET_VERDICT_SCHEMA_VERSION,
         status,
         budget,
         sample,
@@ -215,6 +235,15 @@ mod tests {
         assert!(json.contains("\"status\": \"fail_rss\""));
         let json = evaluate_json(V1, sample(10.0, 300.0));
         assert!(json.contains("\"status\": \"fail_both\""));
+    }
+
+    #[test]
+    fn evaluate_emits_pinned_schema_version() {
+        let v = evaluate(V1, sample(1.0, 80.0));
+        assert_eq!(v.schema_version, BUDGET_VERDICT_SCHEMA_VERSION);
+        assert_eq!(v.schema_version, 1);
+        let json = evaluate_json(V1, sample(1.0, 80.0));
+        assert!(json.contains("\"schema_version\": 1"));
     }
 
     #[test]
