@@ -143,6 +143,14 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
+      # DISTRIB-001 / ADR-045: inject the release-signing public key at
+      # compile time so `option_env!("ANVIL_RELEASE_PUBLIC_KEY")` in
+      # `crates/anvil-cli/src/commands/update/signature.rs` resolves to
+      # the production key. The preflight step below fails the release
+      # if this is empty or still equals the committed dev fallback —
+      # without it, every shipped binary would silently use the dev key
+      # and bypass signature verification.
+      ANVIL_RELEASE_PUBLIC_KEY: ${{ vars.ANVIL_MINISIGN_PUBLIC_KEY }}
     steps:
       - name: enable windows longpaths
         run: |
@@ -151,6 +159,19 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: 'DISTRIB-001 preflight: release public key is set and not dev fallback'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEV_KEY="RWRbilgipcbv8egsndfKxcAxjJCTusQPh/IsOy6ROFDiqvz8QNCVZRZ5"
+          if [ -z "${ANVIL_RELEASE_PUBLIC_KEY:-}" ]; then
+            echo "::error::vars.ANVIL_MINISIGN_PUBLIC_KEY is empty. Set it before tagging — see docs/runbooks/release-signing.md."
+            exit 1
+          fi
+          if [ "${ANVIL_RELEASE_PUBLIC_KEY}" = "${DEV_KEY}" ]; then
+            echo "::error::vars.ANVIL_MINISIGN_PUBLIC_KEY is still the committed development fallback. Generate a real keypair before releasing."
+            exit 1
+          fi
       - name: Install Rust non-interactively if not already installed
         if: ${{ matrix.container }}
         run: |

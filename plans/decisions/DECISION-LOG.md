@@ -48,6 +48,7 @@ These define how Anvil behaves by default. All features must align.
 | [018](018-product-ip-architecture.md) | Free base tier, source-proprietary model; three foundational repos as OSS | Accepted |
 | [020](020-versioning-strategy.md) | Lockstep versioning for Anvil core; independent versioning for separate products, OSS, and peripherals | Accepted |
 | [025](025-package-manager-distribution.md) | Package manager distribution strategy across npm / crates.io / GitHub Releases | Accepted |
+| [045](045-update-signing-scheme.md) | Minisign (Ed25519 + BLAKE2b) signs release artefacts; pure-Rust `minisign-verify` enforces the chain inside `anvil update`; long-lived key custody via GitHub Actions secret + offline backup | Proposed |
 
 ## Configuration and Structure
 

@@ -2,12 +2,13 @@
 
 <!-- Executable only if tasks exist and status is Ready. -->
 
-| ID      | Owner  | Status | Progress |
-| ------- | ------ | ------ | -------- |
-| DISTRIB | @aneki | Ready  | 0/5 done |
+| ID      | Owner  | Status      | Progress |
+| ------- | ------ | ----------- | -------- |
+| DISTRIB | @aneki | In Progress | 0/5 done |
 
-**Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
-acceptance of
+**Last reviewed:** 2026-05-14 (DISTRIB-001 picked up — work in progress on
+branch `feat/distrib-001-signature-verification`; promoted
+**Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Module-level `Ready` means "ready to begin Wave 3A"; individual tasks
 remain `Draft` until picked up. DISTRIB-001 (signature verification +
@@ -80,13 +81,15 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   is loud and actionable.
 - **Files:**
   - `crates/anvil-cli/src/commands/update.rs`
-  - `plans/decisions/NNN-update-signing-scheme.md` (NEW ADR)
+  - `crates/anvil-cli/src/commands/update/signature.rs` (NEW)
+  - `plans/decisions/045-update-signing-scheme.md` (NEW ADR)
   - `crates/anvil-cli/tests/update_resolution_chain.rs` (NEW)
+  - `.github/workflows/release-sign-artefacts.yml` (NEW)
 - **Validation:**
   - `cargo test -p eddacraft-anvil --test update_resolution_chain`
   - Integration: fixture install for each path; tampered-artefact refusal
     test; CI runs both on macOS and Linux runners
-- **Status:** Draft
+- **Status:** In Progress
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor

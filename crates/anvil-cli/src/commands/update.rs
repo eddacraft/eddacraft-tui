@@ -1,7 +1,13 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use anyhow::Context;
+
 use crate::GlobalArgs;
+
+mod fetch;
+mod signature;
+use signature::VerifiedArtefact;
 
 /// Exit‐code marker: `--check` found an available update.
 #[derive(Debug)]
@@ -28,6 +34,13 @@ pub struct UpdateArgs {
     /// Reinstall even if already on the latest version.
     #[arg(long)]
     pub force: bool,
+
+    /// Skip signature verification of the downloaded artefact. Dangerous —
+    /// only use when the release public key is known to be temporarily
+    /// unavailable and the user explicitly accepts the risk. Logs a loud
+    /// warning. See ADR-045.
+    #[arg(long, hide = true)]
+    pub insecure_skip_verify: bool,
 }
 
 pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
@@ -247,8 +260,113 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         println!("Downloading update...");
     }
 
+    // Verification preflight: download the installer + its detached
+    // `.minisig` ourselves, verify against the embedded public key, and
+    // hand the verified file to axoupdater via `configure_installer_path`
+    // so it skips its own download step. See ADR-045.
+    let _verified_tempdir = match verify_pending_install(args, global) {
+        Ok(Some((tempdir, verified_path, verified))) => {
+            let path_str = verified_path
+                .to_str()
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "verified installer path is not valid UTF-8: {}",
+                        verified_path.display()
+                    )
+                })?
+                .to_string();
+            updater.configure_installer_path(path_str);
+            if !global.json {
+                println!("Verified signature ({}).", verified.trusted_comment);
+            }
+            Some(tempdir)
+        }
+        Ok(None) => None,
+        Err(e) => return Err(e),
+    };
+
     updater.enable_installer_output();
     perform_update(updater, current, global)
+}
+
+/// Run the signature-verification preflight for the library-fallback
+/// path. Returns the tempdir that must live for the duration of the
+/// install (dropped tempdirs delete their contents), the verified
+/// installer path, and the verified-artefact metadata.
+///
+/// Returns `Ok(None)` when verification is skipped — either because the
+/// binary was built without a real release public key (development build),
+/// or because `--insecure-skip-verify` was passed. Both cases log a loud
+/// warning so the deviation is visible.
+fn verify_pending_install(
+    args: &UpdateArgs,
+    _global: &GlobalArgs,
+) -> anyhow::Result<Option<(tempfile::TempDir, PathBuf, VerifiedArtefact)>> {
+    if args.insecure_skip_verify {
+        eprintln!(
+            "WARNING: --insecure-skip-verify: skipping signature verification on the update artefact."
+        );
+        eprintln!(
+            "         The downloaded installer will run without proof it came from the Anvil release key."
+        );
+        return Ok(None);
+    }
+
+    if signature::is_using_dev_public_key() {
+        // Loud, unconditional — Council CRITICAL: a dev-fallback binary
+        // running `anvil update` must surface the missing protection even
+        // when the user did not pass --verbose. Otherwise the entire
+        // verification feature can ship as a silent no-op (ADR-045).
+        eprintln!(
+            "WARNING: This anvil binary was built without ANVIL_RELEASE_PUBLIC_KEY (development build)."
+        );
+        eprintln!(
+            "         Skipping signature verification — release builds enforce it. See ADR-045."
+        );
+        eprintln!(
+            "         If you got this binary from an official release, please re-install from a trusted source."
+        );
+        return Ok(None);
+    }
+
+    let tempdir = tempfile::tempdir().context("creating tempdir for verified installer")?;
+    let source =
+        fetch::github_release_source(GITHUB_OWNER, GITHUB_REPO, "anvil", args.version.as_deref());
+    let (path, verified) = fetch::fetch_and_verify(&source, tempdir.path())?;
+    // Council CRITICAL: bind the verified artefact to the requested
+    // version. A signed installer for v0.6.0 must not be accepted in
+    // response to `anvil update --version v0.7.0` (downgrade vector).
+    if let Some(requested) = args.version.as_deref() {
+        check_trusted_comment_matches_version(&verified.trusted_comment, requested)?;
+    }
+    Ok(Some((tempdir, path, verified)))
+}
+
+/// Parse the `tag=<vX.Y.Z>` field from the minisign trusted comment and
+/// assert it matches `requested`. The trusted comment is set by the
+/// release-sign workflow to `tag=<TAG>;commit=<SHA>;built=<DATE>`.
+fn check_trusted_comment_matches_version(
+    trusted_comment: &str,
+    requested: &str,
+) -> anyhow::Result<()> {
+    let normalised_requested = requested.trim_start_matches('v');
+    let tag = trusted_comment
+        .split(';')
+        .find_map(|kv| kv.trim().strip_prefix("tag="))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "signed artefact's trusted comment has no `tag=` field: {trusted_comment:?}"
+            )
+        })?;
+    let normalised_tag = tag.trim_start_matches('v');
+    if normalised_tag != normalised_requested {
+        anyhow::bail!(
+            "signed artefact is for tag `{tag}` but you requested version `{requested}` — refusing to install. \
+             This protects against signature-replay / downgrade. \
+             If you really meant tag `{tag}`, run: anvil update --version {tag}"
+        );
+    }
+    Ok(())
 }
 
 fn report_check(current: &str, update_needed: bool, global: &GlobalArgs) -> anyhow::Result<()> {
@@ -453,6 +571,55 @@ mod tests {
         assert_eq!(package_manager_for_exe(path), None);
     }
 
+    // ── Trusted-comment tag check ──────────────────────────────────
+
+    #[test]
+    fn trusted_comment_matches_requested_version_exact() {
+        check_trusted_comment_matches_version(
+            "tag=v0.7.0-beta;commit=deadbeef;built=2026-05-14",
+            "v0.7.0-beta",
+        )
+        .expect("matching tag must succeed");
+    }
+
+    #[test]
+    fn trusted_comment_matches_requested_version_normalises_v_prefix() {
+        // The user can pass `--version 0.7.0-beta` and the trusted
+        // comment carries `tag=v0.7.0-beta` (or vice versa). Both forms
+        // must match.
+        check_trusted_comment_matches_version("tag=v0.7.0-beta;commit=x", "0.7.0-beta").unwrap();
+        check_trusted_comment_matches_version("tag=0.7.0-beta;commit=x", "v0.7.0-beta").unwrap();
+    }
+
+    #[test]
+    fn trusted_comment_refuses_mismatched_version() {
+        // The signature-replay / downgrade case: a legitimate signed
+        // installer for v0.6.0 is served in response to a request for
+        // v0.7.0. Verification of the signature itself succeeds; the
+        // tag-check is what catches the swap.
+        let err = check_trusted_comment_matches_version(
+            "tag=v0.6.0;commit=cafe;built=2026-04-01",
+            "v0.7.0",
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("v0.6.0") && msg.contains("v0.7.0"),
+            "error must name both tags, got: {msg}"
+        );
+        assert!(
+            msg.contains("downgrade") || msg.contains("refusing to install"),
+            "error must be loud and actionable, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn trusted_comment_without_tag_field_is_rejected() {
+        let err =
+            check_trusted_comment_matches_version("timestamp:1234567890", "v0.7.0").unwrap_err();
+        assert!(err.to_string().contains("no `tag=` field"));
+    }
+
     // ── Sidecar resolution ──────────────────────────────────────────
 
     #[test]
@@ -472,15 +639,20 @@ mod tests {
 
     // ── Sidecar command building ────────────────────────────────────
 
+    fn args_with(check: bool, version: Option<&str>, force: bool) -> UpdateArgs {
+        UpdateArgs {
+            check,
+            version: version.map(str::to_string),
+            force,
+            insecure_skip_verify: false,
+        }
+    }
+
     #[test]
     fn sidecar_command_check_flag() {
         // Verify the command would be built with --check
         let mut cmd = Command::new("fake-updater");
-        let args = UpdateArgs {
-            check: true,
-            version: None,
-            force: false,
-        };
+        let args = args_with(true, None, false);
         if args.check {
             cmd.arg("--check");
         }
@@ -492,11 +664,7 @@ mod tests {
     #[test]
     fn sidecar_command_version_flag() {
         let mut cmd = Command::new("fake-updater");
-        let args = UpdateArgs {
-            check: false,
-            version: Some("0.4.0".to_string()),
-            force: false,
-        };
+        let args = args_with(false, Some("0.4.0"), false);
         if let Some(ver) = &args.version {
             cmd.args(["--version", ver]);
         }
@@ -507,11 +675,7 @@ mod tests {
     #[test]
     fn sidecar_command_force_flag() {
         let mut cmd = Command::new("fake-updater");
-        let args = UpdateArgs {
-            check: false,
-            version: None,
-            force: true,
-        };
+        let args = args_with(false, None, true);
         if args.force {
             cmd.arg("--force");
         }
