@@ -43,7 +43,14 @@ impl HeartbeatHandle {
             // shutdown. We poll a fixed 50ms cadence and only
             // dispatch when an interval has elapsed.
             let poll = Duration::from_millis(50);
-            let mut last = Instant::now() - interval;
+            // Subtracting `interval` from `now` would underflow if
+            // the system uptime is less than `interval`. `checked_sub`
+            // keeps us at `now` in that edge case (first tick still
+            // fires after one interval has elapsed, just one cycle
+            // later — acceptable).
+            let mut last = Instant::now()
+                .checked_sub(interval)
+                .unwrap_or_else(Instant::now);
             while !stop_clone.load(Ordering::Acquire) {
                 if last.elapsed() >= interval {
                     tick(&session_id);
@@ -66,7 +73,7 @@ impl HeartbeatHandle {
                 let mut stderr = std::io::stderr().lock();
                 let _ = std::io::Write::write_all(
                     &mut stderr,
-                    format!("anvil-run: heartbeat for {} failed: {err}\n", id.as_str(),).as_bytes(),
+                    format!("anvil-run: heartbeat for {} failed: {err}\n", id.as_str()).as_bytes(),
                 );
             }
         })

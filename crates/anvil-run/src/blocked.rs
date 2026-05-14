@@ -56,14 +56,14 @@ pub fn exit_code_for(reason: &RefusalReason) -> i32 {
 pub fn render(reason: &RefusalReason) -> String {
     match reason {
         RefusalReason::DaemonUnavailable { message } => {
-            format!("anvil-run: refusing to launch — {message}\n",)
+            format!("anvil-run: refusing to launch — {message}\n")
         }
         RefusalReason::Fenced {
             worktree,
             fence_reason,
         } => format!(
             "anvil-run: refusing to launch — worktree {worktree} is fenced.\n  reason: {fence_reason}\n  unblock: `anvil intercept unblock {worktree}` (after addressing the reason)\n",
-            worktree = display_path(worktree),
+            worktree = display_path(worktree)
         ),
     }
 }

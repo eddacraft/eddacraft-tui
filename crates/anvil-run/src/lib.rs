@@ -16,7 +16,7 @@
 //! - [`ipc`] — sync JSON-RPC client over the per-user UDS / named
 //!   pipe; reuses [`anvil_intercept::ipc`] for socket discovery.
 //! - [`preflight`] — daemon connectivity + fence decision (INTL-002).
-//! - [`session`] — session id generation + AgentTag plumbing
+//! - [`session`] — session id generation + `AgentTag` plumbing
 //!   (INTL-003).
 //! - [`spawn`] — process-group launch + env injection (INTL-004).
 //! - [`cleanup`] — drop guard that unregisters on every exit path

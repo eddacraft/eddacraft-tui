@@ -1,7 +1,7 @@
 //! INTL-007: hook side-channel registration.
 //!
 //! Some agents do not start through `anvil-run` — Claude Code's
-//! PreToolUse hook, for example, fires inside an already-running
+//! `PreToolUse` hook, for example, fires inside an already-running
 //! agent process. For those flows the launcher exposes a
 //! `hook register` subcommand that performs a degraded session
 //! registration:
@@ -36,7 +36,7 @@ pub struct HookRegistration {
 
 /// Run the hook subcommand. The function is small on purpose —
 /// `main` calls it directly and exits on its result.
-pub fn run_register(args: HookRegisterArgs) -> Result<HookRegistration> {
+pub fn run_register(args: &HookRegisterArgs) -> Result<HookRegistration> {
     let pid = match args.pid {
         Some(p) if p > 0 => p,
         Some(_) | None => parent_pid()?,
@@ -88,10 +88,8 @@ pub fn build_hook_register_params(
 fn parent_pid() -> Result<u32> {
     use nix::unistd::getppid;
     let ppid = getppid().as_raw();
-    if ppid <= 0 {
-        anyhow::bail!("could not determine parent PID for hook registration");
-    }
-    Ok(ppid as u32)
+    u32::try_from(ppid)
+        .map_err(|_| anyhow::anyhow!("could not determine parent PID for hook registration"))
 }
 
 #[cfg(windows)]

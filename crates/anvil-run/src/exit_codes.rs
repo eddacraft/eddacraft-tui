@@ -53,16 +53,16 @@ pub fn forward_child_status(status: std::process::ExitStatus) -> i32 {
     {
         use std::os::unix::process::ExitStatusExt;
         if let Some(code) = status.code() {
-            return code;
+            code
+        } else if let Some(signal) = status.signal() {
+            128 + signal
+        } else {
+            // No signal and no code: defensive default. The Unix
+            // process model guarantees one or the other so this
+            // branch is effectively unreachable, but returning a
+            // sentinel keeps the function total.
+            128
         }
-        if let Some(signal) = status.signal() {
-            return 128 + signal;
-        }
-        // No signal and no code: defensive default. The Unix
-        // process model guarantees one or the other so this branch
-        // is effectively unreachable, but returning a sentinel
-        // keeps the function total.
-        return 128;
     }
     #[cfg(windows)]
     {

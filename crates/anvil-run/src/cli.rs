@@ -6,7 +6,7 @@
 //!   wraps a child command in a controlled session.
 //! - **Hook mode** (INTL-007): `anvil-run hook register` registers a
 //!   side-channel session for a calling agent (e.g. Claude Code
-//!   PreToolUse).
+//!   `PreToolUse`).
 //!
 //! The shape is deliberately small. Every flag has a single
 //! responsibility; anything that needs a config file belongs to
@@ -119,7 +119,6 @@ pub struct HookRegisterArgs {
 
 /// Parse the process command line. Thin wrapper around `clap::parse`
 /// so tests can call it with a constructed `argv`.
-#[must_use]
 pub fn parse_from<I, T>(argv: I) -> Result<Cli, clap::Error>
 where
     I: IntoIterator<Item = T>,

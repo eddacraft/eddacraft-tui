@@ -19,13 +19,14 @@ use crate::session;
 /// `session.unregister` request. The guard can be `disarm`-ed when
 /// cleanup has already happened on a normal path so the destructor
 /// becomes a no-op.
+/// Pluggable drop hook. Default destructor calls
+/// [`session::unregister`]; tests can substitute a recording double
+/// via [`SessionGuard::with_drop_hook`].
+type DropHook = Box<dyn FnMut(&SessionId) + Send + 'static>;
+
 pub struct SessionGuard {
     session_id: Option<SessionId>,
-    /// Override hook used by tests: if set, the destructor calls
-    /// this instead of dispatching through `session::unregister`.
-    /// `Box<dyn FnMut>` rather than `fn` so test doubles can record
-    /// state across calls.
-    on_drop: Option<Box<dyn FnMut(&SessionId) + Send + 'static>>,
+    on_drop: Option<DropHook>,
 }
 
 impl SessionGuard {

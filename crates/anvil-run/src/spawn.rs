@@ -75,8 +75,8 @@ pub fn build_command(
 /// Spawn `cmd` and report the captured metadata.
 pub fn spawn(mut cmd: Command, session_id: &SessionId) -> Result<SpawnedChild> {
     let child = cmd.spawn().context("failed to spawn the wrapped command")?;
-    let pid = child.id();
-    let pgid = pgid_for(pid);
+    let child_pid = child.id();
+    let group_id = pgid_for(child_pid);
     let job_object_name = if cfg!(windows) {
         Some(job_object_name_for(session_id))
     } else {
@@ -84,15 +84,15 @@ pub fn spawn(mut cmd: Command, session_id: &SessionId) -> Result<SpawnedChild> {
     };
     Ok(SpawnedChild {
         child,
-        pid,
-        pgid,
+        pid: child_pid,
+        pgid: group_id,
         job_object_name,
     })
 }
 
 /// Tell the daemon about the new child. The launcher reports
-/// (pid, pgid, pid_starttime, job_object_name) so the daemon can
-/// target signals (Unix) or open the Job Object (Windows).
+/// (`pid`, `pgid`, `pid_starttime`, `job_object_name`) so the daemon
+/// can target signals (Unix) or open the `JobObject` (Windows).
 pub fn report_to_daemon(
     session_id: &SessionId,
     spawned: &SpawnedChild,

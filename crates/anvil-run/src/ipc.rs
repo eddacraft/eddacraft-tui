@@ -77,11 +77,11 @@ pub fn resolve_endpoint() -> Result<String, ClientError> {
 /// posture as `anvil intercept status`. On Windows the helper opens
 /// the per-user named pipe synchronously.
 pub fn request<R: DeserializeOwned>(method: &str, params: Value, id: &str) -> Result<R> {
-    let body = jsonrpc_request_line(method, params, id);
+    let body = jsonrpc_request_line(method, &params, id);
     let response = round_trip(&body)?;
     let value: Value = serde_json::from_str(&response).map_err(|err| {
         anyhow!(ClientError::BadJson(format!(
-            "method={method}: {err} ({response})",
+            "method={method}: {err} ({response})"
         )))
     })?;
     validate_jsonrpc_envelope(&value, id)
@@ -97,14 +97,14 @@ pub fn request<R: DeserializeOwned>(method: &str, params: Value, id: &str) -> Re
 /// Send a JSON-RPC notification (no `id`). Used by the heartbeat
 /// loop, where we explicitly do not want a response.
 pub fn notify(method: &str, params: Value) -> Result<()> {
-    let body = jsonrpc_notification_line(method, params);
+    let body = jsonrpc_notification_line(method, &params);
     send_one_way(&body)
 }
 
 /// Build a JSON-RPC request line (including the trailing `\n`).
 /// Public for tests; otherwise call [`request`] which uses it.
 #[must_use]
-pub fn jsonrpc_request_line(method: &str, params: Value, id: &str) -> Vec<u8> {
+pub fn jsonrpc_request_line(method: &str, params: &Value, id: &str) -> Vec<u8> {
     let frame = serde_json::json!({
         "jsonrpc": "2.0",
         "method": method,
@@ -118,7 +118,7 @@ pub fn jsonrpc_request_line(method: &str, params: Value, id: &str) -> Vec<u8> {
 
 /// Build a JSON-RPC notification line — same shape minus the `id`.
 #[must_use]
-pub fn jsonrpc_notification_line(method: &str, params: Value) -> Vec<u8> {
+pub fn jsonrpc_notification_line(method: &str, params: &Value) -> Vec<u8> {
     let frame = serde_json::json!({
         "jsonrpc": "2.0",
         "method": method,
@@ -303,7 +303,7 @@ mod tests {
     fn request_line_is_a_complete_jsonrpc_2_0_object() {
         let bytes = jsonrpc_request_line(
             "session.register",
-            serde_json::json!({"session_id": "s1"}),
+            &serde_json::json!({"session_id": "s1"}),
             "req-1",
         );
         assert!(bytes.ends_with(b"\n"), "must be newline-framed");
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn notification_line_has_no_id_field() {
-        let bytes = jsonrpc_notification_line("heartbeat", serde_json::json!({"session_id": "s"}));
+        let bytes = jsonrpc_notification_line("heartbeat", &serde_json::json!({"session_id": "s"}));
         let line = std::str::from_utf8(&bytes[..bytes.len() - 1]).unwrap();
         assert!(
             !line.contains("\"id\""),

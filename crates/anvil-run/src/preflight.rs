@@ -94,10 +94,10 @@ pub fn refusal_message_for(err: &anyhow::Error) -> String {
             ipc::ClientError::DaemonNotRunning { path } => format!(
                 "the anvil intercept daemon is not running (no rendezvous at {}).\n\
                  Start it with `anvil intercept start --foreground`.",
-                path.display(),
+                path.display()
             ),
             ipc::ClientError::DaemonRefused { reason } => {
-                format!("the anvil intercept daemon refused the launcher's connection: {reason}",)
+                format!("the anvil intercept daemon refused the launcher's connection: {reason}")
             }
             other => format!("daemon preflight failed: {other}"),
         }

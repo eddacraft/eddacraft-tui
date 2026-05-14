@@ -31,7 +31,7 @@ pub fn run(cli: Cli) -> i32 {
 
 fn run_hook(args: crate::cli::HookArgs) -> i32 {
     match args.command {
-        HookCommand::Register(reg) => match hook::run_register(reg) {
+        HookCommand::Register(reg) => match hook::run_register(&reg) {
             Ok(reg) => {
                 let _ = writeln!(
                     std::io::stdout().lock(),
@@ -60,23 +60,9 @@ fn run_wrap(args: WrapArgs) -> i32 {
         command,
     } = args;
 
-    let Some(tool) = tool else {
-        let _ = writeln!(
-            std::io::stderr().lock(),
-            "anvil-run: --tool is required in wrap mode.",
-        );
-        return EXIT_USAGE;
-    };
-    if command.is_empty() {
-        let _ = writeln!(
-            std::io::stderr().lock(),
-            "anvil-run: no wrapped command supplied. Use `anvil-run --tool <name> -- <cmd> [args...]`.",
-        );
-        return EXIT_USAGE;
-    }
-    let (program, program_args) = match command.split_first() {
-        Some((p, rest)) => (p.clone(), rest.to_vec()),
-        None => return EXIT_USAGE,
+    let (tool, program, program_args) = match validate_wrap_args(tool, command) {
+        Ok(parts) => parts,
+        Err(code) => return code,
     };
 
     let ctx = match LaunchContext::resolve(cwd, worktree) {
@@ -84,7 +70,7 @@ fn run_wrap(args: WrapArgs) -> i32 {
         Err(err) => {
             let _ = writeln!(
                 std::io::stderr().lock(),
-                "anvil-run: bad launch context: {err}",
+                "anvil-run: bad launch context: {err}"
             );
             return EXIT_BAD_CONFIG;
         }
@@ -108,11 +94,53 @@ fn run_wrap(args: WrapArgs) -> i32 {
             "anvil-run dry-run: would launch {program} {args:?} in {cwd} (worktree {wt}); daemon preflight={preflight:?}",
             args = program_args,
             cwd = ctx.cwd.display(),
-            wt = ctx.worktree.display(),
+            wt = ctx.worktree.display()
         );
         return 0;
     }
 
+    run_wrap_spawn(
+        tool,
+        claimed_agent_id,
+        program,
+        program_args,
+        ctx,
+        no_heartbeat,
+    )
+}
+
+fn validate_wrap_args(
+    tool: Option<String>,
+    command: Vec<String>,
+) -> Result<(String, String, Vec<String>), i32> {
+    let Some(tool) = tool else {
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "anvil-run: --tool is required in wrap mode."
+        );
+        return Err(EXIT_USAGE);
+    };
+    if command.is_empty() {
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "anvil-run: no wrapped command supplied. Use `anvil-run --tool <name> -- <cmd> [args...]`."
+        );
+        return Err(EXIT_USAGE);
+    }
+    match command.split_first() {
+        Some((p, rest)) => Ok((tool, p.clone(), rest.to_vec())),
+        None => Err(EXIT_USAGE),
+    }
+}
+
+fn run_wrap_spawn(
+    tool: String,
+    claimed_agent_id: Option<String>,
+    program: String,
+    program_args: Vec<String>,
+    ctx: LaunchContext,
+    no_heartbeat: bool,
+) -> i32 {
     let session_id = session::new_session_id();
     let claimed = claimed_agent_id.unwrap_or_else(|| format!("{tool}-{}", session_id.as_str()));
     let pid_starttime = current_pid_starttime();
@@ -152,7 +180,7 @@ fn run_wrap(args: WrapArgs) -> i32 {
         Err(err) => {
             let _ = writeln!(
                 std::io::stderr().lock(),
-                "anvil-run: failed to start {program}: {err:#}",
+                "anvil-run: failed to start {program}: {err:#}"
             );
             return EXIT_SPAWN_FAILED;
         }
@@ -162,13 +190,13 @@ fn run_wrap(args: WrapArgs) -> i32 {
     {
         // Non-fatal: the daemon may not yet implement
         // session.report_process. Log and continue.
-        let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}",);
+        let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}");
     }
 
     let status = match spawn::wait_for_child(spawned.child) {
         Ok(status) => status,
         Err(err) => {
-            let _ = writeln!(std::io::stderr().lock(), "anvil-run: wait failed: {err:#}",);
+            let _ = writeln!(std::io::stderr().lock(), "anvil-run: wait failed: {err:#}");
             return EXIT_SPAWN_FAILED;
         }
     };
@@ -179,7 +207,7 @@ fn run_wrap(args: WrapArgs) -> i32 {
     // Unregister explicitly so the daemon sees the close before
     // the guard's drop runs (drop will become a no-op).
     if let Err(err) = session::unregister(&registration.session_id) {
-        let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}",);
+        let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}");
     }
     guard.disarm();
     forward_child_status(status)
