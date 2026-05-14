@@ -110,9 +110,7 @@ pub fn build_hook_register_params(
         "pid".into(),
         Value::Number(serde_json::Number::from(caller_pid)),
     );
-    let pgid_value = group_id
-        .map(|g| Value::Number(serde_json::Number::from(g)))
-        .unwrap_or(Value::Null);
+    let pgid_value = group_id.map_or(Value::Null, |g| Value::Number(serde_json::Number::from(g)));
     params.insert("pgid".into(), pgid_value);
     params.insert("hook_registered".into(), Value::Bool(true));
     Value::Object(params)
