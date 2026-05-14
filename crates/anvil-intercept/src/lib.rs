@@ -40,6 +40,7 @@ pub mod ipc;
 pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
+pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
 pub mod status;
