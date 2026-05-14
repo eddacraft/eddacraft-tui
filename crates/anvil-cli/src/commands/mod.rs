@@ -18,6 +18,7 @@ pub mod hook;
 pub mod hooks;
 pub mod init;
 pub mod intercept;
+pub mod l4_validate;
 pub mod licenses;
 pub mod mcp;
 pub mod mcp_config;

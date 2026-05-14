@@ -139,6 +139,11 @@ enum Commands {
     Init(commands::init::InitArgs),
     /// Manage the Anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),
+    /// MLP2-046: validate one or more commits against `anvil/policy.yml`
+    /// using the L4 rule engine. Dedicated binary surface for CI /
+    /// Marketplace lanes that don't sit inside git's pre-push hook.
+    #[command(name = "l4-validate")]
+    L4Validate(commands::l4_validate::L4ValidateArgs),
     /// Show Anvil's acknowledgements and third-party licence attribution.
     Licenses(commands::licenses::LicensesArgs),
     /// Generate MCP server configuration for AI editors (claude-code, cursor, windsurf, vscode).
@@ -217,6 +222,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
         Commands::Intercept(_) => "intercept",
+        Commands::L4Validate(_) => "l4-validate",
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
         Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
@@ -734,6 +740,7 @@ fn main() -> ExitCode {
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
+        Commands::L4Validate(args) => commands::l4_validate::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
         Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
