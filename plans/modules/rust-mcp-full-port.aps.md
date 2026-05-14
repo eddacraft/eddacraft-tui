@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 4/10     |
+| RMCPF | —     | In Progress | 6/10     |
 
 **Last reviewed:** 2026-05-14
 
@@ -308,7 +308,7 @@ retirement decisions:
 
 ### RMCPF-011: Port fix/suppress/boundary tools
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
   validation and redaction boundaries.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_fix`,
@@ -381,7 +381,7 @@ retirement decisions:
 
 ### RMCPF-012: Port or retire MCP prompts
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be
   retired in favour of docs and tool descriptions.
 - **Expected Outcome:** Prompt parity exists where still useful; retired prompts
@@ -542,7 +542,7 @@ retirement decisions:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
-| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 In Progress |
+| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 Merged (PR #1558) |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
 | **Total** | **10** | **4/10 done** |
