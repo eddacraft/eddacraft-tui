@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 2/56 done |
+| MLP2 | @aneki | In Progress | 2/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -38,6 +38,14 @@ groupings (A–K) match the original MLP-018 catalogue and reflect
 shared ownership: tasks within a group can land in the same PR or
 share a primitive (e.g., the rate-window primitive in A9 and D3).
 
+Group L (MLP2-057..-060) extends the module by four
+production-hardening items filed from the Council review of the
+MLP2-001 + MLP2-002 PR (#1522, session `council-e2fdfc0c`,
+2026-05-14). These tasks do not close MLP-018 catalogue items;
+they harden MLP2's own surface before the cache + in-flight
+primitives are wired into the production daemon path. Each Group L
+task's `Source:` line cites the Council finding IDs.
+
 ## In Scope
 
 - Daemon-side enforcement integration of the v1 libraries
@@ -51,12 +59,15 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
   `anvil-kernel-types::protection_claim`.
 - TypeScript mirrors where the daemon-side Rust shipped first.
 - External publishing pipeline for the GitHub Action.
+- Production hardening on MLP2's own surface where Council review
+  flagged a deployment-readiness gap (Group L, MLP2-057..-060).
 
 ## Out of Scope
 
 - Inventing new v2 capabilities — every task here closes a v1
-  deferral, not a new spec item. New capabilities go through
-  their own planning module.
+  deferral or a Council-flagged production-hardening item on
+  MLP2's own surface (Group L). New capabilities outside that
+  envelope go through their own planning module.
 - GitLab / Bitbucket integrations (vNext universal v2).
 - Anvil cloud sidecar / hosted services (vNext, opt-in only).
 - Rule-pack distribution channel beyond git-tracked (vNext).
@@ -1392,6 +1403,155 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 - **Dependencies:** MLP-015, MLP2-054
 - **Source:** MLP-015 footnote 4.
 
+### L. Production hardening (Council follow-ons)
+
+Items in this group were filed from the
+[Council session `council-e2fdfc0c`](../reviews/) 2026-05-14 review of
+the MLP2-001 + MLP2-002 PR (#1522). Each task closes a deferred
+finding the reviewers flagged as out-of-scope-for-the-original-PR but
+needed before the daemon-side cache is wired into the production
+enforcement path. The originating finding IDs are in each task's
+`Source:` line so the audit trail stays explicit.
+
+These items extend MLP2's scope by one rule: production-hardening
+follow-ons on MLP2's *own* surface are tracked here rather than in a
+new module, because the cost of a separate module (new ID prefix, new
+status row, new release-window line) outweighs the benefit of strict
+"every MLP2 task closes an MLP-018 catalogue item" provenance. The
+Source line distinguishes Group L tasks from Group A–K tasks.
+
+#### MLP2-057: Bounded rule-set cache with LRU eviction + unregister hook
+
+- **Status:** Draft
+- **Intent:** `RuleSetCache` today is unbounded
+  (`Mutex<HashMap<WorktreeKey, RuleSetEntry>>` with no cap) and no
+  callback fires when a session is unregistered, so a long-running
+  daemon attributing many short-lived worktrees accumulates stale
+  entries indefinitely. Cap the cache, add LRU eviction on insert
+  when at capacity, and hook `SessionRegistry::unregister` +
+  `evict_stale` to call `invalidate(&worktree_key)` so cache
+  lifetime tracks session lifetime.
+- **Expected Outcome:**
+  - `RuleSetCache::with_capacity(max_entries)` constructor; default
+    `max_entries = 1024` (sized against INTD-016 session cap).
+  - LRU policy on insert when at capacity — evict the
+    least-recently-used `WorktreeKey` and emit a cache-pressure
+    telemetry event.
+  - `SessionRegistry::unregister(...)` and the TTL eviction path
+    (`evict_stale`) invoke `RuleSetCache::invalidate` on the
+    departing worktree's key, so a register/unregister cycle leaves
+    no cache residue.
+  - Saturation counter (`cache.entries_count`, `cache.evictions`)
+    exposed for MLP2-058 to surface.
+- **Files:** `crates/anvil-intercept/src/rule_cache.rs`,
+  `crates/anvil-intercept/src/registry.rs` (unregister + evict_stale
+  hooks).
+- **Validation:** Fill cache to capacity + 1 → oldest entry
+  evicted; register-then-unregister a worktree → cache returns
+  `Miss` after unregister; concurrent insert + evict do not
+  deadlock.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** MLP2-001
+- **Source:** Council 2026-05-14 #C-007 / #C-018 / #C-024 (security
+  + operations: unbounded HashMap is a slow-burn memory DoS on a
+  privileged long-running daemon).
+
+#### MLP2-058: Tracing + status-surface instrumentation for rule_cache + in_flight
+
+- **Status:** Draft
+- **Intent:** The MLP2-001 cache and MLP2-002 in-flight counter
+  ship as library primitives with zero `tracing::` calls and no
+  exposure via the daemon's `query_status` IPC handler. An operator
+  consulting daemon logs during a config-edit propagation incident
+  sees nothing. Wire structured logging into the cache + in-flight
+  paths and add the corresponding fields to `DaemonStatus`.
+- **Expected Outcome:**
+  - `tracing::debug!` on `RuleSetCache::get_or_resolve` miss path
+    and `invalidate_on_change` per-key drops.
+  - `tracing::info!` when `invalidate_on_change` returns a
+    non-empty vec (config-edit propagation observable).
+  - `tracing::warn!` once when `WatcherIntegration::new` is built
+    with `rule_cache = None` (the production-wiring gap from
+    MLP2-014 is visible at startup).
+  - `tracing::warn!` on `RuleSetCache::lock` poisoned-recovery
+    (Council #C-025).
+  - `DaemonStatusV1` (proto) gains `cache_entries: u32` +
+    `cache_invalidations_total: u64` + `in_flight_evaluations: u8`
+    fields; the `query_status` IPC handler reads them; the CLI
+    renderer surfaces them.
+- **Files:**
+  `crates/anvil-intercept/src/{rule_cache,midedit,watcher,status}.rs`,
+  `crates/anvil-intercept-proto/src/status.rs`,
+  `crates/anvil-cli/src/commands/status.rs` (renderer).
+- **Validation:** Integration test capturing a tracing subscriber
+  asserts the expected event shape; `anvil intercept status --json`
+  surfaces the new fields; the renderer formats them.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** MLP2-001, MLP2-002
+- **Source:** Council 2026-05-14 #C-008 / #C-009 / #C-012 / #C-013 /
+  #C-014 / #C-015 / #C-025 (operations: "if it happens and isn't
+  logged it didn't happen" + no operator-visible cache surface).
+
+#### MLP2-059: Per-worktree invalidation rate limit
+
+- **Status:** Draft
+- **Intent:** Pre-attribution cache invalidation in
+  `WatcherIntegration::ingest_at` is the correct semantic choice
+  (cache cleared even for unattributable writers), but it lets an
+  attacker with write access to a worktree's parent drive thousands
+  of invalidations per second by repeatedly touching `.anvil.*`.
+  Each invalidation forces a YAML reparse on the next access. Cap
+  the per-worktree invalidation rate with a sliding-window or
+  token-bucket primitive and coalesce over-cap events.
+- **Expected Outcome:**
+  - Per-worktree token bucket (default ~10 invalidations/second,
+    burst size 16) in `RuleSetCache::invalidate_on_change`.
+  - Over-cap invalidations are coalesced (single eviction +
+    counter increment) rather than dropped.
+  - `cache.invalidate.rate_limited` counter exposed via MLP2-058's
+    status surface.
+- **Files:** `crates/anvil-intercept/src/rule_cache.rs`
+  (rate-window primitive), `crates/anvil-intercept/src/watcher.rs`.
+- **Validation:** Fire 100 `.anvil.yaml` writes in 1s → cache
+  evicts once, counter records the 99 coalesced events.
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** MLP2-001, MLP2-058
+- **Source:** Council 2026-05-14 #C-023 (security: pre-attribution
+  invalidation is an attacker-driven DoS amplifier).
+
+#### MLP2-060: YAML resource-bounds hardening in anvil-config parser
+
+- **Status:** Draft
+- **Intent:** `anvil-config::parse_file` dispatches `.anvil.yaml` /
+  `.yml` through `serde_yaml 0.9.34+deprecated` with no recursion-
+  depth or alias-expansion limit. The MLP2-001 cache resolver
+  invokes the parser on every cache miss, materially increasing
+  the rate at which untrusted YAML is parsed. Pre-empt the YAML
+  billion-laughs / deeply-nested-mapping family of attacks.
+- **Expected Outcome:**
+  - Pre-parse size cap on `.anvil.*` files (1 MiB) via
+    `std::fs::metadata` check before `read_to_string`.
+  - Post-parse depth walk on the resulting `serde_json::Value`;
+    reject documents whose nested depth exceeds 32.
+  - Cap is enforced in both `anvil-config::parse_file` and as a
+    fast path in `crate::rule_cache::resolve_for_worktree`.
+  - Migration spike: evaluate `serde_yaml_ng` /
+    `serde-yaml-bw` (maintained successors) and record the
+    decision under an ADR-level note.
+- **Files:** `crates/anvil-config/src/parse.rs`,
+  `crates/anvil-intercept/src/rule_cache.rs` (resolve fast-path).
+- **Validation:** Fuzz fixture: 33-level-deep mapping → parse
+  rejected; 2 MiB file → read rejected; aliased document under 1
+  MiB + depth 32 → parses normally.
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** MLP-011
+- **Source:** Council 2026-05-14 #C-023b (security minor: untrusted
+  YAML parsing surface amplified by the cache resolver).
+
 ## Stats
 
 | Phase | Items | Status |
@@ -1407,11 +1567,12 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
-| **Total** | **56** | **2/56** |
+| L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
+| **Total** | **60** | **2/60** |
 
 ## Recommended landing order
 
-The 56 items have natural sequencing through their `Dependencies:`
+The 60 items have natural sequencing through their `Dependencies:`
 declarations. High-priority lanes that unblock the most downstream
 work:
 
@@ -1448,7 +1609,7 @@ ahead of the rest of their respective groups in Phase 1.
 | **MLP2-048** | J | `anvil status --json` render path unblocks the entire J group's HARD-GATE closure |
 | **MLP2-001** | A | Daemon-side rules-sha cache unblocks A2 + B4 (writer wiring), plus is the natural integration point for A6/A7 |
 
-### Phase 1 — Day-0 starters (32 tasks, fully parallel up to file conflicts)
+### Phase 1 — Day-0 starters (33 tasks, fully parallel up to file conflicts)
 
 Every task here depends only on Done MLP items. Can start
 immediately; the only coordination is around shared files (see
@@ -1466,6 +1627,7 @@ immediately; the only coordination is around shared files (see
 - **I:** MLP2-043
 - **J:** MLP2-048¹, MLP2-052
 - **K:** MLP2-053
+- **L:** MLP2-060
 
 ¹ = load-bearing for Phase 2; land first within the group. **Note:**
 MLP2-001 moved from Phase 2 → Phase 1 on 2026-05-14 after audit
@@ -1473,7 +1635,7 @@ resolved its `MLP2-023` listing to a `Coordinates with:` callout
 (see MLP2-001 body); the cache is worktree-scoped and is
 forward-compatible with MLP2-023's session-key extension.
 
-### Phase 2 — Phase-1-gated (16 tasks pending; MLP2-002 pre-shipped)
+### Phase 2 — Phase-1-gated (18 tasks pending; MLP2-002 pre-shipped)
 
 Each entry shows its gating Phase-1 dependency. **MLP2-002 was
 co-shipped with MLP2-001 in wave 1A (2026-05-14) — it appears here
@@ -1483,7 +1645,8 @@ see the task body for evidence.** Council 2026-05-14 #C-031 /
 
 | Task | Gated by |
 | --- | --- |
-| MLP2-014 | MLP2-001 |
+| MLP2-014, MLP2-057 | MLP2-001 |
+| MLP2-058 | MLP2-001 + MLP2-002 |
 | MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
 | MLP2-026 | MLP2-023 + MLP2-009 |
 | MLP2-006 | MLP2-009 |
@@ -1493,7 +1656,7 @@ see the task body for evidence.** Council 2026-05-14 #C-031 /
 | MLP2-035, MLP2-036 | MLP2-034 |
 | ~~MLP2-002~~ (Done 2026-05-14 with MLP2-001) | MLP2-001 |
 
-### Phase 3 — Phase-2-gated (6 tasks)
+### Phase 3 — Phase-2-gated (7 tasks)
 
 | Task | Gated by |
 | --- | --- |
@@ -1501,6 +1664,7 @@ see the task body for evidence.** Council 2026-05-14 #C-031 /
 | MLP2-044, MLP2-045 | MLP2-042 |
 | MLP2-050 | MLP2-049 |
 | MLP2-047 | MLP2-046 + MLP2-052 |
+| MLP2-059 | MLP2-058 |
 
 ### Phase 4 — Tail (1 task)
 
