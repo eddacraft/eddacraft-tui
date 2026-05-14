@@ -20,6 +20,7 @@
 - [Branch Recovery](#branch-recovery)
 - [Hardening & Maintenance](#hardening--maintenance)
 - [Continuous Improvement](#continuous-improvement)
+- [Adoption & Sustained Use](#adoption--sustained-use)
 - [Rust Engine](#rust-engine)
 - [Auth & Access](#auth--access)
 - [Dev Tooling Bridge](#dev-tooling-bridge)
@@ -118,6 +119,11 @@ Source of truth for current parallelisation and release dependencies:
 | N2 — Intercept Launcher v1 (INTL) | Ready (ready-to-start-Wave-3) | 0/9 | `anvil-run` wrapped-launch ingress. New crate: `anvil-run`. `AgentTag` stub landed in `crates/anvil-intercept-proto/src/session.rs` (3 tests green) with `ANVIL_AGENT_TAG_ENV` / `ANVIL_TASK_ID_ENV` constants for INTL-004 propagation. INTL-003 and INTL-004 promoted to task-Ready; the other seven tasks remain Draft pending their direct prerequisites. Module-level Ready means "ready to begin Wave 3" not "all tasks reviewed". Promoted from Draft during Wave 0 readiness review (2026-05-13). |
 | N3 — Carry-forward gates | 6/6 confirmed | 6/6 | G1 ADR-036/-037/-038/-039 **Accepted** (2026-05-13), `DECISION-LOG.md` updated, `pnpm adr:check` green; G2 `anvil/project-id` schema reaffirmed (MLP-001 + ADR-036 §D-2); G3 noise-discipline **policy** confirmed (ADR-038), behavioural audit deferred to Wave 2; G4 AIGUARD envelope re-run via `cargo test -p eddacraft-anvil-kernel-types` (`diagnostic_schema_version_constant_matches_spec` pins `anvil.diagnostic.v1`); G5 INTR-004 promoted **Draft → Ready** (2026-05-13); G6 DRVR forward-compat: new `session.rs` co-existed with existing `protocol.rs` types under the full proto suite (28 passed). |
 | N4 — Documentation lanes | Owned, scoped | 0/6 | Adoption / air-gap / witness-chain / hooks-integration runbooks; migration note; INTL manpage. Wave 0 (2026-05-13) confirmed ownership: all six lanes assigned to @aneki; targets land in Wave 4 of `RELEASE-PLAN.md`. |
+| N5 — Adoption Trust Surface (TRUST) | Ready | 0/6 | Make the protection claim legible and verifiable during sustained daily use. `anvil status` legibility (-001), degraded-state surfacing (-002), `anvil doctor --fix` (-003), daemon-down auto-recovery (-004), `anvil status --json` schema pin (-005), first-run claim summary (-006). Promoted **Proposed → Ready** 2026-05-14 alongside acceptance of the v0.7.0 sit-on spec. Lands in Wave 3B of `RELEASE-PLAN.md`. |
+| N6 — Adoption Friction Removal (ADOPT) | Ready | 1/6 | Remove first-week adoption friction. Hook coexistence (-001), CI-enforced resource budget (-002), AI tool auto-detect (-003), complete ignore policy (-004), **clean uninstall (-005) shipped 2026-05-14 via PR #1521**, editor coexistence matrix (-006). Promoted **Proposed → Ready** 2026-05-14. Lands in Wave 3A of `RELEASE-PLAN.md`. |
+| N7 — Distribution & Self-Update (DISTRIB) | Ready | 0/5 | Harden the update/distribution loop so hotfix iteration actually reaches users. Signature verification + resolution-chain robustness (-001), `anvil version --check` advisory surface (-002), Homebrew formula automation (-003), release cadence + EOL policy doc (-004), `anvil migrate` (-005). Promoted **Proposed → Ready** 2026-05-14. ADR-044 §9 makes -001 and -002 load-bearing for the MCP-backend swap discovery gap. Lands in Wave 3A. |
+| N8 — Usage Insights (INSIGHTS) | Ready | 0/4 | Periodic value signal during the silent middle. `anvil insights` weekly summary (-001), suppression health view (-002), drift trend sparkline (-003), first-week adoption hint (-004). Local-only, no telemetry. Promoted **Proposed → Ready** 2026-05-14. Lands in Wave 4. |
+| N9 — Boring Week validation gate | Pre-tag | — | Three or more internal users run `v0.7.0-beta` candidate on real work for one calendar week under fresh-user config. Any disabled check, unresolved suppression, or hook bypass is a cut blocker. Participants TBD by @aneki before tag. Documented in `RELEASE-PLAN.md` Wave 5. |
 
 **Window risk:** MLP-002 (witness chain primitive) is the single point of
 failure — every downstream lane reads/writes against it. Spike-first as a
@@ -258,6 +264,23 @@ Codebase-maintenance and code-review-backlog are retained for history.
 > without executable tasks. It remains archived. New concrete cross-project
 > improvement intake now goes through
 > [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md).
+
+### Adoption & Sustained Use
+
+The "release we sit on" cohort. These four modules cover what turns
+`v0.7.0-beta` from "feature complete" into "ready for senior engineers to
+use daily for a month without uninstalling." They were promoted from
+proposal to live planning on 2026-05-14 alongside acceptance of
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](./specs/2026-05-14-release-plan-v0.7.0-sit-on.md);
+the live release sequencing is in
+[`RELEASE-PLAN.md`](../RELEASE-PLAN.md) (Waves 3A / 3B / 5).
+
+| Module                                                                  | Scope    | Status | Progress | Notes                                                                                                                                                                                              |
+| ----------------------------------------------------------------------- | -------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [adoption-trust-surface](./modules/adoption-trust-surface.aps.md)       | TRUST    | Ready  | 0/6      | Make the protection claim legible and verifiable in sustained daily use. Wave 3B.                                                                                                                  |
+| [adoption-friction](./modules/adoption-friction.aps.md)                 | ADOPT    | Ready  | 1/6      | First-week friction removal. **ADOPT-005 `anvil uninstall` shipped 2026-05-14 (PR #1521).** Hook coexistence (-001), resource budget (-002), AI auto-detect (-003), shared ignore (-004), editor coexistence (-006) remain. Wave 3A. |
+| [distribution-and-update](./modules/distribution-and-update.aps.md)     | DISTRIB  | Ready  | 0/5      | Harden `anvil update` + Homebrew + cadence policy so hotfix iteration reaches users. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A.             |
+| [usage-insights](./modules/usage-insights.aps.md)                       | INSIGHTS | Ready  | 0/4      | Local-only periodic value signal (`anvil insights`). No telemetry. Wave 4.                                                                                                                         |
 
 ### Rust Engine
 
