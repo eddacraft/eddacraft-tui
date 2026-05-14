@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 13/60 done |
+| MLP2 | @aneki | In Progress | 16/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -653,7 +653,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-020: Hook-side `required_anvil_version` floor check at fire time
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `anvil hook pre-commit` reads
   `anvil/policy.yml`'s `required_anvil_version` and refuses to
   run (with a clear "upgrade anvil" message) if the running
@@ -670,10 +670,22 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-003, MLP-012
 - **Source:** MLP-012 footnote 3.
+- **Evidence (Merged 2026-05-14 via PR #1566 at `9ec726dd`):**
+  Hook-side floor check wired after policy load. `check_version_floor`
+  returns three outcomes: `Satisfied` (no floor pinned or current
+  version ≥ floor), `BelowFloor` (running binary too old), and
+  `InvalidFloor` (malformed semver). `BelowFloor` routes through new
+  `ErrorClass::VersionFloor` (distinct line: "required_anvil_version
+  not met — upgrade anvil (push admitted)"); `InvalidFloor` routes
+  through `ErrorClass::EmbeddedFailed` ("validation errored") because
+  the remediation is fixing the policy file, not upgrading the
+  binary. Both admit the push per ADR-038 §D-6 (Serena rule). 6 new
+  unit tests pin the outcomes including malformed-floor + malformed-
+  current-version routings.
 
 #### MLP2-021: `cutoff_commit` baseline-ancestry acceptance in pre-push
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Pre-push currently walks the literal pushed
   range only. Extend to accept the cutoff via a
   `git rev-list --first-parent` ancestry walk per pushed ref,
@@ -692,10 +704,27 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-004, MLP-006, MLP-007
 - **Source:** MLP-004 footnote 3.
+- **Evidence (Merged 2026-05-14 via PR #1566 at `9ec726dd`):**
+  New `first_parent_ancestry(repo_root, tip_sha)` helper shells to
+  `git rev-list --first-parent --max-count=100000 <tip> --` per
+  pushed ref (cap bounds pathologically deep histories so the git
+  invocation itself cannot consume the 2 s budget; `is_hex_sha`
+  guard + `--` terminator defend against revspec injection). The
+  hook lazily builds a `(cutoff_index, HashMap<sha, index>)` lookup
+  per ref so the per-commit cutoff check is O(1) instead of
+  `Policy::commit_is_before_cutoff`'s O(N) double scan (Council
+  kernel-maintainer follow-up). `Policy::validate()` now refuses
+  non-hex `cutoff_commit` values (4–64 hex chars) with new
+  `PolicyParseError::InvalidCutoffCommit` so symbolic refs like
+  `HEAD`/branch names don't silently no-op at fire-time (Council
+  adversarial follow-up). 7 new unit tests across `anvil-l4`
+  (`policy::tests` + `resolve::tests`) and `anvil-cli`
+  (`commands::hook::tests`) pin the ancestry shape, the
+  hex-validation rejection cases, and the cutoff filter behaviour.
 
 #### MLP2-022: Pre-push time-budget cap with `partial: true`
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** ADR-038 names a 2s p95 budget for pre-push. v1
   walks unboundedly. Add the cap-trigger surface so very large
   pushes return `partial: true` rather than blocking developers
@@ -713,6 +742,26 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Low
 - **Dependencies:** MLP-004
 - **Source:** MLP-004 footnote 4.
+- **Evidence (Merged 2026-05-14 via PR #1566 at `9ec726dd`):**
+  `PRE_PUSH_BUDGET = Duration::from_secs(2)` (ADR-038 p95 target),
+  `Instant::now()` at the start of the per-push-ref walk, between-
+  commit budget check via `is_budget_exceeded(start, budget)`. On
+  cap-exceeded the hook breaks out of the `'walk` label, emits one
+  `ErrorClass::TimedOut` line via SuppressionLog with distinct
+  rendering ("pre-push budget exceeded; partial validation, push
+  admitted") and a structured `tracing::warn!` event with
+  `kind = "gate_evaluated"`, `gate_id = "prePush"`, `partial = true`,
+  `budget_ms`, `elapsed_ms`, `commits_processed`, and
+  `commits_skipped_for_cutoff` so the future Kindling fan-out
+  (deferred to INTD-004's IPC plumbing) can consume the partial-
+  state observation directly. `ValidationPending` is suppressed
+  when the budget fires so the operator sees exactly one
+  informative line (Council follow-up — gates `engine_unavailable
+  && !budget_exceeded`). Operator opt-in to "block on partial" is
+  deferred to a follow-up policy field. 5 new unit tests pin the
+  budget constant, ancestry-walk cap, `is_budget_exceeded`
+  boundary, the suppression interaction, and the
+  `ErrorClass::TimedOut` render.
 
 ### D. Multi-session + per-task fence isolation
 
