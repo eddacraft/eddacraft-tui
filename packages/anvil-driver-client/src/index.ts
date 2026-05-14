@@ -124,3 +124,11 @@ export {
   type ValidateMidEditParams,
   type ValidateMidEditResult,
 } from './midedit/index.js';
+
+export {
+  ANVIL_AGENT_TAG_ENV,
+  ANVIL_TASK_ID_ENV,
+  type AgentTag,
+  makeAgentTag,
+  parseAgentTag,
+} from './session/index.js';

@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 6/60 done |
+| MLP2 | @aneki | In Progress | 7/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -915,19 +915,54 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-029: AgentTag wire-shape mirror in driver-client
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** TypeScript mirror at
-  `packages/anvil-driver-client/src/session.ts` consuming the
+  `packages/anvil-driver-client/src/session/` consuming the
   proto JSON shape pinned in
   `crates/anvil-intercept-proto/src/session.rs`.
 - **Expected Outcome:**
-  - `AgentTag` interface + Zod schema with the three fields
-    (`driver_id`, `claimed_agent_id`, `pid_starttime`).
+  - `AgentTag` interface with the three fields (`driver_id`,
+    `claimed_agent_id`, `pid_starttime`) plus a hand-rolled
+    `parseAgentTag` (the driver-client has no Zod dep; per-field
+    type guards keep the runtime footprint zero and the error
+    messages typed).
   - `ANVIL_AGENT_TAG_ENV` / `ANVIL_TASK_ID_ENV` constants.
   - Round-trip parity test with the Rust serialisation.
-- **Files:** `packages/anvil-driver-client/src/session.ts`.
+- **Files:** `packages/anvil-driver-client/src/session/types.ts`
+  (new), `packages/anvil-driver-client/src/session/types.test.ts`
+  (new), `packages/anvil-driver-client/src/session/index.ts`
+  (barrel),
+  `packages/anvil-driver-client/src/index.ts` (re-export). Subdir
+  layout matches `diagnostics/types.ts` rather than the spec's
+  original `session.ts` so the parity test sits next to the type
+  definitions, mirroring the in-repo TS convention.
 - **Validation:** Cross-language parity test (encode in Rust,
-  decode in TS, deep-equal the original).
+  decode in TS, deep-equal the original). **Evidence (Done
+  2026-05-14):** `pnpm test` in `packages/anvil-driver-client`
+  — 153 tests green (was 143 baseline; +10 MLP2-029 tests).
+  Coverage:
+  - Env-var constants match `ANVIL_AGENT_TAG_ENV` /
+    `ANVIL_TASK_ID_ENV` byte-for-byte against the Rust
+    `pub const &str` values.
+  - `parseAgentTag(JSON.parse(RUST_EMITTED_JSON))` deep-equals
+    the Rust-equivalent object (the fixture string is the exact
+    output of the Rust `agent_tag_round_trips_through_json`
+    test).
+  - Forward-compat: unknown future keys on the wire are silently
+    dropped, mirroring the Rust struct's lack of
+    `#[serde(deny_unknown_fields)]`.
+  - Typed-error rejects for null / non-object input, missing
+    required fields (each named in the message), non-integer
+    `pid_starttime` (fractional, negative, Infinity, NaN).
+  - `JSON.stringify(makeAgentTag(...))` produces the byte-exact
+    Rust-emitted JSON (insertion order matches serde field
+    order), so the TS → Rust direction round-trips too.
+  - `parse(make(...))` lossless; distinct `pid_starttime` makes
+    distinct tags (PID-reuse defence, mirroring the Rust
+    `distinct_pid_starttimes_produce_distinct_tags` test).
+  `pnpm typecheck`, `pnpm format:check` (1319 files), and
+  `pnpm lint:check` (nx clippy + fmt-check across 26 projects)
+  all clean.
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** MLP-014
@@ -1730,14 +1765,14 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
-| F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 0/2 |
+| F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 1/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 0/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 0/5 |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
-| **Total** | **60** | **6/60** |
+| **Total** | **60** | **7/60** |
 
 ## Recommended landing order
 
