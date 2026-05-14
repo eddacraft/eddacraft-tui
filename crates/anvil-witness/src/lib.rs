@@ -55,10 +55,12 @@
 
 mod genesis;
 mod line;
+mod manifest;
 mod verify;
 mod writer;
 
 pub use genesis::GenesisAnchor;
 pub use line::{LineHash, WitnessLine, WitnessRecord, compute_line_hash};
+pub use manifest::{ManifestEntry, append_manifest_entry, manifest_path, manifest_tail};
 pub use verify::{ChainReport, VerifyError, verify_chain};
 pub use writer::{RolloverPolicy, WitnessWriter, WriterError};

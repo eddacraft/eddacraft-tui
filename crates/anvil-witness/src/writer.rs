@@ -227,6 +227,23 @@ impl WitnessWriter {
             }
             Err(e) => return Err(e.into()),
         }
+
+        // MLP2-012: record the rollover in the manifest stream so
+        // consumers can tail archive transitions without polling the
+        // archive dir. The append is idempotent — re-rolling onto an
+        // archive that already exists leaves the manifest with the
+        // same single entry.
+        #[allow(clippy::naive_bytecount)]
+        // Avoid pulling in `bytecount` for a once-per-rollover count.
+        let line_count = bytes.iter().filter(|&&b| b == b'\n').count() as u64;
+        let entry = crate::manifest::ManifestEntry {
+            archive_path: archive_path.clone(),
+            merkle,
+            line_count,
+            seq_at_rollover,
+        };
+        crate::manifest::append_manifest_entry(&self.witness_root(), &entry)?;
+
         Ok(archive_path)
     }
 
@@ -416,6 +433,74 @@ mod tests {
             saw_rollover,
             "byte-size rollover should fire on the 2nd append"
         );
+    }
+
+    /// MLP2-012: a tight `RolloverPolicy` produces one manifest entry
+    /// per archive in the same order as the rollovers fire. The
+    /// manifest's `seq_at_rollover` matches the final `seq` written
+    /// before the active file was renamed.
+    #[test]
+    fn rollover_emits_ordered_manifest_entries() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(
+            dir.path(),
+            "active",
+            RolloverPolicy::tight(/* max_lines = */ 2, /* max_bytes = */ 1_000_000),
+        )
+        .unwrap();
+        let mut prev = crate::genesis::GenesisAnchor::Fresh
+            .anchor_string()
+            .to_string();
+        let mut archive_seqs = Vec::new();
+        for seq in 1..=5 {
+            let line = fresh_line(seq, &prev);
+            let outcome = writer.append(&line).unwrap();
+            prev = crate::line::compute_line_hash(&line.to_canonical_bytes().unwrap());
+            if let Some(archive) = outcome.rolled_over_to {
+                archive_seqs.push((seq, archive));
+            }
+        }
+        // tight policy rolls at line 2 + line 4 -> 2 archives.
+        assert_eq!(archive_seqs.len(), 2, "expected 2 rollovers");
+
+        let manifest = crate::manifest::manifest_tail(&writer.witness_root()).unwrap();
+        assert_eq!(manifest.len(), 2, "manifest should mirror rollover count");
+        for (i, (seq, archive)) in archive_seqs.iter().enumerate() {
+            assert_eq!(manifest[i].archive_path, *archive);
+            assert_eq!(manifest[i].seq_at_rollover, *seq);
+            assert!(
+                manifest[i].line_count >= 1,
+                "archive must record a non-zero line count",
+            );
+            assert_eq!(
+                manifest[i].merkle.len(),
+                64,
+                "manifest carries the full SHA-256 hex",
+            );
+        }
+    }
+
+    /// MLP2-012 idempotency: when rollover lands on an archive whose
+    /// content matches an existing archive (content-addressed rename
+    /// no-op path), the manifest still records exactly one entry per
+    /// rollover. Pin against a regression where the no-op rename
+    /// branch silently skips the manifest append.
+    #[test]
+    fn manifest_records_one_entry_per_distinct_archive_even_on_renorm() {
+        let dir = TempDir::new().unwrap();
+        let writer =
+            WitnessWriter::open(dir.path(), "active", RolloverPolicy::tight(2, 1_000_000)).unwrap();
+        let mut prev = crate::genesis::GenesisAnchor::Fresh
+            .anchor_string()
+            .to_string();
+        for seq in 1..=4 {
+            let line = fresh_line(seq, &prev);
+            writer.append(&line).unwrap();
+            prev = crate::line::compute_line_hash(&line.to_canonical_bytes().unwrap());
+        }
+        let initial = crate::manifest::manifest_tail(&writer.witness_root()).unwrap();
+        // 4 lines / 2-per-archive -> 2 manifest entries.
+        assert_eq!(initial.len(), 2);
     }
 
     #[test]
