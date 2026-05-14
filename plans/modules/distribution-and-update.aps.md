@@ -123,8 +123,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil commands::version::tests::check_surfaces_advisory`
   - `cargo test -p eddacraft-anvil-tui watch::tests::update_hint_rate_limited`
   - Integration: fixture releases feed with advisory metadata
-- **Status:** Draft
-- **Dependencies:** DISTRIB-001
+- **Status:** In Progress
+- **Dependencies:** DISTRIB-001 (Merged via PR #1562)
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
