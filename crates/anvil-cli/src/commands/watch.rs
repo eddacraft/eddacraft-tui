@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 
+use anvil_kernel_types::WatchEventEnvelope;
 use anyhow::{Context, Result, bail};
 use clap::Args;
-use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::warmup_cache::load_watch_warmup_cache;
@@ -83,18 +83,46 @@ const SOURCE_PATTERNS: &[&str] = &["src/**/*.ts", "src/**/*.tsx", "lib/**/*.ts"]
 // User --patterns / --exclude are glob filters applied separately by the
 // kernel's WatchPatternFilter — they no longer extend FileFilter.
 
-#[derive(Debug, Serialize)]
-struct WatchEvent {
-    timestamp: String,
-    event_type: String,
-    detail: String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WatchOutputMode {
     Json,
     Plain { reason: PlainWatchReason },
     Tui,
+}
+
+impl WatchOutputMode {
+    /// True when the watch surface should print human-readable banners
+    /// (scope, warm-up cache, fallback notices) onto the parent's
+    /// channels. False in JSON mode (where stdout is reserved for the
+    /// v1 NDJSON event stream) and TUI mode (rendered through the
+    /// alt-screen instead). WOUT-003: centralises the rule so a new
+    /// mode variant cannot silently start emitting banners on stdout.
+    const fn writes_human_banners(self) -> bool {
+        matches!(self, Self::Plain { .. })
+    }
+}
+
+/// WOUT-003: per-line warning channel for advice that is *not* part of
+/// the v1 event stream. Stdout is reserved for NDJSON event records in
+/// JSON mode; everything else routes to stderr.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WarningChannel {
+    Stdout,
+    Stderr,
+}
+
+impl WarningChannel {
+    /// Bare-exclude / scope-mismatch / setup warnings route to stderr in
+    /// JSON mode so stdout stays parseable, and to stdout in plain mode
+    /// where the user reads them inline with the rest of the watch
+    /// surface.
+    const fn for_advisory(json_mode: bool) -> Self {
+        if json_mode {
+            Self::Stderr
+        } else {
+            Self::Stdout
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,29 +252,36 @@ fn build_filter(user_supplied_patterns: bool) -> anvil_kernel::watcher::filter::
         .with_respect_extensions(!user_supplied_patterns)
 }
 
+/// Format the bare-exclude warning line for a single pattern. Pulled out
+/// so the message text is testable without spawning processes.
+fn format_bare_exclude_warning(pattern: &str) -> String {
+    // ASCII-only so it renders cleanly on Windows terminals that are
+    // not configured for full Unicode (cmd.exe with a legacy code page,
+    // log capture pipelines, dumb TERM environments).
+    format!(
+        "[warn] --exclude {pattern} matches only a path named exactly \"{pattern}\"; \
+         to exclude its contents use --exclude {pattern}/**"
+    )
+}
+
 /// `--exclude` switched from "directory names" to glob patterns in
 /// LAUNCH-001. A user who previously ran `--exclude vendor` will now
 /// find their vendor tree silently watched, because the bare name
 /// matches only a path equal to "vendor". Detect that shape at parse
 /// time and warn with the corrected form.
 ///
-/// Routes through stderr in `--json` mode so the JSON-lines event stream
-/// on stdout stays parseable; otherwise stdout, alongside the rest of the
-/// watch surface.
+/// WOUT-003: routes through stderr in `--json` mode so the NDJSON event
+/// stream on stdout stays parseable; otherwise stdout, alongside the
+/// rest of the watch surface. The channel decision goes through
+/// [`WarningChannel::for_advisory`] so the policy is testable.
 fn warn_on_bare_exclude_patterns(patterns: &[String], json_mode: bool) {
+    let channel = WarningChannel::for_advisory(json_mode);
     for pattern in patterns {
         if is_likely_bare_directory_name(pattern) {
-            // ASCII-only so it renders cleanly on Windows terminals that
-            // are not configured for full Unicode (cmd.exe with a legacy
-            // code page, log capture pipelines, dumb TERM environments).
-            let line = format!(
-                "[warn] --exclude {pattern} matches only a path named exactly \"{pattern}\"; \
-                 to exclude its contents use --exclude {pattern}/**"
-            );
-            if json_mode {
-                eprintln!("{line}");
-            } else {
-                println!("{line}");
+            let line = format_bare_exclude_warning(pattern);
+            match channel {
+                WarningChannel::Stderr => eprintln!("{line}"),
+                WarningChannel::Stdout => println!("{line}"),
             }
         }
     }
@@ -264,10 +299,13 @@ fn is_likely_bare_directory_name(pattern: &str) -> bool {
 }
 
 /// Print the active include/exclude scope so a viewer can see the LAUNCH-001
-/// glob filter is doing something. Silent in JSON mode (where structured
-/// telemetry is the canonical channel) and TUI mode (rendered separately).
+/// glob filter is doing something. Silent in JSON mode (where the v1
+/// NDJSON event stream owns stdout) and TUI mode (rendered separately).
+/// WOUT-003: short-circuit is delegated to [`WatchOutputMode::writes_human_banners`]
+/// so a new mode variant cannot accidentally start emitting banners on
+/// stdout.
 fn print_active_scope(include: &[String], exclude: &[String], mode: WatchOutputMode) {
-    if matches!(mode, WatchOutputMode::Json | WatchOutputMode::Tui) {
+    if !mode.writes_human_banners() {
         return;
     }
     // ASCII-only so it renders cleanly on Windows terminals without full
@@ -285,7 +323,7 @@ fn print_active_scope(include: &[String], exclude: &[String], mode: WatchOutputM
 }
 
 fn print_warmup_cache_status(paths: Option<&Vec<String>>, mode: WatchOutputMode) {
-    if matches!(mode, WatchOutputMode::Json | WatchOutputMode::Tui) {
+    if !mode.writes_human_banners() {
         return;
     }
     if let Some(paths) = paths {
@@ -326,15 +364,51 @@ fn validate_action(action: Option<&str>) -> Result<Option<&str>> {
     }
 }
 
+/// WOUT-003: action-child stdio policy. JSON mode discards the child's
+/// stdout so its bytes cannot interleave with the parent's NDJSON event
+/// stream; child stderr inherits the parent's stderr (the diagnostic
+/// channel). TUI mode discards both because the parent owns the
+/// alt-screen.
+///
+/// `Inherit` forwards directly to the parent's descriptors. `Null`
+/// discards. We deliberately do NOT use piped: piped pipes that nobody
+/// reads will block the child once the OS pipe buffer fills (~64 KiB on
+/// Linux), which would deadlock long-running gates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChildStdio {
+    Inherit,
+    Null,
+}
+
+impl ChildStdio {
+    fn apply(self) -> std::process::Stdio {
+        match self {
+            Self::Inherit => std::process::Stdio::inherit(),
+            Self::Null => std::process::Stdio::null(),
+        }
+    }
+}
+
+/// Resolve the (stdout, stderr) policy for an action child in a given
+/// parent context. Pulled out as a pure function so the WOUT-003
+/// invariant "JSON parent → child stdout null" is testable without
+/// spawning processes (`std::process::Command` does not expose its
+/// configured stdio for inspection).
+const fn child_stdio_policy(json: bool, tui_parent: bool) -> (ChildStdio, ChildStdio) {
+    if tui_parent {
+        (ChildStdio::Null, ChildStdio::Null)
+    } else if json {
+        (ChildStdio::Null, ChildStdio::Inherit)
+    } else {
+        (ChildStdio::Inherit, ChildStdio::Inherit)
+    }
+}
+
 /// Build the Command for action dispatch (extracted for testability).
 ///
 /// `tui_parent` (LAUNCH-002): when true, the parent is in TUI mode. The child
 /// receives `--no-tui` regardless of the parent's `--no-tui` flag (otherwise
-/// two Ratatui sessions would fight over the same alternate-screen), and
-/// stdout/stderr are routed to `Stdio::null()` so child writes cannot
-/// corrupt the parent's render. We deliberately use `null()` not `piped()`:
-/// piped pipes that nobody reads will block the child once the OS pipe
-/// buffer fills (~64 KiB on Linux), which would deadlock long-running gates.
+/// two Ratatui sessions would fight over the same alternate-screen).
 fn build_action_command(
     exe: &std::path::Path,
     action: &str,
@@ -352,16 +426,9 @@ fn build_action_command(
         cmd.arg("--no-tui");
     }
     cmd.current_dir(workspace_root);
-    if tui_parent {
-        cmd.stdout(std::process::Stdio::null());
-        cmd.stderr(std::process::Stdio::null());
-    } else if json {
-        cmd.stdout(std::process::Stdio::null());
-        cmd.stderr(std::process::Stdio::inherit());
-    } else {
-        cmd.stdout(std::process::Stdio::inherit());
-        cmd.stderr(std::process::Stdio::inherit());
-    }
+    let (stdout_policy, stderr_policy) = child_stdio_policy(json, tui_parent);
+    cmd.stdout(stdout_policy.apply());
+    cmd.stderr(stderr_policy.apply());
     cmd
 }
 
@@ -921,12 +988,17 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             match event_rx.recv_timeout(std::time::Duration::from_millis(250)) {
                 Ok(event) => {
                     if global.json {
-                        let watch_event = WatchEvent {
-                            timestamp: event.timestamp.clone(),
-                            event_type: format!("{:?}", event.event_type),
-                            detail: format!("{:?}", event.payload),
-                        };
-                        println!("{}", serde_json::to_string(&watch_event)?);
+                        let envelope = WatchEventEnvelope::from_engine_event(&event);
+                        // `WatchEventEnvelope` only contains primitives,
+                        // owned strings, and a `Copy` enum — `to_string`
+                        // is infallible at runtime. Use `expect` so the
+                        // impossibility is documented; the watch loop
+                        // must not silently die from a hypothetical
+                        // serialisation error that would otherwise
+                        // propagate through `?`.
+                        let line = serde_json::to_string(&envelope)
+                            .expect("WatchEventEnvelope is infallibly serialisable");
+                        println!("{line}");
                     } else {
                         print_event_plain(&event);
                     }
@@ -1040,12 +1112,122 @@ fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel_types::{
+        EngineEvent, EngineId, ErrorCode, ErrorPayload, EventPayload, EventType,
+        WATCH_EVENT_SCHEMA_VERSION,
+    };
     use clap::Parser;
+    use serde_json::Value;
 
     #[derive(Parser)]
     struct Wrapper {
         #[command(flatten)]
         inner: WatchArgs,
+    }
+
+    /// Assert the v1 envelope invariants the wire contract guarantees for
+    /// every variant: pinned `schema_version`, `seq`/`timestamp` propagated
+    /// from the kernel event, the documented lower-case `event_type`
+    /// discriminator, no internal `engine` field on the wire, and a
+    /// single-line serialisation.
+    fn assert_envelope_invariants(event: &EngineEvent, expected_type: &str) -> Value {
+        let envelope = WatchEventEnvelope::from_engine_event(event);
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        let value: Value = serde_json::from_str(&line).expect("parse own output");
+
+        assert_eq!(value["schema_version"], WATCH_EVENT_SCHEMA_VERSION);
+        assert_eq!(value["seq"], event.seq);
+        assert_eq!(value["timestamp"], event.timestamp);
+        assert_eq!(value["event_type"], expected_type);
+        assert!(
+            value.get("engine").is_none(),
+            "engine field must not appear on wire envelope: {value}"
+        );
+        assert!(
+            !line.contains('\n'),
+            "envelope must serialise as a single NDJSON line: {line}"
+        );
+        value
+    }
+
+    /// WOUT-002 validation: an `EngineEvent` from the kernel must serialise
+    /// through the v1 wire envelope as documented in
+    /// `docs/specs/watch-output-contract.md`. The previous behaviour was
+    /// `WatchEvent { timestamp, event_type: "Debug(...)", detail: "Debug(...)" }`
+    /// — a structured payload replaces the debug-formatted `detail` string,
+    /// and `schema_version` + `seq` are now required fields on the wire.
+    /// Covers one of each variant so a future regression that flattens
+    /// payloads incorrectly is caught by the most common shapes the
+    /// consumer guide documents.
+    #[test]
+    fn watch_event_serialises_to_json() {
+        let progress = EngineEvent {
+            event_type: EventType::Progress,
+            seq: 0,
+            timestamp: "2026-05-14T10:21:30Z".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Progress {
+                phase: "initial-scan".into(),
+                current: 12,
+                total: 100,
+            },
+        };
+        let v = assert_envelope_invariants(&progress, "progress");
+        assert_eq!(v["payload"]["phase"], "initial-scan");
+        assert_eq!(v["payload"]["current"], 12);
+        assert_eq!(v["payload"]["total"], 100);
+
+        let snapshot = EngineEvent {
+            event_type: EventType::Snapshot,
+            seq: 3,
+            timestamp: "2026-05-14T10:21:30Z".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Snapshot {
+                node_count: 312,
+                edge_count: 845,
+                files_watched: 64,
+            },
+        };
+        let v = assert_envelope_invariants(&snapshot, "snapshot");
+        assert_eq!(v["payload"]["node_count"], 312);
+        assert_eq!(v["payload"]["edge_count"], 845);
+        assert_eq!(v["payload"]["files_watched"], 64);
+
+        let violation = EngineEvent {
+            event_type: EventType::Violation,
+            seq: 7,
+            timestamp: "2026-05-14T10:21:31Z".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Violation {
+                policy_id: "no-circular-deps".into(),
+                file: "src/main.ts".into(),
+                symbol: "App".into(),
+                message: "Circular dependency detected".into(),
+            },
+        };
+        let v = assert_envelope_invariants(&violation, "violation");
+        assert_eq!(v["payload"]["policy_id"], "no-circular-deps");
+        assert_eq!(v["payload"]["file"], "src/main.ts");
+        assert_eq!(v["payload"]["symbol"], "App");
+        assert_eq!(v["payload"]["message"], "Circular dependency detected");
+
+        let error = EngineEvent {
+            event_type: EventType::Error,
+            seq: 9,
+            timestamp: "2026-05-14T10:21:31Z".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Error(ErrorPayload {
+                code: ErrorCode::ParseError,
+                file: Some("src/broken.ts".into()),
+                message: "Unexpected token".into(),
+                recoverable: true,
+            }),
+        };
+        let v = assert_envelope_invariants(&error, "error");
+        assert_eq!(v["payload"]["code"], "ParseError");
+        assert_eq!(v["payload"]["file"], "src/broken.ts");
+        assert_eq!(v["payload"]["message"], "Unexpected token");
+        assert_eq!(v["payload"]["recoverable"], true);
     }
 
     #[test]
@@ -1603,32 +1785,87 @@ mod tests {
         assert_eq!(result, base.join("shallow"));
     }
 
-    // --- WatchEvent serialisation ---
+    // --- WOUT-003: JSON-mode stdout discipline ---
 
     #[test]
-    fn watch_event_serialises_to_json() {
-        let event = WatchEvent {
-            timestamp: "2026-04-01T00:00:00Z".to_string(),
-            event_type: "Snapshot".to_string(),
-            detail: "10 nodes".to_string(),
-        };
-        let json = serde_json::to_string(&event).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed["timestamp"], "2026-04-01T00:00:00Z");
-        assert_eq!(parsed["event_type"], "Snapshot");
-        assert_eq!(parsed["detail"], "10 nodes");
+    fn watch_output_mode_writes_human_banners_only_for_plain() {
+        assert!(
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::NoTuiFlag,
+            }
+            .writes_human_banners()
+        );
+        assert!(
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::StdoutNotTerminal,
+            }
+            .writes_human_banners()
+        );
+        assert!(
+            WatchOutputMode::Plain {
+                reason: PlainWatchReason::StdinNotTerminal,
+            }
+            .writes_human_banners()
+        );
+        // JSON suppresses banners — stdout owned by NDJSON. TUI renders
+        // them inside the alt-screen.
+        assert!(!WatchOutputMode::Json.writes_human_banners());
+        assert!(!WatchOutputMode::Tui.writes_human_banners());
     }
 
     #[test]
-    fn watch_event_uses_snake_case_keys() {
-        let event = WatchEvent {
-            timestamp: "t".to_string(),
-            event_type: "Progress".to_string(),
-            detail: "d".to_string(),
-        };
-        let json = serde_json::to_string(&event).unwrap();
-        assert!(json.contains("\"event_type\""));
-        assert!(!json.contains("\"eventType\""));
+    fn warning_channel_for_advisory_routes_to_stderr_when_json_mode() {
+        assert_eq!(WarningChannel::for_advisory(true), WarningChannel::Stderr);
+        assert_eq!(WarningChannel::for_advisory(false), WarningChannel::Stdout);
+    }
+
+    #[test]
+    fn format_bare_exclude_warning_includes_pattern_and_corrected_glob() {
+        let line = format_bare_exclude_warning("vendor");
+        assert!(line.starts_with("[warn] "));
+        assert!(line.contains("--exclude vendor"));
+        assert!(line.contains("--exclude vendor/**"));
+        // ASCII-only — no smart quotes, em-dashes, or emoji on the
+        // diagnostic line.
+        assert!(line.is_ascii(), "warning line must be ASCII: {line}");
+    }
+
+    #[test]
+    fn child_stdio_policy_in_json_mode_discards_child_stdout_and_inherits_stderr() {
+        // The whole point of WOUT-003: child stdout MUST be null so its
+        // bytes cannot interleave with the parent's NDJSON event stream.
+        let (out, err) = child_stdio_policy(/* json */ true, /* tui_parent */ false);
+        assert_eq!(
+            out,
+            ChildStdio::Null,
+            "JSON parent must discard child stdout"
+        );
+        assert_eq!(
+            err,
+            ChildStdio::Inherit,
+            "JSON parent inherits child stderr (diagnostic channel)"
+        );
+    }
+
+    #[test]
+    fn child_stdio_policy_in_tui_mode_discards_both_streams() {
+        let (out, err) = child_stdio_policy(/* json */ false, /* tui_parent */ true);
+        assert_eq!(out, ChildStdio::Null);
+        assert_eq!(err, ChildStdio::Null);
+
+        // TUI parent wins over JSON: if both flags were set, child
+        // stdio is still fully discarded so it cannot fight the
+        // alt-screen.
+        let (out, err) = child_stdio_policy(/* json */ true, /* tui_parent */ true);
+        assert_eq!(out, ChildStdio::Null);
+        assert_eq!(err, ChildStdio::Null);
+    }
+
+    #[test]
+    fn child_stdio_policy_in_plain_mode_inherits_both_streams() {
+        let (out, err) = child_stdio_policy(/* json */ false, /* tui_parent */ false);
+        assert_eq!(out, ChildStdio::Inherit);
+        assert_eq!(err, ChildStdio::Inherit);
     }
 
     // --- bare-exclude warning heuristic (M4) ---

@@ -11,6 +11,25 @@ All notable changes to anvil are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **`anvil --json watch` is now a stable NDJSON consumer surface** — the watch
+  event stream pins to `anvil.watch.event.v1`. Every stdout line carries
+  `schema_version`, `seq`, `timestamp`, `event_type`, and a typed `payload`.
+  stdout is reserved for event records; warnings, banners, and child action
+  stderr route to stderr. See
+  [Watch JSON Output](../integrations/watch-output.md) for the consumer guide
+  and [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md)
+  for the normative spec.
+
+### Changed
+
+- **Watch JSON payloads are typed, not debug strings** — `anvil --json watch`
+  previously emitted lines whose `detail` field was a Rust debug-formatted
+  string of the kernel event payload. Consumers reading that string MUST
+  migrate to the structured `payload` object. The pre-WOUT shape was not
+  guaranteed and is no longer produced.
+
 ## [0.6.0-beta] — 2026-05-07 — Wow-Start Activation & Daemon-Backed Mid-Edit Validation
 
 ### Added

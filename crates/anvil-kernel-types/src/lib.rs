@@ -6,6 +6,7 @@ pub mod hooks;
 mod notifications;
 pub mod protection_claim;
 mod trust;
+pub mod watch_event;
 
 pub use diagnostics::{
     Category, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location, Mode, Severity,
@@ -27,6 +28,9 @@ pub use protection_claim::{
     WorktreeClaimState,
 };
 pub use trust::TrustLevel;
+pub use watch_event::{
+    WATCH_EVENT_SCHEMA_VERSION, WatchEventEnvelope, WatchEventPayload, WatchEventType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EngineId {

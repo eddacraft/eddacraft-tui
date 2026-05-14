@@ -34,6 +34,15 @@ loop. When MCP pre-write attach is wired (Cursor / Claude Code via
 mode is the save-time fallback when that path is unavailable, never claimed
 equivalent to pre-write interception.
 
+If you want to pipe watch events into your own scripts or editor sidecars, add
+`--json` and consume the NDJSON stream documented in
+[Watch JSON Output](../integrations/watch-output.md). One object per line,
+stdout owned by the event stream, stderr for diagnostics:
+
+```bash
+anvil --json watch | jq -c 'select(.event_type=="violation") | .payload'
+```
+
 ## Layer 2: Commit-Time (Git Hooks)
 
 Add a pre-commit hook that checks staged files:

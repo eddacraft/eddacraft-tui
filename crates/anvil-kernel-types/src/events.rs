@@ -48,6 +48,14 @@ pub struct ErrorPayload {
     pub recoverable: bool,
 }
 
+/// Closed set of engine error codes. The variant names are pinned to the
+/// wire — `ErrorCode::ParseError` MUST serialise to `"ParseError"` etc.
+/// The watch output contract (`anvil.watch.event.v1`) and downstream
+/// consumers parse this as a string-typed `code` field; renaming or
+/// adding `#[serde(rename_all = ...)]` here is a breaking change for
+/// every published wire surface that includes an error payload.
+/// Pinning test:
+/// [`crate::watch_event::tests::error_code_wire_strings_are_pascal_case_and_pinned`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     ParseError,

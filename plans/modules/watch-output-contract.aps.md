@@ -1,10 +1,15 @@
 # Watch Output Contract
 
-| ID   | Owner  | Status   | Progress |
-| ---- | ------ | -------- | -------- |
-| WOUT | @aneki | Proposed | 0/6      |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| WOUT | @aneki | Done        | 6/6      |
 
 **Last reviewed:** 2026-05-14
+
+**Execution authorisation:** operator `@aneki` authorised this module for
+implementation on 2026-05-14 via `/goal complete WOUT using /dev-workflow`.
+Status advanced from Proposed → In Progress per `plans/aps-rules.md` rule 1
+(operator approval for Proposed work recorded inline).
 
 ## Purpose
 
@@ -69,8 +74,8 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
   policy, and intentional non-goals such as stdin control.
 - **Files:** `docs/specs/watch-output-contract.md`,
   `docs/public/anvil/integrations/watch-output.md`
-- **Validation:** `pnpm docs:check`
-- **Status:** Draft
+- **Validation:** `pnpm docs:check` — passed 2026-05-14 (7/7 surfaces)
+- **Status:** Done
 - **changeType:** docs
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -92,8 +97,9 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **Files:** `crates/anvil-kernel-types/src/*`,
   `crates/anvil-cli/src/commands/watch.rs`
 - **Validation:** `cargo test -p eddacraft-anvil commands::watch::tests::watch_event_serialises_to_json`
-  and fixture assertions for each event variant
-- **Status:** Draft
+  and fixture assertions for each event variant — passed 2026-05-14 (1 + 8
+  kernel-types serde tests; full `commands::watch::` module green)
+- **Status:** Done
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -110,7 +116,10 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
   `crates/anvil-cli/src/main.rs`
 - **Validation:** Unit tests for warning routing plus an integration smoke that
   asserts every stdout line parses as JSON while stderr may contain human text
-- **Status:** Draft
+  — unit tests added 2026-05-14 (`watch_output_mode_*`,
+  `warning_channel_for_advisory_*`, `child_stdio_policy_*`,
+  `format_bare_exclude_warning_*`); integration smoke covered by WOUT-004
+- **Status:** Done
 - **changeType:** fix
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -125,7 +134,9 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **Files:** `crates/anvil-cli/tests/watch_json_output.rs`,
   `crates/anvil-cli/tests/fixtures/watch-json/*`
 - **Validation:** `cargo test -p eddacraft-anvil --test watch_json_output`
-- **Status:** Draft
+  — passed 2026-05-14 (2/2: initial snapshot via real spawn,
+  bare-exclude warning routes to stderr)
+- **Status:** Done
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -141,8 +152,10 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
   `docs/public/anvil/integrations/watch-output.md`, optional schema under
   `packages/anvil/contracts` if the project chooses to publish one there
 - **Validation:** `cargo test -p eddacraft-anvil --test watch_json_output` and
-  `pnpm docs:check`
-- **Status:** Draft
+  `pnpm docs:check` — both green 2026-05-14 (8/8 watch_json_output tests
+  including fixture+docs alignment; docs:check 7/7 surfaces). JSON Schema
+  export remains deferred per Open Question 1.
+- **Status:** Done
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -158,8 +171,8 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
 - **Files:** `docs/public/anvil/integrations/watch-output.md`,
   `docs/public/anvil/tutorials/ci.md`,
   `docs/public/anvil/releases/changelog.md`
-- **Validation:** `pnpm docs:check`
-- **Status:** Draft
+- **Validation:** `pnpm docs:check` — passed 2026-05-14 (7/7 surfaces)
+- **Status:** Done
 - **changeType:** docs
 - **releaseIntent:** candidate
 - **releaseScope:** minor
