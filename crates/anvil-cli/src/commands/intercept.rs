@@ -508,6 +508,9 @@ mod tests {
                 ipc_state: IpcStateV1::Serving,
             },
             latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
         }
     }
 

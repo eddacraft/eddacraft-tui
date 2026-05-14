@@ -100,6 +100,8 @@ impl StatusProvider for NoopStatusProvider {
             std::time::Instant::now(),
             env!("CARGO_PKG_VERSION"),
             crate::status::IpcState::Serving,
+            None,
+            None,
         )
     }
 }

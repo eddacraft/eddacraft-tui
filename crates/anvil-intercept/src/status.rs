@@ -57,7 +57,9 @@ use anvil_kernel_types::protection_claim::{
 
 use crate::fence::{FenceRecord, FenceStore};
 use crate::latency::{LatencyAggregator, LatencyRollup};
+use crate::midedit::ScanBufferService;
 use crate::registry::SessionRegistry;
+use crate::rule_cache::RuleSetCache;
 
 /// Snapshot of the daemon's state at the moment of a `query_status`
 /// call. Mirrors [`DaemonStatusV1`] from the proto crate but uses the
@@ -85,6 +87,31 @@ pub struct DaemonStatus {
     /// daemon has not observed any mid-edit traffic in the current
     /// window; the renderer prints `(no mid-edit traffic yet)`.
     pub latency: LatencyMap,
+    /// MLP2-058: resolved-rule-set cache observability. `None` when
+    /// no cache is wired (embedded mode); `Some` carries the live
+    /// snapshot counters. Maps to
+    /// [`DaemonStatusV1::cache_entries`] +
+    /// [`DaemonStatusV1::cache_invalidations_total`] on the wire.
+    pub cache: Option<CacheStats>,
+    /// MLP2-058: count of evaluations currently holding a
+    /// scan-buffer permit. `None` when no scan-buffer service is
+    /// wired (embedded mode). Maps to
+    /// [`DaemonStatusV1::in_flight_evaluations`] on the wire,
+    /// clamped to `u8::MAX` before transit (the daemon's
+    /// `MAX_CONCURRENT_SCAN_BUFFERS` is 8 today so the clamp is
+    /// unreachable in practice but kept honest for safety).
+    pub in_flight_evaluations: Option<usize>,
+}
+
+/// MLP2-058: paired cache counters carried inside [`DaemonStatus`].
+/// Bundled so `Option<CacheStats>` cleanly distinguishes "no cache"
+/// from "cache observed at zero entries / zero invalidations"; the
+/// two states wire as different shapes (`None` -> absent, `Some {0,0}`
+/// -> two zero numbers).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CacheStats {
+    pub entries: usize,
+    pub invalidations_total: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -158,6 +185,17 @@ impl DaemonStatus {
             latency: LatencyMidEditMapV1 {
                 mid_edit: self.latency.mid_edit.map(rollup_to_wire),
             },
+            // MLP2-058: clamp the cache entry count to `u32::MAX`
+            // before transit. The daemon's session cap (INTD-016)
+            // is well below `u32::MAX`; the clamp is defence-in-
+            // depth against a future un-capped path.
+            cache_entries: self
+                .cache
+                .map(|c| u32::try_from(c.entries).unwrap_or(u32::MAX)),
+            cache_invalidations_total: self.cache.map(|c| c.invalidations_total),
+            in_flight_evaluations: self
+                .in_flight_evaluations
+                .map(|n| u8::try_from(n).unwrap_or(u8::MAX)),
         }
     }
 }
@@ -179,6 +217,7 @@ fn rollup_to_wire(r: LatencyRollup) -> anvil_intercept_proto::status::LatencyRol
 /// startup; uptime is `now - started_at` clamped to monotonic time.
 /// The version string is the daemon binary's `CARGO_PKG_VERSION` —
 /// callers pass it explicitly so the embedded path can override.
+#[allow(clippy::too_many_arguments)]
 pub fn build_status(
     sessions: Vec<SessionRecord>,
     fence_records: &[FenceRecord],
@@ -187,6 +226,8 @@ pub fn build_status(
     now: Instant,
     version: &str,
     ipc_state: IpcState,
+    cache: Option<CacheStats>,
+    in_flight_evaluations: Option<usize>,
 ) -> DaemonStatus {
     let mut fenced_set: std::collections::HashSet<std::path::PathBuf> =
         fence_records.iter().map(|f| f.worktree.clone()).collect();
@@ -234,6 +275,8 @@ pub fn build_status(
         latency: LatencyMap {
             mid_edit: latency_mid_edit,
         },
+        cache,
+        in_flight_evaluations,
     }
 }
 
@@ -272,6 +315,15 @@ pub struct DaemonStatusProvider {
     latency: LatencyAggregator,
     started_at: Instant,
     version: String,
+    /// MLP2-058: optional cache reference — `None` for embedded
+    /// harnesses, `Some` once the daemon wires its production
+    /// resolved-rule-set cache. When `None`, the provider emits
+    /// `cache: None` and the wire shape omits the two cache fields.
+    rule_cache: Option<Arc<RuleSetCache>>,
+    /// MLP2-058: optional scan-buffer service reference. `None` for
+    /// surfaces that do not own a midedit pipeline (tests, embedded
+    /// fallback). `Some` reads `in_flight()` per query.
+    scan_buffer: Option<ScanBufferService>,
 }
 
 impl std::fmt::Debug for DaemonStatusProvider {
@@ -298,7 +350,30 @@ impl DaemonStatusProvider {
             latency,
             started_at,
             version: version.into(),
+            rule_cache: None,
+            scan_buffer: None,
         }
+    }
+
+    /// MLP2-058: attach the daemon's resolved-rule-set cache.
+    ///
+    /// After attachment, `query_status` reads `entries` +
+    /// `invalidations` per call and surfaces them via
+    /// [`DaemonStatus::cache`]. Tests + embedded harnesses skip
+    /// this builder; the wire shape omits the cache fields.
+    #[must_use]
+    pub fn with_rule_cache(mut self, cache: Arc<RuleSetCache>) -> Self {
+        self.rule_cache = Some(cache);
+        self
+    }
+
+    /// MLP2-058: attach the daemon's scan-buffer service. After
+    /// attachment, `query_status` reads `in_flight()` per call and
+    /// surfaces it via [`DaemonStatus::in_flight_evaluations`].
+    #[must_use]
+    pub fn with_scan_buffer(mut self, service: ScanBufferService) -> Self {
+        self.scan_buffer = Some(service);
+        self
     }
 }
 
@@ -324,6 +399,11 @@ impl StatusProvider for DaemonStatusProvider {
             }
         };
         let mid_edit = self.latency.snapshot(now);
+        let cache = self.rule_cache.as_ref().map(|c| CacheStats {
+            entries: c.len(),
+            invalidations_total: c.invalidations(),
+        });
+        let in_flight = self.scan_buffer.as_ref().map(ScanBufferService::in_flight);
         build_status(
             sessions,
             &fence_records,
@@ -332,6 +412,8 @@ impl StatusProvider for DaemonStatusProvider {
             now,
             &self.version,
             IpcState::Serving,
+            cache,
+            in_flight,
         )
     }
 }
@@ -365,6 +447,21 @@ pub fn render_status(status: &DaemonStatus) -> String {
     let _ = writeln!(out, "fences:    {}", status.fences.len());
     out.push_str(&render_latency_line(status.latency.mid_edit.as_ref()));
     out.push('\n');
+    // MLP2-058: when the daemon has surfaced cache + in-flight
+    // observability, render one line per field. Pre-MLP2-058 daemons
+    // (and embedded harnesses that skip the builders) wire `None`
+    // here, so the legible surface stays byte-identical to the
+    // pre-MLP2-058 output for older daemons.
+    if let Some(stats) = status.cache {
+        let _ = writeln!(
+            out,
+            "cache:     {} entries, {} invalidations",
+            stats.entries, stats.invalidations_total,
+        );
+    }
+    if let Some(n) = status.in_flight_evaluations {
+        let _ = writeln!(out, "in-flight: {n} evaluations");
+    }
     out
 }
 
@@ -572,6 +669,8 @@ mod tests {
             now,
             "0.5.1-beta",
             IpcState::Serving,
+            None,
+            None,
         );
         assert!(status.latency.mid_edit.is_none());
         assert_eq!(status.health.uptime_seconds, 5);
@@ -601,6 +700,8 @@ mod tests {
             now,
             "0.5.1-beta",
             IpcState::Serving,
+            None,
+            None,
         );
         assert_eq!(status.worktrees.len(), 1);
         assert!(
@@ -632,6 +733,62 @@ mod tests {
         assert_eq!(line, "latency: (no mid-edit traffic yet)");
     }
 
+    /// MLP2-058 renderer: when cache + in-flight stats are present
+    /// the legible output gains two extra lines. Pre-MLP2-058 daemons
+    /// wire `None` here, so this path stays opt-in.
+    #[test]
+    fn render_status_emits_cache_and_in_flight_lines_when_present() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            Some(CacheStats {
+                entries: 4,
+                invalidations_total: 13,
+            }),
+            Some(2),
+        );
+        let rendered = render_status(&status);
+        assert!(
+            rendered.contains("cache:     4 entries, 13 invalidations"),
+            "renderer must include the cache observability line; got:\n{rendered}",
+        );
+        assert!(
+            rendered.contains("in-flight: 2 evaluations"),
+            "renderer must include the in-flight observability line; got:\n{rendered}",
+        );
+    }
+
+    /// MLP2-058: pre-MLP2-058 daemons (or embedded mode) carry `None`
+    /// on the new fields. The renderer MUST omit the new lines so the
+    /// legible output stays byte-identical to the pre-MLP2-058 shape.
+    #[test]
+    fn render_status_omits_cache_lines_when_absent() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        let rendered = render_status(&status);
+        assert!(
+            !rendered.contains("cache:"),
+            "pre-MLP2-058 render must NOT include a cache line; got:\n{rendered}",
+        );
+        assert!(!rendered.contains("in-flight:"));
+    }
+
     #[test]
     fn render_status_includes_latency_line_unchanged() {
         let started = Instant::now();
@@ -644,6 +801,8 @@ mod tests {
             now,
             "0.5.1-beta",
             IpcState::Serving,
+            None,
+            None,
         );
         let rendered = render_status(&status);
         assert!(
@@ -686,6 +845,8 @@ mod tests {
             now,
             "0.5.1-beta",
             IpcState::Serving,
+            None,
+            None,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -700,6 +861,138 @@ mod tests {
         assert_eq!(json["sessions"].as_array().unwrap().len(), 1);
     }
 
+    // MLP2-058 — cache + in-flight observability surface.
+
+    /// `None` cache + `None` in-flight wires as absent keys, matching
+    /// the precedent set by `mid_edit`. Consumers that distinguish
+    /// "no cache wired" from "cache present, zero entries" need the
+    /// absent encoding to be honest about the difference.
+    #[test]
+    fn cache_and_in_flight_default_to_absent_on_wire() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        assert!(status.cache.is_none());
+        assert!(status.in_flight_evaluations.is_none());
+        let wire = status.to_wire();
+        let json = serde_json::to_value(&wire).expect("serialise");
+        assert!(
+            json.get("cache_entries").is_none(),
+            "no-cache must wire as absent: {json}",
+        );
+        assert!(json.get("cache_invalidations_total").is_none());
+        assert!(json.get("in_flight_evaluations").is_none());
+    }
+
+    /// When `CacheStats` is `Some` the wire shape carries
+    /// `cache_entries` + `cache_invalidations_total` with the typed
+    /// values. The clamp narrows `usize → u32`; pin against a future
+    /// refactor that drops the saturating conversion.
+    #[test]
+    fn cache_stats_propagate_to_wire() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            Some(CacheStats {
+                entries: 17,
+                invalidations_total: 42,
+            }),
+            Some(3),
+        );
+        let wire = status.to_wire();
+        assert_eq!(wire.cache_entries, Some(17));
+        assert_eq!(wire.cache_invalidations_total, Some(42));
+        assert_eq!(wire.in_flight_evaluations, Some(3));
+    }
+
+    /// `DaemonStatusProvider::with_rule_cache` makes the provider
+    /// surface cache stats from the live cache instance — drive a
+    /// `get_or_resolve` insert + `invalidate`, then `query_status` →
+    /// the wire shape reflects `entries = 0` and
+    /// `invalidations_total = 1`. Pin against a regression where the
+    /// builder accepts the cache but the snapshot fails to read it.
+    #[test]
+    fn provider_surfaces_cache_stats_when_wired() {
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+        use crate::rule_cache::{ResolvedRuleSet, RuleSetCache, RuleSetEntry, WorktreeKey};
+
+        let cache = Arc::new(RuleSetCache::new());
+        let dir = tempfile::TempDir::new().unwrap();
+        let k = WorktreeKey::canonicalise(dir.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| {
+                Ok(RuleSetEntry {
+                    rules_sha: "abc".to_owned(),
+                    resolved: ResolvedRuleSet {
+                        config: serde_json::json!({}),
+                    },
+                })
+            })
+            .unwrap();
+        assert!(cache.invalidate(&k));
+
+        let fence_path = dir.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::new(SessionRegistry::new()),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.7.0-beta",
+        )
+        .with_rule_cache(cache);
+
+        let snapshot = provider.query_status();
+        let stats = snapshot.cache.expect("cache wired -> Some");
+        assert_eq!(stats.entries, 0, "post-invalidate cache is empty");
+        assert_eq!(stats.invalidations_total, 1);
+        let wire = snapshot.to_wire();
+        assert_eq!(wire.cache_entries, Some(0));
+        assert_eq!(wire.cache_invalidations_total, Some(1));
+    }
+
+    /// A `usize` cache size above `u32::MAX` clamps to `u32::MAX`
+    /// rather than panicking or wrapping. The daemon's session cap
+    /// keeps the live count well below `u32::MAX`; this is
+    /// defence-in-depth.
+    #[test]
+    fn cache_entries_above_u32_max_clamps_to_u32_max() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            Some(CacheStats {
+                entries: usize::MAX,
+                invalidations_total: u64::MAX,
+            }),
+            Some(usize::MAX),
+        );
+        let wire = status.to_wire();
+        assert_eq!(wire.cache_entries, Some(u32::MAX));
+        assert_eq!(wire.cache_invalidations_total, Some(u64::MAX));
+        assert_eq!(wire.in_flight_evaluations, Some(u8::MAX));
+    }
+
     #[test]
     fn to_wire_preserves_no_traffic_as_null() {
         let started = Instant::now();
@@ -712,6 +1005,8 @@ mod tests {
             now,
             "0.5.1-beta",
             IpcState::Serving,
+            None,
+            None,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -739,6 +1034,8 @@ mod tests {
             started + Duration::from_secs(1),
             "0.7.0-beta",
             ipc_state,
+            None,
+            None,
         )
     }
 

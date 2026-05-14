@@ -742,6 +742,7 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
 /// `shutdown` is triggered (by SIGINT/SIGTERM in production, or by
 /// the caller in tests). The foreground daemon owns the session
 /// registry, serves the IPC listener, and ticks stale-session eviction.
+#[allow(clippy::too_many_lines)]
 pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
     let pid_file_path = opts.pid_file_path()?;
     let fence_store_path = opts.fence_store_path()?;
@@ -776,14 +777,21 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // `scan_buffer` calls. The provider is built BEFORE the
         // listener so the listener gets a status feed wired in from
         // the first connection.
-        let status_provider: Arc<dyn status::StatusProvider> =
-            Arc::new(status::DaemonStatusProvider::new(
+        let status_provider: Arc<dyn status::StatusProvider> = Arc::new(
+            status::DaemonStatusProvider::new(
                 Arc::clone(&daemon_state.registry),
                 Arc::clone(&daemon_state.fence_store),
                 scan_buffer.latency().clone(),
                 Instant::now(),
                 env!("CARGO_PKG_VERSION"),
-            ));
+            )
+            // MLP2-058: wire `in_flight_evaluations` from the same
+            // service the listener serves with. The rule_cache field
+            // on `DaemonStatusProvider` stays `None` until MLP2-014
+            // lands its production cache wire-up — the optional
+            // wire shape preserves forward-compat.
+            .with_scan_buffer(scan_buffer.clone()),
+        );
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {

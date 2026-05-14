@@ -1067,6 +1067,8 @@ async fn query_status_with_traffic_carries_p50_and_p95() {
                 now,
                 "test-version",
                 IpcState::Serving,
+                None,
+                None,
             )
         }
     }

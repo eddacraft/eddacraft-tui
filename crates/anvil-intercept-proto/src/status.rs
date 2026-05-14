@@ -35,6 +35,27 @@ pub struct DaemonStatusV1 {
     /// be added as additional fields without breaking existing
     /// consumers.
     pub latency: LatencyMidEditMapV1,
+    /// MLP2-058: current entry count of the daemon's resolved-rule-set
+    /// cache. `None` (wire: absent) when the daemon has not surfaced a
+    /// cache (embedded mode, or a pre-MLP2-058 daemon talking to a
+    /// post-MLP2-058 consumer). Consumers MUST treat absent and
+    /// `null` as the same — "no cache observability available".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_entries: Option<u32>,
+    /// MLP2-058: cumulative `.anvil.*` rule-set cache invalidations
+    /// since the daemon started. Rate of change is the operator
+    /// signal — a steady non-zero rate indicates an attacker or
+    /// runaway writer (MLP2-059 caps it). `None` when no cache is
+    /// wired (see [`Self::cache_entries`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_invalidations_total: Option<u64>,
+    /// MLP2-058: evaluations currently holding a `scan_buffer`
+    /// permit. `None` when no scan-buffer service is wired (embedded
+    /// mode). The daemon caps concurrent evaluations at 8 today so
+    /// `u8` is the natural-fit width; future scaling either tightens
+    /// the cap or bumps the type in v2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_flight_evaluations: Option<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,6 +134,9 @@ mod tests {
                     window_seconds: 22.4,
                 }),
             },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -131,6 +155,9 @@ mod tests {
                 ipc_state: IpcStateV1::Serving,
             },
             latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         // mid_edit must be either absent or null — never zero.
@@ -171,5 +198,89 @@ mod tests {
         let parsed: DaemonStatusV1 =
             serde_json::from_value(json).expect("forward-compat deserialise");
         assert!(parsed.latency.mid_edit.is_none());
+    }
+
+    /// MLP2-058: a pre-MLP2-058 daemon (no `cache_entries` /
+    /// `cache_invalidations_total` / `in_flight_evaluations` keys on
+    /// the wire) round-trips into the post-MLP2-058 `DaemonStatusV1`
+    /// with the three new fields collapsed to `None`. Pins the
+    /// "older daemon → newer consumer" direction of the additive
+    /// contract.
+    #[test]
+    fn pre_mlp2_058_payload_round_trips_with_new_fields_absent() {
+        let json = serde_json::json!({
+            "sessions": [],
+            "worktrees": [],
+            "fences": [],
+            "health": {
+                "uptime_seconds": 12,
+                "version": "0.6.0",
+                "ipc_state": "serving",
+            },
+            "latency": { "mid_edit": null },
+        });
+        let parsed: DaemonStatusV1 = serde_json::from_value(json).expect("deserialise");
+        assert_eq!(parsed.cache_entries, None);
+        assert_eq!(parsed.cache_invalidations_total, None);
+        assert_eq!(parsed.in_flight_evaluations, None);
+    }
+
+    /// MLP2-058: when the new fields are present on the wire they
+    /// arrive as their typed values. Pins the on-wire shape so a
+    /// downstream parser is byte-compatible.
+    #[test]
+    fn cache_and_in_flight_fields_round_trip_when_present() {
+        let status = DaemonStatusV1 {
+            sessions: vec![],
+            worktrees: vec![],
+            fences: vec![],
+            health: HealthStateV1 {
+                uptime_seconds: 1,
+                version: "0.6.0".to_owned(),
+                ipc_state: IpcStateV1::Serving,
+            },
+            latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: Some(17),
+            cache_invalidations_total: Some(42),
+            in_flight_evaluations: Some(3),
+        };
+        let line = serde_json::to_string(&status).expect("serialise");
+        let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, status);
+
+        let json: serde_json::Value = serde_json::to_value(&status).expect("to_value");
+        assert_eq!(json["cache_entries"], 17);
+        assert_eq!(json["cache_invalidations_total"], 42);
+        assert_eq!(json["in_flight_evaluations"], 3);
+    }
+
+    /// MLP2-058: `None` on the new fields wires as absent, not `null`
+    /// or `0`. Operators (and tests) need to distinguish "no cache
+    /// observed" from "cache observed at zero entries"; the absent
+    /// encoding preserves that distinction across producer/consumer
+    /// pairs.
+    #[test]
+    fn none_on_new_fields_serialises_to_absent_keys() {
+        let status = DaemonStatusV1 {
+            sessions: vec![],
+            worktrees: vec![],
+            fences: vec![],
+            health: HealthStateV1 {
+                uptime_seconds: 0,
+                version: "0.6.0".to_owned(),
+                ipc_state: IpcStateV1::Serving,
+            },
+            latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
+        };
+        let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
+        assert!(
+            json.get("cache_entries").is_none(),
+            "None must wire as absent, not null: {json}",
+        );
+        assert!(json.get("cache_invalidations_total").is_none());
+        assert!(json.get("in_flight_evaluations").is_none());
     }
 }

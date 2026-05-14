@@ -194,6 +194,23 @@ impl WatcherIntegration {
         unregistered: Arc<dyn UnregisteredHandler>,
         config: WatcherIntegrationConfig,
     ) -> Self {
+        // MLP2-058: surface the "watcher built without a rule cache"
+        // case at most once per process lifetime (Council #3 /
+        // MAJOR-3). The production daemon constructs one
+        // `WatcherIntegration`, but the test suite constructs many —
+        // without the OnceLock guard every test run pollutes stderr
+        // and the warn loses its "this is operator-actionable"
+        // signal. The production wiring expects `.with_rule_cache(..)`
+        // to follow; when MLP2-014 lands its production cache
+        // wire-up, an operator stuck on a pre-MLP2-014 surface still
+        // sees the gap at daemon startup.
+        static WARNED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        WARNED.get_or_init(|| {
+            tracing::warn!(
+                target: "anvil_intercept::watcher",
+                "WatcherIntegration constructed without rule_cache; config-edit invalidation disabled until with_rule_cache attaches one (MLP2-014 wires this on the production path)",
+            );
+        });
         Self {
             registry,
             pipeline,

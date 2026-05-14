@@ -181,6 +181,14 @@ struct CacheInner {
     /// counter resets only on a new cache instance — operators
     /// inspect rate of change rather than absolute value.
     evictions: u64,
+    /// MLP2-058: cumulative effective invalidations since cache
+    /// construction. Counts only entries that were actually dropped
+    /// — `invalidate` on a missing key, or `invalidate_on_change`
+    /// on a non-config file or non-matching worktree, is a no-op
+    /// and does NOT bump this counter. Operators reading rate of
+    /// change see only the meaningful pressure (watcher-driven
+    /// config edits, registry unregister hooks).
+    invalidations: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -299,6 +307,17 @@ impl RuleSetCache {
         //   `.anvil.*` watcher event clears the re-inserted entry, and
         //   in-flight evaluations are independently pinned by
         //   MLP2-002 so they never see the stale data either.
+        // MLP2-058: log cache miss before resolve so a config-parse
+        // failure (resolver returns Err) is observable as
+        // "miss + no insert" rather than silently dropped. Debug
+        // level because misses are the steady-state rate (every
+        // first request for a worktree); operators bump to `debug`
+        // when they need cache-shape visibility.
+        tracing::debug!(
+            target: "anvil_intercept::rule_cache",
+            worktree = %key.as_path().display(),
+            "rule_cache miss; resolving",
+        );
         let fresh = resolver(key)?;
         self.insert_with_eviction(key.clone(), fresh.clone());
         Ok(fresh)
@@ -307,8 +326,16 @@ impl RuleSetCache {
     /// Drop the entry for `key`. Returns `true` when an entry was
     /// present, `false` otherwise — useful for telemetry that
     /// counts effective invalidations vs no-ops.
+    ///
+    /// MLP2-058: an effective drop bumps
+    /// [`RuleSetCache::invalidations`].
     pub fn invalidate(&self, key: &WorktreeKey) -> bool {
-        self.lock().map.remove(key).is_some()
+        let mut guard = self.lock();
+        let dropped = guard.map.remove(key).is_some();
+        if dropped {
+            guard.invalidations = guard.invalidations.saturating_add(1);
+        }
+        dropped
     }
 
     /// Invalidate every entry whose worktree contains the changed
@@ -363,6 +390,25 @@ impl RuleSetCache {
                 hits.push(key);
             }
         }
+        if !hits.is_empty() {
+            // MLP2-058: bump the invalidation counter for the
+            // operator-visible status surface and emit a single
+            // `tracing::info!` event so a configuration-edit storm
+            // shows up in daemon logs without per-key spam. Counter
+            // moves by the exact number of effective drops, so the
+            // status surface reflects pressure honestly. We log
+            // path + count here rather than per key.
+            let drops = u64::try_from(hits.len()).unwrap_or(u64::MAX);
+            guard.invalidations = guard.invalidations.saturating_add(drops);
+            let total_invalidations = guard.invalidations;
+            tracing::info!(
+                target: "anvil_intercept::rule_cache",
+                anvil_config_path = %path.display(),
+                invalidated = hits.len(),
+                cache_invalidations_total = total_invalidations,
+                "rule_cache invalidated by config-edit",
+            );
+        }
         hits
     }
 
@@ -386,6 +432,20 @@ impl RuleSetCache {
     #[must_use]
     pub fn evictions(&self) -> u64 {
         self.lock().evictions
+    }
+
+    /// MLP2-058: cumulative effective invalidations since this
+    /// cache instance was constructed.
+    ///
+    /// Counts entries actually dropped by [`Self::invalidate`]
+    /// (registry-unregister hooks) + [`Self::invalidate_on_change`]
+    /// (watcher config-edit hits). No-op invalidate calls do NOT
+    /// contribute. Surfaced via the `cache_invalidations_total`
+    /// field on `DaemonStatusV1` so operators reading rate of
+    /// change see only meaningful pressure.
+    #[must_use]
+    pub fn invalidations(&self) -> u64 {
+        self.lock().invalidations
     }
 
     /// MLP2-057: insert with capacity enforcement. Called from the
@@ -447,9 +507,25 @@ impl RuleSetCache {
         // mutation is a `HashMap::insert` or `::remove`) so taking
         // the poisoned guard is safe. A second-tier recovery
         // strategy is unnecessary for this surface.
-        self.inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // MLP2-058 Council #C-025: surface poisoned-recovery
+                // once per acquisition. Operators investigating a
+                // misbehaving daemon see the recovery rather than
+                // having to reverse-engineer "the cache silently
+                // kept running after a panic". `tracing::warn!` is
+                // the right severity — recovery is safe (poisoned
+                // state cannot tear the cache's HashMap-only
+                // invariants) but the upstream panic is itself a
+                // bug that needs investigation.
+                tracing::warn!(
+                    target: "anvil_intercept::rule_cache",
+                    "rule_cache mutex poisoned; recovering inner state",
+                );
+                poisoned.into_inner()
+            }
+        }
     }
 }
 
@@ -1191,6 +1267,83 @@ mod tests {
         // Final state: cache must respect its bound, eviction
         // counter must be a sane (non-decreasing) value.
         assert!(cache.len() <= 8, "capacity bound holds under contention");
+    }
+
+    // MLP2-058: invalidation counter + tracing-event surface.
+
+    /// `invalidate` on a present key bumps the invalidation counter
+    /// by exactly 1. A no-op invalidate (missing key) does NOT bump.
+    /// Pin so the counter only reflects effective drops — that's the
+    /// signal operators read for pressure.
+    #[test]
+    fn invalidate_counter_only_counts_effective_drops() {
+        let cache = RuleSetCache::new();
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        assert_eq!(cache.invalidations(), 0);
+
+        // Effective drop -> counter bumps.
+        assert!(cache.invalidate(&k));
+        assert_eq!(cache.invalidations(), 1);
+
+        // No-op invalidate -> counter unchanged.
+        assert!(!cache.invalidate(&k));
+        assert_eq!(cache.invalidations(), 1);
+    }
+
+    /// `invalidate_on_change` against a recognised `.anvil.*` file
+    /// that hits one entry bumps the counter by 1. A burst that hits
+    /// N entries (e.g. cache-wide flush on canonicalise failure)
+    /// bumps by exactly N — the field is cumulative, not per-call.
+    #[test]
+    fn invalidate_on_change_counter_matches_dropped_entries() {
+        let cache = RuleSetCache::new();
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        assert_eq!(cache.invalidations(), 0);
+
+        let touched_a = dir_a.path().join(".anvil.yaml");
+        std::fs::write(&touched_a, b"{}").unwrap();
+        let hits = cache.invalidate_on_change(&touched_a);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(cache.invalidations(), 1);
+
+        // Phantom path -> over-flush both entries; counter += 1
+        // (only one survives the previous step).
+        let phantom = Path::new("/nonexistent/anvil-mlp2-058-test/.anvil.yaml");
+        let hits = cache.invalidate_on_change(phantom);
+        assert_eq!(hits.len(), 1, "k_b is the only remaining entry");
+        assert_eq!(cache.invalidations(), 2);
+    }
+
+    /// `invalidate_on_change` against an unrelated file (not a
+    /// `.anvil.*`) is a hard no-op and MUST NOT bump the counter.
+    /// Closes the spam-the-counter hole an attacker writing
+    /// arbitrary files could otherwise exploit.
+    #[test]
+    fn invalidate_on_change_unrelated_file_does_not_bump_counter() {
+        let cache = RuleSetCache::new();
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        let unrelated = dir.path().join("Cargo.toml");
+        std::fs::write(&unrelated, b"# unrelated").unwrap();
+        let hits = cache.invalidate_on_change(&unrelated);
+        assert!(hits.is_empty());
+        assert_eq!(cache.invalidations(), 0);
     }
 
     #[test]
