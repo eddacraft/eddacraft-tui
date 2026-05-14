@@ -1476,17 +1476,33 @@ Source line distinguishes Group L tasks from Group A–K tasks.
     MLP2-014 is visible at startup).
   - `tracing::warn!` on `RuleSetCache::lock` poisoned-recovery
     (Council #C-025).
-  - `DaemonStatusV1` (proto) gains `cache_entries: u32` +
-    `cache_invalidations_total: u64` + `in_flight_evaluations: u8`
-    fields; the `query_status` IPC handler reads them; the CLI
-    renderer surfaces them.
+  - `DaemonStatusV1` (proto) gains
+    `cache_entries: Option<u32>` +
+    `cache_invalidations_total: Option<u64>` +
+    `in_flight_evaluations: Option<u8>` fields, **each annotated
+    with `#[serde(default, skip_serializing_if = "Option::is_none")]`
+    matching the precedent set by
+    `ScanBufferResponse.rules_sha` in MLP2-002**. The optional
+    shape preserves forward-compat: a newer consumer parsing a
+    v1-only payload (older daemon that has not been upgraded yet)
+    sees `None`; an older consumer parsing the new payload ignores
+    the unknown keys cleanly. The `query_status` IPC handler reads
+    the underlying counters and emits `Some(...)`; the CLI
+    renderer surfaces them when present and omits the row when
+    absent (Council #C-016 / PR #1526 review).
 - **Files:**
   `crates/anvil-intercept/src/{rule_cache,midedit,watcher,status}.rs`,
   `crates/anvil-intercept-proto/src/status.rs`,
   `crates/anvil-cli/src/commands/status.rs` (renderer).
 - **Validation:** Integration test capturing a tracing subscriber
   asserts the expected event shape; `anvil intercept status --json`
-  surfaces the new fields; the renderer formats them.
+  surfaces the new fields; the renderer formats them. **Wire-compat
+  test:** a v1-shaped payload (no new fields) round-trips through
+  the new `DaemonStatusV1` deserialiser without error; a payload
+  carrying the new fields round-trips through a hypothetical v1-only
+  deserialiser that does not declare them (using
+  `#[serde(deny_unknown_fields)]` *must remain off* on every
+  consumer; assert in the test).
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP2-001, MLP2-002
@@ -1526,31 +1542,66 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 - **Status:** Draft
 - **Intent:** `anvil-config::parse_file` dispatches `.anvil.yaml` /
-  `.yml` through `serde_yaml 0.9.34+deprecated` with no recursion-
-  depth or alias-expansion limit. The MLP2-001 cache resolver
-  invokes the parser on every cache miss, materially increasing
-  the rate at which untrusted YAML is parsed. Pre-empt the YAML
-  billion-laughs / deeply-nested-mapping family of attacks.
+  `.yml` through `serde_yaml 0.9.34+deprecated` straight into a
+  `serde_json::Value`. The crate has no recursion-depth limit and
+  expands YAML aliases (`&anchor` / `*anchor`) during deserialisation,
+  so a post-parse depth walk runs only after the alias graph has
+  already been materialised in memory — which is exactly the
+  billion-laughs damage. The MLP2-001 cache resolver invokes the
+  parser on every cache miss, materially increasing the rate at
+  which untrusted YAML is parsed. Defend against billion-laughs /
+  deeply-nested-mapping attacks **at parse time**, not after
+  (Council #C-023b clarified PR #1526 review).
 - **Expected Outcome:**
   - Pre-parse size cap on `.anvil.*` files (1 MiB) via
     `std::fs::metadata` check before `read_to_string`.
-  - Post-parse depth walk on the resulting `serde_json::Value`;
-    reject documents whose nested depth exceeds 32.
-  - Cap is enforced in both `anvil-config::parse_file` and as a
-    fast path in `crate::rule_cache::resolve_for_worktree`.
-  - Migration spike: evaluate `serde_yaml_ng` /
-    `serde-yaml-bw` (maintained successors) and record the
-    decision under an ADR-level note.
+  - **Parse-time alias-expansion defence**, picked from one of
+    (decision recorded in the ADR-level note below):
+    1. **Reject aliases outright** — the simplest fix. Run a
+       streaming YAML lexer pass (e.g. `yaml-rust` event-stream
+       or `saphyr-parser`) before handing bytes to `serde_yaml`;
+       if any `*alias` token appears, fail with
+       `ParseError::AliasNotPermitted`. `.anvil.*` configs are
+       hand-edited and small; no operator needs anchors.
+    2. **Cap alias-expansion cost** — pre-parse the document into
+       a YAML event stream, count anchor refs, reject if the
+       expansion-product would exceed (say) 64 KiB worth of
+       nodes. Lets benign anchors through; more code.
+  - A *secondary* post-parse depth walk on the resulting
+    `serde_json::Value` rejects documents whose nested depth
+    exceeds 32. This is defence-in-depth, not the primary control
+    — it catches deeply-nested maps that arrived without aliases.
+  - Caps enforced in `anvil-config::parse_file` (the primary
+    boundary) and as a fast-path size pre-check in
+    `crate::rule_cache::resolve_for_worktree`.
+  - ADR-level note: decide between option (1) and option (2);
+    track migration to `serde_yaml_ng` / `serde-yaml-bw`
+    (maintained successors) which may make alias control easier.
 - **Files:** `crates/anvil-config/src/parse.rs`,
   `crates/anvil-intercept/src/rule_cache.rs` (resolve fast-path).
-- **Validation:** Fuzz fixture: 33-level-deep mapping → parse
-  rejected; 2 MiB file → read rejected; aliased document under 1
-  MiB + depth 32 → parses normally.
+- **Validation:** Fuzz fixtures:
+  - 33-level-deep mapping → `ParseError::DepthExceeded` (rejected
+    before any consumer sees the `Value`).
+  - 2 MiB file → `ParseError::FileTooLarge` (rejected before
+    `read_to_string`).
+  - **Classic billion-laughs payload** (3 KiB on disk, expands
+    to gigabytes) → rejected at parse time, parser does NOT
+    consume gigabytes of memory. This is the primary regression
+    test for the chosen alias defence.
+  - Operator-realistic config (`.anvil.yaml` with `mode: warn`,
+    no anchors) → parses normally.
+  - Under option (1): aliased document of any size →
+    `ParseError::AliasNotPermitted`. Under option (2): a benign
+    aliased document under the expansion-cost cap → parses
+    normally; over-cap → rejected.
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** MLP-011
-- **Source:** Council 2026-05-14 #C-023b (security minor: untrusted
-  YAML parsing surface amplified by the cache resolver).
+- **Source:** Council 2026-05-14 #C-023b (security minor:
+  untrusted YAML parsing surface amplified by the cache
+  resolver). Acceptance plan tightened in PR #1526 review after
+  reviewer flagged that post-parse depth walks run too late to
+  defend against alias-expansion attacks.
 
 ## Stats
 
