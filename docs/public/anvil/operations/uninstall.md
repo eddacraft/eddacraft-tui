@@ -1,7 +1,8 @@
 ---
 id: uninstall
 title: Uninstalling Anvil
-description: How to remove Anvil from a project or machine using anvil uninstall.
+description:
+  How to remove Anvil from a project or machine using anvil uninstall.
 sidebar_position: 5
 ---
 
@@ -45,8 +46,8 @@ anvil uninstall --yes
 
 - `~/.anvil/` — user state directory (project caches, activation markers)
 - MCP server entries from `~/.claude.json` (Claude Code) and
-  `~/.cursor/mcp.json` (Cursor) — Anvil's own entry only; all other entries
-  are preserved
+  `~/.cursor/mcp.json` (Cursor) — Anvil's own entry only; all other entries are
+  preserved
 - Stored authentication credentials
 - The running `anvil-intercept` daemon (SIGTERM, then SIGKILL after one second
   if it does not exit cleanly)
@@ -67,30 +68,30 @@ anvil uninstall --global --keep-mcp
 `anvil uninstall` does not remove the `anvil` binary itself — use the tool you
 installed with:
 
-| Install method | How to remove the binary |
-| -------------- | ------------------------ |
-| Homebrew | `brew uninstall eddacraft/tap/anvil` |
-| Cargo | `cargo uninstall anvil` |
-| curl installer | `rm ~/.eddacraft/bin/anvil` |
-| Winget | `winget uninstall eddacraft.anvil` |
-| Scoop | `scoop uninstall anvil` |
+| Install method | How to remove the binary             |
+| -------------- | ------------------------------------ |
+| Homebrew       | `brew uninstall eddacraft/tap/anvil` |
+| Cargo          | `cargo uninstall anvil`              |
+| curl installer | `rm ~/.eddacraft/bin/anvil`          |
+| Winget         | `winget uninstall eddacraft.anvil`   |
+| Scoop          | `scoop uninstall anvil`              |
 
-Run `anvil uninstall --global` first so any running daemon is stopped before
-you remove the binary.
+Run `anvil uninstall --global` first so any running daemon is stopped before you
+remove the binary.
 
 ## Options reference
 
-| Option | Short | Description |
-| --------------- | ----- | ------------------------------------------------------------------- |
-| `--dry-run` | `-n` | Show what would be removed; make no changes |
-| `--yes` | `-y` | Skip the interactive confirmation prompt |
-| `--global` | | Also remove user-level state, credentials, MCP entries, and daemon |
-| `--keep-mcp` | | Skip MCP config edits even when `--global` is set |
-| `--keep-daemon` | | Do not attempt to stop the running daemon |
-| `--force` | | Continue past per-step errors instead of stopping |
-| `--json` | | Output results as JSON (requires `--yes` for non-dry-run) |
-| `--verbose` | `-v` | Enable verbose logging |
-| `--no-tui` | | Plain-text output; disables TUI rendering |
+| Option          | Short | Description                                                        |
+| --------------- | ----- | ------------------------------------------------------------------ |
+| `--dry-run`     | `-n`  | Show what would be removed; make no changes                        |
+| `--yes`         | `-y`  | Skip the interactive confirmation prompt                           |
+| `--global`      |       | Also remove user-level state, credentials, MCP entries, and daemon |
+| `--keep-mcp`    |       | Skip MCP config edits even when `--global` is set                  |
+| `--keep-daemon` |       | Do not attempt to stop the running daemon                          |
+| `--force`       |       | Continue past per-step errors instead of stopping                  |
+| `--json`        |       | Output results as JSON (requires `--yes` for non-dry-run)          |
+| `--verbose`     | `-v`  | Enable verbose logging                                             |
+| `--no-tui`      |       | Plain-text output; disables TUI rendering                          |
 
 ## Automation and scripting
 
@@ -162,5 +163,6 @@ state.
 ## Further reading
 
 - [Git hook setup](./git-hooks.md) — file mode vs config mode hooks
-- [Troubleshooting](./troubleshooting.md) — stuck daemon and other runtime issues
+- [Troubleshooting](./troubleshooting.md) — stuck daemon and other runtime
+  issues
 - [Quickstart](../quickstart.md) — reinstalling from scratch
