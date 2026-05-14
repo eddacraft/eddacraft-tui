@@ -263,7 +263,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-007: Workspace-crate `license` field lint
 
-- **Status:** Pending
+- **Status:** In Progress
 - **Intent:** Make cargo-about's "no license field" warning a hard error so missing fields can't slip past review.
 - **Expected Outcome:** CI step fails when a workspace crate lacks a `license` (or `license-file`) field. Existing crates already comply (per RUSTNX-009); this prevents regression.
 - **Validation:** Test crate without a `license` field triggers the lint locally and in CI.

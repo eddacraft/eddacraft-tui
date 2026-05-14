@@ -234,11 +234,20 @@ tmp_output="$(mktemp "$output_dir/.generate-acknowledgements.tmp.XXXXXX")"
 # Run cargo-about from the directory containing about.toml so it picks up
 # the config without an explicit flag (cargo-about looks beside the cwd by
 # default for `about.toml`).
+#
+# ATTRIB-007: `--fail` makes cargo-about exit non-zero when a workspace
+# crate is missing the `license` (or `license-file`) field. Without it
+# cargo-about emits a WARN and exits 0, and the crate silently drops out
+# of the generated ACKNOWLEDGEMENTS.md. The script's downstream
+# "empty file" sentinel sometimes catches this by coincidence (when the
+# template yields no output), but that path is fragile and gives an
+# unhelpful error. `--fail` puts the diagnostic at the canonical layer.
 about_dir="$(cd "$(dirname "$config_path_about")" && pwd)"
 (
   cd "$about_dir"
   cargo about generate "$template_path" \
     --manifest-path "$manifest_path" \
+    --fail \
     -o "$tmp_generated"
 )
 

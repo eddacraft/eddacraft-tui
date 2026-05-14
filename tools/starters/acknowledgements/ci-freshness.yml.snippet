@@ -26,3 +26,8 @@ acknowledgements-diff:
           echo "::error::ACKNOWLEDGEMENTS.md is stale. Re-run the generator locally and commit."
           exit 1
         fi
+    # ATTRIB-007 regression guard: standalone fixture test that pins
+    # cargo-about's strict mode (`--fail`). Runs alongside the freshness
+    # check; cheap (sub-second) and self-contained.
+    - name: Strict license-field regression test
+      run: tools/starters/acknowledgements/tests/strict-license-field.sh
