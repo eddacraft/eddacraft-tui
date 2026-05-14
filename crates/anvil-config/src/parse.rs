@@ -4,6 +4,22 @@ use serde_json::Value;
 
 use crate::format::ConfigFormat;
 
+/// MLP2-060: maximum on-disk size for an `.anvil.*` config file, in
+/// bytes. Picked at 1 MiB because a hand-edited project config that
+/// big is almost certainly an authored mistake (or an attempted
+/// resource-exhaustion payload); valid configs are <10 KiB in
+/// practice. The cap fires before `read_to_string`, so a hostile
+/// file never lands in memory.
+pub const MAX_CONFIG_FILE_BYTES: u64 = 1024 * 1024;
+
+/// MLP2-060: maximum allowed nesting depth of the parsed
+/// `serde_json::Value`. Picked at 32 — operator-realistic
+/// `.anvil.*` configs never go deeper than ~6 (top-level →
+/// `enforcement` → `session` → scalar), so 32 leaves ample
+/// headroom while still defending against pathological inputs
+/// that survived the alias-rejection pre-pass.
+pub const MAX_PARSED_DEPTH: usize = 32;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     #[error("io reading {path}: {source}")]
@@ -34,6 +50,38 @@ pub enum ParseError {
     },
     #[error("toml float in {path} is not representable in canonical JSON: {value}")]
     NonFiniteTomlFloat { path: PathBuf, value: f64 },
+    /// MLP2-060: the file exceeds [`MAX_CONFIG_FILE_BYTES`]. Surfaces
+    /// before any parsing so a hostile payload cannot land in memory.
+    #[error(
+        "config file {path} is {size} bytes; exceeds the {cap}-byte limit \
+         (operator configs are <10 KiB in practice)"
+    )]
+    FileTooLarge { path: PathBuf, size: u64, cap: u64 },
+    /// MLP2-060: a YAML alias (`*name`) was found at parse time.
+    /// `.anvil.*` configs are hand-edited; no operator legitimately
+    /// needs anchors and aliases here, so the cheap defence is to
+    /// reject them outright. This eliminates the billion-laughs
+    /// expansion vector before `serde_yaml` materialises the graph.
+    #[error(
+        "yaml in {path} contains an alias / anchor; `.anvil.*` configs \
+         do not support YAML anchors (rewrite without `&`/`*` or use \
+         JSON/TOML instead)"
+    )]
+    AliasNotPermitted { path: PathBuf },
+    /// MLP2-060: the parsed `serde_json::Value` nests deeper than
+    /// [`MAX_PARSED_DEPTH`]. Defence-in-depth against deeply-nested
+    /// payloads that arrived without aliases (operator hand-typing
+    /// something pathological, JSON or TOML inputs that the alias
+    /// check does not apply to).
+    #[error(
+        "parsed config in {path} nests {depth} levels deep; exceeds the \
+         {cap}-level limit"
+    )]
+    DepthExceeded {
+        path: PathBuf,
+        depth: usize,
+        cap: usize,
+    },
 }
 
 /// Parse `contents` as `format` into a `serde_json::Value`.
@@ -41,9 +89,28 @@ pub enum ParseError {
 /// `path` is used only for error annotation — the function never reads
 /// from it. Pass [`Path::new("<inline>")`](std::path::Path::new) when
 /// parsing string literals in tests.
+///
+/// MLP2-060 resource bounds apply uniformly across formats:
+///
+/// 1. **Parse-time alias rejection** (YAML only). The byte scanner in
+///    [`scan_for_yaml_aliases`] rejects any `*alias` or `&anchor`
+///    token before `serde_yaml` materialises the alias graph. This
+///    eliminates the billion-laughs expansion vector at the gate,
+///    not after the damage is done. Documented limitation: the
+///    scanner is conservative — a `&` or `*` in an unquoted scalar
+///    context that genuinely intends a literal will be flagged.
+///    Mitigation: quote the value, or use JSON / TOML for
+///    pathological configs (no project should hit this in
+///    practice).
+/// 2. **Post-parse depth cap** (every format). Applied after a
+///    successful parse via [`enforce_depth_cap`]. Catches a
+///    deeply-nested JSON / TOML that arrived without YAML
+///    aliases, or a hand-typed pathology.
 pub fn parse_str(contents: &str, format: ConfigFormat, path: &Path) -> Result<Value, ParseError> {
-    match format {
+    let parsed = match format {
         ConfigFormat::Yaml | ConfigFormat::Yml => {
+            // MLP2-060 step 1: reject aliases at the gate.
+            scan_for_yaml_aliases(contents, path)?;
             // `serde_yaml::from_str::<Value>` deserialises straight to a
             // JSON value because both crates share the same intermediate
             // shape for scalar/map/seq. yaml-specific types (Tagged
@@ -52,12 +119,14 @@ pub fn parse_str(contents: &str, format: ConfigFormat, path: &Path) -> Result<Va
             serde_yaml::from_str(contents).map_err(|source| ParseError::Yaml {
                 path: path.to_path_buf(),
                 source,
-            })
+            })?
         }
-        ConfigFormat::Json => serde_json::from_str(contents).map_err(|source| ParseError::Json {
-            path: path.to_path_buf(),
-            source,
-        }),
+        ConfigFormat::Json => {
+            serde_json::from_str(contents).map_err(|source| ParseError::Json {
+                path: path.to_path_buf(),
+                source,
+            })?
+        }
         ConfigFormat::Toml => {
             // toml -> toml::Value -> serde_json::Value. The double-parse
             // is the simplest path that preserves toml's stricter type
@@ -68,21 +137,161 @@ pub fn parse_str(contents: &str, format: ConfigFormat, path: &Path) -> Result<Va
                     path: path.to_path_buf(),
                     source,
                 })?;
-            toml_value_to_json(&toml_value, path)
+            toml_value_to_json(&toml_value, path)?
         }
+    };
+    // MLP2-060 step 2: post-parse depth-cap. Runs on every format
+    // so a deeply-nested JSON / TOML payload that bypassed the
+    // YAML-only alias check still surfaces a typed error.
+    enforce_depth_cap(&parsed, path)?;
+    Ok(parsed)
+}
+
+/// MLP2-060: scan `contents` for YAML alias (`*name`) / anchor
+/// (`&name`) tokens at value positions, rejecting if any are found.
+///
+/// The scanner walks bytes left-to-right tracking three contexts:
+///
+/// - inside a `"..."` double-quoted scalar
+/// - inside a `'...'` single-quoted scalar
+/// - inside a `#` comment (until newline)
+///
+/// While in any of those contexts, `&` / `*` bytes are scalar
+/// content and ignored. Outside, the scanner looks for `&` or `*`
+/// followed by `[A-Za-z0-9_-]` — the YAML alias-name production —
+/// and returns [`ParseError::AliasNotPermitted`] on the first hit.
+///
+/// **Conservative on purpose.** A `*` operator in a flow-style
+/// numeric scalar (`value: 5*3`) or `&` in an unquoted email-like
+/// string would false-positive. `.anvil.*` configs are simple
+/// key/value/list YAML; the conservative scanner is fine in
+/// practice, and operators with a legitimate need can switch the
+/// file to JSON or TOML (also recognised by `discover()`).
+pub fn scan_for_yaml_aliases(contents: &str, path: &Path) -> Result<(), ParseError> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Ctx {
+        Body,
+        DoubleQuote,
+        SingleQuote,
+        Comment,
+    }
+    let mut ctx = Ctx::Body;
+    let bytes = contents.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        match ctx {
+            Ctx::Body => {
+                if b == b'#' {
+                    ctx = Ctx::Comment;
+                } else if b == b'"' {
+                    ctx = Ctx::DoubleQuote;
+                } else if b == b'\'' {
+                    ctx = Ctx::SingleQuote;
+                } else if (b == b'&' || b == b'*') && {
+                    let next = bytes.get(i + 1).copied().unwrap_or(0);
+                    next.is_ascii_alphanumeric() || next == b'_' || next == b'-'
+                } {
+                    return Err(ParseError::AliasNotPermitted {
+                        path: path.to_path_buf(),
+                    });
+                }
+            }
+            Ctx::DoubleQuote => {
+                // YAML double-quoted scalars honour backslash escapes;
+                // skip the next byte after `\` so an escaped `\"`
+                // does not terminate the string.
+                if b == b'\\' {
+                    i += 2;
+                    continue;
+                }
+                if b == b'"' {
+                    ctx = Ctx::Body;
+                }
+            }
+            Ctx::SingleQuote => {
+                // YAML single-quoted scalars use `''` to escape an
+                // embedded apostrophe — they do NOT honour backslash.
+                if b == b'\'' {
+                    ctx = Ctx::Body;
+                }
+            }
+            Ctx::Comment => {
+                if b == b'\n' {
+                    ctx = Ctx::Body;
+                }
+            }
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
+/// MLP2-060: refuse parsed values nested deeper than
+/// [`MAX_PARSED_DEPTH`].
+pub fn enforce_depth_cap(value: &Value, path: &Path) -> Result<(), ParseError> {
+    fn walk(value: &Value, depth: usize, max: usize) -> Result<usize, usize> {
+        if depth > max {
+            return Err(depth);
+        }
+        match value {
+            Value::Object(map) => {
+                let mut deepest = depth;
+                for v in map.values() {
+                    deepest = deepest.max(walk(v, depth + 1, max)?);
+                }
+                Ok(deepest)
+            }
+            Value::Array(items) => {
+                let mut deepest = depth;
+                for v in items {
+                    deepest = deepest.max(walk(v, depth + 1, max)?);
+                }
+                Ok(deepest)
+            }
+            _ => Ok(depth),
+        }
+    }
+    match walk(value, 1, MAX_PARSED_DEPTH) {
+        Ok(_) => Ok(()),
+        Err(depth) => Err(ParseError::DepthExceeded {
+            path: path.to_path_buf(),
+            depth,
+            cap: MAX_PARSED_DEPTH,
+        }),
     }
 }
 
 /// Parse the file at `path` according to its extension.
 ///
-/// Combines [`ConfigFormat::from_path`] + read + [`parse_str`] in the
-/// expected order so callers don't have to assemble the trio
-/// themselves.
+/// Combines [`ConfigFormat::from_path`] + size-cap check + read +
+/// [`parse_str`] in the expected order so callers don't have to
+/// assemble the trio themselves.
+///
+/// MLP2-060: the size of the file is checked via `fs::metadata`
+/// before `read_to_string` so a hostile payload never lands in
+/// memory. Files over [`MAX_CONFIG_FILE_BYTES`] surface as
+/// [`ParseError::FileTooLarge`].
 pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
     let format =
         ConfigFormat::from_path(path).ok_or_else(|| ParseError::UnrecognisedExtension {
             path: path.to_path_buf(),
         })?;
+    // MLP2-060: size cap fires before we read the file contents.
+    // `fs::metadata` walks the directory entry rather than the file
+    // body, so the check itself costs effectively nothing on top of
+    // the open that `read_to_string` already needs.
+    let metadata = std::fs::metadata(path).map_err(|source| ParseError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if metadata.len() > MAX_CONFIG_FILE_BYTES {
+        return Err(ParseError::FileTooLarge {
+            path: path.to_path_buf(),
+            size: metadata.len(),
+            cap: MAX_CONFIG_FILE_BYTES,
+        });
+    }
     let contents = std::fs::read_to_string(path).map_err(|source| ParseError::Io {
         path: path.to_path_buf(),
         source,
@@ -305,5 +514,167 @@ mod tests {
         )
         .unwrap();
         assert_eq!(v, json!({"ts": "2026-05-13T12:00:00Z"}));
+    }
+
+    // ── MLP2-060 — YAML resource bounds ────────────────────────────
+
+    use tempfile::TempDir;
+
+    /// MLP2-060: a hand-crafted billion-laughs payload (~200 bytes,
+    /// would expand to gigabytes under unbounded alias-resolution)
+    /// is rejected at the alias-scanner gate **before** `serde_yaml`
+    /// materialises the graph. This is the headline test the spec
+    /// called for — pinning the primary attack surface.
+    #[test]
+    fn billion_laughs_payload_is_rejected_at_alias_scanner() {
+        // Classic YAML billion-laughs structure. Each `*aN` reference
+        // would expand to the previous level's content; nine nested
+        // levels yield ~9^9 ≈ 400 million leaf nodes when expanded.
+        let payload = "\
+a0: &a0 [lol]
+a1: &a1 [*a0, *a0, *a0, *a0, *a0, *a0, *a0, *a0, *a0]
+a2: &a2 [*a1, *a1, *a1, *a1, *a1, *a1, *a1, *a1, *a1]
+a3: &a3 [*a2, *a2, *a2, *a2, *a2, *a2, *a2, *a2, *a2]
+a4: &a4 [*a3, *a3, *a3, *a3, *a3, *a3, *a3, *a3, *a3]
+";
+        let err = parse_str(payload, ConfigFormat::Yaml, Path::new("billion.yaml"))
+            .expect_err("billion-laughs payload must be rejected");
+        match err {
+            ParseError::AliasNotPermitted { path } => {
+                assert_eq!(path, PathBuf::from("billion.yaml"));
+            }
+            other => panic!("expected AliasNotPermitted, got {other:?}"),
+        }
+    }
+
+    /// MLP2-060: a single anchor declaration is rejected even
+    /// without any alias references. The anchor itself is the entry
+    /// point to the expansion vector — refusing both halves keeps
+    /// the rule simple.
+    #[test]
+    fn yaml_anchor_alone_is_rejected() {
+        let payload = "anchor: &a foo\n";
+        let err = parse_str(payload, ConfigFormat::Yaml, Path::new("x.yaml"))
+            .expect_err("&-anchor must be rejected");
+        assert!(matches!(err, ParseError::AliasNotPermitted { .. }));
+    }
+
+    /// MLP2-060: a single alias reference is rejected.
+    #[test]
+    fn yaml_alias_alone_is_rejected() {
+        let payload = "ref: *a\n";
+        let err = parse_str(payload, ConfigFormat::Yaml, Path::new("x.yaml"))
+            .expect_err("*-alias must be rejected");
+        assert!(matches!(err, ParseError::AliasNotPermitted { .. }));
+    }
+
+    /// MLP2-060: `&` / `*` bytes inside double-quoted strings are
+    /// scalar content, not anchors / aliases — the scanner correctly
+    /// treats them as data.
+    #[test]
+    fn ampersand_or_star_inside_double_quoted_string_is_accepted() {
+        let payload = "url: \"https://example.com/a&b=*\"\n";
+        let v = parse_str(payload, ConfigFormat::Yaml, Path::new("x.yaml")).unwrap();
+        assert_eq!(v, json!({"url": "https://example.com/a&b=*"}));
+    }
+
+    /// MLP2-060: `&` / `*` inside single-quoted strings are also
+    /// scalar content. Single-quote escaping is `''` for an
+    /// embedded apostrophe, not backslash.
+    #[test]
+    fn ampersand_or_star_inside_single_quoted_string_is_accepted() {
+        let payload = "label: 'a&b *foo'\n";
+        let v = parse_str(payload, ConfigFormat::Yaml, Path::new("x.yaml")).unwrap();
+        assert_eq!(v, json!({"label": "a&b *foo"}));
+    }
+
+    /// MLP2-060: `&` / `*` inside comments are scanner-invisible.
+    #[test]
+    fn ampersand_or_star_inside_comment_is_accepted() {
+        let payload = "mode: warn # see &a or *b for context\n";
+        let v = parse_str(payload, ConfigFormat::Yaml, Path::new("x.yaml")).unwrap();
+        assert_eq!(v, json!({"mode": "warn"}));
+    }
+
+    /// MLP2-060: an operator-realistic `.anvil.yaml` (no anchors,
+    /// no aliases) parses cleanly through the new gate.
+    #[test]
+    fn operator_realistic_yaml_passes_alias_scanner() {
+        let payload = "\
+enforcement:
+  mode: warn
+  session:
+    per_worktree_max: 8
+telemetry:
+  allow_cross_session: false
+";
+        let v = parse_str(payload, ConfigFormat::Yaml, Path::new("anvil.yaml")).unwrap();
+        assert_eq!(v["enforcement"]["mode"], "warn");
+        assert_eq!(v["enforcement"]["session"]["per_worktree_max"], 8);
+    }
+
+    /// MLP2-060: a >1 MiB file is rejected by `parse_file` BEFORE
+    /// `read_to_string`. The cap fires at the `fs::metadata` check.
+    #[test]
+    fn parse_file_rejects_oversized_payload() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("huge.json");
+        // 1 MiB + 1 byte of valid JSON. Use a long string value so
+        // the file parses as JSON if the size check weren't there.
+        // Cast through `usize::try_from` to keep clippy happy on the
+        // unlikely 32-bit target; the cap fits in `usize` everywhere
+        // anvil-config builds.
+        let pad = usize::try_from(MAX_CONFIG_FILE_BYTES + 16).expect("cap fits in usize");
+        let body = format!("{{\"x\":\"{}\"}}", "a".repeat(pad));
+        std::fs::write(&path, &body).unwrap();
+        let err = parse_file(&path).expect_err("oversized payload must be rejected");
+        match err {
+            ParseError::FileTooLarge { size, cap, .. } => {
+                assert!(size > cap);
+                assert_eq!(cap, MAX_CONFIG_FILE_BYTES);
+            }
+            other => panic!("expected FileTooLarge, got {other:?}"),
+        }
+    }
+
+    /// MLP2-060: a JSON / TOML payload nested past `MAX_PARSED_DEPTH`
+    /// is rejected at the post-parse depth-walk. JSON / TOML don't
+    /// have aliases, so this is the only defence for those formats.
+    #[test]
+    fn deeply_nested_json_is_rejected_by_depth_cap() {
+        // Build a 40-deep JSON object: `{"k":{"k":{...{"k":1}...}}}`.
+        let mut payload = String::new();
+        for _ in 0..40 {
+            payload.push_str("{\"k\":");
+        }
+        payload.push('1');
+        for _ in 0..40 {
+            payload.push('}');
+        }
+        let err = parse_str(&payload, ConfigFormat::Json, Path::new("deep.json"))
+            .expect_err("depth cap must fire");
+        match err {
+            ParseError::DepthExceeded { depth, cap, .. } => {
+                assert!(depth > cap);
+                assert_eq!(cap, MAX_PARSED_DEPTH);
+            }
+            other => panic!("expected DepthExceeded, got {other:?}"),
+        }
+    }
+
+    /// MLP2-060: depth-cap accepts a payload at the limit.
+    #[test]
+    fn depth_at_cap_is_accepted() {
+        // 30 levels — well under the 32 cap.
+        let mut payload = String::new();
+        for _ in 0..30 {
+            payload.push_str("{\"k\":");
+        }
+        payload.push('1');
+        for _ in 0..30 {
+            payload.push('}');
+        }
+        parse_str(&payload, ConfigFormat::Json, Path::new("ok.json"))
+            .expect("under-cap depth must parse");
     }
 }
