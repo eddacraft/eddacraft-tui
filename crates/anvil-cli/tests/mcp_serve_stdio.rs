@@ -176,6 +176,7 @@ fn mcp_serve_stdio_ready_notification_does_not_emit_response() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // end-to-end flow: setup + initialize + tools/list + parse + assertions
 fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");

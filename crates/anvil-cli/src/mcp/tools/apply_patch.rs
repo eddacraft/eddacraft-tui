@@ -5,7 +5,9 @@ use serde_json::{Value, json};
 
 use crate::mcp::enforcement::{self, EnforcementMode};
 use crate::mcp::tools::shared::validate_workspace_root;
-use crate::mcp::tools::validate_write::{correlation_id, diagnostic_summary, normalise_response_diagnostics};
+use crate::mcp::tools::validate_write::{
+    correlation_id, diagnostic_summary, normalise_response_diagnostics,
+};
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, LocalDaemonValidationClient, PreWriteValidationRequest,
     ValidationBackend, ValidationBackendFailure, validate_pre_write,
@@ -79,7 +81,11 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn call_with_workspace(arguments: &Value, default_workspace_root: &Path) -> Value {
-    call_with_validation_client(arguments, default_workspace_root, &LocalDaemonValidationClient)
+    call_with_validation_client(
+        arguments,
+        default_workspace_root,
+        &LocalDaemonValidationClient,
+    )
 }
 
 fn call_with_validation_client(
@@ -90,7 +96,11 @@ fn call_with_validation_client(
     let request = match ApplyPatchRequest::parse(arguments, default_workspace_root) {
         Ok(request) => request,
         Err(message) => {
-            return tool_result(&input_error_payload(&message, "<unknown>", EnforcementMode::Block));
+            return tool_result(&input_error_payload(
+                &message,
+                "<unknown>",
+                EnforcementMode::Block,
+            ));
         }
     };
 
@@ -265,10 +275,8 @@ fn resolve_workspace_root(
         None => default_workspace_root
             .canonicalize()
             .map_err(|err| format!("MCP server cwd is not accessible: {err}")),
-        Some(root) => {
-            validate_workspace_root(Path::new(root), default_workspace_root)
-                .map(|(_, workspace)| workspace)
-        }
+        Some(root) => validate_workspace_root(Path::new(root), default_workspace_root)
+            .map(|(_, workspace)| workspace),
     }
 }
 
@@ -303,7 +311,9 @@ fn normalise_relative_path(path: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::validation::{DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest};
+    use crate::mcp::validation::{
+        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
+    };
     use serde_json::json;
     use tempfile::tempdir;
 
@@ -329,7 +339,9 @@ mod tests {
             },
         );
         assert_eq!(result["content"][0]["type"], "text");
-        let text = result["content"][0]["text"].as_str().expect("tool result text");
+        let text = result["content"][0]["text"]
+            .as_str()
+            .expect("tool result text");
         serde_json::from_str(text).expect("tool result JSON")
     }
 
@@ -431,7 +443,8 @@ mod tests {
 
     #[test]
     fn extract_added_lines_ignores_removed_and_context() {
-        let diff = "--- a/f.ts\n+++ b/f.ts\n@@ -1,3 +1,3 @@\n context\n-removed\n+added\n context2\n";
+        let diff =
+            "--- a/f.ts\n+++ b/f.ts\n@@ -1,3 +1,3 @@\n context\n-removed\n+added\n context2\n";
         assert_eq!(super::extract_added_lines(diff), "added");
     }
 

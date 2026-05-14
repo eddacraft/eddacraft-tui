@@ -320,6 +320,11 @@ fn validation_payload(
     )
 }
 
+// Eight related fields, all part of the `anvil.mcp.validate-write.v1`
+// response envelope; folding them into a struct would just move the
+// argument count to that struct's constructor without simplifying the
+// shape.
+#[allow(clippy::too_many_arguments)]
 fn validation_payload_with_decision(
     path: &str,
     diagnostics: &[Diagnostic],
