@@ -38,6 +38,11 @@ pub struct VersionArgs {
     /// Requires network unless `--offline`. When offline, advisories
     /// are reported as `unavailable` rather than empty so the user
     /// knows the absence is not a positive result. See DISTRIB-002.
+    ///
+    /// `anvil status` and the watch TUI also probe for the same
+    /// hint on every invocation (rate-limited to once per 24h per
+    /// advertised version). Opt out of that ambient probe with
+    /// `ANVIL_DISABLE_UPDATE_HINT=1` in the environment.
     #[arg(long)]
     pub check: bool,
 }
@@ -560,7 +565,11 @@ pub fn parse_advisory_tags(release_body: &str) -> Vec<AdvisoryTag> {
         let _ = rest; // explicit drop — `lower` only used for prefix detection
         let trimmed = rest_original.trim();
         let (id, summary) = split_id_and_summary(trimmed);
-        if id.is_empty() {
+        if !is_recognised_advisory_id(id) {
+            // Reject lines like `Security-Advisory: see our linked
+            // security policy` — they contain the prefix but no
+            // actionable advisory identifier. Surfaces would render
+            // them as malformed IDs in the red advisory style.
             continue;
         }
         if out.iter().any(|adv| adv.id == id) {
@@ -572,6 +581,22 @@ pub fn parse_advisory_tags(release_body: &str) -> Vec<AdvisoryTag> {
         });
     }
     out
+}
+
+/// True when `id` looks like a recognised security-advisory identifier.
+/// Anchored to the three schemes the spec mentions (`GHSA-`, `CVE-`,
+/// `RUSTSEC-`) so prose lines that happen to start with
+/// `Security-Advisory:` don't get parsed as advisories. Comparison is
+/// case-insensitive on the prefix; the rest must contain only
+/// digits, ASCII letters, and dashes — characters present in every
+/// real GHSA/CVE/RUSTSEC identifier.
+fn is_recognised_advisory_id(id: &str) -> bool {
+    let upper = id.to_ascii_uppercase();
+    let known = ["GHSA-", "CVE-", "RUSTSEC-"];
+    if !known.iter().any(|prefix| upper.starts_with(prefix)) {
+        return false;
+    }
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
 fn split_id_and_summary(s: &str) -> (&str, &str) {
@@ -1138,6 +1163,30 @@ Security-Advisory: GHSA-aaaa-bbbb-cccc: second mention
         let advisories = parse_advisory_tags(body);
         assert_eq!(advisories.len(), 1);
         assert_eq!(advisories[0].id, "GHSA-aaaa-bbbb-cccc");
+    }
+
+    #[test]
+    fn parse_advisory_tags_rejects_prose_after_prefix() {
+        // Council MAJOR: a release body where someone wrote
+        // `Security-Advisory: see our linked security policy` must
+        // not register "see our linked security policy" as an
+        // advisory ID. Only GHSA / CVE / RUSTSEC identifiers count.
+        let body = "Security-Advisory: see our linked security policy for details\n";
+        assert!(parse_advisory_tags(body).is_empty());
+    }
+
+    #[test]
+    fn parse_advisory_tags_rejects_unknown_scheme() {
+        let body = "Security-Advisory: OWNTRACKER-12345-XYZ\n";
+        assert!(parse_advisory_tags(body).is_empty());
+    }
+
+    #[test]
+    fn parse_advisory_tags_rejects_id_with_spaces() {
+        // `is_recognised_advisory_id` requires alphanumerics + dashes;
+        // an embedded space disqualifies even a GHSA-looking prefix.
+        let body = "Security-Advisory: GHSA-aaaa bbbb-cccc\n";
+        assert!(parse_advisory_tags(body).is_empty());
     }
 
     // ─── Advisory probe wiring ───────────────────────────────────

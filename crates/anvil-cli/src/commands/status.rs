@@ -42,8 +42,16 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // are tooling, not humans, and consume the underlying
     // `anvil version --check` output directly. The hint is opt-out
     // via env var so a noisy CI does not have to add a flag everywhere.
+    //
+    // `include_advisories: true` so the hint names any
+    // `Security-Advisory: GHSA-…` tag attached to the running
+    // version's release body — the spec explicitly requires this
+    // ("explicitly names any advisory tag attached to the running
+    // version"). The second probe shares the same 3s timeout as the
+    // latest-version probe; worst-case cold-start cost is 6s on a
+    // dead network, capped at one hit per 24h by the rate-limit gate.
     if !global.json && std::env::var_os("ANVIL_DISABLE_UPDATE_HINT").is_none() {
-        data.update_hint = crate::commands::version::compute_update_hint(false);
+        data.update_hint = crate::commands::version::compute_update_hint(true);
     }
 
     if global.json {

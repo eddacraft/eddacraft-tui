@@ -1025,8 +1025,14 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         // 24h rate-limit keeps repeated `anvil watch` invocations from
         // re-printing the same line every restart. Opt-out via
         // `ANVIL_DISABLE_UPDATE_HINT=1`.
+        //
+        // `include_advisories: true` so the hint names any
+        // `Security-Advisory: GHSA-…` tag attached to the running
+        // version per the DISTRIB-002 spec. Long-running watch
+        // sessions keep the first-frame value — the hint does not
+        // re-probe mid-session.
         let update_hint = if std::env::var_os("ANVIL_DISABLE_UPDATE_HINT").is_none() {
-            crate::commands::version::compute_update_hint(false)
+            crate::commands::version::compute_update_hint(true)
         } else {
             None
         };

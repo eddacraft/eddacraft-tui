@@ -28,16 +28,21 @@ impl UpdateHint {
     /// Format the hint as the single line both surfaces render. Kept
     /// here (not in render.rs) so the watch and status renders cannot
     /// drift on wording.
+    ///
+    /// ASCII-only — the watch TUI claims ASCII output to survive
+    /// Windows cp1252 consoles and CI log captures (see comment on
+    /// `render_update_hint` in watch/render.rs). Use `->` not `→`,
+    /// `--` not `—`.
     #[must_use]
     pub fn render_line(&self) -> String {
         if self.advisory_ids.is_empty() {
             format!(
-                "Update available: anvil {} → {} (run `anvil update`)",
+                "Update available: anvil {} -> {} (run `anvil update`)",
                 self.current_version, self.latest_version
             )
         } else {
             format!(
-                "Update available: anvil {} → {} — security advisory: {} (run `anvil update`)",
+                "Update available: anvil {} -> {} -- security advisory: {} (run `anvil update`)",
                 self.current_version,
                 self.latest_version,
                 self.advisory_ids.join(", "),
@@ -89,5 +94,23 @@ mod tests {
         };
         let line = hint.render_line();
         assert!(line.contains("GHSA-aaaa, CVE-2026-1234"));
+    }
+
+    #[test]
+    fn render_line_is_pure_ascii() {
+        // The watch surface claims ASCII output for Windows cp1252
+        // safety. The arrow / dash characters in the rendered line
+        // must stay encodable in cp1252 (which excludes U+2192 `→`
+        // and U+2014 `—`).
+        let hint = UpdateHint {
+            latest_version: "0.7.0-beta".into(),
+            current_version: "0.6.2-beta".into(),
+            advisory_ids: vec!["GHSA-aaaa".into()],
+        };
+        let line = hint.render_line();
+        assert!(
+            line.is_ascii(),
+            "hint line contains non-ASCII chars: {line:?}"
+        );
     }
 }
