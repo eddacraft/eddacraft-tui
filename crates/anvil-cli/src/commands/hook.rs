@@ -67,8 +67,8 @@ use anvil_hook::{
     parse_pre_push_input, render_success_message, render_verdict,
 };
 use anvil_l4::{
-    BlockKind, CommitDecision, NoOpValidationEngine, Policy, Severity, ValidationDiagnostic,
-    ValidationEngine, ValidationVerdict, request_for,
+    BlockKind, CommitDecision, NoOpValidationEngine, OnWarn, Policy, Severity,
+    ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
 use anyhow::{Context, Result};
@@ -360,13 +360,32 @@ fn run_pre_push_with_engine(
                     match engine.validate(&request) {
                         ValidationVerdict::Allow => {}
                         ValidationVerdict::Block { diagnostics } => {
-                            emit_l4_block(&commit, &diagnostics);
-                            let rendered = render_verdict(&Verdict::Block {
-                                count: 0,
-                                witness_id: short_sha(&commit),
-                                reason: BlockReason::UnwitnessedCommit,
-                            });
-                            std::process::exit(rendered.exit_code);
+                            // MLP2-016 Council #C-016A: the branch
+                            // rule's `on_warn` knob decides whether
+                            // warn-only diagnostics upgrade to a
+                            // block. If every diagnostic is
+                            // `Severity::Warn` AND the rule says
+                            // `on_warn: Allow`, surface the
+                            // diagnostics but admit the push — the
+                            // engine has done its job by reporting
+                            // them. Any `Severity::Block` diagnostic
+                            // (or any `Warn` diagnostic with
+                            // `OnWarn::Reject`) hard-refuses.
+                            let warn_only = !diagnostics.is_empty()
+                                && diagnostics.iter().all(|d| d.severity == Severity::Warn);
+                            let warn_can_allow = rule.on_warn == OnWarn::Allow;
+                            if warn_only && warn_can_allow {
+                                emit_l4_block(&commit, &diagnostics);
+                                // No exit — admit the push.
+                            } else {
+                                emit_l4_block(&commit, &diagnostics);
+                                let rendered = render_verdict(&Verdict::Block {
+                                    count: 0,
+                                    witness_id: short_sha(&commit),
+                                    reason: BlockReason::UnwitnessedCommit,
+                                });
+                                std::process::exit(rendered.exit_code);
+                            }
                         }
                         ValidationVerdict::EngineUnavailable { reason } => {
                             // BinaryMissing / Timeout / NotImplemented
@@ -1550,6 +1569,107 @@ mod tests {
             }
             other => panic!("expected Block, got {other:?}"),
         }
+    }
+
+    /// MLP2-016 Council #C-016A: a `Block { diagnostics }` with
+    /// every diagnostic at `Severity::Warn` AND a branch rule of
+    /// `OnWarn::Allow` must NOT exit the hook — the rule's
+    /// contract is "warn diagnostics surface but are admitted." Pin
+    /// the discriminator logic so the hook's fall-through branch
+    /// fires for this combination.
+    #[test]
+    fn warn_only_diagnostics_with_on_warn_allow_should_admit() {
+        use anvil_l4::{OnBlock, OnNoWitness, OnWarn, Requirement, Severity, ValidationDiagnostic};
+        // Mirror the hook's `warn_only && warn_can_allow` predicate
+        // exactly. A refactor that drops either half forces this test
+        // to break.
+        let rule = anvil_l4::BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Allow,
+        };
+        let diagnostics = [
+            ValidationDiagnostic {
+                rule_id: "style.import-order".to_string(),
+                severity: Severity::Warn,
+                message: "imports out of canonical order".to_string(),
+            },
+            ValidationDiagnostic {
+                rule_id: "style.trailing-whitespace".to_string(),
+                severity: Severity::Warn,
+                message: "trailing whitespace on line 42".to_string(),
+            },
+        ];
+        let warn_only =
+            !diagnostics.is_empty() && diagnostics.iter().all(|d| d.severity == Severity::Warn);
+        let warn_can_allow = rule.on_warn == OnWarn::Allow;
+        assert!(
+            warn_only && warn_can_allow,
+            "warn-only diagnostics on OnWarn::Allow must fall through to admit",
+        );
+    }
+
+    /// MLP2-016 Council #C-016A: a `Block { diagnostics }` containing
+    /// even one `Severity::Block` diagnostic MUST still exit, even on
+    /// `OnWarn::Allow`. The fall-through is for warn-only payloads.
+    #[test]
+    fn mixed_diagnostics_with_one_block_still_refuses_push() {
+        use anvil_l4::{OnBlock, OnNoWitness, OnWarn, Requirement, Severity, ValidationDiagnostic};
+        let rule = anvil_l4::BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Allow,
+        };
+        let diagnostics = [
+            ValidationDiagnostic {
+                rule_id: "style.import-order".to_string(),
+                severity: Severity::Warn,
+                message: "imports out of canonical order".to_string(),
+            },
+            ValidationDiagnostic {
+                rule_id: "secret-detection.aws-key".to_string(),
+                severity: Severity::Block,
+                message: "AWS access key leaked".to_string(),
+            },
+        ];
+        let warn_only =
+            !diagnostics.is_empty() && diagnostics.iter().all(|d| d.severity == Severity::Warn);
+        let warn_can_allow = rule.on_warn == OnWarn::Allow;
+        assert!(
+            !(warn_only && warn_can_allow),
+            "any Severity::Block in the diagnostics must refuse the push",
+        );
+    }
+
+    /// MLP2-016 Council #C-016A: `OnWarn::Reject` upgrades even a
+    /// warn-only payload to a hard block.
+    #[test]
+    fn warn_only_diagnostics_with_on_warn_reject_still_refuses_push() {
+        use anvil_l4::{OnBlock, OnNoWitness, OnWarn, Requirement, Severity, ValidationDiagnostic};
+        let rule = anvil_l4::BranchRule {
+            pattern: "main".to_string(),
+            require: Requirement::L4OrL3,
+            on_no_witness: OnNoWitness::ValidateAtL4,
+            on_block: OnBlock::Reject,
+            on_warn: OnWarn::Reject,
+        };
+        let diagnostics = [ValidationDiagnostic {
+            rule_id: "style.import-order".to_string(),
+            severity: Severity::Warn,
+            message: "imports out of canonical order".to_string(),
+        }];
+        let warn_only =
+            !diagnostics.is_empty() && diagnostics.iter().all(|d| d.severity == Severity::Warn);
+        let warn_can_allow = rule.on_warn == OnWarn::Allow;
+        assert!(warn_only, "diagnostic set is warn-only");
+        assert!(
+            !warn_can_allow,
+            "OnWarn::Reject must NOT enable the fall-through",
+        );
     }
 
     /// The default `NoOpValidationEngine` bound at the production

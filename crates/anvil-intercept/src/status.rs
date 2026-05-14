@@ -439,7 +439,12 @@ pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> Prote
     }
 
     let ipc_draining = matches!(snapshot.health.ipc_state, IpcState::Draining);
-    let all_fenced = worktree_entries.iter().all(|w| w.fenced);
+    // Spec §14.2 names `DegradedProtection` for "above states with ≥1
+    // surface degraded" — the per-worktree state collapses any-fenced
+    // and all-fenced into the same `DegradedProtection` claim, with
+    // the distinction surfacing through per-surface `Quarantined`
+    // entries below. So `any_fenced` is the only signal we need at
+    // the worktree-state layer.
     let any_fenced = worktree_entries.iter().any(|w| w.fenced);
 
     let worktree_state = if ipc_draining {
@@ -471,7 +476,6 @@ pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> Prote
         .collect();
     surfaces.sort_by(|a, b| a.identifier.cmp(&b.identifier));
 
-    let _ = all_fenced;
     ProtectionClaim::new(worktree_state, surfaces)
 }
 
