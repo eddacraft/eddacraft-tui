@@ -24,7 +24,7 @@ fn main() -> ExitCode {
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
                     ExitCode::from(0)
                 }
-                _ => ExitCode::from(EXIT_USAGE as u8),
+                _ => ExitCode::from(u8::try_from(EXIT_USAGE).unwrap_or(1)),
             };
         }
     };
