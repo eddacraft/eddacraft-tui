@@ -128,7 +128,7 @@ fn initial_scan(
     if !cached_paths.is_empty() {
         let total_paths = cached_paths.len() as u64;
         emitter.progress("Discovering files", total_paths, total_paths);
-        build_initial_graph(root, cached_paths, state, emitter, stop);
+        build_initial_graph(root, &cached_paths, state, emitter, stop);
         return;
     }
 
@@ -182,7 +182,7 @@ fn initial_scan(
     let total_paths = all_paths.len() as u64;
     emitter.progress("Discovering files", total_paths, total_paths);
 
-    build_initial_graph(root, all_paths, state, emitter, stop);
+    build_initial_graph(root, &all_paths, state, emitter, stop);
 }
 
 fn cached_initial_paths(
@@ -200,7 +200,7 @@ fn cached_initial_paths(
 
 fn build_initial_graph(
     root: &Path,
-    all_paths: Vec<PathBuf>,
+    all_paths: &[PathBuf],
     state: &mut WatchState,
     emitter: &EventEmitter,
     stop: &AtomicBool,
@@ -835,8 +835,7 @@ mod tests {
                         break;
                     }
                 }
-                Ok(_) => {}
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }

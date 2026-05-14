@@ -195,12 +195,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         bail!("MCP install failed: {err}");
     }
 
-    if !read_only
-        && let Err(error) = write_watch_warmup_cache(root)
-        && global.verbose
-    {
-        eprintln!("[watch] warm-up cache not written: {error:#}");
-    }
+    write_warmup_cache_if_mutating(root, read_only, global.verbose);
 
     // LAUNCH-011: hand off to the kernel watcher OR print the
     // appropriate skip reason. Each non-spawn variant carries its
@@ -250,6 +245,17 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             );
             Ok(())
         }
+    }
+}
+
+fn write_warmup_cache_if_mutating(root: &Path, read_only: bool, verbose: bool) {
+    if read_only {
+        return;
+    }
+    if let Err(error) = write_watch_warmup_cache(root)
+        && verbose
+    {
+        eprintln!("[watch] warm-up cache not written: {error:#}");
     }
 }
 
