@@ -197,18 +197,18 @@ content.
 
 The generator invokes `cargo about generate --fail`, so a workspace crate
 missing both `license` and `license-file` in its `Cargo.toml` causes a hard
-error rather than a silent warning. Without `--fail`, cargo-about emits a
-`WARN` and exits zero, and the crate quietly drops out of the generated
-attribution — a regression risk that ATTRIB-007 closes.
+error rather than a silent warning. Without `--fail`, cargo-about emits a `WARN`
+and exits zero, and the crate quietly drops out of the generated attribution — a
+regression risk that ATTRIB-007 closes.
 
 Consumers who deliberately ship crates without a licence (typically internal
-private crates filtered out via `about.toml`'s `private.ignore`) should
-silence the warning at the filter level rather than removing `--fail`. The
-filter is the right boundary: cargo-about never tries to attribute filtered
-crates, so the strict check doesn't fire against them.
+private crates filtered out via `about.toml`'s `private.ignore`) should silence
+the warning at the filter level rather than removing `--fail`. The filter is the
+right boundary: cargo-about never tries to attribute filtered crates, so the
+strict check doesn't fire against them.
 
-The fixture test under `tests/strict-license-field.sh` pins this contract.
-CI runs it alongside the freshness check.
+The fixture test under `tests/strict-license-field.sh` pins this contract. CI
+runs it alongside the freshness check.
 
 ### Empty-output guard
 
