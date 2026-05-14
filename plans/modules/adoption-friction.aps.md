@@ -83,15 +83,21 @@ disables any check, suppresses without resolution, or bypasses a hook.
   instead of overwriting `.git/hooks/`. On uninstall, Anvil removes only its
   own entries. Detection precedence is documented and tested.
 - **Files:**
-  - `crates/anvil-hook/src/coexistence.rs` (NEW)
-  - `crates/anvil-cli/src/commands/hook.rs`
-  - `docs/runbooks/anvil-hook-coexistence.md` (NEW)
+  - `crates/anvil-hook/src/coexistence.rs` (NEW — primitive landed
+    2026-05-14)
+  - `crates/anvil-cli/src/commands/hook.rs` (CLI wiring — follow-up)
+  - `docs/runbooks/anvil-hook-coexistence.md` (NEW — follow-up)
 - **Validation:**
-  - `cargo test -p eddacraft-anvil-hook coexistence::tests`
-  - Integration: install Anvil into fixture repos preconfigured with each
-    host manager; verify hooks fire in expected order; verify uninstall
-    restores byte-identical state
-- **Status:** Draft
+  - `cargo test -p eddacraft-anvil-hook coexistence` (25 tests green
+    on `feat/adopt-001-hook-coexistence`)
+  - Integration: install Anvil into fixture repos preconfigured with
+    each host manager; verify hooks fire in expected order; verify
+    uninstall restores byte-identical state (deferred to CLI-wiring
+    follow-up)
+- **Status:** In Progress
+- **Picked up:** 2026-05-14 (primitive PR open on
+  `feat/adopt-001-hook-coexistence`; CLI wiring + runbook follow-up
+  tracked here)
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor

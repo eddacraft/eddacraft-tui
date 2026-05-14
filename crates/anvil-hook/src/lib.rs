@@ -50,6 +50,7 @@
 //! - §D-7 panic catcher → [`panic_catcher_hook`].
 
 mod bootstrap;
+mod coexistence;
 mod framework;
 mod panic;
 mod post;
@@ -61,6 +62,10 @@ mod verdict;
 pub use bootstrap::{
     BootstrapPlan, HuskyRuntime, PlainHookFile, build_bootstrap_plan, generate_husky_runtime,
     render_success_message,
+};
+pub use coexistence::{
+    CoexistenceError, CoexistenceFile, CoexistencePlan, MARKER_BEGIN, MARKER_END, apply,
+    plan_install, plan_uninstall,
 };
 pub use framework::{HookFramework, detect_framework};
 pub use panic::{PANIC_LOG_FILE, PanicReport, format_panic_report, panic_catcher_hook};
