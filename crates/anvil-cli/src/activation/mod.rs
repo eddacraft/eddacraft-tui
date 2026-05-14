@@ -16,6 +16,12 @@
 //! single literal vocabulary word users see.
 
 pub mod baseline;
+// Contract surface for the ADOPT-003 follow-up that wires the
+// detector into `anvil start` / `anvil-run`. Unused-warnings here
+// would force the primitive to be merged together with its
+// consumer, which contradicts the small-PR pattern.
+#[allow(dead_code)]
+pub mod detect_agents;
 pub mod diagnostic;
 pub mod identity;
 pub mod language_profile;

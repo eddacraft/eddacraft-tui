@@ -156,13 +156,23 @@ disables any check, suppresses without resolution, or bypasses a hook.
   cached in `.anvil/cache/detected-agents.json` (non-authoritative) and
   reconciled on next start. Detection covers macOS, Linux, and Windows.
 - **Files:**
-  - `crates/anvil-cli/src/activation/detect_agents.rs` (NEW)
-  - `crates/anvil-cli/src/commands/start.rs`
-  - `crates/anvil-run/src/detection.rs` (NEW; depends on INTL-001)
+  - `crates/anvil-cli/src/activation/detect_agents.rs` (NEW —
+    primitive landed 2026-05-14 on
+    `feat/adopt-003-agent-detect`)
+  - `crates/anvil-cli/src/commands/start.rs` (CLI wiring —
+    follow-up: thread `detect_all` + cache JSON to
+    `.anvil/cache/detected-agents.json`)
+  - `crates/anvil-run/src/detection.rs` (NEW; depends on
+    INTL-001 — follow-up for the `anvil-run` half)
 - **Validation:**
-  - `cargo test -p eddacraft-anvil activation::detect_agents::tests`
+  - `cargo test -p eddacraft-anvil --bin anvil detect_agents`
+    (17 tests green on `feat/adopt-003-agent-detect`)
   - Integration: fixture environments with each tool installed
-- **Status:** Draft
+    (deferred to CLI-wiring follow-up)
+- **Status:** In Progress
+- **Picked up:** 2026-05-14 (primitive PR open on
+  `feat/adopt-003-agent-detect`; CLI wiring + `anvil-run` half
+  follow-up tracked here)
 - **Dependencies:** INTL-001 (for the `anvil-run` half)
 - **changeType:** feature
 - **releaseIntent:** candidate
