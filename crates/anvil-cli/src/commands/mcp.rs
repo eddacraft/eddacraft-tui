@@ -11,7 +11,7 @@ use crate::GlobalArgs;
 use crate::auth::credentials;
 use crate::commands::mcp_config::{self, Target};
 use crate::feature_flags;
-use crate::mcp::tools::validate_write;
+use crate::mcp::tools::registry;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 const SERVER_INSTRUCTIONS: &str = "This server provides a write-validation tool (anvil_validate_write). Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content and respect a `block` decision. Treat blocks as authoritative; do not bypass them via alternate write tools.";
@@ -325,16 +325,17 @@ fn initialize_response(id: &Value, message: &Value) -> Value {
 }
 
 fn tools_list_response(id: &Value) -> Value {
+    let tools = registry::all()
+        .iter()
+        .map(registry::ToolDefinition::descriptor)
+        .collect::<Vec<_>>();
+
     success_response(
         id,
         &json!({
-            "tools": [validate_write_tool_descriptor()]
+            "tools": tools
         }),
     )
-}
-
-fn validate_write_tool_descriptor() -> Value {
-    validate_write::descriptor()
 }
 
 fn tools_call_response(id: &Value, message: &Value) -> Value {
@@ -346,7 +347,7 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
         return error_response(id, -32602, "Invalid params");
     };
 
-    if name != validate_write::TOOL_NAME {
+    let Some(tool) = registry::find(name) else {
         return error_response_with_data(
             id,
             -32602,
@@ -356,16 +357,16 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
                 "tool": name
             }),
         );
-    }
+    };
 
     let empty_arguments = json!({});
     let arguments = params.get("arguments").unwrap_or(&empty_arguments);
 
-    if !mcp_tool_auth_ok() {
+    if tool.requires_auth && !mcp_tool_auth_ok() {
         return success_response(id, &mcp_auth_required_result(arguments));
     }
 
-    success_response(id, &validate_write::call(arguments))
+    success_response(id, &tool.call(arguments))
 }
 
 fn mcp_tool_auth_ok() -> bool {

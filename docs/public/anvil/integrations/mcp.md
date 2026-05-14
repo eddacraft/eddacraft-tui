@@ -12,11 +12,12 @@ anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 :::info Rust shim is the primary surface
 
 As of `v0.6.0-beta`, the Rust CLI's `anvil mcp serve --stdio` shim is the
-primary MCP surface, backed by the local Anvil daemon over owner-only IPC. It
-exposes the `anvil_validate_write` tool for pre-write validation — see
-[Available Tools](#available-tools) below. The daemon-backed path is Unix-first
-in this release; the embedded scanner is the correctness-equivalent fallback
-when the daemon is not reachable.
+primary MCP surface, backed by the local Anvil daemon over owner-only IPC for
+validation. It exposes `anvil_validate_write` for pre-write validation and
+`anvil_status` for read-only workspace health — see
+[Available Tools](#available-tools) below. The daemon-backed validation path is
+Unix-first in this release; the embedded scanner is the correctness-equivalent
+fallback when the daemon is not reachable.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
 `0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,
@@ -32,6 +33,8 @@ exposes:
 
 - Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed on
   Unix; embedded fallback otherwise)
+- Workspace health summaries via `anvil_status` (Rust shim, local read-only
+  status with explicit no-daemon provenance)
 - Broader tools, resources, and prompts after RMCPF ports or explicitly retires
   each frozen legacy contract
 
@@ -186,16 +189,23 @@ Windows named-pipe work.
 
 :::
 
+The RMCPF port is adding the broader historical tool surface incrementally. The
+Rust shim now exposes `anvil_status` as a read-only local workspace-health
+summary. Its response keeps the legacy fields (`status`, `workspaceRoot`,
+`availableChecks`, `config`, `hasBaseline`, and `version`) but redacts path
+values to workspace-relative forms. It also adds `backend: "local"` plus
+`daemonStatus: "not-wired"` so clients do not mistake it for daemon-owned state.
 The remaining historical tools (`anvil_check`, `anvil_gate`, `anvil_fix`,
-`anvil_suppress`, `anvil_status`, `anvil_query_boundary`) are not exposed by the
-Rust shim today. RMCPF owns their Rust port-or-retire decision.
+`anvil_suppress`, `anvil_query_boundary`) are still owned by RMCPF's Rust
+port-or-retire decision.
 
 ## Frozen legacy Node MCP catalogue
 
 The archived Node MCP server (`@eddacraft/anvil-mcp-server`) carried the broader
 legacy tool surface below. Treat this section as a compatibility inventory for
-RMCPF and existing private deployments, not as active setup guidance. The Rust
-shim does not expose these tools today.
+RMCPF and existing private deployments, not as active setup guidance. Except for
+the Rust `anvil_status` port noted above, the Rust shim does not expose these
+tools today.
 
 ### Legacy Node MCP Tools
 

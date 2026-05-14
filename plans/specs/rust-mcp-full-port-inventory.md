@@ -28,7 +28,7 @@ the TypeScript package as a runtime dependency.
 | Tools | 6 | Port all, with `anvil_suppress` authority resolved before mutation ships |
 | Resources | 8 | Port with Rust-owned sources of truth |
 | Prompts | 4 | Defer unless supported clients prove prompt usage |
-| Transports | 2 | Keep stdio canonical; defer Streamable HTTP |
+| Transports | 2 | Keep stdio canonical for Phase 1; retire Streamable HTTP unless supported-client demand is proven before RMCPF-021 |
 | Client config targets | 4 | Support Claude Code and Cursor first; defer Windsurf and VS Code |
 
 ## Server Entrypoints
@@ -48,7 +48,7 @@ Tool registrations are exported from `archive/anvil-mcp-server/src/tools/index.t
 | --- | --- | --- | --- | --- | --- | --- |
 | `anvil_check` | `archive/anvil-mcp-server/src/tools/check.tool.ts` | `{ files: string[], workspaceRoot: string, checks?: ("architecture" \| "antipattern")[] }` | Runs file analysis and returns JSON text with `warnings`, `summary`, `executionTimeMs`, `checksRun`, and `hasBlockingWarnings`; tool failures return `{ error }` with `isError: true`. | `archive/anvil-mcp-server/src/tools/check.tool.test.ts` | Daemon-RPC translator. | Port in RMCPF-010; preserve the response shape or document a versioned successor. |
 | `anvil_gate` | `archive/anvil-mcp-server/src/tools/gate.tool.ts` | `{ workspaceRoot: string, targetFiles?: string[], skipChecks?: string[], failFast?: boolean }` | Runs planless analysis when target files are provided; otherwise loads config and runs full gate evaluation. Returns mode, warnings or checks, timing, cache, score, and summary fields. | `archive/anvil-mcp-server/src/tools/gate.tool.test.ts` | MCP-driver-local composition. | Port in RMCPF-010 using Rust gate/config paths. |
-| `anvil_status` | `archive/anvil-mcp-server/src/tools/status.tool.ts` | `{ workspaceRoot: string }` | Returns `{ status, workspaceRoot, availableChecks, config, hasBaseline, version }`; config load failures are non-fatal. | `archive/anvil-mcp-server/src/tools/status.tool.test.ts` | Daemon-RPC translator plus local fallback. | Port in RMCPF-010. |
+| `anvil_status` | `archive/anvil-mcp-server/src/tools/status.tool.ts` | `{ workspaceRoot: string }` | Returns `{ status, workspaceRoot, availableChecks, config, hasBaseline, version }`; config load failures are non-fatal. | `archive/anvil-mcp-server/src/tools/status.tool.test.ts` | MCP-driver-local composition for Phase 1; daemon-RPC candidate only after an approved status authority exists. | Port in RMCPF-010. |
 | `anvil_fix` | `archive/anvil-mcp-server/src/tools/fix.tool.ts` | `{ filePath: string, warningId: string, line: number }` | Mutates a workspace file with deterministic fixes for selected AP warnings, validates path containment, uses a lock file, and returns fixed/description/before/after fields. | `archive/anvil-mcp-server/src/tools/fix.tool.test.ts` | MCP-driver-local composition. | Port in RMCPF-011 only after Rust fixer semantics are explicit. |
 | `anvil_suppress` | `archive/anvil-mcp-server/src/tools/suppress.tool.ts` | `{ filePath: string, warningId: string, line: number, reason: string, expiryDays?: number }` | Inserts an `@anvil-ignore-until` comment, defaults expiry to 30 days, sanitises reason text, and validates path containment. | `archive/anvil-mcp-server/src/tools/suppress.tool.test.ts` | Open: plan classifies as daemon-RPC translator, archive mutates locally. | Port in RMCPF-011 after choosing daemon-authorised mutation or local driver composition. |
 | `anvil_query_boundary` | `archive/anvil-mcp-server/src/tools/query-boundary.tool.ts` | `{ sourceFile: string, targetFile: string, workspaceRoot: string }` | Loads architecture baseline and returns `{ allowed, reason, message, sourceLayer?, targetLayer?, violation? }`; missing baseline and unassigned layers allow by default with rationale. | `archive/anvil-mcp-server/src/tools/query-boundary.tool.test.ts` | MCP-driver-local composition. | Port in RMCPF-011 using Rust architecture/baseline crates. |
@@ -105,6 +105,38 @@ Continue is named in the RMCPF Ready Checklist but has no archived TypeScript
 config generator. Treat Continue support as a fresh Rust decision, not a TS
 parity requirement.
 
+### Phase 0 client and transport decision (2026-05-14)
+
+RMCPF Phase 1 targets the two clients with both archived TypeScript evidence and
+active Rust launch evidence:
+
+- **Claude Code:** archived generator exists in
+  `archive/anvil-mcp-server/src/config/claude-code.ts`; Rust config/install tests
+  cover `anvil mcp serve --stdio` in `crates/anvil-cli/tests/mcp_config.rs`.
+- **Cursor:** archived generator exists in
+  `archive/anvil-mcp-server/src/config/cursor.ts`; Rust config/install tests
+  cover `anvil mcp serve --stdio` in `crates/anvil-cli/tests/mcp_config.rs`.
+
+The remaining named clients are deferred rather than treated as parity targets:
+
+- **Continue:** no archived TypeScript config generator exists, so support is a
+  fresh product decision.
+- **VS Code:** archived config existed, but current Rust intentionally rejects the
+  target until an active extension path is verified.
+- **Windsurf:** archived config existed, but current Rust intentionally rejects
+  the target because protocol and config behaviour are unverified.
+
+Stdio is the only required Phase 1 transport. Streamable HTTP remains historical
+archive evidence and is deferred to RMCPF-021; it should be retired with a
+migration note unless a supported client proves HTTP demand before implementation
+starts.
+
+`archive/anvil-mcp-server` remains frozen reference material until RMCPF-031. It
+can retire only after retained tools/resources/prompts/transports have Rust parity
+or documented retirements, generated client configs point at Rust MCP, and
+RMCPF-030 migration/compatibility evidence names every intentional
+incompatibility.
+
 ## Shared Utilities And Test Gaps
 
 - `archive/anvil-mcp-server/src/utils/validate-workspace.ts` requires an
@@ -133,8 +165,9 @@ parity requirement.
 
 ## Open Decisions
 
-1. **Streamable HTTP:** Keep deferred until a supported client requires HTTP.
-2. **Supported clients:** Claude Code and Cursor have Rust launch-shim evidence;
+1. **Streamable HTTP:** Deferred for RMCPF-021; retire unless a supported client
+   requires HTTP before implementation starts.
+2. **Supported clients:** Claude Code and Cursor are Phase 1 parity clients;
    Windsurf, VS Code, and Continue need fresh support decisions.
 3. **Prompts:** Decide whether MCP prompts are product surface or historical
    convenience text.

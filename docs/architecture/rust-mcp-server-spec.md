@@ -70,12 +70,12 @@ The Rust server keeps the MCP JSON-RPC handshake used by the current stdio shim:
 
 RMCPF extends that subset only where parity requires it:
 
-| Capability      | Required for parity | Methods / support decision                                                      | Notes                                                                                            |
-| --------------- | ------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Tools           | Yes                 | `tools/list`, `tools/call`                                                      | Ports the six archived TypeScript tools plus the existing `anvil_validate_write`.                |
-| Resources       | Yes                 | `resources/list`, `resources/read`                                              | Ports or retires the eight archived resource families.                                           |
-| Prompts         | Decision required   | `prompts/list`, `prompts/get` if retained; explicit no-prompt capability if not | RMCPF-012 decides whether to port the four archived prompts or retire them with migration notes. |
-| Streamable HTTP | Decision required   | MCP Streamable HTTP only if retained by RMCPF-021                               | RMCPF-021 decides whether this remains supported. Stdio remains the default.                     |
+| Capability      | Required for parity | Methods / support decision                                                      | Notes                                                                                                 |
+| --------------- | ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Tools           | Yes                 | `tools/list`, `tools/call`                                                      | Ports the six archived TypeScript tools plus the existing `anvil_validate_write`.                     |
+| Resources       | Yes                 | `resources/list`, `resources/read`                                              | Ports or retires the eight archived resource families.                                                |
+| Prompts         | Decision required   | `prompts/list`, `prompts/get` if retained; explicit no-prompt capability if not | RMCPF-012 decides whether to port the four archived prompts or retire them with migration notes.      |
+| Streamable HTTP | Deferred            | MCP Streamable HTTP only if retained by RMCPF-021                               | Retire unless a supported client proves HTTP demand before implementation. Stdio remains the default. |
 
 All agent-visible schemas are versioned and fixture-backed. Where Rust changes a
 shape intentionally, the compatibility matrix and migration docs must name the
@@ -84,17 +84,19 @@ change rather than silently claiming parity.
 ## Tool Architecture
 
 DRVR-006 resolved the daemon/local split as **option (b) Distinguish**. RMCPF
-adopts that split exactly:
+adopts that split with one recorded Phase 1 amendment: `anvil_status` starts as
+local workspace-health composition because no approved daemon `status.query`
+surface exists, and RMCPF must not invent daemon RPCs just for parity prose.
 
-| Tool                   | Class                                        | Authority                              | Required behaviour                                                                                                                     |
-| ---------------------- | -------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `anvil_validate_write` | Daemon-RPC translator with embedded fallback | Existing RMCP shim                     | Preserve the current pre-write contract and `validation.backend` honesty field.                                                        |
-| `anvil_check`          | Daemon-RPC translator                        | `scan.files` / `scan_buffer`           | Use daemon scan surfaces when available; use the existing correctness-equivalent embedded fallback only where RMCP already permits it. |
-| `anvil_status`         | Daemon-RPC translator                        | `status.query`                         | Report daemon/session/fence state from daemon-owned registry and stores.                                                               |
-| `anvil_suppress`       | Daemon-RPC translator                        | `suppression.apply`                    | Let the daemon validate and normalise ADR-004 suppression format.                                                                      |
-| `anvil_fix`            | MCP-driver-local composition                 | Rust CLI/library fixer path            | Run deterministic fix logic in-process or through the CLI; do not add `fix.apply` to the daemon just for MCP.                          |
-| `anvil_gate`           | MCP-driver-local composition                 | `anvil gate` / `GateRunner`            | Keep npm audit, OPA evaluation, and coverage reads local to the MCP host/CLI path.                                                     |
-| `anvil_query_boundary` | MCP-driver-local composition                 | `crates/anvil-architecture` query path | Query architecture boundaries from Rust-owned local data; no daemon round-trip.                                                        |
+| Tool                   | Class                                                                                         | Authority                                                          | Required behaviour                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil_validate_write` | Daemon-RPC translator with embedded fallback                                                  | Existing RMCP shim                                                 | Preserve the current pre-write contract and `validation.backend` honesty field.                                                                                 |
+| `anvil_check`          | Daemon-RPC translator                                                                         | `scan.files` / `scan_buffer`                                       | Use daemon scan surfaces when available; use the existing correctness-equivalent embedded fallback only where RMCP already permits it.                          |
+| `anvil_status`         | MCP-driver-local composition (Phase 1); daemon-RPC candidate after INTD adds status authority | Rust CLI/local workspace status; future `status.query` if approved | Report archived project-health fields from validated workspace-local data, with explicit local/no-daemon provenance. Do not invent `status.query` inside RMCPF. |
+| `anvil_suppress`       | Daemon-RPC translator                                                                         | `suppression.apply`                                                | Let the daemon validate and normalise ADR-004 suppression format.                                                                                               |
+| `anvil_fix`            | MCP-driver-local composition                                                                  | Rust CLI/library fixer path                                        | Run deterministic fix logic in-process or through the CLI; do not add `fix.apply` to the daemon just for MCP.                                                   |
+| `anvil_gate`           | MCP-driver-local composition                                                                  | `anvil gate` / `GateRunner`                                        | Keep npm audit, OPA evaluation, and coverage reads local to the MCP host/CLI path.                                                                              |
+| `anvil_query_boundary` | MCP-driver-local composition                                                                  | `crates/anvil-architecture` query path                             | Query architecture boundaries from Rust-owned local data; no daemon round-trip.                                                                                 |
 
 If an implementation discovers that a daemon-local boundary above is wrong, the
 change must be recorded as an amendment to the DRVR-006 table before code lands.
@@ -105,10 +107,11 @@ tool.
 
 MCP handlers use three validation paths:
 
-1. Daemon-backed validation for scan/status/suppression authority.
+1. Daemon-backed validation for scan/suppression authority, and for status only
+   after an approved daemon status RPC exists.
 2. Existing embedded fallback for RMCP-compatible scan paths when the daemon is
    genuinely unavailable.
-3. MCP-driver-local composition for fix, gate, and boundary queries.
+3. MCP-driver-local composition for status, fix, gate, and boundary queries.
 
 Every response that leaves the MCP transport must carry enough provenance for a
 client to understand which path was used. For validation responses this includes
@@ -176,8 +179,10 @@ Stdio is the default and required transport. It matches current Cursor and
 Claude Code activation and keeps the MCP server as a child of the editor/agent
 process.
 
-Streamable HTTP is optional and gated by RMCPF-021. If retained, Rust HTTP
-parity must include:
+Streamable HTTP is deferred and gated by RMCPF-021. Phase 0 found no active
+supported-client demand, so the default decision is retirement with migration
+notes unless demand appears before implementation. If retained, Rust HTTP parity
+must include:
 
 - Localhost binding by default.
 - Explicit opt-in for non-localhost binding.

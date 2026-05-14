@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 2/9      |
+| RMCPF | —     | In Progress | 3/10     |
 
 **Last reviewed:** 2026-05-14
 
@@ -99,10 +99,10 @@ retirement decisions:
 
 - [x] RMCP has shipped or reached Committed state
 - [x] Existing TS MCP server inventory is complete
-- [ ] Supported-client matrix for Claude Code, Cursor, Continue, VSCode, and
+- [x] Supported-client matrix for Claude Code, Cursor, Continue, VSCode, and
   any remaining HTTP clients is confirmed
-- [ ] Decision recorded on whether Streamable HTTP remains required
-- [ ] Retirement criteria for `archive/anvil-mcp-server` agreed
+- [x] Decision recorded on whether Streamable HTTP remains required
+- [x] Retirement criteria for `archive/anvil-mcp-server` agreed
 
 ---
 
@@ -138,27 +138,30 @@ retirement decisions:
   the daemon, driver framework, Graph v2, and legacy TS server.
 - **Expected Outcome:** Spec defines command layout, protocol support,
   validation paths, resource serving, prompt strategy, transport support, and
-  retirement gates for the TS package. The spec MUST adopt the DRVR-006
-  resolution (see
-  `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3,
-  recorded 2026-05-06 in A2 Wave 1): each ported tool is classified as either
-  a **daemon-RPC translator** (`anvil_check`, `anvil_status`, `anvil_suppress`)
-  or **MCP-driver-local composition** (`anvil_fix`, `anvil_gate`,
-  `anvil_query_boundary`). The architecture spec MUST NOT introduce new
-  daemon RPCs whose only consumer is parity prose; if RMCPF needs additional
-  daemon authority it MUST file new INTD work items rather than expanding the
-  RPC surface implicitly.
+  retirement gates for the TS package. The spec adopts the DRVR-006 resolution
+  (see `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
+  §4.3, recorded 2026-05-06 in A2 Wave 1) with one recorded RMCPF Phase 1
+  amendment: `anvil_status` starts as MCP-driver-local workspace-health
+  composition because no approved daemon `status.query` surface exists. The
+  retained daemon-RPC translator set is `anvil_check` and `anvil_suppress`; the
+  MCP-driver-local composition set is `anvil_status`, `anvil_fix`,
+  `anvil_gate`, and `anvil_query_boundary`. The architecture spec MUST NOT
+  introduce new daemon RPCs whose only consumer is parity prose; if RMCPF needs
+  additional daemon authority it MUST file new INTD work items rather than
+  expanding the RPC surface implicitly.
 - **Validation:** Council review confirms the spec does not regress the RMCP
   single-binary launch path, and confirms each tool's class matches the
   DRVR-006 table above (or records a deliberate amendment with rationale).
+- **Validation Evidence:** Validation passed: Quick Council review completed on
+  2026-05-14 with no findings after the dependency, protocol-method,
+  architecture-index, and review-date fixes.
 - **Files:** `docs/architecture/rust-mcp-server-spec.md`
 - **Closeout evidence:** Spec added in
   `docs/architecture/rust-mcp-server-spec.md` on 2026-05-14. It preserves the
-  RMCP `anvil_validate_write` path, adopts DRVR-006 option (b) classifications,
-  names DRVR-007 redaction as transport-wide, and records retirement gates for
-  the archived TypeScript MCP package. Quick Council review completed on
-  2026-05-14 with no findings after the dependency, protocol-method,
-  architecture-index, and review-date fixes.
+  RMCP `anvil_validate_write` path, adopts DRVR-006 option (b) classifications
+  with the RMCPF Phase 1 `anvil_status` local-composition amendment, names
+  DRVR-007 redaction as transport-wide, and records retirement gates for the
+  archived TypeScript MCP package.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** DRVR-006, DRVR-007, ADR-033, RMCP,
@@ -169,21 +172,55 @@ retirement decisions:
 
 ---
 
+### RMCPF-003: Phase 1 readiness decision closure
+
+- **Status:** Complete
+- **Intent:** Close the remaining client, transport, and TypeScript archive
+  retirement decisions before RMCPF Phase 1 tool parity starts.
+- **Expected Outcome:** Supported-client matrix is confirmed; Streamable HTTP is
+  retained or retired with rationale; retirement criteria for
+  `archive/anvil-mcp-server` are agreed and reflected in the RMCPF readiness
+  checklist.
+- **Validation:** `pnpm docs:check`
+- **Validation Evidence:** Validation passed: `pnpm docs:check` on 2026-05-14
+  with 7/7 documentation surfaces passing and no failed checks.
+- **Files:** `plans/modules/rust-mcp-full-port.aps.md`,
+  `plans/specs/rust-mcp-full-port-inventory.md`,
+  `docs/architecture/rust-mcp-server-spec.md`, `RELEASE-PLAN.md`
+- **Closeout evidence:** Phase 0 decision closure recorded on 2026-05-14. Claude
+  Code and Cursor are the first supported parity clients because both have
+  archived TS config evidence, active Rust installer/config tests, and current
+  public docs. Continue, VS Code, and Windsurf are deferred until fresh support
+  evidence exists. Stdio is the only required Phase 1 transport; Streamable HTTP
+  stays deferred under RMCPF-021 and should be retired unless a supported-client
+  requirement appears before implementation. `archive/anvil-mcp-server` remains
+  frozen reference material until RMCPF-031 and can retire only after retained
+  surfaces have Rust parity or documented retirements, compatibility evidence,
+  generated-config cutover, and migration docs.
+- **Confidence:** high
+- **Priority:** Critical
+- **Dependencies:** RMCPF-001, RMCPF-002
+
+---
+
 ## Phase 1 — Tool Parity
 
 ### RMCPF-010: Port check/gate/status tools
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Move the core read-only validation tools from the TS MCP server to
   Rust while preserving response contracts or documenting intentional changes.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_check`,
   `anvil_gate`, and `anvil_status` or their explicitly versioned successors.
   Per the DRVR-006 resolution
-  (`plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3):
-  - `anvil_check` and `anvil_status` are **daemon-RPC translators**. Their
-    handlers call the daemon's `scan.files` / `scan_buffer` and `status.query`
-    surfaces (with the embedded fallback when the daemon is unavailable, as
-    RMCP-005 already wires).
+  (`plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3)
+  plus the RMCPF Phase 1 status amendment recorded in RMCPF-002:
+  - `anvil_check` is a **daemon-RPC translator**. Its handler calls the daemon's
+    `scan.files` / `scan_buffer` surfaces (with the embedded fallback when the
+    daemon is unavailable, as RMCP-005 already wires).
+  - `anvil_status` is **MCP-driver-local composition** for Phase 1 because no
+    approved daemon `status.query` surface exists. It reads only validated
+    workspace-local data and returns explicit local/no-daemon provenance.
   - `anvil_gate` is **MCP-driver-local composition**: the handler shells to
     `anvil gate` (or invokes the equivalent in-process gate path) because
     `GateRunner` runs `npm audit`, OPA, and coverage JSON reads that the
@@ -193,7 +230,30 @@ retirement decisions:
 - **Validation:** Compatibility tests compare TS and Rust responses on fixture
   workspaces; tests assert the DRVR-006 classification (e.g. `anvil_gate`
   results are reachable when the daemon is offline, `anvil_check` falls back
-  to embedded scan).
+  to embedded scan). Initial registry/status slice validates with
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio` and preserves the
+  existing `anvil_validate_write` observable behaviour while adding
+  `anvil_status` list/call coverage.
+- **Validation Evidence:** Registry and first parity-tool slice validated on
+  2026-05-14 with targeted green tests:
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio mcp_serve_stdio_tools_call_status_returns_workspace_health_summary`,
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio mcp_serve_stdio_tools_list_returns_registered_tools`,
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio mcp_serve_stdio_tools_call_status_rejects_workspace_outside_server_root`,
+  `cargo test -p eddacraft-anvil mcp::tools::status::tests`, and
+  `cargo test -p eddacraft-anvil mcp::tools::registry::tests`. The full
+  `cargo test -p eddacraft-anvil --test mcp_serve_stdio` integration suite also
+  passed before PR closeout.
+- **Closeout evidence:** The Rust MCP tool registry now dispatches multiple
+  tools without changing `tools/call` protocol handling. `anvil_status` is
+  implemented as an unauthenticated read-only local status tool for this slice
+  because no Rust daemon `status.query` MCP surface exists yet; its response
+  keeps the archived TS field names (`status`, `workspaceRoot`,
+  `availableChecks`, `config`, `hasBaseline`, `version`) while redacting path
+  values to workspace-relative forms and adding explicit `backend: "local"` /
+  `daemonStatus: "not-wired"` provenance for future daemon replacement. The
+  workspace root is canonicalised and rejected when it resolves outside the MCP
+  server root before any filesystem reads, and `hasBaseline` reads the archived
+  architecture baseline source (`.anvil/architecture.json`).
 - **Files:** `crates/anvil-cli/src/mcp/tools/`,
   `archive/anvil-mcp-server/src/tools/`
 - **Confidence:** medium
@@ -344,8 +404,8 @@ retirement decisions:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Inventory and Compatibility | 2 | 2/2 done |
-| 1 — Tool Parity | 3 | Draft |
+| 0 — Inventory and Compatibility | 3 | 3/3 done |
+| 1 — Tool Parity | 3 | RMCPF-010 In Progress |
 | 2 — Resources and Transports | 2 | Draft |
 | 3 — Cutover | 2 | Draft |
-| **Total** | **9** | **2/9 done** |
+| **Total** | **10** | **3/10 done** |

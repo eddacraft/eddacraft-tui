@@ -125,9 +125,14 @@ the larger frame budget covers worst-case JSON string escaping and the JSON-RPC
 envelope. Oversize lines are discarded with the rest of the line
 (`commands/mcp.rs:261-299`) so the next frame is parsed cleanly.
 
-## 4. Tool surface (`anvil_validate_write`)
+## 4. Tool surface
 
-The shim exposes exactly **one** MCP tool. The descriptor is at
+The shim exposes MCP tools through the registry at
+`crates/anvil-cli/src/mcp/tools/registry.rs`. Each tool supplies its descriptor,
+dispatch function, and auth policy. `anvil_validate_write` requires the MCP auth
+gate because it protects writes; read-only `anvil_status` does not.
+
+`anvil_validate_write` is defined at
 `crates/anvil-cli/src/mcp/tools/validate_write.rs:22-63`:
 
 ```text
@@ -136,6 +141,16 @@ schema:      "anvil.mcp.validate-write.v1"
 description: "Pre-write validation gate. Call this tool before EVERY file
               write … honour `block` decisions; do not write files the tool
               refuses."
+```
+
+`anvil_status` is defined at `crates/anvil-cli/src/mcp/tools/status.rs`. It
+returns a local, read-only workspace-health summary from a canonicalised
+workspace root under the MCP server root:
+
+```text
+name:        "anvil_status"
+description: "Quick project health summary. Returns available checks,
+              configuration info, and baseline status."
 ```
 
 ### 4.1 Request shape (input schema)
@@ -185,8 +200,8 @@ The shim implements a narrow MCP subset over JSON-RPC 2.0
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `initialize`                | Returns `protocolVersion`, capabilities `{ tools: {} }`, instructions, and `serverInfo` (`mcp.rs:301-325`). Default protocol version is `2024-11-05` (`mcp.rs:16`). |
 | `notifications/initialized` | No-op.                                                                                                                                                              |
-| `tools/list`                | Returns the single `anvil_validate_write` descriptor (`mcp.rs:327-338`).                                                                                            |
-| `tools/call`                | Dispatches to `validate_write::call` after the auth gate (`mcp.rs:340-369`).                                                                                        |
+| `tools/list`                | Returns descriptors from the MCP tool registry (`mcp.rs:327-338`).                                                                                                  |
+| `tools/call`                | Looks up the named registry tool, applies the tool-specific auth gate when required, then dispatches to the registered handler (`mcp.rs:340-369`).                  |
 | `ping`                      | Returns `{}`.                                                                                                                                                       |
 | `shutdown`                  | Returns null result; does not exit.                                                                                                                                 |
 | `exit`                      | If sent as a notification (no `id`), the loop breaks and the shim exits. Sent as a request, returns Invalid Request.                                                |
