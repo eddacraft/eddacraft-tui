@@ -609,22 +609,28 @@ mod tests {
             force: false,
         };
         let plan = build_plan(root, None, &args).unwrap();
-        let kinds: Vec<&Action> = plan.actions.iter().collect();
-        assert!(matches!(
-            kinds
+        assert!(
+            plan.actions
                 .iter()
-                .find(|a| matches!(a, Action::RemoveAnvilrc { .. })),
-            Some(_)
-        ));
-        assert!(matches!(
-            kinds
+                .any(|a| matches!(a, Action::RemoveAnvilrc { .. }))
+        );
+        assert!(
+            plan.actions
                 .iter()
-                .find(|a| matches!(a, Action::RemoveProjectAnvil { .. })),
-            Some(_)
-        ));
+                .any(|a| matches!(a, Action::RemoveProjectAnvil { .. }))
+        );
         // Hooks step is always queued; daemon step is suppressed.
-        assert!(kinds.iter().any(|a| matches!(a, Action::RemoveGitHooks)));
-        assert!(!kinds.iter().any(|a| matches!(a, Action::StopDaemon { .. })));
+        assert!(
+            plan.actions
+                .iter()
+                .any(|a| matches!(a, Action::RemoveGitHooks))
+        );
+        assert!(
+            !plan
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::StopDaemon { .. }))
+        );
     }
 
     #[test]
