@@ -21,13 +21,18 @@
 //! they can be reviewed in a diff when a tool ships a renamed
 //! binary or moves its config directory.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// Closed enum of AI tools Anvil knows how to detect today.
 ///
-/// The order is the order [`detect_all`] reports them in.
+/// The order is the order [`detect_all`] reports them in. JSON
+/// representation is kebab-case to match [`AgentKind::id`] —
+/// keep these two views in lock-step so the cache key and the
+/// log-line label are interchangeable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "kebab-case")]
 pub enum AgentKind {
     ClaudeCode,
     Cursor,
@@ -38,6 +43,8 @@ pub enum AgentKind {
 
 impl AgentKind {
     /// Stable short id used in JSON, log lines, and CLI summary.
+    /// Matches the kebab-case serde representation; the
+    /// `agent_kind_id_matches_serde_representation` test pins them.
     #[must_use]
     pub fn id(self) -> &'static str {
         match self {
@@ -190,9 +197,21 @@ pub fn detect_kind(env: &dyn DetectionEnv, kind: AgentKind) -> Option<DetectedAg
     }
 }
 
+/// Join a home-relative path onto the user's home directory in a
+/// platform-correct way. Uses [`PathBuf`] so Windows
+/// (`C:\Users\foo`) and POSIX home directories produce native
+/// separators rather than the mixed `C:\Users\foo/.claude` that a
+/// naive string format would emit.
 fn join_home(home: &str, rel: &str) -> String {
-    let trimmed = home.trim_end_matches(['/', '\\']);
-    format!("{trimmed}/{rel}")
+    let mut path = PathBuf::from(home);
+    // `rel` is forward-slash by convention (so the table reads
+    // the same on every platform); split and push each component
+    // through `Path::push` so the resulting separators match the
+    // host's native form.
+    for component in rel.split('/').filter(|s| !s.is_empty()) {
+        path.push(component);
+    }
+    path.to_string_lossy().into_owned()
 }
 
 /// Detection heuristics for one agent. Public for documentation
@@ -222,7 +241,19 @@ pub fn detection_rule(kind: AgentKind) -> DetectionRule {
         },
         AgentKind::Cursor => DetectionRule {
             binaries: &["cursor"],
-            config_paths: &[".cursor"],
+            // 2026 Cursor stores per-user state under the OS-native
+            // app-config directory. `.cursor` is the legacy
+            // dot-file location older installs still create. We
+            // probe all three relative to `$HOME`; the consumer's
+            // `path_exists` short-circuits on the first hit. The
+            // Windows `%APPDATA%\Cursor` path is not addressable
+            // through `home_dir` alone — that requires extending
+            // `DetectionEnv` and is filed as a follow-up.
+            config_paths: &[
+                ".cursor",
+                ".config/Cursor",
+                "Library/Application Support/Cursor",
+            ],
             env_vars: &["CURSOR_HOME"],
         },
         AgentKind::Aider => DetectionRule {
@@ -247,6 +278,7 @@ pub fn detection_rule(kind: AgentKind) -> DetectionRule {
 mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
+    use std::path::Path;
 
     /// Stub env for deterministic tests.
     #[derive(Default)]
@@ -300,6 +332,19 @@ mod tests {
         assert_eq!(AgentKind::Aider.id(), "aider");
         assert_eq!(AgentKind::Windsurf.id(), "windsurf");
         assert_eq!(AgentKind::Codex.id(), "codex");
+    }
+
+    #[test]
+    fn agent_kind_id_matches_serde_representation() {
+        // The cache JSON serialises `AgentKind` via serde; CLI
+        // log lines use `id()`. Two divergent representations of
+        // the same identity would silently break consumers that
+        // cross-reference them. Lock the two together.
+        for kind in AgentKind::all() {
+            let json = serde_json::to_string(kind).unwrap();
+            let expected = format!("\"{}\"", kind.id());
+            assert_eq!(json, expected, "drift for {kind:?}");
+        }
     }
 
     #[test]
@@ -396,13 +441,44 @@ mod tests {
 
     #[test]
     fn home_dir_trailing_slash_does_not_double_up() {
-        // We accept either form from the host.
+        // PathBuf::push handles trailing-separator normalisation
+        // on every platform, so the consumer's `path_exists` sees
+        // the canonical joined path regardless of how the host
+        // reports `home_dir`.
         let env = StubEnv::default()
             .with_home("/home/dev/")
             .path("/home/dev/.claude");
         let inv = detect_all(&env);
         assert_eq!(inv.detected.len(), 1);
         assert_eq!(inv.detected[0].kind, AgentKind::ClaudeCode);
+    }
+
+    #[test]
+    fn join_home_normalises_separators_per_platform() {
+        // The probed path matches the host's native separator
+        // form so `Path::exists` works without further
+        // normalisation in the real `DetectionEnv` impl.
+        let joined = join_home("/home/dev", ".claude");
+        let expected = Path::new("/home/dev").join(".claude");
+        assert_eq!(joined, expected.to_string_lossy());
+    }
+
+    #[test]
+    fn cursor_modern_config_paths_are_probed() {
+        // Modern Cursor stores per-user state under the OS-native
+        // app-config directory; the legacy `.cursor` dot-file is
+        // not always present on recent installs.
+        for probed in [
+            ".cursor",
+            ".config/Cursor",
+            "Library/Application Support/Cursor",
+        ] {
+            let full = join_home("/home/dev", probed);
+            let env = StubEnv::default().with_home("/home/dev").path(&full);
+            let inv = detect_all(&env);
+            assert_eq!(inv.detected.len(), 1, "expected detection via {probed}");
+            assert_eq!(inv.detected[0].kind, AgentKind::Cursor);
+        }
     }
 
     #[test]
