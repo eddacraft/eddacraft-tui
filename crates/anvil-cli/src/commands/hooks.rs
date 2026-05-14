@@ -774,6 +774,40 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
     println!("    See {HOOK_COMPAT_DOC} for the coexistence policy.");
 }
 
+/// Remove every Anvil-managed git hook from the current workspace.
+///
+/// Convenience entry point for `anvil uninstall`: runs the standard
+/// `hooks uninstall` flow twice — once for file-mode hooks (`.husky/`
+/// or `.git/hooks/`) and once for Git 2.54 native `hook.<event>.command`
+/// config-mode hooks. Either invocation may report "nothing to do" and
+/// that is not an error.
+///
+/// Returns the first error encountered; the second invocation is still
+/// attempted so we make best-effort progress even when one mode fails.
+pub fn uninstall_all_managed_hooks(global: &GlobalArgs) -> Result<()> {
+    let file_mode = run(
+        &HooksArgs {
+            command: HooksCommand::Uninstall {
+                pre_commit_only: false,
+                pre_push_only: false,
+                config: false,
+            },
+        },
+        global,
+    );
+    let config_mode = run(
+        &HooksArgs {
+            command: HooksCommand::Uninstall {
+                pre_commit_only: false,
+                pre_push_only: false,
+                config: true,
+            },
+        },
+        global,
+    );
+    file_mode.and(config_mode)
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = find_repo_root()?;

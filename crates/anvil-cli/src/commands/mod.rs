@@ -25,6 +25,7 @@ pub mod policy;
 pub mod start;
 pub mod status;
 pub mod tutorial;
+pub mod uninstall;
 pub mod update;
 pub mod validate;
 pub mod version;

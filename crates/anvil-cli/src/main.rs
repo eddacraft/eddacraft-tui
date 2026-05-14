@@ -173,6 +173,10 @@ enum Commands {
     Policy(commands::policy::PolicyArgs),
     /// Update anvil to the latest version.
     Update(commands::update::UpdateArgs),
+    /// Remove Anvil from this project (and optionally from user-level
+    /// state with `--global`). Auth-bypass so stuck installs can be
+    /// cleaned without logging in.
+    Uninstall(commands::uninstall::UninstallArgs),
     /// Validate an APS plan file (structure, task format, hash integrity).
     Validate(commands::validate::ValidateArgs),
     /// Show install-method-aware version + upgrade guidance.
@@ -225,6 +229,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Architecture(_) => "architecture",
         Commands::Policy(_) => "policy",
         Commands::Update(_) => "update",
+        Commands::Uninstall(_) => "uninstall",
         Commands::Validate(_) => "validate",
         Commands::Version(_) => "version",
         Commands::Login(_) => "login",
@@ -737,6 +742,7 @@ fn main() -> ExitCode {
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
         Commands::Hook(args) => commands::hook::run(args, &cli.global),
+        Commands::Uninstall(args) => commands::uninstall::run(args, &cli.global),
         Commands::Baseline(args) => commands::baseline::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
