@@ -82,12 +82,18 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
 
 ### A. Daemon enforcement + observation integration
 
-#### MLP2-001: Daemon-side `(worktree_key, rules_sha) → ResolvedRuleSet` cache with `.anvil.*` watcher invalidation
+#### MLP2-001: Daemon-side `worktree_key → (rules_sha, ResolvedRuleSet)` cache with `.anvil.*` watcher invalidation
 
 - **Status:** Done
 - **Intent:** Daemon caches resolved rule sets keyed by
-  `(worktree_key, rules_sha)` and invalidates on `.anvil.*` file
-  changes so config edits propagate without restart.
+  `worktree_key`; each cached entry carries the `rules_sha` that
+  identifies it (so witness-chain consumers can confirm a cached
+  resolution still matches their expected version). The cache
+  invalidates on `.anvil.*` file changes so config edits propagate
+  without restart. (Council 2026-05-14 #C-030 / #C-038: the
+  original title implied a compound `(worktree_key, rules_sha)`
+  key; the implementation uses worktree-only keying because all
+  agents in a worktree share the same rule set.)
 - **Expected Outcome:**
   - In-memory cache in `anvil-intercept`'s session registry tier.
   - File watcher hooks invalidate cache entries on `.anvil.yaml`
@@ -99,17 +105,24 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
   `crates/anvil-intercept/src/config.rs`.
 - **Validation:** Cache hit/miss telemetry; watcher event delivers
   invalidation within 250ms; concurrent writers don't race the
-  cache. **Evidence (Done 2026-05-14):**
-  `cargo test -p eddacraft-anvil-intercept` — 239 lib tests green,
-  including 15 `rule_cache::` unit tests (lookup hit/miss, miss-on-
-  populated, resolver failure does not poison, invalidate idempotency,
-  format-agnostic `rules_sha`, `.anvil.*` case-insensitive
-  recognition, multi-worktree isolation, concurrent invalidate +
+  cache. **Evidence (Done 2026-05-14, Council-reviewed 2026-05-14):**
+  `cargo test -p eddacraft-anvil-intercept` — 242 lib tests green,
+  including 18 `rule_cache::` unit tests (lookup hit/miss,
+  resolver failure does not poison, invalidate idempotency,
+  format-agnostic `rules_sha`, mixed-case ext rejected per
+  `anvil_config::discover` lock-step rule, canonicalise-fail
+  conservatively flushes all entries, subdirectory `.anvil.yaml`
+  ignored, multi-worktree isolation, concurrent invalidate +
   store) and 2 `watcher::` integration tests (config write
   invalidates cache; unrelated write does not). Coalesce window is
   50ms so the watcher delivers invalidation well inside the 250ms
   budget; the cache uses `Mutex<HashMap>` for race-free concurrent
-  mutation. New files:
+  mutation. **Production-wiring caveat:** the cache type is shipped
+  as a library primitive — `run_foreground` does not yet
+  instantiate `RuleSetCache` and the watcher's `recv_blocking`
+  remains a stub, so the cache currently runs unit-test-only.
+  Production wiring lands with MLP2-014 / INTD-004 (Council
+  2026-05-14 #C-010 / #C-011 / #C-042). New file:
   `crates/anvil-intercept/src/rule_cache.rs`; modified:
   `crates/anvil-intercept/src/watcher.rs`,
   `crates/anvil-intercept/src/lib.rs`,
@@ -147,22 +160,33 @@ share a primitive (e.g., the rate-window primitive in A9 and D3).
   (test fixture call sites updated for the new field).
 - **Validation:** Adversarial test — write config mid-evaluation,
   assert in-flight call returns with the original `rules_sha`.
-  **Evidence (Done 2026-05-14):** `cargo test -p
-  eddacraft-anvil-intercept midedit::` — 14 tests green, including
-  4 new MLP2-002 tests:
+  **Evidence (Done 2026-05-14, Council-reviewed 2026-05-14):**
+  `cargo test -p eddacraft-anvil-intercept midedit::` — 15 tests
+  green, including 5 MLP2-002 tests:
   `scan_buffer_with_pin_returns_pinned_rules_sha`,
   `scan_buffer_without_pin_omits_rules_sha`,
   `scan_buffer_in_flight_counter_tracks_active_evaluations` (gated
   rule + barrier observes the 0 → 1 → 0 transition without
-  sleeping), and
-  `config_invalidation_mid_evaluation_does_not_swap_pinned_rules_sha`
-  (the adversarial test). Burst-coalescing is delivered by the
-  watcher coalescer (50 ms window); in-flight count exposed via
-  `ScanBufferService::in_flight()`. The wire shape stays backward-
-  compatible: `rules_sha` is `#[serde(default,
-  skip_serializing_if = "Option::is_none")]`, so the existing
-  MCP deserialiser in `anvil-cli/src/mcp/validation.rs` keeps
-  parsing v1 responses without change.
+  sleeping), `scan_buffer_in_flight_clears_after_timed_out_exit`
+  (asserts the RAII guard releases on the `TimedOut` path), and
+  `config_invalidation_while_worker_running_does_not_swap_pinned_rules_sha`
+  — the adversarial test now uses a multi-thread runtime + a
+  `GateRule` barrier to park the worker, the test body invalidates
+  the cache while the worker is provably blocked, and the barrier
+  is released only after the cache is empty (Council #C-001 /
+  #C-029 / #C-036; the earlier captured-into-local-String version
+  was tautological). `InFlightGuard` uses `AcqRel` for
+  fetch_add/fetch_sub and `Acquire` for `in_flight()` so the
+  `in_flight==0 after exit` guarantee is portable to weakly-ordered
+  architectures (Council #C-040). Burst-coalescing is delivered by
+  the watcher coalescer (50 ms window); in-flight count exposed via
+  `ScanBufferService::in_flight()` — note this is a library
+  primitive today, with the daemon's status surface wiring to
+  follow in a separate item (Council #C-009). The wire shape stays
+  backward-compatible: `rules_sha` is `#[serde(default,
+  skip_serializing_if = "Option::is_none")]`, so the existing MCP
+  deserialiser in `anvil-cli/src/mcp/validation.rs` keeps parsing
+  v1 responses without change.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP2-001
@@ -1449,13 +1473,17 @@ resolved its `MLP2-023` listing to a `Coordinates with:` callout
 (see MLP2-001 body); the cache is worktree-scoped and is
 forward-compatible with MLP2-023's session-key extension.
 
-### Phase 2 — Phase-1-gated (17 tasks)
+### Phase 2 — Phase-1-gated (16 tasks pending; MLP2-002 pre-shipped)
 
-Each entry shows its gating Phase-1 dependency:
+Each entry shows its gating Phase-1 dependency. **MLP2-002 was
+co-shipped with MLP2-001 in wave 1A (2026-05-14) — it appears here
+under its original Phase-2 placement for traceability but is Done;
+see the task body for evidence.** Council 2026-05-14 #C-031 /
+#C-039.
 
 | Task | Gated by |
 | --- | --- |
-| MLP2-002, MLP2-014 | MLP2-001 |
+| MLP2-014 | MLP2-001 |
 | MLP2-003, MLP2-024, MLP2-025 | MLP2-023 |
 | MLP2-026 | MLP2-023 + MLP2-009 |
 | MLP2-006 | MLP2-009 |
@@ -1463,6 +1491,7 @@ Each entry shows its gating Phase-1 dependency:
 | MLP2-049, MLP2-051 | MLP2-048 |
 | MLP2-033 | MLP2-032 |
 | MLP2-035, MLP2-036 | MLP2-034 |
+| ~~MLP2-002~~ (Done 2026-05-14 with MLP2-001) | MLP2-001 |
 
 ### Phase 3 — Phase-2-gated (6 tasks)
 

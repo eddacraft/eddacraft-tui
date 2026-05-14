@@ -138,15 +138,21 @@ impl ScanBufferService {
     }
 
     /// MLP2-002: number of evaluations currently held by a permit.
-    /// Reads with `Relaxed` ordering — the value is advisory
-    /// telemetry, not a synchronisation point. Burst-coalescing logic
-    /// that wants to know "how many evaluations would a config write
-    /// have to wait out" reads this counter; pinning correctness is
-    /// guaranteed by each evaluation cloning the pinned `rules_sha`
-    /// before the cache mutates, not by reading this number.
+    /// Intended for burst-coalescing telemetry once MLP2-014 wires
+    /// the witness chain; today there is no in-process consumer
+    /// reading this value for scheduling decisions.
+    ///
+    /// Reads with `Acquire` ordering so a value of `0` observed from
+    /// any thread provides the visibility guarantee the
+    /// `in_flight==0 after exit` test asserts on weakly-ordered
+    /// architectures (ARM/POWER). Pairs with `AcqRel` on the
+    /// `fetch_add`/`fetch_sub` in [`InFlightGuard`] (Council
+    /// 2026-05-14 #C-040). Pinning correctness itself is guaranteed
+    /// by each evaluation moving the pinned `rules_sha` into its
+    /// frame before the cache mutates — not by reading this number.
     #[must_use]
     pub fn in_flight(&self) -> usize {
-        self.in_flight.load(Ordering::Relaxed)
+        self.in_flight.load(Ordering::Acquire)
     }
 
     /// Borrow the latency aggregator. The IPC `query_status` handler
@@ -279,14 +285,23 @@ struct InFlightGuard {
 
 impl InFlightGuard {
     fn new(counter: Arc<AtomicUsize>) -> Self {
-        counter.fetch_add(1, Ordering::Relaxed);
+        // AcqRel pairs with the Acquire load in
+        // `ScanBufferService::in_flight` so observers on ARM / POWER
+        // see the increment before any work the worker thread does
+        // is committed. Council 2026-05-14 #C-040.
+        counter.fetch_add(1, Ordering::AcqRel);
         Self { counter }
     }
 }
 
 impl Drop for InFlightGuard {
     fn drop(&mut self) {
-        self.counter.fetch_sub(1, Ordering::Relaxed);
+        // AcqRel decrement so an observer that sees `0` is
+        // guaranteed to see the worker's writes that happened-before
+        // this drop. Without the release side, `in_flight()==0` could
+        // be observed while the worker's effects are still in flight
+        // on a weakly-ordered architecture.
+        self.counter.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
@@ -809,12 +824,39 @@ mod tests {
         assert_eq!(service.in_flight(), 0, "counter must clear after exit");
     }
 
-    /// MLP2-002 adversarial test: a config-cache invalidation during
-    /// an in-flight evaluation must NOT change the pinned `rules_sha`
-    /// that returns to the caller.
-    #[tokio::test]
-    async fn config_invalidation_mid_evaluation_does_not_swap_pinned_rules_sha() {
+    /// MLP2-002 adversarial test (Council 2026-05-14 #C-001 / #C-029 /
+    /// #C-036): a config-cache invalidation that fires **while a
+    /// `scan_buffer` worker is mid-evaluation** must NOT change the
+    /// pinned `rules_sha` the caller receives.
+    ///
+    /// The earlier version of this test captured the pin into a local
+    /// `String` before spawning the invalidator, so the test passed
+    /// even if the implementation re-read from the cache mid-call.
+    /// This version pauses the worker on a `Barrier`, invalidates the
+    /// cache from the test body while the worker is provably blocked,
+    /// then releases the barrier and asserts the response carries the
+    /// pre-invalidation `rules_sha`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn config_invalidation_while_worker_running_does_not_swap_pinned_rules_sha() {
         use crate::rule_cache::{ResolvedRuleSet, RuleSetCache, RuleSetEntry, WorktreeKey};
+
+        struct GateRule(Arc<Barrier>);
+        impl InterceptRule for GateRule {
+            fn rule_id(&self) -> &'static str {
+                "test.pin-gate"
+            }
+            fn needs_content(&self) -> bool {
+                true
+            }
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                // Hold the worker thread here until the test releases
+                // the barrier; the cache invalidation will fire while
+                // we are stopped here.
+                self.0.wait();
+                RuleDecision::allow()
+            }
+        }
+
         let cache = Arc::new(RuleSetCache::new());
         let dir = tempfile::tempdir().expect("tempdir");
         let key = WorktreeKey::canonicalise(dir.path()).unwrap();
@@ -835,26 +877,92 @@ mod tests {
         };
         assert_eq!(pinned.as_deref(), Some("v-original"));
 
-        let service = ScanBufferService::new(EnforcementPipeline::new(default_rule_registry()));
-        let pin_clone = pinned.clone();
-        let cache_clone = Arc::clone(&cache);
-        let key_clone = key.clone();
-        let racer = tokio::spawn(async move {
-            // Simulate the watcher invalidating the cache while the
-            // evaluation is in flight.
-            cache_clone.invalidate(&key_clone);
-        });
-        let response = service
-            .scan_buffer_with_pin(secret_request(), pin_clone)
-            .await
-            .expect("scan_buffer with pin");
-        racer.await.expect("racer");
+        let barrier = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule(Arc::clone(&barrier)))])
+            .expect("registry");
+        let service = ScanBufferService::new(EnforcementPipeline::new(registry));
 
-        assert!(cache.is_empty(), "cache should be invalidated");
+        // Spawn the scan_buffer_with_pin call; its worker thread will
+        // park on the barrier inside `GateRule::evaluate`.
+        let service_clone = service.clone();
+        let pin_for_call = pinned.clone();
+        let handle = tokio::spawn(async move {
+            service_clone
+                .scan_buffer_with_pin(secret_request(), pin_for_call)
+                .await
+        });
+
+        // Wait until the worker has actually entered the pipeline —
+        // the in-flight counter going to 1 is the signal that the
+        // permit was acquired AND the worker thread is live.
+        for _ in 0..500 {
+            if service.in_flight() == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            service.in_flight(),
+            1,
+            "worker must be in flight before cache invalidation"
+        );
+
+        // The worker is now provably stopped inside `GateRule`. Mutate
+        // the cache; if the implementation re-read from the cache
+        // here, the next assertion would fail.
+        assert!(
+            cache.invalidate(&key),
+            "cache entry must be present before invalidation"
+        );
+        assert!(cache.is_empty(), "cache must be empty post-invalidation");
+
+        // Release the worker so it finishes its evaluation. Once the
+        // future returns, the response carries whatever `rules_sha`
+        // was pinned at call entry.
+        barrier.wait();
+        let response = handle.await.expect("join").expect("scan_buffer_with_pin");
+
         assert_eq!(
             response.rules_sha.as_deref(),
             Some("v-original"),
-            "in-flight pin must not be replaced by mid-flight invalidation"
+            "in-flight pin must survive a mid-evaluation cache invalidation"
+        );
+        assert_eq!(service.in_flight(), 0, "counter must clear after exit");
+    }
+
+    /// MLP2-002 Council fix #C-032: `in_flight()` must return to 0
+    /// after a `TimedOut` exit path so the RAII guard's behaviour is
+    /// observable independently of the test that exercises it on the
+    /// success path.
+    #[tokio::test]
+    async fn scan_buffer_in_flight_clears_after_timed_out_exit() {
+        struct SlowRule;
+        impl InterceptRule for SlowRule {
+            fn rule_id(&self) -> &'static str {
+                "test.slow"
+            }
+            fn needs_content(&self) -> bool {
+                true
+            }
+            fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
+                std::thread::sleep(Duration::from_millis(150));
+                RuleDecision::allow()
+            }
+        }
+        let registry = RuleRegistry::with_rules(vec![Box::new(SlowRule)]).expect("registry");
+        let service = ScanBufferService::with_timeout(
+            EnforcementPipeline::new(registry),
+            Duration::from_millis(10),
+        );
+        let outcome = service.scan_buffer(secret_request()).await;
+        assert!(
+            matches!(outcome, Err(ScanBufferError::TimedOut)),
+            "expected TimedOut, got {outcome:?}"
+        );
+        assert_eq!(
+            service.in_flight(),
+            0,
+            "InFlightGuard must release the counter on the TimedOut path"
         );
     }
 }

@@ -22,9 +22,8 @@
 //! ## What this module does NOT do
 //!
 //! - **Does not parse config.** Cache misses call back into a
-//!   resolver supplied by the caller — typically wired to
-//!   [`crate::config::resolve_rule_set`], which uses
-//!   [`anvil_config::parse_file`] +
+//!   resolver supplied by the caller — typically [`resolve_for_worktree`]
+//!   in this same module, which uses [`anvil_config::parse_file`] +
 //!   [`anvil_rules::rules_sha`]. Keeping the cache agnostic of
 //!   those crates makes the data structure easy to test in
 //!   isolation.
@@ -52,11 +51,20 @@ use thiserror::Error;
 /// type is intentionally cheap (one allocation per construction,
 /// identical to `PathBuf::from`).
 ///
-/// Forward-compat with MLP2-023: the registry session key extends
-/// to `(WorktreeKey, AgentTag)`. The rule-set cache stays keyed on
-/// `WorktreeKey` alone because every agent inside the same worktree
-/// resolves to the same rule set. When MLP2-023 lands, the cache
-/// continues to work unchanged.
+/// **Forward-compat note (MLP2-023):** the registry session key
+/// will extend to `(WorktreeKey, AgentTag)`. This cache stays keyed
+/// on `WorktreeKey` alone because every agent inside the same
+/// worktree resolves to the same rule set, so MLP2-023 lands
+/// without touching this type.
+///
+/// **Trust-model note:** the path is canonicalised once at
+/// construction; a post-registration symlink swap will desync this
+/// key from the registry's view of the worktree. The cache is a
+/// memoisation layer rather than an attribution surface, so the
+/// downside of drift is a stale cache entry until the next
+/// `.anvil.*` event, not an attribution bypass. Long-term remediation
+/// is keying on `(dev, inode)` — tracked outside MLP2-001 (Council
+/// 2026-05-14 #C-022).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WorktreeKey(PathBuf);
 
@@ -168,10 +176,19 @@ impl RuleSetCache {
             return Ok(existing);
         }
         // Resolve outside the lock so a slow resolver does not block
-        // sibling worktree look-ups. Trade-off: under racey writes
-        // two callers may resolve concurrently; the second insert
-        // wins. That's acceptable — `rules_sha` is deterministic, so
-        // both racers produce identical entries.
+        // sibling worktree look-ups. Trade-offs:
+        // - Two concurrent resolvers on the same key both compute and
+        //   the second insert wins. If the config file is stable across
+        //   both reads they produce identical entries; if it changes,
+        //   the later insert wins with the newer content — also correct.
+        // - A watcher invalidate that arrives between this miss-check
+        //   and the insert below is a no-op (the entry is not yet in
+        //   the map), so the fresh insert here can re-populate a
+        //   stale entry. This is consistent with the module-level
+        //   "invalidate semantics are eventual" contract: the *next*
+        //   `.anvil.*` watcher event clears the re-inserted entry, and
+        //   in-flight evaluations are independently pinned by
+        //   MLP2-002 so they never see the stale data either.
         let fresh = resolver(key)?;
         self.lock().insert(key.clone(), fresh.clone());
         Ok(fresh)
@@ -189,11 +206,25 @@ impl RuleSetCache {
     /// file. Returns the worktree keys that were invalidated so
     /// callers can emit per-worktree telemetry.
     ///
-    /// The check uses
-    /// [`anvil_config::ConfigFormat::from_path`]-equivalent
-    /// recognition (case-insensitive on the extension) and a
-    /// filename-stem match of `.anvil`. Touches of unrelated files
-    /// — even those that happen to share a worktree — are a no-op.
+    /// Recognition rule: the basename must be exactly `.anvil` and
+    /// the extension must be exactly `yaml`/`yml`/`json`/`toml` in
+    /// lowercase. This matches `anvil_config::discover` —
+    /// invalidating on `.anvil.YAML` while `discover` cannot
+    /// re-resolve a mixed-case filename would silently collapse the
+    /// rule set to empty, so the two recognisers are deliberately
+    /// kept in lock-step (Council 2026-05-14 #C-019 / #C-028).
+    /// Touches of unrelated files — even those that happen to share
+    /// a worktree — are a no-op.
+    ///
+    /// If `std::fs::canonicalize` fails on the changed file's parent
+    /// directory (e.g. it was deleted between the watcher event and
+    /// the lookup), the cache cannot match the raw path against its
+    /// canonical keys. In that case we conservatively invalidate
+    /// **every** entry rather than risk a silent miss — the
+    /// re-resolve cost is bounded by the cache size, and serving
+    /// stale rules after a `.anvil.*` write is the regression
+    /// MLP2-001 exists to prevent (Council 2026-05-14 #C-020 /
+    /// #C-035).
     pub fn invalidate_on_change(&self, path: &Path) -> Vec<WorktreeKey> {
         if !is_anvil_config_file(path) {
             return Vec::new();
@@ -203,20 +234,19 @@ impl RuleSetCache {
         };
         let mut hits = Vec::new();
         let mut guard = self.lock();
-        // The cache is keyed on canonicalised worktrees; `.anvil.*`
-        // files live directly under the worktree root, so a key whose
-        // canonical path equals the parent of the changed file is the
-        // owner. We compare on canonicalised parent to match the cache
-        // keys; if canonicalisation fails (e.g. the parent vanished
-        // mid-burst), fall back to the raw path comparison rather than
-        // skipping invalidation — a missed invalidation is worse than
-        // a redundant one.
-        let parent_canon = std::fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
-        let to_drop: Vec<WorktreeKey> = guard
-            .keys()
-            .filter(|key| key.as_path() == parent_canon)
-            .cloned()
-            .collect();
+        let to_drop: Vec<WorktreeKey> = if let Ok(parent_canon) = std::fs::canonicalize(parent) {
+            guard
+                .keys()
+                .filter(|key| key.as_path() == parent_canon)
+                .cloned()
+                .collect()
+        } else {
+            // Canonicalise failed — usually a transient mid-burst
+            // delete. Conservatively flush every entry; the next
+            // access re-resolves and re-populates. Cheaper than a
+            // permanently stale cache.
+            guard.keys().cloned().collect()
+        };
         for key in to_drop {
             if guard.remove(&key).is_some() {
                 hits.push(key);
@@ -343,10 +373,14 @@ fn hex_lower(bytes: &[u8]) -> String {
 }
 
 /// Recognise `.anvil.yaml`, `.anvil.yml`, `.anvil.json`, `.anvil.toml`
-/// in any case combination on the extension. The basename is matched
-/// case-sensitively (`.Anvil.yaml` is *not* a config file) because
-/// the rest of the loader treats `.anvil` as the canonical lowercase
-/// stem.
+/// with both the basename and the extension matched
+/// **case-sensitively in lowercase**. `anvil_config::discover` only
+/// matches lowercase extensions; recognising a mixed-case
+/// `.anvil.YAML` here would invalidate the cache but the subsequent
+/// `discover` call would not find the file, leaving the cache to
+/// re-populate with an empty rule set and silently dropping the
+/// operator's policy (Council 2026-05-14 #C-019 / #C-028). The two
+/// recognisers are deliberately kept in lock-step.
 fn is_anvil_config_file(path: &Path) -> bool {
     let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
         return false;
@@ -357,10 +391,7 @@ fn is_anvil_config_file(path: &Path) -> bool {
     let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
         return false;
     };
-    matches!(
-        ext.to_ascii_lowercase().as_str(),
-        "yaml" | "yml" | "json" | "toml"
-    )
+    matches!(ext, "yaml" | "yml" | "json" | "toml")
 }
 
 #[cfg(test)]
@@ -496,8 +527,13 @@ mod tests {
         assert_eq!(cache.len(), 1, "unrelated file must not invalidate");
     }
 
+    /// MLP2-001 Council fix #C-019 / #C-028: the cache invalidator
+    /// must mirror `anvil_config::discover`'s lowercase-only rule, or
+    /// a mixed-case touch evicts the entry but `discover` cannot
+    /// re-find the file — the cache would silently re-populate with
+    /// an empty rule set.
     #[test]
-    fn invalidate_on_change_case_insensitive_extension() {
+    fn invalidate_on_change_rejects_mixed_case_extension() {
         let cache = RuleSetCache::new();
         let dir = TempDir::new().unwrap();
         let k = key(&dir);
@@ -506,7 +542,65 @@ mod tests {
             .unwrap();
         let touched = dir.path().join(".anvil.YAML");
         std::fs::write(&touched, b"{}").unwrap();
-        assert_eq!(cache.invalidate_on_change(&touched), vec![k]);
+        assert!(
+            cache.invalidate_on_change(&touched).is_empty(),
+            ".anvil.YAML must not invalidate; discover() is lowercase-only"
+        );
+        assert_eq!(cache.len(), 1, "entry must survive the mixed-case write");
+    }
+
+    /// MLP2-001 Council fix #C-020 / #C-035: if `canonicalize` fails
+    /// on the changed file's parent, the invalidator over-approximates
+    /// and clears the entire cache rather than silently missing the
+    /// invalidation against canonical keys.
+    #[test]
+    fn invalidate_on_change_canonicalise_fail_flushes_all_entries() {
+        let cache = RuleSetCache::new();
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+
+        // Construct a phantom `.anvil.yaml` path whose parent never
+        // existed — `std::fs::canonicalize` returns NotFound, which
+        // is the same Err shape the cache sees when a parent is
+        // deleted mid-burst by the watcher.
+        let phantom = Path::new("/nonexistent/anvil-rule-cache-test/.anvil.yaml");
+        let hits = cache.invalidate_on_change(phantom);
+        assert_eq!(hits.len(), 2, "both worktree entries must be flushed");
+        assert!(hits.contains(&k_a));
+        assert!(hits.contains(&k_b));
+        assert!(cache.is_empty(), "cache must be empty after over-flush");
+    }
+
+    /// MLP2-001 Council fix #C-033: a `.anvil.yaml` in a subdirectory
+    /// of a worktree must NOT invalidate the worktree-level cache
+    /// entry. Only the worktree's *direct* `.anvil.*` files are
+    /// considered authoritative.
+    #[test]
+    fn invalidate_on_change_ignores_anvil_config_in_subdirectory() {
+        let cache = RuleSetCache::new();
+        let dir = TempDir::new().unwrap();
+        let subdir = dir.path().join("nested");
+        std::fs::create_dir_all(&subdir).unwrap();
+        let k = key(&dir);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+
+        let nested = subdir.join(".anvil.yaml");
+        std::fs::write(&nested, b"{}").unwrap();
+        assert!(
+            cache.invalidate_on_change(&nested).is_empty(),
+            "nested .anvil.yaml must not invalidate worktree-root entry"
+        );
+        assert_eq!(cache.len(), 1);
     }
 
     #[test]
@@ -625,12 +719,17 @@ mod tests {
     }
 
     #[test]
-    fn is_anvil_config_file_recognises_lowercase_stem_only() {
+    fn is_anvil_config_file_recognises_lowercase_only() {
         assert!(is_anvil_config_file(Path::new("/work/.anvil.yaml")));
         assert!(is_anvil_config_file(Path::new("/work/.anvil.yml")));
         assert!(is_anvil_config_file(Path::new("/work/.anvil.json")));
         assert!(is_anvil_config_file(Path::new("/work/.anvil.toml")));
-        assert!(is_anvil_config_file(Path::new("/work/.anvil.JSON")));
+        // Lock-step with `anvil_config::discover` (lowercase-only).
+        assert!(
+            !is_anvil_config_file(Path::new("/work/.anvil.JSON")),
+            "mixed-case ext must be rejected (Council #C-019 / #C-028)"
+        );
+        assert!(!is_anvil_config_file(Path::new("/work/.anvil.YAML")));
         assert!(!is_anvil_config_file(Path::new("/work/.Anvil.yaml")));
         assert!(!is_anvil_config_file(Path::new("/work/.anvilrc")));
         assert!(!is_anvil_config_file(Path::new("/work/anvil.yaml")));
