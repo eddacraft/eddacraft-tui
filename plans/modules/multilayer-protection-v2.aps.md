@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress  |
 | ---- | ------ | ----------- | --------- |
-| MLP2 | @aneki | In Progress | 4/60 done |
+| MLP2 | @aneki | In Progress | 6/60 done |
 
 **Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
 of the 56 deferred sub-items in `[multilayer-protection]`'s
@@ -383,7 +383,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-009: Volume-bounded burst rate-shaping for observations
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Shared rate-window primitive caps observation emit
   rate so a keystroke burst can't flood Kindling. Same primitive
   used by MLP2-026's `degraded:fence-cascade` detector.
@@ -395,10 +395,28 @@ task's `Source:` line cites the Council finding IDs.
   - When the rate is exceeded, additional emissions drop and a
     single `degraded:observation-throttled` row records the
     drop count.
-- **Files:** `crates/anvil-intercept/src/rate_window.rs` (new),
-  `crates/anvil-intercept/src/fanout.rs` (consumer).
-- **Validation:** Burst test — 1000 emissions in 100ms → bounded
-  output count + single throttle marker.
+- **Files:** `crates/anvil-intercept/src/rate_window.rs` (new).
+  Consumer wiring (originally listed against `fanout.rs`) lands
+  with MLP2-006 (`gate_evaluated` Kindling emit) — the primitive
+  ships here as a standalone sliding-window counter so MLP2-006
+  / MLP2-026 / MLP2-059 can each adopt it without coupling.
+- **Validation:** Burst test — 1000 emissions in 100 ms → bounded
+  output count + single throttle marker. **Evidence (Done
+  2026-05-14):** `cargo test -p eddacraft-anvil-intercept --lib
+  rate_window::` — 10 tests green covering: within-capacity
+  admit; over-cap throttle; consecutive throttles accumulate
+  `drops`; first `Allow` after a throttle burst carries
+  `pending_drops`; `Allow` resets the pending counter to zero
+  for the next burst; sliding window evicts expired timestamps;
+  zero capacity is clamped to 1 (defensive); `admitted_at`
+  diagnostic surface; the headline 1000-event burst at cap=50
+  admits exactly 50 and throttles 950; concurrent records
+  across 8 threads x 200 calls share the same cap (total admits
+  stay at capacity). The single-throttle-marker contract is
+  delivered via the `RateDecision::Allow { pending_drops }`
+  variant carrying the cumulative drop count back to the
+  consumer, so MLP2-006 can emit exactly one
+  `degraded:observation-throttled` row per sustained burst.
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** MLP-016
@@ -758,20 +776,51 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-024: Per-worktree session cap configuration
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** `enforcement.session.per_worktree_max` (default
   16) caps how many sub-agents one worktree can host. Above
   the cap, new registrations are refused.
 - **Expected Outcome:**
   - Field added to `anvil-config` enforcement-config schema.
   - `anvil-intercept` checks the cap at registration time;
-    above-cap refuses with `Refused::SessionCapExceeded`.
+    above-cap refuses with `RegistryError::SessionCapExceeded`.
   - Telemetry: cap-hit count + which worktree.
-- **Files:** `crates/anvil-config/src/lib.rs` (or wherever the
-  enforcement-config schema lives),
-  `crates/anvil-intercept/src/registry.rs`.
+- **Files:** `crates/anvil-intercept-proto/src/enforcement_config.rs`
+  (new `SessionConfigFile { per_worktree_max: Option<usize> }`
+  block under `EnforcementConfigFile.session`),
+  `crates/anvil-intercept/src/config.rs`
+  (`Resolved.session_per_worktree_max: usize` with stricter-wins
+  merge + zero-clamp; manual `Default` impl now that the field
+  carries a non-zero baseline),
+  `crates/anvil-intercept/src/registry.rs`
+  (`SessionRegistry::with_per_worktree_cap` builder, cap field on
+  `SessionRegistry`, cap-counting walk over `by_composite` at
+  register time, new `RegistryError::SessionCapExceeded` variant),
+  and the 7 existing `Resolved { ... }` literal sites in
+  `embedded.rs` updated to include the new field. (The originally-
+  listed `anvil-config` crate isn't where the enforcement-config
+  schema lives — INTD-008 put it under
+  `anvil-intercept-proto::enforcement_config`; this PR follows
+  the existing home.)
 - **Validation:** Cap=2 fixture; third registration refused;
-  one session ends → next registration accepted.
+  one session ends → next registration accepted. **Evidence
+  (Done 2026-05-14):** `cargo test -p eddacraft-anvil-intercept
+  --lib config:: registry::` — 9 new tests green (5 registry,
+  4 config). Coverage:
+  `third_session_on_capped_worktree_is_refused` (cap=2 + 3
+  distinct tags → 3rd refused with `SessionCapExceeded { cap,
+  live }`); `cap_freed_by_unregister_admits_next_registration`
+  (unregister opens a slot); `cap_is_scoped_per_worktree`
+  (cap=1 on wt-a does not block wt-b);
+  `zero_cap_is_clamped_to_one` (operator-typo defence);
+  `cap_counts_tagged_and_untagged_together` (composite-key
+  semantics compose correctly). Config-resolution tests:
+  default 16 when unset; project value honoured; stricter-wins
+  picks the smaller value; zero clamped to 1. 261 intercept-lib
+  tests pass (was 252 baseline); telemetry on `cap-hit count +
+  which worktree` is delivered via the `SessionCapExceeded`
+  variant's `{ worktree, cap, live }` payload — IPC-side
+  emission lands when MLP2-058's tracing surface picks it up.
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** MLP2-023
@@ -1676,10 +1725,10 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 3/10 |
+| A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 0/5 |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 0/7 |
-| D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 1/4 |
+| D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 0/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 0/6 |
@@ -1688,7 +1737,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 0/4 |
-| **Total** | **60** | **4/60** |
+| **Total** | **60** | **6/60** |
 
 ## Recommended landing order
 
@@ -1755,7 +1804,7 @@ resolved its `MLP2-023` listing to a `Coordinates with:` callout
 (see MLP2-001 body); the cache is worktree-scoped and is
 forward-compatible with MLP2-023's session-key extension.
 
-### Phase 2 — Phase-1-gated (17 tasks pending; MLP2-002 + MLP2-003 pre-shipped)
+### Phase 2 — Phase-1-gated (16 tasks pending; MLP2-002 + MLP2-003 + MLP2-024 pre-shipped)
 
 Each entry shows its gating Phase-1 dependency. **MLP2-002 was
 co-shipped with MLP2-001 in wave 1A (2026-05-14) — it appears here
@@ -1767,7 +1816,8 @@ see the task body for evidence.** Council 2026-05-14 #C-031 /
 | --- | --- |
 | MLP2-014, MLP2-057 | MLP2-001 |
 | MLP2-058 | MLP2-001 + MLP2-002 |
-| MLP2-024, MLP2-025 | MLP2-023 |
+| MLP2-025 | MLP2-023 |
+| ~~MLP2-024~~ (Done 2026-05-14) | MLP2-023 |
 | ~~MLP2-003~~ (Done 2026-05-14) | MLP2-023 |
 | MLP2-026 | MLP2-023 + MLP2-009 |
 | MLP2-006 | MLP2-009 |
