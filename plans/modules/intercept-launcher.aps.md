@@ -1,15 +1,22 @@
 # Intercept Launcher
 
-| ID   | Owner  | Status | Progress |
-| ---- | ------ | ------ | -------- |
-| INTL | @aneki | Ready  | 0/9      |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| INTL | @aneki | In Progress | 0/9      |
 
-**Last reviewed:** 2026-05-13 (Wave 0 readiness review — `AgentTag` stub landed
-in `crates/anvil-intercept-proto/src/session.rs`; INTL-003 and INTL-004
-promoted to task-Ready; the other seven tasks remain Draft pending their direct
-prerequisites. Module-level **Ready** here means "ready to begin Wave 3
+**Last reviewed:** 2026-05-14 (Wave 3 implementation lane opened on
+`feat/intl-launcher-v1`. New crate `crates/anvil-run/` carries INTL-001..-009
+implementation + 49 unit + 3 shell-integration tests; module status moved
+**Ready → In Progress** ahead of the PR. Each task is **In Progress** until the
+PR merges, at which point the cleanup agent will advance Merged → Complete per
+the lifecycle in `plans/aps-rules.md`.)
+
+**Earlier:** 2026-05-13 (Wave 0 readiness review — `AgentTag` stub landed in
+`crates/anvil-intercept-proto/src/session.rs`; INTL-003 and INTL-004 promoted
+to task-Ready; the other seven tasks remained Draft pending their direct
+prerequisites. Module-level **Ready** meant "ready to begin Wave 3
 implementation" — not "all individual tasks reviewed". Wave 3 starts after
-MLP-002 ships the witness primitive.)
+MLP-002 ships the witness primitive — true today.)
 
 ## AgentTag and Session Interface (cross-reference)
 
@@ -103,7 +110,7 @@ consistent launch semantics across tools.
   `--tool <name> -- <command...>` and resolves cwd, repo root, and worktree
   root; added to root workspace
 - **Validation:** `cargo build -p eddacraft-anvil-run && anvil-run --help`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-002: Daemon Connectivity and Fence Check
 
@@ -113,7 +120,7 @@ consistent launch semantics across tools.
   status; if daemon unreachable or worktree fenced, launch is refused with a
   clear error message
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib preflight`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-003: Session Registration Flow
 
@@ -125,7 +132,7 @@ consistent launch semantics across tools.
   acknowledgement, then proceeds to spawn. Registration keys the session as
   `(WorktreeKey, AgentTag)` to align with MLP-014.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib register`
-- **Status:** Ready
+- **Status:** In Progress
 
 ### INTL-004: Process-Group Child Launch
 
@@ -141,7 +148,7 @@ consistent launch semantics across tools.
   chain works through descendants; absence of those vars triggers the
   process-tree walk fallback at daemon side.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib spawn`
-- **Status:** Ready
+- **Status:** In Progress
 
 ### INTL-005: Session Cleanup on Exit
 
@@ -151,7 +158,7 @@ consistent launch semantics across tools.
   (via drop guard), session unregistration sent to daemon; daemon marks session
   ended
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib cleanup`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-006: Shell Integration Functions
 
@@ -161,7 +168,7 @@ consistent launch semantics across tools.
   common tools (e.g. `claude`, `codex`) that delegate to `anvil-run --tool
   <name> -- "$@"`; works in zsh and bash
 - **Validation:** Manual: source script, verify function wraps command
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-007: Hook Side-Channel Registration
 
@@ -175,7 +182,7 @@ consistent launch semantics across tools.
   than a controlled wrapper PGID -- the daemon enforces this at registration
   time
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib hook`
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-008: Blocked Launch UX
 
@@ -185,7 +192,7 @@ consistent launch semantics across tools.
   path, and the command needed to unblock; exit code distinguishes fence
   refusal from daemon-unavailable refusal
 - **Validation:** Manual: attempt launch in fenced worktree, verify output
-- **Status:** Draft
+- **Status:** In Progress
 
 ### INTL-009: Session Heartbeat
 
@@ -195,4 +202,4 @@ consistent launch semantics across tools.
   the child process is running; heartbeat interval is well within the daemon's
   30s TTL window
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib heartbeat`
-- **Status:** Draft
+- **Status:** In Progress

@@ -1326,6 +1326,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-run"
+version = "0.6.2-beta"
+dependencies = [
+ "anyhow",
+ "clap",
+ "eddacraft-anvil-intercept",
+ "eddacraft-anvil-intercept-proto",
+ "eddacraft-anvil-intercept-win32",
+ "nix 0.30.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-tui"
 version = "0.6.2-beta"
 dependencies = [

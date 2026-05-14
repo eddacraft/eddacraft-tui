@@ -13,6 +13,7 @@ members = [
   "crates/anvil-config",
   "crates/anvil-intercept",
   "crates/anvil-intercept-proto",
+  "crates/anvil-run",
   "crates/anvil-observability",
   "crates/anvil-intercept-rules",
   "crates/anvil-intercept-win32",
