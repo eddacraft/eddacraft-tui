@@ -1,0 +1,235 @@
+# Distribution and Self-Update
+
+<!-- Executable only if tasks exist and status is Ready. -->
+
+| ID      | Owner  | Status | Progress |
+| ------- | ------ | ------ | -------- |
+| DISTRIB | @aneki | Ready  | 0/5 done |
+
+**Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
+acceptance of
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
+Module-level `Ready` means "ready to begin Wave 3A"; individual tasks
+remain `Draft` until picked up. DISTRIB-001 (signature verification +
+resolution-chain robustness) is first; -002 layers the version-check
+UX on top; -003/-004 are parallel; -005 (`anvil migrate`) depends on
+-002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002 load-bearing for
+the `v0.7.0-beta` MCP-backend swap to actually reach existing users.)
+
+## Purpose
+
+`anvil update` already exists (per
+[`plans/execution/2026-04-13-anvil-update-command.md`](../execution/2026-04-13-anvil-update-command.md))
+with a Homebrew-detect → sidecar → axoupdater resolution chain. The hotfix
+iteration plan in
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md)
+assumes that when a senior user hits a bug on Tuesday and we publish a fix on
+Wednesday, they receive the fix without effort.
+
+That assumption is currently load-bearing and lightly tested. The risk model:
+if a single user gets stuck on a buggy patch because the update path is
+non-obvious, the hotfix iteration premise breaks. If a security-relevant fix
+goes unnoticed, the trust premise breaks. This module hardens the surrounding
+ecosystem so the update path is **trustworthy, signed, and visible**.
+
+## In Scope
+
+- `anvil update` resolution-chain robustness (Homebrew detection, sidecar
+  shell-out, axoupdater library fallback) with signature verification
+- `anvil version --check` UX surfacing newer versions and security advisories
+- Homebrew formula automation: auto-bump on release, signed artefacts, tested
+  on macOS arm64 and x64
+- Release cadence and EOL policy (`docs/policies/release-cadence.md`)
+- `anvil migrate` for config reconciliation across minor versions
+
+## Out of Scope
+
+- Curl-installer rewrite (already covered under WATCHUX-001 and broader
+  install polish)
+- Package manager support beyond Homebrew (npm, cargo install, scoop, winget,
+  apt, etc.) — deferred to a post-v0.7.0 distribution module
+- Hosted release server / cloud delivery — Horizon 2
+- Auto-update without user consent — explicit non-goal; always opt-in
+
+## Interfaces
+
+- **Depends on:**
+  - `crates/anvil-cli/src/commands/update.rs` (existing)
+  - `crates/anvil-cli/src/commands/version.rs` (existing)
+  - `crates/anvil-cli/Cargo.toml` (axoupdater dependency)
+  - `install.sh` (curl installer; coordinate with WATCHUX-001)
+  - GitHub Releases (binary artefacts + signatures)
+- **Exposes:**
+  - Hardened `anvil update` and `anvil version --check`
+  - `anvil migrate` config reconciliation command
+  - Documented release cadence and EOL policy
+  - Automated Homebrew formula bump on tag
+
+## Tasks
+
+### DISTRIB-001: Harden `anvil update` Resolution Chain And Signature Verification
+
+- **Intent:** Ensure the existing `anvil update` resolution chain is correct
+  on every supported install path and that downloaded artefacts are
+  signature-verified before installation.
+- **Expected Outcome:** Resolution chain is tested end-to-end on
+  (a) Homebrew install, (b) curl-installer sidecar install, (c) library
+  fallback install. Each path verifies the downloaded artefact against a
+  published signature (cosign or minisign — choose one and pin it in an
+  ADR) before replacing the running binary. Refusal on signature mismatch
+  is loud and actionable.
+- **Files:**
+  - `crates/anvil-cli/src/commands/update.rs`
+  - `plans/decisions/NNN-update-signing-scheme.md` (NEW ADR)
+  - `crates/anvil-cli/tests/update_resolution_chain.rs` (NEW)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil --test update_resolution_chain`
+  - Integration: fixture install for each path; tampered-artefact refusal
+    test; CI runs both on macOS and Linux runners
+- **Status:** Draft
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: user
+  - type: changed
+  - text: "`anvil update` now signature-verifies downloads on every install
+    path before replacing the running binary."
+
+### DISTRIB-002: `anvil version --check` And Security Advisory Surface
+
+- **Intent:** Surface newer versions and security advisories without
+  performing an automatic update, so users can decide when to upgrade and
+  cannot miss a security-relevant fix.
+- **Expected Outcome:** `anvil version --check` queries the releases feed
+  (with offline fallback per the air-gapped guarantee), reports newer
+  available versions, and explicitly names any advisory tag attached to
+  the running version (e.g. `security-advisory: GHSA-xxxx-...`). The
+  watch TUI and `anvil status` show a one-line "update available" hint
+  when applicable, rate-limited to once per 24h.
+- **Files:**
+  - `crates/anvil-cli/src/commands/version.rs`
+  - `crates/anvil-cli/src/activation/render.rs`
+  - `crates/anvil-tui/src/surfaces/watch/render.rs`
+- **Validation:**
+  - `cargo test -p eddacraft-anvil commands::version::tests::check_surfaces_advisory`
+  - `cargo test -p eddacraft-anvil-tui watch::tests::update_hint_rate_limited`
+  - Integration: fixture releases feed with advisory metadata
+- **Status:** Draft
+- **Dependencies:** DISTRIB-001
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil version --check` reports new releases and security
+    advisories; watch and status surface a non-intrusive hint."
+
+### DISTRIB-003: Homebrew Formula Automation
+
+- **Intent:** Auto-bump the `eddacraft/tap/anvil` Homebrew formula on
+  release so Homebrew users receive hotfixes without manual maintainer
+  action.
+- **Expected Outcome:** GitHub Actions workflow on release publishes the
+  updated formula to `eddacraft/homebrew-tap` with the new version,
+  artefact SHAs, and bottle URLs. Workflow is tested by the release
+  runbook. Formula publishes are signed by the release identity. macOS
+  arm64 and x64 install paths both produce a working `anvil` binary.
+- **Files:**
+  - `.github/workflows/homebrew-bump.yml` (NEW)
+  - `scripts/release/bump-homebrew.sh` (NEW)
+  - `docs/runbooks/homebrew-publish.md` (NEW)
+- **Validation:**
+  - CI dry-run on candidate SHA produces a valid formula file
+  - Integration: install from the tap on macOS arm64 and x64 runners
+- **Status:** Draft
+- **changeType:** internal
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: operator
+  - type: added
+  - text: "Homebrew formula now auto-bumps on every release tag."
+
+### DISTRIB-004: Release Cadence And EOL Policy
+
+- **Intent:** Document what users can expect about release cadence,
+  patch/minor/major semantics, and version support windows.
+- **Expected Outcome:** `docs/policies/release-cadence.md` documents:
+  the hotfix iteration plan (weekly during active signal, 48h for P0),
+  patch/minor/major scope per `plans/aps-rules.md`, the "sit on a release"
+  cadence (no major release within 6 weeks unless triggered by Boring-
+  Week regressions), and the support window for `-beta` releases
+  (latest minor + previous minor get security fixes). Cross-linked from
+  README and CONTRIBUTING.
+- **Files:**
+  - `docs/policies/release-cadence.md` (NEW)
+  - `README.md` (cross-link)
+  - `CONTRIBUTING.md` (cross-link)
+- **Validation:**
+  - Doc review and council pass; no automated check
+- **Status:** Draft
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "Release cadence and version support window are now documented in
+    `docs/policies/release-cadence.md`."
+
+### DISTRIB-005: `anvil migrate` For Cross-Version Config Reconciliation
+
+- **Intent:** When a minor version changes a config schema, give users a
+  one-command path to migrate without hand-editing files.
+- **Expected Outcome:** `anvil migrate` reads `.anvil/config.{yaml,toml,json}`
+  and the recorded `anvil-version` in baseline metadata; if a schema
+  migration is registered for the version delta, the command applies it
+  (with a dry-run preview by default and `--apply` to write). Migrations
+  are registered in `crates/anvil-config/src/migrations/`. Missing
+  migration registers a clear "no migration needed" or "manual review
+  required" message.
+- **Files:**
+  - `crates/anvil-cli/src/commands/migrate.rs` (NEW)
+  - `crates/anvil-config/src/migrations/mod.rs` (NEW)
+  - `docs/runbooks/anvil-migrate.md` (NEW)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-config migrations::tests`
+  - `cargo test -p eddacraft-anvil commands::migrate::tests`
+- **Status:** Draft
+- **Dependencies:** DISTRIB-002
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil migrate` reconciles config across minor versions in one
+    step."
+
+## Sequencing
+
+1. **DISTRIB-001** is first; everything else assumes signature verification
+   is in place.
+2. **DISTRIB-002** layers the version-check UX onto -001.
+3. **DISTRIB-003** is parallel with -001 / -002 — the Homebrew formula
+   automation does not depend on the update command itself.
+4. **DISTRIB-004** is the policy doc and is independent.
+5. **DISTRIB-005** depends on -002 (it reuses the releases-feed contract).
+
+## Release Notes
+
+The DISTRIB items collectively justify a "Anvil now publishes signed
+releases with a documented support window and clean upgrade path" line in
+`v0.7.0-beta`.
+
+## Cross-References
+
+- Coordinates with: [`WATCHUX-001`](watch-ux-advisory-rules.aps.md)
+  (Homebrew detection on install), [`TRUST-001`](adoption-trust-surface.aps.md)
+  (status surface where update hint renders).
+- Blocks on: none at module level.
+- New ADR required for DISTRIB-001: signing scheme choice (cosign vs
+  minisign vs Sigstore). Slot in the next available ADR number when the
+  module promotes to Ready.
