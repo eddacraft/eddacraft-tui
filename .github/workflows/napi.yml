@@ -112,12 +112,20 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
         with:
           target: ${{ matrix.target }}
+          # The explicit rust-cache step below owns target/registry caching.
+          # The setup action's built-in cache also restores ~/.cargo/bin, which
+          # can poison macOS runners with a cached rustup-init shim named cargo.
+          cache: false
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           # Per-target cache key — host toolchains differ enough that
           # sharing one bucket would force constant invalidation.
           shared-key: napi-${{ matrix.target }}
+          # Do not cache ~/.cargo/bin. On macOS a restored cargo shim has been
+          # observed resolving to rustup-init, breaking `cargo metadata` in both
+          # rust-cache and @napi-rs/cli before the build starts.
+          cache-bin: false
 
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 

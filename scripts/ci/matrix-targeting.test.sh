@@ -115,6 +115,11 @@ assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "needs.check.re
 assert_contains "${napi_workflow}" "      - 'crates/anvil-checks-napi/**'"
 assert_contains "${napi_workflow}" "    tags:"
 assert_contains "${napi_workflow}" "      - 'napi-v*'"
+# NAPI macOS builds must not restore ~/.cargo/bin. A poisoned cached cargo shim
+# has resolved to rustup-init, causing rust-cache and @napi-rs/cli to fail at
+# `cargo metadata` before any crate code compiles.
+assert_block_contains "${napi_workflow}" "^  build:" "cache: false"
+assert_block_contains "${napi_workflow}" "^  build:" "cache-bin: false"
 
 # ── bench.yml: release-gate (push-to-main + dispatch) ───────────
 assert_contains "${bench_workflow}" "    branches: [main]"
