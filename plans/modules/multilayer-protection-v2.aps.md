@@ -939,17 +939,139 @@ task's `Source:` line cites the Council finding IDs.
 - **Intent:** Env-supplied `AgentTag` must match the tag the
   daemon issued for this PID lineage at INTL-003
   registration. Mismatches treated as missing, not honoured.
+- **Planning Council 2026-05-15 revisions:** module placement
+  (env-reader moved off `auth.rs`), enforcement layering
+  (cross-check at daemon control-lane, not inside
+  `EnforcementPipeline`), explicit `pid_starttime` validation
+  at every ancestor hop, and explicit trust-boundary note
+  for intra-lineage privilege escalation. See
+  [`plans/reviews/2026-05-15-mlp2-025-026-planning-council.md`](../reviews/2026-05-15-mlp2-025-026-planning-council.md).
 - **Expected Outcome:**
-  - At each enforcement decision, daemon walks the writer's
-    PID lineage and looks up registered ancestors.
-  - If env tag exists but doesn't match any registered
-    ancestor for this lineage → strip the tag, downgrade to
-    worktree-level fence.
-  - Logged as `degraded:spoofed-attribution`.
-- **Files:** `crates/anvil-intercept/src/registry.rs`,
-  `crates/anvil-intercept/src/auth.rs`.
-- **Validation:** Spoof test — process sets `ANVIL_AGENT_TAG`
-  to a fake value → registry treats it as unattributable.
+  - `SessionRecord` (proto) gains a wire-additive
+    `daemon_issued_tag: Option<AgentTag>` mirror that
+    captures the tag the daemon actually issued at
+    `register()` time, distinct from the client-supplied
+    `agent_tag` field.
+  - `SessionRegistry::lookup_tag_for_lineage(pid)` walks the
+    writer's PID lineage via
+    `anvil_attribution::walk_ancestors` and returns the
+    daemon-issued tag of any registered ancestor.
+    **Validation is by `(pid, pid_starttime)` pair at every
+    hop** — a bare PID match is rejected, so PID reuse after
+    a launcher exit cannot spoof attribution.
+  - **The cross-check executes at the daemon control-lane**
+    (the IPC handler that already holds both the session
+    registry and the change envelope), **not** inside
+    `EnforcementPipeline`. The pipeline receives a
+    pre-resolved `attribution: Attributed | Spoofed |
+    Untagged` value; pipeline signature is unchanged.
+  - `cross_check_env_tag(env_tag, writer_pid)` on
+    `SessionRegistry` returns
+    `Cross::Match | Cross::Spoofed | Cross::Untagged`:
+    - `Match` when the env-derived tag matches a registered
+      ancestor on the writer's PID lineage.
+    - `Spoofed` when an env tag is present but no ancestor
+      match exists.
+    - `Untagged` when no env tag was supplied.
+  - On `Cross::Spoofed`: the daemon control-lane (a) **blocks
+    the in-flight write** (returns the equivalent of a fence
+    refusal for the current operation) and (b) records a
+    worktree-level fence so future operations stay blocked
+    until cleared. Reason string is `degraded:spoofed-attribution`.
+  - Reason string is emitted in TWO channels: the existing
+    free-form notification envelope in `telemetry.rs` AND a
+    new `tracing::warn!(target: "anvil_intercept::registry",
+    reason = "degraded:spoofed-attribution", %worktree,
+    %writer_pid, ...)` so structured log collectors see the
+    event independently of the notification bus.
+  - Both reasons are defined as `pub const` string literals
+    (single find-target for a future enum migration).
+  - A registered session whose env tag matches a daemon-
+    issued ancestor mirror is unaffected.
+  - A session that never supplied `ANVIL_AGENT_TAG` is
+    unaffected.
+  - **Trust boundary, documented:** the lineage walk grants
+    any *descendant* of a registered PID full attribution.
+    The security guarantee is against *out-of-lineage*
+    spoofing only; co-process privilege escalation inside a
+    legitimate process tree is out of scope (this is an
+    inherent limitation of PID-lineage attribution, captured
+    here to avoid surprise).
+- **Files:**
+  - `crates/anvil-intercept-proto/src/session.rs` — add
+    wire-additive `daemon_issued_tag: Option<AgentTag>` on
+    `SessionRecord` with serde defaults matching MLP2-023
+    precedent.
+  - `crates/anvil-intercept/src/tag_env.rs` — **new module**
+    holding `fn env_agent_tag() -> Option<AgentTag>`, the
+    first reader of `ANVIL_AGENT_TAG_ENV`. Lives separate
+    from `auth.rs` (which is the DRVR-007 driver trust
+    boundary and must not absorb unrelated surfaces).
+  - `crates/anvil-intercept/src/lib.rs` — declare the new
+    `tag_env` module.
+  - `crates/anvil-intercept/src/registry.rs` — capture the
+    daemon-issued tag on `register()`; add
+    `lookup_tag_for_lineage(pid: u32) -> Option<AgentTag>`
+    (validates `(pid, pid_starttime)` per hop); add
+    `cross_check_env_tag(env_tag, writer_pid)` returning the
+    three-state enum; tests under the existing
+    `registry::tests` module (precedent at lines 1303–1379).
+  - Daemon control-lane handler (current call site of
+    `EnforcementPipeline` evaluate methods — confirm exact
+    file during impl) — invoke the cross-check, branch on
+    the result, and pass `attribution` into the pipeline.
+    `EnforcementPipeline` itself is NOT extended with a
+    registry reference.
+  - `crates/anvil-intercept/src/telemetry.rs` — emit the
+    `degraded:spoofed-attribution` notification AND a
+    `tracing::warn!` at the registry target.
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-intercept-proto --lib
+    session::tests::daemon_issued_tag_wire_compat`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    tag_env::tests::env_agent_tag_parses_valid_value`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    tag_env::tests::env_agent_tag_rejects_malformed_value`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::lineage_walk_finds_registered_ancestor`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::lineage_walk_rejects_pid_reuse_without_starttime_match`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::env_tag_mismatch_strips_attribution`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::env_tag_match_preserves_attribution`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::missing_env_tag_leaves_session_untagged`
+  - Daemon control-lane integration test (path TBD during
+    impl) covering `Cross::Spoofed` → block + fence path.
+- **Subtasks:**
+  1. **Proto wire-additive field.** Add
+     `daemon_issued_tag: Option<AgentTag>` to
+     `SessionRecord`; test
+     `session::tests::daemon_issued_tag_wire_compat`.
+  2. **`tag_env` module.** Greenfield module with
+     `env_agent_tag()`; tests
+     `env_agent_tag_parses_valid_value` and
+     `env_agent_tag_rejects_malformed_value`. (Module
+     placement changed from `auth.rs` per Council finding
+     M4.)
+  3. **Registry lineage lookup with `pid_starttime` pinning.**
+     `SessionRegistry::lookup_tag_for_lineage(pid)` validates
+     `(pid, pid_starttime)` at every ancestor hop; tests
+     `lineage_walk_finds_registered_ancestor` and
+     `lineage_walk_rejects_pid_reuse_without_starttime_match`.
+  4. **Registry cross-check API.** `cross_check_env_tag`
+     returning the three-state enum; tests cover each arm.
+  5. **Daemon control-lane wire + telemetry.** Wire the
+     cross-check at the IPC handler call site (above
+     `EnforcementPipeline`); on `Cross::Spoofed` block the
+     in-flight write and record the worktree-level fence;
+     emit `degraded:spoofed-attribution` via notification
+     AND `tracing::warn!`. Integration test covers the
+     block + fence + telemetry path.
+  6. **Backward-compat sweep.** Confirm all untagged callers
+     retain pre-MLP2-025 semantics; lib-test count rises
+     from MLP2-024 baseline of 261 without regressions.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** MLP-014, MLP2-023
@@ -961,16 +1083,175 @@ task's `Source:` line cites the Council finding IDs.
 - **Intent:** When five fences fire within 60s, the daemon
   enters `degraded:fence-cascade` mode requiring operator-
   clear. Uses the shared rate-window primitive from MLP2-009.
+- **Planning Council 2026-05-15 revisions:** `RateWindow`
+  capacity corrected to 4 (off-by-one), cascade engaged-state
+  persisted in `FenceFile` (survives daemon restart), status
+  surface gains `cascaded` / `cascade_since`, `tracing::warn!`
+  alongside notification, `operator` audit field on the IPC
+  verb, lock ordering documented, telemetry subtask folded
+  into engage/clear sites. See
+  [`plans/reviews/2026-05-15-mlp2-025-026-planning-council.md`](../reviews/2026-05-15-mlp2-025-026-planning-council.md).
 - **Expected Outcome:**
-  - `anvil-intercept::fence` consumes
-    `anvil-intercept::rate_window::SlidingCount(5, 60s)`.
-  - Cascade mode emits an explicit operator-touch surface
-    (`anvil intercept unblock --acknowledge-cascade`).
-  - Until cleared, new sessions for the worktree are refused.
-- **Files:** `crates/anvil-intercept/src/fence.rs`.
-- **Validation:** Burst test — fire 5 fences in 60s →
-  cascade engaged; sixth registration refused; clear surface
-  works.
+  - `FenceStore` holds an in-memory per-worktree
+    `RateWindow::new(4, Duration::from_secs(60))`. The 5th
+    `record()` call within 60 s returns `RateDecision::Throttle`
+    — that is the engage trigger. (Capacity 4, not 5: the
+    rate-window admits up to capacity, so capacity must be
+    one less than the desired threshold count.)
+  - `fence_worktree()` records each firing through the rate
+    window. On `Throttle`, the engaged-state record is
+    written and persisted.
+  - **Cascade engaged-state is persisted in `FenceFile`** as
+    a new wire-additive field `cascades:
+    Vec<CascadeRecord>` where each record is
+    `{ worktree: PathBuf, since_unix: u64, reason: String }`.
+    Wire-additive via `#[serde(default,
+    skip_serializing_if = "Vec::is_empty")]`, `version` stays
+    at 1. Daemon restart restores engaged cascades from disk;
+    the in-memory `RateWindow` rebuilds empty on restart but
+    the engaged flag survives (correct behaviour: cascade is
+    a security boundary, must not silently clear on
+    process restart).
+  - `FenceStore::is_cascaded(&path) -> bool` and
+    `clear_cascade(&path)` accessors expose the engaged
+    state.
+  - `SessionRegistry::register()` consults
+    `FenceStore::is_cascaded(&path)` and refuses new sessions
+    on a cascaded worktree with
+    `RegistryError::WorktreeCascaded { worktree }`,
+    mirroring the `SessionCapExceeded` precedent from
+    MLP2-024.
+  - **Lock ordering, documented:** `FenceStore` lock is
+    acquired BEFORE `SessionRegistry::Inner` lock at every
+    call site. The cascade check in `register()` snapshots
+    the cascade flag, releases the fence lock, then takes
+    the registry lock. Comments at both lock sites cite this
+    rule.
+  - `IpcCommand::UnblockCascade { worktree, operator:
+    Option<OperatorContext> }` is the wire-additive verb.
+    `OperatorContext { uid: Option<u32>, pid: u32, hostname:
+    Option<String> }` is populated daemon-side from IPC peer
+    credentials. The daemon handler calls `clear_cascade()`
+    and resets the rate window for that worktree.
+  - CLI: greenfield `anvil intercept unblock
+    --acknowledge-cascade <worktree>` subcommand
+    (`crates/anvil-cli/src/commands/intercept.rs`). Path is
+    canonicalised before the IPC dispatch (matching
+    `unblock_worktree`'s `lookup_path` guard in
+    `fence.rs:192–198`). `--acknowledge-cascade` remains as
+    UX clarity; the audit-of-record is the `operator` field
+    on the wire, not the flag.
+  - **Status surface update:** `WorktreeStatus` and
+    `WorktreeStatusV1` gain `cascaded: bool` and
+    `cascade_since: Option<u64>`. `render_status` adds a
+    `cascade: engaged since <ts>` line when applicable.
+    Operators can discover cascade state without invoking
+    a doomed `register`.
+  - **Telemetry in two channels:**
+    - Notification envelope (existing `telemetry.rs`
+      convention around lines 339–354) — `degraded:fence-cascade`
+      on engage and a paired clear notification.
+    - `tracing::warn!(target: "anvil_intercept::fence",
+      reason = "degraded:fence-cascade", %worktree,
+      since_unix, ...)` at engage; `tracing::info!(target:
+      "anvil_intercept::fence", reason =
+      "degraded:fence-cascade-clear", %worktree, ?operator,
+      ...)` at clear. Mirrors the priority asymmetry from
+      `FenceTransition::ActiveToFenced` (warn) vs
+      `FencedToActive` (info).
+    - Both `degraded:fence-cascade` and
+      `degraded:fence-cascade-clear` are `pub const` string
+      literals.
+  - Per-task fence isolation from MLP2-023 is preserved:
+    cascade is keyed on the worktree path, not on
+    `(WorktreeKey, AgentTag)`. Per-task escalation is
+    deferred (would require a `fence_worktree` signature
+    change).
+- **Files:**
+  - `crates/anvil-intercept/src/fence.rs` — add
+    `CascadeRecord` (serde-additive on `FenceFile`); in-memory
+    per-worktree `RateWindow::new(4, 60s)`; fire-count
+    inside `fence_worktree()`; `is_cascaded()` / `clear_cascade()`
+    accessors; engage-on-throttle wired through; tests
+    extend the existing `tests` module (precedent
+    `explicit_unblock_removes_persisted_fence` at lines
+    527–626+).
+  - `crates/anvil-intercept/src/registry.rs` — consult
+    cascade on `register()`; add the `WorktreeCascaded` error
+    variant alongside `SessionCapExceeded`; document the
+    lock-ordering rule at the lock site.
+  - `crates/anvil-intercept/src/status.rs` — add `cascaded:
+    bool` and `cascade_since: Option<u64>` to
+    `WorktreeStatus` and `WorktreeStatusV1`; render the new
+    `cascade:` line in `render_status`.
+  - `crates/anvil-intercept/src/ipc.rs` — daemon-side
+    `IpcCommand::UnblockCascade` handler; populate
+    `OperatorContext` from peer credentials.
+  - `crates/anvil-intercept-proto/src/lib.rs` (or wherever
+    `IpcCommand` is declared) — wire-additive
+    `UnblockCascade { worktree, operator:
+    Option<OperatorContext> }` variant +
+    `OperatorContext` type.
+  - `crates/anvil-cli/src/commands/intercept.rs` — greenfield
+    `Unblock { worktree: PathBuf, acknowledge_cascade: bool }`
+    subcommand; canonicalise path before dispatch.
+  - `crates/anvil-intercept/src/telemetry.rs` — emit
+    notification + `tracing::warn!` on engage; notification +
+    `tracing::info!` on clear.
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    fence::tests::five_fences_in_sixty_seconds_engage_cascade`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    fence::tests::four_fences_in_sixty_seconds_do_not_engage_cascade`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    fence::tests::cascade_state_persists_until_acknowledged`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    fence::tests::cascade_state_round_trips_through_store_reload`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    fence::tests::acknowledge_cascade_resets_rate_window`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    registry::tests::register_on_cascaded_worktree_is_refused`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    status::tests::cascaded_worktree_surfaces_in_status_json`
+  - `cargo test -p eddacraft-anvil-intercept --lib
+    ipc::tests::unblock_cascade_round_trips_with_operator_context`
+  - `cargo test -p eddacraft-anvil-cli --lib
+    commands::intercept::tests::unblock_acknowledge_cascade_dispatches_ipc`
+- **Subtasks:**
+  1. **`CascadeRecord` persistence + `RateWindow::new(4, 60s)`
+     on `FenceStore`.** Wire-additive `CascadeRecord` on
+     `FenceFile`; in-memory per-worktree rate window with
+     **capacity 4** so the 5th fire returns `Throttle`;
+     engage on `Throttle`; persist `cascades` to disk; emit
+     `degraded:fence-cascade` via notification AND
+     `tracing::warn!` at the engage site. Tests:
+     `four_fences_in_sixty_seconds_do_not_engage_cascade`,
+     `five_fences_in_sixty_seconds_engage_cascade`,
+     `cascade_state_round_trips_through_store_reload`.
+  2. **Fire-count integration in `fence_worktree()`.** Each
+     fire records through the window; engaged state
+     persists across subsequent fires; test
+     `cascade_state_persists_until_acknowledged`.
+  3. **Status surface update.** Add `cascaded` and
+     `cascade_since` to `WorktreeStatus` /
+     `WorktreeStatusV1`; render the `cascade:` line; test
+     `status::tests::cascaded_worktree_surfaces_in_status_json`.
+  4. **Registry refusal on cascaded worktrees.** Add
+     `RegistryError::WorktreeCascaded`; cascade check in
+     `register()`; lock-ordering comment at both call
+     sites; test
+     `register_on_cascaded_worktree_is_refused`.
+  5. **IPC `UnblockCascade` verb with `OperatorContext`.**
+     Wire-additive variant + `OperatorContext` type;
+     daemon-side handler populates the context from peer
+     credentials, calls `clear_cascade()`, resets the rate
+     window, emits the clear notification + `tracing::info!`.
+     Tests: `unblock_cascade_round_trips_with_operator_context`,
+     `acknowledge_cascade_resets_rate_window`.
+  6. **CLI `intercept unblock --acknowledge-cascade`.**
+     Greenfield subcommand; canonicalise path before
+     dispatch; test
+     `commands::intercept::tests::unblock_acknowledge_cascade_dispatches_ipc`.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP2-009, MLP2-023
