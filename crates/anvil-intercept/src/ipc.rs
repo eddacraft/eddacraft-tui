@@ -3812,7 +3812,7 @@ mod tests {
         use crate::kindling_observation::MidEditObservationEmitter;
 
         let pipeline = EnforcementPipeline::default();
-        let (emitter, recorder) =
+        let (emitter, sink) =
             MidEditObservationEmitter::with_recorder("11111111-1111-4111-8111-111111111111");
         let scan_buffer =
             ScanBufferService::new(pipeline).with_observation_emitter(Arc::new(emitter));
@@ -3849,7 +3849,7 @@ mod tests {
             "fixture should produce at least one finding: {response}"
         );
 
-        let recorded = recorder.recorded();
+        let recorded = sink.recorded();
         assert_eq!(
             recorded.len(),
             1,
@@ -3992,7 +3992,7 @@ mod tests {
         assert!(response["result"]["diagnostics"].is_array());
     }
 
-    /// MLP2-006: gate_eval_id derivation must use the W3C
+    /// MLP2-006: `gate_eval_id` derivation must use the W3C
     /// traceparent's parent-id when present, falling back to a
     /// fresh UUID v4 when the producer omitted the header (so the
     /// row never carries a placeholder id).
@@ -4029,7 +4029,7 @@ mod tests {
         let emitter = MidEditObservationEmitter::new(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             // cap = 2 in a long window so the third call throttles.
-            RateWindow::new(2, Duration::from_secs(60)),
+            RateWindow::new(2, Duration::from_mins(1)),
             "11111111-1111-4111-8111-111111111111".into(),
         );
         let scan_buffer = ScanBufferService::new(EnforcementPipeline::default())

@@ -779,11 +779,11 @@ mod tests {
 
     #[test]
     fn emitter_pushes_observation_to_sink_for_finding_bearing_scan() {
-        let (emitter, recorder) = MidEditObservationEmitter::with_recorder(SESSION_UUID);
+        let (emitter, sink) = MidEditObservationEmitter::with_recorder(SESSION_UUID);
         let resp = response_with(vec![make_diag("secrets-aws-key", Severity::Error)]);
         let outcome = emitter.try_emit(&sample_request(), &resp, Instant::now());
         assert_eq!(outcome, EmissionOutcome::Emitted { pending_drops: 0 });
-        let recorded = recorder.recorded();
+        let recorded = sink.recorded();
         assert_eq!(recorded.len(), 1);
         let obs = &recorded[0];
         assert_eq!(obs.session_id, SESSION_UUID);
@@ -801,7 +801,7 @@ mod tests {
         let recorder = Arc::new(RecordingKindlingObservationSink::new());
         let emitter = MidEditObservationEmitter::new(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
-            RateWindow::new(2, Duration::from_secs(60)),
+            RateWindow::new(2, Duration::from_mins(1)),
             SESSION_UUID.to_string(),
         );
         let resp = response_with(vec![make_diag("warn-1", Severity::Warning)]);
