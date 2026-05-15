@@ -475,7 +475,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-011: DAG-aware merge verification
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Merge commits carry `parent_commits[]` +
   `prev_line_hashes[]`; the verifier currently walks the chain
   linearly. Replace with a graph walk that joins on merge
@@ -519,7 +519,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-013: Witness genesis-line emission (`GENESIS-BASELINED`)
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `anvil baseline` emits the first witness line with
   `GENESIS-BASELINED` plus the `cutoff_commit` value, so
   later L4 verifications can distinguish baselined vs
@@ -542,7 +542,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-014: Witness writer call-site wiring at the hook
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `WitnessLine.rules_sha` exists from MLP-002 but no
   call site populates it. The hook resolves the active rule
   set + computes `rules_sha`; this task threads that into the
@@ -564,7 +564,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-015: Promote 80-writer stress test to CI
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `eighty_writers_no_interleaving` in `anvil-witness`
   is gated behind `#[ignore]`. Promote to a CI-runnable test
   once the runner has the parallel budget.
