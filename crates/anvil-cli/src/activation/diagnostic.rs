@@ -523,6 +523,22 @@ fn promote_restart_required_after_handshake(
 }
 
 fn probe_config_status(root: &Path) -> ConfigStatus {
+    // MLP2-039 / MLP-011 — recognise `.anvil.<ext>` (yaml / yml / json /
+    // toml) before falling back to the legacy `.anvilrc`. The orchestrator
+    // uses this status to decide whether to run its init step, so a
+    // project adopted via `anvil start --format <ext>` must register here
+    // or init will double-write a parallel `.anvilrc`.
+    if let Ok(Some(discovered)) = anvil_config::discover(root, ".anvil") {
+        return match anvil_config::parse_file(&discovered.path) {
+            Ok(v) if !is_semantically_empty_json(&v) => ConfigStatus::Valid,
+            Ok(_) | Err(_) => ConfigStatus::Invalid,
+        };
+    }
+    // `discover` returning `Ok(None)` or `Err` both fall through to the
+    // legacy `.anvilrc` probe below. Scan errors (permission, EIO) are
+    // intentionally swallowed so a transient FS hiccup does not flip an
+    // established `.anvilrc` project to `Absent`.
+
     let rc = root.join(".anvilrc");
     let Ok(contents) = std::fs::read_to_string(&rc) else {
         return ConfigStatus::Absent;

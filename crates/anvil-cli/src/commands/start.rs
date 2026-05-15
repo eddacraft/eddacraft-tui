@@ -55,7 +55,7 @@
 
 use std::path::Path;
 
-use anyhow::bail;
+use anyhow::{Context, bail};
 use clap::Args;
 
 use crate::GlobalArgs;
@@ -78,8 +78,37 @@ pub struct StartArgs {
     /// to MCP pre-write validation. LAUNCH-011.
     #[arg(long)]
     pub watch: bool,
+    /// MLP2-039 — pick a config file format for first-run activation.
+    /// When set, the orchestrator writes `.anvil.<ext>` (yaml / yml /
+    /// json / toml) using MLP-011's multi-format surface instead of the
+    /// legacy `.anvilrc`. Omit to keep the current `.anvilrc` writer.
+    #[arg(long, value_enum)]
+    pub format: Option<StartFormat>,
 }
 
+/// MLP2-039 — the format set chosen at adoption time. Maps onto
+/// [`anvil_config::ConfigFormat`] when threading into the orchestrator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[clap(rename_all = "lower")]
+pub enum StartFormat {
+    Yaml,
+    Yml,
+    Json,
+    Toml,
+}
+
+impl StartFormat {
+    pub(crate) fn config_format(self) -> anvil_config::ConfigFormat {
+        match self {
+            Self::Yaml => anvil_config::ConfigFormat::Yaml,
+            Self::Yml => anvil_config::ConfigFormat::Yml,
+            Self::Json => anvil_config::ConfigFormat::Json,
+            Self::Toml => anvil_config::ConfigFormat::Toml,
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
 pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let root = Path::new(".");
 
@@ -110,6 +139,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 "`--watch` and `--json` are mutually exclusive — the watcher streams event lines on stdout, breaking the single JSON document contract. Run `anvil start --watch` without `--json`, or `anvil start --json` for a read-only diagnostic."
             );
         }
+    }
+
+    // MLP2-039 — when `--format` is set and no project config exists yet,
+    // write `.anvil.<ext>` BEFORE the orchestrator runs so that its init
+    // step (which currently writes `.anvilrc`) is suppressed by the
+    // already-present config. Read-only / `--verify` skips the pre-write
+    // (it would mutate state) and falls through to the diagnostic.
+    if !read_only && let Some(format) = args.format {
+        pre_write_anvil_config(root, format)?;
     }
 
     let (mut diagnostic, install_report) = if read_only {
@@ -245,6 +283,83 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             );
             Ok(())
         }
+    }
+}
+
+/// MLP2-039 — write `.anvil.<ext>` for the chosen format if no project
+/// config already exists. Idempotent — running `anvil start --format yaml`
+/// twice on a fresh repo writes the file once, second run is a no-op.
+///
+/// Returns `Ok(())` even on read-only-friendly bail conditions (the
+/// project already has a config) so that the orchestrator continues to
+/// run its MCP install + diagnostic probe.
+fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()> {
+    let cfg_format = format.config_format();
+    let target = root.join(format!(".anvil.{}", cfg_format.extension()));
+    if target.exists() {
+        return Ok(());
+    }
+    // If `.anvilrc` or any OTHER `.anvil.<ext>` already exists, do not
+    // double-write — the operator should run `anvil migrate` to convert,
+    // not `anvil start --format` to add a second config alongside the
+    // first.
+    if root.join(".anvilrc").exists() {
+        return Ok(());
+    }
+    if let Some(existing) = anvil_config::discover(root, ".anvil")
+        .with_context(|| format!("scanning {} for .anvil.<ext>", root.display()))?
+    {
+        // A different-format `.anvil.<ext>` is present. Leave it; the
+        // orchestrator's normal flow will probe it as the active config.
+        tracing::debug!(
+            existing = %existing.path.display(),
+            requested = ?format,
+            "anvil start --format: skipping pre-write; existing .anvil.<ext> present"
+        );
+        return Ok(());
+    }
+
+    // Build the default config value. Mirrors `init::AnvilConfig::default()`
+    // shape (schema_version / planning_dir / format / checks) so a project
+    // adopted via `--format` reads identically to one adopted via the
+    // legacy `.anvilrc` path. Keys are emitted in `schemaVersion` /
+    // `planningDir` camelCase across all formats so MLP2-041's
+    // `InitConfigView::from_value` reads them without snake-case fallback.
+    let value = default_anvil_config_value();
+    let serialised = serialise_to_format(&value, cfg_format)
+        .with_context(|| format!("serialising default config as {}", cfg_format.extension()))?;
+    crate::util::atomic_write(&target, serialised.as_bytes())
+        .with_context(|| format!("writing {}", target.display()))?;
+    Ok(())
+}
+
+fn default_anvil_config_value() -> serde_json::Value {
+    // Hard-coded mirror of `commands::init::AnvilConfig::default()` to
+    // avoid leaking the private struct through a new pub surface for a
+    // single use site. Update in lock-step if init's defaults change.
+    serde_json::json!({
+        "schemaVersion": "1.0.0",
+        "planningDir": "plans",
+        "format": "yaml",
+        "checks": crate::commands::defaults::default_check_names(),
+    })
+}
+
+fn serialise_to_format(
+    value: &serde_json::Value,
+    format: anvil_config::ConfigFormat,
+) -> anyhow::Result<String> {
+    use anvil_config::ConfigFormat;
+    match format {
+        ConfigFormat::Yaml | ConfigFormat::Yml => {
+            serde_yaml::to_string(value).context("yaml serialisation failed")
+        }
+        ConfigFormat::Json => {
+            let mut s = serde_json::to_string_pretty(value).context("json serialisation failed")?;
+            s.push('\n');
+            Ok(s)
+        }
+        ConfigFormat::Toml => toml::to_string_pretty(value).context("toml serialisation failed"),
     }
 }
 
@@ -472,5 +587,114 @@ mod tests {
             !needs_action.contains("L0 mcp pre-write"),
             "needs_action render must NOT claim L0 is live: {needs_action}"
         );
+    }
+
+    // MLP2-039 pre-write tests.
+
+    #[test]
+    fn pre_write_yaml_creates_anvil_yaml_with_parseable_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+
+        let path = tmp.path().join(".anvil.yaml");
+        assert!(path.is_file());
+
+        // Round-trip through MLP-011's discover + parse_file.
+        let discovered = anvil_config::discover(tmp.path(), ".anvil")
+            .unwrap()
+            .expect("discover must find .anvil.yaml after pre-write");
+        assert!(discovered.path.ends_with(".anvil.yaml"));
+        let value = anvil_config::parse_file(&discovered.path).unwrap();
+        assert!(value.is_object());
+        let view = crate::config_view::InitConfigView::from_value(&value)
+            .expect("InitConfigView parses the pre-written defaults");
+        assert_eq!(view.schema_version, "1.0.0");
+        assert_eq!(view.planning_dir, "plans");
+    }
+
+    #[test]
+    fn pre_write_json_creates_anvil_json_with_parseable_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Json).unwrap();
+
+        let path = tmp.path().join(".anvil.json");
+        assert!(path.is_file());
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(parsed.is_object());
+        assert_eq!(parsed["schemaVersion"], "1.0.0");
+    }
+
+    #[test]
+    fn pre_write_toml_creates_anvil_toml_with_parseable_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Toml).unwrap();
+
+        let path = tmp.path().join(".anvil.toml");
+        assert!(path.is_file());
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        // toml::to_string_pretty preserves camelCase keys from the JSON
+        // Value; pinning the line proves the writer didn't accidentally
+        // serialise the field name in a way that round-trips wrong.
+        assert!(raw.contains("schemaVersion = \"1.0.0\""), "got:\n{raw}");
+    }
+
+    #[test]
+    fn pre_write_is_idempotent_on_second_call() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+        let path = tmp.path().join(".anvil.yaml");
+        let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+        let mtime_after = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+        assert_eq!(
+            mtime_before, mtime_after,
+            "pre-write must not rewrite an existing target file"
+        );
+    }
+
+    #[test]
+    fn pre_write_skips_when_legacy_anvilrc_already_present() {
+        // The operator opted in to MLP-011 via `--format yaml`, but a
+        // legacy `.anvilrc` is already on disk. Refusing to write avoids
+        // a duplicate-config-files state; the operator should
+        // `anvil migrate` instead.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks":[]}"#).unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+        assert!(
+            !tmp.path().join(".anvil.yaml").exists(),
+            "pre-write must not run when .anvilrc is present"
+        );
+    }
+
+    #[test]
+    fn pre_write_skips_when_other_format_anvil_ext_already_present() {
+        // `.anvil.toml` exists; running `start --format yaml` must not
+        // create a second `.anvil.yaml` — the existing file is the active
+        // config.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.toml"), "checks = []\n").unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+        assert!(!tmp.path().join(".anvil.yaml").exists());
+        // The pre-existing file is untouched.
+        let raw = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
+        assert!(raw.contains("checks"));
+    }
+
+    #[test]
+    fn start_format_maps_to_anvil_config_format() {
+        // Pin the mapping so a future enum addition cannot silently
+        // misroute (e.g., a `Yaml5` variant landing on the JSON writer).
+        use anvil_config::ConfigFormat;
+        assert_eq!(StartFormat::Yaml.config_format(), ConfigFormat::Yaml);
+        assert_eq!(StartFormat::Yml.config_format(), ConfigFormat::Yml);
+        assert_eq!(StartFormat::Json.config_format(), ConfigFormat::Json);
+        assert_eq!(StartFormat::Toml.config_format(), ConfigFormat::Toml);
     }
 }
