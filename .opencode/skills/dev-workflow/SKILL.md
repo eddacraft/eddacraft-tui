@@ -105,6 +105,31 @@ item for producing the definitive inventory.
     `wt remove` for the Worktrunk worktree and local branch if it is safe. Never
     delete a branch that is unmerged, unpushed, or still needed without explicit
     user approval.
+12. **Run local CI-equivalent gates before opening the PR.** The repo-mandated
+    validation commands in `CLAUDE.md` (`pnpm format:check && pnpm lint:check &&
+    pnpm typecheck && pnpm test`; `cargo test --workspace`) must run green
+    locally before push. CI is a backstop, not the primary signal — relying on
+    CI alone risks blocking `main` for every other PR if a check fails
+    post-merge. Tick the test-plan checkboxes only after the command actually
+    ran, not aspirationally.
+13. **Cargo.lock and ACKNOWLEDGEMENTS.md are one atomic change.** If a PR
+    touches `Cargo.lock`, run
+    `bash tools/starters/acknowledgements/generate-acknowledgements.sh` and
+    include the resulting `ACKNOWLEDGEMENTS.md` diff in the same PR. The
+    `Acknowledgements freshness` workflow (`.github/workflows/rust.yml`) blocks
+    `main` for every subsequent PR if this is split.
+14. **Keep bookkeeping PRs single-purpose.** APS status updates, index counter
+    adjustments, and runbook fixes ship as standalone PRs. Do not bundle them
+    with dep updates (`Cargo.lock`, `package.json`), code refactors, or feature
+    work — a CI failure on the heavyweight change blocks the trivial
+    bookkeeping for hours, and the broader review surface erodes the "trivially
+    mergeable" property bookkeeping PRs depend on.
+15. **Surface hook errors to the user.** If `PreToolUse:Bash hook error` or
+    similar hook-validation messages recur in tool output, flag them in a
+    one-line note. They indicate a misconfigured Claude Code / opencode hook
+    (often invalid `decision` values like `"allow"` / `"ask"` in the legacy
+    schema) that may be silently allowing or blocking commands. Do not just
+    keep running.
 
 ## Decision Points
 
