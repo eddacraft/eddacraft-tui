@@ -383,6 +383,11 @@ fn check_merge_edges(
 /// Returns `Ok(ChainReport)` when the chain is intact and strictly
 /// linear. Errors are detailed enough for an operator to find the
 /// broken line without inspecting the file.
+#[deprecated(
+    since = "0.6.2-beta",
+    note = "Use verify_chain_dag instead; verify_chain rejects DAG chains \
+            (post-MLP-005 merge witnesses) with NonLinearChainInLegacyVerifier"
+)]
 pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
     let dag = verify_chain_dag(paths)?;
     if !dag.is_linear() {
@@ -402,6 +407,7 @@ pub fn verify_chain(paths: &[&Path]) -> Result<ChainReport, VerifyError> {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Tests exercise the linear-only `verify_chain` wrapper deliberately.
 mod tests {
     use super::*;
     use crate::genesis::GenesisAnchor;
@@ -751,6 +757,35 @@ mod tests {
         let mut merge = line(4, &prev);
         merge.parent_commits = vec!["commit-A".to_string(), "commit-orphan".to_string()];
         merge.prev_line_hashes = vec![Some(prev.clone()), None];
+        writer.append(&merge).unwrap();
+
+        let v = verify_chain_dag(&[writer.active_path().as_path()]).unwrap();
+        assert_eq!(v.merge_count, 1);
+        assert_eq!(v.line_count, 4);
+    }
+
+    #[test]
+    fn verify_chain_dag_accepts_all_none_parent_hashes_as_honest_gaps() {
+        // Council MINOR (wave 1I review) — pin the contract that a
+        // merge line where every `prev_line_hashes[i]` is `None`
+        // (i.e. every parent had no witnessed history at fork time)
+        // is accepted as a valid honest gap, not rejected as orphan.
+        // The linear `prev_line_hash` edge still chains, so chain
+        // integrity is preserved even when the DAG-parent linkage
+        // is entirely absent. Lock the surface so a future
+        // tightening of orphan-merge semantics doesn't silently
+        // reject legitimately-adopted branches.
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        let mut prev = GenesisAnchor::Fresh.anchor_string().to_string();
+        for seq in 1..=3 {
+            let l = line(seq, &prev);
+            writer.append(&l).unwrap();
+            prev = compute_line_hash(&l.to_canonical_bytes().unwrap());
+        }
+        let mut merge = line(4, &prev);
+        merge.parent_commits = vec!["commit-A".to_string(), "commit-B".to_string()];
+        merge.prev_line_hashes = vec![None, None];
         writer.append(&merge).unwrap();
 
         let v = verify_chain_dag(&[writer.active_path().as_path()]).unwrap();

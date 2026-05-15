@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anvil_witness::{
-    GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, WriterError, verify_chain,
+    GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, WriterError, verify_chain_dag,
 };
 use thiserror::Error;
 
@@ -139,22 +139,24 @@ pub fn save_with_genesis(
 
     // Idempotency: if the chain already has lines, do not emit a
     // second genesis. The witness chain is append-only and a second
-    // root would be rejected by `verify_chain` (StrayGenesis).
-    // `verify_chain` errors are treated as "non-empty but broken" —
-    // emitting another genesis would obliterate evidence, so we
-    // skip in that case too and let the caller's recovery flow
-    // (e.g. `anvil hook bootstrap`) handle repair.
+    // root would be rejected by the verifier (StrayGenesis on a
+    // linear chain, or — once MLP-005 merge witnesses are present —
+    // surfaced through the DAG walk's stray-genesis check). Errors
+    // are treated as "non-empty but broken" — emitting another
+    // genesis would obliterate evidence, so we skip in that case too
+    // and let the caller's recovery flow (e.g. `anvil hook bootstrap`)
+    // handle repair.
+    //
+    // Council MAJOR (wave 1I review) — uses `verify_chain_dag` so a
+    // chain that contains merge witnesses is recognised as non-empty
+    // rather than falling through to a second genesis emit. The
+    // `Ok(_) | Err(_)` arm covers both DAG-broken and legacy-broken
+    // states uniformly.
     if active_path.exists() {
-        match verify_chain(&[active_path.as_path()]) {
-            Ok(report) if report.line_count == 0 => {
+        match verify_chain_dag(&[active_path.as_path()]) {
+            Ok(dag) if dag.line_count == 0 => {
                 // Empty file — fall through to emit genesis.
             }
-            // Non-empty (Ok) OR broken (Err) — either way, do not
-            // emit a second genesis. A second root would be rejected
-            // by `verify_chain` as `StrayGenesis`, and writing on
-            // top of a tampered chain would obliterate evidence.
-            // The hook lane's `anvil hook bootstrap` is the correct
-            // repair surface for the `Err` case.
             Ok(_) | Err(_) => return Ok(()),
         }
     }
@@ -220,7 +222,7 @@ mod tests {
     use crate::compute_fingerprint;
     use crate::finding::BaselineFinding;
     use crate::store::{Baseline, BaselineMetadata};
-    use anvil_witness::{GenesisAnchor, WitnessLine, verify_chain};
+    use anvil_witness::{GenesisAnchor, WitnessLine, verify_chain_dag};
 
     fn metadata() -> BaselineMetadata {
         BaselineMetadata {
@@ -508,7 +510,7 @@ mod tests {
             prev = compute_line_hash(&line.to_canonical_bytes().unwrap());
         }
 
-        let report = verify_chain(&[active.as_path()]).unwrap();
+        let report = verify_chain_dag(&[active.as_path()]).unwrap();
         assert_eq!(report.line_count, 3);
         assert_eq!(report.anchor, Some(GenesisAnchor::Baselined));
     }
