@@ -75,7 +75,10 @@ mod finding;
 mod io;
 mod store;
 
-pub use diff::{BaselineDiff, BaselineDiffEntry};
+pub use diff::{
+    BaselineDiff, BaselineDiffEntry, DEGRADED_REASON as REFRESH_DEGRADED_REASON, RefreshSuspicion,
+    SuspicionThresholds, analyze_refresh,
+};
 pub use finding::{BaselineFinding, FingerprintError, compute_fingerprint, normalize_snippet};
 pub use io::{BASELINE_PATH, BaselineIoError, load, save};
 pub use store::{Baseline, BaselineMetadata, FORMAT_VERSION, FormatError};

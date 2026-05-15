@@ -1360,22 +1360,86 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-035: Adversarial-refresh detection (`degraded:baseline-suspicious`)
 
-- **Status:** Draft
+- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
 - **Intent:** Detect baseline refreshes that look like
   adversarial whitewashing (huge violation drop without a
   corresponding code-size reduction) and surface as
   `degraded:baseline-suspicious`.
 - **Expected Outcome:**
-  - Heuristic: refresh that removes >N findings without code
-    churn touches a threshold.
-  - Operator-clear surface with explicit acknowledgement.
-  - Configurable threshold for projects with legitimate large
-    refactors.
-- **Files:** `crates/anvil-baseline/src/diff.rs` (extend),
-  `crates/anvil-intercept/src/fence.rs` (degraded mode).
-- **Validation:** Adversarial fixture: remove 90% of findings
-  without code change → degraded mode fires.
-- **Confidence:** low (needs threshold tuning)
+  - **Phase 1 (this PR):** library heuristic
+    `analyze_refresh(old, new, thresholds) -> RefreshSuspicion`
+    in `anvil-baseline::diff` flags refreshes that remove
+    ≥`removed_ratio_threshold` × `old_total` findings AND
+    ≥`minimum_removed` absolute findings. CLI surface: `anvil
+    baseline --refresh` calls it before saving and refuses to
+    overwrite `baseline.json` until the operator re-runs with
+    `--accept-suspicious` (explicit acknowledgement). Two
+    threshold knobs configurable via `--suspicion-ratio` and
+    `--suspicion-min-removed`.
+  - **Phase 2 (follow-up):**
+    (a) `crates/anvil-intercept/src/fence.rs` degraded-mode
+    wiring so the daemon picks up `degraded:baseline-suspicious`
+    on attach when the on-disk baseline carries a recently
+    suspicious provenance marker;
+    (b) git-driven code-churn correlation (the spec's "without
+    a corresponding code-size reduction" axis) — needs either a
+    commit SHA or scanned LoC field added to baseline metadata;
+    (c) `baseline.suspicion.{ratio,minimum_removed}` policy-file
+    section so per-repo defaults don't require re-typing CLI
+    flags every refresh.
+- **Files (Phase 1):** `crates/anvil-baseline/src/diff.rs`
+  (extend), `crates/anvil-baseline/src/lib.rs` (re-export),
+  `crates/anvil-cli/src/commands/baseline.rs` (CLI flag wiring +
+  pre-save analysis gate).
+- **Evidence (Phase 1 In Progress on
+  `feat/mlp2-035-baseline-suspicious`):**
+  New `analyze_refresh(old: &[BaselineFinding], new:
+  &[BaselineFinding], thresholds: &SuspicionThresholds) ->
+  RefreshSuspicion` is a pure decision over two finding sets —
+  no I/O. Set membership keyed on the same
+  `(rule_id, file_path, fingerprint)` triple
+  `BaselineDiff::diff` already uses to partition. Defaults:
+  ratio = 0.75, minimum_removed = 10 (rejects firing on tiny
+  baselines where 100% drop is statistically meaningless).
+  `DEGRADED_REASON = "degraded:baseline-suspicious"` constant
+  exposed via `REFRESH_DEGRADED_REASON` re-export to avoid
+  collision with `identity::AttachStatus::DEGRADED_REASON`.
+  CLI flow: `analyze_refresh` runs BEFORE `save_baseline` so a
+  suspicious refresh refuses to overwrite — operator must
+  explicitly `--accept-suspicious` (not a hard error;
+  warnings-over-blocks via `Ok(())` return + informative
+  message). +13 unit pins (9 in diff.rs, 4 in baseline.rs):
+  `degraded_reason_constant_is_pinned`,
+  `default_thresholds_match_documented_values`,
+  `analyze_refresh_clean_when_old_is_empty`,
+  `analyze_refresh_clean_when_no_removals`,
+  `analyze_refresh_clean_when_drop_below_minimum_removed`,
+  `analyze_refresh_clean_when_drop_below_ratio_threshold`,
+  `analyze_refresh_suspicious_when_both_gates_crossed`,
+  `analyze_refresh_honours_overridden_thresholds`,
+  `analyze_refresh_set_membership_uses_full_triple`,
+  `refresh_refuses_to_save_when_suspicious_without_ack`,
+  `refresh_proceeds_when_suspicious_with_ack_flag`,
+  `refresh_threshold_override_above_one_disables_detection`,
+  `refresh_at_exactly_1_0_threshold_still_fires` (Council #C-1
+  + #C-5 boundary pin),
+  `refresh_under_minimum_removed_is_clean`. `cargo test
+  --workspace` clean (4131 tests); `cargo clippy --workspace
+  --all-targets -- -D warnings` clean. Council quick on PR
+  #TBD found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
+  (doc/code mismatch on the ratio off-switch + write-then-warn
+  ordering defeating the heuristic) folded into the same
+  branch with a regression test for each. Threshold knobs are
+  CLI-only for v1 — policy-file `baseline.suspicion.*` is
+  Phase 2.
+- **Validation (Phase 1):** Seed an existing baseline with N
+  synthesised findings, refresh against an empty worktree
+  (100% drop), assert refusal-without-ack + acceptance-with-ack
+  + boundary at exactly 1.0 threshold + tiny-baseline veto.
+- **Validation (Phase 2 — pending):** End-to-end fence-state
+  read showing `degraded:baseline-suspicious` survives daemon
+  attach; code-churn signal joined against the drop ratio.
+- **Confidence:** low (needs threshold tuning — see Phase 2)
 - **Priority:** Low
 - **Dependencies:** MLP-007, MLP2-034
 - **Source:** MLP-007 footnote 6.

@@ -43,7 +43,8 @@
 use std::path::Path;
 
 use anvil_baseline::{
-    Baseline, BaselineFinding, BaselineMetadata, compute_fingerprint, load as load_baseline,
+    Baseline, BaselineFinding, BaselineMetadata, REFRESH_DEGRADED_REASON, RefreshSuspicion,
+    SuspicionThresholds, analyze_refresh, compute_fingerprint, load as load_baseline,
     save as save_baseline,
 };
 use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
@@ -72,6 +73,29 @@ pub struct BaselineArgs {
     /// `forked_from` field — the chain is single-deep by design.
     #[arg(long = "new-identity")]
     new_identity: bool,
+    /// MLP2-035: override the adversarial-refresh detector's drop-
+    /// ratio threshold (default 0.75). Refresh runs that remove
+    /// ≥ratio × `old_total` findings AND ≥`--suspicion-min-removed`
+    /// findings refuse to save until the operator re-runs with
+    /// `--accept-suspicious`. Set above `1.0` (e.g. `1.01`) to
+    /// disable the detector entirely; a value of exactly `1.0`
+    /// still fires on a 100% drop because the comparison is
+    /// `ratio ≥ threshold`.
+    #[arg(long = "suspicion-ratio")]
+    suspicion_ratio: Option<f64>,
+    /// MLP2-035: override the adversarial-refresh detector's
+    /// minimum-removed gate (default 10). Prevents the alert from
+    /// firing on tiny baselines where a 100% drop is statistically
+    /// meaningless.
+    #[arg(long = "suspicion-min-removed")]
+    suspicion_min_removed: Option<usize>,
+    /// MLP2-035: explicit acknowledgement that a suspicious-looking
+    /// refresh (large finding drop) is intentional. Without this
+    /// flag, `anvil baseline --refresh` refuses to save when both
+    /// the ratio and minimum-removed thresholds are crossed —
+    /// otherwise an adversarial whitewash would land silently.
+    #[arg(long = "accept-suspicious")]
+    accept_suspicious: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -93,11 +117,36 @@ pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
             }
             run_verify(&repo_root)
         }
-        None => run_create_or_refresh(&repo_root, args.refresh, args.new_identity),
+        None => {
+            // MLP2-035: assemble the suspicion thresholds from any
+            // CLI overrides on top of the library defaults. Pass
+            // through unconditionally — the detector only runs on a
+            // refresh path with a non-empty prior baseline anyway.
+            let mut thresholds = SuspicionThresholds::default();
+            if let Some(r) = args.suspicion_ratio {
+                thresholds.removed_ratio_threshold = r;
+            }
+            if let Some(m) = args.suspicion_min_removed {
+                thresholds.minimum_removed = m;
+            }
+            run_create_or_refresh(
+                &repo_root,
+                args.refresh,
+                args.new_identity,
+                &thresholds,
+                args.accept_suspicious,
+            )
+        }
     }
 }
 
-fn run_create_or_refresh(repo_root: &Path, refresh: bool, new_identity: bool) -> Result<()> {
+fn run_create_or_refresh(
+    repo_root: &Path,
+    refresh: bool,
+    new_identity: bool,
+    suspicion_thresholds: &SuspicionThresholds,
+    accept_suspicious: bool,
+) -> Result<()> {
     // MLP2-032 / MLP2-033: establish project identity in the same flow
     // as baseline bootstrap. Default path is `ensure_project_id`
     // (idempotent — returns the existing identity, or atomically
@@ -150,6 +199,41 @@ fn run_create_or_refresh(repo_root: &Path, refresh: bool, new_identity: bool) ->
 
     let mut baseline = Baseline::new(metadata, findings);
     baseline.cutoff_commit.clone_from(&cutoff);
+
+    // MLP2-035: analyse BEFORE saving so a suspicious refresh
+    // requires explicit operator acknowledgement. Without this gate
+    // the rewrite would commit silently and an adversarial
+    // whitewash would only surface as a printed line *after* the
+    // damage was already on disk. The check is skipped when no
+    // prior baseline existed (first create — nothing to drop) or
+    // when the operator already passed `--accept-suspicious`. The
+    // outcome is reported regardless so the operator sees the
+    // numbers either way.
+    if let Some(prior) = existing.as_ref()
+        && let RefreshSuspicion::Suspicious {
+            removed_count,
+            old_total,
+            removed_ratio,
+            threshold,
+        } = analyze_refresh(&prior.findings, &baseline.findings, suspicion_thresholds)
+    {
+        if accept_suspicious {
+            println!(
+                "anvil: {REFRESH_DEGRADED_REASON} acknowledged — refresh removed {removed_count} of {old_total} prior findings ({pct:.0}% drop ≥ {thr_pct:.0}% threshold). Proceeding with rewrite per `--accept-suspicious`.",
+                pct = removed_ratio * 100.0,
+                thr_pct = threshold.removed_ratio_threshold * 100.0,
+            );
+        } else {
+            println!(
+                "anvil: {REFRESH_DEGRADED_REASON} — refresh would remove {removed_count} of {old_total} prior findings ({pct:.0}% drop ≥ {thr_pct:.0}% threshold). \
+Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-run with `--accept-suspicious` if this is a legitimate large refactor, or with `--suspicion-ratio <value>` to permanently adjust the threshold for this project.",
+                pct = removed_ratio * 100.0,
+                thr_pct = threshold.removed_ratio_threshold * 100.0,
+            );
+            return Ok(());
+        }
+    }
+
     save_baseline(repo_root, &baseline).context("write anvil/baseline.json")?;
 
     let action = if refresh { "refreshed" } else { "created" };
@@ -366,7 +450,14 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         // No anvil/project-id pre-seeded — the orchestrator must
         // mint one (MLP2-032).
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let identity_path = tmp.path().join("anvil/project-id");
         assert!(identity_path.exists(), "anvil/project-id should be minted");
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -383,7 +474,14 @@ mod tests {
             "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n",
         )
         .unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
             baseline.metadata.project_uuid, "01997e4a-1b2c-7345-8901-abcdef123456",
@@ -394,10 +492,24 @@ mod tests {
     #[test]
     fn create_without_refresh_does_not_overwrite_existing() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(first.metadata.created_at, second.metadata.created_at);
     }
@@ -405,12 +517,26 @@ mod tests {
     #[test]
     fn refresh_preserves_cutoff_commit_across_runs() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(refreshed.cutoff_commit.as_deref(), Some("a3b2ea4e"));
     }
@@ -422,12 +548,26 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         write_policy_yml(tmp.path());
 
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
 
         let policy_text = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
         assert!(
@@ -448,12 +588,26 @@ mod tests {
         fs::write(tmp.path().join("anvil/policy.yaml"), MIN_VALID_POLICY).unwrap();
         fs::write(tmp.path().join("anvil/policy.yml"), MIN_VALID_POLICY).unwrap();
 
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
 
         let high_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yaml")).unwrap();
         let low_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
@@ -481,7 +635,14 @@ mod tests {
         )
         .unwrap();
 
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
 
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
@@ -496,12 +657,26 @@ mod tests {
         // Warnings over blocks: a missing policy file is a hint, not
         // a failure of `anvil baseline --refresh`.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
         // No anvil/policy.* file present.
-        run_create_or_refresh(tmp.path(), true, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(after.cutoff_commit.as_deref(), Some("a3b2ea4e"));
     }
@@ -519,7 +694,14 @@ mod tests {
             "const value: any = input;\nconsole.log(value);\n",
         )
         .unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(
             !baseline.findings.is_empty(),
@@ -543,13 +725,27 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join("src")).unwrap();
         fs::write(tmp.path().join("src/clean.ts"), "export const x = 1;\n").unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(first.findings.is_empty(), "no antipatterns yet");
 
         // Introduce a violation and refresh.
         fs::write(tmp.path().join("src/app.ts"), "const v: any = bad;\n").unwrap();
-        run_create_or_refresh(tmp.path(), true, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(
             refreshed.findings.iter().any(|f| f.rule_id == "AP-003"),
@@ -560,7 +756,14 @@ mod tests {
     #[test]
     fn verify_reports_loaded_baseline() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         run_verify(tmp.path()).unwrap();
     }
 
@@ -582,14 +785,28 @@ mod tests {
         // the new identity — letting them diverge would recreate the
         // policy/baseline divergence trap MLP2-032 closed for cutoff.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let parent_uuid = load_baseline(tmp.path())
             .unwrap()
             .unwrap()
             .metadata
             .project_uuid;
 
-        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            true,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
 
         let child_baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_ne!(
@@ -615,12 +832,26 @@ mod tests {
         // With --new-identity, the rewrite is mandatory — otherwise
         // baseline.json's metadata would silently keep the parent UUID.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         // No --refresh, but --new-identity → must rewrite.
-        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            true,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
         assert_ne!(
             first.metadata.project_uuid, second.metadata.project_uuid,
@@ -636,12 +867,26 @@ mod tests {
         // a cutoff would silently lose it the moment they detached
         // the project identity.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            true,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
 
         let after = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
@@ -657,12 +902,145 @@ mod tests {
         // but exercises the orchestrator entry point. No parent UUID
         // → forked_from absent.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            true,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
         let project_id_text = fs::read_to_string(tmp.path().join("anvil/project-id")).unwrap();
         assert!(project_id_text.contains("project_uuid:"));
         assert!(
             !project_id_text.contains("forked_from:"),
             "no parent → no forked_from; got:\n{project_id_text}"
         );
+    }
+
+    // ── MLP2-035: adversarial-refresh detection (orchestrator path) ──
+
+    /// Helper: seed an "adversarial" baseline by hand-writing a
+    /// large finding set into `anvil/baseline.json`. Bypasses the
+    /// scanner so the test is deterministic and doesn't depend on
+    /// which antipatterns happen to fire on synthesised content.
+    fn seed_baseline_with_n_findings(root: &Path, n: usize) {
+        run_create_or_refresh(root, false, false, &SuspicionThresholds::default(), false).unwrap();
+        let mut baseline = load_baseline(root).unwrap().unwrap();
+        baseline.findings = (0..n)
+            .map(|i| BaselineFinding {
+                rule_id: "AP-999".to_string(),
+                file_path: format!("src/synth_{i}.ts"),
+                fingerprint: format!("{i:04x}{:0>12}", "0"),
+            })
+            .collect();
+        save_baseline(root, &baseline).unwrap();
+    }
+
+    #[test]
+    fn refresh_refuses_to_save_when_suspicious_without_ack() {
+        // Council quick #C-2 (MAJOR): the spec's "explicit
+        // acknowledgement" requirement means a suspicious refresh
+        // must NOT silently overwrite — the operator must see the
+        // detector's output and re-run with --accept-suspicious.
+        // The orchestrator returns Ok (warnings-over-blocks: not a
+        // hard failure) but does not write.
+        let tmp = TempDir::new().unwrap();
+        seed_baseline_with_n_findings(tmp.path(), 50);
+        let prior_findings = load_baseline(tmp.path()).unwrap().unwrap().findings.clone();
+
+        let result = run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false, // no acknowledgement
+        );
+        assert!(result.is_ok(), "suspicious refresh must not error");
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_eq!(
+            after.findings, prior_findings,
+            "baseline must NOT be rewritten when refresh is suspicious and unacknowledged"
+        );
+    }
+
+    #[test]
+    fn refresh_proceeds_when_suspicious_with_ack_flag() {
+        // Mirror of the test above: with --accept-suspicious set,
+        // the rewrite proceeds (and the warning still prints,
+        // confirming the operator's choice).
+        let tmp = TempDir::new().unwrap();
+        seed_baseline_with_n_findings(tmp.path(), 50);
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            true, // explicit ack
+        )
+        .unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(
+            after.findings.is_empty(),
+            "ack flag must let the rewrite proceed even when suspicious"
+        );
+    }
+
+    #[test]
+    fn refresh_threshold_override_above_one_disables_detection() {
+        // Operator escape hatch: the `--suspicion-ratio 1.01` flag
+        // (above 1.0) effectively disables the detector.
+        // analyze_refresh returns Clean → no ack required.
+        let tmp = TempDir::new().unwrap();
+        seed_baseline_with_n_findings(tmp.path(), 50);
+        let lenient = SuspicionThresholds {
+            removed_ratio_threshold: 1.01,
+            minimum_removed: 10,
+        };
+        run_create_or_refresh(tmp.path(), true, false, &lenient, false).unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(after.findings.is_empty());
+    }
+
+    #[test]
+    fn refresh_at_exactly_1_0_threshold_still_fires() {
+        // Council quick #C-1 + #C-5 boundary pin: the help text
+        // says "above 1.0 disables" because the comparison is
+        // `ratio >= threshold` (strict-less for Clean). At exactly
+        // 1.0 the detector still fires on a 100% drop, so the
+        // rewrite is refused without --accept-suspicious.
+        let tmp = TempDir::new().unwrap();
+        seed_baseline_with_n_findings(tmp.path(), 50);
+        let prior_findings = load_baseline(tmp.path()).unwrap().unwrap().findings.clone();
+        let edge = SuspicionThresholds {
+            removed_ratio_threshold: 1.0,
+            minimum_removed: 10,
+        };
+        run_create_or_refresh(tmp.path(), true, false, &edge, false).unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_eq!(
+            after.findings, prior_findings,
+            "ratio=1.0 with a 100% drop must still be refused (boundary inclusive)"
+        );
+    }
+
+    #[test]
+    fn refresh_under_minimum_removed_is_clean() {
+        // Tiny baseline of 8 → 0 findings would hit ratio 1.0 but
+        // is below the default minimum_removed=10 gate, so the
+        // detector returns Clean and the rewrite proceeds without
+        // ack.
+        let tmp = TempDir::new().unwrap();
+        seed_baseline_with_n_findings(tmp.path(), 8);
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+        )
+        .unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(after.findings.is_empty());
     }
 }
