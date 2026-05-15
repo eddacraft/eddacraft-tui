@@ -990,18 +990,18 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
-| `aws-lc-sys` | 0.40.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
+| `aws-lc-sys` | 0.41.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
-| `aws-lc-sys` | 0.40.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
+| `aws-lc-sys` | 0.41.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
 | `notify` | 8.2.0 | Creative Commons Zero v1.0 Universal | https://github.com/notify-rs/notify.git |
 | `untrusted` | 0.9.0 | ISC License | https://github.com/briansmith/untrusted |
 | `inotify-sys` | 0.1.5 | ISC License | https://github.com/hannobraun/inotify-sys |
 | `inotify` | 0.11.1 | ISC License | https://github.com/hannobraun/inotify |
 | `rustls-webpki` | 0.103.13 | ISC License | https://github.com/rustls/webpki |
-| `aws-lc-rs` | 1.16.3 | ISC License | https://github.com/aws/aws-lc-rs |
-| `aws-lc-sys` | 0.40.0 | ISC License | https://github.com/aws/aws-lc-rs |
+| `aws-lc-rs` | 1.17.0 | ISC License | https://github.com/aws/aws-lc-rs |
+| `aws-lc-sys` | 0.41.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `instability` | 0.3.12 | MIT License | https://github.com/ratatui/instability |
 | `lazy_static` | 1.5.0 | MIT License | https://github.com/rust-lang-nursery/lazy-static.rs |
 | `rayon-core` | 1.13.0 | MIT License | https://github.com/rayon-rs/rayon |
@@ -1246,7 +1246,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unsafe-libyaml` | 0.2.11 | MIT License | https://github.com/dtolnay/unsafe-libyaml |
 | `zmij` | 1.0.21 | MIT License | https://github.com/dtolnay/zmij |
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
-| `winnow` | 1.0.2 | MIT License | https://github.com/winnow-rs/winnow |
+| `winnow` | 1.0.3 | MIT License | https://github.com/winnow-rs/winnow |
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.0 | MIT License | https://github.com/paholg/typenum |
@@ -1264,7 +1264,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fsevent-sys` | 4.1.0 | MIT License | https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys |
 | `security-framework-sys` | 2.17.0 | MIT License | https://github.com/kornelski/rust-security-framework |
 | `security-framework` | 3.7.0 | MIT License | https://github.com/kornelski/rust-security-framework |
-| `aws-lc-sys` | 0.40.0 | MIT License | https://github.com/aws/aws-lc-rs |
+| `aws-lc-sys` | 0.41.0 | MIT License | https://github.com/aws/aws-lc-rs |
 | `kasuari` | 0.4.12 | MIT License | https://github.com/ratatui/kasuari |
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `derive_more` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
