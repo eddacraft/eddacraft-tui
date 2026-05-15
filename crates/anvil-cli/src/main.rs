@@ -3,6 +3,7 @@ mod auth;
 mod capacity;
 mod commands;
 mod config_summary;
+mod config_view;
 mod feature_flags;
 mod mcp;
 mod output;
