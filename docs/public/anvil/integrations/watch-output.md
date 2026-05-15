@@ -10,11 +10,11 @@ sidebar_position: 4
 
 | Type        | Authority     | Owner                                                                                                         | Status | Freshness                                                                |
 | ----------- | ------------- | ------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
-| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](../../../../plans/modules/watch-output-contract.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta consumer surface |
+| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta consumer surface |
 
 | Upstream                                                                                               | Downstream                                                                              |
 | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| [`docs/specs/watch-output-contract.md`](../../../specs/watch-output-contract.md), `anvil --json watch` | Editor sidecars, CI shell pipelines, `jq` scripts, language-specific consumer libraries |
+| [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md), `anvil --json watch` | Editor sidecars, CI shell pipelines, `jq` scripts, language-specific consumer libraries |
 
 `anvil --json watch` emits a versioned newline-delimited JSON (NDJSON) stream on
 stdout. You can pipe it into `jq`, a shell loop, or a small reader process
@@ -25,7 +25,7 @@ without coupling to terminal output.
 This page describes `anvil.watch.event.v1`. The contract is additive within v1 —
 new optional payload fields and new `event_type` values may appear, but the
 documented variants below stay stable. The full normative spec lives at
-[`docs/specs/watch-output-contract.md`](../../../specs/watch-output-contract.md).
+[`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md).
 
 :::
 
