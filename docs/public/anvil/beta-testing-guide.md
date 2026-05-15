@@ -142,6 +142,10 @@ anvil --version
 If you installed with Homebrew, WinGet, or Scoop, use that package manager
 instead when the built-in updater tells you to.
 
+The macOS/Linux curl installer also detects an existing Homebrew Anvil binary. In
+that case it exits successfully without replacing the Homebrew-managed binary and
+prints the Homebrew command instead.
+
 ```bash
 brew upgrade eddacraft/tap/anvil
 ```
@@ -270,6 +274,18 @@ anvil watch --source
 ```
 
 Save a file. Watch should print the active scope and respond when files change.
+On large repos it should print startup feedback immediately while warm-up runs,
+not sit at a blank terminal. When stdin or stdout is not a terminal, it should
+fall back to plain output instead of opening the TUI.
+
+The initial watch scan is baseline/readiness state: existing repo contents should
+not appear as new save-time violations until a later file change introduces or
+re-surfaces the issue.
+
+Audit and watch share a local-noise ignore policy. Tool state, local agent
+worktrees, generated directories, and caches such as `.claude`, `.opencode`,
+`.gemini`, `.serena`, `.worktrees`, `node_modules`, `target`, and `dist` should
+be skipped by default.
 
 Try the watch filters:
 
@@ -283,6 +299,7 @@ Record:
 - Whether the startup banner makes the active watch scope clear.
 - Whether save-time feedback feels fast enough.
 - Whether any files are missed or unexpectedly included.
+- Whether local tool/agent/cache directories were skipped as expected.
 - Whether `--exclude` glob behaviour is clear. Bare names such as `dist` only
   match that exact path; use `dist/**` to exclude contents.
 
@@ -338,6 +355,27 @@ anvil hooks uninstall --config
 Record whether the install/uninstall flow leaves Husky and any third-party hook
 manager untouched, and whether `anvil doctor` correctly flags coexistence or
 `core.hooksPath` overrides.
+
+### 10. Reset Cleanly After Testing
+
+If you want to remove Anvil from the test repo or reset a stuck install, use the
+uninstall command rather than manually deleting files:
+
+```bash
+anvil uninstall --dry-run   # Preview project cleanup
+anvil uninstall --yes       # Remove project state and Anvil-managed hooks
+```
+
+Use `--global` only when you also want to remove user-level Anvil state,
+credentials, MCP entries, and the running daemon:
+
+```bash
+anvil uninstall --global --dry-run
+anvil uninstall --global --yes
+```
+
+`anvil uninstall` does not remove the Anvil binary. Use Homebrew, WinGet, Scoop,
+or the installer path cleanup for that after the Anvil state is removed.
 
 ## Optional Deeper Areas
 

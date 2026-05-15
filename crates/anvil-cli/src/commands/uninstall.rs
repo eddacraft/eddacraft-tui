@@ -60,6 +60,10 @@ fn path_present(path: &Path) -> bool {
 const MCP_SERVER_KEY: &str = "anvil";
 
 #[derive(Debug, Args)]
+#[command(
+    about = "Remove Anvil state from this project, or from the machine with --global.",
+    after_help = "Scope:\n  - Default: current project only (.anvil/, .anvilrc, and Anvil-managed hooks).\n  - --global: also removes user-level Anvil state, credentials, Anvil MCP entries, and the running daemon.\n  - The Anvil binary is never removed; uninstall it with Homebrew, WinGet, Scoop, Cargo, or your installer path after cleaning state."
+)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags, intentional shape.
 pub struct UninstallArgs {
     /// Skip the interactive confirmation prompt.
@@ -71,7 +75,7 @@ pub struct UninstallArgs {
     pub dry_run: bool,
 
     /// Also remove user-level state: `~/.anvil/`, Anvil MCP entries from
-    /// `~/.claude.json` and `~/.cursor/mcp.json`, and stored credentials.
+    /// `~/.claude.json` and `~/.cursor/mcp.json`, stored credentials, and daemon.
     #[arg(long)]
     pub global: bool,
 

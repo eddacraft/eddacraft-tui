@@ -49,6 +49,16 @@ anvil is a single native binary available for macOS, Linux, and Windows. Your
 project still needs Node.js and a package manager for lint and test gate checks,
 but anvil itself has no runtime dependencies.
 
+If Anvil is already installed through Homebrew, the macOS/Linux curl installer
+will not replace that install. It exits successfully and tells you to run:
+
+```bash
+brew upgrade eddacraft/tap/anvil
+```
+
+Use one install method per machine. To move from Homebrew to the standalone
+installer, uninstall the Homebrew formula first.
+
 :::tip Windows users
 
 If the installer doesn't add `anvil` to your PATH automatically, add
@@ -121,6 +131,11 @@ anvil start --watch
 
 Watch mode is **save-time fallback only** — never claimed equivalent to MCP
 pre-write interception.
+
+The initial watch pass builds baseline/readiness state and does not report the
+existing repository as new violations. Watch reports findings after later file
+changes. It also prints startup feedback immediately and falls back to plain
+output when stdin or stdout is not a terminal.
 
 ## Scan Your Project
 
@@ -211,6 +226,10 @@ Press Ctrl+C to stop.
 Save a file and see anvil catch it. Every change is validated in milliseconds,
 not minutes.
 
+Audit and watch skip local tool state, agent worktrees, generated folders, and
+common caches by default, including `.claude`, `.opencode`, `.gemini`, `.serena`,
+`.worktrees`, `node_modules`, `target`, `dist`, and cache directories.
+
 :::tip
 
 Run watch mode in a dedicated terminal pane or use the VS Code extension for
@@ -260,6 +279,8 @@ One warning down. Repeat for the rest at your own pace.
 - [Understand gates](/anvil/concepts/gates) -- what anvil validates and why
 - [Configuration reference](/anvil/operations/config) -- customise checks,
   patterns, and watch behaviour
+- [Uninstalling Anvil](./operations/uninstall.md) -- clean project or
+  machine-level reset after beta testing
 
 **Feature tutorials:**
 

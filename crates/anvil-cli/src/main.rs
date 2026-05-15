@@ -163,7 +163,7 @@ enum Commands {
     /// Configure gate check settings and thresholds.
     #[command(name = "gate-config")]
     GateConfig(commands::gate_config::GateConfigArgs),
-    /// Start file-watching mode with live gate checks.
+    /// Watch files and report save-time findings after the baseline scan.
     Watch(commands::watch::WatchArgs),
     /// Export constraints and configuration.
     Export(commands::export::ExportArgs),
@@ -182,9 +182,7 @@ enum Commands {
     Policy(commands::policy::PolicyArgs),
     /// Update anvil to the latest version.
     Update(commands::update::UpdateArgs),
-    /// Remove Anvil from this project (and optionally from user-level
-    /// state with `--global`). Auth-bypass so stuck installs can be
-    /// cleaned without logging in.
+    /// Remove project Anvil state; use `--global` for user state and daemon.
     Uninstall(commands::uninstall::UninstallArgs),
     /// Validate an APS plan file (structure, task format, hash integrity).
     Validate(commands::validate::ValidateArgs),

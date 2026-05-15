@@ -55,6 +55,21 @@ If the installer finished successfully but `anvil` still does not run:
 See [The Switch to Rust](/anvil/releases/rust-rewrite) for background on the
 Rust binary.
 
+### Curl Installer Says Homebrew Owns Anvil
+
+On macOS/Linux, the curl installer refuses to replace an existing Homebrew-managed
+Anvil binary. This prevents two install methods from fighting over the same
+command.
+
+**Solution:**
+
+```bash
+brew upgrade eddacraft/tap/anvil
+```
+
+If you intentionally want the standalone installer instead, uninstall the
+Homebrew formula first, then re-run the curl installer.
+
 ### Updater Not Finding a New Release
 
 If `anvil update` reports that you are already current but you expect a newer
@@ -286,13 +301,18 @@ Files changing but anvil not responding.
 2. If you passed `--exclude`, use glob patterns such as `dist/**` or
    `node_modules/**`. Bare names only match the exact path.
 
-3. Increase debounce:
+3. Check whether the file is under Anvil's built-in local-noise ignore policy.
+   Watch and audit skip local tool state, agent worktrees, generated folders,
+   and caches such as `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`,
+   `node_modules`, `target`, and `dist` by default.
+
+4. Increase debounce:
 
    ```bash
    anvil watch --source --debounce 500
    ```
 
-4. Check file system events:
+5. Check file system events:
 
    ```bash
    # Linux: /proc/sys/fs/inotify/max_user_watches
@@ -304,6 +324,19 @@ Files changing but anvil not responding.
 
    # Windows: generally not an issue (uses ReadDirectoryChangesW)
    ```
+
+### Watch Starts but Does Not Show Existing Findings
+
+The initial watch scan is baseline/readiness state. It builds the graph and
+watcher state without treating existing repository contents as new save-time
+violations. Save or edit a file to test the live path.
+
+### Watch Falls Back to Plain Output
+
+`anvil watch` opens the TUI only when stdin and stdout are both terminals. In
+pipes, CI, redirected output, or non-interactive shells, it falls back to plain
+output so the process remains scriptable. Use `--json` for NDJSON output or
+`--no-tui` when you want plain output explicitly.
 
 ### High CPU Usage
 

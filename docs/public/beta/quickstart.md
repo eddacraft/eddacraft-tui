@@ -60,6 +60,16 @@ Verify the install:
 anvil --version
 ```
 
+If Anvil is already installed through Homebrew, the macOS/Linux curl installer
+now exits without replacing it and prints the package-manager command instead:
+
+```bash
+brew upgrade eddacraft/tap/anvil
+```
+
+Use one install method per machine. To switch from Homebrew to the standalone
+installer, uninstall the Homebrew formula first.
+
 ## Step 2 -- `anvil start` (the wow-start)
 
 From inside a real repository, `anvil start` is the activation entrypoint. It
@@ -98,6 +108,10 @@ anvil start --watch    # After activation, fall back to save-time watch mode
 reports findings on save. It is not pre-write interception, and `anvil start`
 will refuse to spawn it when MCP pre-write validation is already live (it would
 just be redundant noise).
+
+The first watch pass builds baseline/readiness state. Existing findings in the
+repository are not reported as new save-time violations until a later file
+change introduces or re-surfaces them.
 
 ## Step 3 -- Try the MCP catch
 
@@ -141,6 +155,11 @@ anvil version             # Current and latest version + the upgrade command for
 Scoop, WinGet, the install script, or a dev build, and prints the upgrade
 command for that path.
 
+Need to reset after a beta test? Use `anvil uninstall --dry-run` to preview the
+project cleanup, `anvil uninstall --yes` to remove project state, and
+`anvil uninstall --global` when you also want user-level state and Anvil MCP
+entries removed. The command does not remove the binary itself.
+
 ## Step 6 -- Watch Fallback
 
 When MCP can't attach (no Cursor / Claude Code, or the editor refused to load
@@ -154,10 +173,19 @@ anvil start --watch        # Activate, then drop into the watch fallback
 Save a file and Anvil reports findings after the save. This is **not** pre-write
 protection -- the write already happened. Press `Ctrl+C` to stop.
 
+Watch mode prints startup feedback immediately so a large repository does not
+look hung while the initial scan warms up. If stdin or stdout is not a terminal,
+Anvil automatically falls back to plain output instead of opening the TUI.
+
 ```bash
 anvil watch --plans        # Watch planning documents only
 anvil watch --all          # Watch both source and plans
 ```
+
+Audit and watch use the same built-in local-noise ignore policy. Agent/tool
+state and generated directories such as `.claude`, `.opencode`, `.gemini`,
+`.serena`, `.worktrees`, `node_modules`, `target`, `dist`, and cache folders are
+skipped by default so first-run scans do not spend time on local machinery.
 
 ## Sign In (optional)
 

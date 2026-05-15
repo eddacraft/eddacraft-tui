@@ -11,6 +11,10 @@ use crate::GlobalArgs;
 use crate::warmup_cache::load_watch_warmup_cache;
 
 #[derive(Debug, Args)]
+#[command(
+    about = "Watch files and report save-time Anvil findings.",
+    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output."
+)]
 pub struct WatchArgs {
     /// File or directory to scope the watcher (when a file is given, its
     /// parent directory is watched; other files there may also trigger events)
@@ -25,11 +29,11 @@ pub struct WatchArgs {
     #[arg(long)]
     plans: bool,
 
-    /// Watch source files
+    /// Watch source files. Built-in local-noise directories are ignored.
     #[arg(long)]
     source: bool,
 
-    /// Watch everything
+    /// Watch everything except built-in local-noise/generated/cache directories.
     #[arg(long)]
     all: bool,
 
@@ -39,8 +43,8 @@ pub struct WatchArgs {
     patterns: Option<String>,
 
     /// Glob patterns to exclude (comma-separated, e.g. "vendor/**,**/*.test.ts").
-    /// Bare directory names like "vendor" only match the directory itself —
-    /// use "vendor/**" to exclude its contents.
+    /// Bare directory names like "vendor" only match the directory itself;
+    /// use "vendor/**" to exclude contents.
     #[arg(long)]
     exclude: Option<String>,
 
