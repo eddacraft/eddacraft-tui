@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 31/60 done |
+| MLP2 | @aneki | In Progress | 32/60 done |
 
 **Last reviewed:** 2026-05-15 (wave 1G shipped 2026-05-15 via PR #1576
 at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
@@ -1360,7 +1360,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-035: Adversarial-refresh detection (`degraded:baseline-suspicious`)
 
-- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
+- **Status:** Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** Detect baseline refreshes that look like
   adversarial whitewashing (huge violation drop without a
   corresponding code-size reduction) and surface as
@@ -1391,8 +1391,7 @@ task's `Source:` line cites the Council finding IDs.
   (extend), `crates/anvil-baseline/src/lib.rs` (re-export),
   `crates/anvil-cli/src/commands/baseline.rs` (CLI flag wiring +
   pre-save analysis gate).
-- **Evidence (Phase 1 In Progress on
-  `feat/mlp2-035-baseline-suspicious`):**
+- **Evidence (Phase 1 Merged 2026-05-15 via PR #1582 at `c51e824e`):**
   New `analyze_refresh(old: &[BaselineFinding], new:
   &[BaselineFinding], thresholds: &SuspicionThresholds) ->
   RefreshSuspicion` is a pure decision over two finding sets —
@@ -1426,7 +1425,7 @@ task's `Source:` line cites the Council finding IDs.
   `refresh_under_minimum_removed_is_clean`. `cargo test
   --workspace` clean (4131 tests); `cargo clippy --workspace
   --all-targets -- -D warnings` clean. Council quick on PR
-  #TBD found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
+  #1582 found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
   (doc/code mismatch on the ratio off-switch + write-then-warn
   ordering defeating the heuristic) folded into the same
   branch with a regression test for each. Threshold knobs are
@@ -2138,7 +2137,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
-| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 4/6 |
+| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
