@@ -540,19 +540,10 @@ impl SessionRegistry {
     /// writer's PID lineage. Tests can target this helper directly
     /// with synthetic anchors so they stay platform-portable.
     #[must_use]
-    pub fn lookup_tag_by_pid_starttime(
-        &self,
-        pid: u32,
-        pid_starttime: u64,
-    ) -> Option<AgentTag> {
+    pub fn lookup_tag_by_pid_starttime(&self, pid: u32, pid_starttime: u64) -> Option<AgentTag> {
         let inner = self.lock();
         let sid = inner.by_pid_lineage.get(&(pid, pid_starttime))?;
-        inner
-            .sessions
-            .get(sid)?
-            .record
-            .daemon_issued_tag
-            .clone()
+        inner.sessions.get(sid)?.record.daemon_issued_tag.clone()
     }
 
     /// MLP2-025: walk the writer's PID lineage and return the
@@ -2068,7 +2059,9 @@ mod tests {
 
         // Same PID, different start-time → not the same process.
         assert!(
-            registry.lookup_tag_by_pid_starttime(42, 1_700_000_200).is_none(),
+            registry
+                .lookup_tag_by_pid_starttime(42, 1_700_000_200)
+                .is_none(),
             "PID reuse with different starttime must not match"
         );
         // Same PID, matching start-time → still the same process.
