@@ -31,6 +31,51 @@ All notable changes to anvil are documented here.
   to the structured `payload` object. The pre-WOUT shape was not guaranteed and
   is no longer produced.
 
+## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
+
+Patch release for beta-user first-run and watch friction. No new APIs and no
+breaking changes; the upgrade is drop-in for existing installs.
+
+### Fixed
+
+- **Homebrew-aware curl installer.** `install.sh` now detects an existing
+  Homebrew-managed `anvil` binary before download. When found, it exits
+  successfully and prints `brew upgrade eddacraft/tap/anvil` instead of
+  overwriting the Homebrew-managed binary.
+- **Watch and audit ignore local agent/tool worktrees and caches by default.** A
+  shared ignore list covers `.claude`, `.opencode`, `.gemini`, `.serena`,
+  `.worktrees`, and the usual generated/cache/build directories (`node_modules`,
+  `target`, `dist`, and others).
+- **Initial watch scan is baseline/readiness state, not new violations.**
+  Existing public exports, dependencies, and cross-layer imports are no longer
+  reported as save-time findings when `anvil watch` starts; only later file
+  changes that introduce or re-surface an issue trigger findings.
+- **`anvil watch` shows immediate startup feedback.** A terse "starting" line
+  prints before the slow setup phase, so large repos no longer look hung on
+  launch. `anvil watch` also falls back to plain output when stdin or stdout is
+  not a terminal.
+
+### Added
+
+- **`anvil uninstall` command.** Project-scoped removal of Anvil state
+  (`.anvil/`, `.anvilrc`, and Anvil-managed git hooks). Pass `--global` to also
+  remove user-level state (`~/.anvil/`), Anvil MCP entries from `~/.claude.json`
+  and `~/.cursor/mcp.json`, stored credentials, and the running daemon. The
+  Anvil binary itself is never removed — uninstall that with Homebrew, WinGet,
+  Scoop, Cargo, or the installer path after cleaning state. Auth-bypass is built
+  in so stuck installs can be cleaned without logging in.
+- **Refreshed beta and watch help.** The beta testing guide, troubleshooting,
+  and quickstart now cover the watch baseline-scan semantics, the shared ignore
+  policy, non-TTY fallback, and the new uninstall escape hatch.
+
+### Upgrade
+
+- Homebrew: `brew upgrade eddacraft/tap/anvil`.
+- curl installer: rerun the installer — it now detects Homebrew and steps aside
+  with the correct upgrade hint.
+- WinGet / Scoop / direct download: pick up the new release as normal; no
+  manifest or installer shape change.
+
 ## [0.6.0-beta] — 2026-05-07 — Wow-Start Activation & Daemon-Backed Mid-Edit Validation
 
 ### Added
