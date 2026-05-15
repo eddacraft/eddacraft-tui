@@ -31,7 +31,7 @@ use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anvil_witness::{WitnessLine, verify_chain};
+use anvil_witness::{WitnessLine, verify_chain_dag};
 use anyhow::{Context, Result};
 use clap::Args;
 use serde::Serialize;
@@ -269,7 +269,9 @@ fn chain_is_intact(repo_root: &Path) -> bool {
         return true;
     }
     let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
-    verify_chain(&path_refs).is_ok()
+    // MLP2-011 — DAG-aware so a chain with merge witnesses is still
+    // recognised as intact.
+    verify_chain_dag(&path_refs).is_ok()
 }
 
 #[cfg(test)]
@@ -324,7 +326,7 @@ mod tests {
             prev = anvil_witness::compute_line_hash(&line.to_canonical_bytes().unwrap());
         }
         // Sanity: chain verifies.
-        assert!(verify_chain(&[active.as_path()]).is_ok());
+        assert!(verify_chain_dag(&[active.as_path()]).is_ok());
     }
 
     #[test]

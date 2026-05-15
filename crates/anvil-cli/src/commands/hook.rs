@@ -72,7 +72,7 @@ use anvil_l4::{
     ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
-use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
+use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain_dag};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
@@ -745,7 +745,8 @@ fn verify_chain_or_block(
         return None;
     }
     let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
-    match verify_chain(&path_refs) {
+    // MLP2-011 — DAG-aware so merge witnesses don't trip the verifier.
+    match verify_chain_dag(&path_refs) {
         Ok(_) => None,
         Err(_) => Some(render_verdict(&Verdict::Block {
             count: 0,
@@ -1295,13 +1296,16 @@ fn chain_head(active_path: &Path) -> ChainState {
     if !active_path.exists() {
         return ChainState::Empty;
     }
-    match verify_chain(&[active_path]) {
-        Ok(report) => {
-            if report.line_count == 0 {
+    // MLP2-011 — DAG-aware verifier accepts merge witnesses; the
+    // `DagVerification` struct exposes the same `line_count` + `tip_hash`
+    // the legacy `ChainReport` did.
+    match verify_chain_dag(&[active_path]) {
+        Ok(dag) => {
+            if dag.line_count == 0 {
                 ChainState::Empty
             } else {
-                let seq = report.line_count.saturating_add(1);
-                let prev = report
+                let seq = dag.line_count.saturating_add(1);
+                let prev = dag
                     .tip_hash
                     .unwrap_or_else(|| GenesisAnchor::Fresh.anchor_string().to_string());
                 ChainState::Healthy { seq, prev }
@@ -1567,7 +1571,7 @@ mod tests {
         }
 
         // Verify the resulting chain is intact.
-        let report = verify_chain(&[active.as_path()]).expect("chain verifies");
+        let report = verify_chain_dag(&[active.as_path()]).expect("chain verifies");
         // 1 genesis + 3 records = 4 lines.
         assert_eq!(report.line_count, 4);
     }
@@ -1690,7 +1694,7 @@ mod tests {
             .unwrap();
         }
 
-        let report = verify_chain(&[active.as_path()]).unwrap();
+        let report = verify_chain_dag(&[active.as_path()]).unwrap();
         // genesis + two retroactive records.
         assert_eq!(report.line_count, 3);
         let contents = fs::read_to_string(&active).unwrap();
