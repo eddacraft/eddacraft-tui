@@ -431,8 +431,11 @@ else
   for path in CHANGELOG.md docs/public/anvil/releases/changelog.md; do
     [[ -e "$path" ]] && printf '%s\n' "$path" >>"$tmp/commit-files"
   done
-  mapfile -t commit_files <"$tmp/commit-files"
-  if (( ${#commit_files[@]} > 0 )) && [[ -n "$(git status --porcelain -- "${commit_files[@]}")" ]]; then
+  commit_files=()
+  while IFS= read -r commit_file_line; do
+    [[ -n "$commit_file_line" ]] && commit_files+=("$commit_file_line")
+  done <"$tmp/commit-files"
+  if [[ ${#commit_files[@]} -gt 0 ]] && [[ -n "$(git status --porcelain -- "${commit_files[@]}")" ]]; then
     git add -- "${commit_files[@]}"
     git commit -m "chore(release): prepare $version" >/dev/null
   fi
