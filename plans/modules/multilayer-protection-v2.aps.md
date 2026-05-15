@@ -961,149 +961,200 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025: Registry-side spoof rejection cross-check
 
-- **Status:** In Progress
+- **Status:** In Progress (Phase 1 only; Phase 2 deferred to MLP2-025b)
 - **Intent:** Env-supplied `AgentTag` must match the tag the
   daemon issued for this PID lineage at INTL-003
   registration. Mismatches treated as missing, not honoured.
-- **Planning Council 2026-05-15 revisions:** module placement
-  (env-reader moved off `auth.rs`), enforcement layering
-  (cross-check at daemon control-lane, not inside
-  `EnforcementPipeline`), explicit `pid_starttime` validation
-  at every ancestor hop, and explicit trust-boundary note
-  for intra-lineage privilege escalation. See the
-  Planning Council 2026-05-15 synthesis in the PR description for the
-  planning artefacts (the review record itself lives outside the tracked
-  tree per the `plans/reviews/*` gitignore rule).
-- **Expected Outcome:**
+- **Phasing (added 2026-05-15 mid-implementation):** the original
+  six-subtask plan compressed a clean primitives layer (A1–A4) and an
+  integration phase (A5: daemon control-lane wire-up) into a single
+  PR. The integration phase turned out to need its own design pass
+  because (i) the writer's env-tag ingress path is undesigned in the
+  current daemon (`env_agent_tag()` reads the daemon's own env, not
+  the writer's), (ii) the Council's "control-lane has both registries"
+  premise misread the layering — `ScanBufferService` holds
+  `EnforcementPipeline` but no `SessionRegistry` reference, and
+  (iii) the ~20 production `register()` callers all need switching to
+  `register_with_lineage` for the lineage index to be populated in
+  production. Splitting honours the "each subtask reviewable in
+  isolation" goal.
+  - **Phase 1 (this item, In Progress → Merged this wave):** the
+    primitives — proto field, `tag_env` reader, `(pid, pid_starttime)`
+    lineage index, `Cross` classifier, `cross_check_env_tag` wrapper.
+    All shipped behind their public API; no production call site
+    consumes them yet.
+  - **Phase 2 (new sub-item MLP2-025b, Draft):** daemon control-lane
+    wire-up + production-caller migration + block+fence combinator +
+    telemetry. Needs its own integration-phase contract spec before
+    TDD — data shapes, IPC additions, function signatures per layer,
+    lock/lifecycle rules. Tracked alongside the Phase 2 entry below.
+- **Planning Council 2026-05-15 revisions (Phase 1 applied):** module
+  placement (env-reader moved off `auth.rs`), explicit `pid_starttime`
+  validation at every ancestor hop, intra-lineage trust-boundary
+  note. The "cross-check at the daemon control-lane" verdict is
+  carried forward to Phase 2 unchanged — Phase 1 only ships the
+  primitives it needs.
+- **Expected Outcome (Phase 1 — primitives, this PR):**
   - `SessionRecord` (proto) gains a wire-additive
     `daemon_issued_tag: Option<AgentTag>` mirror that
     captures the tag the daemon actually issued at
     `register()` time, distinct from the client-supplied
     `agent_tag` field.
-  - `SessionRegistry::lookup_tag_for_lineage(pid)` walks the
-    writer's PID lineage via
-    `anvil_attribution::walk_ancestors` and returns the
-    daemon-issued tag of any registered ancestor.
-    **Validation is by `(pid, pid_starttime)` pair at every
-    hop** — a bare PID match is rejected, so PID reuse after
-    a launcher exit cannot spoof attribution.
-  - **The cross-check executes at the daemon control-lane**
-    (the IPC handler that already holds both the session
-    registry and the change envelope), **not** inside
-    `EnforcementPipeline`. The pipeline receives a
-    pre-resolved `attribution: Attributed | Spoofed |
-    Untagged` value; pipeline signature is unchanged.
-  - `cross_check_env_tag(env_tag, writer_pid)` on
-    `SessionRegistry` returns
-    `Cross::Match | Cross::Spoofed | Cross::Untagged`:
-    - `Match` when the env-derived tag matches a registered
-      ancestor on the writer's PID lineage.
-    - `Spoofed` when an env tag is present but no ancestor
-      match exists.
-    - `Untagged` when no env tag was supplied.
-  - On `Cross::Spoofed`: the daemon control-lane (a) **blocks
-    the in-flight write** (returns the equivalent of a fence
-    refusal for the current operation) and (b) records a
-    worktree-level fence so future operations stay blocked
-    until cleared. Reason string is `degraded:spoofed-attribution`.
-  - Reason string is emitted in TWO channels: the existing
-    free-form notification envelope in `telemetry.rs` AND a
-    new `tracing::warn!(target: "anvil_intercept::registry",
-    reason = "degraded:spoofed-attribution", %worktree,
-    %writer_pid, ...)` so structured log collectors see the
-    event independently of the notification bus.
-  - Both reasons are defined as `pub const` string literals
-    (single find-target for a future enum migration).
-  - A registered session whose env tag matches a daemon-
-    issued ancestor mirror is unaffected.
-  - A session that never supplied `ANVIL_AGENT_TAG` is
-    unaffected.
-  - **Trust boundary, documented:** the lineage walk grants
-    any *descendant* of a registered PID full attribution.
-    The security guarantee is against *out-of-lineage*
-    spoofing only; co-process privilege escalation inside a
-    legitimate process tree is out of scope (this is an
-    inherent limitation of PID-lineage attribution, captured
-    here to avoid surprise).
-- **Files:**
-  - `crates/anvil-intercept-proto/src/session.rs` — add
-    wire-additive `daemon_issued_tag: Option<AgentTag>` on
-    `SessionRecord` with serde defaults matching MLP2-023
-    precedent.
-  - `crates/anvil-intercept/src/tag_env.rs` — **new module**
-    holding `fn env_agent_tag() -> Option<AgentTag>`, the
-    first reader of `ANVIL_AGENT_TAG_ENV`. Lives separate
-    from `auth.rs` (which is the DRVR-007 driver trust
-    boundary and must not absorb unrelated surfaces).
-  - `crates/anvil-intercept/src/lib.rs` — declare the new
-    `tag_env` module.
-  - `crates/anvil-intercept/src/registry.rs` — capture the
-    daemon-issued tag on `register()`; add
-    `lookup_tag_for_lineage(pid: u32) -> Option<AgentTag>`
-    (validates `(pid, pid_starttime)` per hop); add
-    `cross_check_env_tag(env_tag, writer_pid)` returning the
-    three-state enum; tests under the existing
-    `registry::tests` module (precedent at lines 1303–1379).
-  - Daemon control-lane handler (current call site of
-    `EnforcementPipeline` evaluate methods — confirm exact
-    file during impl) — invoke the cross-check, branch on
-    the result, and pass `attribution` into the pipeline.
-    `EnforcementPipeline` itself is NOT extended with a
-    registry reference.
-  - `crates/anvil-intercept/src/telemetry.rs` — emit the
-    `degraded:spoofed-attribution` notification AND a
-    `tracing::warn!` at the registry target.
-- **Validation:**
-  - `cargo test -p eddacraft-anvil-intercept-proto --lib
-    session::tests::daemon_issued_tag_wire_compat`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    tag_env::tests::env_agent_tag_parses_valid_value`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    tag_env::tests::env_agent_tag_rejects_malformed_value`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    registry::tests::lineage_walk_finds_registered_ancestor`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    registry::tests::lineage_walk_rejects_pid_reuse_without_starttime_match`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    registry::tests::env_tag_mismatch_strips_attribution`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    registry::tests::env_tag_match_preserves_attribution`
-  - `cargo test -p eddacraft-anvil-intercept --lib
-    registry::tests::missing_env_tag_leaves_session_untagged`
-  - Daemon control-lane integration test (path TBD during
-    impl) covering `Cross::Spoofed` → block + fence path.
-- **Subtasks:**
-  1. **Proto wire-additive field.** Add
-     `daemon_issued_tag: Option<AgentTag>` to
-     `SessionRecord`; test
-     `session::tests::daemon_issued_tag_wire_compat`.
-  2. **`tag_env` module.** Greenfield module with
-     `env_agent_tag()`; tests
-     `env_agent_tag_parses_valid_value` and
-     `env_agent_tag_rejects_malformed_value`. (Module
-     placement changed from `auth.rs` per Council finding
-     M4.)
-  3. **Registry lineage lookup with `pid_starttime` pinning.**
-     `SessionRegistry::lookup_tag_for_lineage(pid)` validates
-     `(pid, pid_starttime)` at every ancestor hop; tests
-     `lineage_walk_finds_registered_ancestor` and
-     `lineage_walk_rejects_pid_reuse_without_starttime_match`.
-  4. **Registry cross-check API.** `cross_check_env_tag`
-     returning the three-state enum; tests cover each arm.
-  5. **Daemon control-lane wire + telemetry.** Wire the
-     cross-check at the IPC handler call site (above
-     `EnforcementPipeline`); on `Cross::Spoofed` block the
-     in-flight write and record the worktree-level fence;
-     emit `degraded:spoofed-attribution` via notification
-     AND `tracing::warn!`. Integration test covers the
-     block + fence + telemetry path.
-  6. **Backward-compat sweep.** Confirm all untagged callers
-     retain pre-MLP2-025 semantics; lib-test count rises
-     from MLP2-024 baseline of 261 without regressions.
-- **Confidence:** medium
+  - `crates/anvil-intercept/src/tag_env.rs` exposes
+    `env_agent_tag()` plus a pure `agent_tag_from_env`
+    helper. Module is greenfield; first reader of
+    `ANVIL_AGENT_TAG_ENV`.
+  - `SessionRegistry` gains a `(pid, pid_starttime)` lineage
+    index plus three public methods:
+    - `register_with_lineage(...)` — additive register variant
+      that captures the daemon-issued tag and seeds the index.
+    - `lookup_tag_by_pid_starttime(pid, starttime)` — pure
+      lookup used by tests.
+    - `lookup_tag_for_lineage(pid)` — production wrapper that
+      walks the writer's PID lineage via
+      `anvil_attribution::walk_ancestors`, validates
+      `(pid, pid_starttime)` at every ancestor hop, and
+      returns the daemon-issued tag of any registered
+      ancestor.
+  - `Cross::{Untagged, Match, Spoofed}` + `Cross::classify`
+    pure classifier + `SessionRegistry::cross_check_env_tag`
+    production wrapper.
+  - `unregister` and `evict_stale` drop matching entries
+    from the lineage index so stale anchors do not linger.
+  - **No production caller is wired to the new methods.** The
+    primitives are dead-code from `main`'s perspective until
+    Phase 2 (MLP2-025b) connects them to the daemon
+    control-lane.
+- **Out of scope for Phase 1 (deferred to MLP2-025b):**
+  - Daemon-side env-tag ingress (how the writer's
+    `ANVIL_AGENT_TAG` reaches the daemon at write time).
+  - Switching production `register()` callers to
+    `register_with_lineage` so the lineage index is
+    populated in production.
+  - Block-current-write + record-fence combinator on
+    `Cross::Spoofed`.
+  - `degraded:spoofed-attribution` reason string
+    emission (notification envelope + `tracing::warn!`).
+  - `pub const` for the reason string.
+  - Trust-boundary doc on the live API.
+- **Files (Phase 1):**
+  - `crates/anvil-intercept-proto/src/lib.rs` — wire-additive
+    `daemon_issued_tag` on `SessionRecord` + three new tests.
+  - `crates/anvil-intercept/Cargo.toml` — add
+    `anvil-attribution` path dep.
+  - `crates/anvil-intercept/src/lib.rs` — declare `tag_env`
+    module.
+  - `crates/anvil-intercept/src/tag_env.rs` — greenfield
+    module + four tests.
+  - `crates/anvil-intercept/src/registry.rs` — `Cross` enum +
+    `Cross::classify`, `by_pid_lineage` index field,
+    `register_with_lineage`, `lookup_tag_by_pid_starttime`,
+    `lookup_tag_for_lineage`, `cross_check_env_tag`; lineage
+    drop in `unregister` and `evict_stale`; eight new tests.
+  - `Cargo.lock` — internal path dep added; ACKNOWLEDGEMENTS
+    regenerated (no diff — internal crate).
+  - Test-helper sites populating `SessionRecord` updated to
+    include `daemon_issued_tag: None`:
+    `crates/anvil-intercept/src/{auth,interrupt,registry,status}.rs`
+    + `crates/anvil-cli/src/commands/intercept.rs`.
+- **Validation (Phase 1):**
+  - `cargo test -p eddacraft-anvil-intercept-proto --lib`
+    (38 tests, up from 35)
+  - `cargo test -p eddacraft-anvil-intercept --lib`
+    (312 tests, up from 305)
+  - `cargo test -p eddacraft-anvil --bins commands::intercept`
+    (7 tests, unchanged)
+- **Subtasks (Phase 1, all complete):**
+  1. Proto wire-additive `daemon_issued_tag` — DONE.
+  2. `tag_env` greenfield module — DONE.
+  3. Registry lineage lookup with `pid_starttime` pinning — DONE.
+  4. Registry `cross_check_env_tag` three-state API — DONE.
+- **Why split (added 2026-05-15):** the original
+  six-subtask plan compressed primitives and integration
+  into one PR. Mid-implementation discovery surfaced three
+  open questions for the integration phase: writer-side
+  env-tag ingress is undesigned, the Council layering
+  verdict was based on a misread of which struct holds the
+  registry reference, and ~20 production `register()`
+  callers need migrating. None of these block the
+  primitives — splitting keeps the review surface clean.
+- **Confidence:** high (Phase 1 surface fully covered by
+  unit tests; the deferred wire-up is what the integration
+  phase will own).
 - **Priority:** Critical
 - **Dependencies:** MLP-014, MLP2-023
 - **Source:** MLP-014 footnote 6.
+
+#### MLP2-025b: Daemon control-lane wire-up for spoof cross-check
+
+- **Status:** Draft
+- **Intent:** Wire the MLP2-025 Phase 1 primitives into the
+  daemon's live write-time decision path so the spoof
+  cross-check actually fires on real writes. Without this
+  item, the Phase 1 primitives are dead code from `main`'s
+  perspective.
+- **Open design questions (must be resolved before TDD):**
+  1. **Writer-side env-tag ingress.** `env_agent_tag()` reads
+     the daemon's own env, not the writer's. Options:
+     (a) the writer (anvil-run launcher or driver) packages
+     its `ANVIL_AGENT_TAG` into the IPC scan-buffer request
+     as a new wire-additive field; (b) the daemon reads
+     `/proc/<writer_pid>/environ` directly on Linux; (c)
+     hybrid — request field with daemon fallback to /proc.
+     Pick one. Each option has different security and
+     portability properties.
+  2. **Write-time decision call site.** The Council
+     2026-05-15 verdict said "do the cross-check at the
+     control-lane caller that has both registries". On
+     re-read of the code,
+     `crates/anvil-intercept/src/lib.rs` `RegistryDispatcher`
+     holds `Arc<SessionRegistry>` but
+     `crates/anvil-intercept/src/midedit.rs`
+     `ScanBufferService` (the write-time entry point) holds
+     `EnforcementPipeline` and *not* the registry. Decide:
+     thread a registry reference into `ScanBufferService`,
+     or hoist the cross-check into the IPC handler that
+     calls `ScanBufferService`?
+  3. **Block + fence combinator.** Today
+     `RegistryError::WorktreeFenced` is a register-time
+     error. There is no equivalent write-time "block this
+     write AND record a fence" outcome. Either extend
+     `EnforcementDecision` with a `Spoofed` variant, or have
+     the control-lane caller short-circuit the pipeline
+     entirely on `Cross::Spoofed`.
+  4. **Production caller migration.** ~20 sites call
+     `register()` today. Decide which need switching to
+     `register_with_lineage` (only the daemon's true
+     registration call site, or also tests / embedded
+     pathways?). A migration that's too aggressive risks
+     breaking embedded mode; too conservative leaves the
+     lineage index empty in production.
+- **Required artefact before TDD:** a contract-style design
+  spec under `plans/specs/` defining (i) data shapes
+  (structs touched, new IPC fields), (ii) message flow
+  diagram (writer → daemon → registry → pipeline → response),
+  (iii) function signatures at each layer, (iv)
+  lock/lifecycle/error-channel rules. Web-API-style data
+  contract, not free-form prose.
+- **Council:** `mini` review on the spec before
+  implementation; `quick` per impl subtask thereafter.
+- **Expected Outcome (sketch, refined by the contract
+  spec):** daemon's write-time IPC handler invokes
+  `SessionRegistry::cross_check_env_tag(env_tag, writer_pid)`
+  before invoking `EnforcementPipeline`; on `Cross::Spoofed`
+  the handler blocks the current write and records a
+  worktree-level fence with reason
+  `degraded:spoofed-attribution`; emission via both
+  notification envelope and `tracing::warn!`. Reason
+  strings as `pub const`.
+- **Confidence:** low (open questions above)
+- **Priority:** Critical (MLP2-025 is a security surface;
+  Phase 1 alone is incomplete)
+- **Dependencies:** MLP2-025 (Phase 1 primitives), MLP-014,
+  MLP2-023
+- **Source:** MLP2-025 mid-implementation discovery,
+  2026-05-15 — the integration phase needed its own design
+  pass.
 
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
