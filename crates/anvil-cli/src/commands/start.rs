@@ -261,13 +261,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
         WatchDecision::SkipConfigInvalid => {
             println!(
-                "  watch: skipped — `.anvilrc` is invalid; fix the config error first, then re-run `anvil start --watch`."
+                "  watch: skipped — project config is invalid; fix the config error first, then re-run `anvil start --watch`."
             );
             Ok(())
         }
         WatchDecision::SkipConfigAbsent => {
             println!(
-                "  watch: skipped — no `.anvilrc` to honour; run `anvil init` first, then re-run `anvil start --watch` for save-time fallback."
+                "  watch: skipped — no project config found; run `anvil start --format yaml` (or `anvil init`) to adopt Anvil, then re-run `anvil start --watch` for save-time fallback."
             );
             Ok(())
         }
@@ -325,7 +325,7 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
     // legacy `.anvilrc` path. Keys are emitted in `schemaVersion` /
     // `planningDir` camelCase across all formats so MLP2-041's
     // `InitConfigView::from_value` reads them without snake-case fallback.
-    let value = default_anvil_config_value();
+    let value = default_anvil_config_value(format);
     let serialised = serialise_to_format(&value, cfg_format)
         .with_context(|| format!("serialising default config as {}", cfg_format.extension()))?;
     crate::util::atomic_write(&target, serialised.as_bytes())
@@ -333,14 +333,21 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
     Ok(())
 }
 
-fn default_anvil_config_value() -> serde_json::Value {
+fn default_anvil_config_value(format: StartFormat) -> serde_json::Value {
     // Hard-coded mirror of `commands::init::AnvilConfig::default()` to
     // avoid leaking the private struct through a new pub surface for a
     // single use site. Update in lock-step if init's defaults change.
+    //
+    // Council MAJOR (wave 1G review) — the embedded `format` field must
+    // match the file extension we are writing, not be hard-coded to
+    // `"yaml"`. `init::generate_config_with_force` consumes this field
+    // to dispatch its serialiser, so an inconsistent value would
+    // silently misroute the writer the moment a consumer migrates to
+    // `InitConfigView::from_value`.
     serde_json::json!({
         "schemaVersion": "1.0.0",
         "planningDir": "plans",
-        "format": "yaml",
+        "format": format.config_format().extension(),
         "checks": crate::commands::defaults::default_check_names(),
     })
 }
@@ -624,6 +631,9 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.is_object());
         assert_eq!(parsed["schemaVersion"], "1.0.0");
+        // Council MAJOR — embedded `format` field must match the file
+        // extension, not be hard-coded to `"yaml"`.
+        assert_eq!(parsed["format"], "json");
     }
 
     #[test]
@@ -639,6 +649,23 @@ mod tests {
         // Value; pinning the line proves the writer didn't accidentally
         // serialise the field name in a way that round-trips wrong.
         assert!(raw.contains("schemaVersion = \"1.0.0\""), "got:\n{raw}");
+        // Council MAJOR — embedded `format` field must match the file
+        // extension.
+        assert!(raw.contains("format = \"toml\""), "got:\n{raw}");
+    }
+
+    #[test]
+    fn pre_write_yaml_embeds_yaml_format_field() {
+        // Companion of the json/toml tests above: yaml must also emit
+        // `format: "yaml"` so the embedded field always matches the
+        // chosen extension.
+        let tmp = tempfile::TempDir::new().unwrap();
+        pre_write_anvil_config(tmp.path(), StartFormat::Yaml).unwrap();
+        let raw = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
+        assert!(
+            raw.contains("format: yaml") || raw.contains("format: \"yaml\""),
+            "got:\n{raw}"
+        );
     }
 
     #[test]

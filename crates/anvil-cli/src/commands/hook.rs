@@ -1060,18 +1060,26 @@ fn run_witness_recent_walk(repo_root: &Path) -> usize {
     written
 }
 
-/// Walk `git -C <root> rev-list @{u}..HEAD --` and return the SHAs in
-/// new→old order. Returns `Ok(vec![])` when `@{u}` is not configured
-/// (the upstream isn't set) so the caller can degrade to a clean
-/// zero-count success rather than surfacing an error.
+/// Walk `git -C <root> rev-list --reverse @{u}..HEAD --` and return the
+/// SHAs in old→new order. Returns `Ok(vec![])` when `@{u}` is not
+/// configured (the upstream isn't set) so the caller can degrade to a
+/// clean zero-count success rather than surfacing an error.
 ///
 /// Each returned SHA is validated via [`is_hex_sha`] as defence in
 /// depth against a future bug feeding `git` a revspec or option.
+///
+/// Council MAJOR (wave 1G review) — `--reverse` is required so the
+/// recovery walk writes witness lines in temporal-causal order
+/// (genesis → A → B → C). Without it, `git rev-list` returns
+/// newest-first, which would invert the `seq` ordering of the
+/// retroactive lines relative to commit time and confuse audit tooling
+/// that expects monotonic seq-vs-timestamp correlation.
 fn list_unwitnessed_range(repo_root: &Path) -> io::Result<Vec<String>> {
     let output = Command::new("git")
         .arg("-C")
         .arg(repo_root)
         .arg("rev-list")
+        .arg("--reverse")
         .arg("@{u}..HEAD")
         .arg("--")
         .output()?;
