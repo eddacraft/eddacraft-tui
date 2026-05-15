@@ -412,6 +412,10 @@ impl SessionRegistry {
             last_heartbeat_unix: now_unix,
             status: SessionStatus::Active,
             agent_tag: agent_tag.cloned(),
+            // MLP2-025: populated by `lookup_tag_for_lineage` /
+            // `cross_check_env_tag` plumbing in subsequent subtasks (A3,
+            // A4). Until then `None` mirrors the legacy untagged path.
+            daemon_issued_tag: None,
         };
 
         inner.sessions.insert(

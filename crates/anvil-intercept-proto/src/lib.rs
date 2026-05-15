@@ -185,6 +185,19 @@ pub struct SessionRecord {
     /// `session_record_with_agent_tag_is_optional_on_the_wire` tests).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_tag: Option<session::AgentTag>,
+    /// MLP2-025: tag the **daemon** issued at registration time,
+    /// captured from the registering PID's lineage. Mirrors the
+    /// client-supplied [`Self::agent_tag`] but is authoritative for
+    /// the spoof cross-check: env-supplied `AgentTag` values are
+    /// honoured only when they match a `daemon_issued_tag` on the
+    /// writer's PID lineage.
+    ///
+    /// Wire-additive via `skip_serializing_if` (same convention as
+    /// `agent_tag`). Pinned by the `daemon_issued_tag_wire_compat`,
+    /// `session_record_with_daemon_issued_tag_round_trips`, and
+    /// `daemon_issued_tag_omitted_when_none` tests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daemon_issued_tag: Option<session::AgentTag>,
 }
 
 /// Liveness state of a `SessionRecord`. The registry snapshot only
@@ -360,6 +373,7 @@ mod tests {
             last_heartbeat_unix: 1_700_000_010,
             status: SessionStatus::Active,
             agent_tag: None,
+            daemon_issued_tag: None,
         };
 
         let line = serde_json::to_string(&record).expect("serialise");
@@ -411,6 +425,7 @@ mod tests {
                 "claude-code-2",
                 1_700_000_042,
             )),
+            daemon_issued_tag: None,
         };
         let line = serde_json::to_string(&record).expect("serialise");
         assert!(
@@ -419,6 +434,86 @@ mod tests {
         );
         let back: SessionRecord = serde_json::from_str(&line).expect("deserialise");
         assert_eq!(back, record);
+    }
+
+    /// MLP2-025: a `SessionRecord` without `daemon_issued_tag` still
+    /// deserialises losslessly; the field defaults to `None`. Pins the
+    /// wire-additive contract: pre-MLP2-025 daemons emitting a record
+    /// without the new field continue to round-trip via newer readers.
+    #[test]
+    fn daemon_issued_tag_wire_compat() {
+        let wire = r#"{
+            "id":"sess_abc",
+            "worktree":"/tmp/wt",
+            "pid":null,
+            "pgid":null,
+            "started_at_unix":1700000000,
+            "last_heartbeat_unix":1700000010,
+            "status":"active"
+        }"#;
+        let record: SessionRecord = serde_json::from_str(wire).expect("legacy deserialise");
+        assert!(
+            record.daemon_issued_tag.is_none(),
+            "missing daemon_issued_tag field defaults to None"
+        );
+    }
+
+    /// MLP2-025: a `SessionRecord` carrying both `agent_tag` (client-
+    /// supplied) and `daemon_issued_tag` (daemon mirror) round-trips
+    /// losslessly. The two fields are independent — the daemon may
+    /// issue a tag at registration even when the client didn't supply
+    /// one, and vice versa, though typical usage has them paired.
+    #[test]
+    fn session_record_with_daemon_issued_tag_round_trips() {
+        let record = SessionRecord {
+            id: SessionId::new("sess_tagged"),
+            worktree: std::path::PathBuf::from("/tmp/wt"),
+            pid: None,
+            pgid: None,
+            started_at_unix: 1_700_000_000,
+            last_heartbeat_unix: 1_700_000_010,
+            status: SessionStatus::Active,
+            agent_tag: Some(session::AgentTag::new(
+                "anvil-run",
+                "claude-code-2",
+                1_700_000_042,
+            )),
+            daemon_issued_tag: Some(session::AgentTag::new(
+                "anvil-run",
+                "claude-code-2",
+                1_700_000_042,
+            )),
+        };
+        let line = serde_json::to_string(&record).expect("serialise");
+        assert!(
+            line.contains("\"daemon_issued_tag\""),
+            "daemon_issued_tag present on wire when Some: {line}"
+        );
+        let back: SessionRecord = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, record);
+    }
+
+    /// MLP2-025: `daemon_issued_tag` is omitted from the wire when
+    /// `None`, mirroring the `agent_tag` precedent. Confirms the
+    /// `#[serde(skip_serializing_if = "Option::is_none")]` guard.
+    #[test]
+    fn daemon_issued_tag_omitted_when_none() {
+        let record = SessionRecord {
+            id: SessionId::new("sess_no_daemon_tag"),
+            worktree: std::path::PathBuf::from("/tmp/wt"),
+            pid: None,
+            pgid: None,
+            started_at_unix: 1_700_000_000,
+            last_heartbeat_unix: 1_700_000_010,
+            status: SessionStatus::Active,
+            agent_tag: None,
+            daemon_issued_tag: None,
+        };
+        let line = serde_json::to_string(&record).expect("serialise");
+        assert!(
+            !line.contains("daemon_issued_tag"),
+            "daemon_issued_tag must be omitted on wire when None: {line}"
+        );
     }
 
     #[test]

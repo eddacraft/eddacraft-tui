@@ -508,6 +508,7 @@ mod tests {
             last_heartbeat_unix: started,
             status: SessionStatus::Active,
             agent_tag: None,
+            daemon_issued_tag: None,
         }
     }
 

@@ -645,6 +645,7 @@ mod tests {
             last_heartbeat_unix: 1_700_000_010,
             status: SessionStatus::Active,
             agent_tag: None,
+            daemon_issued_tag: None,
         }
     }
 
