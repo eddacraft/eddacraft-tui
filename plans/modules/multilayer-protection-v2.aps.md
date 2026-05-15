@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 30/60 done |
+| MLP2 | @aneki | In Progress | 31/60 done |
 
 **Last reviewed:** 2026-05-15 (wave 1G shipped 2026-05-15 via PR #1576
 at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
@@ -1241,7 +1241,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-033: `--new-identity` fork opt-out CLI flag
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `anvil start --new-identity` mints a fresh
   `project_uuid` instead of inheriting from the parent repo
   (which is the current fork behaviour). Lives on `anvil
@@ -1255,7 +1255,7 @@ task's `Source:` line cites the Council finding IDs.
   (new `mint_new_identity` primitive),
   `crates/anvil-cli/src/commands/baseline.rs`,
   `crates/anvil-cli/src/commands/start.rs`.
-- **Evidence (In Progress on `feat/mlp2-033-new-identity`):**
+- **Evidence (Merged 2026-05-15 via PR #1580 at `9c0537ea`):**
   New `mint_new_identity(root, version) -> ProjectIdentity` in
   `activation/identity.rs` mints a fresh v7 UUID and records the
   previous `project_uuid` (if any) as `forked_from`. Always
@@ -1289,7 +1289,7 @@ task's `Source:` line cites the Council finding IDs.
   `new_identity_preserves_existing_cutoff_commit` (Council
   quick #C-4 regression guard). `cargo test --workspace` clean
   (4116 tests); `cargo clippy --workspace --all-targets -- -D
-  warnings` clean. Council quick on PR #TBD found 4 MINOR + 2
+  warnings` clean. Council quick on PR #1580 found 4 MINOR + 2
   NIT — no MAJOR/CRITICAL. Folded in: race-window doc comment
   on `parent_uuid` capture, `tracing::warn!` on temp-file
   cleanup failure (`#C-2`), symlink-asymmetry doc, cutoff-carry
@@ -2074,7 +2074,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
-| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 3/6 |
+| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 4/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
