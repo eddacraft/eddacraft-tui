@@ -13,9 +13,11 @@
 //! prevented by the hook framework itself. The flock here is the
 //! belt to the framework's braces.
 //!
-//! Runs at 16 writers by default to keep CI fast. An 80-writer stress
-//! variant is gated behind `#[ignore]` so it can be invoked on demand
-//! with `cargo test --ignored`.
+//! Runs at 16 writers by default and 80 writers as a stress variant.
+//! MLP2-015 promoted the 80-writer variant out of `#[ignore]` after a
+//! local flake-budget review (10/10 green @ ~10ms each); the test fits
+//! well inside the standard cargo-test budget so it now runs in CI
+//! alongside the 16-writer sanity test.
 
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter};
 use std::sync::Arc;
@@ -89,7 +91,6 @@ fn sixteen_writers_no_interleaving() {
 }
 
 #[test]
-#[ignore = "stress test — run with `cargo test --ignored` on demand"]
 fn eighty_writers_no_interleaving() {
     run_concurrent(80);
 }
