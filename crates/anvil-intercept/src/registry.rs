@@ -21,6 +21,51 @@ use anvil_intercept_proto::session::AgentTag;
 use anvil_intercept_proto::{SessionId, SessionRecord, SessionStatus};
 use thiserror::Error;
 
+/// MLP2-025: three-state result of the env-tag spoof cross-check.
+///
+/// - [`Cross::Untagged`] — no env tag supplied. The pre-MLP2-025
+///   enforcement path applies unchanged.
+/// - [`Cross::Match`] — env tag matches the daemon-issued tag found on
+///   the writer's PID lineage. Attribution survives.
+/// - [`Cross::Spoofed`] — env tag is present but does not match any
+///   daemon-issued tag on the lineage. The caller blocks the in-flight
+///   write and records a worktree-level fence with reason
+///   `degraded:spoofed-attribution`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cross {
+    /// No env tag supplied.
+    Untagged,
+    /// Env tag matches the daemon-issued tag on the writer's lineage.
+    Match,
+    /// Env tag is present but no matching daemon-issued tag was
+    /// found on the writer's lineage. Treat the write as malicious.
+    Spoofed,
+}
+
+impl Cross {
+    /// Pure classifier: given the env-supplied tag and the daemon-
+    /// issued tag found on the writer's lineage, return the three-
+    /// state result. Production callers obtain `registered` via
+    /// [`SessionRegistry::lookup_tag_for_lineage`]; tests target this
+    /// helper directly with synthetic pairs.
+    ///
+    /// Trust boundary: the lineage walk grants any *descendant* of a
+    /// registered PID the registered tag. The classifier therefore
+    /// rejects only out-of-lineage spoofs (PID reuse after launcher
+    /// exit, env-tag forgery from an unrelated process tree).
+    /// Intra-lineage privilege escalation — a co-process inside a
+    /// legitimate launcher's process tree forging the env tag — is
+    /// out of scope by design.
+    #[must_use]
+    pub fn classify(env_tag: Option<&AgentTag>, registered: Option<&AgentTag>) -> Self {
+        match (env_tag, registered) {
+            (None, _) => Cross::Untagged,
+            (Some(env), Some(reg)) if env == reg => Cross::Match,
+            _ => Cross::Spoofed,
+        }
+    }
+}
+
 /// Default session heartbeat TTL — pinned at 30 s by INTD-003 in
 /// `plans/modules/intercept-daemon.aps.md`. A session that misses this
 /// window is treated as crashed.
@@ -553,6 +598,21 @@ impl SessionRegistry {
             .record
             .daemon_issued_tag
             .clone()
+    }
+
+    /// MLP2-025: classify an env-supplied `AgentTag` against the
+    /// daemon-issued tag found on the writer's PID lineage.
+    /// Convenience wrapper that composes
+    /// [`Self::lookup_tag_for_lineage`] with [`Cross::classify`].
+    ///
+    /// Returns [`Cross::Untagged`] when `env_tag` is `None`,
+    /// [`Cross::Match`] when the env tag matches a registered ancestor,
+    /// and [`Cross::Spoofed`] when the env tag is present but no
+    /// matching daemon-issued tag was found on the lineage.
+    #[must_use]
+    pub fn cross_check_env_tag(&self, env_tag: Option<&AgentTag>, writer_pid: u32) -> Cross {
+        let registered = self.lookup_tag_for_lineage(writer_pid);
+        Cross::classify(env_tag, registered.as_ref())
     }
 
     /// Update process info for a registered session. `None` fields are
@@ -2044,6 +2104,58 @@ mod tests {
 
         assert_eq!(record.agent_tag, Some(client));
         assert_eq!(record.daemon_issued_tag, Some(issued));
+    }
+
+    // ---- MLP2-025: cross_check_env_tag classifier --------------------
+
+    /// `Cross::classify` returns `Untagged` whenever the env tag is
+    /// absent, regardless of what the registry knows. Untagged writes
+    /// follow the pre-MLP2-025 enforcement path unchanged.
+    #[test]
+    fn missing_env_tag_leaves_session_untagged() {
+        let registered = tag("anvil-run", "claude-code-9", 1_700_000_042);
+        assert_eq!(Cross::classify(None, None), Cross::Untagged);
+        assert_eq!(Cross::classify(None, Some(&registered)), Cross::Untagged);
+    }
+
+    /// `Cross::classify` returns `Match` when the env tag equals the
+    /// daemon-issued tag found on the writer's lineage. Attribution
+    /// is preserved.
+    #[test]
+    fn env_tag_match_preserves_attribution() {
+        let env = tag("anvil-run", "claude-code-9", 1_700_000_042);
+        let registered = env.clone();
+        assert_eq!(Cross::classify(Some(&env), Some(&registered)), Cross::Match);
+    }
+
+    /// `Cross::classify` returns `Spoofed` when an env tag is present
+    /// but no daemon-issued tag exists on the writer's lineage
+    /// (out-of-lineage forgery) OR the lineage tag differs (mismatched
+    /// claim). Both arms collapse to the same enforcement decision:
+    /// strip attribution and downgrade to a worktree-level fence.
+    #[test]
+    fn env_tag_mismatch_strips_attribution() {
+        let env = tag("anvil-run", "claude-code-9", 1_700_000_042);
+        // No registered tag on the lineage.
+        assert_eq!(Cross::classify(Some(&env), None), Cross::Spoofed);
+        // Different driver.
+        let other_driver = tag("malicious-driver", "claude-code-9", 1_700_000_042);
+        assert_eq!(
+            Cross::classify(Some(&env), Some(&other_driver)),
+            Cross::Spoofed
+        );
+        // Different agent id.
+        let other_agent = tag("anvil-run", "different-agent", 1_700_000_042);
+        assert_eq!(
+            Cross::classify(Some(&env), Some(&other_agent)),
+            Cross::Spoofed
+        );
+        // Different pid_starttime (same name, different incarnation).
+        let other_starttime = tag("anvil-run", "claude-code-9", 1_700_000_999);
+        assert_eq!(
+            Cross::classify(Some(&env), Some(&other_starttime)),
+            Cross::Spoofed
+        );
     }
 
     /// Unregistering a session also drops it from the lineage index;
