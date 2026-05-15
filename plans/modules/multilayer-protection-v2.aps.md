@@ -1349,7 +1349,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-037: `anvil hook bootstrap --witness-recent` mode
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Walk `<remote>..HEAD`, run validation against
   each unwitnessed commit, write retroactive witnesses tagged
   `validation_at: bootstrap-recovery`. Recovers from
@@ -1370,7 +1370,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-038: `merge=union -text` orchestrator step for `.gitattributes`
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** The activation orchestrator pre-positions
   `.gitattributes` (MLP-001 step 1a-b); the explicit step
   that writes `anvil/witness/active.ndjson merge=union -text`
@@ -1392,7 +1392,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-039: `anvil start --format json|toml` CLI flag
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Operators can choose `.anvil.json` or
   `.anvil.toml` at adoption time instead of the default yaml.
 - **Expected Outcome:**
@@ -1412,7 +1412,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-040: `.anvilrc` → `.anvil.<ext>` filename migration
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Migrate the existing `.anvilrc` reader (in
   `commands/gate.rs`) to the multi-format `.anvil.<ext>`
   surface from MLP-011, while keeping `.anvilrc` working as
@@ -1434,7 +1434,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-041: Typed `AnvilConfig` schema
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Each consumer surface (init, gate, policy)
   evolves its own typed view over the same
   `serde_json::Value` intermediate from MLP-011, instead of
