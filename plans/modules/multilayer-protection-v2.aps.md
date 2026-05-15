@@ -944,8 +944,10 @@ task's `Source:` line cites the Council finding IDs.
   (cross-check at daemon control-lane, not inside
   `EnforcementPipeline`), explicit `pid_starttime` validation
   at every ancestor hop, and explicit trust-boundary note
-  for intra-lineage privilege escalation. See
-  [`plans/reviews/2026-05-15-mlp2-025-026-planning-council.md`](../reviews/2026-05-15-mlp2-025-026-planning-council.md).
+  for intra-lineage privilege escalation. See the
+  Planning Council 2026-05-15 synthesis in the PR description for the
+  planning artefacts (the review record itself lives outside the tracked
+  tree per the `plans/reviews/*` gitignore rule).
 - **Expected Outcome:**
   - `SessionRecord` (proto) gains a wire-additive
     `daemon_issued_tag: Option<AgentTag>` mirror that
@@ -1089,8 +1091,10 @@ task's `Source:` line cites the Council finding IDs.
   surface gains `cascaded` / `cascade_since`, `tracing::warn!`
   alongside notification, `operator` audit field on the IPC
   verb, lock ordering documented, telemetry subtask folded
-  into engage/clear sites. See
-  [`plans/reviews/2026-05-15-mlp2-025-026-planning-council.md`](../reviews/2026-05-15-mlp2-025-026-planning-council.md).
+  into engage/clear sites. See the
+  Planning Council 2026-05-15 synthesis in the PR description for the
+  planning artefacts (the review record itself lives outside the tracked
+  tree per the `plans/reviews/*` gitignore rule).
 - **Expected Outcome:**
   - `FenceStore` holds an in-memory per-worktree
     `RateWindow::new(4, Duration::from_secs(60))`. The 5th
