@@ -172,15 +172,79 @@ NODE
 apply_release_edits() {
   local file_version
   file_version="$(release_version_without_prefix)"
-  node - "$file_version" <<'NODE'
+
+  # Bump root package.json + per-package.json files that share the pre-bump
+  # root version. Writes the bumped path list to $tmp/version-bumps so the
+  # caller can stage all of them.
+  : >"$tmp/version-bumps"
+  node - "$file_version" "$tmp/version-bumps" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const [version, bumpListPath] = process.argv.slice(2);
+const writes = [];
+let priorVersion = null;
+const root = 'package.json';
+if (fs.existsSync(root)) {
+  const doc = JSON.parse(fs.readFileSync(root, 'utf8'));
+  priorVersion = doc.version || null;
+  doc.version = version;
+  fs.writeFileSync(root, JSON.stringify(doc, null, 2) + '\n');
+  writes.push(root);
+}
+if (priorVersion && priorVersion !== version) {
+  const IGNORED = new Set(['node_modules', '.git', '.next', 'dist', 'target', '.turbo', '.nx', '.pnpm-store']);
+  const stack = ['.'];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (IGNORED.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { stack.push(full); continue; }
+      if (entry.name !== 'package.json') continue;
+      if (full === root || full === `./${root}`) continue;
+      let doc;
+      try { doc = JSON.parse(fs.readFileSync(full, 'utf8')); } catch { continue; }
+      if (doc.version !== priorVersion) continue;
+      doc.version = version;
+      fs.writeFileSync(full, JSON.stringify(doc, null, 2) + '\n');
+      writes.push(full.replace(/^\.\//, ''));
+    }
+  }
+}
+fs.writeFileSync(bumpListPath, writes.join('\n') + (writes.length ? '\n' : ''));
+NODE
+
+  # Bump Cargo.toml workspace version + refresh Cargo.lock when present. Skip
+  # silently when the workspace lacks a Cargo.toml or the workspace version is
+  # already aligned.
+  if [[ -e Cargo.toml ]]; then
+    local cargo_rc=0
+    node - "$file_version" <<'NODE' || cargo_rc=$?
 const fs = require('node:fs');
 const version = process.argv[2];
-if (fs.existsSync('package.json')) {
-  const doc = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  doc.version = version;
-  fs.writeFileSync('package.json', JSON.stringify(doc, null, 2) + '\n');
-}
+const text = fs.readFileSync('Cargo.toml', 'utf8');
+const sectionMatch = text.match(/^\[workspace\.package\][^[]*?^version = "([^"]+)"/ms);
+const simpleMatch = !sectionMatch ? text.match(/^version = "([^"]+)"/m) : null;
+const match = sectionMatch || simpleMatch;
+if (!match) process.exit(2);
+if (match[1] === version) process.exit(1);
+const updated = text.replace(match[0], match[0].replace(/version = "[^"]+"/, `version = "${version}"`));
+fs.writeFileSync('Cargo.toml', updated);
+process.exit(0);
 NODE
+    if [[ "$cargo_rc" == "0" ]]; then
+      printf '%s\n' Cargo.toml >>"$tmp/version-bumps"
+      if [[ -e Cargo.lock ]] && command -v cargo >/dev/null 2>&1; then
+        if cargo update --workspace --offline --quiet >/dev/null 2>&1 \
+          || cargo update --workspace --quiet >/dev/null 2>&1; then
+          printf '%s\n' Cargo.lock >>"$tmp/version-bumps"
+        fi
+      fi
+    fi
+  fi
+
   mkdir -p docs/public/anvil/releases
   for path in CHANGELOG.md docs/public/anvil/releases/changelog.md; do
     [[ -e "$path" ]] || printf '%s\n' '# Changelog' >"$path"
@@ -327,7 +391,7 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 : >"${tmp}/changed-files"
-for path in package.json CHANGELOG.md docs/public/anvil/releases/changelog.md; do
+for path in package.json CHANGELOG.md docs/public/anvil/releases/changelog.md Cargo.toml Cargo.lock; do
   [[ -e "$path" ]] && printf '%s\n' "$path" >>"$tmp/changed-files"
 done
 
@@ -362,16 +426,23 @@ else
   tracking_issue="$(node -e "const issue=JSON.parse(process.argv[1]); process.stdout.write(String(issue.number));" "$issue_json")"
   tracking_issue_url="$(node -e "const issue=JSON.parse(process.argv[1]); process.stdout.write(issue.url);" "$issue_json")"
   apply_release_edits
-  if [[ -n "$(git status --porcelain -- package.json CHANGELOG.md docs/public/anvil/releases/changelog.md)" ]]; then
-    git add -- package.json CHANGELOG.md docs/public/anvil/releases/changelog.md
+  : >"$tmp/commit-files"
+  [[ -s "$tmp/version-bumps" ]] && cat "$tmp/version-bumps" >>"$tmp/commit-files"
+  for path in CHANGELOG.md docs/public/anvil/releases/changelog.md; do
+    [[ -e "$path" ]] && printf '%s\n' "$path" >>"$tmp/commit-files"
+  done
+  mapfile -t commit_files <"$tmp/commit-files"
+  if (( ${#commit_files[@]} > 0 )) && [[ -n "$(git status --porcelain -- "${commit_files[@]}")" ]]; then
+    git add -- "${commit_files[@]}"
     git commit -m "chore(release): prepare $version" >/dev/null
   fi
+  changed_files_json="$(json_array_from_file "$tmp/commit-files")"
   prep_commit_sha="$(git rev-parse HEAD)"
-  data_json="$(node - "$version" "$release_type" "$strategy" "$source_sha" "$tracking_issue_url" "$request_readiness" "$request_candidate_artifacts" "$prep_commit_sha" <<'NODE'
-const [version, releaseType, strategy, sourceSha, trackingIssueUrl, readinessRaw, artifactsRaw, prepCommitSha] = process.argv.slice(2);
+  data_json="$(node - "$version" "$release_type" "$strategy" "$source_sha" "$tracking_issue_url" "$request_readiness" "$request_candidate_artifacts" "$prep_commit_sha" "$changed_files_json" <<'NODE'
+const [version, releaseType, strategy, sourceSha, trackingIssueUrl, readinessRaw, artifactsRaw, prepCommitSha, changedFilesRaw] = process.argv.slice(2);
 process.stdout.write(JSON.stringify({
   prepCommitSha,
-  changedFiles: ['package.json', 'CHANGELOG.md', 'docs/public/anvil/releases/changelog.md'],
+  changedFiles: JSON.parse(changedFilesRaw),
   trackingIssueUrl,
   candidateMetadata: {
     version,

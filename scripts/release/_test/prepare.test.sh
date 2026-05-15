@@ -160,4 +160,54 @@ if (!doc.failures.some((failure) => failure.code === 'invalid-input')) {
 }
 NODE
 
+repo_cargo="$tmp/prepare-cargo-repo"
+mkdir -p "$repo_cargo/crates/anvil-cli" "$repo_cargo/packages/anvil/core" "$repo_cargo/packages/anvil/runtime" "$repo_cargo/docs/public/anvil/releases"
+git -C "$repo_cargo" init -q
+git -C "$repo_cargo" config user.email relorch@example.invalid
+git -C "$repo_cargo" config user.name "RELORCH Test"
+printf '%s\n' '{"version":"0.6.1-beta","name":"@test/root"}' >"$repo_cargo/package.json"
+printf '%s\n' '{"version":"0.6.1-beta","name":"@test/core"}' >"$repo_cargo/packages/anvil/core/package.json"
+printf '%s\n' '{"version":"0.6.1-beta","name":"@test/runtime"}' >"$repo_cargo/packages/anvil/runtime/package.json"
+printf '%s\n' '{"version":"0.5.0","name":"@test/unaligned"}' >"$repo_cargo/packages/anvil/runtime/sub.package.json"
+cat >"$repo_cargo/Cargo.toml" <<'CARGOTOML'
+[workspace]
+members = ["crates/anvil-cli"]
+
+[workspace.package]
+version = "0.6.1-beta"
+edition = "2021"
+CARGOTOML
+cat >"$repo_cargo/crates/anvil-cli/Cargo.toml" <<'CRATETOML'
+[package]
+name = "anvil-cli"
+version.workspace = true
+edition.workspace = true
+CRATETOML
+printf '%s\n' '# Changelog' >"$repo_cargo/CHANGELOG.md"
+printf '%s\n' '# Public changelog' >"$repo_cargo/docs/public/anvil/releases/changelog.md"
+git -C "$repo_cargo" add .
+git -C "$repo_cargo" commit -q -m "chore: cargo fixture"
+
+cargo_fake_issues="$tmp/prepare-cargo-issues.json"
+(cd "$repo_cargo" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$cargo_fake_issues" bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct --repo eddacraft/anvil-001 >"$tmp/prepare-cargo.json")
+node - "$repo_cargo" "$tmp/prepare-cargo.json" <<'NODE'
+const fs = require('node:fs');
+const [repo, jsonPath] = process.argv.slice(2);
+const doc = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+if (doc.status !== 'success') throw new Error(`expected success, got ${doc.status}`);
+const must = ['package.json', 'CHANGELOG.md', 'docs/public/anvil/releases/changelog.md', 'Cargo.toml', 'packages/anvil/core/package.json', 'packages/anvil/runtime/package.json'];
+for (const path of must) {
+  if (!doc.data.changedFiles.includes(path)) throw new Error(`expected ${path} in changedFiles, got ${JSON.stringify(doc.data.changedFiles)}`);
+}
+if (doc.data.changedFiles.includes('packages/anvil/runtime/sub.package.json')) throw new Error('unaligned package.json should not be bumped');
+const cargo = fs.readFileSync(`${repo}/Cargo.toml`, 'utf8');
+if (!/\[workspace\.package\][\s\S]*?version = "0\.7\.0-beta"/.test(cargo)) throw new Error(`Cargo.toml workspace version not bumped: ${cargo}`);
+for (const pkg of ['packages/anvil/core', 'packages/anvil/runtime']) {
+  const v = JSON.parse(fs.readFileSync(`${repo}/${pkg}/package.json`, 'utf8')).version;
+  if (v !== '0.7.0-beta') throw new Error(`${pkg}/package.json version not bumped (got ${v})`);
+}
+const unaligned = JSON.parse(fs.readFileSync(`${repo}/packages/anvil/runtime/sub.package.json`, 'utf8')).version;
+if (unaligned !== '0.5.0') throw new Error(`unaligned sub.package.json should be untouched (got ${unaligned})`);
+NODE
+
 echo "prepare.test.sh: ok"

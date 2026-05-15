@@ -9,6 +9,7 @@ DEFAULT_REPO="eddacraft/anvil-001"
 json=false
 dry_run=false
 recover=false
+hotfix=false
 repo="$DEFAULT_REPO"
 version=""
 source_sha=""
@@ -17,11 +18,18 @@ started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 usage() {
   cat <<'USAGE'
-Usage: tag.sh --version <vX.Y.Z[-suffix]> --source-sha <sha> [--json] [--dry-run] [--recover]
+Usage: tag.sh --version <vX.Y.Z[-suffix]> --source-sha <sha> [--json] [--dry-run] [--recover] [--hotfix]
 
 Verify release tag preconditions and create or recover the release tag. Normal
 mode refuses to retag an existing remote tag; --recover inspects remote state and
 hands off to monitor when the remote tag already matches the expected SHA.
+
+--hotfix waives the main-reachability gate so a release can be cut from a
+hotfix branch tip that does not (yet) live on main. All other gates still
+apply: origin remote, package.json version match for the source SHA,
+release-readiness pass, and tag-conflict checks. Use only with explicit
+operator approval per docs/runbooks/emergency-hotfix.md, and log the bypass on
+the release tracking issue.
 USAGE
 }
 
@@ -91,6 +99,7 @@ while (($# > 0)); do
     --json) json=true; shift ;;
     --dry-run) dry_run=true; shift ;;
     --recover) recover=true; shift ;;
+    --hotfix) hotfix=true; shift ;;
     --version) require_value "$1" "${2:-}"; version="$2"; shift 2 ;;
     --source-sha) require_value "$1" "${2:-}"; source_sha="$2"; shift 2 ;;
     --repo) require_value "$1" "${2:-}"; repo="$2"; shift 2 ;;
@@ -194,19 +203,21 @@ if ! remote_matches_repo "$remote_url" "$repo"; then
   exit 1
 fi
 
-if ! git merge-base --is-ancestor "$source_sha" main >/dev/null 2>&1; then
-  emit_blocked stale-source "source SHA is not reachable from local main" true update-main "Update local main or pass the promoted source SHA."
-  exit 1
-fi
-if ! git fetch --quiet origin main >/dev/null 2>&1; then
-  emit_blocked infra-failed "failed to fetch origin/main before tagging" true fetch-origin-main "Check network/auth and rerun tag."
-  exit 1
-fi
-local_main_sha="$(git rev-parse --verify main 2>/dev/null || true)"
-remote_main_sha="$(git rev-parse --verify origin/main 2>/dev/null || true)"
-if [[ "$local_main_sha" != "$remote_main_sha" || "$source_sha" != "$local_main_sha" ]]; then
-  emit_blocked stale-source "source SHA must equal both local main and origin/main" true update-main "Update main and rerun tag with the promoted SHA."
-  exit 1
+if [[ "$hotfix" != "true" ]]; then
+  if ! git merge-base --is-ancestor "$source_sha" main >/dev/null 2>&1; then
+    emit_blocked stale-source "source SHA is not reachable from local main" true update-main "Update local main or pass the promoted source SHA."
+    exit 1
+  fi
+  if ! git fetch --quiet origin main >/dev/null 2>&1; then
+    emit_blocked infra-failed "failed to fetch origin/main before tagging" true fetch-origin-main "Check network/auth and rerun tag."
+    exit 1
+  fi
+  local_main_sha="$(git rev-parse --verify main 2>/dev/null || true)"
+  remote_main_sha="$(git rev-parse --verify origin/main 2>/dev/null || true)"
+  if [[ "$local_main_sha" != "$remote_main_sha" || "$source_sha" != "$local_main_sha" ]]; then
+    emit_blocked stale-source "source SHA must equal both local main and origin/main" true update-main "Update main and rerun tag with the promoted SHA."
+    exit 1
+  fi
 fi
 package_version="$(git show "${source_sha}:package.json" 2>/dev/null | node -e "let input=''; process.stdin.on('data', c => input += c); process.stdin.on('end', () => { if (!input) return; const doc = JSON.parse(input); process.stdout.write(doc.version || ''); });" || true)"
 if [[ -n "$package_version" && "v${package_version}" != "$version" ]]; then
