@@ -4,7 +4,7 @@ use anvil_kernel_types::{
     Category, Diagnostic, DiagnosticSource, Location, Mode, Notification, NotificationClass,
     NotificationContext, NotificationPriority, Severity, diagnostics::KnownMode,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::Args;
 use regex::Regex;
 use serde::Serialize;
@@ -1364,13 +1364,29 @@ fn ai_guardrail_only_set() -> Result<std::collections::HashSet<&'static str>> {
     normalize_gate_check_set(&names)
 }
 
-/// Read `.anvilrc#checks` from the workspace root, when present.
+/// Read the project's `checks` filter, preferring MLP-011's multi-format
+/// `.anvil.<ext>` (yaml/yml/json/toml) discovery and falling back to the
+/// legacy `.anvilrc` for projects that have not migrated yet.
 ///
-/// Supports JSON, YAML, and TOML variants of `.anvilrc`. Returns `Ok(None)`
-/// when the file is absent, has no `checks` field, or the list is empty.
-/// Parsing/shape errors are surfaced so gate can fail clearly instead of
-/// silently acting on a malformed filter.
+/// Returns `Ok(None)` when no config file is found, no `checks` field is
+/// present, or the list is empty. Parsing or shape errors are surfaced so
+/// gate can fail clearly instead of silently acting on a malformed filter.
 fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections::HashSet<String>>> {
+    // MLP2-040 — prefer `.anvil.<ext>` via MLP-011's `discover` precedence
+    // (yaml → yml → json → toml). When discover finds nothing, we fall
+    // back to the legacy `.anvilrc` reader below.
+    if let Some(discovered) = anvil_config::discover(workspace_root, ".anvil")
+        .with_context(|| format!("scanning {} for .anvil.<ext>", workspace_root.display()))?
+    {
+        let value = anvil_config::parse_file(&discovered.path)
+            .with_context(|| format!("failed to parse {}", discovered.path.display()))?;
+        return finalise_checks_from_value(&value);
+    }
+
+    // Legacy `.anvilrc` fallback. Format detection mirrors the pre-MLP2-040
+    // behaviour: try JSON, TOML, then YAML in order. The first parser that
+    // produces an object wins. This path is the deprecation tail; new
+    // projects land via `.anvil.<ext>` instead.
     let path = workspace_root.join(".anvilrc");
     let contents = match std::fs::read_to_string(&path) {
         Ok(contents) => contents,
@@ -1378,89 +1394,42 @@ fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections:
         Err(err) => return Err(anyhow::anyhow!("failed to read {}: {err}", path.display())),
     };
 
-    let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
-        if value.is_object() {
-            extract_checks_from_json(&value)
-        } else {
-            return Err(anyhow::anyhow!(
-                "failed to parse {}: JSON config must be an object",
-                path.display()
-            ));
-        }
-    } else if let Ok(value) = toml::from_str::<toml::Value>(&contents) {
-        if value.is_table() {
-            extract_checks_from_toml(&value)
-        } else {
-            return Err(anyhow::anyhow!(
-                "failed to parse {}: TOML config must be a table",
-                path.display()
-            ));
-        }
-    } else if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&contents) {
-        if value.is_mapping() {
-            extract_checks_from_yaml(&value)
-        } else {
-            return Err(anyhow::anyhow!(
-                "failed to parse {}: YAML config must be a mapping",
-                path.display()
-            ));
-        }
-    } else {
-        return Err(anyhow::anyhow!(
-            "failed to parse {} as JSON, YAML, or TOML",
-            path.display()
-        ));
-    };
+    let value = parse_anvilrc_contents(&contents, &path)?;
+    finalise_checks_from_value(&value)
+}
 
-    let checks: std::collections::HashSet<String> = checks
+fn finalise_checks_from_value(
+    value: &serde_json::Value,
+) -> Result<Option<std::collections::HashSet<String>>> {
+    let view = crate::config_view::GateConfigView::from_value(value)
+        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+    if view.checks.is_empty() {
+        return Ok(None);
+    }
+    let canonical: std::collections::HashSet<String> = view
+        .checks
         .into_iter()
         .map(|name| canonical_check_name(&name).unwrap_or(&name).to_string())
         .collect();
+    Ok(Some(canonical))
+}
 
-    if checks.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(checks))
+fn parse_anvilrc_contents(contents: &str, path: &Path) -> Result<serde_json::Value> {
+    for format in [
+        anvil_config::ConfigFormat::Json,
+        anvil_config::ConfigFormat::Toml,
+        anvil_config::ConfigFormat::Yaml,
+    ] {
+        if let Ok(value) = anvil_config::parse_str(contents, format, path)
+            && value.is_object()
+        {
+            return Ok(value);
+        }
     }
-}
-
-fn extract_checks_from_json(value: &serde_json::Value) -> Vec<String> {
-    value
-        .get("checks")
-        .and_then(serde_json::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn extract_checks_from_yaml(value: &serde_yaml::Value) -> Vec<String> {
-    value
-        .get("checks")
-        .and_then(serde_yaml::Value::as_sequence)
-        .map(|seq| {
-            seq.iter()
-                .filter_map(serde_yaml::Value::as_str)
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn extract_checks_from_toml(value: &toml::Value) -> Vec<String> {
-    value
-        .get("checks")
-        .and_then(toml::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(toml::Value::as_str)
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
+    Err(anyhow::anyhow!(
+        "failed to parse {} as JSON, YAML, or TOML",
+        path.display()
+    ))
 }
 
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
@@ -2993,5 +2962,71 @@ rules: []
         std::fs::write(tmp.path().join(".anvilrc"), "checks: [\n").unwrap();
         let err = read_anvilrc_checks(tmp.path()).unwrap_err();
         assert!(err.to_string().contains("failed to parse"));
+    }
+
+    // MLP2-040 — `.anvil.<ext>` discovery via MLP-011 takes precedence over
+    // the legacy `.anvilrc`. The fallback only triggers when no
+    // `.anvil.<ext>` is present.
+
+    #[test]
+    fn read_anvilrc_checks_prefers_anvil_yaml_when_present() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "checks: [\"secret-detection\"]\n",
+        )
+        .unwrap();
+        // Legacy `.anvilrc` exists too with a different value to prove
+        // precedence — discover should win.
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"checks":["import-boundaries"]}"#,
+        )
+        .unwrap();
+
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret-detection"));
+        assert!(!checks.contains("import-boundaries"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_reads_anvil_json() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.json"),
+            r#"{"checks":["secret-detection","import-boundaries"]}"#,
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert_eq!(checks.len(), 2);
+        assert!(checks.contains("secret-detection"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_reads_anvil_toml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.toml"),
+            "checks = [\"secret-detection\"]\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret-detection"));
+    }
+
+    #[test]
+    fn read_anvilrc_checks_falls_back_to_anvilrc_when_no_anvil_ext() {
+        // Sanity guard against accidentally inverting the precedence: when
+        // there is no `.anvil.<ext>`, the legacy reader must still pick
+        // up `.anvilrc`. This test catches a regression where the
+        // fallback was lost entirely.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks: [\"secret-detection\"]\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret-detection"));
     }
 }

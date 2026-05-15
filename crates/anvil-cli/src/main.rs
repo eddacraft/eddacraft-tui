@@ -139,6 +139,12 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// MLP2-040 — migrate a legacy `.anvilrc` to the multi-format
+    /// `.anvil.<ext>` surface from MLP-011. Existing `.anvilrc` projects
+    /// keep working through gate's fallback; this command is the one-shot
+    /// bridge for operators who want to land on the new format without
+    /// hand-editing.
+    Migrate(commands::migrate::MigrateArgs),
     /// Manage the Anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),
     /// MLP2-046: validate one or more commits against `anvil/policy.yml`
@@ -221,6 +227,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Migrate(_) => "migrate",
         Commands::Intercept(_) => "intercept",
         Commands::L4Validate(_) => "l4-validate",
         Commands::Licenses(_) => "licenses",
@@ -739,6 +746,7 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::L4Validate(args) => commands::l4_validate::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),

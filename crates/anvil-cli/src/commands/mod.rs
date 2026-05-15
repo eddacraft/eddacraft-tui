@@ -22,6 +22,7 @@ pub mod l4_validate;
 pub mod licenses;
 pub mod mcp;
 pub mod mcp_config;
+pub mod migrate;
 pub mod new;
 pub mod policy;
 pub mod start;
