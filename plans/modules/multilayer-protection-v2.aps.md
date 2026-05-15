@@ -935,7 +935,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025: Registry-side spoof rejection cross-check
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Env-supplied `AgentTag` must match the tag the
   daemon issued for this PID lineage at INTL-003
   registration. Mismatches treated as missing, not honoured.
@@ -957,7 +957,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** When five fences fire within 60s, the daemon
   enters `degraded:fence-cascade` mode requiring operator-
   clear. Uses the shared rate-window primitive from MLP2-009.
