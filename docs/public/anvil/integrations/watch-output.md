@@ -8,12 +8,12 @@ sidebar_position: 4
 
 # Watch JSON Output
 
-| Type        | Authority     | Owner                                                                                                         | Status | Freshness                                                                |
-| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
+| Type        | Authority     | Owner                                                                                                                                              | Status | Freshness                                                                |
+| ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
 | Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta consumer surface |
 
-| Upstream                                                                                               | Downstream                                                                              |
-| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Upstream                                                                                                                                            | Downstream                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md), `anvil --json watch` | Editor sidecars, CI shell pipelines, `jq` scripts, language-specific consumer libraries |
 
 `anvil --json watch` emits a versioned newline-delimited JSON (NDJSON) stream on
