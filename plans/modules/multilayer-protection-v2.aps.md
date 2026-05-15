@@ -2,10 +2,21 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 25/60 done |
+| MLP2 | @aneki | In Progress | 30/60 done |
 
-**Last reviewed:** 2026-05-15 (wave 1H shipped 2026-05-15 via
-PR #1575 at `a40525ad` — MLP2-032 wires `ensure_project_id` +
+**Last reviewed:** 2026-05-15 (wave 1G shipped 2026-05-15 via PR #1576
+at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
+--witness-recent` with `--reverse` git rev-list +
+`validation_at: "bootstrap-recovery"`), MLP2-038 (end-to-end
+union-merge proof: real `git init` + `git merge` integration test),
+MLP2-039 (`anvil start --format yaml|yml|json|toml` pre-writes
+`.anvil.<ext>` with embedded `format` field matching extension),
+MLP2-040 (gate.rs prefers `.anvil.<ext>` via MLP-011's `discover`,
+new `anvil migrate` command), MLP2-041 (typed `GateConfigView` /
+`InitConfigView` / `PolicyConfigView` foundation). Council session
+`council-e8633cef` quick-converged with 2 MAJOR + 2 MINOR fixed
+pre-push. Wave 1H shipped earlier the same day via PR #1575 at
+`a40525ad` — MLP2-032 wires `ensure_project_id` +
 `anvil_l4::pin_cutoff_commit` into the `anvil baseline`
 orchestrator with canonical `anvil_config::discover` policy
 precedence and first-create cutoff fallback; MLP2-034 Phase 1
@@ -1353,7 +1364,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-037: `anvil hook bootstrap --witness-recent` mode
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Walk `<remote>..HEAD`, run validation against
   each unwitnessed commit, write retroactive witnesses tagged
   `validation_at: bootstrap-recovery`. Recovers from
@@ -1374,7 +1385,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-038: `merge=union -text` orchestrator step for `.gitattributes`
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** The activation orchestrator pre-positions
   `.gitattributes` (MLP-001 step 1a-b); the explicit step
   that writes `anvil/witness/active.ndjson merge=union -text`
@@ -1396,7 +1407,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-039: `anvil start --format json|toml` CLI flag
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Operators can choose `.anvil.json` or
   `.anvil.toml` at adoption time instead of the default yaml.
 - **Expected Outcome:**
@@ -1416,7 +1427,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-040: `.anvilrc` → `.anvil.<ext>` filename migration
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Migrate the existing `.anvilrc` reader (in
   `commands/gate.rs`) to the multi-format `.anvil.<ext>`
   surface from MLP-011, while keeping `.anvilrc` working as
@@ -1438,7 +1449,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-041: Typed `AnvilConfig` schema
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Each consumer surface (init, gate, policy)
   evolves its own typed view over the same
   `serde_json::Value` intermediate from MLP-011, instead of
@@ -2022,7 +2033,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 3/6 |
-| H. Hook + config surface completion | 5 (MLP2-037..-041) | 0/5 |
+| H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
