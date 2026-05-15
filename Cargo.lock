@@ -1181,6 +1181,7 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
+ "eddacraft-anvil-attribution",
  "eddacraft-anvil-checks",
  "eddacraft-anvil-config",
  "eddacraft-anvil-intercept-proto",

@@ -44,6 +44,7 @@ pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
 pub mod status;
+pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
