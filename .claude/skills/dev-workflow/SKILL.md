@@ -28,7 +28,7 @@ This is a project-local snapshot, but most referenced skills and agents are **gl
 | Agents | `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach`, `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead` | `debugger`, `autonomous`, others |
 | Commands | `/council` (repo-local — see [`commands/council.md`](../../commands/council.md)), `/plan`, `/release`, others | `/test`, `/debug`, `/delegate`, `/commit` |
 
-If a referenced skill or agent is missing locally, it is expected to be globally available — not vendored drift. CIB-002 is the open work item for producing a definitive inventory.
+If a referenced skill or agent is missing locally, it is expected to be globally available — not vendored drift. The authoritative inventory is `docs/guides/agent-surface-inventory.md`; CIB-002 tracks the remaining automation work on it.
 
 ## Stage Map
 

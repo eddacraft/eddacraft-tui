@@ -29,7 +29,7 @@ remain validation authority.
 ```
 
 Targets may be file paths, globs, commit refs, branch ranges such as
-`dev...HEAD`, `staged`, `recent`, or empty. Empty defaults to `staged` when
+`main...HEAD`, `staged`, `recent`, or empty. Empty defaults to `staged` when
 staged changes exist, otherwise `recent`.
 
 ## Review Tiers
@@ -105,16 +105,20 @@ system-changing work.
 ### `status`
 
 Report the current in-chat or local review session state if one exists: target,
-tier, open findings, resolved findings, evidence, and publish status. Until
-OPMODEL-009 adds durable workflow/session records, `status` must not imply there
-is a repository-backed session store. If no current session exists, report that
-explicitly.
+tier, open findings, resolved findings, evidence, and publish status. The
+workflow session/event schema landed under OPMODEL-009
+(`plans/specs/2026-05-10-workflow-session-and-event-schema.md`,
+`schemas/workflow-session-event.schema.json`), but the durable session store
+that would back `status` is still owned downstream by CGBDG and is not yet
+wired up — `status` must not imply a repository-backed session store. If no
+current session exists, report that explicitly.
 
 ### `publish`
 
-Produce a PR-ready summary from the current converged review. Until OPMODEL-009
-adds durable session records, the source is the current chat/local review state
-or an explicitly provided review file under `plans/reviews/`.
+Produce a PR-ready summary from the current converged review. Until CGBDG
+wires the OPMODEL-009 workflow session schema into a repository-backed store,
+the source is the current chat/local review state or an explicitly provided
+review file under `plans/reviews/`.
 
 ```markdown
 ## Council Review
