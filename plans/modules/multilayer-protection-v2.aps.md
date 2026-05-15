@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 32/60 done |
+| MLP2 | @aneki | In Progress | 37/60 done |
 
 **Last reviewed:** 2026-05-15 (wave 1G shipped 2026-05-15 via PR #1576
 at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
@@ -475,7 +475,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-011: DAG-aware merge verification
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Merge commits carry `parent_commits[]` +
   `prev_line_hashes[]`; the verifier currently walks the chain
   linearly. Replace with a graph walk that joins on merge
@@ -519,7 +519,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-013: Witness genesis-line emission (`GENESIS-BASELINED`)
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `anvil baseline` emits the first witness line with
   `GENESIS-BASELINED` plus the `cutoff_commit` value, so
   later L4 verifications can distinguish baselined vs
@@ -542,7 +542,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-014: Witness writer call-site wiring at the hook
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `WitnessLine.rules_sha` exists from MLP-002 but no
   call site populates it. The hook resolves the active rule
   set + computes `rules_sha`; this task threads that into the
@@ -564,7 +564,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-015: Promote 80-writer stress test to CI
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `eighty_writers_no_interleaving` in `anvil-witness`
   is gated behind `#[ignore]`. Promote to a CI-runnable test
   once the runner has the parallel budget.
@@ -2471,7 +2471,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
-| B. Witness chain extensions | 5 (MLP2-011..-015) | 1/5 |
+| B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 6/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
