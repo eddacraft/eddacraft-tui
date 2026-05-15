@@ -4,10 +4,13 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 1/5 done |
+| DISTRIB | @aneki | In Progress | 2/5 done |
 
-**Last reviewed:** 2026-05-14 (DISTRIB-001 **Merged** via PR #1562; remaining
-operator follow-up tracked in
+**Last reviewed:** 2026-05-15 (DISTRIB-002 **Merged** via PR #1569 — `anvil
+version --check` + advisory surface + watch/status hint; remaining operator
+follow-up tracked in
+[`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../reviews/post-merge/feat-distrib-002-version-check.md).
+DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 [`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
@@ -123,7 +126,11 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil commands::version::tests::check_surfaces_advisory`
   - `cargo test -p eddacraft-anvil-tui watch::tests::update_hint_rate_limited`
   - Integration: fixture releases feed with advisory metadata
-- **Status:** In Progress
+- **Status:** Merged
+- **Merged:** 2026-05-15 via PR #1569 (commits `194fd4a7`, `33103c39`,
+  `aa896d19`, `35d43a04`, `b2879f76`). Cleanup agent will advance to
+  Released/Shipped once v0.7.0-beta ships with a real advisory in the
+  release body; the post-merge plan tracks the downstream smoke-test.
 - **Dependencies:** DISTRIB-001 (Merged via PR #1562)
 - **changeType:** feature
 - **releaseIntent:** candidate
