@@ -417,6 +417,127 @@ mod tests {
         assert!(attrs.contains("anvil/witness/active.ndjson merge=union -text"));
     }
 
+    /// MLP2-038 — end-to-end proof that the `merge=union -text` line the
+    /// orchestrator writes actually causes git to union-merge witness file
+    /// appends from parallel branches without producing conflict markers.
+    /// The existing tests at this site cover the **file content** the
+    /// orchestrator writes; this one drives a real `git merge` to confirm
+    /// the validation requirement in `plans/modules/multilayer-protection-v2.aps.md`
+    /// (Group H, MLP2-038) holds end-to-end.
+    #[test]
+    fn orchestrator_gitattributes_unions_parallel_witness_appends() {
+        use std::process::Command;
+
+        // Skip when the test runner has no `git` on PATH; the rest of the
+        // workspace requires git for normal operation so a missing binary
+        // means the host is mis-configured rather than a CI signal we want
+        // to fail on.
+        let git_probe = Command::new("git").arg("--version").output();
+        if !matches!(&git_probe, Ok(out) if out.status.success()) {
+            eprintln!("skipping MLP2-038 union-merge test: `git --version` failed ({git_probe:?})");
+            return;
+        }
+
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+
+        // Run the same `.gitattributes` writer the orchestrator runs.
+        // Going through the full `run_with_home` would also write
+        // `.anvilrc`, `anvil/project-id`, `.anvil/baseline.json`, etc.,
+        // which we'd then have to stage; the union-merge property is a
+        // property of the `.gitattributes` content only, so we call the
+        // narrow writer directly.
+        ensure_witness_gitattributes(root).expect("write .gitattributes");
+
+        // Bring up a minimal commit-capable git repo. The committer
+        // identity is local-only so the test can't accidentally pick up
+        // the dev's real `user.name` / `user.email`.
+        let run_git = |args: &[&str]| -> std::process::Output {
+            Command::new("git")
+                .arg("-C")
+                .arg(root)
+                .args(args)
+                .output()
+                .unwrap_or_else(|e| panic!("git {args:?} failed to spawn: {e}"))
+        };
+        let must = |args: &[&str]| {
+            let out = run_git(args);
+            assert!(
+                out.status.success(),
+                "git {args:?} failed: stdout={:?} stderr={:?}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+
+        // `-b main` keeps the default-branch name deterministic across
+        // host git defaults (`master` on older git, `main` on newer).
+        must(&["init", "-q", "-b", "main"]);
+        must(&["config", "user.email", "mlp2-038@anvil.test"]);
+        must(&["config", "user.name", "MLP2-038 fixture"]);
+        // Disable signing so the test passes on hosts with commit.gpgsign=true.
+        must(&["config", "commit.gpgsign", "false"]);
+
+        // Stage the .gitattributes plus an empty witness file as the
+        // shared ancestor commit.
+        let witness_rel = "anvil/witness/active.ndjson";
+        let witness_path = root.join(witness_rel);
+        std::fs::create_dir_all(witness_path.parent().unwrap()).unwrap();
+        std::fs::write(&witness_path, "").unwrap();
+        must(&["add", ".gitattributes", witness_rel]);
+        must(&["commit", "-q", "-m", "base"]);
+
+        // Branch A: append a row attributed to attribution "a".
+        must(&["checkout", "-q", "-b", "branch-a"]);
+        append_line(&witness_path, "{\"who\":\"a\",\"n\":1}\n");
+        must(&["commit", "-q", "-am", "branch-a row"]);
+
+        // Branch B (off main, not off A): append a different row.
+        must(&["checkout", "-q", "main"]);
+        must(&["checkout", "-q", "-b", "branch-b"]);
+        append_line(&witness_path, "{\"who\":\"b\",\"n\":2}\n");
+        must(&["commit", "-q", "-am", "branch-b row"]);
+
+        // Merge A then B back into main. Each merge exercises the
+        // `merge=union -text` attribute on a real divergent append.
+        must(&["checkout", "-q", "main"]);
+        must(&["merge", "-q", "--no-edit", "branch-a"]);
+        let merge_out = run_git(&["merge", "--no-edit", "branch-b"]);
+        assert!(
+            merge_out.status.success(),
+            "merge of branch-b into main must succeed under `merge=union -text`. \
+             stdout={:?} stderr={:?}",
+            String::from_utf8_lossy(&merge_out.stdout),
+            String::from_utf8_lossy(&merge_out.stderr)
+        );
+
+        let merged = std::fs::read_to_string(&witness_path).unwrap();
+        assert!(
+            !merged.contains("<<<<<<<")
+                && !merged.contains("=======")
+                && !merged.contains(">>>>>>>"),
+            "merged witness file must not contain conflict markers:\n{merged}"
+        );
+        assert!(
+            merged.contains("{\"who\":\"a\",\"n\":1}"),
+            "merged file must retain branch-a row:\n{merged}"
+        );
+        assert!(
+            merged.contains("{\"who\":\"b\",\"n\":2}"),
+            "merged file must retain branch-b row:\n{merged}"
+        );
+    }
+
+    fn append_line(path: &Path, line: &str) {
+        use std::io::Write as _;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(path)
+            .unwrap_or_else(|e| panic!("open {} for append: {e}", path.display()));
+        f.write_all(line.as_bytes())
+            .unwrap_or_else(|e| panic!("append to {}: {e}", path.display()));
+    }
+
     #[test]
     fn orchestrator_continues_when_project_id_write_fails() {
         // A7.2 — failures to establish project-id MUST NOT propagate.
