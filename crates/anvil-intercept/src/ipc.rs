@@ -35,7 +35,7 @@ use std::borrow::Cow;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -48,6 +48,7 @@ use tracing::{Instrument, field};
 use crate::ShutdownToken;
 use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
+use crate::kindling_observation::MidEditEmissionRequest;
 use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService};
 use crate::registry::SessionDispatcher;
 use crate::status::{DaemonStatus, StatusProvider};
@@ -2017,7 +2018,7 @@ async fn handle_scan_buffer_jsonrpc(
         eprintln!("anvil-intercept: ignoring scan_buffer notification: request id required");
         return None;
     }
-    match scan_buffer_from_jsonrpc(params, method, scan_buffer).await {
+    match scan_buffer_from_jsonrpc(params, method, traceparent, scan_buffer).await {
         Ok(result) => Some(jsonrpc_success(response_id, traceparent, result)),
         Err(JsonRpcFailure {
             code,
@@ -2285,6 +2286,7 @@ fn jsonrpc_dispatch_span(
 async fn scan_buffer_from_jsonrpc(
     params: &Value,
     method: &str,
+    traceparent: Option<&str>,
     scan_buffer: &ScanBufferService,
 ) -> Result<Value, JsonRpcFailure> {
     let request = {
@@ -2313,6 +2315,15 @@ async fn scan_buffer_from_jsonrpc(
         version = request.version,
     );
 
+    // MLP2-006: capture inputs the Kindling notification fan-out
+    // needs (file path + start timestamp). We measure elapsed on
+    // both sides of the await so the row's `duration_ms` reflects
+    // the daemon's full handle of the call (matches the
+    // `validation.service` aggregator surface).
+    let file_path = request.path.to_string_lossy().into_owned();
+    let scan_mode = request.mode;
+    let started = Instant::now();
+
     let result = async {
         tracing::info!(target: "anvil_intercept::ipc", "scan_buffer dispatched");
         scan_buffer.scan_buffer(request).await
@@ -2321,11 +2332,48 @@ async fn scan_buffer_from_jsonrpc(
     .await
     .map_err(|err| scan_buffer_failure(method, &err))?;
 
+    // MLP2-006: emit the `gate_evaluated` Kindling row. Mid-edit
+    // calls only — pre-write samples are a separate budget class
+    // per ADR-031 and would mix observation kinds. Failure is
+    // logged inside the emitter and never bubbles back to the
+    // caller, so the scan response always reaches the driver.
+    if matches!(scan_mode, ScanBufferMode::MidEdit)
+        && let Some(emitter) = scan_buffer.observation_emitter()
+    {
+        let elapsed = started.elapsed();
+        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let gate_eval_id = derive_gate_eval_id(traceparent);
+        let emission = MidEditEmissionRequest {
+            gate_eval_id: &gate_eval_id,
+            file_path: &file_path,
+            timestamp: &timestamp,
+            duration_ms,
+        };
+        let _ = emitter.try_emit(&emission, &result, Instant::now());
+    }
+
     serde_json::to_value(result).map_err(|err| JsonRpcFailure {
         code: -32603,
         message: "Internal error",
         data: json!({"error": err.to_string()}),
     })
+}
+
+/// MLP2-006: derive a stable `gate_eval_id` from the JSON-RPC
+/// envelope's `traceparent` so the Kindling row joins back to the
+/// originating telemetry span (MLP2-008 contract). The W3C
+/// parent-id (16 lower-hex chars) is the upstream span id and is
+/// what consumers join against. Falls back to a fresh UUID v4 when
+/// the producer omitted `traceparent` so the row is never emitted
+/// with a placeholder id.
+fn derive_gate_eval_id(traceparent: Option<&str>) -> String {
+    if let Some(raw) = traceparent
+        && let Ok(ctx) = TraceContext::parse(raw)
+    {
+        return ctx.parent_id().to_string();
+    }
+    uuid::Uuid::new_v4().to_string()
 }
 
 fn scan_buffer_path_basename(path: &Path) -> &str {
@@ -2522,6 +2570,7 @@ fn dispatch_command<D: SessionDispatcher>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::enforcement::EnforcementPipeline;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
@@ -3749,5 +3798,272 @@ mod tests {
                 .expect("join")
                 .expect("serve");
         }
+    }
+
+    // ----- MLP2-006: gate_evaluated emission via the IPC handler -----
+
+    /// MLP2-006: a finding-bearing mid-edit `scan_buffer` JSON-RPC
+    /// dispatch must produce exactly one `gate_evaluated` row on the
+    /// configured Kindling sink, carrying the daemon's session id,
+    /// the traceparent-derived `gate_eval_id`, the request file
+    /// path, and a finite `duration_ms`.
+    #[tokio::test]
+    async fn handle_jsonrpc_value_emits_gate_evaluated_for_finding_bearing_scan() {
+        use crate::kindling_observation::MidEditObservationEmitter;
+
+        let pipeline = EnforcementPipeline::default();
+        let (emitter, recorder) =
+            MidEditObservationEmitter::with_recorder("11111111-1111-4111-8111-111111111111");
+        let scan_buffer =
+            ScanBufferService::new(pipeline).with_observation_emitter(Arc::new(emitter));
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+        let traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "scan_buffer",
+                "params": {
+                    "path": "src/auth/client.ts",
+                    "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                    "version": 9,
+                    "mode": "midEdit"
+                },
+                "id": "kindling-emit",
+                "traceparent": traceparent,
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+        )
+        .await
+        .expect("scan_buffer response");
+
+        assert_eq!(response["id"], "kindling-emit");
+        assert!(
+            response["result"]["diagnostics"]
+                .as_array()
+                .is_some_and(|d| !d.is_empty()),
+            "fixture should produce at least one finding: {response}"
+        );
+
+        let recorded = recorder.recorded();
+        assert_eq!(
+            recorded.len(),
+            1,
+            "exactly one gate_evaluated row per finding-bearing scan",
+        );
+        let row = &recorded[0];
+        assert_eq!(row.session_id, "11111111-1111-4111-8111-111111111111");
+        assert_eq!(
+            row.gate_eval_id, "b7ad6b7169203331",
+            "gate_eval_id must derive from traceparent parent-id (MLP2-008 join key)",
+        );
+        assert_eq!(row.gate_id, "midEdit");
+        assert_eq!(row.kind, "gate_evaluated");
+        assert_eq!(
+            row.inputs.changed_files,
+            vec!["src/auth/client.ts".to_string()]
+        );
+        assert_eq!(row.inputs.file_count, 1);
+    }
+
+    /// MLP2-006: a no-finding mid-edit scan stays silent — the volume-
+    /// control contract from MLP-016 propagates through the emitter.
+    #[tokio::test]
+    async fn handle_jsonrpc_value_stays_silent_when_scan_has_no_findings() {
+        use crate::kindling_observation::MidEditObservationEmitter;
+        use anvil_intercept_rules::RuleRegistry;
+
+        let pipeline = EnforcementPipeline::new(RuleRegistry::new());
+        let (emitter, recorder) =
+            MidEditObservationEmitter::with_recorder("11111111-1111-4111-8111-111111111111");
+        let scan_buffer =
+            ScanBufferService::new(pipeline).with_observation_emitter(Arc::new(emitter));
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "scan_buffer",
+                "params": {
+                    "path": "src/innocent.ts",
+                    "text": "export const greet = () => 'hi';\n",
+                    "version": 1,
+                    "mode": "midEdit"
+                },
+                "id": "kindling-quiet",
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+        )
+        .await
+        .expect("scan response");
+
+        assert_eq!(response["result"]["diagnostics"], json!([]));
+        assert!(
+            recorder.is_empty(),
+            "no-finding scans must NOT produce a Kindling row",
+        );
+    }
+
+    /// MLP2-006: pre-write scans bypass the mid-edit Kindling
+    /// fan-out (separate budget class per ADR-031). Even with a
+    /// finding present, the emitter must stay silent.
+    #[tokio::test]
+    async fn handle_jsonrpc_value_does_not_emit_for_pre_write_mode() {
+        use crate::kindling_observation::MidEditObservationEmitter;
+
+        let (emitter, recorder) =
+            MidEditObservationEmitter::with_recorder("11111111-1111-4111-8111-111111111111");
+        let scan_buffer = ScanBufferService::new(EnforcementPipeline::default())
+            .with_observation_emitter(Arc::new(emitter));
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "scan_buffer",
+                "params": {
+                    "path": "src/auth/client.ts",
+                    "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                    "version": 9,
+                    "mode": "preWrite"
+                },
+                "id": "kindling-pre-write",
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+        )
+        .await
+        .expect("scan response");
+
+        assert!(response["result"]["diagnostics"].is_array());
+        assert!(
+            recorder.is_empty(),
+            "pre-write scans must NOT contribute to the mid-edit Kindling rollup",
+        );
+    }
+
+    /// MLP2-006: a service without a wired emitter behaves exactly
+    /// like the legacy daemon — no emission, no panic, scan
+    /// response unchanged.
+    #[tokio::test]
+    async fn handle_jsonrpc_value_skips_emission_when_no_emitter_wired() {
+        let scan_buffer = ScanBufferService::default();
+        assert!(
+            scan_buffer.observation_emitter().is_none(),
+            "default service must not have a Kindling emitter (legacy compat)",
+        );
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "scan_buffer",
+                "params": {
+                    "path": "src/x.ts",
+                    "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                    "version": 1,
+                    "mode": "midEdit"
+                },
+                "id": "kindling-none",
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+        )
+        .await
+        .expect("scan response");
+
+        assert_eq!(response["id"], "kindling-none");
+        // No way to assert "didn't emit" without a recorder; the
+        // proof is that the response succeeds (no panic, no error).
+        assert!(response["result"]["diagnostics"].is_array());
+    }
+
+    /// MLP2-006: gate_eval_id derivation must use the W3C
+    /// traceparent's parent-id when present, falling back to a
+    /// fresh UUID v4 when the producer omitted the header (so the
+    /// row never carries a placeholder id).
+    #[test]
+    fn derive_gate_eval_id_prefers_traceparent_parent_id() {
+        let with_tp = derive_gate_eval_id(Some(
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        ));
+        assert_eq!(with_tp, "b7ad6b7169203331");
+
+        let without = derive_gate_eval_id(None);
+        // UUID v4 is 36 chars including hyphens.
+        assert_eq!(without.len(), 36);
+        assert_eq!(without.chars().filter(|&c| c == '-').count(), 4);
+
+        // Malformed traceparent → fallback path, never the broken header.
+        let malformed = derive_gate_eval_id(Some("not-a-traceparent"));
+        assert_eq!(malformed.len(), 36);
+        assert_ne!(malformed, "not-a-traceparent");
+    }
+
+    /// MLP2-006: rate-window throttling at the IPC layer — a burst
+    /// past the configured cap must not panic and must not impact
+    /// scan responses. Uses a tiny cap so the test exercises both
+    /// admit and throttle outcomes via the public emitter surface.
+    #[tokio::test]
+    async fn ipc_emission_throttling_does_not_perturb_scan_responses() {
+        use crate::kindling_observation::{
+            KindlingObservationSink, MidEditObservationEmitter, RecordingKindlingObservationSink,
+        };
+        use crate::rate_window::RateWindow;
+
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = MidEditObservationEmitter::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            // cap = 2 in a long window so the third call throttles.
+            RateWindow::new(2, Duration::from_secs(60)),
+            "11111111-1111-4111-8111-111111111111".into(),
+        );
+        let scan_buffer = ScanBufferService::new(EnforcementPipeline::default())
+            .with_observation_emitter(Arc::new(emitter));
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/auth/client.ts",
+                "text": "const config = { api_key: 'abcdEFGH1234567890' };\n",
+                "version": 1,
+                "mode": "midEdit"
+            },
+            "id": "kindling-burst",
+        });
+
+        for _ in 0..5 {
+            let response = handle_jsonrpc_value(frame.clone(), &dispatcher, &scan_buffer, &status)
+                .await
+                .expect("scan response");
+            assert!(
+                response["result"]["diagnostics"]
+                    .as_array()
+                    .is_some_and(|d| !d.is_empty()),
+                "scan response must succeed regardless of throttle state",
+            );
+        }
+        assert_eq!(
+            recorder.len(),
+            2,
+            "rate window must cap recorded emissions at the configured capacity",
+        );
     }
 }

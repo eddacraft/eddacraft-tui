@@ -10,7 +10,10 @@
 
 import { randomUUID } from 'node:crypto';
 import type { KindlingService, Capsule, ID } from '@eddacraft/kindling-core';
-import type { Observation as AnvilObservation } from './observation-contract.js';
+import type {
+  GateEvaluatedObservation,
+  Observation as AnvilObservation,
+} from './observation-contract.js';
 import { OBSERVATION_CONTRACT_VERSION } from './observation-contract.js';
 import { createDebugger } from './utils/debug.js';
 
@@ -113,5 +116,27 @@ export class AnvilKindlingAdapter {
       capsuleId,
       validate: true,
     });
+  }
+
+  /**
+   * MLP2-006: typed entry point for the daemon's mid-edit Kindling
+   * notification fan-out.
+   *
+   * The Rust daemon (`anvil-intercept::kindling_observation`) builds
+   * `GateEvaluatedObservation` rows on every finding-bearing
+   * `scan_buffer` completion and ships them across whichever transport
+   * the host wires (IPC frame, in-process bridge, or test recorder).
+   * This method is the canonical TS-side ingestion point: hosts
+   * deserialise the daemon's row, hand it to `emitGateEvaluated`, and
+   * the adapter routes it through the existing `emit()` validation +
+   * Kindling-core append path.
+   *
+   * Identical wire shape to `emit({ kind: 'gate_evaluated', ... })` —
+   * this method exists so callers can depend on the typed signature
+   * (and so future per-kind hooks can land here without scanning every
+   * `emit()` call site).
+   */
+  emitGateEvaluated(observation: GateEvaluatedObservation, capsuleId?: ID): void {
+    this.emit(observation, capsuleId);
   }
 }

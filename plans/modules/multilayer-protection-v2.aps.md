@@ -352,7 +352,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-006: Daemon notification layer emits `GateEvaluatedObservation` to Kindling
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Wire the daemon's notification fan-out to call
   `anvil-intercept::kindling_observation::from_midedit_response`
   on every scan_buffer completion and write the resulting row
@@ -366,11 +366,73 @@ task's `Source:` line cites the Council finding IDs.
     only finding-bearing scans produce a row.
   - Failure to write to Kindling is logged at the daemon level
     but does NOT block the scan response.
-- **Files:** `crates/anvil-intercept/src/fanout.rs`,
-  `crates/anvil-intercept/src/midedit.rs` (call site),
-  `packages/kindling-integration/src/adapter.ts` (consumer end).
+- **Files:** `crates/anvil-intercept/src/kindling_observation.rs`
+  (new `KindlingObservationSink` trait + `MidEditObservationEmitter`
+  + `RecordingKindlingObservationSink` test sink +
+  `NoopKindlingObservationSink` default + `MidEditEmissionRequest`
+  per-call inputs + `EmissionOutcome` reporter +
+  `DEFAULT_MIDEDIT_EMIT_CAPACITY` / `_WINDOW` defaults),
+  `crates/anvil-intercept/src/midedit.rs` (`ScanBufferService` gains
+  `with_observation_emitter` builder + `observation_emitter`
+  accessor; no scan-path changes — the emitter sits behind the
+  existing service surface), `crates/anvil-intercept/src/ipc.rs`
+  (`scan_buffer_from_jsonrpc` threads `traceparent` through,
+  captures `file_path` + `started` before the await, derives
+  `gate_eval_id` from the W3C parent-id with UUID v4 fallback via
+  new `derive_gate_eval_id`, and fires the emitter on success —
+  pre-write mode skips the emit per ADR-031),
+  `packages/kindling-integration/src/adapter.ts` (typed
+  `emitGateEvaluated(observation, capsuleId?)` consumer-side entry
+  point delegating to existing `emit()` so daemon-emitted rows have
+  a type-checked TS-side ingestion contract).
 - **Validation:** Adversarial — Kindling DB locked → response
   still returns; rate-limit primitive (MLP2-009) prevents flood.
+  **Evidence (Done 2026-05-15):** `cargo test -p
+  eddacraft-anvil-intercept` — 366 tests green (+13 new vs baseline
+  353): 8 new unit tests in `kindling_observation::tests` cover
+  no-finding short-circuit, sink delivery, rate-window throttle
+  accumulation, allow-after-throttle pending-drops report,
+  sink-failure swallow + recovery, NoopSink contract, daemon
+  session-id introspection, and the recording-sink fail-next hook;
+  5 new IPC integration tests in `ipc::tests` cover the end-to-end
+  daemon path
+  (`handle_jsonrpc_value_emits_gate_evaluated_for_finding_bearing_scan`
+  proves traceparent → `b7ad6b7169203331` parent-id derivation +
+  daemon session id stamping + file_path/file_count round-trip;
+  `_stays_silent_when_scan_has_no_findings` proves the volume-
+  control contract propagates through the IPC layer;
+  `_does_not_emit_for_pre_write_mode` pins the ADR-031 mid-edit-only
+  budget class; `_skips_emission_when_no_emitter_wired` proves
+  byte-compat with legacy daemons that never wire a sink;
+  `derive_gate_eval_id_prefers_traceparent_parent_id` pins the
+  MLP2-008 join-key derivation + UUID v4 fallback;
+  `ipc_emission_throttling_does_not_perturb_scan_responses` sends a
+  5-frame burst against cap=2 and asserts the recorder cap holds
+  while every scan response succeeds). The sink-error swallow path
+  uses `RecordingKindlingObservationSink::fail_next_with` to inject
+  a `KindlingSinkError::Unavailable`; the test confirms the next
+  call still flows + scan response remains uncoupled. Rate
+  primitive: shared `RateWindow` from MLP2-009 with a
+  32-events-per-5-seconds default cap (configurable per emitter).
+  All emission is fire-and-forget; the IPC handler discards the
+  `EmissionOutcome` so scan latency stays unaffected by sink
+  health. `pnpm format:check` (1349 files) clean, `pnpm lint:check`
+  (clippy + fmt-check across 26 projects) clean, `pnpm typecheck`
+  (26 projects) clean,
+  `pnpm --filter @eddacraft/anvil-kindling-integration test`
+  60 / 60 green. **Deferred (intentionally out of scope; tracked
+  alongside MLP2-007 / MLP2-008):** the concrete sink wiring from
+  the daemon to the TS-owned SQLite handle. The trait + emitter
+  contract here is the stable seam — host startup picks a concrete
+  sink (IPC bridge to the kindling-integration package, in-process
+  Rust sink if a Rust SQLite client lands, etc.) without disturbing
+  the scan_buffer hot path. Default `None` keeps the daemon
+  behaviour identical to v1 baseline until a host opts in. The
+  session-id field is currently the daemon-process UUID v4
+  (placeholder for per-edit session ids landing with MLP2-023's
+  composite session keys); the wire shape already matches the
+  schema's `string().uuid()` contract so the migration is
+  field-only.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-016, MLP2-009

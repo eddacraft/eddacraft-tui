@@ -11,6 +11,7 @@ use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 
 use crate::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline, ProposedChange};
+use crate::kindling_observation::MidEditObservationEmitter;
 use crate::latency::LatencyAggregator;
 
 pub const SCAN_BUFFER_METHOD: &str = "scan_buffer";
@@ -106,6 +107,13 @@ pub struct ScanBufferService {
     /// burst-coalescing telemetry can see how many evaluations a
     /// config write would have to wait out without disturbing.
     in_flight: Arc<AtomicUsize>,
+    /// MLP2-006: optional Kindling `gate_evaluated` notification
+    /// fan-out. The IPC handler reads this via
+    /// [`Self::observation_emitter`] and emits one observation per
+    /// scan completion. `None` keeps the daemon legacy-quiet — the
+    /// CLI / tests / embedded fallback all start without an emitter
+    /// until the host wires one in via [`Self::with_observation_emitter`].
+    observation_emitter: Option<Arc<MidEditObservationEmitter>>,
 }
 
 impl std::fmt::Debug for ScanBufferService {
@@ -134,7 +142,27 @@ impl ScanBufferService {
             timeout,
             latency: LatencyAggregator::new(),
             in_flight: Arc::new(AtomicUsize::new(0)),
+            observation_emitter: None,
         }
+    }
+
+    /// MLP2-006: install a Kindling notification fan-out. The IPC
+    /// handler reads it via [`Self::observation_emitter`] and emits
+    /// one `gate_evaluated` row per finding-bearing scan completion.
+    /// Calling without this builder leaves the service silent — the
+    /// `scan_buffer` wire shape stays byte-compatible.
+    #[must_use]
+    pub fn with_observation_emitter(mut self, emitter: Arc<MidEditObservationEmitter>) -> Self {
+        self.observation_emitter = Some(emitter);
+        self
+    }
+
+    /// MLP2-006: borrow the configured Kindling notification fan-out.
+    /// `None` when no emitter has been installed (default for CLI /
+    /// tests / embedded fallback).
+    #[must_use]
+    pub fn observation_emitter(&self) -> Option<&Arc<MidEditObservationEmitter>> {
+        self.observation_emitter.as_ref()
     }
 
     /// MLP2-002: number of evaluations currently held by a permit.
