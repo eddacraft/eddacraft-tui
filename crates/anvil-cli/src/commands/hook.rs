@@ -71,7 +71,7 @@ use anvil_l4::{
     BlockKind, CommitDecision, NoOpValidationEngine, OnWarn, Policy, Severity,
     ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
-use anvil_rules::RequiredAnvilVersion;
+use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
@@ -207,8 +207,19 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
         emit_internal(ErrorClass::EmbeddedFailed, sup);
     }
 
+    // MLP2-014 — resolve the active rule set and compute `rules_sha`
+    // so every pre-commit witness line carries the rule-set digest.
+    // The hook fires once per commit, so a direct config read here
+    // (rather than reusing the daemon-side MLP2-001 cache) keeps the
+    // call site simple — the daemon cache is a performance
+    // optimisation, not a correctness boundary, and the hook subprocess
+    // does not have IPC access to it.
+    let pre_commit_rules_sha = compute_pre_commit_rules_sha(repo_root);
+
     let result = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
-        build_witness_line(&identity.project_uuid, None, "pre-commit", seq, prev)
+        let mut line = build_witness_line(&identity.project_uuid, None, "pre-commit", seq, prev);
+        line.rules_sha.clone_from(&pre_commit_rules_sha);
+        line
     });
     match result {
         Ok(()) => {
@@ -1348,6 +1359,67 @@ fn emit_internal(class: ErrorClass, sup: &mut SuppressionLog) {
             eprintln!("{}", rendered.stderr_line);
         }
     }
+}
+
+/// MLP2-014: OPA / Rego runtime version pinned for the v1 hook lane.
+///
+/// The L4 engine (MLP2-016) and the recognised-rules registry
+/// (MLP2-019) both pin `"0.10.0"` for the v1 rule sets. The pre-commit
+/// hook must use the same string so a witness line written here and a
+/// verification check run on L4 collapse to the same `rules_sha` for
+/// equivalent configs. A future version bump moves in lockstep across
+/// all three call sites (centralising the constant is deferred until a
+/// second consumer needs it — three usage points is below the
+/// rule-of-three threshold).
+const HOOK_OPA_RUNTIME_VERSION: &str = "0.10.0";
+
+/// MLP2-014: compute the `rules_sha` for the active rule set at hook
+/// fire time, or `None` when no `.anvil.<ext>` config is present.
+///
+/// Mirrors the discovery rule already used by `gate.rs::read_anvilrc_checks`
+/// (MLP2-040): walk the worktree for `.anvil.{yaml,yml,json,toml}` via
+/// `anvil_config::discover`, parse, canonicalise, and feed the
+/// resulting `config_sha` plus the pinned runtime versions into
+/// `anvil_rules::rules_sha`. The legacy `.anvilrc` fallback is
+/// intentionally NOT consulted here — the witness `rules_sha` field
+/// is forward-looking and pinning it to the `.anvil.<ext>` channel
+/// keeps the digest stable as projects migrate off `.anvilrc`.
+///
+/// Returns `None` when no `.anvil.<ext>` file is discovered (the
+/// conservative path: spec MLP2-014 is silent on the no-config case,
+/// and omitting the field is preferable to inventing a digest for an
+/// empty default the witness verifier can't anchor against). Any I/O
+/// or parse error also collapses to `None` rather than failing the
+/// commit — the field is an evidence-stream annotation, not a
+/// validation gate, and a missing digest is preferable to refusing the
+/// commit (ADR-038 §D-1 noise discipline: warnings over blocks).
+///
+/// The `rules` list is empty for v1; MLP2-014 wires the field shape,
+/// and a future task threads the resolved rule-id set through when
+/// the rule engine integration lands.
+fn compute_pre_commit_rules_sha(repo_root: &Path) -> Option<String> {
+    let discovered = match anvil_config::discover(repo_root, ".anvil") {
+        Ok(Some(found)) => found,
+        // No `.anvil.<ext>` config (or a `discover` I/O error) →
+        // conservative path: leave the witness field as `None`. The
+        // test `pre_commit_with_missing_config_uses_none` pins the
+        // no-config branch; I/O errors collapse to the same outcome
+        // because the field is an annotation, not a validation gate
+        // (ADR-038 §D-1 noise discipline).
+        Ok(None) | Err(_) => return None,
+    };
+
+    let value = anvil_config::parse_file(&discovered.path).ok()?;
+    let canonical = anvil_config::canonical_json_bytes(&value).ok()?;
+    let config_sha = config_sha_from_canonical(&canonical);
+
+    rules_sha(
+        env!("CARGO_PKG_VERSION"),
+        HOOK_OPA_RUNTIME_VERSION,
+        std::iter::empty::<&str>(),
+        config_sha,
+    )
+    .ok()
 }
 
 fn build_witness_line(
@@ -2666,5 +2738,141 @@ branches:
         // helper must not error (the open path returns Ok(false)).
         let (_tmp, root) = make_test_repo();
         assert!(!commit_is_witnessed(&root, "anything"));
+    }
+
+    // ---- MLP2-014 rules_sha wire-up tests --------------------------
+
+    /// Helper: read every record (non-genesis) `WitnessLine` from
+    /// `anvil/witness/active.ndjson` under `root`. Genesis lines have
+    /// `prev_line_hash` starting with `GENESIS-`; we filter them out so
+    /// callers can assert on the per-commit records the hook writes.
+    fn read_record_lines(root: &Path) -> Vec<WitnessLine> {
+        let path = root.join("anvil").join("witness").join("active.ndjson");
+        let contents = fs::read_to_string(&path).expect("witness file exists");
+        contents
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|line| WitnessLine::from_ndjson_line(line.as_bytes()).expect("parse witness line"))
+            .filter(|line| !line.prev_line_hash.starts_with("GENESIS-"))
+            .collect()
+    }
+
+    /// MLP2-014 — Validation test #1 from the task spec.
+    ///
+    /// Fixture: a repo with an `.anvil.yaml` containing a known rule
+    /// set. Running `run_pre_commit` writes a witness line whose
+    /// `rules_sha` is `Some(...)` and equal to the deterministic
+    /// digest computed by `anvil_rules::rules_sha` over the same
+    /// canonical config bytes the hook saw.
+    #[test]
+    fn pre_commit_witness_line_carries_rules_sha() {
+        let (_tmp, root) = make_test_repo();
+        let mut sup = SuppressionLog::new();
+
+        let config = "checks:\n  - secret-detection\n  - architecture\n";
+        fs::write(root.join(".anvil.yaml"), config).unwrap();
+
+        run_pre_commit(&root, &mut sup).unwrap();
+
+        let records = read_record_lines(&root);
+        assert_eq!(records.len(), 1, "exactly one record line expected");
+        let actual_sha = records[0]
+            .rules_sha
+            .as_deref()
+            .expect("rules_sha must be set when .anvil.yaml is present");
+
+        // Independently recompute the expected digest using the same
+        // canonical-JSON + rules_sha primitives the hook uses. The
+        // canonicalisation collapses yaml → JSON, so both call sites
+        // agree byte-for-byte.
+        let value = anvil_config::parse_file(&root.join(".anvil.yaml")).unwrap();
+        let canonical = anvil_config::canonical_json_bytes(&value).unwrap();
+        let expected_config_sha = config_sha_from_canonical(&canonical);
+        let expected_sha = rules_sha(
+            env!("CARGO_PKG_VERSION"),
+            "0.10.0",
+            std::iter::empty::<&str>(),
+            expected_config_sha,
+        )
+        .unwrap();
+
+        assert_eq!(actual_sha, expected_sha);
+    }
+
+    /// MLP2-014 — Validation test #2 from the task spec (the spec's
+    /// stated validation): two commits with different config files
+    /// carry distinct `rules_sha` values.
+    #[test]
+    fn pre_commit_two_commits_with_different_configs_produce_distinct_rules_sha() {
+        let (_tmp, root) = make_test_repo();
+        let mut sup = SuppressionLog::new();
+
+        // Commit 1 under config A.
+        fs::write(root.join(".anvil.yaml"), "checks:\n  - secret-detection\n").unwrap();
+        run_pre_commit(&root, &mut sup).unwrap();
+
+        // Swap to config B and commit again.
+        fs::write(
+            root.join(".anvil.yaml"),
+            "checks:\n  - architecture\n  - secret-detection\n",
+        )
+        .unwrap();
+        run_pre_commit(&root, &mut sup).unwrap();
+
+        let records = read_record_lines(&root);
+        assert_eq!(records.len(), 2, "two record lines expected");
+        let sha_a = records[0]
+            .rules_sha
+            .as_deref()
+            .expect("commit 1 rules_sha set");
+        let sha_b = records[1]
+            .rules_sha
+            .as_deref()
+            .expect("commit 2 rules_sha set");
+        assert_ne!(
+            sha_a, sha_b,
+            "distinct configs must produce distinct rules_sha"
+        );
+    }
+
+    /// MLP2-014 — Validation test #3: missing config files leave the
+    /// `rules_sha` field unset (`None`). The spec is silent on this
+    /// case; this test pins the conservative path the implementation
+    /// chose so a future refactor cannot accidentally start inventing
+    /// digests for the no-config branch.
+    #[test]
+    fn pre_commit_with_missing_config_uses_none() {
+        let (_tmp, root) = make_test_repo();
+        let mut sup = SuppressionLog::new();
+        // No `.anvil.<ext>` and no `.anvilrc` written.
+        run_pre_commit(&root, &mut sup).unwrap();
+
+        let records = read_record_lines(&root);
+        assert_eq!(records.len(), 1);
+        assert!(
+            records[0].rules_sha.is_none(),
+            "no-config path must leave rules_sha unset; got {:?}",
+            records[0].rules_sha,
+        );
+    }
+
+    /// MLP2-014 — Validation test #4: shape assertion. When present,
+    /// `rules_sha` is exactly 64 lowercase hex characters. Catches a
+    /// future bug where the digest format drifts.
+    #[test]
+    fn pre_commit_witness_line_rules_sha_is_64_lowercase_hex() {
+        let (_tmp, root) = make_test_repo();
+        let mut sup = SuppressionLog::new();
+        fs::write(root.join(".anvil.yaml"), "checks:\n  - secret-detection\n").unwrap();
+        run_pre_commit(&root, &mut sup).unwrap();
+
+        let records = read_record_lines(&root);
+        let sha = records[0].rules_sha.as_deref().expect("rules_sha set");
+        assert_eq!(sha.len(), 64, "rules_sha must be 64 chars; got {sha:?}");
+        assert!(
+            sha.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "rules_sha must be lowercase hex; got {sha:?}",
+        );
     }
 }
