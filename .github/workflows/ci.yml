@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 # Default GITHUB_TOKEN to read-only at the workflow level. Individual
 # jobs/steps can opt into broader scopes if ever needed (none currently
@@ -81,11 +81,19 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # Pin both auditor tool versions: `cargo install --locked` only honours
+      # the *installed* crate's lockfile, not the version that lands in CI.
+      # An unpinned `cargo install` would execute whatever the registry
+      # publishes the minute the job runs.
+      #
+      # Bumping policy: keep these reasonably current. The advisory database
+      # adopts new schema features (e.g. CVSS 4.0 in 2026) that older tool
+      # versions can't parse — too-old pins fail loudly on the next CI run.
       - name: cargo install cargo-audit
-        run: cargo install --locked cargo-audit
+        run: cargo install --locked --version 0.22.1 cargo-audit
       - name: cargo audit
         run: cargo audit
       - name: cargo install cargo-deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked --version 0.19.6 cargo-deny
       - name: cargo deny check
         run: cargo deny check

@@ -74,6 +74,21 @@ impl ProgressBarState {
     }
 }
 
+/// Half of one logical step expressed as a fraction of `total`. No floor:
+/// once `total` exceeds f64's 53-bit mantissa, `1.0 / total` rides below
+/// `f64::EPSILON`, and an EPSILON floor would clamp the threshold back
+/// *above* the per-unit delta we want to detect — re-introducing the
+/// original freeze. The comparator stays tolerant of true rounding noise
+/// because at those totals consecutive fractions are themselves
+/// indistinguishable in f64.
+#[allow(clippy::cast_precision_loss)]
+fn step_threshold(total: u64) -> f64 {
+    if total == 0 {
+        return f64::EPSILON;
+    }
+    1.0 / (total as f64) * 0.5
+}
+
 impl<'a, T: Theme> ProgressBar<'a, T> {
     pub fn new(theme: &'a T) -> Self {
         Self {
@@ -85,13 +100,13 @@ impl<'a, T: Theme> ProgressBar<'a, T> {
 
     #[must_use]
     pub fn block(mut self, block: Block<'a>) -> Self {
-        self.block = block.into();
+        self.block = Some(block);
         self
     }
 
     #[must_use]
     pub fn label(mut self, label: &'a str) -> Self {
-        self.label = label.into();
+        self.label = Some(label);
         self
     }
 }
@@ -108,8 +123,13 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
         }
 
         // Sync animation target when the logical fraction changes.
+        // Threshold scales with `total` so single-unit increments still
+        // register at very large counters — at `total ≥ 9×10¹⁵`, a 1-unit
+        // delta is smaller than `f64::EPSILON` and would otherwise be
+        // silently dropped, freezing the bar.
         let target = state.fraction();
-        if (target - state.target_fraction).abs() > f64::EPSILON {
+        let threshold = step_threshold(state.total);
+        if (target - state.target_fraction).abs() > threshold {
             state.display_fraction.set(target);
             state.target_fraction = target;
         }
@@ -173,6 +193,55 @@ mod tests {
             ..Default::default()
         };
         assert!(state.fraction().abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn target_advances_with_unit_increment_at_very_large_total() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        use crate::theme::EddaCraftTheme;
+
+        // `total = 9 * 10^15` sits just below f64's 53-bit mantissa: two
+        // consecutive `current` values map to distinct f64 fractions, so a
+        // single-unit increment produces a non-zero delta. The previous
+        // `f64::EPSILON` threshold dropped that delta; this test now also
+        // catches the EPSILON-floor regression by asserting strict `>`.
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current: 4_500_000_000_000_000,
+            total: 9_000_000_000_000_000,
+            ..Default::default()
+        };
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        let first_target = state.target_fraction;
+
+        state.current = state.current.saturating_add(1);
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+
+        assert!(
+            state.target_fraction > first_target,
+            "target_fraction must advance on unit increment at large totals: \
+             first={first_target} after={target}",
+            target = state.target_fraction,
+        );
+    }
+
+    #[test]
+    fn step_threshold_scales_with_total() {
+        // At total=2, a step is 0.5 — threshold is 0.25.
+        assert!(step_threshold(2) > f64::EPSILON);
+        // At total=u64::MAX the natural step underflows below EPSILON; the
+        // helper now returns the true sub-EPSILON value rather than clamping
+        // (the prior EPSILON floor re-created the original bug for
+        // total > ~4.5e15).
+        let extreme = step_threshold(u64::MAX);
+        assert!(extreme > 0.0);
+        assert!(extreme < f64::EPSILON);
+        // total=0 falls back to EPSILON (matches the legacy behaviour).
+        assert!((step_threshold(0) - f64::EPSILON).abs() < f64::EPSILON / 2.0);
     }
 
     #[test]

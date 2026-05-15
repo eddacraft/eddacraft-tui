@@ -5,14 +5,23 @@
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
+# Pin the unmaintained policy so a cargo-deny minor bump doesn't silently
+# shift behaviour. "workspace" flags direct deps but not deep transitives.
+unmaintained = "workspace"
 ignore = []
 
 [bans]
+# Duplicate versions in the graph are usually transitive bumps from optional
+# features; flag them but don't block — pair with `skip` for known cases.
 multiple-versions = "warn"
 wildcards = "deny"
 highlight = "all"
 deny = []
-skip = []
+skip = [
+    # `image` and `ratatui-image` pull both rustix 0.38.* and 1.x. Tracked
+    # upstream; remove this skip once both deps are on rustix 1.x.
+    { name = "rustix" },
+]
 skip-tree = []
 
 [licenses]

@@ -84,13 +84,19 @@ impl<'a, T: Theme> Toast<'a, T> {
     /// Includes the 2-row border. Used by [`ToastStack`] to lay out toasts.
     ///
     /// Width is measured in display columns via [`unicode_width`] so wide
-    /// characters (CJK, emoji) and combining marks count correctly.
+    /// characters (CJK, emoji) and combining marks count correctly — both in
+    /// the message body and in a custom [`icon`](Self::icon).
     #[must_use]
     pub fn measured_height(&self, width: u16) -> u16 {
-        if width <= 4 {
+        let icon = self.icon.unwrap_or_else(|| self.default_icon());
+        // Render prefix is `"{icon} "`: icon width plus the trailing space.
+        let prefix_width = UnicodeWidthStr::width(icon).saturating_add(1);
+        // 2 cells for the rounded border.
+        let chrome = prefix_width.saturating_add(2);
+        if usize::from(width) <= chrome {
             return 3;
         }
-        let inner_width = usize::from(width - 4); // borders + icon column
+        let inner_width = usize::from(width).saturating_sub(chrome);
         let total = UnicodeWidthStr::width(self.message);
         let lines = total.div_ceil(inner_width.max(1));
         let lines = u16::try_from(lines).unwrap_or(1).max(1);
@@ -405,6 +411,36 @@ mod tests {
             assert_eq!(buf[(x, 3)].symbol(), " ");
         }
         assert_eq!(buf[(0, 4)].symbol(), "╭");
+    }
+
+    #[test]
+    fn measured_height_accounts_for_multi_cell_icon_width() {
+        let theme = EddaCraftTheme;
+        // Width 12: with default 1-cell icon "i", inner_width = 12-4 = 8.
+        // Message "abcdefghij" (10 cells) wraps to 2 inner lines + 2 borders = 4.
+        let default_icon = Toast::new(&theme, "abcdefghij").measured_height(12);
+        assert_eq!(default_icon, 4);
+
+        // Same message, but a 2-cell emoji icon. Inner width must shrink by 1
+        // (icon now occupies 2 cells instead of 1), so the wrap budget per
+        // line is 7. 10 cells wrap to 2 inner lines → still 4 rows here, but
+        // the under-count surfaces below.
+        let emoji_icon = Toast::new(&theme, "abcdefghij")
+            .icon("🔥")
+            .measured_height(12);
+        assert!(
+            emoji_icon >= default_icon,
+            "emoji_icon={emoji_icon} default_icon={default_icon}"
+        );
+
+        // 15 cells of message at width 12. Default icon: inner=8 → 2 lines + 2.
+        // Emoji icon: inner=7 → 3 lines + 2. Previously both returned 4 (bug).
+        let default_long = Toast::new(&theme, &"a".repeat(15)).measured_height(12);
+        let emoji_long = Toast::new(&theme, &"a".repeat(15))
+            .icon("🔥")
+            .measured_height(12);
+        assert_eq!(default_long, 4);
+        assert_eq!(emoji_long, 5);
     }
 
     #[test]

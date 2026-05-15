@@ -144,13 +144,17 @@ struct Visible<'a> {
     depth: usize,
 }
 
-/// Iterative walker that produces the visible-node list without recursing on
-/// the input tree. Recursion would stack-overflow on attacker-controlled or
-/// pathologically deep input (e.g. parsed filesystem paths or JSON).
-fn visible_nodes<'a>(
+/// Iterative pre-order walker over the visible nodes. Recursion would
+/// stack-overflow on attacker-controlled or pathologically deep input
+/// (e.g. parsed filesystem paths or JSON).
+///
+/// `visit` returns `false` to short-circuit the traversal — used by
+/// [`Tree::selected_id`] to stop walking as soon as the cursor row is found,
+/// avoiding an O(n) allocation for what is logically an O(cursor) lookup.
+fn walk_visible<'a>(
     nodes: &'a [TreeNode],
     expanded: &HashSet<String>,
-    out: &mut Vec<Visible<'a>>,
+    mut visit: impl FnMut(&'a TreeNode, usize) -> bool,
 ) {
     let mut stack: Vec<(&[TreeNode], usize, usize)> = vec![(nodes, 0, 0)];
     while let Some((slice, index, depth)) = stack.pop() {
@@ -158,7 +162,9 @@ fn visible_nodes<'a>(
             continue;
         }
         let node = &slice[index];
-        out.push(Visible { node, depth });
+        if !visit(node, depth) {
+            return;
+        }
         // Resume with the next sibling at this depth.
         stack.push((slice, index + 1, depth));
         // Then descend into expanded branches before the next sibling.
@@ -166,6 +172,19 @@ fn visible_nodes<'a>(
             stack.push((&node.children, 0, depth + 1));
         }
     }
+}
+
+/// Collect the full visible-node list into `out`. Used by `render`, which
+/// genuinely needs the entire ordered list to handle scroll math.
+fn visible_nodes<'a>(
+    nodes: &'a [TreeNode],
+    expanded: &HashSet<String>,
+    out: &mut Vec<Visible<'a>>,
+) {
+    walk_visible(nodes, expanded, |node, depth| {
+        out.push(Visible { node, depth });
+        true
+    });
 }
 
 // Called from inside `debug_assert!` in `Tree::new`. Must NOT be cfg-gated on
@@ -206,20 +225,35 @@ impl<'a, T: Theme> Tree<'a, T> {
     }
 
     /// Number of visible rows given the supplied state — useful for clamping
-    /// the cursor or sizing scroll regions.
+    /// the cursor or sizing scroll regions. Walks the tree without
+    /// allocating a node list.
     #[must_use]
     pub fn visible_count(&self, state: &TreeState) -> usize {
-        let mut buf = Vec::new();
-        visible_nodes(self.nodes, &state.expanded, &mut buf);
-        buf.len()
+        let mut count: usize = 0;
+        walk_visible(self.nodes, &state.expanded, |_, _| {
+            count = count.saturating_add(1);
+            true
+        });
+        count
     }
 
-    /// ID of the node currently under the cursor, if any.
+    /// ID of the node currently under the cursor, if any. Short-circuits as
+    /// soon as the cursor row is reached instead of materialising the full
+    /// visible list.
     #[must_use]
     pub fn selected_id(&self, state: &TreeState) -> Option<String> {
-        let mut buf = Vec::new();
-        visible_nodes(self.nodes, &state.expanded, &mut buf);
-        buf.get(state.cursor).map(|v| v.node.id.clone())
+        let target = state.cursor;
+        let mut index: usize = 0;
+        let mut found: Option<String> = None;
+        walk_visible(self.nodes, &state.expanded, |node, _| {
+            if index == target {
+                found = Some(node.id.clone());
+                return false;
+            }
+            index = index.saturating_add(1);
+            true
+        });
+        found
     }
 }
 
@@ -361,7 +395,10 @@ mod tests {
         let nodes = sample_tree();
         let mut state = TreeState::default();
         state.expand("root");
-        state.cursor = 1; // Alpha
+        // Walk the cursor through the public API rather than touching the
+        // pub(crate) field — the navigation contract is what callers will
+        // exercise, so the test should match.
+        state.move_down(4); // 0 → 1, lands on Alpha (root, alpha, nested, gamma)
         let tree = Tree::new(&theme, &nodes);
         assert_eq!(tree.selected_id(&state), Some("a".to_string()));
     }
@@ -392,10 +429,10 @@ mod tests {
             TreeNode::leaf("4", "four"),
             TreeNode::leaf("5", "five"),
         ];
-        let mut state = TreeState {
-            cursor: 4,
-            ..TreeState::default()
-        };
+        let mut state = TreeState::default();
+        for _ in 0..4 {
+            state.move_down(5);
+        }
         let area = Rect::new(0, 0, 10, 2);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(Tree::new(&theme, &nodes), area, &mut buf, &mut state);
@@ -408,11 +445,17 @@ mod tests {
     fn cursor_clamped_to_visible_count() {
         let theme = EddaCraftTheme;
         let nodes = sample_tree();
-        // Set cursor beyond visible (only 2 visible without expansion).
-        let mut state = TreeState {
-            cursor: 99,
-            ..TreeState::default()
-        };
+        // Drive the cursor through `move_down` past `visible_count`. The
+        // wrap-around math in `move_down(visible)` keeps it in range, so to
+        // construct an out-of-range cursor we expand-then-collapse: expanded
+        // to 4 visible, move twice (lands on index 2), then collapse to
+        // shrink the visible list back to 2 — render must clamp index 2
+        // down to 1.
+        let mut state = TreeState::default();
+        state.expand("root");
+        state.move_down(4); // → 1
+        state.move_down(4); // → 2
+        state.collapse("root"); // visible shrinks back to 2; cursor stale at 2.
         let area = Rect::new(0, 0, 10, 2);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(Tree::new(&theme, &nodes), area, &mut buf, &mut state);

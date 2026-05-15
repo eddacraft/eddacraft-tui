@@ -22,3 +22,6 @@ docs/brag-*.md
 
 # Claude AI logs
 .claude/logs/
+
+# Council review artifacts (generated per-run, not part of the crate)
+review/

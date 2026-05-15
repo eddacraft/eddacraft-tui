@@ -37,7 +37,9 @@ jobs:
       - name: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+        # Mirror the CI dry-run: validate every feature gate at publish time
+        # so the artifact uploaded to crates.io matches what `docs.rs` builds.
+        run: cargo publish --all-features
 
       - name: Create GitHub Release
         env:

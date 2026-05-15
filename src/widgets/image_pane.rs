@@ -127,9 +127,13 @@ mod tests {
         img.put_pixel(1, 1, image::Rgb([0, 255, 0]));
         let dynamic = image::DynamicImage::ImageRgb8(img);
         let picker = Picker::halfblocks();
-        picker
-            .new_protocol(dynamic, area, Resize::Fit(None))
-            .expect("protocol")
+        // Use `match` rather than `.expect(...)` so downstream readers don't
+        // copy the unwrap-on-`image` idiom into production code. The image
+        // crate's parser surface has carried decoder advisories historically.
+        match picker.new_protocol(dynamic, area, Resize::Fit(None)) {
+            Ok(p) => p,
+            Err(err) => panic!("ratatui-image protocol setup failed in test: {err:?}"),
+        }
     }
 
     #[test]

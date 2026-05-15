@@ -9,6 +9,11 @@ use unicode_width::UnicodeWidthStr;
 /// mid-word across a style transition. Each run is a `(byte_offset, style)`
 /// entry; the run at index i applies from `style_runs[i].0` until
 /// `style_runs[i+1].0` (or the end of `text`). The first run always starts at 0.
+///
+/// Hard line breaks (`\n`, `\r\n`) appear in the word stream as zero-width
+/// sentinels with [`is_hard_break`](Self::is_hard_break) set. Other whitespace
+/// (` `, `\t`, other unicode spaces, lone `\r`) is soft and is absorbed into
+/// the preceding word's [`whitespace_width`](Self::whitespace_width).
 #[derive(Debug, Clone)]
 pub struct MeasuredWord {
     /// The word text (no trailing whitespace).
@@ -22,6 +27,12 @@ pub struct MeasuredWord {
     /// Style runs: `(byte_offset_into_text, style)` ordered by offset.
     /// Always non-empty; first entry has offset 0.
     pub style_runs: Vec<(usize, Style)>,
+    /// True when this word represents a forced row boundary (`\n` or `\r\n`
+    /// in the source text). Hard-break sentinels carry no glyphs and have
+    /// zero `width` and `whitespace_width`; the layout engine splits the
+    /// word stream at these positions and starts the next paragraph on a
+    /// fresh row.
+    pub is_hard_break: bool,
 }
 
 impl MeasuredWord {
@@ -33,6 +44,20 @@ impl MeasuredWord {
             text: word.to_string(),
             penalty: String::new(),
             style_runs: vec![(0, style)],
+            is_hard_break: false,
+        }
+    }
+
+    /// Build a hard-break sentinel. Carries no glyphs; the layout engine
+    /// uses these to force row boundaries between paragraphs.
+    pub(crate) fn hard_break(style: Style) -> Self {
+        Self {
+            text: String::new(),
+            width: 0,
+            whitespace_width: 0,
+            penalty: String::new(),
+            style_runs: vec![(0, style)],
+            is_hard_break: true,
         }
     }
 
@@ -94,17 +119,51 @@ impl Fragment for MeasuredWord {
 }
 
 /// Split text into MeasuredWords with a uniform style.
-/// Each word includes its trailing whitespace measurement.
+/// Each word carries the display width of its trailing soft whitespace.
+///
+/// Whitespace policy:
+/// - `\n` and `\r\n` are **hard**: each emits a [`MeasuredWord::hard_break`]
+///   sentinel so the layout engine can force a row boundary.
+/// - Spaces, tabs, other unicode whitespace, and lone `\r` are **soft**: they
+///   are absorbed into the preceding word's `whitespace_width` (or, when there
+///   is no preceding word, into a leading-indent sentinel).
+///
+/// **Grapheme limitation.** Width is measured per word with
+/// `unicode_width::UnicodeWidthStr::width`. A grapheme cluster (e.g. an
+/// emoji ZWJ sequence) that is *split* across two `append_styled` calls is
+/// measured as two independent fragments rather than one composite glyph,
+/// which can over-count display width for that grapheme. Full grapheme
+/// segmentation across streaming boundaries is out of scope.
 pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
     let mut words: Vec<MeasuredWord> = Vec::new();
     let mut chars = text.char_indices().peekable();
 
-    while chars.peek().is_some() {
-        let word_start = match chars.peek() {
-            Some(&(i, _)) => i,
-            None => break,
-        };
+    let push_soft_ws = |words: &mut Vec<MeasuredWord>, ws_width: usize, style: Style| {
+        if ws_width == 0 {
+            return;
+        }
+        match words.last_mut() {
+            Some(last) if !last.is_hard_break => last.whitespace_width += ws_width,
+            _ => {
+                // Either no preceding word, or the previous entry is a hard
+                // break (so this whitespace begins a new row's indent). Emit
+                // an empty sentinel: zero glyph width, but `whitespace_width`
+                // advances `x` for the next visible word.
+                words.push(MeasuredWord {
+                    text: String::new(),
+                    width: 0,
+                    whitespace_width: ws_width,
+                    penalty: String::new(),
+                    style_runs: vec![(0, style)],
+                    is_hard_break: false,
+                });
+            }
+        }
+    };
 
+    while chars.peek().is_some() {
+        // 1. Consume a non-whitespace word, if one starts here.
+        let word_start = chars.peek().map(|&(i, _)| i).unwrap_or(0);
         let mut word_end = word_start;
         while let Some(&(i, ch)) = chars.peek() {
             if ch.is_whitespace() {
@@ -113,51 +172,55 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
             chars.next();
             word_end = i + ch.len_utf8();
         }
+        if word_end > word_start {
+            let word = &text[word_start..word_end];
+            words.push(MeasuredWord::new(word, "", style));
+        }
 
-        if word_end == word_start {
-            let ws_start = word_start;
+        // 2. Consume the following whitespace run, splitting at every hard
+        //    break. Each iteration either emits one hard-break sentinel (after
+        //    attaching any preceding soft whitespace) or finishes the run.
+        while let Some(&(ws_start, _)) = chars.peek() {
             let mut ws_end = ws_start;
+            let mut hit_hard_break = false;
+
             while let Some(&(i, ch)) = chars.peek() {
                 if !ch.is_whitespace() {
                     break;
                 }
+                if ch == '\n' {
+                    chars.next();
+                    hit_hard_break = true;
+                    break;
+                }
+                if ch == '\r' {
+                    chars.next();
+                    ws_end = i + ch.len_utf8();
+                    if let Some(&(_, '\n')) = chars.peek() {
+                        chars.next();
+                        hit_hard_break = true;
+                        // Pull `\r` back out of the soft span — the `\r\n`
+                        // pair is a single hard break, not soft whitespace.
+                        ws_end = i;
+                        break;
+                    }
+                    // Lone `\r`: treat as soft whitespace. It has zero
+                    // display width, so leave `ws_end` advanced past it.
+                    continue;
+                }
                 chars.next();
                 ws_end = i + ch.len_utf8();
             }
-            let ws = &text[ws_start..ws_end];
-            let ws_width = UnicodeWidthStr::width(ws);
-            if let Some(last) = words.last_mut() {
-                last.whitespace_width += ws_width;
-            } else {
-                // Leading whitespace with no preceding word — push an empty
-                // sentinel that carries the indent forward. Its zero width
-                // means the renderer draws nothing for it; layout still
-                // advances `x` by `whitespace_width`, indenting the next word.
-                words.push(MeasuredWord {
-                    text: String::new(),
-                    width: 0,
-                    whitespace_width: ws_width,
-                    penalty: String::new(),
-                    style_runs: vec![(0, style)],
-                });
+
+            let soft_ws_width = UnicodeWidthStr::width(&text[ws_start..ws_end]);
+            push_soft_ws(&mut words, soft_ws_width, style);
+
+            if hit_hard_break {
+                words.push(MeasuredWord::hard_break(style));
+                continue;
             }
-            continue;
+            break;
         }
-
-        let word = &text[word_start..word_end];
-
-        let ws_start = word_end;
-        let mut ws_end = ws_start;
-        while let Some(&(i, ch)) = chars.peek() {
-            if !ch.is_whitespace() {
-                break;
-            }
-            chars.next();
-            ws_end = i + ch.len_utf8();
-        }
-
-        let trailing_ws = &text[ws_start..ws_end];
-        words.push(MeasuredWord::new(word, trailing_ws, style));
     }
 
     words
@@ -250,6 +313,82 @@ mod tests {
         assert_eq!(words.len(), 1);
         assert_eq!(words[0].text, "");
         assert_eq!(words[0].whitespace_width, 4);
+    }
+
+    #[test]
+    fn test_measure_hard_break_lf() {
+        let words = measure_words("foo\nbar", Style::default());
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0].text, "foo");
+        assert!(!words[0].is_hard_break);
+        assert!(words[1].is_hard_break);
+        assert_eq!(words[1].width, 0);
+        assert_eq!(words[1].whitespace_width, 0);
+        assert_eq!(words[2].text, "bar");
+    }
+
+    #[test]
+    fn test_measure_hard_break_crlf() {
+        let words = measure_words("foo\r\nbar", Style::default());
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0].text, "foo");
+        assert!(words[1].is_hard_break);
+        assert_eq!(words[2].text, "bar");
+    }
+
+    #[test]
+    fn test_measure_consecutive_hard_breaks_are_distinct() {
+        let words = measure_words("foo\n\nbar", Style::default());
+        assert_eq!(words.len(), 4);
+        assert_eq!(words[0].text, "foo");
+        assert!(words[1].is_hard_break);
+        assert!(words[2].is_hard_break);
+        assert_eq!(words[3].text, "bar");
+    }
+
+    #[test]
+    fn test_measure_leading_hard_break() {
+        let words = measure_words("\nfoo", Style::default());
+        assert_eq!(words.len(), 2);
+        assert!(words[0].is_hard_break);
+        assert_eq!(words[1].text, "foo");
+    }
+
+    #[test]
+    fn test_measure_trailing_hard_break() {
+        let words = measure_words("foo\n", Style::default());
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "foo");
+        assert!(words[1].is_hard_break);
+    }
+
+    #[test]
+    fn test_measure_soft_ws_around_hard_break_preserved() {
+        // `"foo \n bar"`: the trailing space after `foo` is attached to `foo`,
+        // the hard break advances a row, then the leading space before `bar`
+        // is carried by an indent sentinel so `bar` starts indented.
+        let words = measure_words("foo \n bar", Style::default());
+        assert_eq!(words.len(), 4);
+        assert_eq!(words[0].text, "foo");
+        assert_eq!(words[0].whitespace_width, 1);
+        assert!(words[1].is_hard_break);
+        assert_eq!(words[2].text, "");
+        assert_eq!(words[2].whitespace_width, 1);
+        assert!(!words[2].is_hard_break);
+        assert_eq!(words[3].text, "bar");
+    }
+
+    #[test]
+    fn test_measure_lone_cr_is_soft_whitespace() {
+        // Lone `\r` (no following `\n`) is soft whitespace, matching the
+        // issue's policy that only `\n` / `\r\n` are hard. No hard-break
+        // sentinel should appear between the two words.
+        let words = measure_words("foo\rbar", Style::default());
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "foo");
+        assert!(!words[0].is_hard_break);
+        assert_eq!(words[1].text, "bar");
+        assert!(!words[1].is_hard_break);
     }
 
     #[test]

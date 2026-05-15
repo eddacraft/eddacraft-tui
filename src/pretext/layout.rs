@@ -3,6 +3,7 @@ use textwrap::wrap_algorithms::wrap_first_fit;
 
 use super::exclusion::{ExclusionZone, RowBand, compute_row_band, compute_row_bands};
 use super::prepare::PreparedText;
+use super::segment::MeasuredWord;
 
 /// A positioned word ready for rendering.
 #[derive(Debug, Clone)]
@@ -68,6 +69,12 @@ pub fn layout(
 }
 
 /// Internal layout entrypoint that accepts an explicit row cap.
+///
+/// Words placed beyond `max_rows_cap * 4` rows fall back to a full-width
+/// `RowBand` and ignore exclusion zones — the overflow probe stops there to
+/// keep the worst-case frame cost bounded. The default public [`layout`]
+/// entry point uses `max_rows_cap = 16_384`, which makes the limitation
+/// practically unreachable for terminal-sized input.
 pub(crate) fn layout_with_cap(
     prepared: &PreparedText,
     container_width: u16,
@@ -83,7 +90,24 @@ pub(crate) fn layout_with_cap(
     }
 
     let safe_width = container_width.max(1) as usize;
-    let required_capacity = prepared.total_width().saturating_add(safe_width);
+    // Hard breaks (`\n`, `\r\n`) carry zero width but each one forces at
+    // least one extra row, so the row-band capacity hunt has to account for
+    // them — otherwise narrow layouts with many hard breaks run out of rows
+    // before all paragraphs are placed. Cap the count at `max_rows_cap` so
+    // pathological input (megabytes of bare newlines) cannot inflate
+    // `required_capacity` past the eventual row budget; that would drive the
+    // build-bands / overflow-probe loops to their hard ceilings every frame
+    // and burn CPU for no benefit.
+    let hard_break_count = words
+        .iter()
+        .filter(|w| w.is_hard_break)
+        .count()
+        .min(max_rows_cap as usize);
+    let break_capacity = hard_break_count.saturating_mul(safe_width);
+    let required_capacity = prepared
+        .total_width()
+        .saturating_add(safe_width)
+        .saturating_add(break_capacity);
 
     let build_bands = |max_lines: u16| -> Vec<RowBand> {
         if exclusions.is_empty() {
@@ -107,7 +131,7 @@ pub(crate) fn layout_with_cap(
             .sum()
     };
 
-    let mut estimated_max_lines = (prepared.total_width() / safe_width + 1)
+    let mut estimated_max_lines = (prepared.total_width() / safe_width + 1 + hard_break_count)
         .min(max_rows_cap as usize)
         .max(50) as u16;
     estimated_max_lines = estimated_max_lines.min(max_rows_cap);
@@ -157,59 +181,105 @@ pub(crate) fn layout_with_cap(
         };
     }
 
-    let wrapped = wrap_first_fit(words, &filtered_widths);
+    // Split the word stream into paragraphs at every hard break, then wrap
+    // each paragraph independently. Empty paragraphs (consecutive hard
+    // breaks) consume one row but produce no `LayoutLine`.
+    let paragraphs: Vec<&[MeasuredWord]> = {
+        let mut segs: Vec<&[MeasuredWord]> = Vec::new();
+        let mut start = 0;
+        for (i, w) in words.iter().enumerate() {
+            if w.is_hard_break {
+                segs.push(&words[start..i]);
+                start = i + 1;
+            }
+        }
+        segs.push(&words[start..]);
+        segs
+    };
 
-    let mut lines = Vec::with_capacity(wrapped.len());
+    let mut lines: Vec<LayoutLine> = Vec::new();
     let mut max_row: u16 = 0;
+    let mut virtual_cursor: usize = 0;
 
-    for (virtual_row, line_words) in wrapped.iter().enumerate() {
-        let (real_row, band) = if virtual_row < placement.len() {
-            placement[virtual_row]
-        } else {
-            let last = placement.last().map(|(r, _)| *r).unwrap_or(0);
-            let extra_usize = virtual_row - placement.len() + 1;
-            let extra = if extra_usize > u16::MAX as usize {
-                break;
+    let resolve_row =
+        |virtual_row: usize, placement: &[(u16, RowBand)]| -> Option<(u16, RowBand)> {
+            if virtual_row < placement.len() {
+                Some(placement[virtual_row])
             } else {
-                extra_usize as u16
-            };
-            let Some(real_row) = last.checked_add(extra) else {
-                break;
-            };
-            (
-                real_row,
-                RowBand {
-                    left: 0,
-                    width: safe_width,
-                },
-            )
+                let last = placement.last().map(|(r, _)| *r).unwrap_or(0);
+                let extra_usize = virtual_row - placement.len() + 1;
+                if extra_usize > u16::MAX as usize {
+                    return None;
+                }
+                let extra = extra_usize as u16;
+                let real_row = last.checked_add(extra)?;
+                Some((
+                    real_row,
+                    RowBand {
+                        left: 0,
+                        width: safe_width,
+                    },
+                ))
+            }
         };
-        let mut positioned = Vec::with_capacity(line_words.len());
-        let mut x: usize = band.left as usize;
 
-        for word in *line_words {
-            let w = word.width.min(u16::MAX as usize);
-            positioned.push(PositionedWord {
-                text: word.text.clone(),
-                x: (x.min(u16::MAX as usize)) as u16,
-                y: real_row,
-                width: w as u16,
-                style_runs: word.style_runs.clone(),
-            });
-            x = x
-                .saturating_add(word.width)
-                .saturating_add(word.whitespace_width);
+    'paragraphs: for paragraph in paragraphs {
+        if paragraph.is_empty() {
+            // Reserve a single blank row for the hard break preceding this
+            // (or starting the stream). The row is intentionally absent
+            // from `lines` so the renderer leaves it empty.
+            virtual_cursor = virtual_cursor.saturating_add(1);
+            continue;
         }
 
-        lines.push(LayoutLine {
-            words: positioned,
-            y: real_row,
-        });
-        max_row = max_row.max(real_row);
+        if virtual_cursor >= filtered_widths.len() {
+            break;
+        }
+        let widths_for_paragraph = &filtered_widths[virtual_cursor..];
+        let wrapped = wrap_first_fit(paragraph, widths_for_paragraph);
+
+        for (offset, line_words) in wrapped.iter().enumerate() {
+            let virtual_row = virtual_cursor + offset;
+            let Some((real_row, band)) = resolve_row(virtual_row, &placement) else {
+                break 'paragraphs;
+            };
+
+            let mut positioned = Vec::with_capacity(line_words.len());
+            let mut x: usize = band.left as usize;
+            for word in *line_words {
+                let w = word.width.min(u16::MAX as usize);
+                positioned.push(PositionedWord {
+                    text: word.text.clone(),
+                    x: (x.min(u16::MAX as usize)) as u16,
+                    y: real_row,
+                    width: w as u16,
+                    style_runs: word.style_runs.clone(),
+                });
+                x = x
+                    .saturating_add(word.width)
+                    .saturating_add(word.whitespace_width);
+            }
+
+            lines.push(LayoutLine {
+                words: positioned,
+                y: real_row,
+            });
+            max_row = max_row.max(real_row);
+        }
+
+        virtual_cursor = virtual_cursor.saturating_add(wrapped.len().max(1));
     }
+
+    // When the stream ends on a hard break (trailing `\n`) the last
+    // paragraph slot is empty and only bumps the virtual cursor — leave
+    // `total_height` accounting that blank row.
+    let trailing_blank_row =
+        words.last().map(|w| w.is_hard_break).unwrap_or(false) && !lines.is_empty();
 
     let total_height = if lines.is_empty() {
         0
+    } else if trailing_blank_row {
+        max_row.saturating_add(2)
     } else {
         max_row.saturating_add(1)
     };
@@ -414,6 +484,92 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_layout_hard_break_forces_next_row_independent_of_width() {
+        // Acceptance criterion 1: `"foo\nbar"` lays out with `bar` on the
+        // row immediately below `foo`, regardless of container width.
+        let prepared = PreparedText::new("foo\nbar");
+        for width in [10, 40, 200] {
+            let result = layout(&prepared, width, &[]);
+            assert_eq!(
+                result.lines.len(),
+                2,
+                "width={width}: expected 2 lines, got {:?}",
+                result.lines.iter().map(|l| l.y).collect::<Vec<_>>()
+            );
+            assert_eq!(result.lines[0].words[0].text, "foo");
+            assert_eq!(result.lines[0].y, 0);
+            assert_eq!(result.lines[1].words[0].text, "bar");
+            assert_eq!(result.lines[1].y, 1);
+        }
+    }
+
+    #[test]
+    fn test_layout_crlf_treated_as_hard_break() {
+        // Acceptance criterion 3: `\r\n` is equivalent to `\n`.
+        let prepared = PreparedText::new("foo\r\nbar");
+        let result = layout(&prepared, 40, &[]);
+        assert_eq!(result.lines.len(), 2);
+        assert_eq!(result.lines[0].words[0].text, "foo");
+        assert_eq!(result.lines[1].words[0].text, "bar");
+        assert_eq!(result.lines[1].y, 1);
+    }
+
+    #[test]
+    fn test_layout_streamed_hard_break_matches_eager() {
+        // Acceptance criterion 2: streaming a `\n` between chunks forces the
+        // next chunk onto a new row, producing the same layout as the eager
+        // `"foo\nbar"` form.
+        let mut streamed = PreparedText::new("");
+        streamed.append("foo");
+        streamed.append("\n");
+        streamed.append("bar");
+        let result = layout(&streamed, 40, &[]);
+        assert_eq!(result.lines.len(), 2);
+        assert_eq!(result.lines[0].words[0].text, "foo");
+        assert_eq!(result.lines[1].words[0].text, "bar");
+        assert_eq!(result.lines[1].y, 1);
+    }
+
+    #[test]
+    fn test_layout_consecutive_hard_breaks_leave_blank_row() {
+        // `"foo\n\nbar"`: the empty paragraph between the two breaks
+        // reserves row 1 as a blank line; `bar` lands on row 2.
+        let prepared = PreparedText::new("foo\n\nbar");
+        let result = layout(&prepared, 40, &[]);
+        assert_eq!(result.lines.len(), 2);
+        assert_eq!(result.lines[0].y, 0);
+        assert_eq!(result.lines[1].y, 2);
+        assert_eq!(result.lines[1].words[0].text, "bar");
+        assert_eq!(result.total_height, 3);
+    }
+
+    #[test]
+    fn test_layout_paragraph_wraps_then_hard_break() {
+        // First paragraph wraps over multiple rows (narrow width); the hard
+        // break still forces `quux` onto a fresh row immediately after the
+        // last wrapped row of the first paragraph.
+        let prepared = PreparedText::new("alpha beta gamma\nquux");
+        let result = layout(&prepared, 8, &[]);
+        let last_first_para_y = result
+            .lines
+            .iter()
+            .filter(|l| l.words.iter().any(|w| w.text != "quux"))
+            .map(|l| l.y)
+            .max()
+            .expect("first paragraph should produce at least one line");
+        let quux_line = result
+            .lines
+            .iter()
+            .find(|l| l.words.iter().any(|w| w.text == "quux"))
+            .expect("quux should appear");
+        assert_eq!(
+            quux_line.y,
+            last_first_para_y + 1,
+            "quux must sit on the row immediately after the wrapped paragraph"
+        );
     }
 
     #[test]

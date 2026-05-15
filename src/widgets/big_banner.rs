@@ -83,6 +83,13 @@ impl<'a, T: Theme> BigBanner<'a, T> {
 }
 
 impl<T: Theme> Widget for BigBanner<'_, T> {
+    /// # Panics
+    ///
+    /// Inherits the multi-codepoint grapheme TODO in `tui-big-text 0.8`:
+    /// rendering text that contains emoji-with-skin-tone modifiers, ZWJ
+    /// sequences, regional-indicator pairs, or similar can panic inside the
+    /// upstream renderer. Pass plain ASCII / single-codepoint glyphs until
+    /// upstream resolves this, or sanitise the input.
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width == 0 || area.height == 0 {
             return;

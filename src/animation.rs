@@ -12,3 +12,9 @@ pub fn animate_tick(delta_ms: usize) {
 pub fn is_animating() -> bool {
     animate::is_animating()
 }
+
+// Internal re-exports so widget code inside this crate names animation
+// runtime types through the shim. If we swap the `animate` dep, only this
+// module changes; widget modules already route through `crate::animation`.
+pub(crate) use animate::easing;
+pub(crate) use animate::{Lerp, Once};
