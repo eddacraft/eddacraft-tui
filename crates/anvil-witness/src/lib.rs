@@ -66,6 +66,7 @@ mod writer;
 pub use genesis::GenesisAnchor;
 pub use line::{LineHash, WitnessLine, WitnessRecord, compute_line_hash};
 pub use manifest::{ManifestEntry, append_manifest_entry, manifest_path, manifest_tail};
-#[allow(deprecated)] // Re-export the linear-only wrapper for out-of-tree callers; in-tree callers should use `verify_chain_dag`.
+#[allow(deprecated)]
+// Re-export the linear-only wrapper for out-of-tree callers; in-tree callers should use `verify_chain_dag`.
 pub use verify::{ChainReport, DagVerification, VerifyError, verify_chain, verify_chain_dag};
 pub use writer::{RolloverPolicy, WitnessWriter, WriterError};
