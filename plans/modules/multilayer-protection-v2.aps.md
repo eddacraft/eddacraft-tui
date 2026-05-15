@@ -2,9 +2,13 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 37/60 done |
+| MLP2 | @aneki | In Progress | 35/66 done |
 
-**Last reviewed:** 2026-05-15 (wave 1G shipped 2026-05-15 via PR #1576
+**Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
+MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
+binds the no-op L4 engine, and `anvil status --json` still emits a local-only
+claim with empty `surfaces`. Added Group M (MLP2-061..066) for review-
+discovered corrective work. Earlier history: wave 1G shipped 2026-05-15 via PR #1576
 at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
 --witness-recent` with `--reverse` git rev-list +
 `validation_at: "bootstrap-recovery"`), MLP2-038 (end-to-end
@@ -33,6 +37,16 @@ pass on top — Council #C-016A `on_warn` consultation fix folded
 into MLP2-016. Module created from MLP-018 split-out; each of
 the 56 deferred sub-items in `[multilayer-protection]`'s v1-scope
 footnotes promoted to its own MLP2-NNN task.)
+
+> **Release cut-line (2026-05-15 Council audit).** MLP2 is not required to
+> reach 66/66 for `v0.7.0-beta`; the cut is the subset needed for the public
+> sustained-use claim. Required before Boring Week: MLP2-011 (including merge-
+> parent binding), MLP2-013, MLP2-014, reopened MLP2-016, reopened MLP2-048,
+> MLP2-061, and MLP2-062. MLP2-050/051 are required only if the release claim
+> includes non-CLI protection-claim parity. Marketplace publishing (MLP2-042..
+> 045), observation fan-out (MLP2-006..008/010/054), and cross-platform
+> attribution (MLP2-027/028) are deferred unless Boring Week exercises those
+> surfaces.
 
 > **Scope.** MLP2 ships the integration work that closes every v1
 > primitive landed by the MLP module into a full surface. MLP
@@ -488,7 +502,14 @@ task's `Source:` line cites the Council finding IDs.
     calls `verify_chain_dag` and asserts the result is linear.
 - **Files:** `crates/anvil-witness/src/verify.rs`.
 - **Validation:** Merge fixture from MLP-005's `merge_witness_plan`
-  output; tamper tests at each parent.
+  output; tamper tests at each parent. **Council audit addendum
+  (2026-05-15):** verification must bind each `prev_line_hashes[i]`
+  to the witness line whose `commit_sha` equals `parent_commits[i]`,
+  and pre-push must not treat merge `parent_commits[]` as witnessed
+  unless that binding is proven. Add an adversarial fixture where an
+  unwitnessed side-branch parent is listed on a merge witness with no
+  matching prior line; the push must still require L4 or block per
+  policy.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-002, MLP-005
@@ -587,7 +608,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-016: `validate_at_l4` server-side rule-engine execution
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** Pre-push's `NeedsL4Validation` decisions currently
   emit `InternalError { TimedOut }` because the L4 engine isn't
   wired. This task swaps in the real rule-engine call.
@@ -604,6 +625,11 @@ task's `Source:` line cites the Council finding IDs.
   branch).
 - **Validation:** End-to-end test: push with unwitnessed commit
   → server runs L4 → allow/block surfaces to the operator.
+  **Council audit addendum (2026-05-15):** current production
+  `run_pre_push` still binds `NoOpValidationEngine`, so the typed
+  pipeline is not sufficient evidence. Completion requires the
+  production default path to use a real rule engine and an end-to-end
+  test that does not inject a fixture engine.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** MLP-004, MLP-006
@@ -2043,7 +2069,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-048: `anvil status --json` render path
 
-- **Status:** Done
+- **Status:** In Progress
 - **Intent:** `crates/anvil-cli/src/commands/status.rs`
   emits `ProtectionClaim` from a daemon-snapshot input.
   Closes the HARD-GATE rendering surface.
@@ -2058,7 +2084,12 @@ task's `Source:` line cites the Council finding IDs.
   `crates/anvil-intercept/src/status.rs` (snapshot source).
 - **Validation:** Per-state fixture (see MLP2-049) round-trips
   through the render path; rendered string matches the
-  spec.
+  spec. **Council audit addendum (2026-05-15):** current
+  `status.rs::print_json` derives only a local activation claim and
+  emits `ProtectionClaim::new(..., Vec::new())`; completion requires
+  daemon snapshot / `anvil-intercept::status` integration or an
+  explicitly documented fallback state that does not claim per-surface
+  coverage.
 - **Confidence:** medium
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP-009
@@ -2466,27 +2497,183 @@ Source line distinguishes Group L tasks from Group A–K tasks.
   reviewer flagged that post-parse depth walks run too late to
   defend against alias-expansion attacks.
 
+### M. Full-codebase Council corrective follow-ons
+
+Items in this group were filed from the 2026-05-15 full MLP/MLP2 review.
+They are not new product capabilities; they close correctness, security, and
+planning-truth gaps found while auditing the shipped primitives against the
+remaining v2 integration surface.
+
+#### MLP2-061: Post-rollover append-head recovery
+
+- **Status:** Draft
+- **Intent:** Hook-side witness appends derive the next `(seq,
+  prev_line_hash)` from the full archive + active chain, not only
+  `active.ndjson`, so a rollover cannot cause a fresh genesis to be
+  seeded on top of archived history.
+- **Expected Outcome:**
+  - `append_witness` verifies `witness_paths(repo_root)` and chains
+    new lines from the verified DAG tip after rollover.
+  - A tight-rollover regression appends after active rollover and
+    verifies archive + active as one continuous chain.
+  - `hook bootstrap --witness-recent` checks active + archives before
+    retroactively witnessing a commit.
+- **Files:** `crates/anvil-cli/src/commands/hook.rs`,
+  `crates/anvil-cli/tests/`.
+- **Validation:** Tight rollover fixture: append to rollover, append
+  again, then `verify_chain_dag(witness_paths)` succeeds with no
+  duplicate genesis.
+- **Confidence:** high
+- **Priority:** Critical
+- **Dependencies:** MLP2-011, MLP2-012
+- **Source:** Council full audit 2026-05-15 (general + adversarial:
+  `chain_head` and `commit_is_witnessed` active-only reads undermine
+  rollover correctness).
+
+#### MLP2-062: `anvil l4-validate` verifies witness-chain integrity before trusting witnessed SHAs
+
+- **Status:** Draft
+- **Intent:** The dedicated L4 CLI surface must reject or block on a
+  broken witness chain before treating any `commit_sha` as L3 evidence.
+- **Expected Outcome:**
+  - `l4_validate.rs` reuses the same archive + active path ordering
+    and DAG verifier as pre-push before collecting witnessed commits.
+  - Broken or tampered witness chains produce a blocking CI/action
+    result, not an empty trusted set or silent allow.
+  - Archive files are streamed in deterministic order.
+- **Files:** `crates/anvil-cli/src/commands/l4_validate.rs`,
+  `crates/anvil-cli/tests/`.
+- **Validation:** Tampered witness fixture under `anvil l4-validate`
+  exits blocking/error and never reports the forged commit as
+  witnessed.
+- **Confidence:** high
+- **Priority:** Critical
+- **Dependencies:** MLP2-046, MLP2-011
+- **Source:** Council full audit 2026-05-15 (security: CI/Marketplace
+  L4 surface trusted witness files without first verifying the chain).
+
+#### MLP2-063: Bounded policy-file load path for hook and L4 validation
+
+- **Status:** Draft
+- **Intent:** Policy loading for pre-push and `anvil l4-validate`
+  must honour the same file-size and parse-resource bounds as
+  `.anvil.*` config parsing.
+- **Expected Outcome:**
+  - A shared bounded policy loader rejects files larger than
+    `anvil_config::MAX_CONFIG_FILE_BYTES` before `read_to_string`.
+  - Hook and L4 validation use the shared loader for
+    `anvil/policy.{yml,yaml,json,toml}`.
+  - Oversized policy files fail with one noise-disciplined internal
+    error in hooks and a clear blocking/error result in CI mode.
+- **Files:** `crates/anvil-cli/src/commands/{hook,l4_validate}.rs`,
+  `crates/anvil-l4/src/policy.rs` if the helper belongs with policy
+  parsing.
+- **Validation:** 1 MiB+ policy fixture does not allocate the whole
+  file and returns the expected hook / CLI outcome.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** MLP2-060
+- **Source:** Council full audit 2026-05-15 (security: policy loaders
+  bypassed the bounded `anvil-config::parse_file` path).
+
+#### MLP2-064: Rule-cache generation guard for invalidate-during-resolve
+
+- **Status:** Draft
+- **Intent:** Cache misses that resolve outside the mutex must not
+  insert stale rules after a watcher invalidation has already observed
+  a stricter config write.
+- **Expected Outcome:**
+  - `RuleSetCache` tracks a per-worktree generation / invalidation
+    token.
+  - `get_or_resolve` records the generation before resolving and
+    re-checks it under the lock before insertion.
+  - If invalidation raced the resolve, the stale entry is discarded or
+    recomputed; later evaluations do not keep using the old rule set.
+- **Files:** `crates/anvil-intercept/src/rule_cache.rs`,
+  `crates/anvil-intercept/src/watcher.rs`.
+- **Validation:** Deterministic barrier test: miss starts resolving,
+  config invalidates while cache is empty, resolver returns old
+  payload, cache does not serve that stale payload to the next caller.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** MLP2-001, MLP2-002, MLP2-058
+- **Source:** Council full audit 2026-05-15 (security: stale reinsert
+  window after pre-attribution invalidation).
+
+#### MLP2-065: Partial-baseline resume detects tree drift before the cursor
+
+- **Status:** Draft
+- **Intent:** Budgeted baseline scans must not mark a baseline
+  complete when files were added or renamed lexicographically before
+  the saved continuation cursor between runs.
+- **Expected Outcome:**
+  - Partial baseline state records enough scan-generation context to
+    detect pre-cursor tree drift, or resume forces a full restart when
+    such drift is possible.
+  - A new violating file inserted before the cursor between resume
+    runs is scanned before the baseline is marked complete.
+  - Operator messaging explains restart/rescan rather than silently
+    skipping files.
+- **Files:** `crates/anvil-baseline/src/store.rs`,
+  `crates/anvil-cli/src/commands/baseline.rs`.
+- **Validation:** Start budgeted baseline, add `000-*.ts` with a
+  violation before the saved cursor, resume; final baseline includes
+  the new finding or restarts safely.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** MLP2-036
+- **Source:** Council full audit 2026-05-15 (adversarial: fixed-
+  fixture resume tests did not cover mutation between chunks).
+
+#### MLP2-066: Maintained YAML parser migration and ADR closeout
+
+- **Status:** Draft
+- **Intent:** Complete the MLP2-060 follow-up by deciding and tracking
+  migration from deprecated `serde_yaml` to a maintained YAML parser
+  or recording why alias-reject byte scanning remains the accepted
+  long-term posture.
+- **Expected Outcome:**
+  - ADR-level note records the parser decision, false-positive trade-
+    off, and migration / non-migration rationale.
+  - If migration is selected, `anvil-config` moves to the maintained
+    crate with the same size, alias, and depth fixtures green.
+  - If migration is deferred, the deferral has an owner and review
+    date.
+- **Files:** `crates/anvil-config/src/parse.rs`,
+  `plans/decisions/037-witness-chain-and-l4-policy.md` or a new ADR
+  if the decision is broader than MLP, and
+  `plans/decisions/DECISION-LOG.md` when an ADR changes.
+- **Validation:** `cargo test -p eddacraft-anvil-config --lib`; ADR
+  check when ADR files change.
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** MLP2-060
+- **Source:** Council full audit 2026-05-15 (planning/security:
+  MLP2-060 said maintained-parser migration was tracked separately,
+  but no APS item existed).
+
 ## Stats
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
-| C. L4 policy execution | 7 (MLP2-016..-022) | 6/7 |
+| C. L4 policy execution | 7 (MLP2-016..-022) | 5/7 |
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
-| J. Protection-claim render conformance | 5 (MLP2-048..-052) | 3/5 |
+| J. Protection-claim render conformance | 5 (MLP2-048..-052) | 2/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 3/4 |
-| **Total** | **60** | **32/60** |
+| M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 0/6 |
+| **Total** | **66** | **35/66** |
 
 ## Recommended landing order
 
-The 60 items have natural sequencing through their `Dependencies:`
+The 66 items have natural sequencing through their `Dependencies:`
 declarations. High-priority lanes that unblock the most downstream
 work:
 

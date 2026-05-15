@@ -1,17 +1,17 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                     |
-| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-14 (RMCPF later-window phasing added); base `v0.6.2-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                    |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-15 (MLP/MLP2 Council audit cut-line); base `v0.6.2-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-14 (RMCPF later-window phasing added. MLP v1 is now
-Complete at 18/18, with MLP-018 split into the new MLP2 follow-up module for 56
-integration items. WATCHUX remains the beta-incident lane, INTL remains the
-launcher ingress lane, and RMCPF is sequenced after the daemon-working slate.)
+**Last updated:** 2026-05-15 (MLP/MLP2 Council audit reconciled MLP2 from
+`Draft 0/56` to active `In Progress 35/66`, reopened over-claimed L4/status
+items, and added the explicit MLP2 cut-line for `v0.7.0-beta`. RMCPF remains
+sequenced after the daemon-working slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -65,7 +65,7 @@ and was accepted on 2026-05-14.
 | Pick | Module                                                      | Status      | Progress | Role                                                                                                                                                                                                                                                                            |
 | ---- | ----------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | N1   | [`MLP`](./plans/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                    |
-| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)   | Draft       | 0/56     | Follow-up integration module created from the MLP-018 split; holds v1 deferrals and broader integration debt. It is not part of the current `v0.7.0-beta` protection claim unless promoted separately.                                                                          |
+| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)   | In Progress | 35/66    | Active follow-up integration module from the MLP-018 split plus Council hardening. It is part of the current protection claim only at the cut-line named below; 66/66 is not required for `v0.7.0-beta`.                                                                        |
 | N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)         | Done        | 9/9 done | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. Shipped via PR #1528 (merged 2026-05-14 at `5d38e546`); narratively **Merged**, advances to Released/Shipped → Complete on `v0.7.0-beta` release evidence.            |
 | N3   | Carry-forward gates                                         | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                       |
 | N4   | Documentation lanes                                         | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                    |
@@ -77,7 +77,9 @@ and was accepted on 2026-05-14.
 
 **Hard release gates:**
 
-1. `MLP-009` protection-claim contract suite — Done.
+1. `MLP-009` protection-claim vocabulary suite — Done; rendered claim
+   correctness now also requires reopened `MLP2-048` and the MLP2 cut-line
+   below.
 2. `ADTRUST-001` and `ADTRUST-002` — a non-Anvil developer reads `anvil status`
    once and explains what it means, and degraded states surface within 60s of
    next save-time interaction.
@@ -94,6 +96,13 @@ must be cut, rename the release claim before tagging.
 
 The MLP wave rows below are retained as release evidence. Current integration
 debt that did not belong in the v1 primitive module now lives in MLP2.
+
+**MLP2 cut-line for `v0.7.0-beta`:** required before Boring Week are MLP2-011
+(including merge-parent hash binding), MLP2-013, MLP2-014, reopened MLP2-016,
+reopened MLP2-048, MLP2-061, and MLP2-062. MLP2-050/051 are required only if the
+release claim includes non-CLI protection-claim parity. Marketplace publishing,
+observation fan-out, cross-platform attribution, and audit-chain rescoring are
+deferred unless Boring Week exercises those surfaces.
 
 ---
 
@@ -219,18 +228,18 @@ ADTRUST-005; ADTRUST-003 / -004 / -006 are parallel after ADTRUST-001.
 
 Do not tag until these are green and reflected in release evidence.
 
-| Work                                  | Status | Notes                                                                                                               |
-| ------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------- |
-| `MLP-004` pre-push hook               | Done   | Shipped via PR #1499; walks pushed ranges, verifies witnesses, and applies L4 fallback.                             |
-| `MLP-009` protection-claim contract   | Done   | Closed-set protection vocabulary and contract evidence shipped with MLP v1.                                         |
-| `MLP-010` GitHub Action publishing    | Done   | Shipped via PR #1504; workflow template/accessor exposes the L4/CI surface.                                         |
-| `MLP-015` L5 audit                    | Done   | Shipped via PR #1500; audit-chain lane covers bypassed-layer detection.                                             |
-| `MLP-016` L1 editor driver → Kindling | Done   | Shipped via PR #1503; mid-edit Kindling observation builder completed.                                              |
-| Documentation lanes                   | Gate   | Adoption, air-gap, witness-chain, hooks-integration, migration, and `anvil-run` docs still gate release evidence.   |
-| `INSIGHTS-001`                        | Draft  | `anvil insights` weekly summary derived from witness chain + suppression log; schema pinned at `anvil-insights.v1`. |
-| `INSIGHTS-002`                        | Draft  | Suppression health view; flags stale suppressions where the underlying violation is gone.                           |
-| `INSIGHTS-003`                        | Draft  | Drift trend sparkline — 8 weeks of new cross-boundary edges; reports "insufficient data" honestly when applicable.  |
-| `INSIGHTS-004`                        | Draft  | First-week adoption hint nudging new users at `anvil insights` once per week for 14 days.                           |
+| Work                                  | Status | Notes                                                                                                                                                        |
+| ------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MLP-004` pre-push hook               | Done   | Shipped via PR #1499; walks pushed ranges, verifies witnesses, and applies L4 fallback.                                                                      |
+| `MLP-009` protection-claim vocabulary | Done   | Closed-set protection vocabulary and serde contract shipped with MLP v1; rendered correctness is gated by reopened MLP2-048 plus MLP2-049/050/051 as scoped. |
+| `MLP-010` workflow template primitive | Done   | Shipped via PR #1504; in-tree workflow template/accessor exists. External Marketplace publishing remains MLP2-042..045 and is not implied by this row.       |
+| `MLP-015` L5 audit                    | Done   | Shipped via PR #1500; audit-chain lane covers bypassed-layer detection.                                                                                      |
+| `MLP-016` L1 editor driver → Kindling | Done   | Shipped via PR #1503; mid-edit Kindling observation builder completed.                                                                                       |
+| Documentation lanes                   | Gate   | Adoption, air-gap, witness-chain, hooks-integration, migration, and `anvil-run` docs still gate release evidence.                                            |
+| `INSIGHTS-001`                        | Draft  | `anvil insights` weekly summary derived from witness chain + suppression log; schema pinned at `anvil-insights.v1`.                                          |
+| `INSIGHTS-002`                        | Draft  | Suppression health view; flags stale suppressions where the underlying violation is gone.                                                                    |
+| `INSIGHTS-003`                        | Draft  | Drift trend sparkline — 8 weeks of new cross-boundary edges; reports "insufficient data" honestly when applicable.                                           |
+| `INSIGHTS-004`                        | Draft  | First-week adoption hint nudging new users at `anvil insights` once per week for 14 days.                                                                    |
 
 ### Wave 5: Boring Week Validation Gate
 
@@ -239,12 +248,12 @@ only proof is using it.
 
 **Entry criteria — which work must be green before Wave 5 can start:**
 
-| Wave                          | Required for entry                                                                                            | Rationale                                                                                                                                                                                                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wave 3 (Coordination + INTL)  | `MLP-014` + `INTL-001..-005` only                                                                             | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
-| Wave 3A (Adoption Friction)   | All six ADOPT items + DISTRIB-001..-003                                                                       | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking.                                                                                                                                                                                                                                    |
-| Wave 3B (Trust Surface)       | All six ADTRUST items                                                                                         | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
-| Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (already Done), INSIGHTS-001 + -004, documentation lanes, release runbook | INSIGHTS-002 / -003 (suppression health, drift sparkline) are not Boring-Week-blocking; they ship in the same release but can land late.                                                                                                                                                                                     |
+| Wave                          | Required for entry                                                                                                                                                                                                 | Rationale                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wave 3 (Coordination + INTL)  | `MLP-014` + `INTL-001..-005` only                                                                                                                                                                                  | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
+| Wave 3A (Adoption Friction)   | All six ADOPT items + DISTRIB-001..-003                                                                                                                                                                            | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking.                                                                                                                                                                                                                                    |
+| Wave 3B (Trust Surface)       | All six ADTRUST items                                                                                                                                                                                              | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
+| Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (v1 primitives), MLP2 cut-line (`MLP2-011`, `MLP2-013`, `MLP2-014`, `MLP2-016`, `MLP2-048`, `MLP2-061`, `MLP2-062`), INSIGHTS-001 + -004, documentation lanes, release runbook | INSIGHTS-002 / -003 (suppression health, drift sparkline) are not Boring-Week-blocking; deferred MLP2 surfaces must be named honestly in release notes.                                                                                                                                                                      |
 
 If any Wave 3 INTL item from the deferrable set (-006..-009) is _not_ green at
 freeze time, it must be explicitly listed as deferred-to-v0.7.1 in the release
@@ -282,22 +291,22 @@ trust test. The instrument is the journal, not a benchmark.
 claim ("Anvil is ready to live on a senior engineer's machine for a month
 without being uninstalled") without caveats.
 
-| Criterion                    | Required Evidence                                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Protection claim correctness | `MLP-009` green: every allowed state is reachable in fixtures and rendered honestly.                                            |
-| Protection claim legibility  | `ADTRUST-001` and `ADTRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.              |
-| Save-time and hook layers    | Pre-commit, pre-push, post-commit/post-merge/post-rewrite hooks run with ADR-038 noise discipline.                              |
-| Hook coexistence             | `ADOPT-001` green: install + run alongside lefthook / husky / pre-commit-framework on representative configs.                   |
-| Witness integrity            | Concurrent writes, rollover, tamper detection, DAG verification, and worktree survival tests pass.                              |
-| Baseline adoption            | Existing repositories can adopt without broad warning noise; hard-pinned classes remain enforced.                               |
-| Agent launch path            | `anvil-run` registers sessions, isolates process groups / Job Objects, heartbeats, cleans up, and reports refusals.             |
-| Resource budget              | `ADOPT-002` green: CPU < 5% steady-state, RSS < 200MB on the reference repo, measured in CI.                                    |
-| Update path                  | `DISTRIB-001` green: signature-verified `anvil update` on Homebrew, curl-installer, and library paths.                          |
-| Clean uninstall              | `ADOPT-005` green (shipped 2026-05-14): `anvil uninstall` returns a repo to byte-identical pre-install state for tracked files. |
-| Air-gapped guarantee         | Core commands pass under a network-blocked sandbox.                                                                             |
-| Release machinery            | `scripts/release/*` can assess, prepare, tag, monitor, verify, and close out the exact `main` SHA being released.               |
-| Docs/runbooks                | User-facing docs and runbooks match the shipped claim; no protection state is described more strongly than evidence.            |
-| Boring Week                  | Wave 5 protocol completed; no cut blockers raised.                                                                              |
+| Criterion                    | Required Evidence                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protection claim correctness | `MLP-009` vocabulary green plus reopened `MLP2-048` render path and scoped fixture/conformance items green; do not claim non-CLI parity unless MLP2-050/051 are complete. |
+| Protection claim legibility  | `ADTRUST-001` and `ADTRUST-002` green: a non-Anvil developer reads `anvil status` once and explains what it means.                                                        |
+| Save-time and hook layers    | Pre-commit, pre-push, post-commit/post-merge/post-rewrite hooks run with ADR-038 noise discipline.                                                                        |
+| Hook coexistence             | `ADOPT-001` green: install + run alongside lefthook / husky / pre-commit-framework on representative configs.                                                             |
+| Witness integrity            | Concurrent writes, rollover, tamper detection, DAG verification, post-rollover append (`MLP2-061`), and L4 chain verification (`MLP2-062`) pass.                          |
+| Baseline adoption            | Existing repositories can adopt without broad warning noise; hard-pinned classes remain enforced.                                                                         |
+| Agent launch path            | `anvil-run` registers sessions, isolates process groups / Job Objects, heartbeats, cleans up, and reports refusals.                                                       |
+| Resource budget              | `ADOPT-002` green: CPU < 5% steady-state, RSS < 200MB on the reference repo, measured in CI.                                                                              |
+| Update path                  | `DISTRIB-001` green: signature-verified `anvil update` on Homebrew, curl-installer, and library paths.                                                                    |
+| Clean uninstall              | `ADOPT-005` green (shipped 2026-05-14): `anvil uninstall` returns a repo to byte-identical pre-install state for tracked files.                                           |
+| Air-gapped guarantee         | Core commands pass under a network-blocked sandbox.                                                                                                                       |
+| Release machinery            | `scripts/release/*` can assess, prepare, tag, monitor, verify, and close out the exact `main` SHA being released.                                                         |
+| Docs/runbooks                | User-facing docs and runbooks match the shipped claim; no protection state is described more strongly than evidence.                                                      |
+| Boring Week                  | Wave 5 protocol completed; no cut blockers raised.                                                                                                                        |
 
 **Anti-goal:** do not ship a partial MLP/INTL/ADTRUST/ADOPT slice under the full
 "let's use this" claim. If scope must be cut, rename the release claim before
