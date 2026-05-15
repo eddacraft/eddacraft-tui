@@ -57,9 +57,9 @@ Rust binary.
 
 ### Curl Installer Says Homebrew Owns Anvil
 
-On macOS/Linux, the curl installer refuses to replace an existing Homebrew-managed
-Anvil binary. This prevents two install methods from fighting over the same
-command.
+On macOS/Linux, the curl installer refuses to replace an existing
+Homebrew-managed Anvil binary. This prevents two install methods from fighting
+over the same command.
 
 **Solution:**
 
@@ -303,8 +303,8 @@ Files changing but anvil not responding.
 
 3. Check whether the file is under Anvil's built-in local-noise ignore policy.
    Watch and audit skip local tool state, agent worktrees, generated folders,
-   and caches such as `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`,
-   `node_modules`, `target`, and `dist` by default.
+   and caches such as `.claude`, `.opencode`, `.gemini`, `.serena`,
+   `.worktrees`, `node_modules`, `target`, and `dist` by default.
 
 4. Increase debounce:
 

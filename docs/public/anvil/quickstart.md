@@ -227,8 +227,9 @@ Save a file and see anvil catch it. Every change is validated in milliseconds,
 not minutes.
 
 Audit and watch skip local tool state, agent worktrees, generated folders, and
-common caches by default, including `.claude`, `.opencode`, `.gemini`, `.serena`,
-`.worktrees`, `node_modules`, `target`, `dist`, and cache directories.
+common caches by default, including `.claude`, `.opencode`, `.gemini`,
+`.serena`, `.worktrees`, `node_modules`, `target`, `dist`, and cache
+directories.
 
 :::tip
 

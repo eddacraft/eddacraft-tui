@@ -142,9 +142,9 @@ anvil --version
 If you installed with Homebrew, WinGet, or Scoop, use that package manager
 instead when the built-in updater tells you to.
 
-The macOS/Linux curl installer also detects an existing Homebrew Anvil binary. In
-that case it exits successfully without replacing the Homebrew-managed binary and
-prints the Homebrew command instead.
+The macOS/Linux curl installer also detects an existing Homebrew Anvil binary.
+In that case it exits successfully without replacing the Homebrew-managed binary
+and prints the Homebrew command instead.
 
 ```bash
 brew upgrade eddacraft/tap/anvil
@@ -278,9 +278,9 @@ On large repos it should print startup feedback immediately while warm-up runs,
 not sit at a blank terminal. When stdin or stdout is not a terminal, it should
 fall back to plain output instead of opening the TUI.
 
-The initial watch scan is baseline/readiness state: existing repo contents should
-not appear as new save-time violations until a later file change introduces or
-re-surfaces the issue.
+The initial watch scan is baseline/readiness state: existing repo contents
+should not appear as new save-time violations until a later file change
+introduces or re-surfaces the issue.
 
 Audit and watch share a local-noise ignore policy. Tool state, local agent
 worktrees, generated directories, and caches such as `.claude`, `.opencode`,

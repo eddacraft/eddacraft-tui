@@ -21,8 +21,8 @@ stdout. You can pipe it into `jq`, a shell loop, or a small reader process
 without coupling to terminal output.
 
 The initial scan builds baseline/readiness state. It emits progress and snapshot
-events, but existing repository contents are not reported as new violations until
-a later file change introduces or re-surfaces them.
+events, but existing repository contents are not reported as new violations
+until a later file change introduces or re-surfaces them.
 
 :::info Contract version
 
