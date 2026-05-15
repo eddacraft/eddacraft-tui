@@ -1112,6 +1112,7 @@ dependencies = [
 name = "eddacraft-anvil-baseline"
 version = "0.6.2-beta"
 dependencies = [
+ "eddacraft-anvil-witness",
  "hex",
  "serde",
  "serde_json",

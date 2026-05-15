@@ -295,6 +295,7 @@ mod tests {
             prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit: None,
             ts: "2026-05-13T00:00:00Z".to_string(),
             validation_at: "pre-commit".to_string(),
         }
@@ -312,6 +313,7 @@ mod tests {
             "active",
             "2026-05-13T00:00:00Z".to_string(),
             "pre-commit",
+            None,
         );
         writer.append(&genesis).unwrap();
         let mut prev = anvil_witness::compute_line_hash(&genesis.to_canonical_bytes().unwrap());
@@ -447,6 +449,7 @@ mod tests {
             "active",
             "2026-05-13T00:00:00Z".to_string(),
             "pre-commit",
+            None,
         );
         writer.append(&genesis).unwrap();
         let prev = anvil_witness::compute_line_hash(&genesis.to_canonical_bytes().unwrap());
@@ -461,6 +464,7 @@ mod tests {
             prev_line_hashes: vec![None, None],
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit: None,
             ts: "2026-05-13T00:00:00Z".to_string(),
             validation_at: "post-merge".to_string(),
         };

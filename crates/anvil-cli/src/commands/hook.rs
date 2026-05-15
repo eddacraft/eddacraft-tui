@@ -1145,6 +1145,7 @@ fn build_bootstrap_recovery_witness_line(
         prev_line_hashes: Vec::new(),
         agent_tag: None,
         rules_sha: None,
+        cutoff_commit: None,
         ts: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         validation_at: BOOTSTRAP_RECOVERY_VALIDATION_AT.to_string(),
     }
@@ -1243,6 +1244,7 @@ where
                 "active",
                 chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
                 "pre-commit",
+                None,
             );
             writer
                 .append(&genesis)
@@ -1366,6 +1368,7 @@ fn build_witness_line(
         prev_line_hashes: Vec::new(),
         agent_tag: None,
         rules_sha: None,
+        cutoff_commit: None,
         ts: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         validation_at: validation_at.to_string(),
     }
@@ -1388,6 +1391,7 @@ fn build_merge_witness_line(
         prev_line_hashes: plan.prev_line_hashes,
         agent_tag: None,
         rules_sha: None,
+        cutoff_commit: None,
         ts: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         validation_at: "post-merge".to_string(),
     }
@@ -1410,6 +1414,7 @@ fn build_rewrite_witness_line(
         prev_line_hashes: Vec::new(),
         agent_tag: None,
         rules_sha: None,
+        cutoff_commit: None,
         ts: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         validation_at: anvil_hook::POST_REWRITE_VALIDATION_AT.to_string(),
     }

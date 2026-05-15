@@ -22,6 +22,10 @@
 //!   `anvil/baseline.json` (symlink refusal pattern matches MLP-001).
 //! - [`Baseline::diff`] — partitions a new scan into `unchanged`,
 //!   `added`, `removed` relative to the baseline.
+//! - [`save_with_genesis`] — MLP2-013: save + emit the first
+//!   witness chain line with `GENESIS-BASELINED` (`baseline.cutoff_commit`
+//!   on the line body) or `GENESIS-FRESH` (no cutoff). Idempotent
+//!   on an existing chain so re-runs do not duplicate the genesis.
 //!
 //! ## Out of scope (deferred to consumers / follow-up)
 //!
@@ -39,8 +43,6 @@
 //!   calls `anvil_l4::pin_cutoff_commit` after `save()` so that
 //!   `anvil/baseline.json` and `anvil/policy.yml` agree on the
 //!   cutoff in one flow.
-//! - Witness genesis-line emission (`GENESIS-BASELINED`) — owned by
-//!   MLP-002's writer + the MLP-003 hook lane.
 //! - Hook installation — MLP-003 / MLP-008 own framework-specific
 //!   install paths.
 //! - Adversarial-refresh detection (`degraded:baseline-suspicious`)
@@ -80,5 +82,7 @@ pub use diff::{
     SuspicionThresholds, analyze_refresh,
 };
 pub use finding::{BaselineFinding, FingerprintError, compute_fingerprint, normalize_snippet};
-pub use io::{BASELINE_PATH, BaselineIoError, load, save};
+pub use io::{
+    BASELINE_PATH, BASELINE_VALIDATION_AT, BaselineIoError, load, save, save_with_genesis,
+};
 pub use store::{Baseline, BaselineMetadata, FORMAT_VERSION, FormatError};

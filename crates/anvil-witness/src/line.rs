@@ -55,6 +55,14 @@ pub struct WitnessLine {
     /// the evidence stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules_sha: Option<String>,
+    /// MLP2-013: the baseline cutoff commit SHA when this line is a
+    /// `GENESIS-BASELINED` anchor. ADR-037 §D-2 records the cutoff on
+    /// the line body — not glued onto the anchor string — so the
+    /// anchor namespace stays closed-set and the SHA survives the
+    /// canonical-bytes round-trip. `None` on every other line type,
+    /// including `GENESIS-FRESH` (greenfield adoption has no cutoff).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cutoff_commit: Option<String>,
     /// ISO-8601 UTC timestamp at write time. Format `YYYY-MM-DDTHH:MM:SSZ`.
     pub ts: String,
     /// Where the validation that produced this line ran — e.g.
@@ -97,12 +105,20 @@ impl WitnessLine {
     }
 
     /// Convenience builder for the first line in a fresh chain.
+    ///
+    /// `cutoff_commit` is the baseline cut-over SHA when `anchor` is
+    /// [`GenesisAnchor::Baselined`]; pass `None` for a
+    /// [`GenesisAnchor::Fresh`] greenfield chain. The field is
+    /// persisted on the line body (ADR-037 §D-2) rather than glued
+    /// onto the anchor string, so the verifier's anchor parser stays
+    /// closed-set.
     pub fn genesis(
         anchor: &GenesisAnchor,
         project_uuid: impl Into<String>,
         scope: impl Into<String>,
         ts: impl Into<String>,
         validation_at: impl Into<String>,
+        cutoff_commit: Option<String>,
     ) -> Self {
         Self {
             seq: 1,
@@ -115,6 +131,7 @@ impl WitnessLine {
             prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit,
             ts: ts.into(),
             validation_at: validation_at.into(),
         }
@@ -152,6 +169,7 @@ mod tests {
             prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit: None,
             ts: "2026-05-13T00:00:00Z".to_string(),
             validation_at: "pre-commit".to_string(),
         }
@@ -246,8 +264,55 @@ mod tests {
             "active",
             "2026-05-13T00:00:00Z",
             "pre-commit",
+            None,
         );
         assert_eq!(l.seq, 1);
         assert_eq!(l.prev_line_hash, "GENESIS-FRESH");
+    }
+
+    /// MLP2-013: a `GENESIS-BASELINED` line carries the baseline
+    /// cutoff SHA on the line body (ADR-037 §D-2). The field must
+    /// survive the canonical-bytes round-trip so a downstream
+    /// verifier reading the on-disk line can recover the cutoff
+    /// without re-parsing the anchor string.
+    #[test]
+    fn genesis_baselined_carries_cutoff_commit_through_round_trip() {
+        let l = WitnessLine::genesis(
+            &GenesisAnchor::Baselined,
+            "uuid-123",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "baseline",
+            Some("a3b2ea4ecafef00d".to_string()),
+        );
+        assert_eq!(l.prev_line_hash, "GENESIS-BASELINED");
+        assert_eq!(l.cutoff_commit.as_deref(), Some("a3b2ea4ecafef00d"));
+        let bytes = l.to_ndjson_line().unwrap();
+        let parsed = WitnessLine::from_ndjson_line(&bytes).unwrap();
+        assert_eq!(parsed.cutoff_commit.as_deref(), Some("a3b2ea4ecafef00d"));
+        assert_eq!(parsed.prev_line_hash, "GENESIS-BASELINED");
+    }
+
+    /// MLP2-013: when no cutoff is set (greenfield `GENESIS-FRESH`
+    /// adoption, or any normal post-genesis line), the canonical
+    /// bytes must NOT carry a `cutoff_commit` key. Pinning the
+    /// omitted-when-None shape keeps the hash chain deterministic
+    /// across writers that do and don't track the field.
+    #[test]
+    fn cutoff_commit_is_omitted_from_canonical_bytes_when_none() {
+        let l = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "uuid-123",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "baseline",
+            None,
+        );
+        let bytes = l.to_canonical_bytes().unwrap();
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(
+            !s.contains("cutoff_commit"),
+            "cutoff_commit must be omitted when None, got: {s}"
+        );
     }
 }

@@ -191,6 +191,7 @@ mod tests {
             prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit: None,
             ts: "2026-05-13T00:00:00Z".to_string(),
             validation_at: "pre-commit".to_string(),
         }
@@ -293,6 +294,56 @@ mod tests {
             matches!(err, VerifyError::UnknownGenesis { .. }),
             "got {err:?}"
         );
+    }
+
+    /// MLP2-013: a chain rooted at `GENESIS-BASELINED` (`cutoff_commit`
+    /// recorded on the genesis line body) must verify cleanly with
+    /// subsequent pre-commit lines chaining off it. Pin that the
+    /// verifier accepts both anchor types at the chain root.
+    #[test]
+    fn verify_accepts_chain_starting_with_genesis_baselined() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        let genesis = WitnessLine::genesis(
+            &GenesisAnchor::Baselined,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "baseline",
+            Some("a3b2ea4ecafef00d".to_string()),
+        );
+        writer.append(&genesis).unwrap();
+        let mut prev = compute_line_hash(&genesis.to_canonical_bytes().unwrap());
+        for seq in 2..=4 {
+            let l = line(seq, &prev);
+            writer.append(&l).unwrap();
+            prev = compute_line_hash(&l.to_canonical_bytes().unwrap());
+        }
+        let report = verify_chain(&[writer.active_path().as_path()]).unwrap();
+        assert_eq!(report.anchor, Some(GenesisAnchor::Baselined));
+        assert_eq!(report.line_count, 4);
+    }
+
+    /// MLP2-013 companion: greenfield `GENESIS-FRESH` adoption (no
+    /// cutoff) still verifies cleanly. Pins the two-anchor support
+    /// the verifier already exposed; this guards regression as the
+    /// genesis call sites widen.
+    #[test]
+    fn verify_accepts_chain_starting_with_genesis_fresh() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        let genesis = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        writer.append(&genesis).unwrap();
+        let report = verify_chain(&[writer.active_path().as_path()]).unwrap();
+        assert_eq!(report.anchor, Some(GenesisAnchor::Fresh));
+        assert_eq!(report.line_count, 1);
     }
 
     #[test]

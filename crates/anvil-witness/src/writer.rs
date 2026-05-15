@@ -344,6 +344,7 @@ mod tests {
             prev_line_hashes: Vec::new(),
             agent_tag: None,
             rules_sha: None,
+            cutoff_commit: None,
             ts: "2026-05-13T00:00:00Z".to_string(),
             validation_at: "pre-commit".to_string(),
         }
