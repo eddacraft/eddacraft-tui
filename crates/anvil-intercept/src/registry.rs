@@ -262,6 +262,18 @@ struct Inner {
     /// untagged registration on the same worktree still returns
     /// `WorktreeAlreadyOwned`.
     by_composite: HashMap<(PathBuf, Option<AgentTag>), SessionId>,
+    /// MLP2-025: `(pid, pid_starttime)` -> session id. The lineage
+    /// anchor used by [`SessionRegistry::lookup_tag_for_lineage`] for
+    /// the spoof cross-check. Populated by
+    /// [`SessionRegistry::register_with_lineage`]; the legacy
+    /// [`SessionRegistry::register`] path leaves it untouched (those
+    /// sessions are not reachable by lineage lookup).
+    ///
+    /// Keying on the `(pid, pid_starttime)` pair, not bare PID, is the
+    /// anti-spoof guarantee: after a launcher exits, its PID may be
+    /// reused by a hostile process, but the new incarnation's
+    /// `pid_starttime` will differ and the lookup will miss.
+    by_pid_lineage: HashMap<(u32, u64), SessionId>,
 }
 
 struct RegistryEntry {
@@ -289,6 +301,7 @@ impl SessionRegistry {
             inner: Mutex::new(Inner {
                 sessions: HashMap::new(),
                 by_composite: HashMap::new(),
+                by_pid_lineage: HashMap::new(),
             }),
             ttl,
             per_worktree_cap: DEFAULT_PER_WORKTREE_CAP,
@@ -427,6 +440,119 @@ impl SessionRegistry {
         );
         inner.by_composite.insert(composite_key, id.clone());
         Ok(record)
+    }
+
+    /// MLP2-025: register a session with a lineage anchor. Mirrors
+    /// [`Self::register`] but additionally captures the daemon-issued
+    /// `AgentTag`, the registering PID, and that PID's
+    /// `pid_starttime`. The `(pid, pid_starttime)` pair is the
+    /// authoritative anchor for [`Self::lookup_tag_for_lineage`] —
+    /// PID reuse after a launcher exit produces a different
+    /// `pid_starttime` and the lookup misses by design.
+    ///
+    /// Until the daemon control-lane wire-up (MLP2-025 subtask A5),
+    /// the legacy [`Self::register`] path is what most call sites use;
+    /// this method exists so the daemon can opt in to the lineage
+    /// index at register time without breaking the legacy callers.
+    #[allow(clippy::too_many_arguments)] // surface mirrors the daemon's call site verbatim
+    pub fn register_with_lineage(
+        &self,
+        id: &SessionId,
+        worktree: &Path,
+        agent_tag: Option<&AgentTag>,
+        daemon_issued_tag: Option<&AgentTag>,
+        pid: u32,
+        pid_starttime: u64,
+        now: Instant,
+    ) -> Result<SessionRecord, RegistryError> {
+        // Delegate the worktree-uniqueness and cap checks to the
+        // legacy path, then overwrite the daemon-issued tag and PID
+        // fields, and finally seed the lineage index.
+        let mut record = self.register(id, worktree, agent_tag, now)?;
+        record.daemon_issued_tag = daemon_issued_tag.cloned();
+        record.pid = Some(pid);
+        record.started_at_unix = pid_starttime;
+        {
+            let mut inner = self.lock();
+            if let Some(entry) = inner.sessions.get_mut(id) {
+                entry.record = record.clone();
+            }
+            inner
+                .by_pid_lineage
+                .insert((pid, pid_starttime), id.clone());
+        }
+        Ok(record)
+    }
+
+    /// MLP2-025: pure lookup helper. Given a `(pid, pid_starttime)`
+    /// pair, return the daemon-issued tag of any registered session
+    /// whose lineage anchor matches. The pair must match exactly:
+    /// PID reuse with a different `pid_starttime` returns `None`.
+    ///
+    /// This is the building block for
+    /// [`Self::lookup_tag_for_lineage`], which composes it with the
+    /// real `anvil_attribution::walk::walk_ancestors` pass to walk a
+    /// writer's PID lineage. Tests can target this helper directly
+    /// with synthetic anchors so they stay platform-portable.
+    #[must_use]
+    pub fn lookup_tag_by_pid_starttime(
+        &self,
+        pid: u32,
+        pid_starttime: u64,
+    ) -> Option<AgentTag> {
+        let inner = self.lock();
+        let sid = inner.by_pid_lineage.get(&(pid, pid_starttime))?;
+        inner
+            .sessions
+            .get(sid)?
+            .record
+            .daemon_issued_tag
+            .clone()
+    }
+
+    /// MLP2-025: walk the writer's PID lineage and return the
+    /// daemon-issued tag of any registered ancestor. Each ancestor's
+    /// `pid_starttime` is read live via
+    /// `anvil_attribution::process::pid_starttime` and compared
+    /// against the lineage index — a PID match with a stale
+    /// `pid_starttime` (the canonical PID-reuse spoof) is rejected.
+    ///
+    /// Returns `None` when the walk reaches init without a match,
+    /// when the depth cap fires, or when an ancestor's process info
+    /// cannot be read. Failure-to-read is treated as "not matched"
+    /// rather than as an error because the cross-check path must be
+    /// best-effort: a missing `pid_starttime` for an ancestor (e.g.
+    /// the process exited mid-walk) cannot grant attribution.
+    #[must_use]
+    pub fn lookup_tag_for_lineage(&self, start_pid: u32) -> Option<AgentTag> {
+        use anvil_attribution::process::pid_starttime;
+        use anvil_attribution::walk::{DEFAULT_MAX_DEPTH, WalkOutcome, walk_ancestors};
+
+        // Snapshot the lineage index so the walk (which may probe
+        // `/proc` repeatedly) does not hold the registry lock.
+        let snapshot: HashMap<(u32, u64), SessionId> = {
+            let inner = self.lock();
+            inner.by_pid_lineage.clone()
+        };
+
+        let outcome = walk_ancestors(start_pid, DEFAULT_MAX_DEPTH, |pid| {
+            let starttime = pid_starttime(pid).ok()?;
+            snapshot.get(&(pid, starttime)).cloned()
+        })
+        .ok()?;
+
+        let matched_sid = match outcome {
+            WalkOutcome::Matched { value, .. } => value,
+            WalkOutcome::ReachedRoot | WalkOutcome::DepthExhausted { .. } => return None,
+        };
+
+        let inner = self.lock();
+        inner
+            .sessions
+            .get(&matched_sid)?
+            .record
+            .daemon_issued_tag
+            .clone()
     }
 
     /// Update process info for a registered session. `None` fields are
@@ -668,6 +794,11 @@ impl SessionRegistry {
                 entry.record.agent_tag.clone(),
             );
             inner.by_composite.remove(&key);
+            // MLP2-025: drop the lineage anchor too, if any. Linear
+            // scan over `by_pid_lineage` because we don't carry the
+            // (pid, starttime) on the SessionRecord — the index is the
+            // authoritative anchor.
+            inner.by_pid_lineage.retain(|_, sid| sid != id);
             entry.record.worktree
         };
         // MLP2-057: fire the hook AFTER the inner lock is released so a
@@ -720,6 +851,10 @@ impl SessionRegistry {
                     worktrees.push(entry.record.worktree);
                 }
             }
+            // MLP2-025: drop lineage anchors for every evicted session.
+            inner
+                .by_pid_lineage
+                .retain(|_, sid| !to_evict.contains(sid));
             (to_evict, worktrees)
         };
 
@@ -1808,5 +1943,140 @@ mod tests {
         // returns `true` with no side effects beyond the inner
         // hashmap mutation.
         assert!(registry.unregister(&sid("h1")).unwrap());
+    }
+
+    // ---- MLP2-025: lineage lookup + spoof rejection ----------------
+
+    /// A session registered with `register_with_lineage` becomes
+    /// findable via `lookup_tag_by_pid_starttime` for the exact
+    /// `(pid, pid_starttime)` it was anchored with. This is the
+    /// happy path: an ancestor of a writer is present in the registry
+    /// and the lookup returns the daemon-issued tag.
+    #[test]
+    fn lineage_walk_finds_registered_ancestor() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "claude-code-9", 1_700_000_042);
+        registry
+            .register_with_lineage(
+                &sid("ancestor"),
+                wt.path(),
+                None,
+                Some(&issued),
+                12345,
+                1_700_000_042,
+                Instant::now(),
+            )
+            .expect("register with lineage");
+
+        let found = registry
+            .lookup_tag_by_pid_starttime(12345, 1_700_000_042)
+            .expect("matching (pid, starttime) yields Some");
+        assert_eq!(found, issued);
+
+        // A different PID returns None.
+        assert!(
+            registry
+                .lookup_tag_by_pid_starttime(99999, 1_700_000_042)
+                .is_none(),
+            "no session indexed at pid 99999 — must return None"
+        );
+    }
+
+    /// MLP2-025 anti-spoof core: a registered session at
+    /// `(pid=12345, pid_starttime=A)` must NOT be returned by a lookup
+    /// for `(pid=12345, pid_starttime=B)`. PID reuse after a legitimate
+    /// launcher exit is the canonical spoof scenario, and the
+    /// `pid_starttime` component is what distinguishes the two process
+    /// incarnations.
+    #[test]
+    fn lineage_walk_rejects_pid_reuse_without_starttime_match() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "claude-code-9", 1_700_000_100);
+        registry
+            .register_with_lineage(
+                &sid("legit"),
+                wt.path(),
+                None,
+                Some(&issued),
+                42,
+                1_700_000_100,
+                Instant::now(),
+            )
+            .expect("register legit");
+
+        // Same PID, different start-time → not the same process.
+        assert!(
+            registry.lookup_tag_by_pid_starttime(42, 1_700_000_200).is_none(),
+            "PID reuse with different starttime must not match"
+        );
+        // Same PID, matching start-time → still the same process.
+        assert_eq!(
+            registry.lookup_tag_by_pid_starttime(42, 1_700_000_100),
+            Some(issued),
+        );
+    }
+
+    /// `register_with_lineage` populates the daemon-issued tag on the
+    /// stored `SessionRecord`, distinct from the client-supplied
+    /// `agent_tag` field. Pinning the contract so consumers reading
+    /// `SessionRecord::daemon_issued_tag` after a registration see the
+    /// daemon's value, not the client's.
+    #[test]
+    fn register_with_lineage_records_daemon_issued_tag_on_record() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let client = tag("anvil-run", "client-claim", 1_700_000_000);
+        let issued = tag("anvil-run", "claude-code-9", 1_700_000_500);
+
+        let record = registry
+            .register_with_lineage(
+                &sid("dual-tag"),
+                wt.path(),
+                Some(&client),
+                Some(&issued),
+                4242,
+                1_700_000_500,
+                Instant::now(),
+            )
+            .expect("register with lineage");
+
+        assert_eq!(record.agent_tag, Some(client));
+        assert_eq!(record.daemon_issued_tag, Some(issued));
+    }
+
+    /// Unregistering a session also drops it from the lineage index;
+    /// a subsequent `lookup_tag_by_pid_starttime` for the same
+    /// `(pid, starttime)` returns `None`.
+    #[test]
+    fn unregister_drops_lineage_index_entry() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "claude-code-9", 1_700_000_700);
+        registry
+            .register_with_lineage(
+                &sid("temp"),
+                wt.path(),
+                None,
+                Some(&issued),
+                5000,
+                1_700_000_700,
+                Instant::now(),
+            )
+            .expect("register");
+        assert!(
+            registry
+                .lookup_tag_by_pid_starttime(5000, 1_700_000_700)
+                .is_some()
+        );
+
+        registry.unregister(&sid("temp")).expect("unregister");
+        assert!(
+            registry
+                .lookup_tag_by_pid_starttime(5000, 1_700_000_700)
+                .is_none(),
+            "lineage index must drop entries on unregister"
+        );
     }
 }
