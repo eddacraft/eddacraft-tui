@@ -2,21 +2,26 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 23/60 done |
+| MLP2 | @aneki | In Progress | 25/60 done |
 
-**Last reviewed:** 2026-05-15 (wave 1H opened on branch
-`feat/mlp2-032-034-baseline-identity`: MLP2-032 wires
-`ensure_project_id` + `pin_cutoff_commit` into `anvil baseline`;
-MLP2-034 Phase 1 wires `run_antipattern_check` →
-`BaselineFinding` with snippet-derived fingerprints. Both items
-**In Progress**, awaiting PR + Council. Earlier history: wave 1C
-shipped 2026-05-14 — MLP2-052, MLP2-057, MLP2-048, MLP2-016 closed
-together on branch `feat/mlp2-wave-016-048-057-052` with one
-Council remediation pass on top — Council #C-016A `on_warn`
-consultation fix folded into MLP2-016. Module created from
-MLP-018 split-out; each of the 56 deferred sub-items in
-`[multilayer-protection]`'s v1-scope footnotes promoted to its
-own MLP2-NNN task.)
+**Last reviewed:** 2026-05-15 (wave 1H shipped 2026-05-15 via
+PR #1575 at `a40525ad` — MLP2-032 wires `ensure_project_id` +
+`anvil_l4::pin_cutoff_commit` into the `anvil baseline`
+orchestrator with canonical `anvil_config::discover` policy
+precedence and first-create cutoff fallback; MLP2-034 Phase 1
+wires `anvil-checks::antipattern::run_antipattern_check` into
+the same orchestrator to populate `BaselineFinding {rule_id,
+file_path, fingerprint}` with move-resistant snippet
+fingerprints. +6 unit pins in `commands/baseline.rs` (2 are
+Council #C-1/#C-2 regression guards folded into the same branch
+before merge). Group G now 3/6 (MLP2-031 + -032 + -034 Phase 1
+shipped). Earlier history: wave 1C shipped 2026-05-14 — MLP2-052,
+MLP2-057, MLP2-048, MLP2-016 closed together on branch
+`feat/mlp2-wave-016-048-057-052` with one Council remediation
+pass on top — Council #C-016A `on_warn` consultation fix folded
+into MLP2-016. Module created from MLP-018 split-out; each of
+the 56 deferred sub-items in `[multilayer-protection]`'s v1-scope
+footnotes promoted to its own MLP2-NNN task.)
 
 > **Scope.** MLP2 ships the integration work that closes every v1
 > primitive landed by the MLP module into a full surface. MLP
@@ -1167,7 +1172,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-032: `anvil baseline` writes project identity
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Baseline CLI command (`anvil baseline`) calls
   `identity::ensure_project_id` alongside its bootstrap work,
   so adopting Anvil into an existing repo writes
@@ -1184,7 +1189,7 @@ task's `Source:` line cites the Council finding IDs.
   `crates/anvil-l4/src/lib.rs` (re-export `pin_cutoff_commit`),
   `crates/anvil-l4/src/policy.rs` (drop `#[allow(dead_code)]`
   now the orchestrator wires the symbol).
-- **Evidence (In Progress on `feat/mlp2-032-034-baseline-identity`):**
+- **Evidence (Merged 2026-05-15 via PR #1575 at `a40525ad`):**
   `run_create_or_refresh` now calls `ensure_project_id` instead
   of erroring on absent `anvil/project-id` — first-run mints a
   fresh v7 UUID, re-run preserves the existing identity (council
@@ -1208,7 +1213,7 @@ task's `Source:` line cites the Council finding IDs.
   (Council #C-2 first-create convergence guard).
   `cargo test --workspace` clean; `cargo clippy --workspace
   --all-targets -- -D warnings` clean. Council quick review on
-  PR #TBD found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
+  PR #1575 found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
   (precedence drift, first-create divergence) folded into the
   same branch with regression tests; MINOR/NIT addressed
   inline (TOCTOU caveat documented on
@@ -1246,7 +1251,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-034: Scanner integration — populate `BaselineFinding` from anvil-checks
 
-- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
+- **Status:** Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** Wire `anvil-checks`'s diagnostic pipeline output
   through to `anvil-baseline::BaselineFinding` so
   `anvil baseline --refresh` actually records what the rules
@@ -1267,8 +1272,7 @@ task's `Source:` line cites the Council finding IDs.
   (scanner orchestration, file walk, snippet re-read for
   fingerprinting). No surface change to `anvil-checks` —
   consumed via its existing `run_antipattern_check` entry point.
-- **Evidence (Phase 1 In Progress on
-  `feat/mlp2-032-034-baseline-identity`):**
+- **Evidence (Phase 1 Merged 2026-05-15 via PR #1575 at `a40525ad`):**
   `scan_repo_for_findings` walks the worktree with
   `ignore::WalkBuilder` (matching `anvil check --all`'s SCAN-001
   shape but rooted at the explicit baseline target), calls
@@ -2017,7 +2021,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 | D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
-| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 1/6 |
+| G. Baseline + identity wiring | 6 (MLP2-031..-036) | 3/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 0/5 |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 0/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 0/5 |
