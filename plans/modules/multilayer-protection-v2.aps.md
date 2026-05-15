@@ -1445,7 +1445,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-036: Async continuation for >100k file baselines
 
-- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
+- **Status:** Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** `anvil baseline` currently scans synchronously.
   Add async continuation + a "partial baseline" marker so
   huge monorepos don't time out during adoption.
@@ -1472,8 +1472,7 @@ task's `Source:` line cites the Council finding IDs.
   `crates/anvil-cli/src/commands/baseline.rs`
   (`--scan-budget` flag, budget-aware scanner, resume
   orchestration).
-- **Evidence (Phase 1 In Progress on
-  `feat/mlp2-036-baseline-continuation`):**
+- **Evidence (Phase 1 Merged 2026-05-15 via PR #1584 at `0220b302`):**
   Schema fields are `serde(default,
   skip_serializing_if = ...)` so a complete baseline
   serialises byte-identically to pre-MLP2-036 (older anvil
@@ -1500,7 +1499,7 @@ task's `Source:` line cites the Council finding IDs.
   unit pins (6 in store.rs, 6 in baseline.rs) plus 5 Council
   regression pins. `cargo test --workspace` clean (4148 tests;
   +17 net); `cargo clippy --workspace --all-targets -- -D
-  warnings` clean. Council quick on PR #TBD found 3 MAJOR + 3
+  warnings` clean. Council quick on PR #1584 found 3 MAJOR + 3
   MINOR + 1 NIT — all 3 MAJORs folded with regression tests;
   #C-4 folded; remaining minors deferred to Phase 2.
 - **Validation (Phase 1):**
