@@ -24,13 +24,17 @@
 //! - [`verify_chain`] — walk the active file (and optionally a list
 //!   of archive files in sequence order) and confirm the hash chain
 //!   is unbroken; surfaces tamper / deletion / genesis-mismatch.
+//!   Linear-only contract; a thin wrapper over [`verify_chain_dag`].
+//! - [`verify_chain_dag`] (MLP2-011) — DAG-aware walker that joins on
+//!   merge nodes' `parent_commits[]` + `prev_line_hashes[]`. Strict
+//!   superset of `verify_chain`: every linear chain that the legacy
+//!   verifier accepted is still accepted, plus merge-shaped chains
+//!   produced by `anvil hook post-merge` via
+//!   [`anvil_hook::merge_witness_plan`][merge-plan].
+//!
+//! [merge-plan]: https://docs.rs/eddacraft-anvil-hook/latest/anvil_hook/fn.merge_witness_plan.html
 //!
 //! ## Deferred follow-ups
-//!
-//! - **DAG-aware merge verification.** Merge commits will carry
-//!   `parent_commits[]` and a `prev_line_hashes[]` array; the verifier
-//!   needs a graph walk rather than a strict linear chain. Lands with
-//!   MLP-005 post-merge hook.
 //! - **`merge=union -text` integration** — the orchestrator already
 //!   pre-positions `.gitattributes` (MLP-001 step 1a-b). The witness
 //!   crate itself stays format-stable so the union merge can
@@ -62,5 +66,5 @@ mod writer;
 pub use genesis::GenesisAnchor;
 pub use line::{LineHash, WitnessLine, WitnessRecord, compute_line_hash};
 pub use manifest::{ManifestEntry, append_manifest_entry, manifest_path, manifest_tail};
-pub use verify::{ChainReport, VerifyError, verify_chain};
+pub use verify::{ChainReport, DagVerification, VerifyError, verify_chain, verify_chain_dag};
 pub use writer::{RolloverPolicy, WitnessWriter, WriterError};
