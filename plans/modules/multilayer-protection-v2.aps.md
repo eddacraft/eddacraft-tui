@@ -1445,21 +1445,76 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-036: Async continuation for >100k file baselines
 
-- **Status:** Draft
+- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
 - **Intent:** `anvil baseline` currently scans synchronously.
   Add async continuation + a "partial baseline" marker so
   huge monorepos don't time out during adoption.
 - **Expected Outcome:**
-  - Scan emits a partial baseline file with a `continuation:
-    <cursor>` marker.
-  - Resume reads the cursor and continues; merges into the
-    full baseline at the end.
-  - Performance: 100k files complete within a documented
-    budget (TBD; profile first).
-- **Files:** `crates/anvil-baseline/src/io.rs`,
-  `crates/anvil-cli/src/commands/baseline.rs`.
-- **Validation:** Fixture of 100k synthetic files; full +
-  resumed flow produces same final baseline.
+  - **Phase 1 (this PR):** schema additions
+    `partial: bool` + `continuation: Option<String>` on
+    `Baseline`; `Baseline::merge_partial_findings` helper
+    (dedupe-aware union); CLI flag `--scan-budget <N>`
+    (default 50_000) on `anvil baseline`; partial state on
+    disk auto-resumes on plain `anvil baseline`. Suspicion
+    detection + cutoff pin both skipped while baseline is
+    partial.
+  - **Phase 2 (follow-up):** time-based budget option
+    (`--scan-budget-secs`); 100k synthetic-file fixture for
+    documented performance budget (spec said "TBD; profile
+    first"); `anvil status --json` rendering of `partial=true`
+    as a degraded surface; caller-friendly
+    `Baseline::commit_partial(...)` /
+    `Baseline::commit_complete(...)` builder so the
+    asymmetric-responsibility split on
+    `merge_partial_findings` can't be misused.
+- **Files (Phase 1):** `crates/anvil-baseline/src/store.rs`
+  (schema + validate + `merge_partial_findings`),
+  `crates/anvil-cli/src/commands/baseline.rs`
+  (`--scan-budget` flag, budget-aware scanner, resume
+  orchestration).
+- **Evidence (Phase 1 In Progress on
+  `feat/mlp2-036-baseline-continuation`):**
+  Schema fields are `serde(default,
+  skip_serializing_if = ...)` so a complete baseline
+  serialises byte-identically to pre-MLP2-036 (older anvil
+  reads unaffected). `validate()` refuses
+  `(partial=true, continuation=None)` and
+  `(partial=false, continuation=Some)` so half-edited
+  baselines fail at the load boundary.
+  `scan_repo_for_findings_with_budget(repo_root, budget,
+  resume_cursor)` returns `(Vec<Finding>, Option<String>)`.
+  Files sorted by repo-relative path with forward-slash
+  normalisation so cursors are portable across OSes; non-UTF8
+  paths dropped (Council #C-4) so `to_string_lossy`'s U+FFFD
+  substitution can't corrupt cursor compares. Asserts
+  `budget > 0` (Council #C-2); `parse_scan_budget` clap value
+  parser rejects `--scan-budget 0` at the CLI boundary.
+  Orchestrator: partial-on-disk auto-resumes; resume
+  accumulator carries prior findings + merges. `--new-identity`
+  forces a fresh accumulator (Council #C-1) so prior-identity
+  findings don't leak into the new identity's baseline.
+  `--refresh` of a complete baseline that would produce a
+  partial result refuses without `--accept-suspicious` (Council
+  #C-3) — the complete → partial transition is an explicit
+  whitewash vector. Cutoff pin skipped while partial. +12
+  unit pins (6 in store.rs, 6 in baseline.rs) plus 5 Council
+  regression pins. `cargo test --workspace` clean (4148 tests;
+  +17 net); `cargo clippy --workspace --all-targets -- -D
+  warnings` clean. Council quick on PR #TBD found 3 MAJOR + 3
+  MINOR + 1 NIT — all 3 MAJORs folded with regression tests;
+  #C-4 folded; remaining minors deferred to Phase 2.
+- **Validation (Phase 1):**
+  `one_shot_scan_matches_resumed_scan_byte_for_byte` — same
+  fixture scanned in one shot vs three chunks of 3 produces
+  byte-identical findings (the spec's "full + resumed flow
+  produces same final baseline" pin).
+  `resume_continues_from_cursor_and_can_complete` — three-round
+  budget=4/3/5 sequence over 10 files, ending with
+  partial=false.
+- **Validation (Phase 2 — pending):** 100k synthetic-file
+  performance fixture documenting per-budget wall-clock
+  budget; `anvil status --json` round-trip of
+  `partial=true`.
 - **Confidence:** medium
 - **Priority:** Low
 - **Dependencies:** MLP-007, MLP2-034

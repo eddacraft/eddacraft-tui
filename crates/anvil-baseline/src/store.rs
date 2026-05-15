@@ -58,6 +58,41 @@ pub struct Baseline {
     /// fingerprint)` after `canonicalise()` so file output is
     /// deterministic.
     pub findings: Vec<BaselineFinding>,
+
+    /// MLP2-036: `true` when this baseline is a partial-scan
+    /// snapshot — the scan budget was exhausted before every file
+    /// was processed. The companion [`Self::continuation`] field
+    /// names the next file to scan. A consumer that sees
+    /// `partial=true` should treat the findings list as incomplete
+    /// (`anvil status` renders this as a degraded state) and may
+    /// trigger a resume scan to make progress toward a complete
+    /// baseline.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub partial: bool,
+
+    /// MLP2-036: when [`Self::partial`] is `true`, the next
+    /// file-path the resume scan should pick up at (lexicographic
+    /// order — files before this cursor are guaranteed to have
+    /// been scanned in the current `findings` list). `None` when
+    /// the baseline is complete.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation: Option<String>,
+}
+
+/// `serde(skip_serializing_if = "is_false")` helper so the
+/// `partial` flag stays out of the on-disk JSON when the baseline
+/// is complete. Lets older anvil reads of a complete baseline
+/// behave byte-identically to pre-MLP2-036.
+///
+/// `&bool` (not `bool`) is mandated by serde's
+/// `skip_serializing_if` contract: the predicate receives a
+/// reference to the field. The clippy
+/// `trivially_copy_pass_by_ref` lint flags it as a style issue;
+/// suppress here because the alternative would be a wrapper struct
+/// or a closure, both heavier than the lint warning.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Error)]
@@ -78,6 +113,16 @@ pub enum FormatError {
     /// A finding's `file_path` was empty.
     #[error("baseline.json finding has empty file_path")]
     EmptyFilePath,
+    /// MLP2-036: `partial=true` without a `continuation` cursor —
+    /// the resume path has nowhere to pick up. Indicates a half-
+    /// written baseline or a hand-edited one.
+    #[error("baseline.json is partial but missing `continuation` cursor")]
+    PartialMissingContinuation,
+    /// MLP2-036: `continuation` set on a non-partial baseline. Would
+    /// silently restart the next `--refresh` mid-tree; refuse at the
+    /// boundary.
+    #[error("baseline.json has `continuation` set but is not marked partial")]
+    ContinuationOnCompleteBaseline,
 }
 
 impl Baseline {
@@ -88,9 +133,25 @@ impl Baseline {
             metadata,
             cutoff_commit: None,
             findings,
+            partial: false,
+            continuation: None,
         };
         b.canonicalise();
         b
+    }
+
+    /// MLP2-036: merge a continuation-scan's findings into this
+    /// baseline. Deduplicates against existing findings on the
+    /// `(rule_id, file_path, fingerprint)` triple so repeated runs
+    /// of the resume path can never inflate the list. Re-runs
+    /// `canonicalise` so the on-disk shape stays deterministic.
+    ///
+    /// Caller is responsible for updating [`Self::partial`] /
+    /// [`Self::continuation`] — this method only extends the
+    /// findings vector.
+    pub fn merge_partial_findings(&mut self, additional: Vec<BaselineFinding>) {
+        self.findings.extend(additional);
+        self.canonicalise();
     }
 
     /// Sort findings deterministically + dedup exact duplicates so
@@ -113,6 +174,17 @@ impl Baseline {
                 got: self.format_version,
                 supported: FORMAT_VERSION,
             });
+        }
+        // MLP2-036: a partial baseline MUST carry a continuation
+        // cursor — without it, the resume path has nowhere to pick
+        // up. The inverse (continuation set, partial=false) is also
+        // refused because a complete baseline shouldn't claim a
+        // resume cursor; that would mislead `--refresh` into
+        // restarting mid-tree on the next run.
+        match (self.partial, self.continuation.as_ref()) {
+            (true, None) => return Err(FormatError::PartialMissingContinuation),
+            (false, Some(_)) => return Err(FormatError::ContinuationOnCompleteBaseline),
+            _ => {}
         }
         for f in &self.findings {
             if f.file_path.is_empty() {
@@ -142,6 +214,13 @@ impl Baseline {
     /// for direct file write.
     pub fn to_canonical_bytes(&self) -> Result<Vec<u8>, FormatError> {
         let mut map: BTreeMap<&'static str, Value> = BTreeMap::new();
+        // MLP2-036: only emit `continuation` when present so a
+        // complete baseline's bytes stay byte-identical to
+        // pre-MLP2-036 output (older anvil reads + diff tools both
+        // see the same shape).
+        if let Some(c) = &self.continuation {
+            map.insert("continuation", Value::String(c.clone()));
+        }
         map.insert(
             "cutoff_commit",
             match &self.cutoff_commit {
@@ -179,6 +258,10 @@ impl Baseline {
             Value::String(self.metadata.project_uuid.clone()),
         );
         map.insert("metadata", serde_json::to_value(&meta)?);
+        // MLP2-036: same skip-when-default reasoning as continuation.
+        if self.partial {
+            map.insert("partial", Value::Bool(true));
+        }
         let mut bytes = serde_json::to_vec(&map)?;
         bytes.push(b'\n');
         Ok(bytes)
@@ -455,5 +538,107 @@ mod tests {
         assert_eq!(diff.unchanged.len(), 0);
         assert_eq!(diff.added.len(), 1);
         assert_eq!(diff.removed.len(), 1);
+    }
+
+    // ── MLP2-036: partial / continuation schema ──────────────────
+
+    #[test]
+    fn complete_baseline_omits_partial_and_continuation_keys() {
+        // Wire-shape stability: a baseline produced by the default
+        // path must serialise to bytes that look identical to
+        // pre-MLP2-036 (no `partial` key, no `continuation` key)
+        // so older anvil reads keep working byte-for-byte.
+        let b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        let bytes = b.to_canonical_bytes().unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(
+            !text.contains("\"partial\""),
+            "complete baseline must not emit `partial` key; got {text}"
+        );
+        assert!(
+            !text.contains("\"continuation\""),
+            "complete baseline must not emit `continuation` key; got {text}"
+        );
+    }
+
+    #[test]
+    fn partial_baseline_round_trips_through_canonical_bytes() {
+        let mut b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        b.partial = true;
+        b.continuation = Some("src/middle.rs".to_string());
+        let bytes = b.to_canonical_bytes().unwrap();
+        let parsed = Baseline::from_bytes(&bytes).unwrap();
+        assert!(parsed.partial);
+        assert_eq!(parsed.continuation.as_deref(), Some("src/middle.rs"));
+        // Sanity-check the on-disk shape includes the new keys when
+        // they're set.
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("\"partial\":true"));
+        assert!(text.contains("\"continuation\":\"src/middle.rs\""));
+    }
+
+    #[test]
+    fn validate_refuses_partial_without_continuation() {
+        let mut b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        b.partial = true;
+        // continuation deliberately left None
+        let bytes = b.to_canonical_bytes().unwrap();
+        let err = Baseline::from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FormatError::PartialMissingContinuation));
+    }
+
+    #[test]
+    fn validate_refuses_continuation_on_complete_baseline() {
+        let mut b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        b.continuation = Some("src/x.rs".to_string());
+        // partial deliberately left false
+        let bytes = b.to_canonical_bytes().unwrap();
+        let err = Baseline::from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FormatError::ContinuationOnCompleteBaseline));
+    }
+
+    #[test]
+    fn merge_partial_findings_dedupes_against_existing() {
+        // Resume-scan idempotence: re-applying the same findings
+        // must not inflate the list. Critical for the v1 resume
+        // path, which sorts files lexicographically and continues
+        // from the cursor — if the cursor file ever gets re-scanned
+        // (operator manually re-runs without bumping cursor), the
+        // dedup keeps the baseline byte-stable.
+        let mut b = Baseline::new(
+            metadata(),
+            vec![
+                finding("rule-a", "a.rs", "snippet-1"),
+                finding("rule-a", "b.rs", "snippet-2"),
+            ],
+        );
+        let additional = vec![
+            finding("rule-a", "b.rs", "snippet-2"), // duplicate
+            finding("rule-a", "c.rs", "snippet-3"), // new
+        ];
+        b.merge_partial_findings(additional);
+        assert_eq!(
+            b.findings.len(),
+            3,
+            "duplicate finding must collapse; got {:?}",
+            b.findings
+        );
+        let files: Vec<_> = b.findings.iter().map(|f| f.file_path.as_str()).collect();
+        assert_eq!(files, vec!["a.rs", "b.rs", "c.rs"]);
+    }
+
+    #[test]
+    fn merge_partial_findings_preserves_canonical_sort_order() {
+        let mut b = Baseline::new(metadata(), vec![finding("rule-z", "z.rs", "snippet-z")]);
+        b.merge_partial_findings(vec![
+            finding("rule-a", "a.rs", "snippet-a"),
+            finding("rule-m", "m.rs", "snippet-m"),
+        ]);
+        let rules: Vec<_> = b.findings.iter().map(|f| f.rule_id.as_str()).collect();
+        assert_eq!(
+            rules,
+            vec!["rule-a", "rule-m", "rule-z"],
+            "merge must re-canonicalise so on-disk shape stays stable"
+        );
     }
 }
