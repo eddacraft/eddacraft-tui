@@ -280,10 +280,9 @@ pub enum PolicyPinError {
 ///   but strips comments and reorders keys. Documented as a follow-up
 ///   limitation; the v1 baseline contract is shape-level round-trip.
 ///
-/// `#[allow(dead_code)]` until MLP2-032's `anvil baseline` CLI
-/// command wires this into the orchestrator. The function is fully
-/// exercised by the tests in this file in the meantime.
-#[allow(dead_code)]
+/// Wired into `anvil baseline` by MLP2-032 — the CLI calls this
+/// after `save()` so that `anvil/baseline.json` and
+/// `anvil/policy.{yml,…}` agree on the cutoff in one flow.
 pub fn pin_cutoff_commit(path: &Path, cutoff: &str) -> Result<(), PolicyPinError> {
     // Hex-shape validation first so a malformed cutoff never reaches
     // disk and never triggers a partial write.

@@ -4,13 +4,19 @@
 | ---- | ------ | ----------- | ---------- |
 | MLP2 | @aneki | In Progress | 23/60 done |
 
-**Last reviewed:** 2026-05-14 (created from MLP-018 split-out; each
-of the 56 deferred sub-items in `[multilayer-protection]`'s
-v1-scope footnotes promoted to its own MLP2-NNN task; wave 1C
+**Last reviewed:** 2026-05-15 (wave 1H opened on branch
+`feat/mlp2-032-034-baseline-identity`: MLP2-032 wires
+`ensure_project_id` + `pin_cutoff_commit` into `anvil baseline`;
+MLP2-034 Phase 1 wires `run_antipattern_check` →
+`BaselineFinding` with snippet-derived fingerprints. Both items
+**In Progress**, awaiting PR + Council. Earlier history: wave 1C
 shipped 2026-05-14 — MLP2-052, MLP2-057, MLP2-048, MLP2-016 closed
 together on branch `feat/mlp2-wave-016-048-057-052` with one
 Council remediation pass on top — Council #C-016A `on_warn`
-consultation fix folded into MLP2-016).
+consultation fix folded into MLP2-016. Module created from
+MLP-018 split-out; each of the 56 deferred sub-items in
+`[multilayer-protection]`'s v1-scope footnotes promoted to its
+own MLP2-NNN task.)
 
 > **Scope.** MLP2 ships the integration work that closes every v1
 > primitive landed by the MLP module into a full surface. MLP
@@ -1161,22 +1167,60 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-032: `anvil baseline` writes project identity
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Baseline CLI command (`anvil baseline`) calls
   `identity::ensure_project_id` alongside its bootstrap work,
   so adopting Anvil into an existing repo writes
   `anvil/project-id` and the baseline file in the same flow.
 - **Expected Outcome:**
-  - `commands/baseline.rs` (when created — currently only the
-    library is shipped) invokes
+  - `commands/baseline.rs` invokes
     `crates/anvil-cli/src/activation/identity.rs::ensure_project_id`
     on the target path.
   - Idempotent on re-run (existing identity preserved).
-- **Files:** `crates/anvil-cli/src/commands/baseline.rs`.
-- **Validation:** First-run vs re-run; symlink refusal.
+  - Co-pins `cutoff_commit` into `anvil/policy.{yml,…}` via
+    `anvil_l4::pin_cutoff_commit` (MLP2-031) when the baseline
+    record carries one and a policy file exists.
+- **Files:** `crates/anvil-cli/src/commands/baseline.rs`,
+  `crates/anvil-l4/src/lib.rs` (re-export `pin_cutoff_commit`),
+  `crates/anvil-l4/src/policy.rs` (drop `#[allow(dead_code)]`
+  now the orchestrator wires the symbol).
+- **Evidence (In Progress on `feat/mlp2-032-034-baseline-identity`):**
+  `run_create_or_refresh` now calls `ensure_project_id` instead
+  of erroring on absent `anvil/project-id` — first-run mints a
+  fresh v7 UUID, re-run preserves the existing identity (council
+  C-2 re-read pattern from `ensure_project_id` itself). After
+  `save()`, the orchestrator calls `try_pin_cutoff` which uses
+  `anvil_config::discover` (canonical yaml > yml > json > toml
+  precedence) to locate the policy file, then dispatches to
+  `anvil_l4::pin_cutoff_commit`. Cutoff resolution falls back to
+  the policy file's existing `baseline.cutoff_commit` on
+  first-create so the two files cannot silently diverge. The pin
+  step is best-effort: a missing or unreadable policy file emits
+  a one-line hint and does not fail `anvil baseline`
+  (warnings-over-blocks). +6 unit pins:
+  `create_mints_identity_when_absent`,
+  `create_is_idempotent_on_identity_when_present`,
+  `refresh_pins_cutoff_into_policy_when_present`,
+  `refresh_does_not_fail_when_no_policy_file_to_pin`,
+  `pin_targets_yaml_over_yml_when_both_present` (Council #C-1
+  regression guard against hand-rolled candidate-list drift),
+  `create_picks_up_cutoff_from_policy_when_baseline_absent`
+  (Council #C-2 first-create convergence guard).
+  `cargo test --workspace` clean; `cargo clippy --workspace
+  --all-targets -- -D warnings` clean. Council quick review on
+  PR #TBD found 2 MAJOR + 3 MINOR + 1 NIT — both MAJORs
+  (precedence drift, first-create divergence) folded into the
+  same branch with regression tests; MINOR/NIT addressed
+  inline (TOCTOU caveat documented on
+  `scan_repo_for_findings`; `find_policy_file` rewritten on
+  top of `anvil_config::discover` so the local candidate list
+  is gone).
+- **Validation:** First-run vs re-run; symlink refusal (covered
+  by `ensure_project_id`'s own pins); cutoff round-trip into
+  policy.yml.
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** MLP-001, MLP-007
+- **Dependencies:** MLP-001, MLP-007, MLP2-031
 - **Source:** MLP-001 footnote 3, MLP-007 footnote 5.
 
 #### MLP2-033: `--new-identity` fork opt-out CLI flag
@@ -1202,23 +1246,56 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-034: Scanner integration — populate `BaselineFinding` from anvil-checks
 
-- **Status:** Draft
+- **Status:** In Progress (Phase 1 wired; Phase 2 deferred)
 - **Intent:** Wire `anvil-checks`'s diagnostic pipeline output
   through to `anvil-baseline::BaselineFinding` so
   `anvil baseline --refresh` actually records what the rules
   found.
 - **Expected Outcome:**
-  - Scan path: `anvil-checks::scan(...)` → diagnostics →
-    `BaselineFinding { rule_id, file_path, fingerprint }`
-    where fingerprint comes from
-    `anvil-baseline::compute_fingerprint`.
-  - Diff partition (`anvil-baseline::Baseline::diff`) drives
-    the "new edges only" gate at the hook lane.
-- **Files:** `crates/anvil-cli/src/commands/baseline.rs`,
-  `crates/anvil-checks/src/lib.rs` (consumer surface).
-- **Validation:** Adoption fixture: scan repo → baseline
-  populated → next scan with one new violation → diff
-  partitions correctly.
+  - **Phase 1 (this PR):** scan path
+    `anvil-checks::antipattern::run_antipattern_check(...)` →
+    warnings → `BaselineFinding { rule_id, file_path,
+    fingerprint }` where `fingerprint` comes from
+    `anvil-baseline::compute_fingerprint(rule.id, source_line)`.
+    Both `anvil baseline` (initial) and
+    `anvil baseline --refresh` produce a populated record.
+  - **Phase 2 (follow-up):** diff partition
+    (`anvil-baseline::Baseline::diff`) drives the "new edges
+    only" gate at the hook lane. Tracked by MLP2-035 / -036's
+    consumers, not duplicated here.
+- **Files:** `crates/anvil-cli/src/commands/baseline.rs`
+  (scanner orchestration, file walk, snippet re-read for
+  fingerprinting). No surface change to `anvil-checks` —
+  consumed via its existing `run_antipattern_check` entry point.
+- **Evidence (Phase 1 In Progress on
+  `feat/mlp2-032-034-baseline-identity`):**
+  `scan_repo_for_findings` walks the worktree with
+  `ignore::WalkBuilder` (matching `anvil check --all`'s SCAN-001
+  shape but rooted at the explicit baseline target), calls
+  `run_antipattern_check` against the default extension set, and
+  builds one `BaselineFinding` per non-suppressed warning. The
+  source line at `warning.location.line` is re-read from the
+  same file the scanner just consumed, then fed to
+  `compute_fingerprint(warning.id, snippet)` — same
+  move-resistance contract as MLP-007's library tests
+  (whitespace-noisy snippet → normalised → 16-hex digest). Per-
+  finding errors (read failure, empty snippet, fingerprint
+  rejection) are silently skipped so adoption is never blocked
+  by a transient I/O race or exotic encoding (warnings-over-
+  blocks). Suppressed warnings are dropped — the author's
+  explicit acknowledgement disqualifies them from the
+  baseline. +2 unit pins:
+  `create_populates_findings_from_scanner` (AP-003 surfaces on
+  `src/app.ts` with the expected file_path + 16-hex
+  fingerprint), `refresh_repopulates_findings_after_new_violation`
+  (`--refresh` rewrites the record after a new violation
+  appears).
+- **Validation (Phase 1):** Adoption fixture: scan repo →
+  baseline populated. Refresh fixture: empty scan → introduce
+  AP-003 → `--refresh` → AP-003 surfaces.
+- **Validation (Phase 2 — pending):** Diff partition with one
+  new violation across an existing baseline; hook-lane gate
+  consumes the partition.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-007, anvil-checks

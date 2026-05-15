@@ -6,33 +6,55 @@
 //! ## v1 scope
 //!
 //! - **`anvil baseline`** creates `anvil/baseline.json` for the
-//!   current repo. Without scanner integration (deferred), the
-//!   findings array starts empty — the file is still load-bearing
-//!   because it carries `project_uuid` + `created_at` +
-//!   `created_by_version` for cross-machine identity, and a future
-//!   `--refresh` flag picks it up.
+//!   current repo. The orchestrator first calls
+//!   [`ensure_project_id`] so adopting Anvil into an existing repo
+//!   writes `anvil/project-id` in the same flow (MLP2-032), then runs
+//!   the [`anvil_checks`] scanner across the worktree to populate the
+//!   findings array (MLP2-034 Phase 1). With no existing
+//!   `cutoff_commit`, the on-disk record carries `null`; consumers
+//!   that need a pin set it explicitly via `--refresh` after a
+//!   subsequent commit.
 //! - **`anvil baseline --refresh`** re-creates the file in place,
-//!   bumping `created_at` and preserving `cutoff_commit`.
+//!   bumping `created_at`, preserving `cutoff_commit`, and re-running
+//!   the scanner so adversarial-refresh detection (MLP2-035) has a
+//!   current findings set to compare against.
 //! - **`anvil baseline verify`** re-reads `anvil/baseline.json` and
-//!   reports findings count + `cutoff_commit`; with scanner
-//!   integration this becomes a real diff against current findings.
+//!   reports findings count + `cutoff_commit`. The diff partition
+//!   into the hook lane gate is Phase 2 of MLP2-034.
 //!
-//! ## Deferred (scanner-integration follow-up)
+//! ## Cutoff pinning (MLP2-031 ↔ -032)
 //!
-//! - Calling `anvil-checks` to populate the findings array.
-//! - Per-class baseline behaviour (ADR-039 hard-pinned rejection,
-//!   etc.).
-//! - Adversarial-refresh detection.
-//! - Async continuation for >100k files.
+//! When a baseline carries a `cutoff_commit`, the orchestrator pins it
+//! into `anvil/policy.{yml,yaml,json,toml}` via
+//! [`anvil_l4::pin_cutoff_commit`] so the L4 policy lane reads it
+//! from the policy file rather than from `baseline.json`. The pin
+//! step is best-effort: a missing or unreadable policy file is
+//! reported as a hint (warnings over blocks) and does not fail
+//! `anvil baseline`. Operators bootstrap the policy file via
+//! `anvil init`.
+//!
+//! ## Deferred (Phase 2 + later)
+//!
+//! - Diff partition into the hook lane gate (Phase 2 of MLP2-034).
+//! - Per-class baseline behaviour (ADR-039 hard-pinned rejection).
+//! - Adversarial-refresh detection (MLP2-035).
+//! - Async continuation for >100k files (MLP2-036).
+
+use std::path::Path;
 
 use anvil_baseline::{
-    Baseline, BaselineFinding, BaselineMetadata, load as load_baseline, save as save_baseline,
+    Baseline, BaselineFinding, BaselineMetadata, compute_fingerprint, load as load_baseline,
+    save as save_baseline,
 };
+use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
+use anvil_config::{DiscoveredConfig, discover};
+use anvil_l4::{Policy, PolicyPinError, pin_cutoff_commit};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;
-use crate::activation::identity::read_project_id;
+use crate::activation::identity::ensure_project_id;
+use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Args)]
 pub struct BaselineArgs {
@@ -61,46 +83,65 @@ pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
     }
 }
 
-fn run_create_or_refresh(repo_root: &std::path::Path, refresh: bool) -> Result<()> {
-    let identity = read_project_id(repo_root)
-        .context("read anvil/project-id")?
-        .context("anvil/project-id not found — run `anvil start` first")?;
+fn run_create_or_refresh(repo_root: &Path, refresh: bool) -> Result<()> {
+    // MLP2-032: mint or read project identity in the same flow as
+    // baseline bootstrap. `ensure_project_id` is idempotent — it
+    // returns the existing identity if `anvil/project-id` already
+    // parses, or atomically writes a fresh v7 UUID if absent.
+    let identity = ensure_project_id(repo_root, env!("CARGO_PKG_VERSION"))
+        .context("ensure anvil/project-id")?;
 
     let existing = load_baseline(repo_root).context("load existing baseline (if any)")?;
-    if existing.is_some() {
-        if !refresh {
-            println!(
-                "anvil: baseline already exists at anvil/baseline.json — use --refresh to update"
-            );
-            return Ok(());
-        }
-    } else if refresh {
-        // --refresh on a missing baseline is the same as creating
-        // it; don't refuse the user's intent.
+    if existing.is_some() && !refresh {
+        println!("anvil: baseline already exists at anvil/baseline.json — use --refresh to update");
+        return Ok(());
     }
 
-    let cutoff = existing.as_ref().and_then(|b| b.cutoff_commit.clone());
+    // Cutoff resolution: existing baseline.json wins; otherwise fall
+    // back to whatever the policy file already pins. The fallback
+    // closes a divergence trap on first-create — without it, an
+    // operator who hand-set `baseline.cutoff_commit` in policy.yml
+    // would end up with a baseline.json carrying `null` and a policy
+    // file carrying the SHA, with no operator-visible signal.
+    let cutoff = existing
+        .as_ref()
+        .and_then(|b| b.cutoff_commit.clone())
+        .or_else(|| read_policy_cutoff(repo_root));
 
     let metadata = BaselineMetadata {
         created_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         created_by_version: env!("CARGO_PKG_VERSION").to_string(),
         project_uuid: identity.project_uuid,
     };
-    // Scanner integration is deferred — start with empty findings.
-    // The on-disk schema carries the rest faithfully.
-    let findings: Vec<BaselineFinding> = Vec::new();
+
+    // MLP2-034 Phase 1: populate findings from the antipattern
+    // scanner across the worktree. Phase 2 (hook-lane diff partition)
+    // and adversarial-refresh detection (MLP2-035) layer on top of
+    // this populated record.
+    let findings = scan_repo_for_findings(repo_root);
+
     let mut baseline = Baseline::new(metadata, findings);
-    baseline.cutoff_commit = cutoff;
+    baseline.cutoff_commit.clone_from(&cutoff);
     save_baseline(repo_root, &baseline).context("write anvil/baseline.json")?;
+
+    let action = if refresh { "refreshed" } else { "created" };
     println!(
-        "anvil: baseline {} ({} findings)",
-        if refresh { "refreshed" } else { "created" },
-        baseline.findings.len()
+        "anvil: baseline {action} ({} findings)",
+        baseline.findings.len(),
     );
+
+    // MLP2-031 ↔ -032: pin the cutoff into `anvil/policy.{yml,…}` so
+    // the L4 policy lane reads it from policy rather than from
+    // `baseline.json`. Best-effort — a missing or unreadable policy
+    // file emits a hint and does not fail the orchestrator.
+    if let Some(sha) = cutoff {
+        try_pin_cutoff(repo_root, &sha);
+    }
+
     Ok(())
 }
 
-fn run_verify(repo_root: &std::path::Path) -> Result<()> {
+fn run_verify(repo_root: &Path) -> Result<()> {
     let baseline = load_baseline(repo_root)
         .context("load baseline")?
         .context("no baseline at anvil/baseline.json — run `anvil baseline` first")?;
@@ -112,43 +153,221 @@ fn run_verify(repo_root: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+/// Walk the worktree and run the antipattern scanner; convert each
+/// warning into a [`BaselineFinding`] with a move-resistant
+/// fingerprint.
+///
+/// On any per-file failure (read error, empty snippet at the warning
+/// line, etc.) the affected finding is silently skipped — adoption
+/// must not be blocked by a transient I/O race or an exotic encoding.
+/// Returning a partial set is consistent with the "warnings over
+/// blocks" CLAUDE.md principle.
+///
+/// **TOCTOU caveat.** The fingerprint is computed from a *second*
+/// read of the file (the scanner already read it once). On a busy
+/// tree where the file changes between reads, the snippet at
+/// `warning.location.line` may differ from what the scanner saw —
+/// in that case the resulting fingerprint will not match any future
+/// scan, leaving the finding permanently stale. The window is small
+/// during interactive `anvil baseline` runs but is documented here
+/// because the silent-skip recovery hides it; future work could
+/// either return the source content alongside warnings from
+/// `run_antipattern_check` or require a quiescent worktree at
+/// adoption time.
+fn scan_repo_for_findings(repo_root: &Path) -> Vec<BaselineFinding> {
+    let config = AntipatternCheckConfig::default();
+    let files = collect_scannable_files(repo_root, &config.extensions);
+    if files.is_empty() {
+        return Vec::new();
+    }
+    let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+    let workspace_root = repo_root.to_string_lossy();
+    let result = run_antipattern_check(&file_refs, &config, Some(workspace_root.as_ref()));
+
+    let mut findings = Vec::with_capacity(result.warnings.warnings.len());
+    for warning in &result.warnings.warnings {
+        // Suppressed warnings are explicit author intent; they are
+        // not baseline material because the author already
+        // acknowledged them.
+        if warning.suppressed.is_some() {
+            continue;
+        }
+        // Re-read the source line for fingerprinting. The file path
+        // on the warning is relative to `workspace_root`, so we join
+        // it back onto `repo_root` to read.
+        let abs = repo_root.join(&warning.location.file);
+        let Ok(content) = std::fs::read_to_string(&abs) else {
+            continue;
+        };
+        let line_idx = warning.location.line.saturating_sub(1);
+        let Some(snippet) = content.lines().nth(line_idx) else {
+            continue;
+        };
+        let Ok(fingerprint) = compute_fingerprint(&warning.id, snippet) else {
+            continue;
+        };
+        findings.push(BaselineFinding {
+            file_path: warning.location.file.clone(),
+            fingerprint,
+            rule_id: warning.id.clone(),
+        });
+    }
+    findings
+}
+
+/// Walk `repo_root` with `ignore::WalkBuilder`, mirroring
+/// `anvil check --all`'s file discovery (SCAN-001 shape) but rooted at
+/// the explicit baseline target rather than `git rev-parse --show-toplevel`.
+fn collect_scannable_files(repo_root: &Path, extensions: &[String]) -> Vec<String> {
+    let walker = ignore::WalkBuilder::new(repo_root)
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false)
+        .filter_entry(|e| {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
+                let name = e.file_name().to_string_lossy();
+                !is_ignored_dir_name(&name)
+            } else {
+                true
+            }
+        })
+        .build();
+
+    let mut files: Vec<String> = walker
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .filter_map(|e| {
+            let path_str = e.path().to_string_lossy().to_string();
+            extensions
+                .iter()
+                .any(|ext| path_str.ends_with(ext.as_str()))
+                .then_some(path_str)
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// Pin `cutoff_commit` into the first `anvil/policy.*` file present.
+///
+/// Best-effort: any failure (no policy file present, parse error,
+/// symlink, malformed cutoff) is reported as a hint and does NOT
+/// fail the orchestrator. Adoption must not break because the
+/// operator hasn't yet bootstrapped a policy file.
+fn try_pin_cutoff(repo_root: &Path, cutoff: &str) {
+    let Some(DiscoveredConfig {
+        path: policy_path, ..
+    }) = find_policy_file(repo_root)
+    else {
+        println!(
+            "anvil: cutoff_commit recorded in baseline.json but no anvil/policy.{{yaml,yml,json,toml}} found — run `anvil init` to materialise a policy file before pinning"
+        );
+        return;
+    };
+    match pin_cutoff_commit(&policy_path, cutoff) {
+        Ok(()) => println!(
+            "anvil: cutoff_commit {cutoff} pinned into {}",
+            policy_path
+                .strip_prefix(repo_root)
+                .unwrap_or(&policy_path)
+                .display(),
+        ),
+        Err(err) => {
+            let label = match &err {
+                PolicyPinError::Io(_) => "io",
+                PolicyPinError::Parse(_) => "policy parse",
+                PolicyPinError::NotAnObject | PolicyPinError::BaselineNotAMap => "policy shape",
+                PolicyPinError::InvalidCutoffCommit { .. } => "invalid cutoff",
+                PolicyPinError::Serialise { .. } => "serialise",
+                PolicyPinError::SymlinkRefusal { .. } => "symlink refusal",
+            };
+            println!(
+                "anvil: cutoff_commit recorded in baseline.json but pin into {} skipped ({label}: {err})",
+                policy_path
+                    .strip_prefix(repo_root)
+                    .unwrap_or(&policy_path)
+                    .display(),
+            );
+        }
+    }
+}
+
+/// Locate the policy file using `anvil-config`'s canonical
+/// discovery precedence (`yaml > yml > json > toml`). Returning the
+/// `DiscoveredConfig` keeps the caller honest about which format
+/// was selected — every downstream path (`pin_cutoff_commit`,
+/// `Policy::parse`) needs the [`ConfigFormat`] to decode the file.
+fn find_policy_file(repo_root: &Path) -> Option<DiscoveredConfig> {
+    discover(&repo_root.join("anvil"), "policy").ok().flatten()
+}
+
+/// Read the `baseline.cutoff_commit` field from the discovered
+/// policy file, if any. Best-effort: any failure (no file, parse
+/// error, missing field) returns `None` — the caller treats absence
+/// the same as "operator hasn't pinned a cutoff yet".
+fn read_policy_cutoff(repo_root: &Path) -> Option<String> {
+    let DiscoveredConfig { path, format } = find_policy_file(repo_root)?;
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let policy = Policy::parse(&raw, format, &path).ok()?;
+    policy.baseline.cutoff_commit
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
 
-    fn make_repo_with_identity() -> TempDir {
-        let tmp = TempDir::new().unwrap();
-        fs::create_dir_all(tmp.path().join("anvil")).unwrap();
-        fs::write(
-            tmp.path().join("anvil").join("project-id"),
-            "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n",
-        )
-        .unwrap();
-        tmp
+    /// Minimal valid `anvil/policy.{yaml,yml}` body: one branch rule
+    /// with the required fields (`pattern`, `require`,
+    /// `on_no_witness`). Anything less fails `Policy::validate` —
+    /// the orchestrator's pin step would still run via
+    /// `pin_cutoff_commit` (which works at the JSON-shape layer
+    /// without typed parsing) but `read_policy_cutoff` would not be
+    /// able to decode it on the read-back path.
+    const MIN_VALID_POLICY: &str =
+        "branches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n";
+
+    fn write_policy_yml(root: &Path) {
+        fs::create_dir_all(root.join("anvil")).unwrap();
+        fs::write(root.join("anvil/policy.yml"), MIN_VALID_POLICY).unwrap();
     }
 
     #[test]
-    fn create_writes_baseline_file_with_identity() {
-        let tmp = make_repo_with_identity();
+    fn create_mints_identity_when_absent() {
+        let tmp = TempDir::new().unwrap();
+        // No anvil/project-id pre-seeded — the orchestrator must
+        // mint one (MLP2-032).
         run_create_or_refresh(tmp.path(), false).unwrap();
-        let loaded = load_baseline(tmp.path()).unwrap().unwrap();
+        let identity_path = tmp.path().join("anvil/project-id");
+        assert!(identity_path.exists(), "anvil/project-id should be minted");
+        let baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        let identity_text = fs::read_to_string(&identity_path).unwrap();
+        assert!(identity_text.contains(&baseline.metadata.project_uuid));
+    }
+
+    #[test]
+    fn create_is_idempotent_on_identity_when_present() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        fs::write(
+            tmp.path().join("anvil/project-id"),
+            "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n",
+        )
+        .unwrap();
+        run_create_or_refresh(tmp.path(), false).unwrap();
+        let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
-            loaded.metadata.project_uuid,
-            "01997e4a-1b2c-7345-8901-abcdef123456"
+            baseline.metadata.project_uuid, "01997e4a-1b2c-7345-8901-abcdef123456",
+            "existing identity must be preserved across baseline runs"
         );
-        assert_eq!(loaded.format_version, anvil_baseline::FORMAT_VERSION);
-        assert!(loaded.findings.is_empty());
     }
 
     #[test]
     fn create_without_refresh_does_not_overwrite_existing() {
-        let tmp = make_repo_with_identity();
+        let tmp = TempDir::new().unwrap();
         run_create_or_refresh(tmp.path(), false).unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
-
-        // Pretend some time passes; re-run without --refresh.
         std::thread::sleep(std::time::Duration::from_millis(10));
         run_create_or_refresh(tmp.path(), false).unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
@@ -157,7 +376,7 @@ mod tests {
 
     #[test]
     fn refresh_preserves_cutoff_commit_across_runs() {
-        let tmp = make_repo_with_identity();
+        let tmp = TempDir::new().unwrap();
         run_create_or_refresh(tmp.path(), false).unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
@@ -169,24 +388,158 @@ mod tests {
     }
 
     #[test]
-    fn verify_reports_loaded_baseline() {
-        let tmp = make_repo_with_identity();
+    fn refresh_pins_cutoff_into_policy_when_present() {
+        // MLP2-031 ↔ -032: when a baseline carries a cutoff_commit
+        // and `anvil/policy.yml` exists, the orchestrator pins it.
+        let tmp = TempDir::new().unwrap();
+        write_policy_yml(tmp.path());
+
         run_create_or_refresh(tmp.path(), false).unwrap();
-        // Should not error.
+        let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        save_baseline(tmp.path(), &baseline).unwrap();
+
+        run_create_or_refresh(tmp.path(), true).unwrap();
+
+        let policy_text = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
+        assert!(
+            policy_text.contains("a3b2ea4e"),
+            "expected cutoff_commit pinned into policy.yml; got:\n{policy_text}"
+        );
+    }
+
+    #[test]
+    fn pin_targets_yaml_over_yml_when_both_present() {
+        // Council #C-1 (quick): when both policy.yaml and policy.yml
+        // exist, the pin must follow `anvil-config`'s canonical
+        // discovery precedence (yaml > yml). Regression guard against
+        // a hand-rolled candidate list silently disagreeing with
+        // `anvil_config::discover`.
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        fs::write(tmp.path().join("anvil/policy.yaml"), MIN_VALID_POLICY).unwrap();
+        fs::write(tmp.path().join("anvil/policy.yml"), MIN_VALID_POLICY).unwrap();
+
+        run_create_or_refresh(tmp.path(), false).unwrap();
+        let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        save_baseline(tmp.path(), &baseline).unwrap();
+
+        run_create_or_refresh(tmp.path(), true).unwrap();
+
+        let high_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yaml")).unwrap();
+        let low_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
+        assert!(
+            high_precedence.contains("a3b2ea4e"),
+            "policy.yaml (higher precedence) should receive the pin; got:\n{high_precedence}"
+        );
+        assert!(
+            !low_precedence.contains("a3b2ea4e"),
+            "policy.yml (lower precedence) must remain untouched; got:\n{low_precedence}"
+        );
+    }
+
+    #[test]
+    fn create_picks_up_cutoff_from_policy_when_baseline_absent() {
+        // Council #C-2 (quick): on first `anvil baseline`, an
+        // existing `policy.yaml` carrying `baseline.cutoff_commit`
+        // must seed the freshly written baseline.json so the two
+        // files cannot silently diverge.
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        fs::write(
+            tmp.path().join("anvil/policy.yaml"),
+            "baseline:\n  cutoff_commit: a3b2ea4e\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+        )
+        .unwrap();
+
+        run_create_or_refresh(tmp.path(), false).unwrap();
+
+        let baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_eq!(
+            baseline.cutoff_commit.as_deref(),
+            Some("a3b2ea4e"),
+            "first-create must seed cutoff from policy when baseline.json is being bootstrapped"
+        );
+    }
+
+    #[test]
+    fn refresh_does_not_fail_when_no_policy_file_to_pin() {
+        // Warnings over blocks: a missing policy file is a hint, not
+        // a failure of `anvil baseline --refresh`.
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false).unwrap();
+        let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        save_baseline(tmp.path(), &baseline).unwrap();
+        // No anvil/policy.* file present.
+        run_create_or_refresh(tmp.path(), true).unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_eq!(after.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+    }
+
+    #[test]
+    fn create_populates_findings_from_scanner() {
+        // MLP2-034 Phase 1: a worktree containing a known
+        // antipattern (`AP-003: any-type-annotation`) must produce
+        // a populated `BaselineFinding` with rule_id, file_path, and
+        // a non-empty fingerprint.
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(
+            tmp.path().join("src/app.ts"),
+            "const value: any = input;\nconsole.log(value);\n",
+        )
+        .unwrap();
+        run_create_or_refresh(tmp.path(), false).unwrap();
+        let baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(
+            !baseline.findings.is_empty(),
+            "scanner should populate at least one finding for `any`-type annotation"
+        );
+        let ap003 = baseline
+            .findings
+            .iter()
+            .find(|f| f.rule_id == "AP-003")
+            .expect("AP-003 (any-type) should be flagged on src/app.ts");
+        assert_eq!(ap003.file_path, "src/app.ts");
+        assert_eq!(ap003.fingerprint.len(), 16, "16-hex fingerprint");
+        assert!(ap003.fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn refresh_repopulates_findings_after_new_violation() {
+        // After --refresh, a newly added violation must surface in
+        // the rewritten baseline (Phase 1: the on-disk record is the
+        // reflection of the current scan).
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(tmp.path().join("src/clean.ts"), "export const x = 1;\n").unwrap();
+        run_create_or_refresh(tmp.path(), false).unwrap();
+        let first = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(first.findings.is_empty(), "no antipatterns yet");
+
+        // Introduce a violation and refresh.
+        fs::write(tmp.path().join("src/app.ts"), "const v: any = bad;\n").unwrap();
+        run_create_or_refresh(tmp.path(), true).unwrap();
+        let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(
+            refreshed.findings.iter().any(|f| f.rule_id == "AP-003"),
+            "AP-003 should appear after --refresh"
+        );
+    }
+
+    #[test]
+    fn verify_reports_loaded_baseline() {
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false).unwrap();
         run_verify(tmp.path()).unwrap();
     }
 
     #[test]
     fn verify_returns_error_when_no_baseline() {
-        let tmp = make_repo_with_identity();
+        let tmp = TempDir::new().unwrap();
         let err = run_verify(tmp.path()).unwrap_err();
         assert!(err.to_string().contains("no baseline"));
-    }
-
-    #[test]
-    fn create_without_project_id_returns_error() {
-        let tmp = TempDir::new().unwrap();
-        let err = run_create_or_refresh(tmp.path(), false).unwrap_err();
-        assert!(err.to_string().contains("project-id"));
     }
 }

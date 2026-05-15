@@ -70,7 +70,7 @@ mod validate;
 pub use decide::{BlockKind, CommitDecision, VersionFloorOutcome, evaluate_version_floor};
 pub use policy::{
     BaselineSection, BranchRule, OnBlock, OnNoWitness, OnWarn, Policy, PolicyParseError,
-    PolicyPinError, Requirement,
+    PolicyPinError, Requirement, pin_cutoff_commit,
 };
 pub use recognised_rules::{
     RecognisedRulesRegistry, RegistryError, RuleSetMetadata, RulesShaOutcome, evaluate_rules_sha,
