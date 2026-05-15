@@ -680,6 +680,119 @@ pub fn ensure_project_id(
     ProjectIdentity::parse(&contents)
 }
 
+/// MLP2-033: mint a fresh project identity, recording the previous
+/// `project_uuid` (if any) as `forked_from`. Always writes — this is
+/// the explicit-operator-intent counterpart to [`ensure_project_id`]'s
+/// idempotent read.
+///
+/// `--new-identity` on `anvil start` and `anvil baseline` flows
+/// through here. The expected fork tree:
+///
+/// - **Parent** project: `project_uuid = A`, no `forked_from`.
+/// - **Child** clone (no flag): inherits `A` via `ensure_project_id`
+///   — the on-disk file is checked in and survives `git clone`.
+/// - **Grandchild** clone of the child (with `--new-identity`):
+///   mints fresh `project_uuid = B`, records `forked_from = A`. The
+///   chain is single-deep — `forked_from` carries the immediate
+///   parent only, not a list. Re-running `--new-identity` mints
+///   *another* fresh UUID and overwrites `forked_from` with the most
+///   recent UUID (lossy, by design — operator's explicit intent each
+///   time).
+///
+/// Same TOCTOU + symlink-refusal pattern as [`ensure_project_id`],
+/// with one extra check: the project-id file *itself* is also
+/// refused if it's a symlink, since the overwrite would otherwise
+/// follow the link out of the repo (asymmetric with
+/// [`ensure_project_id`], which only ever creates a fresh file and
+/// so only needs to guard the parent directory).
+///
+/// The atomic temp-then-rename overwrites any existing file on both
+/// POSIX (rename replaces) and Windows (modern `std::fs::rename`
+/// passes `MOVEFILE_REPLACE_EXISTING`). After the rename the file is
+/// re-read from disk so concurrent `--new-identity` callers converge
+/// on the same persisted identity (council C-2 pattern). Note that
+/// `parent_uuid` is captured *before* the symlink checks and rename,
+/// so in a concurrent-mint race the loser's `forked_from` records
+/// the parent UUID it observed at read-time — which the winning
+/// rename has since overwritten. The losing write is itself
+/// overwritten by the winner, so the on-disk state is always
+/// consistent (no diverged `forked_from`); the race is documented
+/// here purely for future readers.
+pub fn mint_new_identity(
+    root: &Path,
+    anvil_version: &str,
+) -> Result<ProjectIdentity, IdentityError> {
+    let path = project_id_path(root);
+
+    // Capture the previous UUID before we overwrite. Read failures
+    // and parse failures are silently treated as "no parent" — the
+    // operator's explicit intent is to detach from whatever was
+    // there, so a malformed predecessor file shouldn't block the
+    // mint. (`ensure_project_id` propagates parse errors instead;
+    // the asymmetry is deliberate — `--new-identity` is destructive
+    // by design.)
+    let parent_uuid = if path.exists() {
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| ProjectIdentity::parse(&s).ok())
+            .map(|p| p.project_uuid)
+    } else {
+        None
+    };
+
+    let parent = path.parent().ok_or_else(|| {
+        IdentityError::Malformed(format!(
+            "project-id path `{}` has no parent directory",
+            path.display()
+        ))
+    })?;
+
+    refuse_if_symlink(parent)?;
+    fs::create_dir_all(parent)?;
+    refuse_if_symlink(parent)?;
+    refuse_if_symlink(&path)?;
+
+    let mut identity = ProjectIdentity::new_fresh(anvil_version);
+    identity.forked_from = parent_uuid;
+
+    let tmp_name = format!("project-id.tmp.{}", Uuid::new_v4().simple());
+    let tmp_path = parent.join(tmp_name);
+    let write_result = (|| -> Result<(), IdentityError> {
+        let mut f = fs::File::create(&tmp_path)?;
+        f.write_all(identity.render().as_bytes())?;
+        f.sync_all()?;
+        // `std::fs::rename` is atomic-replace on POSIX and (since
+        // Rust 1.66) on Windows via `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`.
+        // Unlike `ensure_project_id`'s rename, we *want* to overwrite
+        // here — that is the entire point of `--new-identity`.
+        fs::rename(&tmp_path, &path)?;
+        Ok(())
+    })();
+
+    if let Err(e) = write_result {
+        // Council quick #C-2 (MINOR): surface temp-file cleanup
+        // failures to tracing so a stale `project-id.tmp.<uuid>`
+        // after a disk-full mid-rename isn't silently abandoned.
+        // The error from `fs::remove_file` is otherwise swallowed
+        // (best-effort), which on a long-lived dev tree leads to
+        // an accumulation of orphaned temp files inside `anvil/`.
+        if let Err(rm_err) = fs::remove_file(&tmp_path) {
+            tracing::warn!(
+                error = %rm_err,
+                path = %tmp_path.display(),
+                "mint_new_identity: failed to clean up temp file after write error",
+            );
+        }
+        return Err(e);
+    }
+
+    // Convergence: re-read so two racing `--new-identity` calls both
+    // observe whichever UUID actually persisted (council C-2 pattern,
+    // mirrors `ensure_project_id`).
+    let contents = fs::read_to_string(&path)?;
+    ProjectIdentity::parse(&contents)
+}
+
 /// Refuse if `path` exists and is a symlink. Used twice in
 /// `ensure_project_id` to close the TOCTOU window between the
 /// pre-check and the write.
@@ -1574,6 +1687,112 @@ origin_canonical:
         let elsewhere = TempDir::new().unwrap();
         std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("anvil")).unwrap();
         let err = ensure_project_id(dir.path(), "0.6.0").unwrap_err();
+        assert!(
+            matches!(err, IdentityError::Malformed(_)),
+            "expected Malformed for symlink anvil/, got {err:?}"
+        );
+        assert!(
+            !elsewhere.path().join("project-id").exists(),
+            "must not write project-id through the symlink"
+        );
+    }
+
+    // ---- MLP2-033: mint_new_identity ---------------------------
+
+    #[test]
+    fn mint_new_identity_on_empty_repo_acts_like_fresh() {
+        // No prior identity → mint behaves like `ensure_project_id`'s
+        // fresh-mint path: a v7 UUID, no `forked_from`.
+        let dir = TempDir::new().unwrap();
+        let id = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        assert!(Uuid::parse_str(&id.project_uuid).is_ok());
+        assert_eq!(
+            id.forked_from, None,
+            "no parent on a virgin repo, so forked_from must be None"
+        );
+        // Round-trip via the on-disk file.
+        let loaded = read_project_id(dir.path()).unwrap().unwrap();
+        assert_eq!(loaded, id);
+    }
+
+    #[test]
+    fn mint_new_identity_records_existing_uuid_as_forked_from() {
+        // The headline fork tree from the MLP2-033 validation: parent
+        // uuid A → grandchild B with forked_from=A.
+        let dir = TempDir::new().unwrap();
+        let parent = ensure_project_id(dir.path(), "0.6.0").unwrap();
+        let parent_uuid = parent.project_uuid.clone();
+
+        let child = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        assert_ne!(
+            child.project_uuid, parent_uuid,
+            "mint must produce a fresh UUID, not echo the parent"
+        );
+        assert_eq!(
+            child.forked_from.as_deref(),
+            Some(parent_uuid.as_str()),
+            "forked_from must record the previous project_uuid"
+        );
+
+        // The on-disk file was overwritten with the new identity.
+        let loaded = read_project_id(dir.path()).unwrap().unwrap();
+        assert_eq!(loaded.project_uuid, child.project_uuid);
+        assert_eq!(loaded.forked_from.as_deref(), Some(parent_uuid.as_str()));
+    }
+
+    #[test]
+    fn mint_new_identity_is_not_idempotent_each_call_remints() {
+        // Unlike `ensure_project_id` (idempotent on existing identity),
+        // `mint_new_identity` is destructive-by-design: each call writes
+        // a new UUID, with the *previous* UUID recorded as forked_from.
+        // Re-running loses earlier ancestors — the chain is single-deep
+        // by spec.
+        let dir = TempDir::new().unwrap();
+        let first = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        let second = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        let third = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        assert_ne!(first.project_uuid, second.project_uuid);
+        assert_ne!(second.project_uuid, third.project_uuid);
+        assert_eq!(
+            second.forked_from.as_deref(),
+            Some(first.project_uuid.as_str())
+        );
+        assert_eq!(
+            third.forked_from.as_deref(),
+            Some(second.project_uuid.as_str())
+        );
+        // The first mint had no parent.
+        assert_eq!(first.forked_from, None);
+    }
+
+    #[test]
+    fn mint_new_identity_treats_malformed_existing_as_no_parent() {
+        // Operator's explicit intent is to detach. A garbled previous
+        // file shouldn't block the mint — we simply have no recordable
+        // parent UUID. (Asymmetric with `ensure_project_id`, which
+        // propagates the parse error; documented on `mint_new_identity`.)
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        std::fs::write(
+            dir.path().join("anvil/project-id"),
+            "not-a-valid-key: garbage\n",
+        )
+        .unwrap();
+
+        let id = mint_new_identity(dir.path(), "0.6.0").unwrap();
+        assert!(Uuid::parse_str(&id.project_uuid).is_ok());
+        assert_eq!(id.forked_from, None);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn mint_new_identity_refuses_when_anvil_is_a_symlink() {
+        // Mirrors the ensure_project_id symlink-refusal pin. Unix-only
+        // for the same reason (Windows symlinks need dev mode).
+        let dir = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("anvil")).unwrap();
+        let err = mint_new_identity(dir.path(), "0.6.0").unwrap_err();
         assert!(
             matches!(err, IdentityError::Malformed(_)),
             "expected Malformed for symlink anvil/, got {err:?}"

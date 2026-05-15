@@ -84,6 +84,14 @@ pub struct StartArgs {
     /// legacy `.anvilrc`. Omit to keep the current `.anvilrc` writer.
     #[arg(long, value_enum)]
     pub format: Option<StartFormat>,
+    /// MLP2-033 — mint a fresh `project_uuid` and record the previous
+    /// one as `forked_from`. Use after `git clone`-ing a repo whose
+    /// `anvil/project-id` was inherited from the parent and you want
+    /// the fork to carry its own identity. Mutates `anvil/project-id`
+    /// before the orchestrator's idempotent identity check runs;
+    /// incompatible with `--verify` (read-only).
+    #[arg(long = "new-identity")]
+    pub new_identity: bool,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -138,6 +146,34 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             bail!(
                 "`--watch` and `--json` are mutually exclusive — the watcher streams event lines on stdout, breaking the single JSON document contract. Run `anvil start --watch` without `--json`, or `anvil start --json` for a read-only diagnostic."
             );
+        }
+    }
+
+    // MLP2-033 — `--new-identity` mints a fresh `project_uuid` BEFORE
+    // the orchestrator's idempotent `ensure_project_id` runs. The
+    // orchestrator step is non-fatal and idempotent on whatever it
+    // finds, so pre-minting + handing off is the smallest correct
+    // wiring. Read-only / `--verify` rejects the flag explicitly —
+    // the mint mutates `anvil/project-id`, which a read-only probe
+    // must never do.
+    if args.new_identity {
+        if read_only {
+            bail!(
+                "`--new-identity` is incompatible with `--verify` / `--json` (read-only). Drop the read-only flag, or run `anvil baseline --new-identity` for a non-orchestrator surface."
+            );
+        }
+        if let Err(e) = activation::identity::mint_new_identity(root, env!("CARGO_PKG_VERSION")) {
+            // Same non-fatal posture as the orchestrator's identity
+            // step — surface the failure so the operator sees it,
+            // but let the rest of activation proceed (the
+            // orchestrator's own `ensure_project_id` will pick up
+            // whatever state was left on disk, even if mint failed
+            // mid-write).
+            tracing::warn!(
+                error = %e,
+                "start: --new-identity mint failed; orchestrator will fall back to ensure_project_id",
+            );
+            eprintln!("anvil: --new-identity could not mint a fresh project_uuid ({e})");
         }
     }
 

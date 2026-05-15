@@ -1241,7 +1241,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-033: `--new-identity` fork opt-out CLI flag
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `anvil start --new-identity` mints a fresh
   `project_uuid` instead of inheriting from the parent repo
   (which is the current fork behaviour). Lives on `anvil
@@ -1251,8 +1251,50 @@ task's `Source:` line cites the Council finding IDs.
     `forked_from`-inherited UUID and writes a fresh v7 UUID.
   - Default behaviour (without the flag) preserves the
     current "fork inherits" semantics.
-- **Files:** `crates/anvil-cli/src/commands/start.rs`,
-  `crates/anvil-cli/src/commands/baseline.rs`.
+- **Files:** `crates/anvil-cli/src/activation/identity.rs`
+  (new `mint_new_identity` primitive),
+  `crates/anvil-cli/src/commands/baseline.rs`,
+  `crates/anvil-cli/src/commands/start.rs`.
+- **Evidence (In Progress on `feat/mlp2-033-new-identity`):**
+  New `mint_new_identity(root, version) -> ProjectIdentity` in
+  `activation/identity.rs` mints a fresh v7 UUID and records the
+  previous `project_uuid` (if any) as `forked_from`. Always
+  writes — explicit operator intent. Mirrors `ensure_project_id`'s
+  TOCTOU + symlink-refusal pattern, plus an extra
+  `refuse_if_symlink(&path)` since the overwrite would otherwise
+  follow a symlink-to-file out of the repo. Atomic temp-then-rename
+  uses `std::fs::rename`'s replace-existing semantics on POSIX
+  (default) and Windows (since Rust 1.66). Re-reads after rename
+  for the council-C-2 convergence pattern. `--new-identity` flag
+  on `BaselineArgs` and `StartArgs` dispatches to the new
+  primitive; `baseline.rs` bypasses the "baseline already
+  exists" short-circuit when the flag is set so `baseline.json`'s
+  `metadata.project_uuid` cannot diverge from the freshly minted
+  identity (mirrors the divergence trap MLP2-032 closed for
+  cutoff). `start.rs` pre-mints before the orchestrator runs;
+  mutually exclusive with `--verify`/`--json` (read-only). Mint
+  failure in `start.rs` is non-fatal — surfaces a `tracing::warn!`
+  + one-line eprintln and lets the orchestrator's idempotent
+  `ensure_project_id` step pick up whatever state was left on
+  disk (matches the orchestrator's existing identity-failure
+  posture). +9 unit pins:
+  `mint_new_identity_on_empty_repo_acts_like_fresh`,
+  `mint_new_identity_records_existing_uuid_as_forked_from`,
+  `mint_new_identity_is_not_idempotent_each_call_remints`,
+  `mint_new_identity_treats_malformed_existing_as_no_parent`,
+  `mint_new_identity_refuses_when_anvil_is_a_symlink` (unix-only),
+  `new_identity_remints_uuid_and_records_forked_from`,
+  `new_identity_bypasses_already_exists_short_circuit`,
+  `new_identity_on_empty_repo_mints_with_no_parent`,
+  `new_identity_preserves_existing_cutoff_commit` (Council
+  quick #C-4 regression guard). `cargo test --workspace` clean
+  (4116 tests); `cargo clippy --workspace --all-targets -- -D
+  warnings` clean. Council quick on PR #TBD found 4 MINOR + 2
+  NIT — no MAJOR/CRITICAL. Folded in: race-window doc comment
+  on `parent_uuid` capture, `tracing::warn!` on temp-file
+  cleanup failure (`#C-2`), symlink-asymmetry doc, cutoff-carry
+  regression test (`#C-4`). Skipped: `start.rs` `bail!` test
+  (codebase pattern — `--watch + --verify` similarly untested).
 - **Validation:** Fork tree fixture: parent uuid A → child A
   (no flag) → grandchild B (with flag).
 - **Confidence:** high

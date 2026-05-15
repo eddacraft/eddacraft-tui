@@ -53,7 +53,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;
-use crate::activation::identity::ensure_project_id;
+use crate::activation::identity::{ensure_project_id, mint_new_identity};
 use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Args)]
@@ -65,6 +65,13 @@ pub struct BaselineArgs {
     /// (e.g. `verify`) is given.
     #[arg(long)]
     refresh: bool,
+    /// MLP2-033: mint a fresh `project_uuid` and record the previous
+    /// one as `forked_from`. Use after `git clone`-ing a repo whose
+    /// `anvil/project-id` was inherited from the parent and you want
+    /// the fork to carry its own identity. Destructive on the prior
+    /// `forked_from` field — the chain is single-deep by design.
+    #[arg(long = "new-identity")]
+    new_identity: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -78,21 +85,42 @@ enum BaselineCommand {
 pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
     let repo_root = std::env::current_dir().context("resolve repo root")?;
     match &args.command {
-        Some(BaselineCommand::Verify) => run_verify(&repo_root),
-        None => run_create_or_refresh(&repo_root, args.refresh),
+        Some(BaselineCommand::Verify) => {
+            if args.new_identity {
+                anyhow::bail!(
+                    "`--new-identity` is incompatible with `verify` — verify is read-only"
+                );
+            }
+            run_verify(&repo_root)
+        }
+        None => run_create_or_refresh(&repo_root, args.refresh, args.new_identity),
     }
 }
 
-fn run_create_or_refresh(repo_root: &Path, refresh: bool) -> Result<()> {
-    // MLP2-032: mint or read project identity in the same flow as
-    // baseline bootstrap. `ensure_project_id` is idempotent — it
-    // returns the existing identity if `anvil/project-id` already
-    // parses, or atomically writes a fresh v7 UUID if absent.
-    let identity = ensure_project_id(repo_root, env!("CARGO_PKG_VERSION"))
-        .context("ensure anvil/project-id")?;
+fn run_create_or_refresh(repo_root: &Path, refresh: bool, new_identity: bool) -> Result<()> {
+    // MLP2-032 / MLP2-033: establish project identity in the same flow
+    // as baseline bootstrap. Default path is `ensure_project_id`
+    // (idempotent — returns the existing identity, or atomically
+    // writes a fresh v7 UUID if absent). `--new-identity` opts into
+    // the destructive `mint_new_identity` path: always writes a
+    // fresh UUID and records the previous one as `forked_from`. Use
+    // after `git clone` when the inherited identity needs to detach.
+    let identity = if new_identity {
+        mint_new_identity(repo_root, env!("CARGO_PKG_VERSION"))
+            .context("mint fresh anvil/project-id (--new-identity)")?
+    } else {
+        ensure_project_id(repo_root, env!("CARGO_PKG_VERSION"))
+            .context("ensure anvil/project-id")?
+    };
 
     let existing = load_baseline(repo_root).context("load existing baseline (if any)")?;
-    if existing.is_some() && !refresh {
+    // `--new-identity` implies a baseline rewrite — the on-disk
+    // `baseline.json` carries `project_uuid` in its metadata, and
+    // letting it diverge from the freshly-minted identity would
+    // recreate the policy/baseline divergence trap MLP2-032 closed
+    // for cutoff_commit. Treat the flag as `--refresh` for the
+    // already-exists check.
+    if existing.is_some() && !refresh && !new_identity {
         println!("anvil: baseline already exists at anvil/baseline.json — use --refresh to update");
         return Ok(());
     }
@@ -338,7 +366,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         // No anvil/project-id pre-seeded — the orchestrator must
         // mint one (MLP2-032).
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let identity_path = tmp.path().join("anvil/project-id");
         assert!(identity_path.exists(), "anvil/project-id should be minted");
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -355,7 +383,7 @@ mod tests {
             "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n",
         )
         .unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
             baseline.metadata.project_uuid, "01997e4a-1b2c-7345-8901-abcdef123456",
@@ -366,10 +394,10 @@ mod tests {
     #[test]
     fn create_without_refresh_does_not_overwrite_existing() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(first.metadata.created_at, second.metadata.created_at);
     }
@@ -377,12 +405,12 @@ mod tests {
     #[test]
     fn refresh_preserves_cutoff_commit_across_runs() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true).unwrap();
+        run_create_or_refresh(tmp.path(), true, false).unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(refreshed.cutoff_commit.as_deref(), Some("a3b2ea4e"));
     }
@@ -394,12 +422,12 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         write_policy_yml(tmp.path());
 
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true).unwrap();
+        run_create_or_refresh(tmp.path(), true, false).unwrap();
 
         let policy_text = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
         assert!(
@@ -420,12 +448,12 @@ mod tests {
         fs::write(tmp.path().join("anvil/policy.yaml"), MIN_VALID_POLICY).unwrap();
         fs::write(tmp.path().join("anvil/policy.yml"), MIN_VALID_POLICY).unwrap();
 
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
-        run_create_or_refresh(tmp.path(), true).unwrap();
+        run_create_or_refresh(tmp.path(), true, false).unwrap();
 
         let high_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yaml")).unwrap();
         let low_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
@@ -453,7 +481,7 @@ mod tests {
         )
         .unwrap();
 
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
 
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
@@ -468,12 +496,12 @@ mod tests {
         // Warnings over blocks: a missing policy file is a hint, not
         // a failure of `anvil baseline --refresh`.
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
         baseline.cutoff_commit = Some("a3b2ea4e".to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
         // No anvil/policy.* file present.
-        run_create_or_refresh(tmp.path(), true).unwrap();
+        run_create_or_refresh(tmp.path(), true, false).unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(after.cutoff_commit.as_deref(), Some("a3b2ea4e"));
     }
@@ -491,7 +519,7 @@ mod tests {
             "const value: any = input;\nconsole.log(value);\n",
         )
         .unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(
             !baseline.findings.is_empty(),
@@ -515,13 +543,13 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         fs::create_dir_all(tmp.path().join("src")).unwrap();
         fs::write(tmp.path().join("src/clean.ts"), "export const x = 1;\n").unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(first.findings.is_empty(), "no antipatterns yet");
 
         // Introduce a violation and refresh.
         fs::write(tmp.path().join("src/app.ts"), "const v: any = bad;\n").unwrap();
-        run_create_or_refresh(tmp.path(), true).unwrap();
+        run_create_or_refresh(tmp.path(), true, false).unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
         assert!(
             refreshed.findings.iter().any(|f| f.rule_id == "AP-003"),
@@ -532,7 +560,7 @@ mod tests {
     #[test]
     fn verify_reports_loaded_baseline() {
         let tmp = TempDir::new().unwrap();
-        run_create_or_refresh(tmp.path(), false).unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
         run_verify(tmp.path()).unwrap();
     }
 
@@ -541,5 +569,100 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let err = run_verify(tmp.path()).unwrap_err();
         assert!(err.to_string().contains("no baseline"));
+    }
+
+    // ---- MLP2-033: --new-identity ------------------------------
+
+    #[test]
+    fn new_identity_remints_uuid_and_records_forked_from() {
+        // Validation fixture from MLP2-033: parent uuid A → grandchild
+        // uuid B with `forked_from = A` after `anvil baseline
+        // --new-identity`. Both `anvil/project-id` AND
+        // `anvil/baseline.json`'s `metadata.project_uuid` must reflect
+        // the new identity — letting them diverge would recreate the
+        // policy/baseline divergence trap MLP2-032 closed for cutoff.
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        let parent_uuid = load_baseline(tmp.path())
+            .unwrap()
+            .unwrap()
+            .metadata
+            .project_uuid;
+
+        run_create_or_refresh(tmp.path(), false, true).unwrap();
+
+        let child_baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_ne!(
+            child_baseline.metadata.project_uuid, parent_uuid,
+            "baseline.json metadata must carry the freshly minted UUID"
+        );
+
+        let project_id_text = fs::read_to_string(tmp.path().join("anvil/project-id")).unwrap();
+        assert!(
+            project_id_text.contains(&child_baseline.metadata.project_uuid),
+            "project-id must record the new UUID; got:\n{project_id_text}"
+        );
+        assert!(
+            project_id_text.contains(&format!("forked_from: {parent_uuid}")),
+            "project-id must record forked_from = parent UUID; got:\n{project_id_text}"
+        );
+    }
+
+    #[test]
+    fn new_identity_bypasses_already_exists_short_circuit() {
+        // Without --new-identity, a second `anvil baseline` against an
+        // existing baseline is a no-op (operator must opt into refresh).
+        // With --new-identity, the rewrite is mandatory — otherwise
+        // baseline.json's metadata would silently keep the parent UUID.
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        let first = load_baseline(tmp.path()).unwrap().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        // No --refresh, but --new-identity → must rewrite.
+        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        let second = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_ne!(
+            first.metadata.project_uuid, second.metadata.project_uuid,
+            "--new-identity must rewrite baseline metadata even without --refresh"
+        );
+    }
+
+    #[test]
+    fn new_identity_preserves_existing_cutoff_commit() {
+        // Council quick #C-4 (MINOR) regression guard: rewriting the
+        // baseline under `--new-identity` must carry the existing
+        // `cutoff_commit` forward. Otherwise the operator who pinned
+        // a cutoff would silently lose it the moment they detached
+        // the project identity.
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false, false).unwrap();
+        let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
+        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        save_baseline(tmp.path(), &baseline).unwrap();
+
+        run_create_or_refresh(tmp.path(), false, true).unwrap();
+
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert_eq!(
+            after.cutoff_commit.as_deref(),
+            Some("a3b2ea4e"),
+            "--new-identity must preserve cutoff_commit across the rewrite"
+        );
+    }
+
+    #[test]
+    fn new_identity_on_empty_repo_mints_with_no_parent() {
+        // Same as `mint_new_identity_on_empty_repo_acts_like_fresh`
+        // but exercises the orchestrator entry point. No parent UUID
+        // → forked_from absent.
+        let tmp = TempDir::new().unwrap();
+        run_create_or_refresh(tmp.path(), false, true).unwrap();
+        let project_id_text = fs::read_to_string(tmp.path().join("anvil/project-id")).unwrap();
+        assert!(project_id_text.contains("project_uuid:"));
+        assert!(
+            !project_id_text.contains("forked_from:"),
+            "no parent → no forked_from; got:\n{project_id_text}"
+        );
     }
 }
