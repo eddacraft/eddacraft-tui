@@ -4,8 +4,8 @@
 | ------- | ------------- | ------ | ------ | ------------------------------------------ |
 | Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside ADOPT-001 |
 
-| Upstream                                                                                                                | Downstream                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Upstream                                                                                                                                                           | Downstream                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ADOPT-001 in `adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md), [ADR-038](../../plans/decisions/038-hook-surface-and-noise-discipline.md) | [`crates/anvil-hook/src/coexistence.rs`](../../crates/anvil-hook/src/coexistence.rs), [`crates/anvil-cli/src/commands/hooks.rs`](../../crates/anvil-cli/src/commands/hooks.rs), [`docs/guides/git-hook-compatibility.md`](../guides/git-hook-compatibility.md) |
 
 Anvil installs pre-commit, post-commit, pre-push, post-merge, and post-rewrite
