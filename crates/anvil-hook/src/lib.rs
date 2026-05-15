@@ -60,8 +60,8 @@ mod suppression;
 mod verdict;
 
 pub use bootstrap::{
-    BootstrapPlan, HuskyRuntime, PlainHookFile, build_bootstrap_plan, generate_husky_runtime,
-    render_success_message,
+    BOOTSTRAP_RECOVERY_VALIDATION_AT, BootstrapPlan, HuskyRuntime, PlainHookFile,
+    build_bootstrap_plan, generate_husky_runtime, render_success_message,
 };
 pub use coexistence::{
     CoexistenceError, CoexistenceFile, CoexistencePlan, MARKER_BEGIN, MARKER_END, apply,

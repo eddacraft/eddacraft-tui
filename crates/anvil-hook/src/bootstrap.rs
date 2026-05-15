@@ -135,6 +135,13 @@ pub fn build_bootstrap_plan(framework: HookFramework) -> BootstrapPlan {
     }
 }
 
+/// Pinned `validation_at` string for retroactive witnesses produced
+/// by `anvil hook bootstrap --witness-recent` (MLP2-037). Lets
+/// downstream readers distinguish a worktree-bootstrap recovery walk
+/// from the pre-commit / post-rewrite-recovery sources. Stable; do
+/// not drift.
+pub const BOOTSTRAP_RECOVERY_VALIDATION_AT: &str = "bootstrap-recovery";
+
 /// Build the one-line success message per the MLP-008 spec.
 ///
 /// Format: `anvil: bootstrapped (N commits witnessed retroactively)`.
@@ -282,5 +289,15 @@ mod tests {
             let m = render_success_message(n);
             assert!(!m.contains('\n'), "message for n={n} was multi-line: {m:?}");
         }
+    }
+
+    #[test]
+    fn bootstrap_recovery_validation_at_constant_is_pinned() {
+        // MLP2-037: retroactive witnesses written by
+        // `anvil hook bootstrap --witness-recent` MUST carry this
+        // exact tag so downstream readers can distinguish a recovery
+        // walk from the regular pre-commit / post-rewrite-recovery
+        // sources. Stable wire-format; do not drift.
+        assert_eq!(BOOTSTRAP_RECOVERY_VALIDATION_AT, "bootstrap-recovery");
     }
 }
