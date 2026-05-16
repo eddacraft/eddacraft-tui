@@ -27,6 +27,14 @@ enum InterceptCommand {
     /// the mid-edit `validation.service` p50/p95 latency rollup
     /// (INTD-011).
     Status(StatusArgs),
+    /// MLP2-026: clear a worktree's `degraded:fence-cascade`
+    /// engaged state. Requires the `--acknowledge-cascade` flag
+    /// as an operator-intent affordance. The daemon's
+    /// `unblock-cascade` IPC verb is the only path that clears
+    /// cascade state — the existing per-fence `unblock_worktree`
+    /// affordance is a distinct concern (clears individual
+    /// fence records, NOT the cascade).
+    Unblock(UnblockArgs),
 }
 
 #[derive(Debug, Args)]
@@ -46,11 +54,55 @@ struct StatusArgs {
     json: bool,
 }
 
+#[derive(Debug, Args)]
+struct UnblockArgs {
+    /// Worktree to clear from `degraded:fence-cascade` mode.
+    /// Path is canonicalised before the IPC dispatch.
+    worktree: std::path::PathBuf,
+    /// Required affordance — confirms operator intent on the
+    /// command line. The audit-of-record is the
+    /// `OperatorContext` the daemon derives from the IPC peer
+    /// credentials; this flag is UX only and is NOT sent on
+    /// the wire. Spec §3.4 + §10 Q2.
+    #[arg(long)]
+    acknowledge_cascade: bool,
+}
+
 pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
     match &args.command {
         InterceptCommand::Start(start_args) => run_start(start_args),
         InterceptCommand::Status(status_args) => run_status(status_args),
+        InterceptCommand::Unblock(unblock_args) => run_unblock(unblock_args),
     }
+}
+
+fn run_unblock(args: &UnblockArgs) -> Result<()> {
+    if !args.acknowledge_cascade {
+        anyhow::bail!(
+            "anvil intercept unblock requires --acknowledge-cascade to confirm operator intent; \
+             rerun with the flag if you mean to clear a degraded:fence-cascade",
+        );
+    }
+    // Canonicalise the path before dispatch. Mirrors the daemon's
+    // own `lookup_path` guard so an operator typing `./wt` and
+    // an operator typing the absolute path hit the same cascade
+    // record.
+    let canonical = std::fs::canonicalize(&args.worktree).with_context(|| {
+        format!(
+            "failed to canonicalise worktree path {}",
+            args.worktree.display(),
+        )
+    })?;
+    let cleared = dispatch_unblock_cascade(&canonical)?;
+    if cleared {
+        println!("cascade cleared for worktree {}", canonical.display(),);
+    } else {
+        println!(
+            "no cascade engaged for worktree {} (no-op)",
+            canonical.display(),
+        );
+    }
+    Ok(())
 }
 
 fn run_status(args: &StatusArgs) -> Result<()> {
@@ -317,6 +369,129 @@ const REQUEST_ID: &str = "anvil-cli-intercept-status";
 /// CLI client.
 const RESPONSE_LINE_BYTES: u64 = 1 << 20;
 
+/// MLP2-026: send `IpcCommand::UnblockCascade` to the daemon and
+/// parse the `{"ok": bool}` response. Returns `Ok(true)` when a
+/// cascade was actually cleared, `Ok(false)` on the idempotent
+/// no-op case (no cascade was engaged), `Err(_)` on transport
+/// or protocol failures.
+///
+/// Mirrors `query_daemon_status` for connection / framing /
+/// response-validation; uses the canonical `unblock-cascade`
+/// method name.
+#[cfg(unix)]
+fn dispatch_unblock_cascade(worktree: &std::path::Path) -> Result<bool> {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    use anvil_intercept::ipc;
+
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+    const UNBLOCK_REQUEST_ID: &str = "anvil-cli-intercept-unblock-cascade";
+
+    let socket_path =
+        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
+        return match err {
+            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
+                Err(anyhow::anyhow!(
+                    "anvil intercept daemon is not running (no socket at {}). \
+                     Start it with `anvil intercept start --foreground`.",
+                    socket_path.display(),
+                ))
+            }
+            other => Err(anyhow::anyhow!(
+                "anvil intercept daemon socket is unavailable: {other}",
+            )),
+        };
+    }
+    let mut stream = UnixStream::connect(&socket_path).with_context(|| {
+        format!(
+            "failed to connect to intercept daemon socket {}",
+            socket_path.display(),
+        )
+    })?;
+    ipc::validate_connected_peer_for_client(&stream)
+        .map_err(|err| anyhow::anyhow!("daemon peer credentials rejected: {err}"))?;
+    stream
+        .set_read_timeout(Some(REQUEST_TIMEOUT))
+        .context("failed to configure read timeout")?;
+    stream
+        .set_write_timeout(Some(REQUEST_TIMEOUT))
+        .context("failed to configure write timeout")?;
+
+    let frame = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "unblock-cascade",
+        "params": { "worktree": worktree.to_string_lossy() },
+        "id": UNBLOCK_REQUEST_ID,
+    });
+    let mut frame_bytes = frame.to_string().into_bytes();
+    frame_bytes.push(b'\n');
+    stream
+        .write_all(&frame_bytes)
+        .context("failed to send unblock-cascade frame")?;
+    stream
+        .flush()
+        .context("failed to flush unblock-cascade frame")?;
+
+    let mut reader = BufReader::new(stream);
+    let mut buf = Vec::new();
+    let read = reader
+        .by_ref()
+        .take(RESPONSE_LINE_BYTES + 1)
+        .read_until(b'\n', &mut buf)
+        .context("failed to read unblock-cascade response")?;
+    parse_unblock_cascade_response_bytes(&buf, read, UNBLOCK_REQUEST_ID)
+}
+
+#[cfg(windows)]
+fn dispatch_unblock_cascade(_worktree: &std::path::Path) -> Result<bool> {
+    // Windows CLI surface follows the same pattern as the Unix
+    // path but the daemon-side win32 plumbing under MLP2-028 has
+    // not landed yet; surface a clear error rather than panic.
+    anyhow::bail!(
+        "anvil intercept unblock --acknowledge-cascade is not yet supported on Windows; \
+         see MLP2-028 for peer-credential support"
+    );
+}
+
+#[cfg(unix)]
+fn parse_unblock_cascade_response_bytes(buf: &[u8], read: usize, request_id: &str) -> Result<bool> {
+    if read == 0 {
+        anyhow::bail!("daemon closed the connection before responding");
+    }
+    if (buf.len() as u64) > RESPONSE_LINE_BYTES {
+        anyhow::bail!("unblock-cascade response exceeded {RESPONSE_LINE_BYTES} byte cap");
+    }
+    let line = std::str::from_utf8(buf.trim_ascii_end())
+        .context("unblock-cascade response is not valid UTF-8")?;
+    let response: serde_json::Value =
+        serde_json::from_str(line).context("unblock-cascade response is not valid JSON")?;
+    if response.get("jsonrpc") != Some(&serde_json::Value::String("2.0".to_string())) {
+        anyhow::bail!(
+            "daemon response missing or wrong jsonrpc version (expected \"2.0\"): {response}",
+        );
+    }
+    if response.get("id") != Some(&serde_json::Value::String(request_id.to_string())) {
+        anyhow::bail!(
+            "daemon response id does not match request (expected {request_id:?}): {response}",
+        );
+    }
+    if let Some(error) = response.get("error") {
+        anyhow::bail!("daemon returned a JSON-RPC error: {error}");
+    }
+    let result = response
+        .get("result")
+        .ok_or_else(|| anyhow::anyhow!("daemon response missing `result` field: {response}"))?;
+    result
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| {
+            anyhow::anyhow!("daemon response `result.ok` missing or not a bool: {result}",)
+        })
+}
+
 /// Build the on-the-wire bytes for a `query_status` JSON-RPC frame.
 /// Centralised so the Unix and Windows paths cannot drift on
 /// jsonrpc/version/id semantics.
@@ -495,6 +670,66 @@ mod tests {
             msg.contains("INTD-002"),
             "bail message must point at the future backgrounded path (INTD-002), got: {msg}",
         );
+    }
+
+    /// MLP2-026: `run_unblock` refuses to dispatch without
+    /// `--acknowledge-cascade`. The flag is required as an
+    /// operator-intent affordance (spec §3.4 + §10 Q2).
+    #[test]
+    fn run_unblock_without_acknowledge_flag_bails_with_actionable_message() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let args = UnblockArgs {
+            worktree: tmp.path().to_path_buf(),
+            acknowledge_cascade: false,
+        };
+        let err = run_unblock(&args).expect_err("expected bail without --acknowledge-cascade");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("--acknowledge-cascade"),
+            "bail message must mention --acknowledge-cascade, got: {msg}",
+        );
+    }
+
+    /// MLP2-026: `parse_unblock_cascade_response_bytes` returns
+    /// the inner `ok: bool` on a well-formed response.
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_cascade_response_extracts_ok_true() {
+        let raw = r#"{"jsonrpc":"2.0","id":"test-id","result":{"ok":true}}"#;
+        let bytes = raw.as_bytes();
+        let result =
+            parse_unblock_cascade_response_bytes(bytes, bytes.len(), "test-id").expect("parse");
+        assert!(result);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_cascade_response_extracts_ok_false() {
+        let raw = r#"{"jsonrpc":"2.0","id":"test-id","result":{"ok":false}}"#;
+        let bytes = raw.as_bytes();
+        let result =
+            parse_unblock_cascade_response_bytes(bytes, bytes.len(), "test-id").expect("parse");
+        assert!(!result);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_cascade_response_rejects_mismatched_id() {
+        let raw = r#"{"jsonrpc":"2.0","id":"other-id","result":{"ok":true}}"#;
+        let bytes = raw.as_bytes();
+        let err =
+            parse_unblock_cascade_response_bytes(bytes, bytes.len(), "test-id").expect_err("err");
+        assert!(format!("{err}").contains("id does not match"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_cascade_response_surfaces_jsonrpc_error() {
+        let raw = r#"{"jsonrpc":"2.0","id":"test-id","error":{"code":-32603,"message":"boom"}}"#;
+        let bytes = raw.as_bytes();
+        let err =
+            parse_unblock_cascade_response_bytes(bytes, bytes.len(), "test-id").expect_err("err");
+        assert!(format!("{err}").contains("JSON-RPC error"));
     }
 
     fn empty_status() -> DaemonStatusV1 {
