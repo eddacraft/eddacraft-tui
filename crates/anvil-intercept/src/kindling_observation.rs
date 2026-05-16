@@ -155,6 +155,20 @@ pub struct GateEvaluatedObservation {
     pub violation_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning_count: Option<u32>,
+    /// MLP2-056 — `true` when the producing audit walk exited early
+    /// because a time budget fired. Additive-optional; mid-edit /
+    /// pre-push emitters omit the field, so the wire shape stays
+    /// byte-compat with pre-MLP2-056 consumers.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub partial: bool,
+}
+
+#[inline]
+// `skip_serializing_if` requires `fn(&T) -> bool`; passing `bool` by
+// value would not satisfy serde's contract.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Nested `inputs` object on a `gate_evaluated` observation. Matches
@@ -221,6 +235,9 @@ pub fn from_midedit_response(
         duration_ms: ctx.duration_ms,
         violation_count: Some(violation_count),
         warning_count: Some(warning_count),
+        // Mid-edit emissions are never partial — the scan either
+        // completes or returns no diagnostics.
+        partial: false,
     })
 }
 
@@ -258,6 +275,178 @@ fn counts_for(diagnostics: &[Diagnostic]) -> (u32, u32) {
         }
     }
     (violations, warnings)
+}
+
+// MLP2-054: audit-chain `gate_evaluated` builder -----------------------
+//
+// `anvil audit-chain` (MLP-015) walks a branch's commits and reports any
+// that lack a corresponding L3 witness. The builder below converts that
+// audit run into a Kindling row so historical drift is queryable through
+// the observation timeline. The CLI is responsible for assembling the
+// inputs and delivering the row to a sink (see
+// `anvil-cli::commands::audit_chain`); the builder itself stays a pure
+// converter so it can be exercised without a clock, UUID source, or
+// filesystem.
+
+/// Pinned `gate_id` for audit-chain rows. Distinguishes L5 audit-chain
+/// findings from mid-edit / pre-commit / pre-push rows that share the
+/// `gate_evaluated` kind but live at different layers.
+pub const AUDIT_CHAIN_GATE_ID: &str = "audit-chain";
+
+/// Synthetic rule id for "every commit must have a witness." Audit-
+/// chain v1 is a witness-presence check (ADR-037 §D-9); each commit
+/// without a witness counts as a violation of this rule.
+pub const AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID: &str = "anvil.audit.witness-presence";
+
+/// Synthetic rule id for "witness chain verifies end-to-end." Distinct
+/// from `witness-presence` so tamper evidence surfaces as its own
+/// violated rule rather than being conflated with simple drift.
+pub const AUDIT_CHAIN_CHAIN_INTACT_RULE_ID: &str = "anvil.audit.chain-intact";
+
+/// Per-invocation context the audit-chain CLI supplies to the builder.
+/// Kept separate from [`ObservationContext`] because audit-chain rows
+/// scope by branch + commit window rather than a single edited file —
+/// `changed_files` is empty, and the audit's "file count" is replaced
+/// with the commit count via [`AuditChainSummary::commits_walked`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditChainContext<'a> {
+    /// Session id for this invocation. UUID v4 per the Zod
+    /// `string().uuid()` contract; the CLI generates a fresh one per
+    /// audit-chain run.
+    pub session_id: &'a str,
+    /// ISO 8601 datetime — when the audit completed.
+    pub timestamp: &'a str,
+    /// Unique evaluation id for joining to traceparent logs.
+    pub gate_eval_id: &'a str,
+    /// Wall-clock duration of the audit walk in milliseconds.
+    pub duration_ms: u64,
+}
+
+/// Audit-chain summary the CLI passes to the builder. Decoupled from
+/// the CLI's `AuditReport` struct so this crate doesn't depend on
+/// `anvil-cli`; the CLI maps `AuditReport` → `AuditChainSummary` at
+/// the call site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditChainSummary<'a> {
+    /// Total number of commits the audit walked.
+    pub commits_walked: usize,
+    /// Number of unwitnessed commits found. Maps to
+    /// `violation_count` on the resulting observation.
+    pub unwitnessed_count: usize,
+    /// `true` when the witness chain verified end-to-end; `false`
+    /// means existing witness files failed verification (tamper
+    /// evidence per ADR-038 §D-6).
+    pub chain_intact: bool,
+    /// `true` when the audit walk exited early because a time budget
+    /// fired (MLP2-056). Partial runs still emit a row so the timeline
+    /// records that the audit ran; the bit is propagated to the wire
+    /// observation so consumers can surface it.
+    pub partial: bool,
+    /// `true` when `unwitnessed_count` meets or exceeds the operator-
+    /// configured threshold and the run should surface as degraded.
+    pub degraded_audit_drift: bool,
+    /// Hex line-hash of the most recent witness line. Maps to
+    /// `inputs.baseline_hash`; omitted when the chain is empty.
+    pub chain_head_hash: Option<&'a str>,
+}
+
+/// Build a Kindling `gate_evaluated` row for an audit-chain run.
+///
+/// Pure converter — does no IO, no clock reads, no UUID minting. The
+/// CLI supplies the context (see [`AuditChainContext`]) and the
+/// summary (see [`AuditChainSummary`]).
+///
+/// Mapping:
+///
+/// - `outcome`: `Pass` when the chain is intact, drift is below
+///   threshold, AND the walk completed; `Fail` otherwise. A partial
+///   walk (`summary.partial == true`) maps to `Fail` because the
+///   audit didn't actually finish — surfacing it as `Pass` would let
+///   a runaway nightly cron silently report green.
+/// - `enforcement`: `Blocking` on drift, tamper, or partial-walk
+///   conditions; `Informational` when clean and complete. `Warning`
+///   is reserved for layers that emit non-blocking advisories —
+///   audit-chain is a backstop, so v1 collapses to the binary case.
+/// - `rules_violated`: lists [`AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID`]
+///   when drift triggered, plus [`AUDIT_CHAIN_CHAIN_INTACT_RULE_ID`]
+///   when the chain failed verification. Omitted when neither failure
+///   condition holds (matches the Zod-optional contract). A partial
+///   run alone does not add a rule to `rules_violated` — the bit
+///   travels via the dedicated `partial` field instead so consumers
+///   can distinguish "no rule was broken; we just ran out of time"
+///   from a substantive failure.
+/// - `inputs.baseline_hash`: copied from
+///   [`AuditChainSummary::chain_head_hash`]; the line-hash of the
+///   audit's most recent witness is the natural baseline reference.
+/// - `inputs.file_count`: set to `commits_walked` so consumers can
+///   tell how much history each row covers. `changed_files` is
+///   always empty — audit-chain works at commit granularity, not
+///   file granularity, and the Zod schema allows empty arrays.
+/// - `violation_count`: `unwitnessed_count` (saturating to `u32::MAX`
+///   on the absurd-size case).
+/// - `partial`: copied from [`AuditChainSummary::partial`] so a
+///   downstream consumer tailing the NDJSON stream can route on
+///   partial runs without re-deriving them.
+#[must_use]
+pub fn from_audit_chain(
+    ctx: &AuditChainContext<'_>,
+    summary: &AuditChainSummary<'_>,
+) -> GateEvaluatedObservation {
+    // A partial walk counts as a failure for outcome / enforcement
+    // purposes — the audit ran out of time before it could prove the
+    // chain green. Without this, a runaway nightly cron would report
+    // `outcome: pass` while quietly skipping commits.
+    let failed = summary.degraded_audit_drift || !summary.chain_intact || summary.partial;
+    let outcome = if failed { Outcome::Fail } else { Outcome::Pass };
+    let enforcement = if failed {
+        Enforcement::Blocking
+    } else {
+        Enforcement::Informational
+    };
+
+    let rules_evaluated = vec![
+        AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID.to_string(),
+        AUDIT_CHAIN_CHAIN_INTACT_RULE_ID.to_string(),
+    ];
+    let mut violated: Vec<String> = Vec::new();
+    if summary.degraded_audit_drift {
+        violated.push(AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID.to_string());
+    }
+    if !summary.chain_intact {
+        violated.push(AUDIT_CHAIN_CHAIN_INTACT_RULE_ID.to_string());
+    }
+    let rules_violated = if violated.is_empty() {
+        None
+    } else {
+        Some(violated)
+    };
+
+    let file_count = u32::try_from(summary.commits_walked).unwrap_or(u32::MAX);
+    let violation_count = u32::try_from(summary.unwitnessed_count).unwrap_or(u32::MAX);
+
+    GateEvaluatedObservation {
+        kind: KIND_GATE_EVALUATED.to_string(),
+        session_id: ctx.session_id.to_string(),
+        timestamp: ctx.timestamp.to_string(),
+        gate_eval_id: ctx.gate_eval_id.to_string(),
+        gate_id: AUDIT_CHAIN_GATE_ID.to_string(),
+        inputs: ObservationInputs {
+            file_count,
+            changed_files: Vec::new(),
+            baseline_hash: summary.chain_head_hash.map(str::to_string),
+        },
+        outcome,
+        rules_evaluated,
+        rules_violated,
+        enforcement,
+        duration_ms: ctx.duration_ms,
+        violation_count: Some(violation_count),
+        // Audit-chain has no notion of "warning"; v1 collapses to
+        // pass/fail. Omit the field so consumers don't read a
+        // misleading zero.
+        warning_count: None,
+        partial: summary.partial,
+    }
 }
 
 // MLP2-006: daemon-side notification fan-out for `gate_evaluated` ----
@@ -1434,5 +1623,222 @@ mod tests {
         assert_eq!(PostHookAction::PostCommit.as_str(), "post-commit");
         assert_eq!(PostHookAction::PostMerge.as_str(), "post-merge");
         assert_eq!(PostHookAction::PostRewrite.as_str(), "post-rewrite");
+    }
+
+    // ----- MLP2-054: audit-chain observation builder -------------------
+
+    fn sample_audit_ctx() -> AuditChainContext<'static> {
+        AuditChainContext {
+            session_id: "22222222-2222-4222-8222-222222222222",
+            timestamp: "2026-05-15T03:17:00Z",
+            gate_eval_id: "gate-eval-audit-1",
+            duration_ms: 123,
+        }
+    }
+
+    fn clean_summary() -> AuditChainSummary<'static> {
+        AuditChainSummary {
+            commits_walked: 7,
+            unwitnessed_count: 0,
+            chain_intact: true,
+            partial: false,
+            degraded_audit_drift: false,
+            chain_head_hash: Some("abcd1234"),
+        }
+    }
+
+    #[test]
+    fn audit_chain_clean_run_emits_pass_informational() {
+        let obs = from_audit_chain(&sample_audit_ctx(), &clean_summary());
+        assert_eq!(obs.kind, KIND_GATE_EVALUATED);
+        assert_eq!(obs.gate_id, AUDIT_CHAIN_GATE_ID);
+        assert_eq!(obs.outcome, Outcome::Pass);
+        assert_eq!(obs.enforcement, Enforcement::Informational);
+        assert!(
+            obs.rules_violated.is_none(),
+            "clean runs must omit rules_violated to match the Zod optional"
+        );
+        assert_eq!(obs.violation_count, Some(0));
+    }
+
+    #[test]
+    fn audit_chain_drift_flips_outcome_and_lists_witness_rule() {
+        let summary = AuditChainSummary {
+            commits_walked: 12,
+            unwitnessed_count: 5,
+            chain_intact: true,
+            degraded_audit_drift: true,
+            ..clean_summary()
+        };
+        let obs = from_audit_chain(&sample_audit_ctx(), &summary);
+        assert_eq!(obs.outcome, Outcome::Fail);
+        assert_eq!(obs.enforcement, Enforcement::Blocking);
+        let violated = obs.rules_violated.expect("rules_violated present on drift");
+        assert_eq!(
+            violated,
+            vec![AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID.to_string()],
+            "drift-only failures must flag the witness-presence rule"
+        );
+        assert_eq!(obs.violation_count, Some(5));
+    }
+
+    #[test]
+    fn audit_chain_chain_broken_flags_chain_intact_rule() {
+        // Tamper evidence: chain_intact=false must surface as its own
+        // violated rule even when drift is zero.
+        let summary = AuditChainSummary {
+            commits_walked: 4,
+            unwitnessed_count: 0,
+            chain_intact: false,
+            degraded_audit_drift: false,
+            ..clean_summary()
+        };
+        let obs = from_audit_chain(&sample_audit_ctx(), &summary);
+        assert_eq!(obs.outcome, Outcome::Fail);
+        assert_eq!(obs.enforcement, Enforcement::Blocking);
+        let violated = obs
+            .rules_violated
+            .expect("rules_violated present on tamper");
+        assert_eq!(
+            violated,
+            vec![AUDIT_CHAIN_CHAIN_INTACT_RULE_ID.to_string()],
+            "tamper-only failures must flag the chain-intact rule, not witness-presence"
+        );
+    }
+
+    #[test]
+    fn audit_chain_drift_and_tamper_list_both_rules_in_stable_order() {
+        let summary = AuditChainSummary {
+            commits_walked: 9,
+            unwitnessed_count: 3,
+            chain_intact: false,
+            degraded_audit_drift: true,
+            ..clean_summary()
+        };
+        let obs = from_audit_chain(&sample_audit_ctx(), &summary);
+        let violated = obs.rules_violated.expect("rules_violated present");
+        // Stable insertion order: witness-presence first, chain-intact
+        // second. Locking this in so downstream Kindling consumers can
+        // pattern-match on the array shape.
+        assert_eq!(
+            violated,
+            vec![
+                AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID.to_string(),
+                AUDIT_CHAIN_CHAIN_INTACT_RULE_ID.to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn audit_chain_observation_populates_baseline_hash_from_chain_head() {
+        let obs = from_audit_chain(&sample_audit_ctx(), &clean_summary());
+        assert_eq!(
+            obs.inputs.baseline_hash.as_deref(),
+            Some("abcd1234"),
+            "audit-chain rows must propagate chain_head_hash into inputs.baseline_hash"
+        );
+        assert!(
+            obs.inputs.changed_files.is_empty(),
+            "audit-chain rows scope by commits, not files; changed_files must be empty"
+        );
+        assert_eq!(
+            obs.inputs.file_count, 7,
+            "file_count mirrors commits_walked so the row records the audit window size"
+        );
+    }
+
+    #[test]
+    fn audit_chain_observation_omits_baseline_hash_when_chain_is_empty() {
+        let summary = AuditChainSummary {
+            chain_head_hash: None,
+            ..clean_summary()
+        };
+        let obs = from_audit_chain(&sample_audit_ctx(), &summary);
+        assert!(
+            obs.inputs.baseline_hash.is_none(),
+            "empty-chain runs must omit baseline_hash (matches the Zod optional)"
+        );
+    }
+
+    #[test]
+    fn audit_chain_evaluated_rules_pin_both_synthetic_ids() {
+        // Both rules are always "evaluated" — the audit runs both
+        // checks every time. Only rules_violated reflects which one
+        // actually failed.
+        let obs = from_audit_chain(&sample_audit_ctx(), &clean_summary());
+        assert_eq!(
+            obs.rules_evaluated,
+            vec![
+                AUDIT_CHAIN_WITNESS_PRESENCE_RULE_ID.to_string(),
+                AUDIT_CHAIN_CHAIN_INTACT_RULE_ID.to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn audit_chain_observation_carries_context_identity_fields() {
+        let ctx = sample_audit_ctx();
+        let obs = from_audit_chain(&ctx, &clean_summary());
+        assert_eq!(obs.session_id, ctx.session_id);
+        assert_eq!(obs.timestamp, ctx.timestamp);
+        assert_eq!(obs.gate_eval_id, ctx.gate_eval_id);
+        assert_eq!(obs.duration_ms, ctx.duration_ms);
+    }
+
+    #[test]
+    fn audit_chain_partial_walk_flips_outcome_to_fail_and_propagates_bit() {
+        // MLP2-056 wiring contract: a partial walk surfaces as
+        // outcome=Fail / enforcement=Blocking AND the dedicated
+        // `partial` field is true on the wire. Both signals matter —
+        // consumers that don't inspect `partial` still see a non-pass
+        // outcome, so a runaway nightly cron can't quietly report
+        // green.
+        let summary = AuditChainSummary {
+            partial: true,
+            ..clean_summary()
+        };
+        let obs = from_audit_chain(&sample_audit_ctx(), &summary);
+        assert_eq!(obs.outcome, Outcome::Fail);
+        assert_eq!(obs.enforcement, Enforcement::Blocking);
+        assert!(obs.partial, "partial bit must reach the wire struct");
+        // A partial walk with no drift / tamper should NOT add a
+        // rule to rules_violated — partial is its own dedicated
+        // signal so consumers can distinguish "ran out of time" from
+        // a substantive failure.
+        assert!(
+            obs.rules_violated.is_none(),
+            "partial-only failures must not populate rules_violated"
+        );
+    }
+
+    #[test]
+    fn audit_chain_complete_walk_serialises_partial_as_absent() {
+        // Forward-compat pin: when partial=false, the field must skip
+        // from the JSON wire so pre-MLP2-056 consumers stay byte-
+        // compat (matches the `#[serde(skip_serializing_if = ...)]`
+        // contract on the struct).
+        let obs = from_audit_chain(&sample_audit_ctx(), &clean_summary());
+        assert!(!obs.partial);
+        let value: serde_json::Value = serde_json::to_value(&obs).expect("serialises");
+        assert!(
+            value.get("partial").is_none(),
+            "partial=false must skip from the wire to preserve byte-compat"
+        );
+    }
+
+    #[test]
+    fn audit_chain_observation_serialises_with_audit_chain_gate_id() {
+        let obs = from_audit_chain(&sample_audit_ctx(), &clean_summary());
+        let value: serde_json::Value = serde_json::to_value(&obs).expect("audit obs serialises");
+        assert_eq!(value["kind"], KIND_GATE_EVALUATED);
+        assert_eq!(value["gate_id"], AUDIT_CHAIN_GATE_ID);
+        assert_eq!(value["enforcement"], "informational");
+        assert_eq!(value["outcome"], "pass");
+        // warning_count is None for audit-chain rows; serde must skip
+        // it rather than emit `null`.
+        assert!(
+            value.get("warning_count").is_none(),
+            "audit-chain rows must omit warning_count (Some(0) would be misleading)"
+        );
     }
 }

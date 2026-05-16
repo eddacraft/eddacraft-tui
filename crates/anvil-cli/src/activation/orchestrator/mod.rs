@@ -124,6 +124,25 @@ pub(crate) fn run_with_home(
         );
     }
 
+    // Step 1a-c — pre-position `.github/workflows/anvil-audit.yml`
+    // (MLP2-053).
+    //
+    // Drops the in-tree audit-chain workflow template at adoption time
+    // so the nightly L5 cron becomes active by default per ADR-037
+    // §D-9. Write-if-absent — operators routinely customise the cron
+    // schedule or swap the install step, and re-running `anvil start`
+    // must never clobber those edits. Failures are non-propagating
+    // (same pattern as identity / witness gitattributes): a missing
+    // workflow is recoverable by re-running activation, but a hard
+    // error here would block adoption on any host without write
+    // permission on `.github/`.
+    if let Err(e) = ensure_audit_workflow(root) {
+        tracing::warn!(
+            error = %e,
+            "orchestrator: failed to write .github/workflows/anvil-audit.yml; continuing without",
+        );
+    }
+
     // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
     // The baseline captures the set of antipattern + secret findings
     // present at first activation so future scans (post-LAUNCH-010
@@ -241,6 +260,30 @@ fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
         .open(&path)?;
     f.write_all(to_append.as_bytes())?;
     Ok(())
+}
+
+/// Drop the nightly L5-audit workflow template at
+/// `.github/workflows/anvil-audit.yml` (MLP2-053).
+///
+/// Write-if-absent semantics — once the file exists we never touch it,
+/// so an operator who edits the cron schedule or swaps the install
+/// step keeps their changes across re-runs of `anvil start` /
+/// `anvil baseline`. The `.github/workflows/` parent is created if
+/// missing.
+///
+/// Errors propagate to the caller so the orchestrator can decide
+/// whether to log + continue (per the surrounding `tracing::warn!`
+/// pattern). Operators without write access to `.github/` should not
+/// have activation hard-fail on this step.
+fn ensure_audit_workflow(root: &Path) -> std::io::Result<()> {
+    let workflows_dir = root.join(".github").join("workflows");
+    let target = workflows_dir.join("anvil-audit.yml");
+    if target.exists() {
+        return Ok(()); // Idempotent — never clobber an existing file.
+    }
+    std::fs::create_dir_all(&workflows_dir)?;
+    let template = crate::commands::audit_chain::audit_workflow_template();
+    std::fs::write(&target, template)
 }
 
 /// Decide whether to surface the interactive picker. We require:
@@ -802,5 +845,83 @@ mod tests {
 
         let bytes_after = std::fs::read(home.path().join(".cursor/mcp.json")).unwrap();
         assert_eq!(bytes_before, bytes_after, "must not overwrite UnsafeDrift");
+    }
+
+    // ---- MLP2-053: audit-chain workflow installation -------------------
+
+    #[test]
+    fn orchestrator_writes_audit_workflow_when_absent() {
+        // MLP2-053 — on a greenfield repo the orchestrator must drop the
+        // in-tree audit-chain workflow template into
+        // `.github/workflows/anvil-audit.yml` so the nightly L5 cron
+        // becomes active by default per ADR-037 §D-9.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        let target = dir.path().join(".github/workflows/anvil-audit.yml");
+        assert!(
+            target.exists(),
+            "orchestrator must write .github/workflows/anvil-audit.yml on a fresh repo"
+        );
+        let written = std::fs::read_to_string(&target).unwrap();
+        let template = crate::commands::audit_chain::audit_workflow_template();
+        assert_eq!(
+            written, template,
+            "written workflow must byte-match the in-tree template"
+        );
+    }
+
+    #[test]
+    fn orchestrator_audit_workflow_is_idempotent() {
+        // MLP2-053 — re-running activation must not rewrite an existing
+        // `.github/workflows/anvil-audit.yml`. Operators are expected to
+        // edit the file in-place (e.g. comment out the `schedule` block);
+        // we must never clobber that. Asserting content equality (not
+        // mtime) lets the test run in microseconds — the sibling
+        // `orchestrator_audit_workflow_preserves_user_edits` test
+        // proves the same property for a user-edited file; this one
+        // pins it for the orchestrator's own template.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let target = dir.path().join(".github/workflows/anvil-audit.yml");
+        let before = std::fs::read_to_string(&target).unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+        let after = std::fs::read_to_string(&target).unwrap();
+
+        assert_eq!(
+            before, after,
+            "orchestrator must not rewrite anvil-audit.yml on re-run"
+        );
+    }
+
+    #[test]
+    fn orchestrator_audit_workflow_preserves_user_edits() {
+        // MLP2-053 — operators routinely customise the workflow (e.g.
+        // bump the schedule, swap the install step). Re-running `anvil
+        // start` must leave their edits intact.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        let workflows = dir.path().join(".github/workflows");
+        std::fs::create_dir_all(&workflows).unwrap();
+        let target = workflows.join("anvil-audit.yml");
+        let user_content = "# customised by operator\nname: anvil-audit-custom\n";
+        std::fs::write(&target, user_content).unwrap();
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        let after = std::fs::read_to_string(&target).unwrap();
+        assert_eq!(
+            after, user_content,
+            "orchestrator must not overwrite user-edited anvil-audit.yml"
+        );
     }
 }
