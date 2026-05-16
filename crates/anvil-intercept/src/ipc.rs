@@ -945,7 +945,9 @@ impl<D: SessionDispatcher> IpcListener<D> {
 // Per-connection handler.
 // --------------------------------------------------------------------
 
-#[allow(clippy::too_many_lines)] // INTD-016 layered budgets share a single connection loop; splitting obscures the per-frame ordering of RPS / size / parse checks.
+#[allow(clippy::too_many_lines)]
+// INTD-016 layered budgets share a single connection loop; splitting obscures the per-frame ordering of RPS / size / parse checks.
+#[allow(clippy::too_many_arguments)] // MLP2-025b adds peer_pid + cross_check beside the existing dispatcher / scan_buffer / status / token / limits parameters; the chain is per-connection state, not bundleable without churn across every test caller.
 async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unpin>(
     stream: R,
     dispatcher: Arc<D>,
@@ -2116,6 +2118,7 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // MLP2-025b adds peer_pid + cross_check beside the existing JSON-RPC framing parameters; per-call state, not bundleable without test churn.
 async fn handle_scan_buffer_jsonrpc(
     map: &serde_json::Map<String, Value>,
     method: &str,
@@ -2488,10 +2491,9 @@ fn run_spoof_cross_check(
     };
 
     // Untagged writes are out of MLP2-025's scope — they follow the
-    // pre-MLP2-025 enforcement path unchanged.
-    if env_tag.is_none() {
-        return None;
-    }
+    // pre-MLP2-025 enforcement path unchanged. `?` short-circuits to
+    // `None` (the return type) when env_tag is None.
+    let env_tag = env_tag?;
 
     // Env tag is `Some` but we have no peer PID → cannot validate
     // the lineage. Fail-closed (§7).
@@ -2499,10 +2501,7 @@ fn run_spoof_cross_check(
         return Some(spoof_block_response(request, None, ctx));
     };
 
-    match ctx
-        .registry
-        .cross_check_env_tag(env_tag.as_ref(), writer_pid)
-    {
+    match ctx.registry.cross_check_env_tag(Some(&env_tag), writer_pid) {
         Cross::Match | Cross::Untagged => None,
         Cross::Spoofed => Some(spoof_block_response(request, Some(writer_pid), ctx)),
     }
@@ -2927,7 +2926,7 @@ mod tests {
             text: text.to_string(),
             version: 1,
             mode: ScanBufferMode::MidEdit,
-            env_agent_tag: env_agent_tag.map(|s| s.to_string()),
+            env_agent_tag: env_agent_tag.map(ToString::to_string),
         }
     }
 
@@ -3042,7 +3041,7 @@ mod tests {
         assert!(fences.active_fences().is_empty());
     }
 
-    /// MLP2-025b: a write with a present env_agent_tag but no
+    /// MLP2-025b: a write with a present `env_agent_tag` but no
     /// registered ancestor on the writer's lineage is `Spoofed`.
     /// Pinned with a synthetic PID that has no registered ancestor
     /// — the lineage walk reaches root without matching.
