@@ -124,9 +124,10 @@ an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 
 ## Release Status
 
-Latest repository tag: **`v0.6.2-beta`**. This is the shipped operational
-substrate release: main-first branch governance, targeted CI/readiness checks,
-and deterministic release commands are in place.
+Latest repository tag: **`v0.6.3-beta`** (2026-05-15). Beta watch UX and
+uninstall hotfix on top of the `v0.6.2-beta` operational substrate (main-first
+branch governance, targeted CI/readiness checks, and deterministic release
+commands).
 
 Next candidate: **`v0.7.0-beta`** — the daemon-working product slate. It is
 tracked through [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
