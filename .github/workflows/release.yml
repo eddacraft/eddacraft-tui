@@ -588,43 +588,28 @@ jobs:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
         run: |
+          # DISTRIB-003: the patch + publish logic lives in
+          # scripts/release/bump-homebrew.sh so it can be unit-tested,
+          # dry-run in CI, and re-run from the workflow_dispatch surface in
+          # .github/workflows/homebrew-bump.yml. See
+          # docs/runbooks/homebrew-publish.md for recovery procedure.
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to publish the Homebrew formula."
             exit 1
           fi
 
-          # cargo-dist generates eddacraft-anvil.rb in the release artifacts.
-          # Homebrew expects Formula/anvil.rb with class Anvil for
-          # `brew install eddacraft/tap/anvil` to work, so we patch the
-          # class name and push it to the tap repo.
           FORMULA="artifacts/eddacraft-anvil.rb"
           if [ ! -f "$FORMULA" ]; then
             echo "::warning file=.github/workflows/release.yml,title=Missing Homebrew formula artifact::$FORMULA not found in release artifacts; skipping tap publish."
             exit 0
           fi
 
-          # Rename class EddacraftAnvil -> Anvil
-          sed 's/^class EddacraftAnvil < Formula/class Anvil < Formula/' "$FORMULA" > "$RUNNER_TEMP/anvil.rb"
-
-          if ! grep -q '^class Anvil < Formula' "$RUNNER_TEMP/anvil.rb"; then
-            echo "Error: patched Homebrew formula is missing 'class Anvil < Formula'." >&2
-            exit 1
-          fi
-
-          CONTENT=$(base64 -w 0 "$RUNNER_TEMP/anvil.rb")
-
-          # Get the SHA of the existing formula (if any) for update
-          EXISTING_SHA=$(gh api repos/eddacraft/homebrew-tap/contents/Formula/anvil.rb --jq '.sha' 2>/dev/null || echo "")
-
-          SHA_ARG=""
-          if [ -n "$EXISTING_SHA" ]; then
-            SHA_ARG="-f sha=$EXISTING_SHA"
-          fi
-
-          gh api repos/eddacraft/homebrew-tap/contents/Formula/anvil.rb -X PUT \
-            -f message="anvil ${RELEASE_TAG}" \
-            -f content="$CONTENT" \
-            $SHA_ARG
+          bash scripts/release/bump-homebrew.sh \
+            --release-tag "$RELEASE_TAG" \
+            --formula-source "$FORMULA" \
+            --out "$RUNNER_TEMP/anvil.rb" \
+            --publish \
+            --tap-repo "eddacraft/homebrew-tap"
 
   # Submit WinGet manifest to microsoft/winget-pkgs so Windows users
   # can `winget install eddacraft.anvil`.  Runs after the public
