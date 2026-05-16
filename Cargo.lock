@@ -5528,6 +5528,7 @@ dependencies = [
  "serde",
  "serde_core",
  "serde_json",
+ "signal-hook 0.3.18",
  "slab",
  "smallvec",
  "syn 2.0.117",
