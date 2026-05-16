@@ -27,13 +27,17 @@ enum InterceptCommand {
     /// the mid-edit `validation.service` p50/p95 latency rollup
     /// (INTD-011).
     Status(StatusArgs),
-    /// MLP2-026: clear a worktree's `degraded:fence-cascade`
-    /// engaged state. Requires the `--acknowledge-cascade` flag
-    /// as an operator-intent affordance. The daemon's
-    /// `unblock-cascade` IPC verb is the only path that clears
-    /// cascade state — the existing per-fence `unblock_worktree`
-    /// affordance is a distinct concern (clears individual
-    /// fence records, NOT the cascade).
+    /// Clear fence state from the daemon. Two distinct modes:
+    ///
+    /// 1. **Per-fence (RCLI3-017b):** `--worktree <PATH>` removes a
+    ///    single fenced worktree from in-memory state and disk
+    ///    persistence. `--all` clears every fence. `--dry-run`
+    ///    previews without modifying state. Idempotent.
+    ///
+    /// 2. **Cascade (MLP2-026):** positional `<WORKTREE>` plus
+    ///    `--acknowledge-cascade` clears a worktree's
+    ///    `degraded:fence-cascade` engaged state. The two modes
+    ///    target different daemon state and do NOT overlap.
     Unblock(UnblockArgs),
 }
 
@@ -56,14 +60,32 @@ struct StatusArgs {
 
 #[derive(Debug, Args)]
 struct UnblockArgs {
-    /// Worktree to clear from `degraded:fence-cascade` mode.
-    /// Path is canonicalised before the IPC dispatch.
-    worktree: std::path::PathBuf,
-    /// Required affordance — confirms operator intent on the
-    /// command line. The audit-of-record is the
+    /// Legacy positional path used by the MLP2-026 cascade form
+    /// (`anvil intercept unblock <WORKTREE> --acknowledge-cascade`).
+    /// Prefer the `--worktree` flag for new invocations.
+    #[arg(value_name = "WORKTREE", conflicts_with_all = ["worktree", "all"])]
+    worktree_arg: Option<std::path::PathBuf>,
+    /// RCLI3-017b: per-fence unblock. Removes the worktree's fence
+    /// record from the daemon's in-memory state and disk
+    /// persistence. Idempotent — re-running on an unfenced worktree
+    /// exits zero with an informational note. Runbook §3.1 path.
+    #[arg(long = "worktree", value_name = "PATH",
+          conflicts_with_all = ["worktree_arg", "all", "acknowledge_cascade"])]
+    worktree: Option<std::path::PathBuf>,
+    /// RCLI3-017b: clear every fenced worktree in one call. Cannot
+    /// be combined with `--acknowledge-cascade` (cascade state is
+    /// a distinct concern and must be cleared per-worktree).
+    #[arg(long, conflicts_with_all = ["worktree_arg", "worktree", "acknowledge_cascade"])]
+    all: bool,
+    /// RCLI3-017b: print what would be cleared without modifying
+    /// daemon state. Honoured for both `--worktree` and `--all`.
+    #[arg(long)]
+    dry_run: bool,
+    /// MLP2-026 cascade-clearing affordance — confirms operator
+    /// intent on the command line. The audit-of-record is the
     /// `OperatorContext` the daemon derives from the IPC peer
-    /// credentials; this flag is UX only and is NOT sent on
-    /// the wire. Spec §3.4 + §10 Q2.
+    /// credentials; this flag is UX only and is NOT sent on the
+    /// wire. Spec §3.4 + §10 Q2.
     #[arg(long)]
     acknowledge_cascade: bool,
 }
@@ -77,20 +99,60 @@ pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_unblock(args: &UnblockArgs) -> Result<()> {
-    if !args.acknowledge_cascade {
+    match resolve_unblock_mode(args)? {
+        UnblockMode::Cascade(path) => run_unblock_cascade(&path),
+        UnblockMode::PerFence(path) => run_unblock_per_fence(&path, args.dry_run),
+        UnblockMode::AllFences => run_unblock_all(args.dry_run),
+    }
+}
+
+/// Resolved CLI mode after exclusivity + completeness checks.
+/// Clap enforces the `conflicts_with_*` rules; this function turns
+/// the remaining ambiguity into a single bail (the user supplied no
+/// target at all) or a typed mode.
+enum UnblockMode {
+    /// MLP2-026: legacy cascade clearing. Positional path + flag.
+    Cascade(std::path::PathBuf),
+    /// RCLI3-017b: per-fence unblock for a single worktree.
+    PerFence(std::path::PathBuf),
+    /// RCLI3-017b: clear every fence.
+    AllFences,
+}
+
+fn resolve_unblock_mode(args: &UnblockArgs) -> Result<UnblockMode> {
+    if args.all {
+        return Ok(UnblockMode::AllFences);
+    }
+    if let Some(path) = &args.worktree {
+        return Ok(UnblockMode::PerFence(path.clone()));
+    }
+    if let Some(path) = &args.worktree_arg {
+        if args.acknowledge_cascade {
+            return Ok(UnblockMode::Cascade(path.clone()));
+        }
         anyhow::bail!(
-            "anvil intercept unblock requires --acknowledge-cascade to confirm operator intent; \
-             rerun with the flag if you mean to clear a degraded:fence-cascade",
+            "anvil intercept unblock <WORKTREE> requires --acknowledge-cascade to clear a \
+             degraded:fence-cascade; for per-fence unblock prefer `anvil intercept unblock \
+             --worktree {}`",
+            path.display(),
         );
     }
+    anyhow::bail!(
+        "anvil intercept unblock needs a target: pass --worktree <PATH> for a per-fence \
+         unblock, --all to clear every fence, or <WORKTREE> --acknowledge-cascade for a \
+         cascade clear",
+    );
+}
+
+fn run_unblock_cascade(worktree: &std::path::Path) -> Result<()> {
     // Canonicalise the path before dispatch. Mirrors the daemon's
     // own `lookup_path` guard so an operator typing `./wt` and
     // an operator typing the absolute path hit the same cascade
     // record.
-    let canonical = std::fs::canonicalize(&args.worktree).with_context(|| {
+    let canonical = std::fs::canonicalize(worktree).with_context(|| {
         format!(
             "failed to canonicalise worktree path {}",
-            args.worktree.display(),
+            worktree.display(),
         )
     })?;
     let cleared = dispatch_unblock_cascade(&canonical)?;
@@ -102,6 +164,80 @@ fn run_unblock(args: &UnblockArgs) -> Result<()> {
             canonical.display(),
         );
     }
+    Ok(())
+}
+
+fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool) -> Result<()> {
+    let canonical = std::fs::canonicalize(worktree).with_context(|| {
+        format!(
+            "failed to canonicalise worktree path {}",
+            worktree.display(),
+        )
+    })?;
+    if dry_run {
+        // Query status to determine whether the worktree is
+        // currently fenced. The status snapshot is the same shape
+        // an operator would see from `anvil intercept status`, so
+        // the preview matches their mental model.
+        let status = query_daemon_status()?;
+        let engaged = status
+            .fences
+            .iter()
+            .any(|fence| fence.worktree == canonical);
+        if engaged {
+            println!(
+                "dry-run: would clear fence for worktree {}",
+                canonical.display()
+            );
+        } else {
+            println!(
+                "dry-run: no fence engaged for worktree {} (no-op)",
+                canonical.display(),
+            );
+        }
+        return Ok(());
+    }
+    let cleared = dispatch_unblock_worktree(&canonical)?;
+    if cleared {
+        println!("fence cleared for worktree {}", canonical.display());
+    } else {
+        println!(
+            "no fence engaged for worktree {} (no-op)",
+            canonical.display(),
+        );
+    }
+    Ok(())
+}
+
+fn run_unblock_all(dry_run: bool) -> Result<()> {
+    // `--all` is implemented client-side: query the daemon for the
+    // current fence list, then issue one unblock per worktree. The
+    // alternative (a single daemon-side `unblock-all` verb) would
+    // close the window between query and unblock more cleanly, but
+    // keeping the wire-protocol surface to one new verb keeps the
+    // back-compat footprint small. Concurrent fences engaged
+    // between query and unblock simply remain — the operator can
+    // re-run `--all`.
+    let status = query_daemon_status()?;
+    if status.fences.is_empty() {
+        println!("no fences engaged (no-op)");
+        return Ok(());
+    }
+    if dry_run {
+        println!("dry-run: would clear {} fence(s):", status.fences.len(),);
+        for fence in &status.fences {
+            println!("  {}", fence.worktree.display());
+        }
+        return Ok(());
+    }
+    let mut cleared = 0_usize;
+    for fence in &status.fences {
+        if dispatch_unblock_worktree(&fence.worktree)? {
+            cleared += 1;
+            println!("fence cleared for worktree {}", fence.worktree.display());
+        }
+    }
+    println!("cleared {cleared} fence(s)");
     Ok(())
 }
 
@@ -456,18 +592,116 @@ fn dispatch_unblock_cascade(_worktree: &std::path::Path) -> Result<bool> {
     );
 }
 
+/// RCLI3-017b: send `IpcCommand::UnblockWorktree` to the daemon and
+/// parse the `{"ok": bool}` response. Returns `Ok(true)` when a
+/// fence was actually removed, `Ok(false)` on the idempotent no-op
+/// (no fence was engaged), `Err(_)` on transport / protocol failure.
+///
+/// Mirrors `dispatch_unblock_cascade` for connection / framing /
+/// response-validation. The wire-level method name is the canonical
+/// `unblock-worktree` (kebab-case form pinned by the proto
+/// enum's `rename_all = "kebab-case"`).
+#[cfg(unix)]
+fn dispatch_unblock_worktree(worktree: &std::path::Path) -> Result<bool> {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    use anvil_intercept::ipc;
+
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+    const UNBLOCK_WORKTREE_REQUEST_ID: &str = "anvil-cli-intercept-unblock-worktree";
+
+    let socket_path =
+        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
+        return match err {
+            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
+                Err(anyhow::anyhow!(
+                    "anvil intercept daemon is not running (no socket at {}). \
+                     Start it with `anvil intercept start --foreground`.",
+                    socket_path.display(),
+                ))
+            }
+            other => Err(anyhow::anyhow!(
+                "anvil intercept daemon socket is unavailable: {other}",
+            )),
+        };
+    }
+    let mut stream = UnixStream::connect(&socket_path).with_context(|| {
+        format!(
+            "failed to connect to intercept daemon socket {}",
+            socket_path.display(),
+        )
+    })?;
+    ipc::validate_connected_peer_for_client(&stream)
+        .map_err(|err| anyhow::anyhow!("daemon peer credentials rejected: {err}"))?;
+    stream
+        .set_read_timeout(Some(REQUEST_TIMEOUT))
+        .context("failed to configure read timeout")?;
+    stream
+        .set_write_timeout(Some(REQUEST_TIMEOUT))
+        .context("failed to configure write timeout")?;
+
+    let frame = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "unblock-worktree",
+        "params": { "worktree": worktree.to_string_lossy() },
+        "id": UNBLOCK_WORKTREE_REQUEST_ID,
+    });
+    let mut frame_bytes = frame.to_string().into_bytes();
+    frame_bytes.push(b'\n');
+    stream
+        .write_all(&frame_bytes)
+        .context("failed to send unblock-worktree frame")?;
+    stream
+        .flush()
+        .context("failed to flush unblock-worktree frame")?;
+
+    let mut reader = BufReader::new(stream);
+    let mut buf = Vec::new();
+    let read = reader
+        .by_ref()
+        .take(RESPONSE_LINE_BYTES + 1)
+        .read_until(b'\n', &mut buf)
+        .context("failed to read unblock-worktree response")?;
+    parse_unblock_response_bytes(&buf, read, UNBLOCK_WORKTREE_REQUEST_ID, "unblock-worktree")
+}
+
+#[cfg(windows)]
+fn dispatch_unblock_worktree(_worktree: &std::path::Path) -> Result<bool> {
+    anyhow::bail!(
+        "anvil intercept unblock --worktree is not yet supported on Windows; \
+         see MLP2-028 for peer-credential support"
+    );
+}
+
 #[cfg(unix)]
 fn parse_unblock_cascade_response_bytes(buf: &[u8], read: usize, request_id: &str) -> Result<bool> {
+    parse_unblock_response_bytes(buf, read, request_id, "unblock-cascade")
+}
+
+/// Shared JSON-RPC envelope validator for both `unblock-cascade` and
+/// `unblock-worktree` responses. Extracted so the two CLI dispatchers
+/// cannot drift on JSON-RPC version pinning, id matching, or the
+/// `result.ok: bool` shape contract.
+#[cfg(unix)]
+fn parse_unblock_response_bytes(
+    buf: &[u8],
+    read: usize,
+    request_id: &str,
+    method_label: &str,
+) -> Result<bool> {
     if read == 0 {
         anyhow::bail!("daemon closed the connection before responding");
     }
     if (buf.len() as u64) > RESPONSE_LINE_BYTES {
-        anyhow::bail!("unblock-cascade response exceeded {RESPONSE_LINE_BYTES} byte cap");
+        anyhow::bail!("{method_label} response exceeded {RESPONSE_LINE_BYTES} byte cap");
     }
     let line = std::str::from_utf8(buf.trim_ascii_end())
-        .context("unblock-cascade response is not valid UTF-8")?;
-    let response: serde_json::Value =
-        serde_json::from_str(line).context("unblock-cascade response is not valid JSON")?;
+        .with_context(|| format!("{method_label} response is not valid UTF-8"))?;
+    let response: serde_json::Value = serde_json::from_str(line)
+        .with_context(|| format!("{method_label} response is not valid JSON"))?;
     if response.get("jsonrpc") != Some(&serde_json::Value::String("2.0".to_string())) {
         anyhow::bail!(
             "daemon response missing or wrong jsonrpc version (expected \"2.0\"): {response}",
@@ -672,21 +906,101 @@ mod tests {
         );
     }
 
-    /// MLP2-026: `run_unblock` refuses to dispatch without
-    /// `--acknowledge-cascade`. The flag is required as an
-    /// operator-intent affordance (spec §3.4 + §10 Q2).
+    /// Helper: build a fully-defaulted `UnblockArgs` and let the test
+    /// flip only the fields it cares about. Keeps the per-test
+    /// noise low as the struct grows new flags.
+    fn unblock_args_default() -> UnblockArgs {
+        UnblockArgs {
+            worktree_arg: None,
+            worktree: None,
+            all: false,
+            dry_run: false,
+            acknowledge_cascade: false,
+        }
+    }
+
+    /// MLP2-026: a positional path WITHOUT `--acknowledge-cascade`
+    /// still bails — the cascade form requires the affordance
+    /// flag, and refusing to silently fall through to per-fence
+    /// semantics keeps the two modes disambiguated for legacy
+    /// callers. The bail message must point at BOTH `--worktree`
+    /// (the new per-fence path) and `--acknowledge-cascade` (the
+    /// cascade affordance) so an operator knows which mode they
+    /// actually want.
     #[test]
-    fn run_unblock_without_acknowledge_flag_bails_with_actionable_message() {
+    fn run_unblock_positional_without_acknowledge_flag_bails_with_actionable_message() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let args = UnblockArgs {
-            worktree: tmp.path().to_path_buf(),
-            acknowledge_cascade: false,
+            worktree_arg: Some(tmp.path().to_path_buf()),
+            ..unblock_args_default()
         };
         let err = run_unblock(&args).expect_err("expected bail without --acknowledge-cascade");
         let msg = format!("{err}");
         assert!(
             msg.contains("--acknowledge-cascade"),
             "bail message must mention --acknowledge-cascade, got: {msg}",
+        );
+        assert!(
+            msg.contains("--worktree"),
+            "bail message must point at the per-fence alternative, got: {msg}",
+        );
+    }
+
+    /// RCLI3-017b: when no target is supplied at all, the bail
+    /// message lists every available mode so the operator can
+    /// pick one without re-reading `--help`.
+    #[test]
+    fn run_unblock_without_any_target_bails_listing_all_modes() {
+        let args = unblock_args_default();
+        let err = run_unblock(&args).expect_err("expected bail without any target");
+        let msg = format!("{err}");
+        assert!(msg.contains("--worktree"), "got: {msg}");
+        assert!(msg.contains("--all"), "got: {msg}");
+        assert!(msg.contains("--acknowledge-cascade"), "got: {msg}");
+    }
+
+    /// RCLI3-017b: the resolver classifies clap-parsed args into
+    /// the typed `UnblockMode` before any IPC dispatch. Pin the
+    /// classification so a future refactor cannot silently route
+    /// `--worktree` through the cascade path or vice versa.
+    #[test]
+    fn resolve_unblock_mode_per_fence_flag_routes_to_per_fence_mode() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let args = UnblockArgs {
+            worktree: Some(tmp.path().to_path_buf()),
+            ..unblock_args_default()
+        };
+        let mode = resolve_unblock_mode(&args).expect("classification succeeds");
+        assert!(
+            matches!(mode, UnblockMode::PerFence(ref p) if p == tmp.path()),
+            "expected PerFence({:?})",
+            tmp.path(),
+        );
+    }
+
+    #[test]
+    fn resolve_unblock_mode_all_flag_routes_to_all_fences() {
+        let args = UnblockArgs {
+            all: true,
+            ..unblock_args_default()
+        };
+        let mode = resolve_unblock_mode(&args).expect("classification succeeds");
+        assert!(matches!(mode, UnblockMode::AllFences));
+    }
+
+    #[test]
+    fn resolve_unblock_mode_positional_with_cascade_flag_routes_to_cascade() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let args = UnblockArgs {
+            worktree_arg: Some(tmp.path().to_path_buf()),
+            acknowledge_cascade: true,
+            ..unblock_args_default()
+        };
+        let mode = resolve_unblock_mode(&args).expect("classification succeeds");
+        assert!(
+            matches!(mode, UnblockMode::Cascade(ref p) if p == tmp.path()),
+            "expected Cascade({:?})",
+            tmp.path(),
         );
     }
 
@@ -730,6 +1044,41 @@ mod tests {
         let err =
             parse_unblock_cascade_response_bytes(bytes, bytes.len(), "test-id").expect_err("err");
         assert!(format!("{err}").contains("JSON-RPC error"));
+    }
+
+    /// RCLI3-017b: the shared parser must accept the same `result.ok`
+    /// shape under the per-fence `unblock-worktree` label and surface
+    /// the new label in error wording. Pinning this keeps the cascade
+    /// and per-fence paths from drifting on JSON-RPC envelope rules.
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_response_handles_worktree_label() {
+        let raw = r#"{"jsonrpc":"2.0","id":"test-id","result":{"ok":true}}"#;
+        let bytes = raw.as_bytes();
+        let result =
+            parse_unblock_response_bytes(bytes, bytes.len(), "test-id", "unblock-worktree")
+                .expect("parse");
+        assert!(result);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_unblock_response_oversize_cites_method_label() {
+        // Fabricate a response that exceeds the byte cap; the bail
+        // wording must name the method so an operator parsing CI
+        // logs can tell which path tripped the cap.
+        let big = vec![
+            b'a';
+            usize::try_from(RESPONSE_LINE_BYTES + 2)
+                .expect("response byte cap fits usize")
+        ];
+        let err = parse_unblock_response_bytes(&big, big.len(), "test-id", "unblock-worktree")
+            .expect_err("oversize must error");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("unblock-worktree"),
+            "error must cite the method label, got: {msg}",
+        );
     }
 
     fn empty_status() -> DaemonStatusV1 {

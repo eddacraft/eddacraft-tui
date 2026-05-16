@@ -2392,6 +2392,14 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 })
             })
         }
+        "unblock-worktree" | "fence.unblock-worktree" => {
+            params_object(params, method).and_then(|params| {
+                let worktree = required_string(params, "worktree", method)?;
+                Ok(IpcCommand::UnblockWorktree {
+                    worktree: PathBuf::from(worktree.as_str()),
+                })
+            })
+        }
         _ => Err(JsonRpcFailure {
             code: -32601,
             message: "Method not found",
@@ -2926,6 +2934,32 @@ fn dispatch_command<D: SessionDispatcher>(
             }
             Ok(json!({"ok": cleared}))
         }
+        IpcCommand::UnblockWorktree { worktree } => {
+            // RCLI3-017b: per-fence unblock. Delegates to
+            // `FenceStore::unblock_worktree`, which is responsible
+            // for canonicalising the path, removing the in-memory
+            // record, and rewriting the disk persistence file atomically.
+            // Returns `ok: true` when a fence was actually removed,
+            // `ok: false` when none was engaged (idempotent no-op).
+            let ctx = cross_check.ok_or_else(|| {
+                "unblock-worktree requires a daemon-backed fence store".to_owned()
+            })?;
+            let removed = ctx
+                .fence_store
+                .unblock_worktree(worktree)
+                .map_err(|err| err.to_string())?;
+            let cleared = removed.is_some();
+            if cleared {
+                let operator = build_operator_context(peer_pid);
+                tracing::info!(
+                    target: "anvil_intercept::fence",
+                    worktree = %worktree.display(),
+                    ?operator,
+                    "fence cleared by operator",
+                );
+            }
+            Ok(json!({"ok": cleared}))
+        }
         IpcCommand::ListSessions => {
             let sessions = dispatcher.list();
             serde_json::to_value(sessions).map_err(|err| err.to_string())
@@ -3261,6 +3295,111 @@ mod tests {
             dispatch_command(&command, &dispatcher, Some(9999), Some(&ctx)).expect("dispatch ok");
         assert_eq!(result["ok"], true);
         assert!(!ctx.fence_store.is_cascaded(worktree.path()));
+    }
+
+    // ---- RCLI3-017b: UnblockWorktree dispatch ------------------------
+
+    /// RCLI3-017b: `dispatch_command` routes `UnblockWorktree` to
+    /// `FenceStore::unblock_worktree` and returns `{"ok": true}` when
+    /// a fence record was actually removed. Mirrors the cascade
+    /// dispatch test for shape parity.
+    #[test]
+    fn dispatch_command_unblock_worktree_clears_engaged_fence() {
+        use anvil_intercept_proto::IpcCommand;
+        let (ctx, _temp) = make_cross_check_context();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        ctx.fence_store
+            .fence_worktree(worktree.path(), "test fence")
+            .expect("fence");
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockWorktree {
+            worktree: worktree.path().to_path_buf(),
+        };
+        let result =
+            dispatch_command(&command, &dispatcher, Some(4242), Some(&ctx)).expect("dispatch ok");
+        assert_eq!(result["ok"], true, "cleared fence must report true");
+
+        // Re-running on the now-unfenced worktree is a no-op.
+        let again =
+            dispatch_command(&command, &dispatcher, Some(4242), Some(&ctx)).expect("dispatch ok");
+        assert_eq!(
+            again["ok"], false,
+            "idempotent re-run must report false (no-op)",
+        );
+    }
+
+    /// RCLI3-017b: `dispatch_command` returns `{"ok": false}` when
+    /// the worktree was not fenced — idempotent operator-clear so
+    /// scripts can call `unblock-worktree` unconditionally during
+    /// demo / test setup without surfacing spurious failures.
+    #[test]
+    fn dispatch_command_unblock_worktree_is_idempotent() {
+        use anvil_intercept_proto::IpcCommand;
+        let (ctx, _temp) = make_cross_check_context();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockWorktree {
+            worktree: worktree.path().to_path_buf(),
+        };
+        let result =
+            dispatch_command(&command, &dispatcher, None, Some(&ctx)).expect("dispatch ok");
+        assert_eq!(result["ok"], false, "no-op clear returns false");
+    }
+
+    /// RCLI3-017b: without a `CrossCheckContext` the dispatcher
+    /// surfaces a typed error rather than panicking. Mirrors the
+    /// cascade path's `dispatch_command_unblock_cascade_requires_cross_check_context`.
+    #[test]
+    fn dispatch_command_unblock_worktree_requires_cross_check_context() {
+        use anvil_intercept_proto::IpcCommand;
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockWorktree {
+            worktree: PathBuf::from("/tmp/wt"),
+        };
+        let err =
+            dispatch_command(&command, &dispatcher, None, None).expect_err("no ctx must error");
+        assert!(err.contains("daemon-backed fence store"), "got: {err}");
+    }
+
+    /// RCLI3-017b: the JSON-RPC method-name → `IpcCommand` parser
+    /// accepts both the kebab-case alias `unblock-worktree` (matching
+    /// `IpcCommand` `rename_all`) and the dotted `fence.unblock-worktree`
+    /// form. Pinning this protects against accidental name churn that
+    /// would silently downgrade a per-fence unblock into "Method not
+    /// found".
+    #[test]
+    fn command_from_jsonrpc_parses_unblock_worktree_aliases() {
+        use anvil_intercept_proto::IpcCommand;
+        let params = json!({"worktree": "/tmp/wt"});
+        for method in ["unblock-worktree", "fence.unblock-worktree"] {
+            let parsed = match command_from_jsonrpc(method, &params) {
+                Ok(cmd) => cmd,
+                Err(failure) => panic!(
+                    "method {method} must parse, got JSON-RPC failure code={} message={}",
+                    failure.code, failure.message,
+                ),
+            };
+            match parsed {
+                IpcCommand::UnblockWorktree { worktree } => {
+                    assert_eq!(worktree, PathBuf::from("/tmp/wt"));
+                }
+                other => panic!("expected UnblockWorktree, got {other:?} for method {method}"),
+            }
+        }
+    }
+
+    /// RCLI3-017b: missing `worktree` param is a typed JSON-RPC
+    /// failure (invalid params), not a panic.
+    #[test]
+    fn command_from_jsonrpc_rejects_unblock_worktree_without_worktree_param() {
+        let params = json!({});
+        match command_from_jsonrpc("unblock-worktree", &params) {
+            Ok(_) => panic!("missing param must error"),
+            Err(failure) => assert_eq!(failure.code, -32602, "must be Invalid params"),
+        }
     }
 
     #[cfg(unix)]

@@ -134,6 +134,17 @@ pub enum IpcCommand {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         operator: Option<session::OperatorContext>,
     },
+    /// RCLI3-017b: clear a single fenced worktree from the daemon's
+    /// in-memory state and disk persistence. Wraps the
+    /// `FenceStore::unblock_worktree` primitive INTD-007 introduced.
+    /// Cascade state (MLP2-026) is a distinct concern — clearing
+    /// per-fence records does NOT clear `degraded:fence-cascade`,
+    /// and vice versa.
+    ///
+    /// Wire shape: `{"command": "unblock-worktree", "worktree": "..."}`.
+    /// Response: `{"ok": bool}` — `true` when a fence was removed,
+    /// `false` for the idempotent no-op case (no fence was engaged).
+    UnblockWorktree { worktree: PathBuf },
 }
 
 /// Single NDJSON envelope. One line on the wire = one envelope. The
@@ -461,6 +472,28 @@ mod tests {
             !line.contains("\"operator\""),
             "operator omitted when None: {line}"
         );
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
+    }
+
+    /// RCLI3-017b: `UnblockWorktree` round-trips through the wire
+    /// with the kebab-case discriminator `unblock-worktree`. The
+    /// variant carries only the `worktree` field — no per-fence
+    /// audit-context analogue to the cascade's `operator` (cascade
+    /// audit-of-record is daemon-derived; per-fence relies on the
+    /// existing fence-record fields).
+    #[test]
+    fn unblock_worktree_round_trips_through_wire() {
+        let envelope = IpcEnvelope::request(
+            "req-uw",
+            IpcCommand::UnblockWorktree {
+                worktree: PathBuf::from("/work/wt"),
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(line.contains("\"unblock-worktree\""), "kebab-case: {line}");
+        assert!(line.contains("\"/work/wt\""), "worktree present: {line}");
 
         let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
         assert_eq!(back, envelope);

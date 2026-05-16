@@ -510,11 +510,11 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-017b: intercept unblock CLI surface
 
-- **Status:** Ready (carved out 2026-04-26 — INTD-007 covers fence
-  persistence and the data-path unblock primitive, but the operator-visible
-  CLI surface had no work-item home until now. The demo runbook's §3.1
-  soft-reset path calls `anvil intercept unblock --worktree "$PWD"`
-  directly.)
+- **Status:** In Progress (2026-05-17 — branch
+  `feat/rcli3-017b-intercept-unblock-worktree`. Adds the per-fence
+  unblock IPC verb wrapping `FenceStore::unblock_worktree` plus the
+  `--worktree` / `--all` / `--dry-run` CLI surface; cascade clearing
+  via `--acknowledge-cascade` remains the existing MLP2-026 path.)
 - **Intent:** Port `anvil intercept unblock --worktree <path>`. CLI surface
   for removing a fenced worktree from the daemon's persistence file, so an
   operator can clear demo / test fences without restarting the daemon.
