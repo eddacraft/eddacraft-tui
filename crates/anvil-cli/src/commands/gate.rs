@@ -11,9 +11,10 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::{
-    GATE_INTERNAL_CHECKS, canonical_check_name, gate_canonical_name_from_internal,
-    gate_canonical_names, gate_internal_name,
+    GATE_INTERNAL_CHECKS, canonical_check_name, definition_by_internal,
+    gate_canonical_name_from_internal, gate_canonical_names, gate_internal_name,
 };
+use crate::commands::check_guards::{WallTimeGuard, evaluate_file_presence, evaluate_wall_time};
 use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Default, Args)]
@@ -1104,6 +1105,41 @@ fn run_check_policy(
 
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let root = &ctx.workspace_root;
+
+    // OPSUP-006 — file-presence guard. A check that declares file-shape
+    // patterns short-circuits when none of the walked workspace files
+    // match. All current core checks declare none and therefore always
+    // run (Unguarded). Surface/pack checks added under Track 3 and Track
+    // 4 will opt in by populating `file_shape_globs` on their
+    // CheckDefinition.
+    let definition = definition_by_internal(name);
+    if let Some(def) = definition {
+        let presence = evaluate_file_presence(def.file_shape_globs, &ctx.walked_files);
+        if !presence.should_run() {
+            // Use a "No files in scope" prefix rather than "Skipping" so
+            // the file-presence short-circuit cannot be mistaken for the
+            // missing-config skip pattern that `is_skipped_for_missing_config`
+            // matches on. The two are semantically different (no work to
+            // do vs. no config to evaluate) and the AI strict-config mode
+            // must only elevate the latter.
+            return CheckResult {
+                name: gate_canonical_name_from_internal(name),
+                passed: true,
+                score: 100.0,
+                message: format!(
+                    "No files in scope for {}: no workspace files match declared shapes ({})",
+                    def.canonical_name,
+                    def.file_shape_globs.join(", "),
+                ),
+            };
+        }
+    }
+
+    // OPSUP-006 — measure elapsed wall-time so the post-flight guard can
+    // surface a precise overrun reason. Side-effect-free if no budget is
+    // declared (every current core check).
+    let started = std::time::Instant::now();
+
     let mut result = match name {
         "lint" => run_check_lint(name, root),
         "test" => run_check_test(name, root),
@@ -1127,6 +1163,23 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             message: format!("Unknown check: {name}"),
         },
     };
+
+    if let Some(def) = definition {
+        let wall_time = evaluate_wall_time(def.wall_time_soft_budget_secs, started.elapsed());
+        if let WallTimeGuard::Exceeded { .. } = &wall_time
+            && let Some(reason) = wall_time.timeout_reason()
+        {
+            // Append the timeout reason so the overrun is surfaced
+            // without losing the check's own message. The check itself is
+            // not cancelled — Rust threads cannot be safely pre-empted —
+            // but the reason makes the budget breach actionable.
+            if result.message.is_empty() {
+                result.message = format!("{}: {}", def.canonical_name, reason);
+            } else {
+                result.message = format!("{} ({reason})", result.message);
+            }
+        }
+    }
 
     // AI guardrail strict-config: missing/invalid config is a blocking
     // diagnostic rather than a soft skip. Detect the "no config, skipping"

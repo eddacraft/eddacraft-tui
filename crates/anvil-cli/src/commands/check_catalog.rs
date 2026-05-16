@@ -12,6 +12,21 @@ pub(crate) struct CheckDefinition {
     pub(crate) init_visible: bool,
     pub(crate) gate_supported: bool,
     pub(crate) gate_config_supported: bool,
+    /// OPSUP-006 — file-shape patterns this check needs in the workspace.
+    /// Empty means "always run" (the current default for every core
+    /// check). Future Track 3 surface modules (e.g. `*.sql`, `Dockerfile`)
+    /// declare patterns here so absent shapes short-circuit before any
+    /// expensive work runs.
+    pub(crate) file_shape_globs: &'static [&'static str],
+    /// OPSUP-006 — per-check **soft** wall-time budget in whole seconds.
+    /// `None` means "no budget declared". The budget is report-only:
+    /// overrun is surfaced via
+    /// [`super::check_guards::WallTimeGuard::Exceeded`] and appended to
+    /// the result message; the check itself is NOT pre-empted because
+    /// Rust threads cannot be safely cancelled mid-flight. The `_soft_`
+    /// in the field name is deliberate so future Track 3/4 authors do
+    /// not mistake this for a hard cancellation deadline.
+    pub(crate) wall_time_soft_budget_secs: Option<u64>,
 }
 
 pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
@@ -25,6 +40,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: true,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-002",
@@ -36,6 +53,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: true,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-003",
@@ -47,6 +66,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: true,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-004",
@@ -58,6 +79,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: true,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-005",
@@ -69,6 +92,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: false,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-006",
@@ -80,6 +105,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: false,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-007",
@@ -91,6 +118,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: false,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-008",
@@ -102,6 +131,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: false,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
     CheckDefinition {
         stable_id: "ANV-CORE-009",
@@ -113,6 +144,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         init_visible: false,
         gate_supported: true,
         gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
     },
 ];
 
@@ -139,6 +172,16 @@ pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefini
 
 pub(crate) fn definition_by_stable_id(id: &str) -> Option<&'static CheckDefinition> {
     CHECK_DEFINITIONS.iter().find(|def| def.stable_id == id)
+}
+
+/// Lookup by the internal dispatcher name (`internal_name`). The gate
+/// dispatch loop in `gate.rs` keys on internal names; OPSUP-006 guards
+/// also key on those so the lookup needs to be O(1)-callable from
+/// `run_single_check`.
+pub(crate) fn definition_by_internal(name: &str) -> Option<&'static CheckDefinition> {
+    CHECK_DEFINITIONS
+        .iter()
+        .find(|def| def.internal_name == name)
 }
 
 pub(crate) fn definition_by_name(name: &str) -> Option<&'static CheckDefinition> {
@@ -348,5 +391,41 @@ mod tests {
             canonical_check_name("ANV-CORE-003"),
             Some("antipattern-scan")
         );
+    }
+
+    #[test]
+    fn opsup_006_core_checks_default_to_unguarded() {
+        // Migration-safety contract for OPSUP-006: every current core
+        // check ships with no file-shape guard and no wall-time cap so
+        // observable gate behaviour is unchanged. Future surface/pack
+        // checks opt in.
+        for definition in CHECK_DEFINITIONS {
+            assert!(
+                definition.file_shape_globs.is_empty(),
+                "{} ({}) regressed OPSUP-006 default — core checks must not declare file_shape_globs",
+                definition.canonical_name,
+                definition.stable_id
+            );
+            assert!(
+                definition.wall_time_soft_budget_secs.is_none(),
+                "{} ({}) regressed OPSUP-006 default — core checks must not declare wall_time_soft_budget_secs",
+                definition.canonical_name,
+                definition.stable_id
+            );
+        }
+    }
+
+    #[test]
+    fn definition_by_internal_resolves_dispatch_names() {
+        // The gate dispatch loop keys on internal names; OPSUP-006 guards
+        // look up the definition via internal_name to consult the
+        // declared file-shape / wall-time fields.
+        for internal_name in GATE_INTERNAL_CHECKS {
+            let def = definition_by_internal(internal_name).unwrap_or_else(|| {
+                panic!("internal dispatch name '{internal_name}' must resolve to a definition")
+            });
+            assert_eq!(def.internal_name, *internal_name);
+            assert!(def.gate_supported);
+        }
     }
 }

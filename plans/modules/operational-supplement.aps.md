@@ -190,9 +190,25 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Provide reusable check guards and runtime budgets so absent file
   shapes short-circuit before expensive work.
+- **Expected Outcome:** `CheckDefinition` declares optional file-shape globs
+  and a wall-time budget; the gate dispatcher consults these to short-circuit
+  checks whose declared file shapes are absent and surface a timeout-reason
+  note when any check exceeds its declared budget. All current core checks
+  default to unguarded so existing behaviour is unchanged. A reusable
+  `check_guards` module exposes the pure evaluators with thorough tests so
+  future Track 3/4 surface and pack modules can opt in without re-deriving
+  the framework.
+- **Files:**
+  `crates/anvil-cli/src/commands/check_catalog.rs`,
+  `crates/anvil-cli/src/commands/check_guards.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-cli/src/commands/mod.rs`,
+  `plans/modules/operational-supplement.aps.md`,
+  `plans/index.aps.md`
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`
 
 ### OPSUP-007 — False-positive reporting channel
 
