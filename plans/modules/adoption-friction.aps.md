@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADOPT | @aneki | In Progress | 3/6 done |
+| ADOPT | @aneki | In Progress | 4/6 done |
 
 **Last reviewed:** 2026-05-16 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -14,8 +14,9 @@ Progress: **3/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
 **Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
 2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
 `docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
-enforcement completed 2026-05-16. Module status is `In Progress`; ADOPT-003 and
-ADOPT-004 are in-flight Wave 3A items while ADOPT-006 remains draft.)
+enforcement completed 2026-05-16; ADOPT-004 shared ignore policy merged
+2026-05-16 via PR #1658. Module status is `In Progress`; ADOPT-003 is the
+remaining in-flight Wave 3A item while ADOPT-006 remains draft.)
 
 ## Purpose
 
@@ -210,7 +211,15 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - `cargo test -p eddacraft-anvil util::tests::cli_helper_matches_kernel_canonical`
   - Existing per-surface tests in `audit.rs`, `check.rs`, `baseline.rs`,
     `watcher/filter.rs` continue to pass against the unified set
-- **Status:** In Progress
+- **Status:** Merged
+- **Evidence:** Merged via PR #1658 (`feat(kernel): unify local-noise
+  ignore policy across surfaces`) on 2026-05-16, rebase-merged as
+  `34671da7`. Canonical const now lives at
+  `crates/anvil-kernel/src/watcher/filter.rs::IGNORE_DIRS`; cli
+  `is_ignored_dir_name` is a re-export. `.venv` added; `__pycache__`
+  reconciled. Conformance tests (`ignore_policy_covers_all_surfaces`,
+  `default_patterns_derives_from_canonical_const`,
+  `cli_helper_matches_kernel_canonical`) prevent drift.
 - **Dependencies:** WATCHUX-002 (shared helper)
 - **changeType:** feature
 - **releaseIntent:** candidate
