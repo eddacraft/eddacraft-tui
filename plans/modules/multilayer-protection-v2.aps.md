@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 49/76 done |
+| MLP2 | @aneki | In Progress | 50/76 done |
 
 **Last reviewed:** 2026-05-17 (MLP2-051 re-spec on branch
 `chore/aps-mlp2-051-respec` — split into MLP2-051 umbrella +
@@ -3316,7 +3316,7 @@ to redesign once GV2-001..-023 land.
 | ----- | ----- | ------ |
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
-| C. L4 policy execution | 7 (MLP2-016..-022) | 5/7 |
+| C. L4 policy execution | 7 (MLP2-016..-022) | 6/7 |
 | D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 2/6 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
@@ -3329,7 +3329,7 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **49/76** |
+| **Total** | **76** | **50/76** |
 
 ## Recommended landing order
 
