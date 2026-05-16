@@ -346,8 +346,9 @@ mod tests {
     }
 
     /// MLP2-025b: a new envelope carrying `lineage` parses correctly
-    /// and survives a round-trip. The launcher reports its own pid +
-    /// pid_starttime; the daemon trusts this register-time claim.
+    /// and survives a round-trip. The launcher reports its own
+    /// `pid` + `pid_starttime`; the daemon trusts this register-time
+    /// claim.
     #[test]
     fn register_session_with_lineage_round_trips() {
         let envelope = IpcEnvelope::request(
