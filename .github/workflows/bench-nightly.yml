@@ -11,8 +11,8 @@ name: Nightly Stress Tests
 
 on:
   schedule:
-    # Every night at 03:00 UTC (11:00 AM Perth)
-    - cron: '0 3 * * *'
+    # Every night at 03:00 Perth (19:00 UTC previous day; Perth has no DST)
+    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
       scenario:
