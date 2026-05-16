@@ -1155,6 +1155,7 @@ mod tests {
             diagnostics: Vec::new(),
             truncated: false,
             rules_sha: None,
+            spoof_block: None,
         }
     }
 
@@ -1164,6 +1165,7 @@ mod tests {
             diagnostics,
             truncated: false,
             rules_sha: None,
+            spoof_block: None,
         }
     }
 

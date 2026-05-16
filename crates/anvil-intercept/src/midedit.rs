@@ -78,6 +78,39 @@ pub struct ScanBufferResponse {
     /// wired the rule-set cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules_sha: Option<String>,
+    /// MLP2-025b: present when the daemon control-lane refused the
+    /// write because the env-supplied `AgentTag` did not match any
+    /// daemon-issued tag on the writer's PID lineage. The IPC
+    /// handler short-circuits before running the rule engine, so
+    /// `diagnostics` is empty and `rules_sha` is `None` when this
+    /// field is `Some`. Mutually exclusive with diagnostics —
+    /// pinned by spec §6 inv-4.
+    ///
+    /// Wire-additive via `skip_serializing_if`. Legacy clients
+    /// ignore the field and see an empty-diagnostics response (which
+    /// is correct: the rule engine never ran). MLP2-025b-aware
+    /// clients surface the operator-touch trail (worktree-level
+    /// fence + reason).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spoof_block: Option<SpoofBlockInfo>,
+}
+
+/// MLP2-025b: details of a daemon-side spoof block. Populated on
+/// [`ScanBufferResponse::spoof_block`] when the control-lane
+/// short-circuits a write because of an out-of-lineage env-tag
+/// forgery. See `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`
+/// §3.3.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SpoofBlockInfo {
+    /// Always [`crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION`]
+    /// for v1; carried explicitly so structured-log consumers do
+    /// not need to look up the constant.
+    pub reason: String,
+    /// Canonicalised worktree that the daemon fenced as a side
+    /// effect of the block. Future operations on this worktree
+    /// remain blocked until the operator runs
+    /// `anvil intercept unblock <worktree>`.
+    pub fenced_worktree: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -370,6 +403,7 @@ pub fn scan_buffer_with_pipeline(
             diagnostics: Vec::new(),
             truncated: false,
             rules_sha: None,
+            spoof_block: None,
         });
     }
 
@@ -395,6 +429,11 @@ pub fn scan_buffer_with_pipeline(
         // overwrites this with the pinned value if the caller
         // supplied one.
         rules_sha: None,
+        // MLP2-025b: the pipeline path is reached only after the
+        // daemon control-lane confirms attribution is acceptable
+        // (`Cross::Match` or `Cross::Untagged`); a spoof never
+        // touches this function. Always `None` here.
+        spoof_block: None,
     })
 }
 
@@ -433,6 +472,50 @@ mod tests {
             mode: ScanBufferMode::MidEdit,
             env_agent_tag: None,
         }
+    }
+
+    /// MLP2-025b: pin the wire-additive guard on the new
+    /// `spoof_block` field. When `None`, the serialised response
+    /// must not include the key — pre-MLP2-025b readers see no
+    /// change.
+    #[test]
+    fn scan_buffer_response_omits_spoof_block_when_none() {
+        let response = ScanBufferResponse {
+            version: 1,
+            diagnostics: Vec::new(),
+            truncated: false,
+            rules_sha: None,
+            spoof_block: None,
+        };
+        let line = serde_json::to_string(&response).expect("serialise");
+        assert!(
+            !line.contains("\"spoof_block\""),
+            "spoof_block omitted when None: got {line}"
+        );
+    }
+
+    /// MLP2-025b: when populated, `spoof_block` serialises with the
+    /// reason string and fenced worktree on the wire. The reason is
+    /// always `degraded:spoofed-attribution` for v1.
+    #[test]
+    fn scan_buffer_response_includes_spoof_block_when_set() {
+        let response = ScanBufferResponse {
+            version: 1,
+            diagnostics: Vec::new(),
+            truncated: false,
+            rules_sha: None,
+            spoof_block: Some(SpoofBlockInfo {
+                reason: crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION.to_string(),
+                fenced_worktree: PathBuf::from("/work/wt"),
+            }),
+        };
+        let line = serde_json::to_string(&response).expect("serialise");
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("parse back");
+        assert_eq!(
+            parsed["spoof_block"]["reason"],
+            "degraded:spoofed-attribution"
+        );
+        assert_eq!(parsed["spoof_block"]["fenced_worktree"], "/work/wt");
     }
 
     #[test]
