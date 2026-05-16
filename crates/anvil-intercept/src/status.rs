@@ -123,6 +123,15 @@ pub struct WorktreeStatus {
     pub worktree: std::path::PathBuf,
     pub session_id: anvil_intercept_proto::SessionId,
     pub fenced: bool,
+    /// MLP2-026: `true` when the worktree is in
+    /// `degraded:fence-cascade` mode. Distinct from `fenced` — a
+    /// worktree can be cascaded without being individually fenced;
+    /// cascade refuses NEW sessions, fence affects enforcement of
+    /// existing ones. See spec §3.6.
+    pub cascaded: bool,
+    /// MLP2-026: Unix seconds at which the cascade was engaged.
+    /// `None` when not cascaded.
+    pub cascade_since: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -167,6 +176,8 @@ impl DaemonStatus {
                     worktree: w.worktree.clone(),
                     session_id: w.session_id.clone(),
                     fenced: w.fenced,
+                    cascaded: w.cascaded,
+                    cascade_since: w.cascade_since,
                 })
                 .collect(),
             fences: self
@@ -226,6 +237,7 @@ fn rollup_to_wire(r: LatencyRollup) -> anvil_intercept_proto::status::LatencyRol
 pub fn build_status(
     sessions: Vec<SessionRecord>,
     fence_records: &[FenceRecord],
+    cascade_records: &[crate::fence::CascadeRecord],
     latency_mid_edit: Option<LatencyRollup>,
     started_at: Instant,
     now: Instant,
@@ -244,14 +256,25 @@ pub fn build_status(
         }
     }
 
+    // MLP2-026: map cascade engaged-state by canonical worktree
+    // path so the per-session overlay below can pick up
+    // `cascaded` / `cascade_since`.
+    let cascade_map: std::collections::HashMap<std::path::PathBuf, u64> = cascade_records
+        .iter()
+        .map(|c| (c.worktree.clone(), c.since_unix))
+        .collect();
+
     let worktrees = sessions
         .iter()
         .map(|session| {
             let fenced = fenced_set.contains(&session.worktree);
+            let cascade_since = cascade_map.get(&session.worktree).copied();
             WorktreeStatus {
                 worktree: session.worktree.clone(),
                 session_id: session.id.clone(),
                 fenced,
+                cascaded: cascade_since.is_some(),
+                cascade_since,
             }
         })
         .collect();
@@ -392,15 +415,20 @@ impl StatusProvider for DaemonStatusProvider {
         // down at startup (see `run_foreground`), so reaching this
         // branch in steady state means an operator has corrupted the
         // file underneath us. Logging at warn keeps the trail.
-        let fence_records = match self.fence_store.load() {
-            Ok(state) => state.active_fences().to_vec(),
+        // MLP2-026: fence-store load returns both records and
+        // cascades; same single-call lifetime, same fail-soft posture.
+        let (fence_records, cascade_records) = match self.fence_store.load() {
+            Ok(state) => (
+                state.active_fences().to_vec(),
+                state.active_cascades().to_vec(),
+            ),
             Err(err) => {
                 tracing::warn!(
                     target: "anvil_intercept::status",
                     error = %err,
-                    "fence store unavailable for query_status; reporting empty fence list",
+                    "fence store unavailable for query_status; reporting empty fence + cascade lists",
                 );
-                Vec::new()
+                (Vec::new(), Vec::new())
             }
         };
         let mid_edit = self.latency.snapshot(now);
@@ -413,6 +441,7 @@ impl StatusProvider for DaemonStatusProvider {
         build_status(
             sessions,
             &fence_records,
+            &cascade_records,
             mid_edit,
             self.started_at,
             now,
@@ -451,6 +480,21 @@ pub fn render_status(status: &DaemonStatus) -> String {
     };
     let _ = writeln!(out, "sessions:  {session_count} active   ({session_word})");
     let _ = writeln!(out, "fences:    {}", status.fences.len());
+    // MLP2-026: render one `cascade:` line per worktree currently in
+    // `degraded:fence-cascade` mode. Silent when no cascades are
+    // engaged (the common case) so legacy output stays byte-identical
+    // for pre-MLP2-026 daemons. Spec §3.6.
+    for worktree in status.worktrees.iter().filter(|w| w.cascaded) {
+        let since = worktree
+            .cascade_since
+            .map(|ts| ts.to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let _ = writeln!(
+            out,
+            "cascade:   engaged since {since} ({})",
+            worktree.worktree.display(),
+        );
+    }
     out.push_str(&render_latency_line(status.latency.mid_edit.as_ref()));
     out.push('\n');
     // MLP2-058: when the daemon has surfaced cache + in-flight
@@ -741,6 +785,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             now,
@@ -772,6 +817,7 @@ mod tests {
         let status = build_status(
             vec![session.clone()],
             std::slice::from_ref(&fence),
+            &[],
             None,
             started,
             now,
@@ -819,6 +865,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             started + Duration::from_secs(1),
@@ -859,6 +906,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             started + Duration::from_secs(1),
@@ -887,6 +935,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             started + Duration::from_secs(1),
@@ -909,6 +958,7 @@ mod tests {
         let now = started + Duration::from_secs(7);
         let status = build_status(
             vec![sample_session("sess-1", "/tmp/wt-1")],
+            &[],
             &[],
             Some(sample_rollup(11.0, 33.0)),
             started,
@@ -954,6 +1004,7 @@ mod tests {
         let status = build_status(
             vec![sample_session("sess-1", "/tmp/wt-1")],
             &[],
+            &[],
             Some(sample_rollup(8.0, 19.0)),
             started,
             now,
@@ -975,6 +1026,135 @@ mod tests {
         assert_eq!(json["sessions"].as_array().unwrap().len(), 1);
     }
 
+    /// MLP2-026: cascade fields on `WorktreeStatusV1` round-trip
+    /// through serde. `cascaded` is always present (no skip-if);
+    /// `cascade_since` is skip-if-none. Spec §3.6 wire-compat.
+    #[test]
+    fn worktree_status_v1_round_trips_cascade_fields() {
+        let started = Instant::now();
+        let session = sample_session("sess-cascaded", "/tmp/wt-cascaded");
+        let cascade = crate::fence::CascadeRecord {
+            worktree: PathBuf::from("/tmp/wt-cascaded"),
+            since_unix: 1_700_000_500,
+            reason: crate::telemetry::DEGRADED_FENCE_CASCADE.to_string(),
+        };
+        let status = build_status(
+            vec![session],
+            &[],
+            std::slice::from_ref(&cascade),
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        let wire = status.to_wire();
+        let json = serde_json::to_value(&wire).expect("serialise");
+        let worktree = &json["worktrees"][0];
+        assert_eq!(worktree["cascaded"], true);
+        assert_eq!(worktree["cascade_since"], 1_700_000_500);
+
+        // Round-trip back.
+        let parsed: anvil_intercept_proto::status::DaemonStatusV1 =
+            serde_json::from_value(json).expect("deserialise");
+        let worktree = &parsed.worktrees[0];
+        assert!(worktree.cascaded);
+        assert_eq!(worktree.cascade_since, Some(1_700_000_500));
+    }
+
+    /// MLP2-026: `cascaded: false` is present on the wire by
+    /// default (`#[serde(default)]` without skip-if). Operators
+    /// can read a status snapshot and see explicitly that nothing
+    /// is cascaded.
+    #[test]
+    fn worktree_status_v1_emits_cascaded_false_explicitly() {
+        let started = Instant::now();
+        let session = sample_session("sess-clean", "/tmp/wt-clean");
+        let status = build_status(
+            vec![session],
+            &[],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        let wire = status.to_wire();
+        let json = serde_json::to_value(&wire).expect("serialise");
+        let worktree = &json["worktrees"][0];
+        assert_eq!(worktree["cascaded"], false);
+        // cascade_since is skip-if-none — absent on the wire when None.
+        assert!(worktree.get("cascade_since").is_none());
+    }
+
+    /// MLP2-026: `render_status` emits a `cascade:` line per
+    /// cascaded worktree, silent when none are engaged. Spec §3.6.
+    #[test]
+    fn render_status_emits_cascade_line_when_engaged() {
+        let started = Instant::now();
+        let session = sample_session("sess-c", "/tmp/wt-c");
+        let cascade = crate::fence::CascadeRecord {
+            worktree: PathBuf::from("/tmp/wt-c"),
+            since_unix: 1_700_000_999,
+            reason: crate::telemetry::DEGRADED_FENCE_CASCADE.to_string(),
+        };
+        let status = build_status(
+            vec![session],
+            &[],
+            std::slice::from_ref(&cascade),
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        let rendered = render_status(&status);
+        assert!(
+            rendered.contains("cascade:"),
+            "cascade line missing: {rendered}"
+        );
+        assert!(
+            rendered.contains("1700000999"),
+            "since_unix missing: {rendered}"
+        );
+        assert!(
+            rendered.contains("/tmp/wt-c"),
+            "worktree missing from cascade line: {rendered}"
+        );
+    }
+
+    /// MLP2-026: `render_status` is silent on cascade when nothing
+    /// is engaged. Preserves byte-identical output for pre-MLP2-026
+    /// daemons.
+    #[test]
+    fn render_status_omits_cascade_line_when_no_cascades() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+        );
+        let rendered = render_status(&status);
+        assert!(
+            !rendered.contains("cascade:"),
+            "no cascade line when none engaged: {rendered}"
+        );
+    }
+
     // MLP2-058 — cache + in-flight observability surface.
 
     /// `None` cache + `None` in-flight wires as absent keys, matching
@@ -986,6 +1166,7 @@ mod tests {
         let started = Instant::now();
         let status = build_status(
             vec![],
+            &[],
             &[],
             None,
             started,
@@ -1017,6 +1198,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             started + Duration::from_secs(1),
@@ -1047,6 +1229,7 @@ mod tests {
         let started = Instant::now();
         let status = build_status(
             vec![],
+            &[],
             &[],
             None,
             started,
@@ -1170,6 +1353,7 @@ mod tests {
         let status = build_status(
             vec![],
             &[],
+            &[],
             None,
             started,
             started + Duration::from_secs(1),
@@ -1194,6 +1378,7 @@ mod tests {
         let now = started;
         let status = build_status(
             vec![],
+            &[],
             &[],
             None,
             started,
@@ -1224,6 +1409,7 @@ mod tests {
         build_status(
             sessions,
             fences,
+            &[],
             None,
             started,
             started + Duration::from_secs(1),

@@ -73,6 +73,17 @@ pub struct WorktreeStatusV1 {
     pub worktree: PathBuf,
     pub session_id: SessionId,
     pub fenced: bool,
+    /// MLP2-026: `true` when the worktree is in
+    /// `degraded:fence-cascade` mode. Always present on the wire
+    /// (`#[serde(default)]`) so operators reading status snapshots
+    /// see `cascaded: false` explicitly, not absence. See spec §3.6.
+    #[serde(default)]
+    pub cascaded: bool,
+    /// MLP2-026: Unix seconds at which the cascade was engaged.
+    /// Wire-additive via `skip_serializing_if` to keep the common
+    /// case (None) compact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cascade_since: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -1063,6 +1063,7 @@ async fn query_status_with_traffic_carries_p50_and_p95() {
             build_status(
                 vec![],
                 &[],
+                &[],
                 Some(rollup),
                 started,
                 now,

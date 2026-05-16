@@ -113,6 +113,10 @@ impl StatusProvider for NoopStatusProvider {
         crate::status::build_status(
             Vec::new(),
             &[],
+            // MLP2-026: NoopStatusProvider has no fence-store
+            // access; the cascade overlay is empty for these
+            // synthetic listeners.
+            &[],
             None,
             std::time::Instant::now(),
             std::time::Instant::now(),
