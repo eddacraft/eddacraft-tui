@@ -275,6 +275,31 @@ pub fn validate_connected_peer_for_client(
     Ok(())
 }
 
+/// MLP2-025b: read the peer process id for an accepted tokio Unix
+/// socket. Returns `None` when the platform / kernel does not
+/// expose the peer PID, or when the peer has already exited
+/// between accept and the credential read.
+///
+/// On Linux this is `SO_PEERCRED.pid()`, the same syscall
+/// `validate_connected_peer_for_client` already issues for the UID
+/// check. On macOS it is `LOCAL_PEERPID` (via tokio's `peer_cred`
+/// wrapper). On Windows / non-Linux/-macOS Unix the function
+/// returns `None` and MLP2-025b's cross-check treats that as
+/// `Cross::Spoofed` whenever an env tag is supplied (spec §7
+/// fail-closed verdict).
+///
+/// Used by the daemon control-lane (B7) to pass `writer_pid` into
+/// `SessionRegistry::cross_check_env_tag`.
+#[cfg(unix)]
+pub fn peer_pid_for_tokio_unix_stream(stream: &tokio::net::UnixStream) -> Option<u32> {
+    let cred = stream.peer_cred().ok()?;
+    let pid = cred.pid()?;
+    if pid <= 0 {
+        return None;
+    }
+    u32::try_from(pid).ok()
+}
+
 /// macOS peer-credential validation. macOS has no `SO_PEERCRED`; the equivalent
 /// is `getpeereid(2)` which fills in the peer's effective uid + gid at the time
 /// the socket connection was established. The effective uid is the identity
@@ -701,9 +726,12 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let scan_buffer = scan_buffer.clone();
                             let conn_status = Arc::clone(&status_provider);
                             let conn_token = token.clone();
+                            // MLP2-025b: capture peer PID before moving
+                            // the stream into the handler.
+                            let peer_pid = peer_pid_for_tokio_unix_stream(&stream);
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -830,7 +858,13 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_token = token.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits).await {
+                                // MLP2-025b: Windows peer-PID is
+                                // greenfield (tracked under MLP2-028).
+                                // `None` here forces fail-closed on
+                                // any env-tagged write — the safe
+                                // default until peer-pid support lands.
+                                let peer_pid: Option<u32> = None;
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -875,6 +909,14 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     status_provider: Arc<dyn StatusProvider>,
     mut token: ShutdownToken,
     limits: IpcLimits,
+    // MLP2-025b: peer PID captured at accept time and threaded
+    // through to `handle_scan_buffer_jsonrpc` so the daemon
+    // control-lane can call
+    // `SessionRegistry::cross_check_env_tag(env_tag, writer_pid)`.
+    // `None` on platforms / kernels where the PID is not
+    // available; the cross-check treats `None` + present env_tag
+    // as `Cross::Spoofed` (fail-closed, spec §7).
+    peer_pid: Option<u32>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
@@ -982,9 +1024,14 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         match serde_json::from_str::<Value>(line) {
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
-                    if let Some(response) =
-                        handle_jsonrpc_value(value, &dispatcher, &scan_buffer, &status_provider)
-                            .await
+                    if let Some(response) = handle_jsonrpc_value(
+                        value,
+                        &dispatcher,
+                        &scan_buffer,
+                        &status_provider,
+                        peer_pid,
+                    )
+                    .await
                     {
                         write_json_response(reader.get_mut(), &response, "response").await?;
                     }
@@ -1167,7 +1214,8 @@ pub async fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     scan_buffer: &ScanBufferService,
 ) -> Option<Value> {
     let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
-    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status).await
+    // MLP2-025b: benchmark fixture; no real socket, so no peer PID.
+    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status, None).await
 }
 
 fn is_jsonrpc_frame(value: &Value) -> bool {
@@ -1637,6 +1685,9 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
     dispatcher: &Arc<D>,
     scan_buffer: &ScanBufferService,
     status_provider: &Arc<dyn StatusProvider>,
+    // MLP2-025b: per-connection peer PID. `None` on platforms / kernels
+    // where the PID is not available, or in synthetic test fixtures.
+    peer_pid: Option<u32>,
 ) -> Option<Value> {
     match value {
         Value::Array(items) => {
@@ -1693,7 +1744,8 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     continue;
                 }
                 if let Some(response) =
-                    handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider).await
+                    handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider, peer_pid)
+                        .await
                 {
                     responses.push(response);
                 }
@@ -1704,7 +1756,9 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                 Some(Value::Array(responses))
             }
         }
-        item => handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider).await,
+        item => {
+            handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider, peer_pid).await
+        }
     }
 }
 
@@ -1746,6 +1800,9 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     dispatcher: &Arc<D>,
     scan_buffer: &ScanBufferService,
     status_provider: &Arc<dyn StatusProvider>,
+    // MLP2-025b: per-connection peer PID; threaded to
+    // `handle_scan_buffer_jsonrpc`. See `handle_connection` doc.
+    peer_pid: Option<u32>,
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
@@ -1842,6 +1899,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             traceparent,
             is_notification,
             scan_buffer,
+            peer_pid,
         )
         .instrument(dispatch_span)
         .await;
@@ -1995,6 +2053,11 @@ async fn handle_scan_buffer_jsonrpc(
     traceparent: Option<&str>,
     is_notification: bool,
     scan_buffer: &ScanBufferService,
+    // MLP2-025b: per-connection peer PID. Consumed by the
+    // cross-check wire-up in B7. For now this function accepts the
+    // parameter but does not use it (the cross-check itself lands
+    // in subtask B7 alongside the registry + fence_store thread-in).
+    _peer_pid: Option<u32>,
 ) -> Option<Value> {
     if let Err(JsonRpcFailure {
         code,
@@ -2727,6 +2790,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
         )
         .await
         .expect("response");
@@ -3878,6 +3942,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
         )
         .await
         .expect("scan_buffer response");
@@ -3942,6 +4007,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
         )
         .await
         .expect("scan response");
@@ -3983,6 +4049,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
         )
         .await
         .expect("scan response");
@@ -4023,6 +4090,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
         )
         .await
         .expect("scan response");
@@ -4091,9 +4159,10 @@ mod tests {
         });
 
         for _ in 0..5 {
-            let response = handle_jsonrpc_value(frame.clone(), &dispatcher, &scan_buffer, &status)
-                .await
-                .expect("scan response");
+            let response =
+                handle_jsonrpc_value(frame.clone(), &dispatcher, &scan_buffer, &status, None)
+                    .await
+                    .expect("scan response");
             assert!(
                 response["result"]["diagnostics"]
                     .as_array()
