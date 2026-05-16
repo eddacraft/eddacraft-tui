@@ -118,11 +118,11 @@ pub struct OperatorContext {
     /// the credential read failed — the daemon still clears the
     /// cascade (spec §7 — credential gaps record the gap; the
     /// clear-side authority is the existing UID gate at
-    /// socket-accept, NOT the OperatorContext).
+    /// socket-accept, NOT the `OperatorContext`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uid: Option<u32>,
     /// Peer process id from the same syscall. Always populated on
-    /// Linux + macOS (the daemon already captures peer_pid for
+    /// Linux + macOS (the daemon already captures `peer_pid` for
     /// MLP2-025b); `None` on Windows / platforms where the read
     /// is undefined.
     #[serde(default, skip_serializing_if = "Option::is_none")]

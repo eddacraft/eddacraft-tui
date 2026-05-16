@@ -487,8 +487,7 @@ pub fn render_status(status: &DaemonStatus) -> String {
     for worktree in status.worktrees.iter().filter(|w| w.cascaded) {
         let since = worktree
             .cascade_since
-            .map(|ts| ts.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+            .map_or_else(|| "unknown".to_string(), |ts| ts.to_string());
         let _ = writeln!(
             out,
             "cascade:   engaged since {since} ({})",

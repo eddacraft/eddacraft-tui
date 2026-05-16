@@ -95,7 +95,7 @@ fn run_unblock(args: &UnblockArgs) -> Result<()> {
     })?;
     let cleared = dispatch_unblock_cascade(&canonical)?;
     if cleared {
-        println!("cascade cleared for worktree {}", canonical.display(),);
+        println!("cascade cleared for worktree {}", canonical.display());
     } else {
         println!(
             "no cascade engaged for worktree {} (no-op)",
@@ -488,7 +488,7 @@ fn parse_unblock_cascade_response_bytes(buf: &[u8], read: usize, request_id: &st
         .get("ok")
         .and_then(serde_json::Value::as_bool)
         .ok_or_else(|| {
-            anyhow::anyhow!("daemon response `result.ok` missing or not a bool: {result}",)
+            anyhow::anyhow!("daemon response `result.ok` missing or not a bool: {result}")
         })
 }
 

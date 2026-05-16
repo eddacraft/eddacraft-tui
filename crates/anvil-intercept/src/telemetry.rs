@@ -29,7 +29,7 @@ pub const DEGRADED_SPOOFED_ATTRIBUTION: &str = "degraded:spoofed-attribution";
 /// MLP2-026: reason string emitted when the daemon's fence rate
 /// window detects 5 fence fires within 60 seconds for the same
 /// worktree, engaging `degraded:fence-cascade` mode. Emitted via
-/// both the notification envelope (ActiveToFenced) AND
+/// both the notification envelope (`ActiveToFenced`) AND
 /// `tracing::warn!`. Defined as a `pub const` so a future migration
 /// to a typed degraded-mode enum has a single find-target. See
 /// `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
@@ -39,9 +39,9 @@ pub const DEGRADED_FENCE_CASCADE: &str = "degraded:fence-cascade";
 /// MLP2-026: paired clear reason emitted when an operator clears
 /// a `degraded:fence-cascade` via `anvil intercept unblock
 /// --acknowledge-cascade`. Emitted via the notification envelope
-/// (FencedToActive) AND `tracing::info!` — mirrors the priority
+/// (`FencedToActive`) AND `tracing::info!` — mirrors the priority
 /// asymmetry from the existing `FenceTransition` mapping
-/// (Critical on engage, Normal on clear).
+/// (`Critical` on engage, `Normal` on clear).
 pub const DEGRADED_FENCE_CASCADE_CLEAR: &str = "degraded:fence-cascade-clear";
 
 static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);

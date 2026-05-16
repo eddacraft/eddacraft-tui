@@ -30,7 +30,7 @@ pub const CASCADE_RATE_WINDOW_CAPACITY: usize = 4;
 /// MLP2-026: rate-window duration paired with
 /// [`CASCADE_RATE_WINDOW_CAPACITY`]. Five fires within 60 s engage
 /// the cascade.
-pub const CASCADE_RATE_WINDOW_DURATION: Duration = Duration::from_secs(60);
+pub const CASCADE_RATE_WINDOW_DURATION: Duration = Duration::from_mins(1);
 
 #[derive(Debug, Error)]
 pub enum FenceStoreError {
@@ -250,9 +250,7 @@ impl FenceStore {
     /// surfaces on other paths.
     #[must_use]
     pub fn is_cascaded(&self, worktree: &Path) -> bool {
-        self.load()
-            .map(|state| state.is_cascaded(worktree))
-            .unwrap_or(false)
+        self.load().is_ok_and(|state| state.is_cascaded(worktree))
     }
 
     /// MLP2-026: operator-clear of a cascade engaged-state. Removes
@@ -1155,7 +1153,7 @@ mod tests {
     #[test]
     fn cascade_rate_window_constants_match_spec() {
         assert_eq!(CASCADE_RATE_WINDOW_CAPACITY, 4);
-        assert_eq!(CASCADE_RATE_WINDOW_DURATION, Duration::from_secs(60));
+        assert_eq!(CASCADE_RATE_WINDOW_DURATION, Duration::from_mins(1));
     }
 
     /// MLP2-026: four fence fires within 60 s do NOT engage the

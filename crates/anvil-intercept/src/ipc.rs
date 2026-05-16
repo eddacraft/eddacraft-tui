@@ -1869,6 +1869,7 @@ fn scan_buffer_batch_error(response_id: Option<Value>, traceparent: Option<&str>
     )
 }
 
+#[allow(clippy::too_many_lines)] // MLP2-026 pushed line count from 99 to 101 via the additional cross_check/peer_pid threading; splitting would obscure the per-method routing.
 async fn handle_jsonrpc_request<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
@@ -3156,7 +3157,7 @@ mod tests {
 
     // ---- MLP2-026: UnblockCascade dispatch ---------------------------
 
-    /// MLP2-026: dispatch_command routes `UnblockCascade` to
+    /// MLP2-026: `dispatch_command` routes `UnblockCascade` to
     /// `FenceStore::clear_cascade` and returns `{"ok": true}` when
     /// a cascade was cleared. Spec §3.4 + §5.4.
     #[test]
@@ -3187,8 +3188,8 @@ mod tests {
         assert!(!ctx.fence_store.is_cascaded(worktree.path()));
     }
 
-    /// MLP2-026: dispatch_command returns `{"ok": false}` when the
-    /// worktree was not in cascade — idempotent operator-clear
+    /// MLP2-026: `dispatch_command` returns `{"ok": false}` when
+    /// the worktree was not in cascade — idempotent operator-clear
     /// (spec §5.3 + §6 inv-3).
     #[test]
     fn dispatch_command_unblock_cascade_is_idempotent() {
@@ -3206,10 +3207,10 @@ mod tests {
         assert_eq!(result["ok"], false, "no-op clear returns false");
     }
 
-    /// MLP2-026: when no CrossCheckContext is wired,
-    /// UnblockCascade returns a typed error rather than panicking
+    /// MLP2-026: when no `CrossCheckContext` is wired,
+    /// `UnblockCascade` returns a typed error rather than panicking
     /// or silently succeeding. Tests / embedded callers that don't
-    /// expose a fence_store see this path.
+    /// expose a `fence_store` see this path.
     #[test]
     fn dispatch_command_unblock_cascade_requires_cross_check_context() {
         use anvil_intercept_proto::IpcCommand;
