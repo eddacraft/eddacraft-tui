@@ -9,6 +9,7 @@
 //! The text is single-paragraph by design — operators reading this
 //! at 11pm get one signal and one suggested command, not a wall.
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::exit_codes::{EXIT_DAEMON_UNAVAILABLE, EXIT_FENCED};
@@ -61,15 +62,49 @@ pub fn render(reason: &RefusalReason) -> String {
         RefusalReason::Fenced {
             worktree,
             fence_reason,
-        } => format!(
-            "anvil-run: refusing to launch — worktree {worktree} is fenced.\n  reason: {fence_reason}\n  unblock: `anvil intercept unblock {worktree}` (after addressing the reason)\n",
-            worktree = display_path(worktree)
-        ),
+        } => {
+            let display = display_path(worktree);
+            let quoted = shell_quote(&display);
+            format!(
+                "anvil-run: refusing to launch — worktree {display} is fenced.\n  reason: {fence_reason}\n  unblock: `anvil intercept unblock {quoted}` (after addressing the reason)\n",
+            )
+        }
     }
 }
 
 fn display_path(p: &Path) -> String {
     p.display().to_string()
+}
+
+/// POSIX shell-quote `s` so it can be pasted as a single argument.
+///
+/// Returns the input unchanged when it contains only characters that
+/// every POSIX shell treats literally; otherwise wraps it in single
+/// quotes, escaping any embedded single quotes via the standard
+/// `'\''` close-escape-reopen sequence. Output is *not* portable to
+/// `cmd.exe`, but the surrounding refusal text targets POSIX shells.
+fn shell_quote(s: &str) -> Cow<'_, str> {
+    if !s.is_empty()
+        && s.bytes().all(|b| {
+            matches!(b,
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+                | b'_' | b'-' | b'.' | b'/' | b':' | b'@' | b'%' | b'+' | b','
+            )
+        })
+    {
+        return Cow::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for ch in s.chars() {
+        if ch == '\'' {
+            out.push_str("'\\''");
+        } else {
+            out.push(ch);
+        }
+    }
+    out.push('\'');
+    Cow::Owned(out)
 }
 
 #[cfg(test)]
@@ -120,5 +155,46 @@ mod tests {
     #[test]
     fn preflight_proceed_produces_no_refusal() {
         assert!(RefusalReason::from_preflight(PreflightDecision::Proceed).is_none());
+    }
+
+    #[test]
+    fn fenced_text_shell_quotes_worktree_with_spaces() {
+        let reason = RefusalReason::Fenced {
+            worktree: PathBuf::from("/work/some dir"),
+            fence_reason: "x".into(),
+        };
+        let rendered = render(&reason);
+        assert!(
+            rendered.contains("anvil intercept unblock '/work/some dir'"),
+            "spaces in path must be quoted in the unblock command:\n{rendered}",
+        );
+    }
+
+    #[test]
+    fn fenced_text_shell_escapes_embedded_single_quote() {
+        let reason = RefusalReason::Fenced {
+            worktree: PathBuf::from("/work/it's-fine"),
+            fence_reason: "x".into(),
+        };
+        let rendered = render(&reason);
+        assert!(
+            rendered.contains("anvil intercept unblock '/work/it'\\''s-fine'"),
+            "embedded single quotes must use the close/escape/reopen form:\n{rendered}",
+        );
+    }
+
+    #[test]
+    fn shell_quote_leaves_simple_paths_alone() {
+        assert_eq!(shell_quote("/work/api"), "/work/api");
+        assert_eq!(shell_quote("name-1.2_v3"), "name-1.2_v3");
+    }
+
+    #[test]
+    fn shell_quote_wraps_paths_with_metacharacters() {
+        assert_eq!(shell_quote("a b"), "'a b'");
+        assert_eq!(shell_quote("a$b"), "'a$b'");
+        assert_eq!(shell_quote("a;b"), "'a;b'");
+        assert_eq!(shell_quote("a`b"), "'a`b'");
+        assert_eq!(shell_quote(""), "''");
     }
 }

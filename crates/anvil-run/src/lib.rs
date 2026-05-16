@@ -27,6 +27,8 @@
 //! - [`blocked`] — UX for refused launches (INTL-008).
 //! - [`exit_codes`] — stable exit codes the shell wrappers can switch
 //!   on (INTL-008).
+//! - [`tty`] — foreground-tty handoff for interactive launches
+//!   (INTL-029, follow-up to INTL-008).
 //! - [`run`] — top-level orchestration glue.
 //!
 //! ## Trust model
@@ -51,3 +53,4 @@ pub mod preflight;
 pub mod run;
 pub mod session;
 pub mod spawn;
+pub mod tty;

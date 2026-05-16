@@ -19,11 +19,15 @@ use crate::heartbeat::HeartbeatHandle;
 use crate::hook::HookError;
 use crate::preflight;
 use crate::session::{self, RegistrationRequest, pid_starttime_or_fallback};
-use crate::{hook, spawn};
+use crate::{hook, spawn, tty};
 
 /// Run the launcher. Returns the process exit code the caller
 /// should propagate to the OS.
 pub fn run(cli: Cli) -> i32 {
+    // Make sure SIGTTOU is handled (not delivered as the default
+    // "stop" action) before any code path can reach the foreground
+    // handoff in `run_wrap_spawn`. Idempotent — see [`tty`].
+    tty::install_sigttou_handler();
     match cli.command {
         Some(Command::Hook(args)) => run_hook(args),
         None => run_wrap(cli.wrap),
@@ -240,6 +244,11 @@ fn run_wrap_spawn(spawn_args: WrapSpawn) -> i32 {
         let _ = writeln!(std::io::stderr().lock(), "anvil-run: warning: {err:#}");
     }
 
+    // Hand the terminal foreground to the child's pgrp so Ctrl-C
+    // reaches the agent, not the launcher. Held until after
+    // `wait_for_child` returns; drop restores the launcher.
+    let tty_handoff = tty::transfer_foreground_to(spawned.pgid);
+
     let status = match spawn::wait_for_child(spawned.child) {
         Ok(status) => status,
         Err(err) => {
@@ -248,6 +257,10 @@ fn run_wrap_spawn(spawn_args: WrapSpawn) -> i32 {
         }
     };
 
+    // Restore the launcher's pgrp as the terminal foreground before
+    // we start chatting with the daemon — keeps any error messages
+    // we print on stderr visible in the user's shell.
+    drop(tty_handoff);
     if let Some(h) = heartbeat {
         h.stop();
     }
