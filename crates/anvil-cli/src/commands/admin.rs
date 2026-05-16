@@ -161,7 +161,7 @@ enum AdminAuthCommand {
         #[arg(value_enum)]
         source: AdminCredentialSourceKind,
 
-        /// Source-specific reference, for example op://Vault/item/field
+        /// Source-specific reference, for example `<op://Vault/item/field>`
         reference: String,
     },
 
