@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 2/3      |
+| CIB | —     | In Progress | 3/4      |
 
 ## Purpose
 
@@ -158,4 +158,28 @@ archive.
   conflicts unresolved, causing repeated token-heavy reruns.
 - **Coordinates with:** CIB-002 (agent surface inventory) and repo-local
   `addressing-pr-reviews` skill authority.
+- **Confidence:** high
+
+### CIB-004: Simplify admin-key retrieval with credential-source config
+
+- **Status:** Complete
+- **Intent:** Make routine admin CLI use easier without storing plaintext admin
+  keys by letting operators configure where the key should be retrieved from.
+- **Expected Outcome:** `anvil admin auth set 1password <op-reference>` writes
+  an owner-only local credential-source config, `anvil admin auth status` reports
+  the configured source without revealing the key, `anvil admin auth unset`
+  removes it, and normal `anvil admin` commands resolve the key from
+  `ANVIL_ADMIN_KEY` first or from `op read <reference>` otherwise.
+- **Validation:** `cargo test -p eddacraft-anvil commands::admin`; `cargo fmt
+  --check`; `pnpm format:check`; manual source check against issue #952.
+- **Identified From:** GitHub issue #952, deferred from ADMINCLIH v1 as
+  "Admin CLI: keychain-integrated local key storage".
+- **Coordinates with:** Archived `ADMINCLIH` module out-of-scope note; this item
+  intentionally records retrieval metadata only, not plaintext admin keys or OS
+  keychain integration.
+- **Files:** `crates/anvil-cli/src/commands/admin.rs`,
+  `docs/runbooks/admin-cli.md`.
+- **Evidence:** `anvil admin auth set 1password <op-reference>` stores only the
+  retrieval reference, normal admin commands resolve it with `op read` when
+  `ANVIL_ADMIN_KEY` is absent, and the runbook documents setup/status/unset.
 - **Confidence:** high

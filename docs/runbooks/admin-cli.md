@@ -1,5 +1,13 @@
 # Admin CLI Operator Runbook
 
+| Type    | Authority     | Owner | Status | Freshness                                                                                |
+| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB   | Live   | Last reviewed 2026-05-16 against `crates/anvil-cli/src/commands/admin.rs` and issue #952 |
+
+| Upstream                                                                                                                                                                                                                                                                                 | Downstream                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling |
+
 `anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP API
 (`/admin/*`). It is the supported way to approve waitlist signups, invite beta
 users, revoke tokens, browse the audit log, and send migration emails during
@@ -30,8 +38,10 @@ Release installs expose the same surface as `anvil admin --help`.
 
 ## Configuration
 
-The CLI reads admin configuration from environment variables. The Rust admin
-surface does not accept per-invocation admin URL, key, or actor override flags.
+The CLI reads admin configuration from environment variables and, when no admin
+key env var is present, from the configured admin credential source. The Rust
+admin surface does not accept per-invocation admin URL, key, or actor override
+flags.
 
 | Setting       | Env var           | Default                    |
 | ------------- | ----------------- | -------------------------- |
@@ -39,13 +49,14 @@ surface does not accept per-invocation admin URL, key, or actor override flags.
 | Admin API key | `ANVIL_ADMIN_KEY` | _(required — no default)_  |
 
 - `ANVIL_ADMIN_KEY` is sent as `Authorization: Bearer <key>`.
+- `ANVIL_ADMIN_KEY` wins over any configured admin credential source.
 - Per-operator keys determine the audit actor server-side. Shared-key requests
   are attributed to the sentinel actor `shared-key@anvil`.
 
 Missing or invalid admin credentials exit `3` (see **Exit codes** below):
 
 ```
-Authentication required: set ANVIL_ADMIN_KEY to an admin token before running admin commands.
+Authentication required: set ANVIL_ADMIN_KEY or run `anvil admin auth set 1password <op-reference>` before running admin commands.
 ```
 
 ### Example shell setup
@@ -67,6 +78,11 @@ matters as much as how the server stores its hash. These guidelines are in
 preference order — start at the top and only drop down when a workflow forces
 your hand.
 
+The supported local pattern is **secret-manager-backed retrieval**.
+`anvil admin` persists only the retrieval source, not the plaintext admin key.
+The operator's approved password manager remains the authority for storage,
+rotation, audit, and device unlock policy.
+
 - **Do not put the key on the command line.** `ps(1)`, `htop`, and
   `/proc/<pid>/cmdline` expose argv to every other user on the host for the life
   of the process. Shell history captures it too. Use the `ANVIL_ADMIN_KEY` env
@@ -77,24 +93,56 @@ your hand.
   lands in `.zsh_history` / `.bash_history` and is inherited by every child
   process. If you've done this, rotate the key and scrub shell history.
 
-- **Preferred — 1Password CLI, scoped subshell.** Shell the key in only for the
-  life of the admin invocation so it never reaches `~/.zshrc` or a parent
-  shell's env:
+- **Preferred — configure the 1Password source once.** Store the 1Password item
+  reference in Anvil's owner-only local config:
+
+  ```bash
+  anvil admin auth set 1password op://Anvil/admin-key/credential
+  anvil admin auth status
+  anvil admin list
+  ```
+
+  Normal `anvil admin ...` commands now run `op read` for that reference when
+  `ANVIL_ADMIN_KEY` is not set. If 1Password is locked or `op` is unavailable,
+  the CLI exits with authentication-required guidance instead of falling back to
+  an unsafe prompt or storing the key.
+
+  To remove the source:
+
+  ```bash
+  anvil admin auth unset
+  ```
+
+- **Alternative — 1Password CLI, scoped child process.** Keep a private
+  `admin.env` file outside the repo (or in a directory covered by your global
+  gitignore) with references, not plaintext secrets:
+
+  ```dotenv
+  ANVIL_ADMIN_KEY="op://Anvil/admin-key/credential"
+  ```
+
+  Then shell the key in only for the life of the admin invocation so it never
+  reaches `~/.zshrc`, shell history, or a parent shell's environment:
 
   ```bash
   op run --env-file=admin.env -- anvil admin list
   ```
 
-  where `admin.env` maps env vars to 1Password items, e.g.
-  `ANVIL_ADMIN_KEY="op://Anvil/admin-key/credential"`. `op run` injects the
-  resolved secret only for the child process.
+  `op run` injects the resolved secret only for the child process. Use this form
+  for scripts that should not depend on the user's Anvil credential-source
+  config.
 
-  For one-off reads without `op run`:
+- **Fallback — one-off 1Password read.** If `op run` is unavailable, command
+  substitution is acceptable for one invocation because the key is assigned only
+  in that process environment:
 
   ```bash
   ANVIL_ADMIN_KEY="$(op read 'op://Anvil/admin-key/credential')" \
     anvil admin list
   ```
+
+  Do not promote this to shell startup files or long-lived exports; prefer
+  `op run` as soon as the environment can support it.
 
 - **Alternative — `direnv` scoped per project directory.** Put a `.envrc` beside
   the repo (or in a parent directory) that resolves the key at `cd`-time:

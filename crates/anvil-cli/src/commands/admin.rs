@@ -1,9 +1,12 @@
 use std::fmt::Write as FmtWrite;
+use std::fs;
 use std::io::{self, IsTerminal, Write};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, ValueEnum};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::auth::client::{
@@ -142,6 +145,60 @@ enum AdminCommand {
         #[arg(long)]
         edict: bool,
     },
+
+    /// Configure how admin commands retrieve the admin API key
+    Auth {
+        #[command(subcommand)]
+        command: AdminAuthCommand,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum AdminAuthCommand {
+    /// Store a credential-source reference for future admin commands
+    Set {
+        /// Credential source backend
+        #[arg(value_enum)]
+        source: AdminCredentialSourceKind,
+
+        /// Source-specific reference, for example op://Vault/item/field
+        reference: String,
+    },
+
+    /// Show the configured admin credential source without revealing the key
+    Status,
+
+    /// Remove the configured admin credential source
+    Unset,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum AdminCredentialSourceKind {
+    #[value(name = "1password")]
+    OnePassword,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct AdminCredentialConfig {
+    source: String,
+    reference: String,
+}
+
+impl AdminCredentialConfig {
+    fn one_password(reference: impl Into<String>) -> Self {
+        Self {
+            source: "1password".to_string(),
+            reference: reference.into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminAuthStatus<'a> {
+    configured: bool,
+    source: Option<&'a str>,
+    reference: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -210,26 +267,244 @@ struct InviteResult {
 /// Kept env-independent (no direct process env access) so unit tests can
 /// exercise every branch without the `unsafe { std::env::set_var }`
 /// forbidden by the crate-level `unsafe_code` lint.
-fn resolve_admin_key(raw: Result<String, std::env::VarError>, json: bool) -> Result<String> {
+fn admin_credential_config_path() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir().context("could not determine user config directory")?;
+    Ok(config_dir.join("anvil").join("admin-auth.json"))
+}
+
+fn load_admin_credential_config(path: &Path) -> Result<Option<AdminCredentialConfig>> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(err).with_context(|| {
+                format!(
+                    "failed to read admin credential source at {}",
+                    path.display()
+                )
+            });
+        }
+    };
+    let config: AdminCredentialConfig = serde_json::from_str(&raw).with_context(|| {
+        format!(
+            "failed to parse admin credential source at {}; run `anvil admin auth unset` and configure it again",
+            path.display()
+        )
+    })?;
+    Ok(Some(config))
+}
+
+fn save_admin_credential_config(path: &Path, config: &AdminCredentialConfig) -> Result<()> {
+    if config.reference.trim().is_empty() {
+        bail!("admin credential source reference cannot be empty");
+    }
+    let parent = path
+        .parent()
+        .context("admin credential source path has no parent")?;
+    fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
+    let raw = serde_json::to_string_pretty(config)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        use std::os::unix::fs::PermissionsExt;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .with_context(|| {
+                format!(
+                    "failed to write admin credential source at {}",
+                    path.display()
+                )
+            })?;
+        file.write_all(raw.as_bytes()).with_context(|| {
+            format!(
+                "failed to write admin credential source at {}",
+                path.display()
+            )
+        })?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).with_context(|| {
+            format!(
+                "failed to restrict admin credential source permissions at {}",
+                path.display()
+            )
+        })?;
+    }
+
+    #[cfg(not(unix))]
+    fs::write(path, raw).with_context(|| {
+        format!(
+            "failed to write admin credential source at {}",
+            path.display()
+        )
+    })?;
+
+    Ok(())
+}
+
+fn read_1password_reference(reference: &str) -> Result<String> {
+    let output = Command::new("op")
+        .args(["read", reference])
+        .output()
+        .context("failed to run `op read`; install and sign in to the 1Password CLI")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "`op read` failed{}{}",
+            if stderr.trim().is_empty() { "" } else { ": " },
+            stderr.trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim_end()
+        .to_string())
+}
+
+fn print_auth_required(json: bool, detail: &str) {
+    if json {
+        eprintln!(
+            "{}",
+            serde_json::json!({
+                "error": "authentication_required",
+                "detail": detail
+            })
+        );
+    } else {
+        eprintln!("Authentication required: {detail}");
+    }
+}
+
+fn resolve_admin_key_with_config<F>(
+    raw: Result<String, std::env::VarError>,
+    json: bool,
+    config_path: &Path,
+    read_1password: F,
+) -> Result<String>
+where
+    F: FnOnce(&str) -> Result<String>,
+{
     match raw {
         Ok(value) if !value.is_empty() => Ok(value),
-        _ => {
-            if json {
-                eprintln!(
-                    "{}",
-                    serde_json::json!({
-                        "error": "authentication_required",
-                        "detail": "ANVIL_ADMIN_KEY environment variable is required for admin commands"
-                    })
-                );
-            } else {
-                eprintln!(
-                    "Authentication required: set ANVIL_ADMIN_KEY to an admin token before running admin commands."
-                );
-            }
+        Err(std::env::VarError::NotUnicode(_)) => {
+            print_auth_required(
+                json,
+                "ANVIL_ADMIN_KEY is set but is not valid Unicode; unset it or set it to a valid admin token before running admin commands.",
+            );
             Err(AuthRequired.into())
         }
+        _ => match load_admin_credential_config(config_path)? {
+            Some(config) if config.source == "1password" => match read_1password(&config.reference)
+            {
+                Ok(value) if !value.is_empty() => Ok(value),
+                Ok(_) => {
+                    print_auth_required(
+                        json,
+                        "configured 1Password admin credential resolved to an empty value; check the item reference or run `anvil admin auth set 1password <reference>` again.",
+                    );
+                    Err(AuthRequired.into())
+                }
+                Err(err) => {
+                    print_auth_required(
+                        json,
+                        &format!(
+                            "could not read configured 1Password admin credential ({err}); run `op signin`, set ANVIL_ADMIN_KEY, or run `anvil admin auth unset`."
+                        ),
+                    );
+                    Err(AuthRequired.into())
+                }
+            },
+            Some(config) => {
+                print_auth_required(
+                    json,
+                    &format!(
+                        "unsupported admin credential source `{}`; run `anvil admin auth unset` and configure it again.",
+                        config.source
+                    ),
+                );
+                Err(AuthRequired.into())
+            }
+            None => {
+                print_auth_required(
+                    json,
+                    "set ANVIL_ADMIN_KEY or run `anvil admin auth set 1password <op-reference>` before running admin commands.",
+                );
+                Err(AuthRequired.into())
+            }
+        },
     }
+}
+
+fn resolve_admin_key(raw: Result<String, std::env::VarError>, json: bool) -> Result<String> {
+    let config_path = admin_credential_config_path()?;
+    resolve_admin_key_with_config(raw, json, &config_path, read_1password_reference)
+}
+
+fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()> {
+    let path = admin_credential_config_path()?;
+    match command {
+        AdminAuthCommand::Set { source, reference } => {
+            let config = match source {
+                AdminCredentialSourceKind::OnePassword => {
+                    AdminCredentialConfig::one_password(reference)
+                }
+            };
+            save_admin_credential_config(&path, &config)?;
+            if global.json {
+                crate::output::json::print(&serde_json::json!({
+                    "configured": true,
+                    "source": config.source,
+                    "reference": config.reference,
+                    "path": path,
+                }))?;
+            } else {
+                println!("Admin credential source configured");
+                println!("  Source:    {}", config.source);
+                println!("  Reference: {}", config.reference);
+                println!("  Path:      {}", path.display());
+            }
+        }
+        AdminAuthCommand::Status => {
+            let config = load_admin_credential_config(&path)?;
+            let status = AdminAuthStatus {
+                configured: config.is_some(),
+                source: config.as_ref().map(|config| config.source.as_str()),
+                reference: config.as_ref().map(|config| config.reference.as_str()),
+            };
+            if global.json {
+                crate::output::json::print(&status)?;
+            } else if status.configured {
+                println!("Admin credential source configured");
+                println!("  Source:    {}", status.source.unwrap_or("unknown"));
+                println!("  Reference: {}", status.reference.unwrap_or("unknown"));
+            } else {
+                println!("No admin credential source configured");
+                println!("Run: anvil admin auth set 1password op://<vault>/<item>/<field>");
+            }
+        }
+        AdminAuthCommand::Unset => {
+            match fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => {
+                    return Err(err).with_context(|| {
+                        format!(
+                            "failed to remove admin credential source at {}",
+                            path.display()
+                        )
+                    });
+                }
+            }
+            if global.json {
+                crate::output::json::print(&serde_json::json!({"configured": false}))?;
+            } else {
+                println!("Admin credential source removed");
+            }
+        }
+    }
+    Ok(())
 }
 
 fn render_json<T: Serialize>(value: &T, json: bool) -> Result<bool> {
@@ -241,6 +516,10 @@ fn render_json<T: Serialize>(value: &T, json: bool) -> Result<bool> {
 
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
+    if let AdminCommand::Auth { command } = &args.command {
+        return run_admin_auth(command, global);
+    }
+
     let admin_key = resolve_admin_key(std::env::var("ANVIL_ADMIN_KEY"), global.json)?;
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
     let client = crate::auth::client::AnvilClient::with_token(admin_key)?;
@@ -450,6 +729,7 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                 }
             }
         }
+        AdminCommand::Auth { .. } => unreachable!("admin auth returned before API client setup"),
     }
 
     Ok(())
@@ -1013,7 +1293,14 @@ mod tests {
 
     #[test]
     fn resolve_admin_key_missing_returns_auth_required() {
-        let err = resolve_admin_key(Err(std::env::VarError::NotPresent), false).unwrap_err();
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &dir.path().join("missing-admin-auth.json"),
+            |_| panic!("missing config should not resolve a source"),
+        )
+        .unwrap_err();
         assert!(
             err.is::<AuthRequired>(),
             "expected AuthRequired, got {err:?}"
@@ -1022,7 +1309,14 @@ mod tests {
 
     #[test]
     fn resolve_admin_key_empty_returns_auth_required() {
-        let err = resolve_admin_key(Ok(String::new()), false).unwrap_err();
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_admin_key_with_config(
+            Ok(String::new()),
+            false,
+            &dir.path().join("missing-admin-auth.json"),
+            |_| panic!("missing config should not resolve a source"),
+        )
+        .unwrap_err();
         assert!(
             err.is::<AuthRequired>(),
             "expected AuthRequired, got {err:?}"
@@ -1031,7 +1325,153 @@ mod tests {
 
     #[test]
     fn resolve_admin_key_present_returns_value() {
-        let key = resolve_admin_key(Ok("secret-token".into()), false).unwrap();
+        let key =
+            resolve_admin_key_with_config(Ok("secret-token".into()), false, Path::new("."), |_| {
+                panic!("configured source should not be used when env is set")
+            })
+            .unwrap();
         assert_eq!(key, "secret-token");
+    }
+
+    #[test]
+    fn resolve_admin_key_not_unicode_env_does_not_fall_back_to_configured_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(
+            &path,
+            &AdminCredentialConfig::one_password("op://Anvil/admin-key/credential"),
+        )
+        .unwrap();
+
+        let err = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotUnicode("bad".into())),
+            false,
+            &path,
+            |_| panic!("invalid env value must not fall back to configured source"),
+        )
+        .unwrap_err();
+
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn args_parses_admin_auth_set_1password() {
+        let w = Wrapper::try_parse_from([
+            "test",
+            "auth",
+            "set",
+            "1password",
+            "op://Anvil/admin-key/credential",
+        ])
+        .unwrap();
+        match w.inner.command {
+            AdminCommand::Auth {
+                command: AdminAuthCommand::Set { source, reference },
+            } => {
+                assert_eq!(source, AdminCredentialSourceKind::OnePassword);
+                assert_eq!(reference, "op://Anvil/admin-key/credential");
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn admin_credential_source_round_trips_without_plaintext_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        let config = AdminCredentialConfig::one_password("op://Anvil/admin-key/credential");
+
+        save_admin_credential_config(&path, &config).unwrap();
+        let raw = std::fs::read_to_string(&path).unwrap();
+
+        assert!(raw.contains("op://Anvil/admin-key/credential"));
+        assert!(!raw.contains("sk_admin"));
+        assert_eq!(load_admin_credential_config(&path).unwrap(), Some(config));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn admin_credential_source_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(
+            &path,
+            &AdminCredentialConfig::one_password("op://Anvil/admin-key/credential"),
+        )
+        .unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
+    #[test]
+    fn resolve_admin_key_prefers_env_over_configured_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(
+            &path,
+            &AdminCredentialConfig::one_password("op://Anvil/admin-key/credential"),
+        )
+        .unwrap();
+
+        let key = resolve_admin_key_with_config(Ok("env-token".to_string()), false, &path, |_| {
+            panic!("configured source should not be used when env is set")
+        })
+        .unwrap();
+
+        assert_eq!(key, "env-token");
+    }
+
+    #[test]
+    fn resolve_admin_key_reads_configured_1password_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(
+            &path,
+            &AdminCredentialConfig::one_password("op://Anvil/admin-key/credential"),
+        )
+        .unwrap();
+
+        let key = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &path,
+            |reference| {
+                assert_eq!(reference, "op://Anvil/admin-key/credential");
+                Ok("resolved-token".to_string())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(key, "resolved-token");
+    }
+
+    #[test]
+    fn resolve_admin_key_rejects_empty_configured_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(
+            &path,
+            &AdminCredentialConfig::one_password("op://Anvil/admin-key/credential"),
+        )
+        .unwrap();
+
+        let err = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &path,
+            |_| Ok(String::new()),
+        )
+        .unwrap_err();
+
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
     }
 }
