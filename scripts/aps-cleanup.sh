@@ -46,6 +46,40 @@ git fetch origin --quiet 2>/dev/null || log "Warning: git fetch failed (offline?
 shopt -s nullglob
 log "Reconciling module work item counts..."
 
+# APS lifecycle vocabulary (dev-workflow rule 5):
+#   Draft → Proposed → Ready → In Progress → Merged → Released/Shipped → Complete
+# Plus accepted variants used across the repo:
+#   Done       — implementation-finished waypoint (== Merged in the older
+#                modules that predate the Merged terminology)
+#   Resolved   — design-question-answered (used by `dashboard-foundation`)
+#   Todo       — pre-flight waypoint, equivalent to Draft (used by V050F)
+#   Blocked    — in-flight but waiting on an external dep
+#   Deferred   — punted; excluded from active count
+#   Superseded — replaced by another item; excluded from active count
+DONE_STATUSES_RE='complete|done|merged|released|shipped|resolved'
+TERMINAL_HEADER_STATUSES_RE='Complete|Done|Merged|Released|Shipped'
+
+# Classify a single status-line string into one bucket. Priority order
+# matters: a line like `Status: Complete — merged via PR #1234` contains
+# both "complete" and "merged" — the terminal bucket should win exactly
+# once, not double-count across `done` and `merged`.
+classify_status_line() {
+  local lower
+  lower=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  case "$lower" in
+    *complete*|*done*|*merged*|*released*|*shipped*|*resolved*) echo "done" ;;
+    *in\ progress*|*in-progress*)                               echo "in_progress" ;;
+    *ready*)                                                    echo "ready" ;;
+    *proposed*)                                                 echo "proposed" ;;
+    *blocked*)                                                  echo "blocked" ;;
+    *todo*)                                                     echo "todo" ;;
+    *deferred*)                                                 echo "deferred" ;;
+    *superseded*)                                               echo "superseded" ;;
+    *draft*)                                                    echo "draft" ;;
+    *)                                                          echo "unknown" ;;
+  esac
+}
+
 count_work_items() {
   local file="$1"
   local prefix="$2"
@@ -57,24 +91,63 @@ count_work_items() {
   # including) the next `### PREFIX-` heading, so Status is found no matter
   # how long the item body is. -A5 / fixed-N grep under-reports as soon as
   # an item grows past the window.
+  # Items can be at heading depth `###` (most modules) or `####`
+  # (multilayer-protection-v2 nests items under group headings, so the
+  # work items sit one level deeper). Accept either. Within a single
+  # item, only the FIRST `**Status:**` line is canonical — some items
+  # carry sub-progress notes that also use the `**Status:**` shape and
+  # would otherwise inflate the count (e.g. tui-dashboard-render's
+  # TUIDASH-001 carries a primary + nested status).
   local status_block
   status_block=$(awk -v pfx="$prefix" '
-    BEGIN { re="^### " pfx "-[0-9]" }
-    $0 ~ re { in_item=1; next }
-    /^### [A-Z][A-Z0-9]*-[0-9]/ { in_item=0 }
+    BEGIN { re="^###+ " pfx "-[0-9]" }
+    $0 ~ re { in_item=1; status_found=0; next }
+    /^####? [A-Z][A-Z0-9]*-[0-9]/ { in_item=0 }
     /^## / { in_item=0 }
-    in_item && /(^- \*\*Status\*\*|^- \*\*Status:|^Status:)/ { print }
+    in_item && !status_found && /(^- \*\*Status\*\*|^- \*\*Status:|^Status:)/ {
+      print; status_found=1
+    }
   ' "$file" 2>/dev/null || true)
 
   if [[ -n "$status_block" ]]; then
-    done=$(echo "$status_block" | grep -ciE 'complete|done' || true)
-    in_progress=$(echo "$status_block" | grep -ciE 'in.progress' || true)
-    proposed=$(echo "$status_block" | grep -ci 'proposed' || true)
-    deferred=$(echo "$status_block" | grep -ci 'deferred' || true)
-    superseded=$(echo "$status_block" | grep -ci 'superseded' || true)
-    draft=$(echo "$status_block" | grep -ciE '^.*draft' || true)
-    ready=$(echo "$status_block" | grep -ciE '^.*ready' || true)
-    total=$((done + in_progress + proposed + draft + ready + deferred + superseded))
+    # Classify each status line into exactly one bucket (priority chain)
+    # rather than running independent regex counters and double-counting
+    # lines like `Status: Complete — merged via PR #...`. The pre-fix
+    # script under-counted modules whose statuses use the `Merged` /
+    # `Released` / `Resolved` / `Todo` vocabulary because the individual
+    # `grep -c` calls only matched `complete|done`.
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      case "$(classify_status_line "$line")" in
+        done)        done=$((done + 1)) ;;
+        in_progress) in_progress=$((in_progress + 1)) ;;
+        proposed)    proposed=$((proposed + 1)) ;;
+        ready)       ready=$((ready + 1)) ;;
+        blocked)     in_progress=$((in_progress + 1)) ;;
+        todo)        draft=$((draft + 1)) ;;
+        deferred)    deferred=$((deferred + 1)) ;;
+        superseded)  superseded=$((superseded + 1)) ;;
+        draft)       draft=$((draft + 1)) ;;
+      esac
+    done <<< "$status_block"
+    # `total` is the heading count (authoritative item count) — not the
+    # sum of classified statuses. The pre-fix script summed the buckets,
+    # which under-reported modules whose items omit an explicit
+    # `**Status:**` line (a few items per module is common — e.g.,
+    # `dashboard-foundation` carries design-question items whose body
+    # paragraphs serve as their resolution rather than a structured
+    # `**Status:**` field). An unspecified-status item contributes to
+    # `total` but not to any bucket; the caller still sees the right
+    # `done/total` ratio.
+    local heading_count
+    heading_count=$(grep -cE "^###+ ${prefix}-[0-9]" "$file" 2>/dev/null || echo 0)
+    heading_count=${heading_count:-0}
+    local bucket_sum=$((done + in_progress + proposed + draft + ready + deferred + superseded))
+    if [[ "$heading_count" -ge "$bucket_sum" ]]; then
+      total=$heading_count
+    else
+      total=$bucket_sum
+    fi
   fi
 
   # Method 2: Checklist items (- [x] PREFIX-NNN: ...)
@@ -92,21 +165,25 @@ count_work_items() {
     fi
   fi
 
-  # Method 3: Table rows with Done/Complete status
+  # Method 3: Table rows with terminal-done status in a column.
+  # `Done|Complete|Merged|Released|Shipped|Resolved` are all variants of
+  # "no longer in flight".
   if [[ "$total" -eq 0 ]]; then
     local table_total
     table_total=$(grep -cE "^\| ${prefix}-[0-9]" "$file" 2>/dev/null || true)
     table_total=${table_total:-0}
     if [[ "$table_total" -gt 0 ]]; then
-      done=$(grep -cE "^\| ${prefix}-[0-9].*\| (Done|Complete)" "$file" 2>/dev/null || true)
+      done=$(grep -ciE "^\| ${prefix}-[0-9].*\| (${DONE_STATUSES_RE})" "$file" 2>/dev/null || true)
       done=${done:-0}
       total=$table_total
     fi
   fi
 
-  # Method 4: Just count headings (items exist but no status)
+  # Method 4: Just count headings (items exist but no status). Match
+  # `###` and `####` so modules with grouped sub-headings (MLP2-style)
+  # are counted the same as flat-list modules.
   if [[ "$total" -eq 0 ]]; then
-    total=$(grep -cE "^### ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    total=$(grep -cE "^###+ ${prefix}-[0-9]" "$file" 2>/dev/null || true)
     total=${total:-0}
     done=0
   fi
@@ -146,11 +223,22 @@ extract_header_status() {
     return
   fi
 
-  if echo "$table_line" | grep -qi 'Complete'; then echo "Complete"
+  # Priority chain mirrors `classify_status_line`. Terminal-but-pre-release
+  # statuses (Done / Merged / Released / Shipped) come BEFORE Complete in
+  # the test order because a row like
+  #     `| WOUT | @aneki | Done | 6/6 |`
+  # would otherwise match `Complete` against the (absent) literal — actually
+  # neither matches, so the order only matters when a row carries prose
+  # like `Done — Completion verified`. Keep the most-specific bucket first.
+  if echo "$table_line" | grep -qiE '\<Complete\>'; then echo "Complete"
+  elif echo "$table_line" | grep -qiE '\<Released\>|\<Shipped\>'; then echo "Released"
+  elif echo "$table_line" | grep -qiE '\<Merged\>'; then echo "Merged"
+  elif echo "$table_line" | grep -qiE '\<Done\>'; then echo "Done"
   elif echo "$table_line" | grep -qi 'In Progress'; then echo "In Progress"
-  elif echo "$table_line" | grep -qi 'Ready'; then echo "Ready"
-  elif echo "$table_line" | grep -qi 'Proposed'; then echo "Proposed"
-  elif echo "$table_line" | grep -qi 'Draft'; then echo "Draft"
+  elif echo "$table_line" | grep -qiE '\<Blocked\>'; then echo "Blocked"
+  elif echo "$table_line" | grep -qiE '\<Ready\>'; then echo "Ready"
+  elif echo "$table_line" | grep -qiE '\<Proposed\>'; then echo "Proposed"
+  elif echo "$table_line" | grep -qiE '\<Draft\>'; then echo "Draft"
   else echo "Unknown"
   fi
 }
@@ -185,13 +273,21 @@ for module_file in "$MODULES_DIR"/*.aps.md; do
     fi
   fi
 
-  # Check if status should change
+  # Check if status should advance. A module whose items are all done but
+  # whose module-level status is still `In Progress` / `Ready` / `Draft` /
+  # `Proposed` / `Blocked` / `Unknown` is genuinely stale and should
+  # advance. Statuses that are themselves terminal-or-pre-release
+  # (`Complete`, `Done`, `Merged`, `Released`, `Shipped`) are accepted —
+  # `Done` modules legitimately wait for release evidence before
+  # advancing to Complete (dev-workflow rule 5 lifecycle:
+  # `Merged → Released/Shipped → Complete`).
   active=$((total - deferred - superseded))
-  if [[ "$done" -eq "$active" ]] && [[ "$active" -gt 0 ]] && [[ "$header_status" != "Complete" ]]; then
+  if [[ "$done" -eq "$active" ]] && [[ "$active" -gt 0 ]] \
+    && ! echo "$header_status" | grep -qiE "^(${TERMINAL_HEADER_STATUSES_RE})\$"; then
     if [[ "$deferred" -gt 0 ]]; then
-      finding "STATUS: $module — all active items done ($done/$total, $deferred deferred), status is '$header_status' not Complete"
+      finding "STATUS: $module — all active items done ($done/$total, $deferred deferred), status is '$header_status' not Complete/Done/Merged/Released/Shipped"
     else
-      finding "STATUS: $module — all items done ($done/$total), status is '$header_status' not Complete"
+      finding "STATUS: $module — all items done ($done/$total), status is '$header_status' not Complete/Done/Merged/Released/Shipped"
     fi
   fi
 
@@ -240,8 +336,18 @@ if [[ -n "$stale_branches" ]]; then
   finding "BRANCHES: $count merged branches still open (consider deleting)"
 fi
 
+# Dev/main drift check, gated on whether `dev` is still an active
+# promotion target. OPMODEL-012 cut over to main-first on 2026-05-11
+# and tagged the retirement as `dev-retired-2026-05-11`; the dev ref
+# is scheduled for deletion. Once the tag is reachable from `origin/dev`,
+# the branch is residual not active — treat further drift as noise.
 dev_ahead=$(git rev-list --count origin/main..origin/dev 2>/dev/null || echo 0)
-if [[ "$dev_ahead" -gt 20 ]]; then
+dev_retired=false
+if git rev-parse --verify --quiet refs/tags/dev-retired-2026-05-11 >/dev/null 2>&1 \
+   && git merge-base --is-ancestor refs/tags/dev-retired-2026-05-11 origin/dev 2>/dev/null; then
+  dev_retired=true
+fi
+if [[ "$dev_ahead" -gt 20 ]] && [[ "$dev_retired" != true ]]; then
   finding "DRIFT: dev is $dev_ahead commits ahead of main — promotion overdue"
 fi
 
