@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { adminAuth } from '../middleware/admin-auth.js';
+import { adminRateLimit } from '../middleware/admin-rate-limit.js';
 import { getClient } from '../db/client.js';
 import {
   findUserByEmail,
@@ -44,6 +45,19 @@ const admin = new Hono();
 
 // All admin routes require admin auth
 admin.use('*', adminAuth);
+
+// Per-actor rate limit on the whole admin surface. Caps a compromised
+// per-operator key (or the shared-key bucket) to 60 requests/min before
+// audit-log review can be expected to catch up.
+admin.use('*', adminRateLimit({ windowMs: 60_000, max: 60, scope: 'all' }));
+
+// Tighter dedicated cap on `/send-migration`: the operation triggers
+// outbound email to waitlist segments, so we want a much smaller
+// burst budget per actor even when the coarse cap allows traffic.
+admin.use(
+  '/send-migration',
+  adminRateLimit({ windowMs: 60 * 60 * 1000, max: 5, scope: 'send-migration' })
+);
 
 /**
  * Resolve the admin actor identity for audit logging.

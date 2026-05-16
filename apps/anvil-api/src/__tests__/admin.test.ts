@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { admin } from '../routes/admin.js';
+import { _resetAdminRateLimitForTests } from '../middleware/admin-rate-limit.js';
 
 vi.mock('../lib/feature-flags.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/feature-flags.js')>();
@@ -114,6 +115,7 @@ describe('admin endpoints', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetAdminRateLimitForTests();
     process.env['ADMIN_KEY'] = ADMIN_KEY;
     vi.mocked(resolveApiScope).mockImplementation((scope) => ({
       allowed: ['beta', 'preview', 'internal'].includes(scope),
@@ -148,6 +150,39 @@ describe('admin endpoints', () => {
         'wrong-key'
       );
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('rate limiting (#951)', () => {
+    // The coarse per-actor cap is 60 req/min. We don't want to issue
+    // 61 real `/admin/audit` calls here; instead probe `GET
+    // /admin/audit` (cheap) under the shared-key bucket until 429.
+    it('caps the shared-key bucket at 60 admin requests/min', async () => {
+      mockSql.mockResolvedValue([]);
+      vi.mocked(findAuditEntries).mockResolvedValue({ total: 0, items: [] });
+      const statuses: number[] = [];
+      for (let i = 0; i < 62; i++) {
+        const res = await request('GET', '/admin/audit', undefined, ADMIN_KEY);
+        statuses.push(res.status);
+      }
+      // First 60 succeed; the 61st (and beyond) are throttled.
+      expect(statuses.slice(0, 60).every((s) => s === 200)).toBe(true);
+      expect(statuses[60]).toBe(429);
+      expect(statuses[61]).toBe(429);
+    });
+
+    it('responds with the admin_rate_limited code body and Retry-After', async () => {
+      mockSql.mockResolvedValue([]);
+      vi.mocked(findAuditEntries).mockResolvedValue({ total: 0, items: [] });
+      for (let i = 0; i < 60; i++) {
+        await request('GET', '/admin/audit', undefined, ADMIN_KEY);
+      }
+      const res = await request('GET', '/admin/audit', undefined, ADMIN_KEY);
+      expect(res.status).toBe(429);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body['code']).toBe('admin_rate_limited');
+      expect(body['scope']).toBe('all');
+      expect(res.headers.get('Retry-After')).toBeTruthy();
     });
   });
 
