@@ -104,6 +104,34 @@ pub struct LineageAnchor {
     pub pid_starttime: u64,
 }
 
+/// MLP2-026: audit context recorded by the daemon when an operator
+/// clears a cascade via `IpcCommand::UnblockCascade`. Populated
+/// server-side from the IPC peer credentials at the moment the verb
+/// is received; never trusted from the client payload directly (a
+/// client-supplied `OperatorContext` on the wire is silently
+/// overwritten). See
+/// `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+/// §3.3.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperatorContext {
+    /// Effective UID of the operator-acting process. `None` when
+    /// the credential read failed — the daemon still clears the
+    /// cascade (spec §7 — credential gaps record the gap; the
+    /// clear-side authority is the existing UID gate at
+    /// socket-accept, NOT the OperatorContext).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uid: Option<u32>,
+    /// Peer process id from the same syscall. Always populated on
+    /// Linux + macOS (the daemon already captures peer_pid for
+    /// MLP2-025b); `None` on Windows / platforms where the read
+    /// is undefined.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    /// Result of `gethostname(3)` at the daemon side. Best-effort.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hostname: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

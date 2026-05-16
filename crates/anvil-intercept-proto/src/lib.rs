@@ -117,6 +117,23 @@ pub enum IpcCommand {
     /// JSON-RPC method name is `query_status` (resolved by the IPC
     /// layer); this enum variant is the in-memory dispatch shape.
     QueryStatus,
+    /// MLP2-026: clear a worktree's `degraded:fence-cascade`
+    /// engaged state and reset its in-memory rate window. The
+    /// daemon overwrites any client-supplied `operator` field
+    /// with values it derives from the peer credentials of the
+    /// connection itself — clients SHOULD send `operator: None`
+    /// or omit the field. The audit-of-record is the daemon-
+    /// derived [`session::OperatorContext`]; the
+    /// `--acknowledge-cascade` CLI flag is UX intent only.
+    ///
+    /// Wire shape: `{"command": "unblock-cascade", "worktree": "...", "operator": ...?}`.
+    /// See `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+    /// §3.4.
+    UnblockCascade {
+        worktree: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        operator: Option<session::OperatorContext>,
+    },
 }
 
 /// Single NDJSON envelope. One line on the wire = one envelope. The
@@ -423,6 +440,55 @@ mod tests {
         })
         .expect("serialise");
         assert!(unreg.contains("\"unregister-session\""), "got: {unreg}");
+    }
+
+    /// MLP2-026: `UnblockCascade` round-trips through the wire with
+    /// kebab-case discriminator `unblock-cascade`. `operator` is
+    /// omitted when None (skip-if-none).
+    #[test]
+    fn unblock_cascade_round_trips_through_wire() {
+        let envelope = IpcEnvelope::request(
+            "req-uc",
+            IpcCommand::UnblockCascade {
+                worktree: PathBuf::from("/work/wt"),
+                operator: None,
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(line.contains("\"unblock-cascade\""), "kebab-case: {line}");
+        assert!(line.contains("\"/work/wt\""), "worktree present: {line}");
+        assert!(
+            !line.contains("\"operator\""),
+            "operator omitted when None: {line}"
+        );
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
+    }
+
+    /// MLP2-026: `OperatorContext` round-trips with all fields
+    /// populated. Spec §3.3 wire shape.
+    #[test]
+    fn operator_context_round_trips_fully_populated() {
+        let envelope = IpcEnvelope::request(
+            "req-op",
+            IpcCommand::UnblockCascade {
+                worktree: PathBuf::from("/work/wt"),
+                operator: Some(session::OperatorContext {
+                    uid: Some(1000),
+                    pid: Some(4242),
+                    hostname: Some("test-host".to_string()),
+                }),
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("parse");
+        assert_eq!(parsed["operator"]["uid"], 1000);
+        assert_eq!(parsed["operator"]["pid"], 4242);
+        assert_eq!(parsed["operator"]["hostname"], "test-host");
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
     }
 
     /// Pinned contract for INTD-002's response router: an explicit

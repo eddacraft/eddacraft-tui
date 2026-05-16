@@ -2020,6 +2020,8 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             traceparent,
             is_notification,
             dispatcher,
+            peer_pid,
+            cross_check,
         )
     })
 }
@@ -2077,6 +2079,7 @@ fn handle_query_status_jsonrpc(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // MLP2-026 adds peer_pid + cross_check for UnblockCascade routing.
 fn dispatch_session_jsonrpc<D: SessionDispatcher>(
     method: &str,
     params: &Value,
@@ -2084,6 +2087,8 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
     traceparent: Option<&str>,
     is_notification: bool,
     dispatcher: &Arc<D>,
+    peer_pid: Option<u32>,
+    cross_check: Option<&CrossCheckContext>,
 ) -> Option<Value> {
     let command = match command_from_jsonrpc(method, params) {
         Ok(command) => command,
@@ -2103,7 +2108,7 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
         }
     };
 
-    match dispatch_command(&command, dispatcher) {
+    match dispatch_command(&command, dispatcher, peer_pid, cross_check) {
         Ok(result) => {
             if is_notification {
                 None
@@ -2371,6 +2376,19 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                     method,
                 )?);
                 Ok(IpcCommand::UnregisterSession { session_id })
+            })
+        }
+        "unblock-cascade" | "fence.unblock-cascade" => {
+            params_object(params, method).and_then(|params| {
+                let worktree = required_string(params, "worktree", method)?;
+                // MLP2-026: any client-supplied `operator` is silently
+                // ignored — the daemon derives it server-side from
+                // peer credentials. Accept the shape on the wire so
+                // future cross-host audit variants can opt in.
+                Ok(IpcCommand::UnblockCascade {
+                    worktree: PathBuf::from(worktree.as_str()),
+                    operator: None,
+                })
             })
         }
         _ => Err(JsonRpcFailure {
@@ -2835,16 +2853,30 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
     // `id: None`. We do not branch on `id.is_some()` to distinguish
     // dispatch behaviour — only response routing (a future task)
     // would consult the field, and only after dispatch.
-    let result = dispatch_command(&envelope.command, dispatcher).map(|_| ());
+    // MLP2-026: the NDJSON dispatch_envelope path is a legacy
+    // wire that does not carry the cross-check capability or
+    // peer-pid context — UnblockCascade is JSON-RPC-only and
+    // returns "method not found" on the NDJSON path until the
+    // legacy surface is retired. Pass None for both.
+    let result = dispatch_command(&envelope.command, dispatcher, None, None).map(|_| ());
     if let Err(err) = result {
         tracing::warn!(target: "anvil_intercept::ipc", error = %err, "dispatcher returned error");
         eprintln!("anvil-intercept: dispatcher returned error: {err}");
     }
 }
 
+#[allow(clippy::too_many_arguments)] // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
 fn dispatch_command<D: SessionDispatcher>(
     command: &IpcCommand,
     dispatcher: &Arc<D>,
+    // MLP2-026: per-connection peer credentials. Used by
+    // UnblockCascade to derive the OperatorContext audit field
+    // server-side (spec §3.3 + §5.4).
+    peer_pid: Option<u32>,
+    // MLP2-026: optional fence-store handle for UnblockCascade.
+    // None in tests / embedded callers; production wires via the
+    // existing CrossCheckContext bundle.
+    cross_check: Option<&CrossCheckContext>,
 ) -> Result<Value, String> {
     match command {
         IpcCommand::RegisterSession {
@@ -2869,6 +2901,30 @@ fn dispatch_command<D: SessionDispatcher>(
                 .unregister(session_id)
                 .map_err(|err| err.to_string())?,
         })),
+        IpcCommand::UnblockCascade {
+            worktree,
+            // MLP2-026: client-supplied operator field is silently
+            // overwritten server-side. Spec §3.3 + §5.4.
+            operator: _client_supplied,
+        } => {
+            let ctx = cross_check
+                .ok_or_else(|| "unblock-cascade requires a daemon-backed fence store".to_owned())?;
+            let cleared = ctx
+                .fence_store
+                .clear_cascade(worktree)
+                .map_err(|err| err.to_string())?;
+            if cleared {
+                let operator = build_operator_context(peer_pid);
+                tracing::info!(
+                    target: "anvil_intercept::fence",
+                    reason = crate::telemetry::DEGRADED_FENCE_CASCADE_CLEAR,
+                    worktree = %worktree.display(),
+                    ?operator,
+                    "cascade cleared by operator",
+                );
+            }
+            Ok(json!({"ok": cleared}))
+        }
         IpcCommand::ListSessions => {
             let sessions = dispatcher.list();
             serde_json::to_value(sessions).map_err(|err| err.to_string())
@@ -2888,6 +2944,39 @@ fn dispatch_command<D: SessionDispatcher>(
                     .to_owned(),
             )
         }
+    }
+}
+
+/// MLP2-026: derive an `OperatorContext` from the daemon's view of
+/// the IPC peer for an `UnblockCascade` audit trail. Spec §3.3.
+/// `peer_pid` is already captured by the MLP2-025b plumbing; we
+/// reuse it here. `uid` and `hostname` are best-effort: failures
+/// produce `None` fields rather than failing the clear (spec §7
+/// — credential gaps record the gap; the clear-side authority is
+/// the existing UID gate at socket-accept).
+fn build_operator_context(
+    peer_pid: Option<u32>,
+) -> anvil_intercept_proto::session::OperatorContext {
+    // The existing socket-accept gate already enforces same-UID;
+    // the daemon's own UID is therefore the operator UID. Read it
+    // here rather than re-querying SO_PEERCRED to keep the audit
+    // record honest about which UID actually acted.
+    #[cfg(unix)]
+    let uid = Some(nix::unistd::Uid::current().as_raw());
+    #[cfg(not(unix))]
+    let uid: Option<u32> = None;
+
+    #[cfg(unix)]
+    let hostname = nix::unistd::gethostname()
+        .ok()
+        .and_then(|os| os.into_string().ok());
+    #[cfg(not(unix))]
+    let hostname: Option<String> = None;
+
+    anvil_intercept_proto::session::OperatorContext {
+        uid,
+        pid: peer_pid,
+        hostname,
     }
 }
 
@@ -3063,6 +3152,114 @@ mod tests {
             response["spoof_block"]["reason"],
             "degraded:spoofed-attribution"
         );
+    }
+
+    // ---- MLP2-026: UnblockCascade dispatch ---------------------------
+
+    /// MLP2-026: dispatch_command routes `UnblockCascade` to
+    /// `FenceStore::clear_cascade` and returns `{"ok": true}` when
+    /// a cascade was cleared. Spec §3.4 + §5.4.
+    #[test]
+    fn dispatch_command_unblock_cascade_clears_engaged_cascade() {
+        use anvil_intercept_proto::IpcCommand;
+        let (ctx, _temp) = make_cross_check_context();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        // Engage the cascade by firing 5 fences.
+        for i in 0..5 {
+            ctx.fence_store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+        assert!(ctx.fence_store.is_cascaded(worktree.path()));
+
+        // Dispatch the unblock-cascade command.
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockCascade {
+            worktree: worktree.path().to_path_buf(),
+            operator: None,
+        };
+        let result =
+            dispatch_command(&command, &dispatcher, Some(4242), Some(&ctx)).expect("dispatch ok");
+        assert_eq!(result["ok"], true);
+
+        // Confirm the cascade is cleared.
+        assert!(!ctx.fence_store.is_cascaded(worktree.path()));
+    }
+
+    /// MLP2-026: dispatch_command returns `{"ok": false}` when the
+    /// worktree was not in cascade — idempotent operator-clear
+    /// (spec §5.3 + §6 inv-3).
+    #[test]
+    fn dispatch_command_unblock_cascade_is_idempotent() {
+        use anvil_intercept_proto::IpcCommand;
+        let (ctx, _temp) = make_cross_check_context();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockCascade {
+            worktree: worktree.path().to_path_buf(),
+            operator: None,
+        };
+        let result =
+            dispatch_command(&command, &dispatcher, None, Some(&ctx)).expect("dispatch ok");
+        assert_eq!(result["ok"], false, "no-op clear returns false");
+    }
+
+    /// MLP2-026: when no CrossCheckContext is wired,
+    /// UnblockCascade returns a typed error rather than panicking
+    /// or silently succeeding. Tests / embedded callers that don't
+    /// expose a fence_store see this path.
+    #[test]
+    fn dispatch_command_unblock_cascade_requires_cross_check_context() {
+        use anvil_intercept_proto::IpcCommand;
+        let dispatcher = Arc::new(NoopDispatcher);
+        let command = IpcCommand::UnblockCascade {
+            worktree: PathBuf::from("/tmp/wt"),
+            operator: None,
+        };
+        let err =
+            dispatch_command(&command, &dispatcher, None, None).expect_err("no ctx must error");
+        assert!(err.contains("daemon-backed fence store"), "got: {err}");
+    }
+
+    /// MLP2-026: client-supplied `operator` field is silently
+    /// overwritten — the daemon ignores it and derives its own
+    /// from peer credentials. Pin the "client-supplied → ignored"
+    /// contract (spec §3.3 + §3.4 + Q2 verdict).
+    #[test]
+    fn dispatch_command_unblock_cascade_ignores_client_operator() {
+        use anvil_intercept_proto::IpcCommand;
+        let (ctx, _temp) = make_cross_check_context();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        for i in 0..5 {
+            ctx.fence_store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let attacker_supplied = anvil_intercept_proto::session::OperatorContext {
+            uid: Some(0),
+            pid: Some(1),
+            hostname: Some("root-elsewhere".to_string()),
+        };
+        let command = IpcCommand::UnblockCascade {
+            worktree: worktree.path().to_path_buf(),
+            operator: Some(attacker_supplied),
+        };
+        // The dispatch path doesn't return the operator on the wire,
+        // but the cascade was cleared — confirming the path executed
+        // and the daemon-derived OperatorContext is what landed in
+        // the audit (tracing event). Verifying the tracing output
+        // is out of scope here; the silent-overwrite contract is
+        // pinned by code review of dispatch_command + by this test
+        // confirming the clear succeeded despite a hostile-looking
+        // client-supplied context.
+        let result =
+            dispatch_command(&command, &dispatcher, Some(9999), Some(&ctx)).expect("dispatch ok");
+        assert_eq!(result["ok"], true);
+        assert!(!ctx.fence_store.is_cascaded(worktree.path()));
     }
 
     #[cfg(unix)]
