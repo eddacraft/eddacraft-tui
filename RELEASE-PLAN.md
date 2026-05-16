@@ -1,8 +1,8 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                            |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-17 (two-level claim split: tag-time **daemon-working** + post-tag **sit-on** graduation; Wave 5 relocated post-tag; cut-line extended with MLP2-025/-025b/-025c + MLP2-026 + ADOPT-003 + MLP2-051a/-051b/-051c/-051e (after the respec landed on `732eef55`); base `v0.6.3-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-17 (two passes: structural — two-level claim split + Wave 5 relocated post-tag + cut-line extended with MLP2-025/-025b/-025c + MLP2-026 + ADOPT-003 + MLP2-051a/-051b/-051c/-051e; freight — fresh-cut review added RCLI3-016b + RCLI3-017b + DISTRIB-003 + MLP2-068 + MLP2-069 + ADOPT-004 + OPSUP-006 as sit-on quality riders); base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -25,6 +25,32 @@ land. **MLP2-051d** (GH Action check render) remains Blocked on the Marketplace
 publishing track (MLP2-042/-043) and stays deferred. MLP2 counter 50/76 after
 MLP2-016 advanced post-`0aacdac8` plus the Group N/O filings and the -051
 respec.)
+
+**Second-pass freight (2026-05-17):** seven additional items added as release
+freight after a fresh-cut review without inherited "previously deferred"
+reasoning. None are load-bearing for the daemon-working claim; all are tightly
+scoped operator-visible improvements that earned their place on independent
+merit:
+
+- **RCLI3-016b** — `anvil mcp install --client <cursor|claude-code>` one-command
+  wrapper (Ready since 2026-04-26, pulled forward for the demo runbook).
+  Adoption-friction killer.
+- **RCLI3-017b** — `anvil intercept unblock --worktree` operator CLI wrapper
+  (Ready, INTD-007 already provides the IPC verb).
+- **DISTRIB-003** — Homebrew Formula Automation (`releaseIntent: candidate`).
+  Hands-free `brew upgrade anvil`.
+- **MLP2-068** — `git cat-file --batch` perf follow-on to MLP2-016.
+- **MLP2-069** — `EngineUnavailableReason::IoError` variant — clearer operator
+  errors when `TempDir`/disk-full collapses onto the wrong reason.
+- **ADOPT-004** — Complete Local-Noise Ignore Policy across every surface
+  (extends WATCHUX-002's shared list to `watch` / `audit` / `hooks` /
+  `anvil-run` / `baseline`).
+- **OPSUP-006** — File-presence guards and wall-time caps. Defensive guards
+  against absent files and runaway checks.
+
+Release notes for the freight bundle ride under a "Sit-on quality improvements"
+section, not under the protection-surface claim, so the daemon-working claim's
+verifiability stays clean.
 
 The 2026-05-16 release-plan refresh (the immediate prior baseline that brought
 the document from `v0.6.2-beta` to the shipped `v0.6.3-beta` patch, refreshed
@@ -156,6 +182,60 @@ and operator-recovery additions named below:
   three landing. **Required for the daemon-working claim to include
   cross-surface protection-claim parity** — without it the tag ships with the
   narrower "CLI-only protection-claim parity" framing.
+
+**Fresh-cut additions (2026-05-17 second pass):**
+
+The cut-line above was filtered by the daemon-working theme. On a fresh review
+without inherited "previously deferred" reasoning, the items below earn their
+place on independent operator-visible merit. They are not load-bearing for the
+daemon-working claim, but they are tightly scoped, near-complete, and improve
+real sit-on quality regardless of theme.
+
+- **RCLI3-016b** (Ready, High) —
+  `anvil mcp install --client <cursor|claude-code>`. One-command MCP install
+  wrapper that resolves the client config path, writes the entry, prints the
+  restart hint. Already marked `🔒 PULLED FORWARD TO A1` since 2026-04-26
+  because the demo runbook's §1.4 install step calls it directly. Without it,
+  every new user hand-edits `~/.cursor/mcp.json` or Claude Code's config —
+  exactly the kind of first-five-minutes friction Boring Week exists to surface.
+  Tightly scoped: `crates/anvil-cli/src/commands/mcp.rs` (new) +
+  `commands/mcp_config.rs` shared resolver.
+- **RCLI3-017b** (Ready, High) — `anvil intercept unblock --worktree <path>`.
+  Operator CLI wrapper for clearing a fenced worktree without restarting the
+  daemon. INTD-007 already provides the IPC verb; this is just the CLI surface
+  that the demo runbook's §3.1 soft-reset path invokes. Carved out 2026-04-26.
+  Tightly scoped extension to `crates/anvil-cli/src/commands/intercept.rs`.
+- **DISTRIB-003** (Draft, `releaseIntent: candidate`) — Homebrew Formula
+  Automation. Auto-bump the `eddacraft/tap/anvil` formula on release so
+  `brew upgrade anvil` actually updates without manual maintainer action. For a
+  "sit-on for a month" claim, the dominant macOS install path needs hands-free
+  update delivery. Three new files: workflow + script + runbook.
+- **MLP2-068** (Draft, High) — Replace per-blob `git show` spawns in
+  `CommitAntipatternEngine` with a single `git cat-file --batch` pipe per
+  `validate_commit` call. Direct perf follow-on to MLP2-016, which just bound
+  the real antipattern engine into production. Filed 2026-05-17 in Group O after
+  the audit.
+- **MLP2-069** (Draft, High) — Add `EngineUnavailableReason::IoError` variant to
+  `anvil-l4`. Today `TempDir` / disk-full / blob-write failures collapse onto
+  `BinaryMissing`, which misleads operators. Operator-error clarity follow-on to
+  MLP2-016. Group O sibling.
+- **ADOPT-004** (Draft) — Complete Local-Noise Ignore Policy Across All
+  Surfaces. WATCHUX-002 established the shared ignore list in
+  `anvil-cli/src/util.rs`; this extends it across `watch`, `audit`, `hooks`,
+  `anvil-run`, and `baseline` so every surface honours the same list. Existing
+  pattern, low-risk extension. Operators routinely hit noise from `.claude` /
+  `.opencode` / `.gemini` / `.worktrees` / common cache dirs during Boring Week.
+  Surface-by-surface conformance tests added.
+- **OPSUP-006** (Draft) — File-presence guards and wall-time caps. Reusable
+  check guards and runtime budgets so absent files do not break the run and
+  runaway checks cannot exceed their wall-time budget. Operationally defensive —
+  exactly the kind of footgun that surfaces during a real-use observation
+  window. Self-contained kernel-internal helpers; no wire-shape change.
+
+These seven items are bundled as **freight on the tag**, not as part of the
+daemon-working release claim. The release notes should describe them under a
+"Sit-on quality improvements" section rather than under the protection-surface
+claim, so the claim's verifiability stays clean.
 
 **Deferred or out-of-scope for this cut:**
 
