@@ -890,6 +890,14 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
+[0.6.3-beta]:
+  https://github.com/eddacraft/anvil-001/compare/v0.6.2-beta...v0.6.3-beta
+[0.6.2-beta]:
+  https://github.com/eddacraft/anvil-001/compare/v0.6.1-beta...v0.6.2-beta
+[0.6.1-beta]:
+  https://github.com/eddacraft/anvil-001/compare/v0.6.0-beta...v0.6.1-beta
+[0.6.0-beta]:
+  https://github.com/eddacraft/anvil-001/compare/v0.5.1-beta...v0.6.0-beta
 [0.3.2-beta]:
   https://github.com/eddacraft/anvil-001/compare/v0.3.1-beta...v0.3.2-beta
 [0.3.1-beta]:
@@ -902,7 +910,3 @@ violations and anti-patterns at save time.
 [0.1.2-beta]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.0
-
-## v0.6.2-beta
-
-- Release preparation metadata generated.

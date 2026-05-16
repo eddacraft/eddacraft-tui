@@ -9,7 +9,58 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.6.2-beta
+## Current Version: 0.6.3-beta
+
+## Upgrading to 0.6.3-beta
+
+Drop-in upgrade from `0.6.2-beta`. No breaking changes, no new APIs — this is a
+hotfix for first-run and watch friction reported by beta users.
+
+```bash
+# Upgrade via Homebrew
+brew upgrade eddacraft/tap/anvil
+
+# Or via the installer (now detects an existing Homebrew install and steps aside)
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or via the built-in updater
+anvil update
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's New in 0.6.3-beta
+
+- **Homebrew-aware curl installer** — `install.sh` no longer overwrites a
+  Homebrew-managed `anvil` binary; it exits successfully with the
+  `brew upgrade eddacraft/tap/anvil` hint.
+- **Watch and audit ignore local agent/tool worktrees and caches by default** —
+  `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`, plus the usual
+  generated/cache/build directories.
+- **Initial watch scan is baseline state, not new violations** — existing public
+  exports, dependencies, and cross-layer imports no longer surface as save-time
+  findings when `anvil watch` starts. Only later edits trigger findings.
+- **`anvil watch` shows immediate startup feedback** — terse "starting" line
+  before slow setup; plain-output fallback when stdin/stdout is not a terminal.
+- **`anvil uninstall`** — project-scoped removal of Anvil state (`.anvil/`,
+  `.anvilrc`, Anvil-managed git hooks). `--global` also removes user-level
+  state, MCP entries, credentials, and the running daemon. The Anvil binary
+  itself is never removed.
+
+### Action Required
+
+None — this is a drop-in upgrade. If you previously installed via Homebrew and
+have been confused by the curl installer overwriting it, you can now run either
+flow safely.
 
 ## Upgrading to 0.6.2-beta
 
