@@ -181,11 +181,38 @@ multi-persona council deduplication, and hook/skill/agent decomposition.
 ### CPTA-007 — Spike — is any pattern usable by Anvil-the-product?
 
 - **Checkpoint:** Discovery memo answers, with evidence, three sub-questions:
-  1. **Mapper heuristics for planless-first:** clawpatch's ecosystem mappers
-     (npm / Next / Rust / Go / Python / Ruby / JVM / Swift / config) are
-     deterministic file-pattern scanners. Could Anvil-the-product lift them
-     to seed context boundaries on `anvil start` for repos with no rules
-     configured yet? Weigh against current planless-first design.
+  1. **Mapper heuristics seeding `anvil start` / CFGINT.** Today
+     `crates/anvil-cli/src/activation/language_profile.rs` does extension-only
+     language detection (TS/JS/HTML/CSS/SQL/Markdown); no manifest parsing,
+     no ecosystem awareness. Architecture templates exist in
+     `crates/anvil-architecture/src/definition.rs` (Starter / Layered /
+     Hexagonal / Clean / DDD / Monorepo / Serverless / NxWorkspace / Custom)
+     but none is auto-selected. The `config-intelligence` module (CFGINT,
+     `plans/modules/config-intelligence.aps.md`, Draft, 0/7) is already
+     chartered to extract dependency graphs from manifests
+     (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`,
+     `tsconfig.json`, etc.) but does not yet ship and has no design for
+     auto-seeding `.anvil/architecture.yaml`. Clawpatch's mappers
+     (`src/mappers/{node,next,rust,go,python,ruby,gradle,apple,swift,
+     config}.ts`) produce dedup'd slice records with
+     `{kind, source, entryPath, command|route|symbol}`.
+     - Decide where this work belongs: **fold into CFGINT** (extend its
+       task list to cover mapper heuristics + a template-picker), **slot
+       into the activation orchestrator** (`crates/anvil-cli/src/activation/
+       orchestrator/mod.rs` writes `.anvil/baseline.json` post-init — could
+       additionally seed an architecture-yaml draft), or **stand up a new
+       module**. Default expectation: extend CFGINT.
+     - Decide what "seed" means: ecosystem detection only (npm-workspace,
+       cargo-workspace, nx, next), or seed-plus-template-pick (detect
+       monorepo shape → propose `NxWorkspace` template), or
+       seed-plus-baseline-edges (detect slices → infer current dependency
+       edges from manifests as a draft boundary set the user can refine).
+     - Slices ≠ boundaries: feature slices say what units exist; boundaries
+       say which units may depend on which. The memo must address how
+       slices translate to (or fail to translate to) enforceable boundary
+       rules without violating the "planless-first" and "warnings over
+       blocks" principles in `docs/vision/anvil-scope-guard.md` and
+       `.claude/rules/architecture.md`.
   2. **Finding schema for warning emission:** Anvil's save-time warnings
      are deterministic. Could the clawpatch finding shape (severity /
      evidence / recommendation / minimumFixScope / regressionTest) enrich
@@ -196,29 +223,46 @@ multi-persona council deduplication, and hook/skill/agent decomposition.
      its slices on commits that crossed boundaries? This is the only
      adjacency that respects Anvil's determinism core.
 - **Validate:** `plans/specs/YYYY-MM-DD-clawpatch-product-usability-spike.md`
-  exists with verdict per sub-question and either (a) follow-on module
-  proposal, (b) issue filed for further investigation, or (c) explicit
-  decline with rationale that survives the next planning council audit.
+  exists with a verdict per sub-question. For sub-question (1) the verdict
+  must name the integration target (CFGINT extension / activation
+  orchestrator slot / new module) and either (a) propose a follow-on task
+  set against the chosen target, (b) file a discovery issue for further
+  investigation, or (c) explicitly decline with rationale that survives the
+  next planning council audit.
 - **changeType:** docs
 - **releaseIntent:** never
 - **Risk:** Recommending adoption of any LLM-driven clawpatch component
   inside Anvil-the-product would violate the deterministic core principle
-  in `docs/vision/anvil-scope-guard.md`. The spike is expected to land at
-  (a) or (c) for sub-question (1), at (c) for sub-question (2), and at
-  (a) or (b) for sub-question (3).
+  in `docs/vision/anvil-scope-guard.md`. Sub-question (1) is the only one
+  expected to land at (a). Sub-question (2) is expected at (c). Sub-question
+  (3) is expected at (a) or (b).
+- **Cross-reference:** `plans/modules/config-intelligence.aps.md` (CFGINT);
+  `crates/anvil-cli/src/activation/language_profile.rs`;
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`;
+  `crates/anvil-architecture/src/definition.rs`.
 
 ## Dependencies
 
-- **Sibling:** CGBDG (council-gate-bridge) — both live under Dev Tooling
-  Bridge. CPTA-001 must explicitly call out where the two modules overlap
-  so neither re-does the council-judge → attestation work.
+- **Sibling (dev-tooling layer):** CGBDG (council-gate-bridge) — both live
+  under Dev Tooling Bridge. CPTA-001 must explicitly call out where the
+  two modules overlap so neither re-does the council-judge → attestation
+  work.
+- **Sibling (product layer, CPTA-007 only):** CFGINT
+  (`plans/modules/config-intelligence.aps.md`) — chartered to extract
+  dependency graphs from manifests but not yet shipped. CPTA-007's
+  default landing site for sub-question (1) is "extend CFGINT" rather
+  than a new module.
 - Existing: `.claude/agents/{council-reviewer,adversarial-reviewer,
   kernel-maintainer,operations-reviewer,pragmatic-lead,plan-synthesizer,
   protocols}.md` (reviewer prompt surface)
 - Existing: `.claude/commands/{council,review}.md` (entrypoints)
 - Existing: `scripts/agent/guidance.sh` (deterministic routing — must not regress)
+- Existing (CPTA-007 only): `crates/anvil-cli/src/activation/`
+  (language_profile + orchestrator — current `anvil start` flow);
+  `crates/anvil-architecture/src/definition.rs` (template enum).
 - Reference: `plans/specs/2026-05-09-council-agent-skill-change-proposal.md`
-- Reference: `docs/vision/anvil-scope-guard.md` (binds CPTA-007 verdict)
+- Reference: `docs/vision/anvil-scope-guard.md` (binds CPTA-007 verdict —
+  planless-first, deterministic, warnings over blocks)
 
 ## Risks
 
