@@ -71,7 +71,7 @@ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "ht
 ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.30", features = ["fs", "signal", "socket", "term", "user"] }
+nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
@@ -89,7 +89,7 @@ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "ht
 ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.30", features = ["fs", "signal", "socket", "term", "user"] }
+nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
@@ -108,7 +108,7 @@ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "ht
 ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.30", features = ["fs", "signal", "socket", "term", "user"] }
+nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
@@ -127,7 +127,7 @@ hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "ht
 ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.30", features = ["fs", "signal", "socket", "term", "user"] }
+nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
