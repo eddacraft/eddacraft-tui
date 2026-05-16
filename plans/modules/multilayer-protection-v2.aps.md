@@ -2546,7 +2546,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-059: Per-worktree invalidation rate limit
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Pre-attribution cache invalidation in
   `WatcherIntegration::ingest_at` is the correct semantic choice
   (cache cleared even for unattributable writers), but it lets an

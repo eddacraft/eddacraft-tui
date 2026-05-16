@@ -511,6 +511,7 @@ mod tests {
             cache_entries: None,
             cache_invalidations_total: None,
             in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
         }
     }
 

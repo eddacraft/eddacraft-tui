@@ -112,6 +112,10 @@ pub struct DaemonStatus {
 pub struct CacheStats {
     pub entries: usize,
     pub invalidations_total: u64,
+    /// MLP2-059: cumulative `.anvil.*` invalidations coalesced by the
+    /// per-worktree rate limiter. Surfaced via
+    /// [`anvil_intercept_proto::status::DaemonStatusV1::cache_invalidations_rate_limited`].
+    pub invalidations_rate_limited: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -196,6 +200,7 @@ impl DaemonStatus {
             in_flight_evaluations: self
                 .in_flight_evaluations
                 .map(|n| u8::try_from(n).unwrap_or(u8::MAX)),
+            cache_invalidations_rate_limited: self.cache.map(|c| c.invalidations_rate_limited),
         }
     }
 }
@@ -402,6 +407,7 @@ impl StatusProvider for DaemonStatusProvider {
         let cache = self.rule_cache.as_ref().map(|c| CacheStats {
             entries: c.len(),
             invalidations_total: c.invalidations(),
+            invalidations_rate_limited: c.rate_limited_invalidations(),
         });
         let in_flight = self.scan_buffer.as_ref().map(ScanBufferService::in_flight);
         build_status(
@@ -453,10 +459,20 @@ pub fn render_status(status: &DaemonStatus) -> String {
     // here, so the legible surface stays byte-identical to the
     // pre-MLP2-058 output for older daemons.
     if let Some(stats) = status.cache {
+        // MLP2-059: when the rate limiter has coalesced any
+        // invalidations, append a trailing `(N rate-limited)` segment
+        // so an operator reading `anvil intercept status` sees the
+        // signal without needing `--json`. Zero counts stay silent —
+        // every byte the operator reads should mean something.
+        let rate_limited_suffix = if stats.invalidations_rate_limited > 0 {
+            format!(" ({} rate-limited)", stats.invalidations_rate_limited)
+        } else {
+            String::new()
+        };
         let _ = writeln!(
             out,
-            "cache:     {} entries, {} invalidations",
-            stats.entries, stats.invalidations_total,
+            "cache:     {} entries, {} invalidations{}",
+            stats.entries, stats.invalidations_total, rate_limited_suffix,
         );
     }
     if let Some(n) = status.in_flight_evaluations {
@@ -751,6 +767,7 @@ mod tests {
             Some(CacheStats {
                 entries: 4,
                 invalidations_total: 13,
+                invalidations_rate_limited: 0,
             }),
             Some(2),
         );
@@ -759,9 +776,45 @@ mod tests {
             rendered.contains("cache:     4 entries, 13 invalidations"),
             "renderer must include the cache observability line; got:\n{rendered}",
         );
+        // MLP2-059: zero rate-limited count must stay silent — no
+        // trailing `(0 rate-limited)` segment when the storm signal
+        // is absent.
+        assert!(
+            !rendered.contains("rate-limited"),
+            "zero rate-limited count must not append the suffix; got:\n{rendered}",
+        );
         assert!(
             rendered.contains("in-flight: 2 evaluations"),
             "renderer must include the in-flight observability line; got:\n{rendered}",
+        );
+    }
+
+    /// MLP2-059: when the rate-limited counter has bumped, the
+    /// renderer appends a trailing `(N rate-limited)` segment to the
+    /// cache line so operators reading `anvil intercept status` see
+    /// the storm signal without needing `--json`.
+    #[test]
+    fn render_status_includes_rate_limited_suffix_when_present() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            Some(CacheStats {
+                entries: 4,
+                invalidations_total: 13,
+                invalidations_rate_limited: 99,
+            }),
+            Some(2),
+        );
+        let rendered = render_status(&status);
+        assert!(
+            rendered.contains("cache:     4 entries, 13 invalidations (99 rate-limited)"),
+            "renderer must surface the rate-limited count as a trailing segment; got:\n{rendered}",
         );
     }
 
@@ -912,6 +965,7 @@ mod tests {
             Some(CacheStats {
                 entries: 17,
                 invalidations_total: 42,
+                invalidations_rate_limited: 5,
             }),
             Some(3),
         );
@@ -919,6 +973,85 @@ mod tests {
         assert_eq!(wire.cache_entries, Some(17));
         assert_eq!(wire.cache_invalidations_total, Some(42));
         assert_eq!(wire.in_flight_evaluations, Some(3));
+        // MLP2-059: the coalesced-invalidation counter must reach
+        // the wire so operators can spot a sustained attack via
+        // `anvil status --json`.
+        assert_eq!(wire.cache_invalidations_rate_limited, Some(5));
+    }
+
+    /// MLP2-059: a daemon snapshot with no rate-limited
+    /// invalidations must omit the field on the wire (matches the
+    /// MLP2-058 / MLP2-052 additive-optional pattern).
+    #[test]
+    fn cache_invalidations_rate_limited_skips_when_zero_and_no_cache() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.7.0-beta",
+            IpcState::Serving,
+            None, // no cache wired -> field absent on wire
+            None,
+        );
+        let json = serde_json::to_value(status.to_wire()).expect("serialise");
+        assert!(
+            json.get("cache_invalidations_rate_limited").is_none(),
+            "absent cache -> absent rate-limited field; got: {json}",
+        );
+    }
+
+    #[test]
+    fn cache_invalidations_rate_limited_reaches_wire_when_cache_observes_throttle() {
+        // End-to-end pin: drive a real RuleSetCache through a
+        // coalesced storm, snapshot via the provider, assert the
+        // wire row carries the bumped counter.
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+        use crate::rule_cache::{ResolvedRuleSet, RuleSetCache, RuleSetEntry, WorktreeKey};
+
+        let cache = Arc::new(RuleSetCache::with_capacity_and_rate(
+            1024,
+            1,
+            Duration::from_secs(1),
+        ));
+        let dir = tempfile::TempDir::new().unwrap();
+        let k = WorktreeKey::canonicalise(dir.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| {
+                Ok(RuleSetEntry {
+                    rules_sha: "abc".to_owned(),
+                    resolved: ResolvedRuleSet {
+                        config: serde_json::json!({}),
+                    },
+                })
+            })
+            .unwrap();
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let now = Instant::now();
+        for _ in 0..5 {
+            cache.invalidate_on_change_at(&touched, now);
+        }
+        assert_eq!(
+            cache.rate_limited_invalidations(),
+            4,
+            "first invalidation admits; 4 remaining coalesce"
+        );
+
+        let fence_path = dir.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::new(SessionRegistry::new()),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.7.0-beta",
+        )
+        .with_rule_cache(cache);
+        let wire = provider.query_status().to_wire();
+        assert_eq!(wire.cache_invalidations_rate_limited, Some(4));
     }
 
     /// `DaemonStatusProvider::with_rule_cache` makes the provider
@@ -985,6 +1118,7 @@ mod tests {
             Some(CacheStats {
                 entries: usize::MAX,
                 invalidations_total: u64::MAX,
+                invalidations_rate_limited: u64::MAX,
             }),
             Some(usize::MAX),
         );

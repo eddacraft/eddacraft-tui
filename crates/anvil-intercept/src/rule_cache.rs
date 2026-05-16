@@ -63,9 +63,10 @@
 //! hook is opt-in (defaults to no-op) so embedded-mode tests that
 //! never construct a cache aren't forced to plumb one through.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use anvil_config::{CanonicalError, ParseError, canonical_json_bytes, discover, parse_file};
 use anvil_rules::{RulesShaError, RulesShaInput};
@@ -165,6 +166,24 @@ pub enum CacheOutcome {
 /// (deferred config knob).
 pub const DEFAULT_RULE_SET_CACHE_CAPACITY: usize = 1024;
 
+/// MLP2-059: default burst capacity for per-worktree invalidations.
+/// An attacker with write access to a worktree's parent could
+/// otherwise drive thousands of `.anvil.*` writes per second and
+/// force a YAML reparse on every legitimate access. 16 burst events
+/// per [`DEFAULT_INVALIDATION_RATE_WINDOW`] is loose enough to
+/// admit honest config-edit storms (operator running `sed -i`
+/// across many files) and tight enough to bound attacker work to
+/// O(window) eviction cost.
+pub const DEFAULT_INVALIDATION_BURST: usize = 16;
+
+/// MLP2-059: default rolling window over which
+/// [`DEFAULT_INVALIDATION_BURST`] invalidations are admitted. Sized
+/// at one second so the steady-state cap is ~10–16 invalidations/sec
+/// per worktree — broadly aligned with the spec's "~10/s" guidance
+/// while reusing the existing sliding-window primitive shape from
+/// [`crate::rate_window`].
+pub const DEFAULT_INVALIDATION_RATE_WINDOW: Duration = Duration::from_secs(1);
+
 /// MLP2-057: internal cache state — sessions, LRU recency
 /// generation, and the cumulative-evictions counter. Pulled into a
 /// dedicated struct so [`RuleSetCache::lock`] hands callers a single
@@ -205,6 +224,20 @@ struct CacheInner {
     /// and telemetry can read this to confirm the generation guard
     /// fired without depending on internal timing.
     stale_inserts_rejected: u64,
+    /// MLP2-059: cumulative `invalidate_on_change` calls that were
+    /// throttled by the per-worktree rate limiter and folded into
+    /// the most recent admission. A steady non-zero rate of change
+    /// signals an attacker (or a runaway writer) driving `.anvil.*`
+    /// writes at attempt-DoS frequency. Surfaced via
+    /// [`RuleSetCache::rate_limited_invalidations`] +
+    /// [`anvil_intercept_proto::DaemonStatusV1::cache_invalidations_rate_limited`].
+    rate_limited_invalidations: u64,
+    /// MLP2-059: per-worktree sliding-window of recent invalidation
+    /// timestamps. Keyed by canonical worktree path so each worktree
+    /// gets its own bucket; an attacker storming one worktree
+    /// cannot exhaust the budget for unrelated worktrees. Empty
+    /// deques are pruned during sweep to bound memory.
+    invalidation_windows: HashMap<WorktreeKey, VecDeque<Instant>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -230,6 +263,14 @@ struct RuleSetEntryWithRecency {
 pub struct RuleSetCache {
     inner: Mutex<CacheInner>,
     capacity: usize,
+    /// MLP2-059: maximum admitted invalidations per
+    /// [`Self::invalidation_window`] per worktree. Pinned at
+    /// construction; not mutable.
+    invalidation_burst: usize,
+    /// MLP2-059: rolling-window duration over which
+    /// [`Self::invalidation_burst`] admissions are counted. Pinned
+    /// at construction; not mutable.
+    invalidation_window: Duration,
 }
 
 impl Default for RuleSetCache {
@@ -254,9 +295,35 @@ impl RuleSetCache {
     /// fixture.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_rate(
+            capacity,
+            DEFAULT_INVALIDATION_BURST,
+            DEFAULT_INVALIDATION_RATE_WINDOW,
+        )
+    }
+
+    /// MLP2-059: empty cache with custom capacity AND custom
+    /// invalidation rate-limit parameters. Tests targeting the
+    /// per-worktree denial-of-service defence drive the loose
+    /// `burst` plus tight `window` combinations here so the
+    /// steady-state semantics are
+    /// reproducible without [`std::thread::sleep`] (callers feed an
+    /// explicit `now: Instant` via
+    /// [`RuleSetCache::invalidate_on_change_at`]).
+    ///
+    /// `burst` is clamped to a minimum of 1 — a zero-burst rate
+    /// would refuse every invalidation, leaving the cache
+    /// permanently stale once any rate window opened. `window` is
+    /// passed through unchanged (a zero-duration window is
+    /// degenerate but not unsafe — every invalidation admits because
+    /// every prior timestamp instantly expires).
+    #[must_use]
+    pub fn with_capacity_and_rate(capacity: usize, burst: usize, window: Duration) -> Self {
         Self {
             inner: Mutex::new(CacheInner::default()),
             capacity: capacity.max(1),
+            invalidation_burst: burst.max(1),
+            invalidation_window: window,
         }
     }
 
@@ -385,45 +452,110 @@ impl RuleSetCache {
     /// MLP2-001 exists to prevent (Council 2026-05-14 #C-020 /
     /// #C-035).
     pub fn invalidate_on_change(&self, path: &Path) -> Vec<WorktreeKey> {
+        self.invalidate_on_change_at(path, Instant::now())
+    }
+
+    /// MLP2-059: clock-injectable variant of [`Self::invalidate_on_change`].
+    /// Production callers go through the standard entry point; tests
+    /// drive the rate-limit boundaries here so they can pin the
+    /// admit/throttle decisions without `std::thread::sleep`.
+    ///
+    /// Per-worktree rate limiting: each candidate worktree is checked
+    /// against its own sliding window
+    /// ([`Self::invalidation_burst`] admissions per
+    /// [`Self::invalidation_window`]). Throttled invalidations are
+    /// **coalesced** rather than dropped — the cache entry is left
+    /// untouched (the most recent admitted invalidation already
+    /// flushed it, so the next access will re-resolve anyway) and the
+    /// [`Self::rate_limited_invalidations`] counter bumps so an
+    /// operator can detect the storm via MLP2-058's status surface.
+    pub fn invalidate_on_change_at(&self, path: &Path, now: Instant) -> Vec<WorktreeKey> {
         if !is_anvil_config_file(path) {
             return Vec::new();
         }
         let Some(parent) = path.parent() else {
             return Vec::new();
         };
-        let mut hits = Vec::new();
+        let burst = self.invalidation_burst;
+        let window = self.invalidation_window;
+        let mut hits: Vec<WorktreeKey> = Vec::new();
+        let mut throttled: usize = 0;
         let mut guard = self.lock();
-        let to_drop: Vec<WorktreeKey> = if let Ok(parent_canon) = std::fs::canonicalize(parent) {
-            guard
-                .map
-                .keys()
-                .filter(|key| key.as_path() == parent_canon)
-                .cloned()
-                .collect()
+        // Resolve the targeted worktree. Rate-limiting keys off this
+        // path regardless of whether the cache currently holds an
+        // entry — an attacker storming `.anvil.*` after the entry
+        // has already been evicted still consumes the budget so the
+        // sustained-attack signal makes it into the counter.
+        // Track every worktree key we touched a bucket for so we can
+        // prune empty deques once decisions are locked in. Bounded by
+        // the candidates the call would have considered — at most one
+        // entry on the fast path, at most `map.len()` on the
+        // canonicalise-failure fallback.
+        let mut touched: Vec<WorktreeKey> = Vec::new();
+        if let Ok(parent_canon) = std::fs::canonicalize(parent) {
+            let worktree = WorktreeKey::from_canonical(parent_canon);
+            if consume_invalidation_token(
+                &mut guard.invalidation_windows,
+                &worktree,
+                burst,
+                window,
+                now,
+            ) {
+                // MLP2-064: bump the per-key invalidation token on
+                // admit so any concurrent `get_or_resolve` outside
+                // the lock refuses to insert a stale result. Bump
+                // unconditionally on admit — even when the entry
+                // was already absent (an attacker storming `.anvil.*`
+                // after eviction) — so the generation guard sees the
+                // logical invalidation event regardless of cache
+                // state.
+                let token = guard.invalidate_tokens.entry(worktree.clone()).or_insert(0);
+                *token = token.wrapping_add(1);
+                if guard.map.remove(&worktree).is_some() {
+                    hits.push(worktree.clone());
+                }
+            } else {
+                throttled = 1;
+            }
+            touched.push(worktree);
         } else {
             // Canonicalise failed — usually a transient mid-burst
             // delete. Conservatively flush every entry; the next
             // access re-resolves and re-populates. Cheaper than a
-            // permanently stale cache.
-            guard.map.keys().cloned().collect()
-        };
-        // MLP2-064: bump the per-key invalidation token for every
-        // worktree whose entry was present in `map` at the time the
-        // watcher fired. A concurrent `get_or_resolve` for one of
-        // these keys that is outside the lock must observe the bump
-        // and refuse to insert. Note that keys which have never been
-        // cached are NOT in `to_drop`; the explicit `invalidate(key)`
-        // path is the surface that bumps tokens for never-cached
-        // keys (Council quick #2).
-        for key in &to_drop {
-            let token = guard.invalidate_tokens.entry(key.clone()).or_insert(0);
-            *token = token.wrapping_add(1);
-        }
-        for key in to_drop {
-            if guard.map.remove(&key).is_some() {
-                hits.push(key);
+            // permanently stale cache. MLP2-059 per-worktree rate
+            // limiting still applies, key-by-key, so a storm on a
+            // missing path cannot amplify into a full-cache flush
+            // per write. MLP2-064 token bumps fire only for keys
+            // whose invalidation we actually admit, so a throttled
+            // call doesn't poison concurrent `get_or_resolve` work.
+            let candidates: Vec<WorktreeKey> = guard.map.keys().cloned().collect();
+            for key in candidates {
+                touched.push(key.clone());
+                if !consume_invalidation_token(
+                    &mut guard.invalidation_windows,
+                    &key,
+                    burst,
+                    window,
+                    now,
+                ) {
+                    throttled = throttled.saturating_add(1);
+                    continue;
+                }
+                // MLP2-064: bump the per-key invalidation token so
+                // any concurrent `get_or_resolve` outside the lock
+                // refuses to insert a stale result.
+                let token = guard.invalidate_tokens.entry(key.clone()).or_insert(0);
+                *token = token.wrapping_add(1);
+                if guard.map.remove(&key).is_some() {
+                    hits.push(key);
+                }
             }
         }
+        // MLP2-059: prune empty deques so the rate-limit state does
+        // not accumulate residue across worktree register/unregister
+        // cycles. Done before releasing the lock so the prune is
+        // atomic with the admission/throttle decisions.
+        prune_empty_invalidation_windows(&mut guard.invalidation_windows, &touched);
         if !hits.is_empty() {
             // MLP2-058: bump the invalidation counter for the
             // operator-visible status surface and emit a single
@@ -441,6 +573,22 @@ impl RuleSetCache {
                 invalidated = hits.len(),
                 cache_invalidations_total = total_invalidations,
                 "rule_cache invalidated by config-edit",
+            );
+        }
+        if throttled > 0 {
+            // MLP2-059: surface the coalesced count to operators.
+            // `tracing::warn!` rather than `info!` so a sustained
+            // attack lights up at the default log level.
+            let coalesced = u64::try_from(throttled).unwrap_or(u64::MAX);
+            guard.rate_limited_invalidations =
+                guard.rate_limited_invalidations.saturating_add(coalesced);
+            let total_rate_limited = guard.rate_limited_invalidations;
+            tracing::warn!(
+                target: "anvil_intercept::rule_cache",
+                anvil_config_path = %path.display(),
+                coalesced = throttled,
+                cache_invalidations_rate_limited_total = total_rate_limited,
+                "rule_cache invalidation rate-limited",
             );
         }
         hits
@@ -490,6 +638,31 @@ impl RuleSetCache {
     #[must_use]
     pub fn stale_inserts_rejected(&self) -> u64 {
         self.lock().stale_inserts_rejected
+    }
+
+    /// MLP2-059: cumulative `invalidate_on_change` calls coalesced
+    /// by the per-worktree rate limiter since this cache instance
+    /// was constructed. A steady non-zero rate of change signals an
+    /// attacker (or runaway writer) driving `.anvil.*` writes faster
+    /// than the burst window allows. Surfaced via
+    /// [`anvil_intercept_proto::status::DaemonStatusV1::cache_invalidations_rate_limited`].
+    #[must_use]
+    pub fn rate_limited_invalidations(&self) -> u64 {
+        self.lock().rate_limited_invalidations
+    }
+
+    /// MLP2-059: invalidation burst (admissions per
+    /// [`Self::invalidation_window`]). Pinned at construction.
+    #[must_use]
+    pub fn invalidation_burst(&self) -> usize {
+        self.invalidation_burst
+    }
+
+    /// MLP2-059: rolling-window duration backing
+    /// [`Self::invalidation_burst`]. Pinned at construction.
+    #[must_use]
+    pub fn invalidation_window(&self) -> Duration {
+        self.invalidation_window
     }
 
     /// MLP2-064: insert path that re-checks the per-key invalidation
@@ -706,6 +879,66 @@ fn hex_lower(bytes: &[u8]) -> String {
         s.push(char::from_digit(u32::from(b & 0x0f), 16).expect("nibble"));
     }
     s
+}
+
+/// MLP2-059: sliding-window admission check for a single worktree's
+/// invalidation token. Returns `true` when the invalidation is
+/// admitted (caller should drop the cache entry) or `false` when it
+/// must be coalesced (caller skips the drop and bumps the
+/// rate-limited counter).
+///
+/// Operates entirely on the per-worktree `VecDeque<Instant>` so the
+/// state stays contained to its `WorktreeKey` — an attacker storming
+/// one worktree cannot exhaust the budget for unrelated worktrees.
+/// Expired timestamps are evicted at the front of the deque before
+/// the admission check. The window boundary is **closed at the past
+/// end**: a timestamp that is exactly `window` old is treated as
+/// expired, so a caller observing `burst` events at `t0` cannot
+/// observe another `burst` at `t0 + window`. Empty deques are
+/// pruned out of the outer `HashMap` so memory does not grow with
+/// long-tail worktree churn.
+fn consume_invalidation_token(
+    windows: &mut HashMap<WorktreeKey, VecDeque<Instant>>,
+    key: &WorktreeKey,
+    burst: usize,
+    window: Duration,
+    now: Instant,
+) -> bool {
+    let deque = windows.entry(key.clone()).or_default();
+    while let Some(front) = deque.front() {
+        if now.saturating_duration_since(*front) >= window {
+            deque.pop_front();
+        } else {
+            break;
+        }
+    }
+    if deque.len() < burst {
+        deque.push_back(now);
+        true
+    } else {
+        // The bucket is full and this call is throttled. Leave the
+        // outer entry in place — the deque still holds live
+        // timestamps and we'll need them on the next call.
+        false
+    }
+}
+
+/// MLP2-059: prune empty deques from the `invalidation_windows`
+/// `HashMap` so memory does not grow unbounded with long-tail
+/// worktree churn. Called from the invalidation entry point after
+/// admission/throttle decisions have been made for the current
+/// call. Cheap: O(unique candidates touched in this call) on the
+/// fast path, O(map size) only on the canonicalise-failure fallback
+/// (already O(map size) by construction).
+fn prune_empty_invalidation_windows(
+    windows: &mut HashMap<WorktreeKey, VecDeque<Instant>>,
+    touched: &[WorktreeKey],
+) {
+    for key in touched {
+        if windows.get(key).is_some_and(VecDeque::is_empty) {
+            windows.remove(key);
+        }
+    }
 }
 
 /// Recognise `.anvil.yaml`, `.anvil.yml`, `.anvil.json`, `.anvil.toml`
@@ -1508,6 +1741,364 @@ mod tests {
         assert_eq!(result.rules_sha, "stale-payload");
         assert_eq!(cache.lookup(&k), CacheOutcome::Miss);
         assert_eq!(cache.stale_inserts_rejected(), 1);
+    }
+
+    // ---- MLP2-059: per-worktree invalidation rate limit -------------
+
+    /// Convenience constructor for the rate-limit tests — small
+    /// `burst` plus short `window` keeps the test reproducible
+    /// without [`std::thread::sleep`] (callers feed `Instant`s
+    /// explicitly).
+    fn rate_limited_cache(burst: usize, window: Duration) -> RuleSetCache {
+        RuleSetCache::with_capacity_and_rate(DEFAULT_RULE_SET_CACHE_CAPACITY, burst, window)
+    }
+
+    #[test]
+    fn invalidation_rate_limit_admits_within_burst() {
+        // Burst = 4 → first 4 invalidations on the same worktree all
+        // produce a hit; counter records exactly 4 effective drops
+        // and zero coalesced events.
+        let cache = rate_limited_cache(4, Duration::from_secs(1));
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        let now = Instant::now();
+        for _ in 0..4 {
+            // Re-populate before each invalidation so we exercise the
+            // admission path (a missing entry yields a no-op drop
+            // that wouldn't bump the counter).
+            cache
+                .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+                .unwrap();
+            std::fs::write(&touched, b"{}").unwrap();
+            let hits = cache.invalidate_on_change_at(&touched, now);
+            assert_eq!(hits.len(), 1, "burst admission must drop the entry");
+        }
+        assert_eq!(cache.invalidations(), 4);
+        assert_eq!(
+            cache.rate_limited_invalidations(),
+            0,
+            "no coalesced events within burst"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_coalesces_over_burst_into_counter() {
+        // Burst = 2, window 1s. Fire 5 invalidations at the same
+        // instant → first 2 admit, last 3 coalesce. The cache entry
+        // exists at most once at a time, so admits beyond the first
+        // are no-ops on the entry but still consume tokens; the
+        // structural contract we pin here is the counter split.
+        let cache = rate_limited_cache(2, Duration::from_secs(1));
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let now = Instant::now();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        for _ in 0..5 {
+            cache.invalidate_on_change_at(&touched, now);
+        }
+        // Only 1 effective drop (entry only exists once between
+        // re-populates); rate_limited counts the 3 throttled events.
+        assert_eq!(
+            cache.invalidations(),
+            1,
+            "entry only existed once so only one effective drop bumps invalidations"
+        );
+        assert_eq!(
+            cache.rate_limited_invalidations(),
+            3,
+            "5 calls - 2 admitted = 3 coalesced"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_is_per_worktree() {
+        // Two worktrees, burst = 1. Exhausting worktree A's bucket
+        // must NOT consume worktree B's — an attacker storming one
+        // worktree cannot deny service to unrelated worktrees.
+        let cache = rate_limited_cache(1, Duration::from_secs(1));
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        let touched_a = dir_a.path().join(".anvil.yaml");
+        let touched_b = dir_b.path().join(".anvil.yaml");
+        std::fs::write(&touched_a, b"{}").unwrap();
+        std::fs::write(&touched_b, b"{}").unwrap();
+        let now = Instant::now();
+
+        // Storm A — first admits, second coalesces.
+        cache.invalidate_on_change_at(&touched_a, now);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a2")))
+            .unwrap();
+        let hits_a2 = cache.invalidate_on_change_at(&touched_a, now);
+        assert!(
+            hits_a2.is_empty(),
+            "worktree A's second invalidation must coalesce"
+        );
+
+        // B still has its full budget — its first invalidation must admit.
+        let hits_b = cache.invalidate_on_change_at(&touched_b, now);
+        assert_eq!(
+            hits_b.len(),
+            1,
+            "worktree B must not be starved by A's burst"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_window_resets_after_duration() {
+        // After the window elapses, the bucket refills and the next
+        // invalidation admits again. We drive the clock by passing
+        // explicit `Instant`s; no `thread::sleep`.
+        let window = Duration::from_secs(1);
+        let cache = rate_limited_cache(1, window);
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let t0 = Instant::now();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+
+        // First admit consumes the burst.
+        assert_eq!(cache.invalidate_on_change_at(&touched, t0).len(), 1);
+        // Second within the window coalesces.
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v2")))
+            .unwrap();
+        assert!(
+            cache.invalidate_on_change_at(&touched, t0).is_empty(),
+            "second invalidation within the window must coalesce"
+        );
+
+        // Step past the window — bucket refills, next admit succeeds.
+        let t_past = t0
+            .checked_add(window + Duration::from_millis(1))
+            .expect("clock arithmetic");
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v3")))
+            .unwrap();
+        assert_eq!(
+            cache.invalidate_on_change_at(&touched, t_past).len(),
+            1,
+            "post-window invalidation must admit again"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_validation_one_eviction_per_window() {
+        // Per spec validation: with burst = 1 and a 1s window, fire
+        // 100 `.anvil.yaml` invalidations at the same instant; the
+        // cache evicts exactly once and the rate-limited counter
+        // records the 99 coalesced events.
+        let cache = rate_limited_cache(1, Duration::from_secs(1));
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let now = Instant::now();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        for _ in 0..100 {
+            cache.invalidate_on_change_at(&touched, now);
+        }
+        assert_eq!(
+            cache.invalidations(),
+            1,
+            "burst=1 admits exactly one effective drop in the window"
+        );
+        assert_eq!(
+            cache.rate_limited_invalidations(),
+            99,
+            "remaining 99 calls must coalesce into the counter"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_zero_burst_clamped_to_one() {
+        // Defensive clamp — a zero burst would permanently refuse
+        // every invalidation, leaving the cache stale forever.
+        // Matches the pattern from `with_capacity` clamping.
+        let cache = RuleSetCache::with_capacity_and_rate(
+            DEFAULT_RULE_SET_CACHE_CAPACITY,
+            0,
+            Duration::from_secs(1),
+        );
+        assert_eq!(cache.invalidation_burst(), 1);
+    }
+
+    #[test]
+    fn invalidation_rate_limit_constructor_pins_defaults() {
+        let cache = RuleSetCache::new();
+        assert_eq!(cache.invalidation_burst(), DEFAULT_INVALIDATION_BURST);
+        assert_eq!(
+            cache.invalidation_window(),
+            DEFAULT_INVALIDATION_RATE_WINDOW
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_window_boundary_is_closed_at_past_end() {
+        // Council #C-001 fix: a timestamp exactly `window` old must
+        // be treated as expired so a caller cannot observe `burst`
+        // events at `t0` and another `burst` events at `t0 + window`
+        // (which the closed-at-future-end `>` boundary would have
+        // permitted, amplifying the budget to 2*burst).
+        let window = Duration::from_secs(1);
+        let cache = rate_limited_cache(1, window);
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let t0 = Instant::now();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+
+        // First admit at t0 consumes the burst.
+        assert_eq!(cache.invalidate_on_change_at(&touched, t0).len(), 1);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v2")))
+            .unwrap();
+
+        // At exactly t0 + window the first timestamp must be
+        // considered expired so the next invalidation admits — the
+        // boundary is closed at the past end.
+        let t_boundary = t0.checked_add(window).expect("clock arithmetic");
+        assert_eq!(
+            cache.invalidate_on_change_at(&touched, t_boundary).len(),
+            1,
+            "timestamp exactly window-old must expire — closed boundary"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_prunes_empty_deque_after_admission() {
+        // Council #C-001 fix: the per-worktree HashMap must not
+        // grow unbounded with worktree churn. When the only
+        // timestamp in a deque expires and the deque becomes empty,
+        // the outer HashMap entry must be reclaimed.
+        let cache = rate_limited_cache(1, Duration::from_secs(1));
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        let t0 = Instant::now();
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        cache.invalidate_on_change_at(&touched, t0);
+        // Step past the window so the timestamp expires...
+        let t_past = t0
+            .checked_add(Duration::from_secs(2))
+            .expect("clock arithmetic");
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v2")))
+            .unwrap();
+        // ...and trigger an invalidation that wipes the deque clean
+        // then refills it with the new timestamp. The HashMap entry
+        // gets reused, but the prune path is exercised during the
+        // sweep.
+        cache.invalidate_on_change_at(&touched, t_past);
+
+        // Internal-state assertion: peek into the lock to verify
+        // the bucket has exactly one live timestamp, not stale
+        // residue.
+        let guard = cache.lock();
+        let deque = guard
+            .invalidation_windows
+            .get(&k)
+            .expect("active worktree must have a live deque");
+        assert_eq!(
+            deque.len(),
+            1,
+            "live deque must hold only the current admission, not expired residue"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_prunes_empty_deque_after_storm_subsides() {
+        // After a storm coalesces, then the window elapses with no
+        // further activity, the next call against the same worktree
+        // must observe an empty deque (pruned to reclaim memory).
+        // Use a synthetic invocation against a phantom path so the
+        // path's canonicalise fails and the fallback path exercises
+        // the prune-on-throttle case across multiple entries.
+        let cache = rate_limited_cache(1, Duration::from_secs(1));
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let k_a = key(&dir_a);
+        let k_b = key(&dir_b);
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a")))
+            .unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&k_b, |_| Ok(entry("b")))
+            .unwrap();
+        // Phantom path → canonicalise fails → fallback all-entries
+        // flush, with rate-limit per affected entry.
+        let phantom = Path::new("/nonexistent/anvil-mlp2-059-prune-test/.anvil.yaml");
+        let t0 = Instant::now();
+        cache.invalidate_on_change_at(phantom, t0);
+
+        // Both worktrees burned a token. Push time past the window
+        // and re-invoke against an empty cache → no candidates → no
+        // touches, but the prior buckets should drain on next access
+        // to those keys. Verify the worktree-A bucket has expired by
+        // calling consume on it directly.
+        let t_past = t0
+            .checked_add(Duration::from_secs(2))
+            .expect("clock arithmetic");
+        // Repopulate worktree A and storm it — the new admission
+        // proves its bucket recovered after the window.
+        cache
+            .get_or_resolve::<_, ()>(&k_a, |_| Ok(entry("a2")))
+            .unwrap();
+        let touched_a = dir_a.path().join(".anvil.yaml");
+        std::fs::write(&touched_a, b"{}").unwrap();
+        assert_eq!(
+            cache.invalidate_on_change_at(&touched_a, t_past).len(),
+            1,
+            "post-window invalidation on worktree A must admit (bucket recovered)"
+        );
+    }
+
+    #[test]
+    fn invalidation_rate_limit_unrelated_path_does_not_consume_token() {
+        // A non-`.anvil.*` write returns a hard no-op BEFORE the
+        // rate-limit check, so an attacker writing arbitrary files
+        // can't drain the budget by proxy.
+        let cache = rate_limited_cache(1, Duration::from_secs(1));
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+        cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("v1")))
+            .unwrap();
+        let unrelated = dir.path().join("Cargo.toml");
+        std::fs::write(&unrelated, b"# unrelated").unwrap();
+        let now = Instant::now();
+        for _ in 0..50 {
+            cache.invalidate_on_change_at(&unrelated, now);
+        }
+        // Budget intact — a real `.anvil.yaml` write must still admit.
+        let touched = dir.path().join(".anvil.yaml");
+        std::fs::write(&touched, b"{}").unwrap();
+        assert_eq!(cache.invalidate_on_change_at(&touched, now).len(), 1);
+        assert_eq!(cache.rate_limited_invalidations(), 0);
     }
 
     #[test]

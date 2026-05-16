@@ -262,8 +262,15 @@ impl WatcherIntegration {
             // `.anvil.*` file moves. Done *before* attribution so the
             // cache reaches the next evaluation already cleared even
             // if the writer was unattributable.
+            //
+            // MLP2-059: thread the watcher's own `now: Instant` into
+            // the cache so the per-worktree rate-limit clock and the
+            // watcher's coalescer clock agree on time. Otherwise the
+            // cache would re-read `Instant::now()` on every change and
+            // tests driving `ingest_at(_, now)` with explicit
+            // timestamps could not pin the rate-limit boundaries.
             if let Some(cache) = self.rule_cache.as_ref() {
-                let hits = cache.invalidate_on_change(&change.path);
+                let hits = cache.invalidate_on_change_at(&change.path, now);
                 self.invalidated.extend(hits);
             }
             match self.registry.attribute_path(&change.path) {
@@ -874,5 +881,77 @@ mod tests {
 
         assert_eq!(cache.len(), 1, "unrelated write must not invalidate");
         assert!(integration.last_invalidations().is_empty());
+    }
+
+    /// MLP2-059: when an attacker storms `.anvil.*` writes against a
+    /// single worktree, the cache is invalidated at most `burst`
+    /// times in the rolling window; subsequent writes coalesce into
+    /// the rate-limited counter. Pins the watcher → cache integration
+    /// so the watcher's `ingest_at(_, now)` clock and the cache's
+    /// per-worktree bucket clock stay in lock-step.
+    #[test]
+    fn anvil_config_storm_coalesces_into_rate_limited_counter() {
+        use std::time::Duration;
+        let registry = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&SessionId::new("sess-storm"), wt.path(), None, now)
+            .expect("register");
+
+        // Burst = 1 so the first invalidation admits and every
+        // subsequent one in the same window coalesces. The watcher
+        // passes its own `now` to the cache so we control the clock.
+        let cache = Arc::new(RuleSetCache::with_capacity_and_rate(
+            1024,
+            1,
+            Duration::from_secs(1),
+        ));
+        let key = WorktreeKey::canonicalise(wt.path()).unwrap();
+        cache
+            .get_or_resolve::<_, ()>(&key, |_| {
+                Ok(crate::rule_cache::RuleSetEntry {
+                    rules_sha: "v1".into(),
+                    resolved: crate::rule_cache::ResolvedRuleSet {
+                        config: serde_json::json!({}),
+                    },
+                })
+            })
+            .unwrap();
+
+        let mut integration = WatcherIntegration::new(
+            Arc::clone(&registry),
+            setup_pipeline_empty(),
+            Arc::new(NoopUnregisteredHandler),
+        )
+        .with_rule_cache(Arc::clone(&cache));
+
+        let cfg = wt.path().join(".anvil.yaml");
+        std::fs::write(&cfg, b"mode: fence\n").expect("write config");
+        // Fire 10 batches in immediate succession, all at the same
+        // `now`. With burst=1 only the first effective drop is
+        // recorded by the cache; the other 9 coalesce.
+        for _ in 0..10 {
+            let batch = WatcherChangeBatch {
+                changes: vec![change(cfg.clone(), ChangeKind::Modified)],
+                received_at: now,
+            };
+            let _ = integration.ingest_at(batch, now);
+        }
+
+        assert!(
+            cache.is_empty(),
+            "post-storm cache must be empty: first invalidation evicted the entry; subsequent storm events coalesced"
+        );
+        assert_eq!(
+            cache.invalidations(),
+            1,
+            "burst=1 within window admits exactly one effective drop"
+        );
+        assert_eq!(
+            cache.rate_limited_invalidations(),
+            9,
+            "remaining 9 calls must coalesce into the rate-limited counter"
+        );
     }
 }

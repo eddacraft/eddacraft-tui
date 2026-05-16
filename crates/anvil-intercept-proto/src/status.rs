@@ -56,6 +56,16 @@ pub struct DaemonStatusV1 {
     /// the cap or bumps the type in v2.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_flight_evaluations: Option<u8>,
+    /// MLP2-059: cumulative `.anvil.*` rule-set cache invalidations
+    /// coalesced by the per-worktree rate limiter since the daemon
+    /// started. A steady non-zero rate of change indicates an
+    /// attacker (or runaway writer) driving `.anvil.*` writes faster
+    /// than the burst window admits; the cache stays warm, the
+    /// counter records the storm. `None` when no cache is wired
+    /// (embedded mode, or a pre-MLP2-059 daemon talking to a newer
+    /// consumer — additive-optional, byte-compat for older shapes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_invalidations_rate_limited: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -137,6 +147,7 @@ mod tests {
             cache_entries: None,
             cache_invalidations_total: None,
             in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -158,6 +169,7 @@ mod tests {
             cache_entries: None,
             cache_invalidations_total: None,
             in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         // mid_edit must be either absent or null — never zero.
@@ -223,6 +235,41 @@ mod tests {
         assert_eq!(parsed.cache_entries, None);
         assert_eq!(parsed.cache_invalidations_total, None);
         assert_eq!(parsed.in_flight_evaluations, None);
+        // MLP2-059 introduced a fourth additive-optional field; the
+        // pre-MLP2-058 payload above has no key for it, so the
+        // parsed value must collapse to None.
+        assert_eq!(parsed.cache_invalidations_rate_limited, None);
+    }
+
+    /// MLP2-059: a post-MLP2-058 / pre-MLP2-059 daemon (no
+    /// `cache_invalidations_rate_limited` key on the wire) round-
+    /// trips into the post-MLP2-059 `DaemonStatusV1` with the new
+    /// field collapsed to `None`. Pins the same additive contract for
+    /// the rate-limited counter as MLP2-058 did for the cache trio.
+    #[test]
+    fn pre_mlp2_059_payload_round_trips_with_rate_limit_field_absent() {
+        let json = serde_json::json!({
+            "sessions": [],
+            "worktrees": [],
+            "fences": [],
+            "health": {
+                "uptime_seconds": 12,
+                "version": "0.6.0",
+                "ipc_state": "serving",
+            },
+            "latency": { "mid_edit": null },
+            "cache_entries": 7,
+            "cache_invalidations_total": 0,
+            "in_flight_evaluations": 0,
+        });
+        let parsed: DaemonStatusV1 = serde_json::from_value(json).expect("deserialise");
+        assert_eq!(parsed.cache_entries, Some(7));
+        assert_eq!(parsed.cache_invalidations_total, Some(0));
+        assert_eq!(parsed.in_flight_evaluations, Some(0));
+        assert_eq!(
+            parsed.cache_invalidations_rate_limited, None,
+            "pre-MLP2-059 daemon must surface the new field as None"
+        );
     }
 
     /// MLP2-058: when the new fields are present on the wire they
@@ -243,6 +290,7 @@ mod tests {
             cache_entries: Some(17),
             cache_invalidations_total: Some(42),
             in_flight_evaluations: Some(3),
+            cache_invalidations_rate_limited: Some(5),
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -252,6 +300,7 @@ mod tests {
         assert_eq!(json["cache_entries"], 17);
         assert_eq!(json["cache_invalidations_total"], 42);
         assert_eq!(json["in_flight_evaluations"], 3);
+        assert_eq!(json["cache_invalidations_rate_limited"], 5);
     }
 
     /// MLP2-058: `None` on the new fields wires as absent, not `null`
@@ -274,6 +323,7 @@ mod tests {
             cache_entries: None,
             cache_invalidations_total: None,
             in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         assert!(
