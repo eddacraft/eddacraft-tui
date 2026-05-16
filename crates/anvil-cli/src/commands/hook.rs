@@ -77,7 +77,7 @@ use anvil_l4::{
 use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
 use anvil_witness::{
     GenesisAnchor, LineHash, RolloverPolicy, WitnessLine, WitnessWriter, compute_line_hash,
-    verify_chain_dag,
+    verify_chain_dag, witness_paths,
 };
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
@@ -786,32 +786,6 @@ fn verify_chain_or_block(
     }
 }
 
-/// Build the ordered list of witness files for the chain verifier:
-/// archive segments (lexicographic — matches `<scope>-<seq>-<merkle>`)
-/// followed by `active.ndjson`. Returns an empty list when the chain
-/// hasn't materialised yet.
-fn witness_paths(repo_root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let archive_dir = repo_root.join("anvil").join("witness").join("archive");
-    if let Ok(entries) = fs::read_dir(&archive_dir) {
-        let mut files: Vec<PathBuf> = entries
-            .filter_map(std::result::Result::ok)
-            .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("ndjson"))
-            .collect();
-        files.sort();
-        out.extend(files);
-    }
-    let active = repo_root
-        .join("anvil")
-        .join("witness")
-        .join("active.ndjson");
-    if active.exists() {
-        out.push(active);
-    }
-    out
-}
-
 /// Scan every witness file under `anvil/witness/` and collect the set
 /// of recorded `commit_sha` values.
 ///
@@ -874,8 +848,13 @@ fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
     for (rel, format) in candidates {
         let path = repo_root.join(rel);
         if path.exists() {
-            let raw =
-                fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+            // MLP2-063: refuse oversized policy files before
+            // `read_to_string` allocates the body. The shared bounded
+            // loader caps each policy file at
+            // `anvil_config::MAX_CONFIG_FILE_BYTES` (1 MiB), matching
+            // the bound `.anvil.*` parsing already enforces.
+            let raw = anvil_config::read_to_string_bounded(&path)
+                .with_context(|| format!("read {}", path.display()))?;
             let policy = Policy::parse(&raw, *format, &path)
                 .with_context(|| format!("parse {}", path.display()))?;
             return Ok(Some(policy));
@@ -1213,8 +1192,8 @@ fn list_unwitnessed_range(repo_root: &Path) -> io::Result<Vec<String>> {
 }
 
 /// Streaming check: is `sha` already present as a `commit_sha` value
-/// anywhere in the active witness file? Returns `false` when the
-/// chain doesn't exist yet.
+/// anywhere in the active witness file *or* any archive segment?
+/// Returns `false` when the chain doesn't exist yet.
 ///
 /// Reads line-by-line via `BufRead::lines()` so memory stays bounded
 /// on large chains; do not collect the whole file. Uses a substring
@@ -1223,21 +1202,31 @@ fn list_unwitnessed_range(repo_root: &Path) -> io::Result<Vec<String>> {
 /// with sorted keys (no whitespace) so the substring is stable, and
 /// avoiding `serde_json::from_slice` per line keeps the walk cheap
 /// for large chains.
+///
+/// MLP2-061: pre-fix the function only inspected `active.ndjson`,
+/// which meant the bootstrap `--witness-recent` retroactive-witness
+/// check could re-witness a commit that already appeared in an
+/// archive segment after rollover (silent duplicate witnesses on top
+/// of archived history). Walking `witness_paths(repo_root)` keeps
+/// the witnessed-set complete across rollover boundaries.
 fn commit_is_witnessed(repo_root: &Path, sha: &str) -> bool {
     use std::io::{BufRead, BufReader};
-    let active = repo_root
-        .join("anvil")
-        .join("witness")
-        .join("active.ndjson");
-    let Ok(file) = fs::File::open(&active) else {
-        return false;
-    };
     let needle = format!("\"commit_sha\":\"{sha}\"");
-    let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let Ok(line) = line else { return false };
-        if line.contains(&needle) {
-            return true;
+    for path in witness_paths(repo_root) {
+        let Ok(file) = fs::File::open(&path) else {
+            continue;
+        };
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            // A read error on one line skips that line — same shape
+            // as the file-open fall-through above. Pre-fix this used
+            // `break`, which aborted the whole segment on a transient
+            // read error and could miss a SHA recorded later in the
+            // same file (Council quick review).
+            let Ok(line) = line else { continue };
+            if line.contains(&needle) {
+                return true;
+            }
         }
     }
     false
@@ -1314,6 +1303,7 @@ fn execute_bootstrap_plan(repo_root: &Path, plan: &BootstrapPlan) -> Result<usiz
 /// Result of [`chain_head`] — either a usable `(next_seq, prev)`
 /// pair or a typed failure that the caller turns into the matching
 /// [`Verdict`].
+#[cfg_attr(test, derive(Debug))]
 enum ChainState {
     /// The chain is empty: no active file. Caller should seed a
     /// genesis line before its first record.
@@ -1348,8 +1338,13 @@ where
 {
     let writer = WitnessWriter::open(repo_root, "active", RolloverPolicy::default())
         .map_err(|_| AppendError::WriteFailed)?;
-    let active = writer.active_path();
-    match chain_head(&active) {
+    // MLP2-061: derive `(seq, prev)` from the full archive + active
+    // chain. After a rollover the new `active.ndjson` is empty (or
+    // absent) and reading only it would yield `ChainState::Empty`,
+    // letting the seeder write a fresh genesis on top of the archived
+    // history. `chain_head` now walks `witness_paths(repo_root)` so
+    // the chain stays continuous across rollover boundaries.
+    match chain_head(repo_root) {
         ChainState::Broken => Err(AppendError::ChainBroken),
         ChainState::Empty => {
             // Fresh chain — seed genesis then chain off it.
@@ -1364,7 +1359,7 @@ where
             writer
                 .append(&genesis)
                 .map_err(|_| AppendError::WriteFailed)?;
-            let (seq, prev) = match chain_head(&active) {
+            let (seq, prev) = match chain_head(repo_root) {
                 ChainState::Healthy { seq, prev } => (seq, prev),
                 // If the chain we just wrote can't be re-verified,
                 // something is badly wrong with the on-disk state.
@@ -1402,20 +1397,29 @@ where
 /// Classify the on-disk chain state for the next append.
 ///
 /// Distinguishes the three cases the writer cares about:
-/// `Empty` (no file → seed genesis), `Healthy` (verifiable tip →
-/// chain off it), and `Broken` (file exists but fails
-/// `verify_chain` → refuse, do NOT reseed). The earlier version
-/// collapsed `Broken` into `Empty` and would obliterate evidence
-/// by appending a fresh genesis on top of a tampered chain; the
-/// distinction here is the ADR-038 contract.
-fn chain_head(active_path: &Path) -> ChainState {
-    if !active_path.exists() {
+/// `Empty` (no segments → seed genesis), `Healthy` (verifiable tip →
+/// chain off it), and `Broken` (segments exist but fail verification
+/// → refuse, do NOT reseed). The earlier version collapsed `Broken`
+/// into `Empty` and would obliterate evidence by appending a fresh
+/// genesis on top of a tampered chain; the distinction here is the
+/// ADR-038 contract.
+///
+/// MLP2-061: walks `witness_paths(repo_root)` so archive segments
+/// participate in the head calculation. Pre-fix the function read
+/// only `active.ndjson`; after a rollover the active file is empty
+/// while the archive holds the tail, and the seeder would write a
+/// fresh genesis on top of the archived history — silently breaking
+/// chain continuity.
+fn chain_head(repo_root: &Path) -> ChainState {
+    let paths = witness_paths(repo_root);
+    if paths.is_empty() {
         return ChainState::Empty;
     }
+    let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
     // MLP2-011 — DAG-aware verifier accepts merge witnesses; the
     // `DagVerification` struct exposes the same `line_count` + `tip_hash`
     // the legacy `ChainReport` did.
-    match verify_chain_dag(&[active_path]) {
+    match verify_chain_dag(&path_refs) {
         Ok(dag) => {
             if dag.line_count == 0 {
                 ChainState::Empty
@@ -2154,6 +2158,134 @@ mod tests {
         let rendered = verify_chain_or_block(&root, "uuid").expect("expected block");
         assert_eq!(rendered.exit_code, 1);
         assert!(rendered.stderr_line.contains("chain integrity broken"));
+    }
+
+    /// MLP2-061: after `active.ndjson` is moved to an archive
+    /// segment (rollover boundary), `chain_head(repo_root)` MUST
+    /// surface the archived tip — pre-fix the function read only
+    /// `active.ndjson` and returned `ChainState::Empty`, which let
+    /// the seeder write a fresh genesis on top of archived history.
+    #[test]
+    fn chain_head_recovers_after_rollover_when_only_archive_holds_chain() {
+        let (_tmp, root) = make_test_repo();
+        let project_uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
+        write_witness_line_for(&root, project_uuid, "deadbeef-1");
+        write_witness_line_for(&root, project_uuid, "deadbeef-2");
+        // Move the active file into the archive directory to
+        // simulate a rollover that just fired. The active file is
+        // gone; the archive holds the entire chain.
+        let active = root.join("anvil").join("witness").join("active.ndjson");
+        let archive_dir = root.join("anvil").join("witness").join("archive");
+        fs::create_dir_all(&archive_dir).unwrap();
+        let archived = archive_dir.join("active-00000000000000000003-rollover-test.ndjson");
+        fs::rename(&active, &archived).unwrap();
+        assert!(!active.exists(), "active should be moved away");
+
+        match chain_head(&root) {
+            ChainState::Healthy { seq, prev } => {
+                // 3 lines on disk (1 genesis + 2 records) → next
+                // append continues at seq=4 with the archive tip.
+                assert_eq!(seq, 4, "next append must continue the archived chain");
+                assert!(!prev.is_empty(), "tip hash must come from the archive");
+            }
+            other => {
+                panic!("expected Healthy after rollover with archive-only chain, got {other:?}")
+            }
+        }
+    }
+
+    /// MLP2-061 regression: the tight-rollover loop. Append, force
+    /// a rollover, append again, then verify that the chain across
+    /// archive + active reads as one continuous DAG with exactly
+    /// one genesis line. Pre-fix this would produce two genesis
+    /// lines and the cross-segment verifier would fail.
+    #[test]
+    fn append_witness_after_rollover_chains_off_archive_tip() {
+        let (_tmp, root) = make_test_repo();
+        let project_uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
+        write_witness_line_for(&root, project_uuid, "a");
+        write_witness_line_for(&root, project_uuid, "b");
+        // Force rollover by relocating active → archive.
+        let active = root.join("anvil").join("witness").join("active.ndjson");
+        let archive_dir = root.join("anvil").join("witness").join("archive");
+        fs::create_dir_all(&archive_dir).unwrap();
+        let archived = archive_dir.join("active-00000000000000000003-rollover-tight.ndjson");
+        fs::rename(&active, &archived).unwrap();
+        // Append after rollover — MUST NOT seed a fresh genesis.
+        write_witness_line_for(&root, project_uuid, "c");
+
+        // Walk the full path list and verify one continuous DAG.
+        let paths = witness_paths(&root);
+        assert_eq!(paths.len(), 2, "expected archive + active");
+        let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        let dag = verify_chain_dag(&path_refs).expect("archive+active chain verifies");
+        // 3 lines in archive (genesis + a + b) + 1 line in active (c) = 4.
+        assert_eq!(dag.line_count, 4, "exactly one genesis across both files");
+
+        // Active file must contain exactly the single new record —
+        // not a fresh genesis above it.
+        let active_contents = fs::read_to_string(&active).unwrap();
+        let active_lines: Vec<&str> = active_contents.lines().collect();
+        assert_eq!(
+            active_lines.len(),
+            1,
+            "post-rollover active must hold one record, no second genesis"
+        );
+        assert!(active_lines[0].contains("\"commit_sha\":\"c\""));
+        assert!(active_lines[0].contains("\"seq\":4"));
+    }
+
+    /// MLP2-061: `commit_is_witnessed` MUST walk archive segments,
+    /// otherwise bootstrap `--witness-recent` can re-witness a SHA
+    /// that already appears in archived history.
+    #[test]
+    fn commit_is_witnessed_finds_sha_recorded_in_archive_segment() {
+        let (_tmp, root) = make_test_repo();
+        let project_uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
+        write_witness_line_for(&root, project_uuid, "archived-sha");
+        // Relocate active → archive (simulate rollover boundary).
+        let active = root.join("anvil").join("witness").join("active.ndjson");
+        let archive_dir = root.join("anvil").join("witness").join("archive");
+        fs::create_dir_all(&archive_dir).unwrap();
+        let archived = archive_dir.join("active-00000000000000000002-archived-only.ndjson");
+        fs::rename(&active, &archived).unwrap();
+
+        assert!(
+            commit_is_witnessed(&root, "archived-sha"),
+            "MLP2-061: commit_is_witnessed must scan archive segments"
+        );
+        assert!(!commit_is_witnessed(&root, "never-recorded"));
+    }
+
+    /// MLP2-063: oversized policy files MUST be refused before
+    /// `read_to_string` allocates the body. Anvil-config's bounded
+    /// loader caps each file at `MAX_CONFIG_FILE_BYTES`; the shared
+    /// hook loader honours the same cap.
+    #[test]
+    fn load_policy_refuses_oversized_yaml() {
+        let (_tmp, root) = make_test_repo();
+        // 1 MiB + 1 byte → just past the cap.
+        let cap = usize::try_from(anvil_config::MAX_CONFIG_FILE_BYTES).expect("1 MiB fits usize");
+        let mut body = String::with_capacity(cap + 64);
+        body.push_str("branches:\n  - pattern: main\n    require: l4_or_l3\n");
+        body.push_str("    on_no_witness: validate_at_l4\n");
+        // Pad with a long YAML comment so the file is parseable in
+        // principle but exceeds the size cap.
+        let comment_prefix = "# pad ";
+        while body.len() <= cap {
+            body.push_str(comment_prefix);
+            body.push_str("x".repeat(64).as_str());
+            body.push('\n');
+        }
+        assert!(body.len() as u64 > anvil_config::MAX_CONFIG_FILE_BYTES);
+        fs::write(root.join("anvil").join("policy.yml"), &body).unwrap();
+
+        let err = load_policy(&root).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("exceeds") || rendered.contains("byte limit"),
+            "expected FileTooLarge surface in error chain, got: {rendered}"
+        );
     }
 
     #[test]

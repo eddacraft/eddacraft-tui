@@ -40,7 +40,7 @@ use anvil_l4::{
     BranchRule, NoOpValidationEngine, OnBlock, OnNoWitness, OnWarn, Requirement, ValidationEngine,
     ValidationRequest, ValidationVerdict,
 };
-use anvil_witness::{WitnessLine, compute_line_hash, verify_chain_dag};
+use anvil_witness::{WitnessLine, compute_line_hash, verify_chain_dag, witness_paths};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Args;
@@ -551,31 +551,6 @@ fn list_commits(repo_root: &Path, branch: &str, since: Option<&str>) -> Option<V
             .map(str::to_string)
             .collect(),
     )
-}
-
-/// Witness paths in chain order: archive segments first, then active.
-/// Shared shape with the pre-push hook's `witness_paths`; the audit
-/// path inlines it to avoid a CLI-internal helper export.
-fn witness_paths(repo_root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let archive_dir = repo_root.join("anvil").join("witness").join("archive");
-    if let Ok(entries) = fs::read_dir(&archive_dir) {
-        let mut files: Vec<PathBuf> = entries
-            .filter_map(std::result::Result::ok)
-            .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("ndjson"))
-            .collect();
-        files.sort();
-        out.extend(files);
-    }
-    let active = repo_root
-        .join("anvil")
-        .join("witness")
-        .join("active.ndjson");
-    if active.exists() {
-        out.push(active);
-    }
-    out
 }
 
 /// Collect witnessed commit SHAs from every chain segment.

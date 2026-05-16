@@ -40,6 +40,7 @@ use anvil_l4::{
     BlockKind, CommitDecision, EngineUnavailableReason, NoOpValidationEngine, OnWarn, Policy,
     Severity, ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
+use anvil_witness::{verify_chain_dag, witness_paths};
 use anyhow::{Context, Result};
 use clap::Args;
 
@@ -192,6 +193,15 @@ pub fn run_with_engine(
     let commits = resolve_range(&repo_root, &args.range)
         .with_context(|| format!("resolve range {range}", range = args.range))?;
 
+    // MLP2-062: verify the active + archive witness chain before
+    // treating any `commit_sha` line as L3 evidence. Pre-fix the CI /
+    // Marketplace surface harvested every recorded `commit_sha` from
+    // `anvil/witness/*.ndjson` without checking integrity, so a
+    // tampered or forged record could mark an unwitnessed commit as
+    // witnessed and silently admit it. Refuse with a non-zero exit
+    // when the chain fails to verify; CI carries the underlying
+    // verifier error in stderr.
+    verify_witness_chain(&repo_root)?;
     let witnessed = collect_witnessed_shas(&repo_root);
 
     let mut outcomes = Vec::with_capacity(commits.len());
@@ -290,7 +300,11 @@ fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
     for (rel, format) in candidates {
         let path = repo_root.join(rel);
         if path.exists() {
-            let raw = std::fs::read_to_string(&path)
+            // MLP2-063: refuse oversized policy files before
+            // `read_to_string` allocates the body. Shares the bounded
+            // loader with the pre-push hook so both L4 surfaces honour
+            // `anvil_config::MAX_CONFIG_FILE_BYTES`.
+            let raw = anvil_config::read_to_string_bounded(&path)
                 .with_context(|| format!("read {}", path.display()))?;
             let policy = Policy::parse(&raw, *format, &path)
                 .with_context(|| format!("parse {}", path.display()))?;
@@ -298,6 +312,24 @@ fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
         }
     }
     Ok(None)
+}
+
+/// MLP2-062: build the witness path list (archive segments first in
+/// lexicographic order, then `active.ndjson` if present) and run the
+/// DAG-aware verifier across the whole chain. Returns `Ok(())` when
+/// the chain is healthy or non-existent (fresh-adoption shape with no
+/// witness tree). Errors here propagate to the binary entry point and
+/// surface as a non-zero exit so CI cannot treat an unverified chain
+/// as L3 evidence.
+fn verify_witness_chain(repo_root: &Path) -> Result<()> {
+    let paths = witness_paths(repo_root);
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+    verify_chain_dag(&path_refs)
+        .map(|_| ())
+        .map_err(|e| anyhow::anyhow!("witness chain integrity check failed: {e}"))
 }
 
 /// Resolve the commit-range argument via `git rev-list`. Accepts:
@@ -369,16 +401,16 @@ fn current_branch(repo_root: &Path) -> Option<String> {
 /// `anvil/witness/archive/`. Returns an empty set when no witness
 /// tree exists — that's a fresh-adoption shape (no witnessed commits
 /// yet), distinct from "git is unreachable".
+///
+/// MLP2-062: uses the same `witness_paths` ordering as
+/// [`verify_witness_chain`] (archive lexicographic, then active) so
+/// the integrity check covers exactly the bytes harvested here.
+/// Caller MUST invoke `verify_witness_chain` first — pre-MLP2-062
+/// callers harvested unverified bytes and could mark forged commits
+/// as witnessed.
 fn collect_witnessed_shas(repo_root: &Path) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    let active = repo_root.join("anvil/witness/active.ndjson");
-    let archive_dir = repo_root.join("anvil/witness/archive");
-    let mut paths = vec![active];
-    if let Ok(rd) = std::fs::read_dir(&archive_dir) {
-        for entry in rd.flatten() {
-            paths.push(entry.path());
-        }
-    }
+    let paths = witness_paths(repo_root);
     for path in paths {
         let Ok(contents) = std::fs::read_to_string(&path) else {
             continue;
@@ -723,5 +755,113 @@ mod tests {
         let _ = OnBlock::Reject;
         let _ = OnNoWitness::ValidateAtL4;
         let _ = Requirement::L4OrL3;
+    }
+
+    /// MLP2-062: a tampered `active.ndjson` MUST cause `l4-validate`
+    /// to error out before any commit is treated as L3-witnessed.
+    /// Pre-fix the surface harvested `commit_sha` lines from the
+    /// tampered file and a forged record could mark an unwitnessed
+    /// commit as witnessed; the CI lane silently admitted it.
+    #[test]
+    fn run_with_engine_refuses_to_trust_tampered_witness_chain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(&root, validate_at_l4_policy());
+        let sha = git_commit(&root, "first", "x", "f.txt");
+        // Tamper: drop a syntactically-broken NDJSON file at the
+        // active witness path. The forged line claims to witness
+        // `sha`, but the chain hash invariants do not hold.
+        let witness_dir = root.join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            format!(
+                "{{\"seq\":1,\"scope\":\"active\",\"kind\":\"witness\",\
+                 \"commit_sha\":\"{sha}\",\"prev_line_hash\":\"bogus\"}}\n"
+            ),
+        )
+        .unwrap();
+
+        let args = L4ValidateArgs {
+            range: sha.clone(),
+            branch: Some("main".to_owned()),
+            repo: Some(root.clone()),
+        };
+        let err =
+            run_with_engine(&args, &GlobalArgs::default(), &NoOpValidationEngine).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("witness chain integrity check failed"),
+            "expected chain-integrity error, got: {rendered}"
+        );
+    }
+
+    /// MLP2-062 (Council quick review): a forged archive segment
+    /// dropped into `anvil/witness/archive/` with a filename that
+    /// lexicographically precedes any legitimate segment MUST cause
+    /// `l4-validate` to refuse — the chain verifier walks archive
+    /// segments first, so a fake fresh-genesis prefix is the most
+    /// direct way to forge an L3 witness without touching `active`.
+    #[test]
+    fn run_with_engine_refuses_forged_genesis_dropped_into_archive() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(&root, validate_at_l4_policy());
+        let sha = git_commit(&root, "first", "x", "f.txt");
+        // Drop a forged archive segment with a lex-leading filename.
+        // The line claims to be a witness for `sha` but cites a
+        // genesis anchor without seeding one first, so the DAG walk
+        // rejects it.
+        let archive_dir = root.join("anvil/witness/archive");
+        std::fs::create_dir_all(&archive_dir).unwrap();
+        std::fs::write(
+            archive_dir.join("active-00000000000000000000-forged-genesis.ndjson"),
+            format!(
+                "{{\"seq\":1,\"scope\":\"active\",\"kind\":\"witness\",\
+                 \"commit_sha\":\"{sha}\",\"prev_line_hash\":\"forged-anchor\"}}\n"
+            ),
+        )
+        .unwrap();
+
+        let args = L4ValidateArgs {
+            range: sha.clone(),
+            branch: Some("main".to_owned()),
+            repo: Some(root.clone()),
+        };
+        let err =
+            run_with_engine(&args, &GlobalArgs::default(), &NoOpValidationEngine).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("witness chain integrity check failed"),
+            "expected chain-integrity error from forged archive segment, got: {rendered}"
+        );
+    }
+
+    /// MLP2-063: oversized policy files MUST be refused before
+    /// `read_to_string` allocates the body. Shared bounded loader
+    /// with the pre-push hook (see hook.rs sibling test).
+    #[test]
+    fn load_policy_refuses_oversized_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        // 1 MiB + padding → just past the cap.
+        let cap = usize::try_from(anvil_config::MAX_CONFIG_FILE_BYTES).expect("1 MiB fits usize");
+        let mut body = String::with_capacity(cap + 128);
+        body.push_str(validate_at_l4_policy());
+        let comment_prefix = "# pad ";
+        while body.len() <= cap {
+            body.push_str(comment_prefix);
+            body.push_str(&"x".repeat(64));
+            body.push('\n');
+        }
+        assert!(body.len() as u64 > anvil_config::MAX_CONFIG_FILE_BYTES);
+        write_policy(&root, &body);
+
+        let err = load_policy(&root).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("exceeds") || rendered.contains("byte limit"),
+            "expected FileTooLarge surface in error chain, got: {rendered}"
+        );
     }
 }

@@ -60,12 +60,14 @@
 mod genesis;
 mod line;
 mod manifest;
+mod paths;
 mod verify;
 mod writer;
 
 pub use genesis::GenesisAnchor;
 pub use line::{LineHash, WitnessLine, WitnessRecord, compute_line_hash};
 pub use manifest::{ManifestEntry, append_manifest_entry, manifest_path, manifest_tail};
+pub use paths::witness_paths;
 #[allow(deprecated)]
 // Re-export the linear-only wrapper for out-of-tree callers; in-tree callers should use `verify_chain_dag`.
 pub use verify::{ChainReport, DagVerification, VerifyError, verify_chain, verify_chain_dag};

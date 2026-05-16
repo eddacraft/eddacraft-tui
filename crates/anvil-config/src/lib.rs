@@ -49,6 +49,6 @@ mod validation;
 pub use canonical::{CanonicalError, canonical_json_bytes};
 pub use discover::{DISCOVER_PRECEDENCE, DiscoveredConfig, discover};
 pub use format::ConfigFormat;
-pub use parse::{ParseError, parse_file, parse_str};
+pub use parse::{MAX_CONFIG_FILE_BYTES, ParseError, parse_file, parse_str, read_to_string_bounded};
 pub use rule_modes::{RuleMode, RuleModeError, RuleModes};
 pub use validation::{HARD_PINNED_CLASSES, ValidationError, validate_hard_pinned_classes};

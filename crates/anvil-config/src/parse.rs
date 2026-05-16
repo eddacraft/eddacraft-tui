@@ -277,11 +277,35 @@ pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
         ConfigFormat::from_path(path).ok_or_else(|| ParseError::UnrecognisedExtension {
             path: path.to_path_buf(),
         })?;
-    // MLP2-060: size cap fires before we read the file contents.
-    // `fs::metadata` walks the directory entry rather than the file
-    // body, so the check itself costs effectively nothing on top of
-    // the open that `read_to_string` already needs.
-    let metadata = std::fs::metadata(path).map_err(|source| ParseError::Io {
+    let contents = read_to_string_bounded(path)?;
+    parse_str(&contents, format, path)
+}
+
+/// MLP2-063: read `path` into a `String`, refusing files larger than
+/// [`MAX_CONFIG_FILE_BYTES`] before the body lands in memory.
+///
+/// Exposed so policy loaders in `anvil-cli` (pre-push hook and
+/// `l4-validate`) share the same bounded read path as `.anvil.*`
+/// config parsing — a hostile or malformed
+/// `anvil/policy.{yml,yaml,json,toml}` cannot now exhaust memory
+/// through the policy loader.
+///
+/// **TOCTOU note (Council quick review).** Opening the file once and
+/// then querying `metadata` on the resulting file descriptor binds
+/// the size check to the same inode the read will consume; a
+/// concurrent rename or truncate cannot swap a larger payload in
+/// between. The read is additionally bounded by
+/// [`std::io::Read::take`] at `MAX_CONFIG_FILE_BYTES + 1` so a file
+/// that grows past the cap *after* fstat but before EOF still
+/// surfaces as [`ParseError::FileTooLarge`] rather than overflowing
+/// the buffer.
+pub fn read_to_string_bounded(path: &Path) -> Result<String, ParseError> {
+    use std::io::Read;
+    let file = std::fs::File::open(path).map_err(|source| ParseError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let metadata = file.metadata().map_err(|source| ParseError::Io {
         path: path.to_path_buf(),
         source,
     })?;
@@ -292,11 +316,26 @@ pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
             cap: MAX_CONFIG_FILE_BYTES,
         });
     }
-    let contents = std::fs::read_to_string(path).map_err(|source| ParseError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    parse_str(&contents, format, path)
+    // The `+ 1` lets us detect a file that has grown past the cap
+    // since `fstat`: if `read_to_string` consumes more than the cap,
+    // we treat it identically to the pre-read size failure.
+    let cap_plus_one = MAX_CONFIG_FILE_BYTES.saturating_add(1);
+    let mut limited = file.take(cap_plus_one);
+    let mut contents = String::new();
+    limited
+        .read_to_string(&mut contents)
+        .map_err(|source| ParseError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    if contents.len() as u64 > MAX_CONFIG_FILE_BYTES {
+        return Err(ParseError::FileTooLarge {
+            path: path.to_path_buf(),
+            size: contents.len() as u64,
+            cap: MAX_CONFIG_FILE_BYTES,
+        });
+    }
+    Ok(contents)
 }
 
 /// Convert a `toml::Value` to a `serde_json::Value`.

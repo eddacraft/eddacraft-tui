@@ -2672,7 +2672,7 @@ remaining v2 integration surface.
 
 #### MLP2-061: Post-rollover append-head recovery
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Hook-side witness appends derive the next `(seq,
   prev_line_hash)` from the full archive + active chain, not only
   `active.ndjson`, so a rollover cannot cause a fresh genesis to be
@@ -2698,7 +2698,7 @@ remaining v2 integration surface.
 
 #### MLP2-062: `anvil l4-validate` verifies witness-chain integrity before trusting witnessed SHAs
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** The dedicated L4 CLI surface must reject or block on a
   broken witness chain before treating any `commit_sha` as L3 evidence.
 - **Expected Outcome:**
@@ -2720,7 +2720,7 @@ remaining v2 integration surface.
 
 #### MLP2-063: Bounded policy-file load path for hook and L4 validation
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Policy loading for pre-push and `anvil l4-validate`
   must honour the same file-size and parse-resource bounds as
   `.anvil.*` config parsing.
