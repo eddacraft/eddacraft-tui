@@ -526,7 +526,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-010: Kindling `action_executed` emission for post-hooks
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** `anvil hook post-commit` / `post-merge` /
   `post-rewrite` each emit a Kindling `action_executed`
   observation. Pairs with MLP2-004's chain-head cache update.
@@ -539,9 +539,62 @@ task's `Source:` line cites the Council finding IDs.
   - Pass-no-finding silence rule does NOT apply — every post-hook
     invocation produces exactly one row.
 - **Files:** `crates/anvil-intercept/src/kindling_observation.rs`
-  (extend with `action_executed` builder),
-  `crates/anvil-cli/src/commands/hook.rs`.
+  (extend `KindlingObservationSink` trait with defaulted
+  `try_emit_action_executed`; new `ActionExecutedObservation` /
+  `ActionExecutedDetails` / `ActionDiffSummary` types matching the
+  TS Zod schema; new `ActionOutcome` enum; new `PostHookAction`
+  closed-set vocabulary; new `from_post_hook` builder; new
+  `PostHookEmitter` + `PostHookEmissionRequest` +
+  `ActionEmissionOutcome` for hook-side emission;
+  `RecordingKindlingObservationSink` extended with
+  `recorded_actions` / `actions_len` / `fail_next_action_with`),
+  `crates/anvil-cli/src/commands/hook.rs` (`append_witness` returns
+  `Result<LineHash, AppendError>` so the caller has the SHA-256 of
+  the just-appended line; `run_post_commit` / `run_post_merge` /
+  `run_post_rewrite` accept a `&PostHookEmitter`, time the work,
+  resolve the relevant SHA — `git rev-parse HEAD` for post-commit,
+  the merge ref for post-merge, the new SHA from each rewrite pair
+  for post-rewrite — and call new `emit_post_hook_action` helper
+  after each successful witness append; `run` mints a per-process
+  UUID v4 for `session_id` and binds a `PostHookEmitter::noop` —
+  concrete sink wiring is the deferred follow-up shared with
+  MLP2-006 / MLP2-007).
 - **Validation:** Three integration tests (one per hook).
+  **Evidence (Done 2026-05-16):** `cargo test -p
+  eddacraft-anvil-intercept` 335/335 green (+21 from baseline);
+  `cargo test -p eddacraft-anvil` 1479/1479 green (+4 from
+  baseline). New unit tests in `kindling_observation::tests`
+  (10 — `from_post_hook` kind + action_type stamping, `action_id`
+  shape, command field carries commit SHA + witness line hash,
+  `details.working_directory` population, optional fields omitted
+  on serialise via `skip_serializing_if`, emitter sink delivery,
+  three-action no-short-circuit contract, sink-failure swallow +
+  recovery, `NoopKindlingObservationSink` auto-satisfies the new
+  trait method via the default body, `PostHookAction::as_str`
+  joins back to witness-line `validation_at` tokens). New
+  integration tests in `commands::hook::tests` (4 —
+  `post_commit_emits_one_action_executed_row_per_invocation`
+  drives `run_post_commit` with a recording emitter and asserts
+  the canonical row shape end-to-end;
+  `post_merge_emits_action_executed_with_merge_sha_in_command`
+  drives `run_post_merge` with a synthetic merge ref and pins the
+  command field; `post_rewrite_emits_one_action_executed_row_per_pair`
+  drives the rewrite pipeline through two pairs and asserts the
+  per-pair row count + action_id shape;
+  `post_commit_with_no_project_id_is_silent_kindling_emit_too`
+  pins the no-witness → no-row contract). The hook process is
+  short-lived, so each invocation mints its own UUID v4
+  `session_id`; the daemon-fan-out IPC bridge that would let the
+  hook talk to the long-running daemon's session is the deferred
+  follow-up. Wire shape: `kind = "action_executed"`,
+  `action_type = "command"`, `outcome = "success"`,
+  `action_id = "{post-commit|post-merge|post-rewrite}:{commit_sha}"`,
+  `details.command = "anvil hook {action} (commit={sha},
+  witness_line_hash={hash})"`,
+  `details.working_directory = repo root`.
+  `cargo clippy --workspace --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean. **Closes Phase 3 entry for
+  MLP2-010** (gated by MLP2-006 which shipped 2026-05-15).
 - **Confidence:** medium
 - **Priority:** Medium
 - **Dependencies:** MLP-005, MLP2-006

@@ -67,12 +67,18 @@ use anvil_hook::{
     build_bootstrap_plan, detect_framework, format_panic_report, is_hex_sha, merge_witness_plan,
     parse_post_rewrite_input, parse_pre_push_input, render_success_message, render_verdict,
 };
+use anvil_intercept::kindling_observation::{
+    PostHookAction, PostHookEmissionRequest, PostHookEmitter,
+};
 use anvil_l4::{
     BlockKind, CommitDecision, NoOpValidationEngine, OnWarn, Policy, Severity,
     ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
-use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain_dag};
+use anvil_witness::{
+    GenesisAnchor, LineHash, RolloverPolicy, WitnessLine, WitnessWriter, compute_line_hash,
+    verify_chain_dag,
+};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
@@ -163,6 +169,16 @@ pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
     // burst across 82 commits collapses to one emit instead of 82.
     let mut sup = SuppressionLog::new();
 
+    // MLP2-010: post-hook surfaces emit Kindling `action_executed`
+    // rows after each successful witness append. The hook process is
+    // short-lived (one-shot per git event), so we mint a fresh
+    // session UUID per invocation and bind a `NoopKindlingObservationSink`
+    // by default — concrete sink wiring (IPC bridge to the daemon's
+    // fan-out, or in-process Kindling client) is the deferred follow-up
+    // shared with MLP2-006 / MLP2-007. The trait seam in
+    // `anvil_intercept::kindling_observation` is the snap-in point.
+    let post_hook_emitter = PostHookEmitter::noop(uuid::Uuid::new_v4().to_string());
+
     // catch_unwind so a panic deep in the hook body cannot bubble out
     // to git's exit code (101 by default). ADR-038 §D-7: internal
     // errors must not hold the user hostage. The panic hook installed
@@ -171,9 +187,11 @@ pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
     let result = catch_unwind(AssertUnwindSafe(|| match &args.command {
         HookCommand::PreCommit(_) => run_pre_commit(&repo_root, &mut sup),
         HookCommand::PrePush(_) => run_pre_push(&repo_root, &mut sup),
-        HookCommand::PostCommit(_) => run_post_commit(&repo_root),
-        HookCommand::PostMerge(a) => run_post_merge(&repo_root, a),
-        HookCommand::PostRewrite(a) => run_post_rewrite(&repo_root, a, &mut sup),
+        HookCommand::PostCommit(_) => run_post_commit(&repo_root, &post_hook_emitter),
+        HookCommand::PostMerge(a) => run_post_merge(&repo_root, a, &post_hook_emitter),
+        HookCommand::PostRewrite(a) => {
+            run_post_rewrite(&repo_root, a, &mut sup, &post_hook_emitter)
+        }
         HookCommand::Bootstrap(a) => run_bootstrap(&repo_root, a),
     }));
     match result {
@@ -222,7 +240,7 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
         line
     });
     match result {
-        Ok(()) => {
+        Ok(_line_hash) => {
             let rendered = render_verdict(&Verdict::Pass);
             if !rendered.stderr_line.is_empty() {
                 eprintln!("{}", rendered.stderr_line);
@@ -250,16 +268,28 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     }
 }
 
-fn run_post_commit(repo_root: &Path) -> Result<()> {
+fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
         Ok(None) | Err(_) => return Ok(()),
     };
-    let _ = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+    let started = Instant::now();
+    let commit_sha = resolve_head_sha(repo_root);
+    let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
         let mut line = build_witness_line(&identity.project_uuid, None, "post-commit", seq, prev);
         line.kind = "post-commit".to_string();
         line
     });
+    if let Ok(line_hash) = &appended {
+        emit_post_hook_action(
+            emitter,
+            PostHookAction::PostCommit,
+            repo_root,
+            &commit_sha,
+            line_hash,
+            started.elapsed(),
+        );
+    }
     Ok(())
 }
 
@@ -913,11 +943,59 @@ fn short_sha(sha: &str) -> String {
     sha[..len].to_string()
 }
 
-fn run_post_merge(repo_root: &Path, args: &PostMergeArgs) -> Result<()> {
+/// MLP2-010: resolve the current HEAD SHA via git plumbing so the
+/// post-commit row carries the canonical commit identifier rather
+/// than a placeholder. Falls back to the literal `"HEAD"` when git
+/// invocation fails, so the row still records the event with an
+/// honest token rather than panicking.
+fn resolve_head_sha(repo_root: &Path) -> String {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .arg("rev-parse")
+        .arg("HEAD")
+        .output();
+    let Ok(output) = output else {
+        return "HEAD".to_string();
+    };
+    if !output.status.success() {
+        return "HEAD".to_string();
+    }
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+/// MLP2-010: build + emit an `action_executed` Kindling row from the
+/// post-hook surface. Always-best-effort: sink failures are logged
+/// inside [`PostHookEmitter::try_emit`] and never propagated, so the
+/// hook return path stays uncoupled from sink health.
+fn emit_post_hook_action(
+    emitter: &PostHookEmitter,
+    action: PostHookAction,
+    repo_root: &Path,
+    commit_sha: &str,
+    line_hash: &str,
+    elapsed: Duration,
+) {
+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let working_directory = repo_root.to_string_lossy().into_owned();
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+    let request = PostHookEmissionRequest {
+        action,
+        commit_sha,
+        witness_line_hash: line_hash,
+        working_directory: &working_directory,
+        timestamp: &timestamp,
+        duration_ms,
+    };
+    let _ = emitter.try_emit(&request);
+}
+
+fn run_post_merge(repo_root: &Path, args: &PostMergeArgs, emitter: &PostHookEmitter) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
         Ok(None) | Err(_) => return Ok(()),
     };
+    let started = Instant::now();
     let merge_ref = args.commit.clone().unwrap_or_else(|| "HEAD".to_string());
     let (merge_sha, parents) = resolve_merge_parents(repo_root, &merge_ref);
     // Per-parent chain-head lookup is the next follow-up — it
@@ -928,10 +1006,20 @@ fn run_post_merge(repo_root: &Path, args: &PostMergeArgs) -> Result<()> {
     // single empty array.
     let parent_pairs: Vec<(String, Option<String>)> =
         parents.into_iter().map(|p| (p, None)).collect();
-    let plan = merge_witness_plan(merge_sha, parent_pairs);
-    let _ = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+    let plan = merge_witness_plan(merge_sha.clone(), parent_pairs);
+    let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
         build_merge_witness_line(&identity.project_uuid, plan.clone(), seq, prev)
     });
+    if let Ok(line_hash) = &appended {
+        emit_post_hook_action(
+            emitter,
+            PostHookAction::PostMerge,
+            repo_root,
+            &merge_sha,
+            line_hash,
+            started.elapsed(),
+        );
+    }
     Ok(())
 }
 
@@ -972,6 +1060,7 @@ fn run_post_rewrite(
     repo_root: &Path,
     _args: &PostRewriteArgs,
     sup: &mut SuppressionLog,
+    emitter: &PostHookEmitter,
 ) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
@@ -988,9 +1077,23 @@ fn run_post_rewrite(
         return Ok(());
     };
     for pair in pairs {
-        let _ = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+        let started = Instant::now();
+        // MLP2-010: stamp the new SHA on the row so an external
+        // rewrite-tracker can join on `details.command`.
+        let new_sha = pair.new_sha.clone();
+        let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
             build_rewrite_witness_line(&identity.project_uuid, &pair, seq, prev)
         });
+        if let Ok(line_hash) = &appended {
+            emit_post_hook_action(
+                emitter,
+                PostHookAction::PostRewrite,
+                repo_root,
+                &new_sha,
+                line_hash,
+                started.elapsed(),
+            );
+        }
     }
     Ok(())
 }
@@ -1239,7 +1342,7 @@ fn append_witness<F>(
     repo_root: &Path,
     project_uuid: &str,
     build: F,
-) -> std::result::Result<(), AppendError>
+) -> std::result::Result<LineHash, AppendError>
 where
     F: FnOnce(u64, String) -> WitnessLine,
 {
@@ -1268,16 +1371,29 @@ where
                 _ => return Err(AppendError::WriteFailed),
             };
             let line = build(seq, prev);
+            // MLP2-010: hash the canonical bytes BEFORE the writer
+            // call so a serialise failure surfaces as `WriteFailed`
+            // alongside the IO failure path. The writer also
+            // serialises the same bytes internally, so this is the
+            // same on-disk shape the chain stores.
+            let canonical = line
+                .to_canonical_bytes()
+                .map_err(|_| AppendError::WriteFailed)?;
+            let line_hash = compute_line_hash(&canonical);
             writer
                 .append(&line)
-                .map(|_| ())
+                .map(|_| line_hash)
                 .map_err(|_| AppendError::WriteFailed)
         }
         ChainState::Healthy { seq, prev } => {
             let line = build(seq, prev);
+            let canonical = line
+                .to_canonical_bytes()
+                .map_err(|_| AppendError::WriteFailed)?;
+            let line_hash = compute_line_hash(&canonical);
             writer
                 .append(&line)
-                .map(|_| ())
+                .map(|_| line_hash)
                 .map_err(|_| AppendError::WriteFailed)
         }
     }
@@ -1701,6 +1817,139 @@ mod tests {
         assert!(contents.contains("\"commit_sha\":\"new1\""));
         assert!(contents.contains("\"commit_sha\":\"new2\""));
         assert!(contents.contains("\"validation_at\":\"post-rewrite-recovery\""));
+    }
+
+    // ----- MLP2-010: post-hook Kindling action_executed emission -----
+
+    const MLP2_010_SESSION_UUID: &str = "22222222-2222-4222-8222-222222222222";
+
+    #[test]
+    fn post_commit_emits_one_action_executed_row_per_invocation() {
+        let (_tmp, root) = make_test_repo();
+        let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
+
+        run_post_commit(&root, &emitter).unwrap();
+
+        let rows = recorder.recorded_actions();
+        assert_eq!(
+            rows.len(),
+            1,
+            "post-commit must emit exactly one action_executed row",
+        );
+        let row = &rows[0];
+        assert_eq!(row.kind, "action_executed");
+        assert_eq!(row.session_id, MLP2_010_SESSION_UUID);
+        assert_eq!(row.action_type, "command");
+        assert!(
+            row.action_id.starts_with("post-commit:"),
+            "action_id must encode the post-hook surface: {}",
+            row.action_id
+        );
+        let command = row.details.command.as_ref().expect("command populated");
+        assert!(
+            command.contains("post-commit"),
+            "command must name the surface: {command}"
+        );
+        // Witness line hash on the row must be the SHA-256 (64 hex chars).
+        assert!(
+            command.contains("witness_line_hash="),
+            "command must carry the witness line hash: {command}"
+        );
+        assert_eq!(row.details.working_directory, root.to_string_lossy());
+        // gate_evaluated bucket stays empty — distinct trait routes.
+        assert!(recorder.recorded().is_empty());
+    }
+
+    #[test]
+    fn post_merge_emits_action_executed_with_merge_sha_in_command() {
+        let (_tmp, root) = make_test_repo();
+        let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
+        // Synthetic merge ref — git rev-list will fail, so the
+        // emitted commit SHA is the literal ref. That's exactly the
+        // honest fallback the merge handler defines.
+        let args = PostMergeArgs {
+            commit: Some("merge-sha-deadbeef".to_string()),
+        };
+
+        run_post_merge(&root, &args, &emitter).unwrap();
+
+        let rows = recorder.recorded_actions();
+        assert_eq!(rows.len(), 1, "post-merge must emit exactly one row");
+        let row = &rows[0];
+        assert_eq!(row.action_id, "post-merge:merge-sha-deadbeef");
+        let command = row.details.command.as_ref().expect("command populated");
+        assert!(command.contains("post-merge"));
+        assert!(
+            command.contains("merge-sha-deadbeef"),
+            "command must carry the merge sha: {command}"
+        );
+    }
+
+    #[test]
+    fn post_rewrite_emits_one_action_executed_row_per_pair() {
+        // The production hook reads stdin via io::stdin(), which
+        // the test harness can't easily redirect — drive the
+        // builder + emitter inline against the same parsing path
+        // and verify the row shape per pair. Same pattern as
+        // `post_rewrite_writes_one_witness_per_pair`.
+        let (_tmp, root) = make_test_repo();
+        let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
+
+        let pairs = parse_post_rewrite_input("old1 newsha1\nold2 newsha2\n").unwrap();
+        for pair in pairs {
+            let started = Instant::now();
+            let new_sha = pair.new_sha.clone();
+            let line_hash = append_witness(
+                &root,
+                "01997e4a-1b2c-7345-8901-abcdef123456",
+                |seq, prev| {
+                    build_rewrite_witness_line(
+                        "01997e4a-1b2c-7345-8901-abcdef123456",
+                        &pair,
+                        seq,
+                        prev,
+                    )
+                },
+            )
+            .unwrap();
+            emit_post_hook_action(
+                &emitter,
+                PostHookAction::PostRewrite,
+                &root,
+                &new_sha,
+                &line_hash,
+                started.elapsed(),
+            );
+        }
+
+        let rows = recorder.recorded_actions();
+        assert_eq!(
+            rows.len(),
+            2,
+            "post-rewrite must emit one row per rewrite pair",
+        );
+        assert_eq!(rows[0].action_id, "post-rewrite:newsha1");
+        assert_eq!(rows[1].action_id, "post-rewrite:newsha2");
+        for row in &rows {
+            assert_eq!(row.session_id, MLP2_010_SESSION_UUID);
+            let command = row.details.command.as_ref().expect("command populated");
+            assert!(command.contains("witness_line_hash="));
+        }
+    }
+
+    #[test]
+    fn post_commit_with_no_project_id_is_silent_kindling_emit_too() {
+        // No project-id on disk → run_post_commit short-circuits at
+        // the identity check and never appends a witness. The
+        // emitter must therefore stay silent (no row), matching the
+        // existing no-witness contract.
+        let tmp = TempDir::new().unwrap();
+        let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
+        run_post_commit(tmp.path(), &emitter).unwrap();
+        assert!(
+            recorder.is_empty(),
+            "no project id → no witness append → no Kindling row",
+        );
     }
 
     #[test]

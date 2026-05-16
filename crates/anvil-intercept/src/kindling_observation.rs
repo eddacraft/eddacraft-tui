@@ -314,6 +314,19 @@ pub enum KindlingSinkError {
 /// `try_emit` returns before the row reaches its destination.
 pub trait KindlingObservationSink: Send + Sync {
     fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError>;
+
+    /// MLP2-010: deliver an `action_executed` row produced by the
+    /// post-commit / post-merge / post-rewrite hook surface.
+    /// Defaulted to `Ok(())` so existing sinks (Noop, future custom
+    /// impls) auto-satisfy the extended trait without churn — only
+    /// sinks that genuinely need to consume the new row override.
+    /// Tests can override via [`RecordingKindlingObservationSink`].
+    fn try_emit_action_executed(
+        &self,
+        _observation: ActionExecutedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        Ok(())
+    }
 }
 
 /// Default sink used when the daemon was started without a Kindling
@@ -336,7 +349,9 @@ impl KindlingObservationSink for NoopKindlingObservationSink {
 #[derive(Debug, Default)]
 pub struct RecordingKindlingObservationSink {
     observations: Mutex<Vec<GateEvaluatedObservation>>,
+    actions: Mutex<Vec<ActionExecutedObservation>>,
     fail_next: Mutex<Option<KindlingSinkError>>,
+    fail_next_action: Mutex<Option<KindlingSinkError>>,
 }
 
 impl RecordingKindlingObservationSink {
@@ -353,7 +368,19 @@ impl RecordingKindlingObservationSink {
         *self.fail_next.lock().expect("fail_next mutex") = Some(error);
     }
 
-    /// Snapshot the recorded observations in arrival order.
+    /// MLP2-010: inject a one-shot failure for the next
+    /// [`Self::try_emit_action_executed`] call so tests can exercise
+    /// the post-hook sink-error swallow path without reaching for a
+    /// real failing sink.
+    pub fn fail_next_action_with(&self, error: KindlingSinkError) {
+        *self
+            .fail_next_action
+            .lock()
+            .expect("fail_next_action mutex") = Some(error);
+    }
+
+    /// Snapshot the recorded `gate_evaluated` observations in arrival
+    /// order.
     #[must_use]
     pub fn recorded(&self) -> Vec<GateEvaluatedObservation> {
         self.observations
@@ -362,16 +389,29 @@ impl RecordingKindlingObservationSink {
             .clone()
     }
 
-    /// Number of observations recorded.
+    /// MLP2-010: snapshot the recorded `action_executed` observations
+    /// in arrival order.
+    #[must_use]
+    pub fn recorded_actions(&self) -> Vec<ActionExecutedObservation> {
+        self.actions.lock().expect("actions mutex").clone()
+    }
+
+    /// Number of `gate_evaluated` observations recorded.
     #[must_use]
     pub fn len(&self) -> usize {
         self.observations.lock().expect("observations mutex").len()
     }
 
-    /// True when no observations have been recorded yet.
+    /// MLP2-010: number of `action_executed` observations recorded.
+    #[must_use]
+    pub fn actions_len(&self) -> usize {
+        self.actions.lock().expect("actions mutex").len()
+    }
+
+    /// True when no observations of either kind have been recorded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.len() == 0 && self.actions_len() == 0
     }
 }
 
@@ -383,6 +423,25 @@ impl KindlingObservationSink for RecordingKindlingObservationSink {
         self.observations
             .lock()
             .expect("observations mutex")
+            .push(observation);
+        Ok(())
+    }
+
+    fn try_emit_action_executed(
+        &self,
+        observation: ActionExecutedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        if let Some(err) = self
+            .fail_next_action
+            .lock()
+            .expect("fail_next_action mutex")
+            .take()
+        {
+            return Err(err);
+        }
+        self.actions
+            .lock()
+            .expect("actions mutex")
             .push(observation);
         Ok(())
     }
@@ -561,6 +620,305 @@ impl std::fmt::Debug for MidEditObservationEmitter {
         f.debug_struct("MidEditObservationEmitter")
             .field("daemon_session_id", &self.daemon_session_id)
             .field("rate_window", &self.rate_window)
+            .finish_non_exhaustive()
+    }
+}
+
+// MLP2-010: post-hook `action_executed` builder + emitter ----------
+//
+// The post-commit / post-merge / post-rewrite hooks each fire as a
+// short-lived `anvil hook` CLI invocation. Per the MLP-005 deferred
+// outcome (and MLP2-010), every successful witness-line append in
+// these hooks emits exactly one `action_executed` Kindling row —
+// there is no volume-control short-circuit (unlike `gate_evaluated`,
+// where pass-no-finding scans stay silent), and there is no rate
+// window: a single git operation produces a single hook invocation.
+//
+// The wire shape matches `ActionExecutedObservationSchema` from
+// `packages/kindling-integration/src/observation-contract.ts`. The
+// post-hook surface populates the closed-set fields the schema
+// requires (`session_id`, `timestamp`, `action_id`, `action_type`,
+// `outcome`, `details.working_directory`, `duration_ms`) and the
+// witness-line hash plus commit SHA travel inside the optional
+// `details.command` field as a deterministic free-text token. Future
+// schema extensions (e.g. a typed `details.witness_line_hash`) land
+// here without disturbing the existing contract.
+
+/// Pinned Kindling observation kind for post-hook bookkeeping. Schema-
+/// matches `ActionExecutedObservationSchema.kind` in the TS contract.
+pub const KIND_ACTION_EXECUTED: &str = "action_executed";
+
+/// Pinned `action_type` for post-hook rows. The TS schema's
+/// `action_type` enum is `command | tool_invocation | file_write |
+/// file_delete | diff_apply`; post-hook witness-append work is a
+/// command invoked by the user (`git commit` / `git merge` /
+/// `git rebase --continue`), so `command` is the right bucket.
+pub const POST_HOOK_ACTION_TYPE: &str = "command";
+
+/// Closed-set vocabulary for the three post-hook surfaces that
+/// produce `action_executed` rows. Stamped onto the row's
+/// `details.command` field so consumers can filter without parsing
+/// arbitrary free text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostHookAction {
+    PostCommit,
+    PostMerge,
+    PostRewrite,
+}
+
+impl PostHookAction {
+    /// Stable wire-shape token. Matches the `validation_at` /
+    /// `kind` strings already used by the witness-line surface so
+    /// downstream joins stay deterministic.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::PostCommit => "post-commit",
+            Self::PostMerge => "post-merge",
+            Self::PostRewrite => "post-rewrite",
+        }
+    }
+}
+
+/// Closed-set outcome for an `action_executed` row. Matches the TS
+/// schema's `outcome` enum (`success | failure | partial`). Post-
+/// hook surfaces only ever emit on the success path today (the
+/// witness-append failure paths take a separate render branch in the
+/// hook module), but the variant is exposed so callers that decide
+/// to emit on partial / failure paths in the future do not need to
+/// reach into the type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionOutcome {
+    Success,
+    Failure,
+    Partial,
+}
+
+/// Kindling `action_executed` observation payload. Serde JSON wire
+/// shape matches `ActionExecutedObservationSchema` from the TS
+/// contract: `snake_case` keys, kebab-case enum values, and the same
+/// optional / required field policy. Optional fields the post-hook
+/// surface does not populate (`environment_target`, `exit_code`,
+/// `governed_by_*`, etc.) are omitted via `skip_serializing_if`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionExecutedObservation {
+    pub kind: String,
+    pub session_id: String,
+    pub timestamp: String,
+    pub action_id: String,
+    pub action_type: String,
+    pub details: ActionExecutedDetails,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub governed_by_gate_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub governed_by_plan_id: Option<String>,
+    pub outcome: ActionOutcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+}
+
+/// Nested `details` object on an `action_executed` observation.
+/// Matches `ActionExecutedObservationSchema.details` from the TS
+/// contract. Post-hook rows populate `command` (the post-hook name
+/// plus commit SHA plus witness-line hash, joined deterministically)
+/// alongside `working_directory` (the repo root). Optional keys the
+/// post-hook surface does not populate (`tool_name`, `file_paths`,
+/// `diff_summary`, `environment_target`) are omitted entirely so the
+/// wire shape matches what the TS validator expects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionExecutedDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_paths: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff_summary: Option<ActionDiffSummary>,
+    pub working_directory: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment_target: Option<String>,
+}
+
+/// Optional diff summary on an `action_executed` row. Reserved for
+/// future emitters (post-hook surface does not populate it today).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionDiffSummary {
+    pub additions: u32,
+    pub deletions: u32,
+    pub files_changed: u32,
+}
+
+/// Per-call inputs the hook surface supplies for each post-hook
+/// emission. Holds borrowed strings so the hook can build one
+/// inline without allocating extra owned `String`s.
+#[derive(Debug, Clone, Copy)]
+pub struct PostHookEmissionRequest<'a> {
+    /// Which of the three post-hook surfaces produced this row.
+    /// Stamped into the deterministic `details.command` token so a
+    /// consumer can filter by surface without scanning free text.
+    pub action: PostHookAction,
+    /// Commit SHA the hook was invoked for (the rewritten / merged
+    /// / committed SHA). Lower-hex; full 40 chars when available,
+    /// shorter forms passed through verbatim.
+    pub commit_sha: &'a str,
+    /// SHA-256 of the witness line just appended. Pulled from
+    /// `anvil_witness::compute_line_hash` at the call site so the
+    /// `action_executed` row joins back to the chain entry it
+    /// records.
+    pub witness_line_hash: &'a str,
+    /// Repo root the hook was invoked in. Becomes
+    /// `details.working_directory` on the row.
+    pub working_directory: &'a str,
+    /// ISO 8601 datetime — when the hook observed the witness
+    /// append completing.
+    pub timestamp: &'a str,
+    /// Wall-clock duration the hook spent on the action. Zero is
+    /// acceptable for hooks that haven't started instrumenting
+    /// yet; production hook wiring measures with `Instant::now()`.
+    pub duration_ms: u64,
+}
+
+/// Build an `ActionExecutedObservation` for a successful post-hook
+/// witness-append. Returns the row in the TS-contract shape so the
+/// caller can hand it straight to a [`KindlingObservationSink`].
+///
+/// `daemon_session_id` is the daemon-process-stable session UUID
+/// shared with the mid-edit emitter (see
+/// [`MidEditObservationEmitter::daemon_session_id`]) — caller-
+/// supplied so the hook surface can stay decoupled from the daemon
+/// lifecycle.
+///
+/// `action_id` is the `commit_sha` prefixed with the action name
+/// (`"post-commit:abcd1234..."`), giving consumers a deterministic
+/// row id that survives a sink-side dedupe pass without needing a
+/// separate UUID generator on the hook hot path.
+#[must_use]
+pub fn from_post_hook(
+    daemon_session_id: &str,
+    request: &PostHookEmissionRequest<'_>,
+) -> ActionExecutedObservation {
+    let action_label = request.action.as_str();
+    let action_id = format!("{action_label}:{}", request.commit_sha);
+    let command = format!(
+        "anvil hook {action_label} (commit={}, witness_line_hash={})",
+        request.commit_sha, request.witness_line_hash
+    );
+    ActionExecutedObservation {
+        kind: KIND_ACTION_EXECUTED.to_string(),
+        session_id: daemon_session_id.to_string(),
+        timestamp: request.timestamp.to_string(),
+        action_id,
+        action_type: POST_HOOK_ACTION_TYPE.to_string(),
+        details: ActionExecutedDetails {
+            command: Some(command),
+            tool_name: None,
+            file_paths: None,
+            diff_summary: None,
+            working_directory: request.working_directory.to_string(),
+            environment_target: None,
+        },
+        governed_by_gate_id: None,
+        governed_by_plan_id: None,
+        outcome: ActionOutcome::Success,
+        exit_code: None,
+        duration_ms: request.duration_ms,
+    }
+}
+
+/// Outcome of [`PostHookEmitter::try_emit`]. Tests assert on the
+/// variant; production callers can ignore the return because the
+/// emitter logs sink failures internally.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActionEmissionOutcome {
+    /// Sink accepted the row.
+    Emitted,
+    /// Sink returned an error; the row was dropped and a
+    /// `tracing::warn!` was logged. The hook continues regardless.
+    SinkError,
+}
+
+/// Hook-side emitter that builds an `ActionExecutedObservation` and
+/// hands it to the configured sink. Distinct from
+/// [`MidEditObservationEmitter`] because the post-hook surface has
+/// different volume semantics (exactly one row per invocation, no
+/// short-circuit, no rate window).
+pub struct PostHookEmitter {
+    sink: Arc<dyn KindlingObservationSink>,
+    daemon_session_id: String,
+}
+
+impl PostHookEmitter {
+    /// Construct an emitter with an explicit sink. Production
+    /// callers wire a real sink; tests use [`Self::with_recorder`].
+    #[must_use]
+    pub fn new(sink: Arc<dyn KindlingObservationSink>, daemon_session_id: String) -> Self {
+        Self {
+            sink,
+            daemon_session_id,
+        }
+    }
+
+    /// Construct a noop emitter — useful when the hook needs an
+    /// emitter handle but the host has not wired a real sink yet.
+    /// The default the production CLI binary binds today.
+    #[must_use]
+    pub fn noop(daemon_session_id: impl Into<String>) -> Self {
+        Self::new(
+            Arc::new(NoopKindlingObservationSink) as Arc<dyn KindlingObservationSink>,
+            daemon_session_id.into(),
+        )
+    }
+
+    /// Construct a recording-sink emitter for tests. Returns
+    /// `(emitter, recorder)` so the test can hold a clone of the
+    /// recorder to assert against.
+    #[must_use]
+    pub fn with_recorder(
+        daemon_session_id: impl Into<String>,
+    ) -> (Self, Arc<RecordingKindlingObservationSink>) {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = Self::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            daemon_session_id.into(),
+        );
+        (emitter, recorder)
+    }
+
+    /// Daemon-process-stable session id stamped onto every row.
+    #[must_use]
+    pub fn daemon_session_id(&self) -> &str {
+        &self.daemon_session_id
+    }
+
+    /// Build + emit an `action_executed` row. Always builds (no
+    /// volume-control short-circuit) and never returns an error —
+    /// sink failures are logged internally so the caller's hook
+    /// path stays uncoupled from sink health.
+    pub fn try_emit(&self, request: &PostHookEmissionRequest<'_>) -> ActionEmissionOutcome {
+        let observation = from_post_hook(&self.daemon_session_id, request);
+        match self.sink.try_emit_action_executed(observation) {
+            Ok(()) => ActionEmissionOutcome::Emitted,
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::kindling_observation",
+                    action = request.action.as_str(),
+                    commit_sha = request.commit_sha,
+                    error = %err,
+                    "action_executed emit dropped: sink failure",
+                );
+                ActionEmissionOutcome::SinkError
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for PostHookEmitter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostHookEmitter")
+            .field("daemon_session_id", &self.daemon_session_id)
             .finish_non_exhaustive()
     }
 }
@@ -901,5 +1259,180 @@ mod tests {
     fn emitter_exposes_daemon_session_id_for_host_introspection() {
         let (emitter, _) = MidEditObservationEmitter::with_recorder(SESSION_UUID);
         assert_eq!(emitter.daemon_session_id(), SESSION_UUID);
+    }
+
+    // ----- MLP2-010: post-hook action_executed emission -----
+
+    fn sample_post_hook_request(action: PostHookAction) -> PostHookEmissionRequest<'static> {
+        PostHookEmissionRequest {
+            action,
+            commit_sha: "abcdef0123456789abcdef0123456789abcdef01",
+            witness_line_hash: "deadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d",
+            working_directory: "/home/dev/repo",
+            timestamp: "2026-05-16T09:00:00Z",
+            duration_ms: 5,
+        }
+    }
+
+    #[test]
+    fn from_post_hook_stamps_canonical_kind_and_action_type() {
+        let req = sample_post_hook_request(PostHookAction::PostCommit);
+        let obs = from_post_hook(SESSION_UUID, &req);
+        assert_eq!(obs.kind, KIND_ACTION_EXECUTED);
+        assert_eq!(obs.action_type, POST_HOOK_ACTION_TYPE);
+        assert_eq!(obs.outcome, ActionOutcome::Success);
+        assert_eq!(obs.session_id, SESSION_UUID);
+        assert_eq!(obs.duration_ms, 5);
+    }
+
+    #[test]
+    fn from_post_hook_action_id_combines_action_label_and_commit_sha() {
+        for action in [
+            PostHookAction::PostCommit,
+            PostHookAction::PostMerge,
+            PostHookAction::PostRewrite,
+        ] {
+            let req = sample_post_hook_request(action);
+            let obs = from_post_hook(SESSION_UUID, &req);
+            assert_eq!(
+                obs.action_id,
+                format!("{}:{}", action.as_str(), req.commit_sha),
+            );
+        }
+    }
+
+    #[test]
+    fn from_post_hook_command_carries_commit_and_witness_line_hash() {
+        let req = sample_post_hook_request(PostHookAction::PostMerge);
+        let obs = from_post_hook(SESSION_UUID, &req);
+        let command = obs.details.command.expect("command populated");
+        assert!(
+            command.contains("post-merge"),
+            "command must name the post-hook surface: {command}"
+        );
+        assert!(
+            command.contains(req.commit_sha),
+            "command must carry the commit SHA: {command}"
+        );
+        assert!(
+            command.contains(req.witness_line_hash),
+            "command must carry the witness line hash: {command}"
+        );
+    }
+
+    #[test]
+    fn from_post_hook_records_working_directory_in_details() {
+        let req = sample_post_hook_request(PostHookAction::PostRewrite);
+        let obs = from_post_hook(SESSION_UUID, &req);
+        assert_eq!(obs.details.working_directory, "/home/dev/repo");
+        // Reserved-for-future fields stay None in v1.
+        assert!(obs.details.tool_name.is_none());
+        assert!(obs.details.file_paths.is_none());
+        assert!(obs.details.diff_summary.is_none());
+        assert!(obs.details.environment_target.is_none());
+        assert!(obs.governed_by_gate_id.is_none());
+        assert!(obs.governed_by_plan_id.is_none());
+        assert!(obs.exit_code.is_none());
+    }
+
+    #[test]
+    fn action_executed_serialises_with_expected_keys_and_omitted_optionals() {
+        let req = sample_post_hook_request(PostHookAction::PostCommit);
+        let obs = from_post_hook(SESSION_UUID, &req);
+        let value: serde_json::Value = serde_json::to_value(&obs).expect("observation serialises");
+        assert_eq!(value["kind"], KIND_ACTION_EXECUTED);
+        assert_eq!(value["action_type"], POST_HOOK_ACTION_TYPE);
+        assert_eq!(value["outcome"], "success");
+        assert_eq!(value["details"]["working_directory"], "/home/dev/repo");
+        // Optional fields with None must not appear on the wire.
+        assert!(
+            value.get("exit_code").is_none(),
+            "exit_code must be omitted when None"
+        );
+        assert!(
+            value.get("governed_by_gate_id").is_none(),
+            "governed_by_gate_id must be omitted when None"
+        );
+        assert!(
+            value["details"].get("tool_name").is_none(),
+            "details.tool_name must be omitted when None"
+        );
+        assert!(
+            value["details"].get("file_paths").is_none(),
+            "details.file_paths must be omitted when None"
+        );
+    }
+
+    #[test]
+    fn post_hook_emitter_pushes_observation_to_sink() {
+        let (emitter, sink) = PostHookEmitter::with_recorder(SESSION_UUID);
+        let req = sample_post_hook_request(PostHookAction::PostCommit);
+        let outcome = emitter.try_emit(&req);
+        assert_eq!(outcome, ActionEmissionOutcome::Emitted);
+        let recorded = sink.recorded_actions();
+        assert_eq!(recorded.len(), 1);
+        let row = &recorded[0];
+        assert_eq!(row.session_id, SESSION_UUID);
+        assert_eq!(row.action_id, format!("post-commit:{}", req.commit_sha));
+        // gate_evaluated bucket stays empty — the kinds are routed
+        // independently through the trait.
+        assert!(sink.recorded().is_empty());
+    }
+
+    #[test]
+    fn post_hook_emitter_emits_one_row_per_invocation_with_no_short_circuit() {
+        // Unlike gate_evaluated, post-hook surfaces do NOT collapse
+        // back-to-back invocations — each post-commit / post-merge /
+        // post-rewrite produces exactly one row. Three invocations →
+        // three rows.
+        let (emitter, recorder) = PostHookEmitter::with_recorder(SESSION_UUID);
+        for action in [
+            PostHookAction::PostCommit,
+            PostHookAction::PostMerge,
+            PostHookAction::PostRewrite,
+        ] {
+            emitter.try_emit(&sample_post_hook_request(action));
+        }
+        assert_eq!(recorder.actions_len(), 3);
+    }
+
+    #[test]
+    fn post_hook_emitter_swallows_sink_failures_without_propagating() {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        recorder.fail_next_action_with(KindlingSinkError::Unavailable("ipc closed".into()));
+        let emitter = PostHookEmitter::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            SESSION_UUID.to_string(),
+        );
+        let req = sample_post_hook_request(PostHookAction::PostMerge);
+        // First call: sink fails — emitter must report SinkError without panic.
+        assert_eq!(emitter.try_emit(&req), ActionEmissionOutcome::SinkError);
+        assert_eq!(recorder.actions_len(), 0, "failed emit must not record");
+        // Second call: sink is healthy — emitter recovers, row reaches sink.
+        assert_eq!(emitter.try_emit(&req), ActionEmissionOutcome::Emitted);
+        assert_eq!(recorder.actions_len(), 1);
+    }
+
+    #[test]
+    fn noop_sink_default_accepts_action_executed_via_trait_default() {
+        // The default trait body is `Ok(())` — older sinks compile
+        // against the extended trait without overriding, so
+        // `NoopKindlingObservationSink` (which only impls
+        // `try_emit`) auto-satisfies the new method via the default.
+        let sink = NoopKindlingObservationSink;
+        let req = sample_post_hook_request(PostHookAction::PostCommit);
+        let obs = from_post_hook(SESSION_UUID, &req);
+        sink.try_emit_action_executed(obs)
+            .expect("noop default must succeed");
+    }
+
+    #[test]
+    fn post_hook_action_as_str_matches_witness_line_validation_at_strings() {
+        // Joins the row back to the existing witness-line surface
+        // by reusing the same `validation_at` / `kind` tokens —
+        // consumers can match without per-surface translation.
+        assert_eq!(PostHookAction::PostCommit.as_str(), "post-commit");
+        assert_eq!(PostHookAction::PostMerge.as_str(), "post-merge");
+        assert_eq!(PostHookAction::PostRewrite.as_str(), "post-rewrite");
     }
 }
