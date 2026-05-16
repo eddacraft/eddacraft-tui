@@ -1202,7 +1202,8 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025b: Daemon control-lane wire-up for spoof cross-check
 
-- **Status:** Draft
+- **Status:** In Progress
+- **Contract spec:** `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md` (Accepted via PR #1599). All four blockers and six open questions resolved in the spec; implementation follows §3–§9 verbatim.
 - **Intent:** Wire the MLP2-025 Phase 1 primitives into the
   daemon's live write-time decision path so the spoof
   cross-check actually fires on real writes. Without this
