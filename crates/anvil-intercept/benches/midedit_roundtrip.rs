@@ -516,7 +516,7 @@ fn bench_daemon_burst(c: &mut Criterion) {
                         match handle.await.expect("burst task joins") {
                             Ok(_) => accepted += 1,
                             Err(ScanBufferError::Busy) => busy += 1,
-                            Err(err) => panic!("unexpected burst error: {}", err),
+                            Err(_) => panic!("unexpected burst error"),
                         }
                     }
                     black_box((accepted, busy));
