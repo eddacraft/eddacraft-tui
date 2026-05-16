@@ -45,10 +45,9 @@ fn apply_incremental_update(
     node_count: usize,
     edges_per_node: usize,
 ) {
-    // Remove all outgoing edges from target
-    let edges_to_remove: Vec<_> = graph.edges(target).map(|e| e.id()).collect();
-
-    for edge_id in edges_to_remove {
+    // `Graph::remove_edge` can swap internal edge slots, invalidating a
+    // pre-collected `EdgeIndex` list. Re-query each next outgoing edge instead.
+    while let Some(edge_id) = graph.edges(target).next().map(|e| e.id()) {
         graph.remove_edge(edge_id);
     }
 
