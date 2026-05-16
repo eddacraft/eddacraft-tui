@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 49/69 done |
+| MLP2 | @aneki | In Progress | 49/71 done |
 
 **Last reviewed:** 2026-05-16 (audit closure for MLP2-016 — PR #1627
 merged at `0aacdac8` binds `CommitAntipatternEngine` in production
@@ -3034,6 +3034,95 @@ to redesign once GV2-001..-023 land.
   deferring GV2's stable identity, persistence, and multi-graph
   joins.
 
+### O. MLP2-016 audit follow-ons (2026-05-17)
+
+#### MLP2-068: `git cat-file --batch` for `CommitAntipatternEngine` blob fetch
+
+- **Status:** Draft
+- **Intent:** `CommitAntipatternEngine::validate_commit` (shipped
+  MLP2-016, PR #1627) reads each scannable file in a commit via a
+  separate `git show <sha>:<path>` `Command::spawn`. At ~5–15 ms
+  spawn cost per file, a commit touching 200 files burns 1–3 s on
+  process startup alone — most of MLP2-022's 2 s pre-push wall-
+  clock budget — before any actual rule scan runs. Council
+  kernel-maintainer flagged this in the PR #1627 review and the
+  follow-up was captured in the post-merge plan rather than fixed
+  in-PR. Switch to `git cat-file --batch` with stdin-piped
+  `<sha>:<path>` lines so the engine pays one `git` process per
+  commit instead of N + 1.
+- **Expected Outcome:**
+  - `read_commit_blob` replaced by a `BatchCatFile` helper that
+    spawns `git cat-file --batch` once per `validate_commit` call
+    and pipes the per-file revspecs over stdin in one batch.
+  - Per-commit cost on a 200-file fixture drops from O(N) process
+    spawns to O(1).
+  - Existing `list_commit_files_*` and `read_commit_blob_*` tests
+    continue to pass (the contract — `Option<Vec<u8>>` per path
+    in input order — is preserved).
+  - New `validate_commit_handles_200_file_commit_under_budget`
+    test pins the perf shift with a synthesised 200-file fixture
+    and a wall-clock assertion well under `PRE_PUSH_BUDGET`.
+- **Files:** `crates/anvil-cli/src/l4_engine.rs` (replace
+  `read_commit_blob` with batch helper; preserve the colon-in-path
+  and zero-SHA guards).
+- **Validation:** Cargo test continues green; 200-file synthesised
+  fixture demonstrates the per-commit cost drop; `tracing::debug!`
+  on git stderr still surfaces individual batch-entry failures so
+  the observability surface from MLP2-016 stays intact.
+- **Confidence:** medium — the `git cat-file --batch` protocol is
+  stable but the streaming-stdout parser is new code in this
+  crate.
+- **Priority:** Medium — does not block `v0.7.0-beta`; ships
+  whenever push latency on fat commits becomes the bottleneck.
+- **Dependencies:** MLP2-016 (the engine surface this optimises).
+- **Source:** PR #1627 Council quick review (kernel-maintainer +
+  operations-reviewer); post-merge plan
+  `plans/reviews/post-merge/feat-mlp2-016-real-engine.md`.
+
+#### MLP2-069: `EngineUnavailableReason::IoError` variant
+
+- **Status:** Draft
+- **Intent:** `anvil_l4::EngineUnavailableReason` closes over
+  `{ NotImplemented, BinaryMissing, Timeout }`. MLP2-016 maps
+  several distinct I/O outages (`tempfile::TempDir::new()`
+  failure, mid-validate disk-full, `git show` permission error)
+  onto `BinaryMissing` because no better variant exists. Council
+  flagged this as MAJOR: the existing reasons carry semantic
+  baggage that misleads observability tooling — `BinaryMissing`
+  implies "git is not on PATH" and `Timeout` implies "the
+  operation started but stalled". Add a dedicated `IoError`
+  variant so production incident investigation can distinguish
+  infrastructure-resource failures from binary-resolution
+  failures.
+- **Expected Outcome:**
+  - New `EngineUnavailableReason::IoError` variant in
+    `crates/anvil-l4/src/validate.rs`.
+  - `CommitAntipatternEngine` re-maps the `TempDir`, blob-write,
+    and other I/O failure sites from `BinaryMissing` →
+    `IoError`. `BinaryMissing` reserved for "binary truly not on
+    PATH / not executable".
+  - Hook + `l4-validate` `tracing::warn!` on `EngineUnavailable`
+    already prints `reason = ?reason` (Council #C-016I), so the
+    new variant surfaces in production logs without further
+    wiring.
+  - `engine_unavailable_reasons_are_distinct` test in `anvil-l4`
+    extended to include the new variant; closed-set match arms
+    across the workspace (`hook.rs`, `l4_validate.rs`,
+    `l4_engine.rs`) re-exhaustive-checked.
+- **Files:** `crates/anvil-l4/src/validate.rs` (new variant),
+  `crates/anvil-cli/src/l4_engine.rs` (re-mapping at I/O sites),
+  any sibling consumers found exhaustive-matching the enum.
+- **Validation:** Cargo test continues green; new
+  `tempdir_failure_reports_io_error` test pins the re-mapping.
+- **Confidence:** high — additive enum variant with a small re-
+  mapping surface.
+- **Priority:** Low — observability hygiene, not correctness.
+  Land when MLP2 has next breathing room.
+- **Dependencies:** MLP2-016.
+- **Source:** PR #1627 Council quick review (kernel-maintainer +
+  adversarial-reviewer); post-merge plan
+  `plans/reviews/post-merge/feat-mlp2-016-real-engine.md`.
+
 ## Stats
 
 | Phase | Items | Status |
@@ -3052,7 +3141,8 @@ to redesign once GV2-001..-023 land.
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
-| **Total** | **69** | **49/69** |
+| O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
+| **Total** | **71** | **49/71** |
 
 ## Recommended landing order
 
