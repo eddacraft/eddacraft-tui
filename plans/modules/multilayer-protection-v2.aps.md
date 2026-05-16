@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 49/68 done |
+| MLP2 | @aneki | In Progress | 49/69 done |
 
 **Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
 MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
@@ -2916,6 +2916,96 @@ remaining v2 integration surface.
   MLP2-060 said maintained-parser migration was tracked separately,
   but no APS item existed).
 
+### N. Daemon evaluator host (GV2 groundwork)
+
+Standalone bridge between the current in-memory kernel graph (a
+library primitive that lives and dies inside each CLI process) and
+the future GV2 multi-graph substrate. Reuses the daemon's existing
+`RuleSetCache` pattern (bounded LRU + watcher invalidation +
+generation guard) to hold a per-worktree `SymbolGraph` warm across
+CLI invocations. Exposes only a narrow evaluator RPC — verdicts,
+not graph nodes — so the kernel's internal graph schema stays free
+to redesign once GV2-001..-023 land.
+
+#### MLP2-067: Daemon-hosted graph cache with narrow evaluator RPC
+
+- **Status:** Draft
+- **Intent:** `anvil check` and `anvil watch` currently rebuild the
+  `anvil_kernel::graph::SymbolGraph` fresh per CLI invocation. The
+  daemon already holds a per-worktree `RuleSetCache` keyed on
+  `WorktreeKey` with file-watcher invalidation (MLP2-001 / MLP2-057
+  / MLP2-064 shipped this pattern). Extend the same pattern to hold
+  the symbol graph in the daemon, apply file-watcher deltas via the
+  existing `anvil_kernel::graph::incremental` API, and serve a
+  narrow evaluator RPC so callers pay the cold-build cost once per
+  daemon lifetime instead of once per CLI invocation. Intentionally
+  scoped to **verdicts over the wire, never graph nodes** — that
+  keeps the IPC contract evaluator-shaped instead of graph-shaped,
+  so GV2's eventual graph-model redesign does not break daemon
+  consumers.
+- **Expected Outcome:**
+  - New `crates/anvil-intercept/src/kernel_cache.rs` module holding
+    `HashMap<WorktreeKey, SymbolGraph>` with the same bounded LRU +
+    generation-guard + unregister-hook pattern as `RuleSetCache`.
+    Default capacity matches `DEFAULT_RULE_SET_CACHE_CAPACITY`.
+  - Daemon watcher applies `GraphDelta`s via the existing
+    `incremental::update_file` / `remove_file` /
+    `re_resolve_imports` API on relevant file saves, instead of
+    evicting the cached graph wholesale.
+  - New narrow IPC verb (e.g. `kernel.evaluate`) accepts a
+    `WorktreeKey` + file change descriptor and returns a
+    `Vec<Diagnostic>` from the existing in-process evaluator. The
+    `SymbolGraph` itself is never serialised over the wire.
+  - `anvil check` and `anvil watch` try the daemon socket first; on
+    `EConnRefused` or socket timeout they fall through to the
+    existing in-process kernel evaluator with byte-identical output.
+    Same daemon-RPC-plus-embedded-fallback shape as MLP2-005.
+  - Benchmark fixture demonstrates the cold-build cost is paid once
+    per daemon lifetime and not once per CLI invocation across a
+    synthesised reference fixture (size pinned in the benchmark).
+- **Files:** `crates/anvil-intercept/src/kernel_cache.rs` (new),
+  `crates/anvil-intercept/src/watcher.rs` (wire graph delta
+  application alongside rule-cache invalidation),
+  `crates/anvil-intercept-proto/src/` (new IPC verb wire shape +
+  forward-compat additive fields),
+  `crates/anvil-cli/src/commands/check.rs`,
+  `crates/anvil-cli/src/commands/watch.rs` (daemon-first wiring +
+  embedded fallback), `crates/anvil-kernel/benches/` (cold-vs-warm
+  bench fixture).
+- **Validation:** Cold-vs-warm before/after benchmark on a
+  synthesised fixture: cold build via embedded path vs warm read
+  via daemon path across N consecutive CLI invocations against a
+  long-lived daemon process. Daemon-down regression test confirms
+  byte-identical output through the embedded fallback. Council
+  follow-up: pin the IPC verb shape with an additive-fields
+  forward-compat test in the MLP2-052 style so GV2 cannot break it
+  silently.
+- **Confidence:** medium — the rule-cache pattern is a strong
+  template, but the watcher-driven delta-application path on the
+  cached graph is new code rather than reused.
+- **Priority:** Medium — does not gate `v0.7.0-beta`. Wave 5
+  candidate: promote to High if Boring Week feedback shows cold-
+  start friction. Otherwise land before GV2 design starts so the
+  consumer-pattern groundwork is in place when GV2-023 (consumer
+  query contract) needs it.
+- **Dependencies:** MLP2-001 (rule_cache pattern + watcher
+  invalidation infrastructure), MLP2-057 (bounded LRU + unregister
+  hook), MLP2-064 (generation guard for cache-vs-resolve race),
+  MLP2-005 (daemon-RPC-plus-embedded-fallback template once it
+  ships).
+- **Coordinates with:** GV2-001 (architecture spec), GV2-022 (hot-
+  path read API and latency guardrails), GV2-023 (consumer query
+  contract). The narrow-verdict RPC scope of MLP2-067 intentionally
+  avoids locking in graph-shape decisions that GV2-010..-014 will
+  own.
+- **Source:** Brainstorm 2026-05-16 — middle-ground design between
+  the current in-process kernel graph (rebuilds per CLI invocation)
+  and the full GV2 multi-graph substrate. The conclusion was to lay
+  the consumer-pattern groundwork now via a narrow evaluator RPC,
+  reusing the existing daemon cache + watcher pattern, while
+  deferring GV2's stable identity, persistence, and multi-graph
+  joins.
+
 ## Stats
 
 | Phase | Items | Status |
@@ -2929,11 +3019,12 @@ remaining v2 integration surface.
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
-| J. Protection-claim render conformance | 5 (MLP2-048..-052) | 2/5 |
+| J. Protection-claim render conformance | 5 (MLP2-048..-052) | 3/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
-| **Total** | **68** | **48/68** |
+| N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
+| **Total** | **69** | **49/69** |
 
 ## Recommended landing order
 
