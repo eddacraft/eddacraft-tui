@@ -1353,6 +1353,7 @@ task's `Source:` line cites the Council finding IDs.
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
 - **Status:** In Progress
+- **Contract spec:** `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md` (Accepted via PR #1617). Five resolved open questions; no `BLOCKING` remains; implementation follows §3–§9 verbatim.
 - **Intent:** When five fences fire within 60s, the daemon
   enters `degraded:fence-cascade` mode requiring operator-
   clear. Uses the shared rate-window primitive from MLP2-009.
