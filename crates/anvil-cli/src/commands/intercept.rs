@@ -75,7 +75,7 @@ fn run_status(args: &StatusArgs) -> Result<()> {
 /// during the demo §1.5 trust-signal step gets a single sentence
 /// they can act on.
 #[cfg(unix)]
-fn query_daemon_status() -> Result<DaemonStatusV1> {
+pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
@@ -141,7 +141,7 @@ fn query_daemon_status() -> Result<DaemonStatusV1> {
 }
 
 #[cfg(windows)]
-fn query_daemon_status() -> Result<DaemonStatusV1> {
+pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
     let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
         .context("failed to resolve intercept daemon pipe name")?;
     query_daemon_status_windows_at(&pipe_name)

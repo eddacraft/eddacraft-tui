@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 48/68 done |
+| MLP2 | @aneki | In Progress | 49/68 done |
 
 **Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
 MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
@@ -2314,7 +2314,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-048: `anvil status --json` render path
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** `crates/anvil-cli/src/commands/status.rs`
   emits `ProtectionClaim` from a daemon-snapshot input.
   Closes the HARD-GATE rendering surface.
@@ -2334,7 +2334,25 @@ task's `Source:` line cites the Council finding IDs.
   emits `ProtectionClaim::new(..., Vec::new())`; completion requires
   daemon snapshot / `anvil-intercept::status` integration or an
   explicitly documented fallback state that does not claim per-surface
-  coverage.
+  coverage. **Closure (2026-05-16, branch
+  `feat/mlp2-048-status-daemon-snapshot`):** new
+  `anvil_intercept::status::build_protection_claim_from_wire` adapter
+  consumes `DaemonStatusV1` directly (parity-pinned against the
+  in-memory `build_protection_claim` across 6 wire-shape unit tests
+  incl. mixed-fence overlay). `anvil status --json` calls
+  `pub(crate) query_daemon_status()` best-effort, canonicalises cwd,
+  and routes through new `resolve_protection_claim` helper which
+  uses the wire adapter when a snapshot is available and falls back
+  to the locally-derivable worktree state with an explicitly empty
+  `surfaces` array otherwise (documented fallback that does not
+  over-claim coverage). Both failure arms (IPC unavailable + cwd
+  canonicalise failed) emit `tracing` events at `debug`/`warn`
+  respectively so an operator chasing "why is `surfaces` empty?" can
+  distinguish the cause. +5 CLI-side `resolve_protection_claim`
+  pins (incl. draining → Warming/Detached path). Council quick
+  review: 2 MAJOR (silent daemon-down fallback + canonicalise
+  silent miss) + 2 MINOR (missing mixed-fence parity test +
+  missing CLI draining test) + 1 NIT all addressed pre-push.
 - **Confidence:** medium
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP-009

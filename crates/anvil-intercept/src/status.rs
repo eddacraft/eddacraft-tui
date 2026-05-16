@@ -603,6 +603,66 @@ pub fn unprotected_protection_claim() -> ProtectionClaim {
     ProtectionClaim::new(WorktreeClaimState::Unprotected, vec![])
 }
 
+/// MLP2-048: wire-shape adapter for [`build_protection_claim`]. The
+/// CLI receives a [`DaemonStatusV1`] over IPC and has no need to
+/// reconstruct the daemon's in-memory [`DaemonStatus`] just to build a
+/// claim — every field the mapping reads (`worktrees`, `sessions`,
+/// `health.ipc_state`) is already present on the wire.
+///
+/// Output is byte-identical to `build_protection_claim` against the
+/// equivalent in-memory snapshot; the parity is pinned by a unit test
+/// in this module so the wire path cannot drift from the daemon-
+/// internal path.
+#[must_use]
+pub fn build_protection_claim_from_wire(
+    snapshot: &DaemonStatusV1,
+    worktree: &Path,
+) -> ProtectionClaim {
+    let worktree_entries: Vec<&WorktreeStatusV1> = snapshot
+        .worktrees
+        .iter()
+        .filter(|w| w.worktree == worktree)
+        .collect();
+
+    if worktree_entries.is_empty() {
+        return ProtectionClaim::new(WorktreeClaimState::Unprotected, vec![]);
+    }
+
+    let ipc_draining = matches!(snapshot.health.ipc_state, IpcStateV1::Draining);
+    let any_fenced = worktree_entries.iter().any(|w| w.fenced);
+
+    let worktree_state = if ipc_draining {
+        WorktreeClaimState::Warming
+    } else if any_fenced {
+        WorktreeClaimState::DegradedProtection
+    } else {
+        WorktreeClaimState::PreWriteDaemon
+    };
+
+    let mut surfaces: Vec<SurfaceClaim> = worktree_entries
+        .iter()
+        .map(|w| {
+            let identifier = snapshot
+                .sessions
+                .iter()
+                .find(|s| s.id == w.session_id)
+                .and_then(|s| s.agent_tag.as_ref().map(format_agent_tag))
+                .unwrap_or_else(|| w.session_id.as_str().to_owned());
+            let state = if ipc_draining {
+                SurfaceClaimState::Detached
+            } else if w.fenced {
+                SurfaceClaimState::Quarantined
+            } else {
+                SurfaceClaimState::Participating
+            };
+            SurfaceClaim { identifier, state }
+        })
+        .collect();
+    surfaces.sort_by(|a, b| a.identifier.cmp(&b.identifier));
+
+    ProtectionClaim::new(worktree_state, surfaces)
+}
+
 /// Format an `AgentTag` as a stable per-surface identifier.
 /// `driver/agent#pid_starttime` matches the `AgentTag::label`
 /// convention surfaced in the daemon's tracing spans.
@@ -1283,6 +1343,141 @@ mod tests {
         let snapshot = sample_status(vec![session], &[], IpcState::Serving);
         let claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-tag"));
         assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(
+            claim.surfaces[0].identifier,
+            "anvil-run/claude-code-1#1700000042"
+        );
+    }
+
+    // MLP2-048 wire-adapter parity tests. The CLI path receives a
+    // `DaemonStatusV1` over IPC; `build_protection_claim_from_wire`
+    // MUST produce the same `ProtectionClaim` as the daemon-internal
+    // `build_protection_claim` for the same logical state.
+
+    fn parity_check(in_memory: &DaemonStatus, worktree: &Path) {
+        let from_in_memory = build_protection_claim(in_memory, worktree);
+        let from_wire = build_protection_claim_from_wire(&in_memory.to_wire(), worktree);
+        assert_eq!(
+            from_wire, from_in_memory,
+            "wire-adapter drifted from in-memory builder at worktree {worktree:?}",
+        );
+    }
+
+    #[test]
+    fn build_protection_claim_from_wire_unknown_worktree_is_unprotected() {
+        let snapshot = sample_status(vec![], &[], IpcState::Serving);
+        parity_check(&snapshot, Path::new("/tmp/wt-unknown"));
+        let claim =
+            build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-unknown"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
+        assert!(claim.surfaces.is_empty());
+    }
+
+    #[test]
+    fn build_protection_claim_from_wire_single_session_is_pre_write_daemon() {
+        let session = sample_session("sess-pre", "/tmp/wt-pre");
+        let snapshot = sample_status(vec![session], &[], IpcState::Serving);
+        parity_check(&snapshot, Path::new("/tmp/wt-pre"));
+        let claim = build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-pre"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::PreWriteDaemon);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].identifier, "sess-pre");
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
+    }
+
+    #[test]
+    fn build_protection_claim_from_wire_fenced_session_is_degraded() {
+        let session = sample_session("sess-fenced", "/tmp/wt-fenced");
+        let snapshot = sample_status(
+            vec![session],
+            &[fence_record("/tmp/wt-fenced")],
+            IpcState::Serving,
+        );
+        parity_check(&snapshot, Path::new("/tmp/wt-fenced"));
+        let claim =
+            build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-fenced"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Quarantined);
+    }
+
+    #[test]
+    fn build_protection_claim_from_wire_draining_is_warming() {
+        let session = sample_session("sess-drain", "/tmp/wt-drain");
+        let snapshot = sample_status(vec![session], &[], IpcState::Draining);
+        parity_check(&snapshot, Path::new("/tmp/wt-drain"));
+        let claim =
+            build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-drain"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::Warming);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Detached);
+    }
+
+    /// Mixed-fence input — one session fenced, one not, both on the
+    /// same worktree. Per spec §14.2 the worktree state collapses to
+    /// `DegradedProtection`, but per-surface entries must distinguish
+    /// the participating surface from the quarantined one. Pinned on
+    /// the wire path so a future refactor that bulk-collapses all
+    /// surfaces to `Quarantined` whenever `any_fenced` fires is caught.
+    #[test]
+    fn build_protection_claim_from_wire_mixed_fence_keeps_per_surface_distinction() {
+        let mut s_clean = sample_session("sess-clean", "/tmp/wt-mixed");
+        let mut s_fenced = sample_session("sess-fenced", "/tmp/wt-mixed");
+        s_clean.worktree = PathBuf::from("/tmp/wt-mixed");
+        s_fenced.worktree = PathBuf::from("/tmp/wt-mixed");
+        let snapshot = sample_status(
+            vec![s_clean, s_fenced],
+            &[fence_record("/tmp/wt-mixed")],
+            IpcState::Serving,
+        );
+        // The fence overlay marks BOTH sessions on the worktree as
+        // fenced (the fence is per-worktree, not per-session, in v1 —
+        // see `build_status` line 250). So the "mixed" parity here is
+        // structurally one-sided. Pin the wire-vs-in-memory parity so
+        // any future per-session-fence refactor catches the diverged
+        // wire adapter.
+        parity_check(&snapshot, Path::new("/tmp/wt-mixed"));
+        let claim =
+            build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-mixed"));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
+        assert_eq!(claim.surfaces.len(), 2);
+        assert!(
+            claim
+                .surfaces
+                .iter()
+                .all(|s| s.state == SurfaceClaimState::Quarantined),
+            "per-worktree fence overlay should mark both surfaces Quarantined: {claim:?}",
+        );
+    }
+
+    /// Surfaces sort deterministically across wire-deserialisation
+    /// order. `Vec` is ordered already, but pin the contract: two
+    /// sessions arriving in reverse-alphabetical order produce
+    /// alphabetical surfaces in the claim. Defends against a future
+    /// refactor that swaps `Vec` for something with non-stable iteration.
+    #[test]
+    fn build_protection_claim_from_wire_sorts_surfaces() {
+        let mut s_b = sample_session("sess-bbb", "/tmp/wt-multi");
+        let mut s_a = sample_session("sess-aaa", "/tmp/wt-multi");
+        s_a.worktree = PathBuf::from("/tmp/wt-multi");
+        s_b.worktree = PathBuf::from("/tmp/wt-multi");
+        let snapshot = sample_status(vec![s_b, s_a], &[], IpcState::Serving);
+        parity_check(&snapshot, Path::new("/tmp/wt-multi"));
+        let claim =
+            build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-multi"));
+        assert_eq!(claim.surfaces[0].identifier, "sess-aaa");
+        assert_eq!(claim.surfaces[1].identifier, "sess-bbb");
+    }
+
+    /// Agent-tagged surfaces use the same `driver/agent#start`
+    /// identifier on the wire path as on the daemon-internal path.
+    #[test]
+    fn build_protection_claim_from_wire_uses_agent_tag_identifier() {
+        use anvil_intercept_proto::session::AgentTag;
+        let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
+        let mut session = sample_session("sess-tag", "/tmp/wt-tag");
+        session.agent_tag = Some(tag);
+        let snapshot = sample_status(vec![session], &[], IpcState::Serving);
+        parity_check(&snapshot, Path::new("/tmp/wt-tag"));
+        let claim = build_protection_claim_from_wire(&snapshot.to_wire(), Path::new("/tmp/wt-tag"));
         assert_eq!(
             claim.surfaces[0].identifier,
             "anvil-run/claude-code-1#1700000042"
