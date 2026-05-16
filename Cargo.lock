@@ -142,6 +142,7 @@ version = "0.6.2-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "petgraph",
  "rand 0.10.1",

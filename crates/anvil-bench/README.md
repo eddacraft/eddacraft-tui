@@ -27,6 +27,10 @@ Active
 
 ## Benchmarks
 
+- **single-command suite** -- `pnpm bench` from the repository root runs every
+  routine benchmark surface consistently and writes logs under
+  `benchmark-results/manual-<timestamp>/`. Add `-- --include-nightly-stress` to
+  include the full stress runner used by the nightly workflow.
 - **stress** -- Kernel-level stress scenarios (graph, policy, cold start,
   incremental throughput).
 - **antipattern_scan** -- Parallel anti-pattern scan throughput on a
@@ -36,11 +40,20 @@ Active
   the parallel-scan claim in ADR-026.
 - **secret_scan_parallel** -- Serial vs parallel throughput on the secret scan
   path. Validates the parallel rollout speedup claim.
+- **watch_resource_budget** -- Release-binary `anvil watch` CPU/RSS budget
+  check. Included in `pnpm bench`; skip with `-- --skip-resource-budget` when
+  you only need Criterion micro-benchmarks.
 
 Run a single bench:
 
 ```bash
 cargo bench -p anvil-bench --bench antipattern_scan
+```
+
+Run the full routine suite:
+
+```bash
+pnpm bench
 ```
 
 ### v0.5.0-beta baseline summary

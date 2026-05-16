@@ -151,6 +151,7 @@ infra/import.json
 target/
 **/*.rs.bk
 bench-results/
+benchmark-results/
 
 # Local machine state and secrets
 settings.local.json

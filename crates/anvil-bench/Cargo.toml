@@ -7,6 +7,7 @@ description = "Stress test harness for anvil-kernel — repo generation, memory 
 publish = false
 
 [dependencies]
+anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }

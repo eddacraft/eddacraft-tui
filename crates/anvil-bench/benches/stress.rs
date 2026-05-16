@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anvil_bench::scenarios::{
-    cold_start_scaling, graph_memory, incremental_throughput, policy_scaling,
+    cold_start_scaling, graph_memory, incremental_throughput, policy_scaling, watcher_saturation,
 };
 use criterion::{Criterion, criterion_group, criterion_main};
 
@@ -16,6 +16,29 @@ fn bench_graph_memory(c: &mut Criterion) {
             edges_per_node: 3,
         };
         b.iter(|| graph_memory::run(&config));
+    });
+
+    group.finish();
+}
+
+fn bench_watcher_saturation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("watcher_saturation");
+    group.sample_size(10);
+    group.measurement_time(Duration::from_secs(10));
+
+    group.bench_function("small_burst", |b| {
+        let config = watcher_saturation::WatcherSaturationConfig {
+            write_count: 50,
+            settle_time: Duration::from_millis(150),
+            repo_spec: anvil_bench::fixture::RepoSpec {
+                file_count: 20,
+                max_depth: 2,
+                lines_per_file: 10,
+                ..anvil_bench::fixture::RepoSpec::default()
+            },
+            ..watcher_saturation::WatcherSaturationConfig::default()
+        };
+        b.iter(|| watcher_saturation::run(&config));
     });
 
     group.finish();
@@ -87,6 +110,7 @@ fn bench_cold_start(c: &mut Criterion) {
 
 criterion_group!(
     stress,
+    bench_watcher_saturation,
     bench_graph_memory,
     bench_incremental_throughput,
     bench_policy_scaling,

@@ -4,9 +4,11 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anvil_kernel::embedded::{EmbeddedConfig, run_embedded};
-use anvil_kernel::graph::{GraphDelta, SymbolGraph, update_file};
+use anvil_kernel::graph::{
+    GraphDelta, SymbolGraph, annotate_trust, re_resolve_imports, update_file,
+};
 use anvil_kernel::parser::Parser;
-use anvil_kernel::parser::extract::extract_symbols;
+use anvil_kernel::parser::extract::{ImportEdge, extract_symbols};
 use anvil_kernel::policy::config::ArchitectureConfig;
 use anvil_kernel::policy::engine::PolicyEngine;
 use anvil_kernel::policy::invariants::cross_layer::CrossLayerViolation;
@@ -16,6 +18,7 @@ use anvil_kernel::policy::invariants::public_api::PublicApiExpansion;
 use anvil_kernel::protocol::emitter::EventEmitter;
 use anvil_kernel::watcher::debounce::Debouncer;
 use anvil_kernel::watcher::events::{ChangeKind, FileChange};
+use anvil_kernel::watcher::filter::FileFilter;
 
 use anvil_kernel_types::{EdgeType, EngineId, SymbolKind, SymbolNode, TrustLevel, Visibility};
 use std::hint::black_box;
@@ -146,6 +149,53 @@ fn build_graph_fixture(node_count: usize) -> SymbolGraph {
     graph
 }
 
+fn build_import_fixture(file_count: usize) -> (SymbolGraph, Vec<ImportEdge>) {
+    let mut graph = SymbolGraph::new();
+    let mut imports = Vec::with_capacity(file_count.saturating_sub(1));
+
+    for i in 0..file_count {
+        let file = format!("src/module/file_{i}.ts");
+        let node = SymbolNode {
+            id: i as u64,
+            kind: SymbolKind::Function,
+            name: format!("handler_{i}"),
+            visibility: if i % 5 == 0 {
+                Visibility::Public
+            } else {
+                Visibility::Internal
+            },
+            file: file.clone(),
+            trust_level: TrustLevel::Unknown,
+        };
+        graph.add_symbol(node).unwrap();
+
+        if i + 1 < file_count {
+            imports.push(ImportEdge {
+                from_file: file,
+                to_source: format!("./file_{}", i + 1),
+                line: 1,
+            });
+        }
+    }
+
+    (graph, imports)
+}
+
+fn build_filter_paths(path_count: usize) -> Vec<PathBuf> {
+    let extensions = ["ts", "tsx", "js", "jsx", "rs", "md"];
+    (0..path_count)
+        .map(|i| {
+            let ext = extensions[i % extensions.len()];
+            match i % 8 {
+                0 => PathBuf::from(format!("node_modules/pkg_{i}/index.{ext}")),
+                1 => PathBuf::from(format!("target/debug/generated_{i}.{ext}")),
+                2 => PathBuf::from(format!("dist/chunk_{i}.{ext}")),
+                _ => PathBuf::from(format!("packages/pkg_{}/src/file_{i}.{ext}", i % 50)),
+            }
+        })
+        .collect()
+}
+
 // ---------------------------------------------------------------------------
 // BENCH-001: Cold graph build — extended to 500, 1k, 5k (10k omitted as it
 // makes CI too slow; use the stress harness for 10k+)
@@ -247,6 +297,107 @@ fn bench_incremental_update_varied(c: &mut Criterion) {
                 BatchSize::SmallInput,
             );
         });
+    }
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// BENCH: Symbol extraction by file complexity
+// ---------------------------------------------------------------------------
+
+fn bench_symbol_extraction(c: &mut Criterion) {
+    let mut group = c.benchmark_group("symbol_extraction");
+
+    for &loc in &[10, 100, 500, 1000] {
+        let content = generate_ts_content(loc, 0);
+        let bytes = content.as_bytes();
+        let path = Path::new("src/module/symbols.ts");
+
+        group.bench_with_input(BenchmarkId::new("loc", loc), &loc, |b, _| {
+            let mut parser = Parser::new();
+            let parsed = parser.parse_bytes(path, bytes).unwrap();
+
+            b.iter(|| {
+                let symbols = extract_symbols(
+                    black_box(&parsed.tree),
+                    black_box(bytes),
+                    black_box(path),
+                    black_box(0),
+                );
+                black_box(symbols);
+            });
+        });
+    }
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// BENCH: Import re-resolution against known file sets
+// ---------------------------------------------------------------------------
+
+fn bench_import_resolution(c: &mut Criterion) {
+    let mut group = c.benchmark_group("import_resolution");
+    group.measurement_time(Duration::from_secs(5));
+
+    for &file_count in &[100, 1000, 10_000] {
+        let (_graph, imports) = build_import_fixture(file_count);
+
+        group.bench_with_input(
+            BenchmarkId::new("files", file_count),
+            &file_count,
+            |b, _| {
+                b.iter_batched(
+                    || build_import_fixture(file_count).0,
+                    |mut prepared_graph| {
+                        re_resolve_imports(black_box(&mut prepared_graph), black_box(&imports));
+                        black_box(prepared_graph);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// BENCH: Trust annotation over varied import patterns
+// ---------------------------------------------------------------------------
+
+fn bench_trust_annotation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("trust_annotation");
+
+    for &file_count in &[100, 1000, 5000] {
+        let (_graph, mut imports) = build_import_fixture(file_count);
+        for i in (0..file_count).step_by(20) {
+            imports.push(ImportEdge {
+                from_file: format!("src/module/file_{i}.ts"),
+                to_source: if i % 40 == 0 {
+                    "node:fs".to_string()
+                } else {
+                    "react".to_string()
+                },
+                line: 2,
+            });
+        }
+
+        group.bench_with_input(
+            BenchmarkId::new("files", file_count),
+            &file_count,
+            |b, _| {
+                b.iter_batched(
+                    || build_import_fixture(file_count).0,
+                    |mut prepared_graph| {
+                        annotate_trust(black_box(&mut prepared_graph), black_box(&imports));
+                        black_box(prepared_graph);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
@@ -567,15 +718,49 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// BENCH: File filter throughput over large mixed path sets
+// ---------------------------------------------------------------------------
+
+fn bench_filter_throughput(c: &mut Criterion) {
+    let mut group = c.benchmark_group("filter_throughput");
+
+    for &path_count in &[1_000, 10_000, 50_000] {
+        let paths = build_filter_paths(path_count);
+        let filter = FileFilter::default();
+
+        group.throughput(criterion::Throughput::Elements(path_count as u64));
+        group.bench_with_input(
+            BenchmarkId::new("paths", path_count),
+            &path_count,
+            |b, _| {
+                b.iter(|| {
+                    let processed = paths
+                        .iter()
+                        .filter(|path| filter.should_process(black_box(path)))
+                        .count();
+                    black_box(processed);
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_cold_graph_build,
     bench_incremental_update,
     bench_incremental_update_varied,
+    bench_symbol_extraction,
+    bench_import_resolution,
+    bench_trust_annotation,
     bench_policy_evaluation,
     bench_policy_scaling,
     bench_event_emission,
     bench_graph_query,
     bench_debouncer_throughput,
+    bench_filter_throughput,
 );
 criterion_main!(benches);

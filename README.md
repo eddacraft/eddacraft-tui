@@ -467,15 +467,22 @@ lives in [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md).
 | `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
 | `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
 | `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
+| `symbol_extraction`         | Extract symbols from a parsed AST                  | 10, 100, 500, 1000 LOC               |
+| `import_resolution`         | Re-resolve imports against known files             | 100, 1k, 10k files                   |
+| `trust_annotation`          | Annotate graph symbols with trust levels           | 100, 1k, 5k files                    |
 | `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
 | `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
 | `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
 | `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
 | `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
+| `filter_throughput`         | `should_process` over mixed project paths          | 1k, 10k, 50k paths                   |
 
 ### Running Benchmarks
 
 ```bash
+# Run the full routine benchmark suite
+pnpm bench
+
 # Run all Criterion micro-benchmarks
 cargo bench --bench kernel
 
@@ -483,11 +490,15 @@ cargo bench --bench kernel
 cargo bench --bench kernel -- cold_graph_build
 cargo bench --bench kernel -- incremental_update
 cargo bench --bench kernel -- incremental_update_varied
+cargo bench --bench kernel -- symbol_extraction
+cargo bench --bench kernel -- import_resolution
+cargo bench --bench kernel -- trust_annotation
 cargo bench --bench kernel -- policy_evaluation
 cargo bench --bench kernel -- policy_scaling
 cargo bench --bench kernel -- event_emission
 cargo bench --bench kernel -- graph_query
 cargo bench --bench kernel -- debouncer_throughput
+cargo bench --bench kernel -- filter_throughput
 ```
 
 Criterion produces HTML reports in `target/criterion/` — open

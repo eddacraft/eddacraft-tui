@@ -127,8 +127,8 @@ use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipe
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 #[cfg(unix)]
 use anvil_intercept::midedit::{
-    MAX_CONCURRENT_SCAN_BUFFERS, ScanBufferMode, ScanBufferRequest, ScanBufferService,
-    scan_buffer_with_pipeline,
+    MAX_CONCURRENT_SCAN_BUFFERS, ScanBufferError, ScanBufferMode, ScanBufferRequest,
+    ScanBufferService, scan_buffer_with_pipeline,
 };
 #[cfg(unix)]
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
@@ -478,6 +478,57 @@ fn bench_validation_roundtrip(c: &mut Criterion) {
 }
 
 #[cfg(unix)]
+fn bench_daemon_burst(c: &mut Criterion) {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(MAX_CONCURRENT_SCAN_BUFFERS)
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    warm_up(&EnforcementPipeline::default());
+
+    let mut group = c.benchmark_group("daemon_burst");
+    group.measurement_time(Duration::from_secs(5));
+    group.sample_size(30);
+
+    for &burst_size in &[MAX_CONCURRENT_SCAN_BUFFERS, 8, 32] {
+        let service = ScanBufferService::default();
+        let request = make_request(
+            "src/realtime/burst.ts",
+            make_typescript_fixture(SMALL_BYTES),
+        );
+
+        group.throughput(Throughput::Elements(burst_size as u64));
+        group.bench_function(format!("scan_buffer_burst_{burst_size}"), |b| {
+            b.iter(|| {
+                runtime.block_on(async {
+                    let mut handles = Vec::with_capacity(burst_size);
+                    for _ in 0..burst_size {
+                        let service = service.clone();
+                        let request = request.clone();
+                        handles.push(tokio::spawn(
+                            async move { service.scan_buffer(request).await },
+                        ));
+                    }
+
+                    let mut accepted = 0usize;
+                    let mut busy = 0usize;
+                    for handle in handles {
+                        match handle.await.expect("burst task joins") {
+                            Ok(_) => accepted += 1,
+                            Err(ScanBufferError::Busy) => busy += 1,
+                            Err(err) => panic!("unexpected burst error: {err}"),
+                        }
+                    }
+                    black_box((accepted, busy));
+                });
+            });
+        });
+    }
+
+    group.finish();
+}
+
+#[cfg(unix)]
 fn build_scan_buffer_frame(case: &BufferCase) -> String {
     let request = json!({
         "jsonrpc": "2.0",
@@ -656,6 +707,7 @@ criterion_group!(
     benches,
     bench_validation_service,
     bench_validation_roundtrip,
+    bench_daemon_burst,
     bench_percentile_sampler,
 );
 #[cfg(unix)]
