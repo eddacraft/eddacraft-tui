@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use anvil_intercept_proto::session::AgentTag;
+use anvil_intercept_proto::session::{AgentTag, LineageAnchor};
 use anvil_intercept_proto::{SessionId, SessionRecord, SessionStatus};
 use thiserror::Error;
 
@@ -247,11 +247,23 @@ pub struct ProcessInfo {
 /// MLP2-024 / -025 / -026 build on. `None` callers retain the
 /// pre-MLP2-023 semantics exactly.
 pub trait SessionDispatcher: Send + Sync + 'static {
+    /// Register a session. The legacy MLP2-023 surface is preserved
+    /// — supplying `lineage = None` takes the pre-MLP2-025b path.
+    ///
+    /// **MLP2-025b:** when `lineage` is `Some`, the implementor seeds
+    /// the registry's `(pid, pid_starttime)` lineage index so the
+    /// daemon's write-time spoof cross-check can find this session
+    /// later. The lineage anchor identifies the launcher's own
+    /// process; trust comes from the launcher being in the daemon's
+    /// trust zone (see
+    /// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`
+    /// §7).
     fn register(
         &self,
         id: &SessionId,
         worktree: &Path,
         agent_tag: Option<&AgentTag>,
+        lineage: Option<&LineageAnchor>,
     ) -> Result<(), RegistryError>;
     fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError>;
     fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError>;
@@ -992,8 +1004,30 @@ impl SessionDispatcher for SessionRegistry {
         id: &SessionId,
         worktree: &Path,
         agent_tag: Option<&AgentTag>,
+        lineage: Option<&LineageAnchor>,
     ) -> Result<(), RegistryError> {
-        SessionRegistry::register(self, id, worktree, agent_tag, Instant::now()).map(|_| ())
+        match lineage {
+            Some(anchor) => SessionRegistry::register_with_lineage(
+                self,
+                id,
+                worktree,
+                agent_tag,
+                // Daemon-issued tag mirror = the client-supplied tag at
+                // register time. The launcher's claim about its own
+                // tag is trusted at register time (§7 trust model);
+                // the spoof cross-check only ever rejects WRITE-time
+                // env tags that don't appear on any registered
+                // ancestor.
+                agent_tag,
+                anchor.pid,
+                anchor.pid_starttime,
+                Instant::now(),
+            )
+            .map(|_| ()),
+            None => {
+                SessionRegistry::register(self, id, worktree, agent_tag, Instant::now()).map(|_| ())
+            }
+        }
     }
 
     fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError> {
@@ -1480,7 +1514,7 @@ mod tests {
         let wt = make_worktree();
 
         registry
-            .register(&sid("a"), wt.path(), None)
+            .register(&sid("a"), wt.path(), None, None)
             .expect("register");
         assert_eq!(registry.list().len(), 1);
 
@@ -1895,11 +1929,59 @@ mod tests {
         let tag_a = tag("anvil-run", "via-dispatcher", 1_700_000_007);
 
         registry
-            .register(&sid("d1"), wt.path(), Some(&tag_a))
+            .register(&sid("d1"), wt.path(), Some(&tag_a), None)
             .unwrap();
         let listed = registry.list();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].agent_tag.as_ref(), Some(&tag_a));
+    }
+
+    /// MLP2-025b: `SessionDispatcher::register` with a non-`None`
+    /// `lineage` seeds the registry's `(pid, pid_starttime)` index so
+    /// a subsequent `lookup_tag_by_pid_starttime` finds the
+    /// daemon-issued tag. Pins the trait-through path the daemon
+    /// control-lane (B7) depends on.
+    #[test]
+    fn session_dispatcher_register_with_lineage_seeds_index() {
+        let registry_arc = Arc::new(SessionRegistry::new());
+        let dispatcher: Arc<dyn SessionDispatcher> = registry_arc.clone();
+        let wt = make_worktree();
+        let claimed = tag("anvil-run", "launcher-1", 1_700_000_100);
+        let anchor = LineageAnchor {
+            pid: 31337,
+            pid_starttime: 1_700_000_100,
+        };
+
+        dispatcher
+            .register(&sid("via-anchor"), wt.path(), Some(&claimed), Some(&anchor))
+            .expect("register through trait with lineage");
+
+        // Lookup the registry directly (concrete type) — the daemon-
+        // issued tag mirror should now be set to the launcher's claim.
+        let found = registry_arc
+            .lookup_tag_by_pid_starttime(anchor.pid, anchor.pid_starttime)
+            .expect("anchor populated by trait register");
+        assert_eq!(found, claimed);
+    }
+
+    /// MLP2-025b: `SessionDispatcher::register` with `lineage = None`
+    /// keeps the pre-MLP2-025b path — the lineage index stays empty
+    /// and the legacy single-arg `register` semantics are preserved.
+    #[test]
+    fn session_dispatcher_register_without_lineage_skips_index() {
+        let registry_arc = Arc::new(SessionRegistry::new());
+        let dispatcher: Arc<dyn SessionDispatcher> = registry_arc.clone();
+        let wt = make_worktree();
+
+        dispatcher
+            .register(&sid("legacy"), wt.path(), None, None)
+            .expect("legacy register through trait");
+
+        // Nothing in the lineage index.
+        assert!(
+            registry_arc.lookup_tag_by_pid_starttime(0, 0).is_none(),
+            "no anchor was seeded for the legacy register path"
+        );
     }
 
     // MLP2-057: unregister hook fires the daemon's cache-invalidation

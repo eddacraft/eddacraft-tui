@@ -33,6 +33,7 @@ impl SessionDispatcher for RejectingDispatcher {
         _id: &SessionId,
         _worktree: &Path,
         _agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+        _lineage: Option<&anvil_intercept_proto::session::LineageAnchor>,
     ) -> Result<(), RegistryError> {
         Err(RegistryError::UnknownSession(SessionId::new("internal")))
     }

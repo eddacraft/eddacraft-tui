@@ -100,6 +100,7 @@ impl SessionDispatcher for RegistryDispatcher {
         id: &anvil_intercept_proto::SessionId,
         worktree: &Path,
         agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+        lineage: Option<&anvil_intercept_proto::session::LineageAnchor>,
     ) -> Result<(), RegistryError> {
         let fences =
             self.fence_store
@@ -112,7 +113,7 @@ impl SessionDispatcher for RegistryDispatcher {
                 worktree: worktree.to_path_buf(),
             });
         }
-        SessionDispatcher::register(self.registry.as_ref(), id, worktree, agent_tag)
+        SessionDispatcher::register(self.registry.as_ref(), id, worktree, agent_tag, lineage)
     }
 
     fn heartbeat(&self, id: &anvil_intercept_proto::SessionId) -> Result<(), RegistryError> {
@@ -1166,7 +1167,7 @@ mod tests {
         let dispatcher = RegistryDispatcher::new(Arc::clone(&registry), Arc::new(store));
 
         let err = dispatcher
-            .register(&SessionId::new("sess-fenced"), &worktree, None)
+            .register(&SessionId::new("sess-fenced"), &worktree, None, None)
             .expect_err("fenced worktree must reject registration");
 
         assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
@@ -1186,13 +1187,13 @@ mod tests {
             .fence_worktree(&worktree, "live fence")
             .expect("fence worktree");
         let err = dispatcher
-            .register(&SessionId::new("sess-fenced"), &worktree, None)
+            .register(&SessionId::new("sess-fenced"), &worktree, None, None)
             .expect_err("new fence must affect running dispatcher");
         assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
 
         store.unblock_worktree(&worktree).expect("unblock worktree");
         dispatcher
-            .register(&SessionId::new("sess-unblocked"), &worktree, None)
+            .register(&SessionId::new("sess-unblocked"), &worktree, None, None)
             .expect("explicit unblock must affect running dispatcher");
         assert_eq!(registry.active_sessions().len(), 1);
     }

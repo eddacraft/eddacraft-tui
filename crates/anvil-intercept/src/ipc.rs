@@ -113,6 +113,7 @@ impl SessionDispatcher for NoopDispatcher {
         _id: &anvil_intercept_proto::SessionId,
         _worktree: &Path,
         _agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+        _lineage: Option<&anvil_intercept_proto::session::LineageAnchor>,
     ) -> Result<(), crate::registry::RegistryError> {
         Ok(())
     }
@@ -2184,12 +2185,27 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                     ),
                     None => None,
                 };
+                // MLP2-025b: optional launcher PID + pid_starttime
+                // anchor. Same shape contract as `agent_tag`: absent
+                // or null both fold to `None`; a present-but-malformed
+                // object is a hard parse failure.
+                let lineage = match params.get("lineage") {
+                    Some(value) if value.is_null() => None,
+                    Some(value) => Some(
+                        serde_json::from_value::<anvil_intercept_proto::session::LineageAnchor>(
+                            value.clone(),
+                        )
+                        .map_err(|err| {
+                            invalid_params(method, format!("lineage failed to deserialise: {err}"))
+                        })?,
+                    ),
+                    None => None,
+                };
                 Ok(IpcCommand::RegisterSession {
                     session_id,
                     worktree: PathBuf::from(worktree.as_str()),
                     agent_tag,
-                    // MLP2-025b: lineage wiring lands in subtask B3.
-                    lineage: None,
+                    lineage,
                 })
             })
         }
@@ -2526,14 +2542,10 @@ fn dispatch_command<D: SessionDispatcher>(
             session_id,
             worktree,
             agent_tag,
-            // MLP2-025b: lineage forwarding to the dispatcher lands in
-            // subtask B3 (widens the `SessionDispatcher::register`
-            // trait method). Bound but unused here for the wire
-            // round-trip to compile.
-            lineage: _,
+            lineage,
         } => {
             dispatcher
-                .register(session_id, worktree, agent_tag.as_ref())
+                .register(session_id, worktree, agent_tag.as_ref(), lineage.as_ref())
                 .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
@@ -2729,6 +2741,7 @@ mod tests {
             id: String,
             worktree: PathBuf,
             agent_tag: Option<anvil_intercept_proto::session::AgentTag>,
+            lineage: Option<anvil_intercept_proto::session::LineageAnchor>,
         },
         Heartbeat(String),
         Unregister(String),
@@ -2749,11 +2762,13 @@ mod tests {
             id: &SessionId,
             worktree: &Path,
             agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+            lineage: Option<&anvil_intercept_proto::session::LineageAnchor>,
         ) -> Result<(), RegistryError> {
             self.calls.lock().unwrap().push(RecordedCall::Register {
                 id: id.as_str().to_owned(),
                 worktree: worktree.to_path_buf(),
                 agent_tag: agent_tag.cloned(),
+                lineage: lineage.copied(),
             });
             Ok(())
         }
@@ -3358,6 +3373,7 @@ mod tests {
                     id: "sess_abc".into(),
                     worktree: PathBuf::from("/tmp/wt-abc"),
                     agent_tag: None,
+                    lineage: None,
                 }]
             );
 
