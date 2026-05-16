@@ -26,6 +26,24 @@ pub const INTERCEPT_DRIVER_ID: &str = "intercept-daemon-v1";
 /// §8.
 pub const DEGRADED_SPOOFED_ATTRIBUTION: &str = "degraded:spoofed-attribution";
 
+/// MLP2-026: reason string emitted when the daemon's fence rate
+/// window detects 5 fence fires within 60 seconds for the same
+/// worktree, engaging `degraded:fence-cascade` mode. Emitted via
+/// both the notification envelope (ActiveToFenced) AND
+/// `tracing::warn!`. Defined as a `pub const` so a future migration
+/// to a typed degraded-mode enum has a single find-target. See
+/// `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+/// §8.
+pub const DEGRADED_FENCE_CASCADE: &str = "degraded:fence-cascade";
+
+/// MLP2-026: paired clear reason emitted when an operator clears
+/// a `degraded:fence-cascade` via `anvil intercept unblock
+/// --acknowledge-cascade`. Emitted via the notification envelope
+/// (FencedToActive) AND `tracing::info!` — mirrors the priority
+/// asymmetry from the existing `FenceTransition` mapping
+/// (Critical on engage, Normal on clear).
+pub const DEGRADED_FENCE_CASCADE_CLEAR: &str = "degraded:fence-cascade-clear";
+
 static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -442,9 +460,10 @@ mod tests {
 
     use crate::enforcement::{EnforcementDecision, InterruptDecision};
     use crate::telemetry::{
-        ControlDecision, DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition, TelemetryContext,
-        TelemetryCorrelation, TelemetryEmitter, delivered_envelope_for_decision,
-        envelope_for_fence_transition, notification_mapping,
+        ControlDecision, DEGRADED_FENCE_CASCADE, DEGRADED_FENCE_CASCADE_CLEAR,
+        DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition, TelemetryContext, TelemetryCorrelation,
+        TelemetryEmitter, delivered_envelope_for_decision, envelope_for_fence_transition,
+        notification_mapping,
     };
 
     /// MLP2-025b: pin the reason-string value. A future enum migration
@@ -452,6 +471,14 @@ mod tests {
     #[test]
     fn degraded_spoofed_attribution_constant_matches_spec() {
         assert_eq!(DEGRADED_SPOOFED_ATTRIBUTION, "degraded:spoofed-attribution");
+    }
+
+    /// MLP2-026: pin the engage + clear reason-string values.
+    /// Same enum-migration-target rationale as the spoof const.
+    #[test]
+    fn degraded_fence_cascade_constants_match_spec() {
+        assert_eq!(DEGRADED_FENCE_CASCADE, "degraded:fence-cascade");
+        assert_eq!(DEGRADED_FENCE_CASCADE_CLEAR, "degraded:fence-cascade-clear");
     }
 
     fn context() -> TelemetryContext {

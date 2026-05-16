@@ -361,14 +361,39 @@ impl FenceStore {
     ) -> Result<FenceRecord, FenceStoreError> {
         let canonical = canonicalise_worktree(worktree)?;
         let aliases = original_worktree_alias(worktree, &canonical)?;
+        let now_unix = unix_seconds_now();
         let record = FenceRecord {
-            worktree: canonical,
+            worktree: canonical.clone(),
             aliases,
             reason: reason.into(),
-            fenced_at_unix: unix_seconds_now(),
+            fenced_at_unix: now_unix,
         };
+
+        // MLP2-026: record this fire through the per-worktree
+        // rate window. On Throttle, engage the cascade (upsert a
+        // CascadeRecord) and emit telemetry exactly once per
+        // engage (spec §6 inv-3, §10 Q3 — emit-once, not
+        // per-excess-fire).
+        let decision = self.record_cascade_fire(&canonical, Instant::now());
+
         let mut state = self.load()?;
         state.upsert(record.clone());
+
+        if matches!(decision, RateDecision::Throttle { .. }) && !state.is_cascaded(&canonical) {
+            state.upsert_cascade(CascadeRecord {
+                worktree: canonical.clone(),
+                since_unix: now_unix,
+                reason: crate::telemetry::DEGRADED_FENCE_CASCADE.to_string(),
+            });
+            tracing::warn!(
+                target: "anvil_intercept::fence",
+                reason = crate::telemetry::DEGRADED_FENCE_CASCADE,
+                worktree = %canonical.display(),
+                since_unix = now_unix,
+                "cascade engaged after 5 fences in 60s",
+            );
+        }
+
         self.save(&state)?;
         Ok(record)
     }
@@ -1131,5 +1156,114 @@ mod tests {
     fn cascade_rate_window_constants_match_spec() {
         assert_eq!(CASCADE_RATE_WINDOW_CAPACITY, 4);
         assert_eq!(CASCADE_RATE_WINDOW_DURATION, Duration::from_secs(60));
+    }
+
+    /// MLP2-026: four fence fires within 60 s do NOT engage the
+    /// cascade — the rate window admits up to `capacity` events
+    /// before throttling. Spec §3.1 + §4.1.
+    #[test]
+    fn four_fences_in_sixty_seconds_do_not_engage_cascade() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        for i in 0..4 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence fires admitted");
+        }
+        let state = store.load().expect("reload");
+        assert!(
+            !state.is_cascaded(worktree.path()),
+            "4 fires within 60s must NOT engage cascade; active_cascades={:?}",
+            state.active_cascades()
+        );
+    }
+
+    /// MLP2-026: the FIFTH fence fire within 60 s engages the
+    /// cascade. The 5th `record()` call returns
+    /// `RateDecision::Throttle` (capacity=4 admits 4 events,
+    /// throttles the 5th). Spec §3.1 + §4.1.
+    #[test]
+    fn five_fences_in_sixty_seconds_engage_cascade() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        for i in 0..5 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+        let state = store.load().expect("reload");
+        assert!(
+            state.is_cascaded(worktree.path()),
+            "5 fires within 60s MUST engage cascade"
+        );
+        assert_eq!(state.active_cascades().len(), 1);
+        assert_eq!(
+            state.active_cascades()[0].reason,
+            crate::telemetry::DEGRADED_FENCE_CASCADE
+        );
+    }
+
+    /// MLP2-026: subsequent fires on an already-cascaded worktree
+    /// do NOT re-engage / overwrite the cascade record. Spec §10
+    /// Q3: emit-once per cascade, not per excess fire. The
+    /// `since_unix` stays at the original engage timestamp.
+    #[test]
+    fn additional_fires_after_engage_do_not_overwrite_cascade_record() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        for i in 0..5 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+        let after_engage = store.load().expect("reload");
+        let first_since_unix = after_engage.active_cascades()[0].since_unix;
+
+        // Fire two more times. Even if the rate-window slides on, the
+        // existing cascade record must be preserved unchanged.
+        std::thread::sleep(Duration::from_millis(20));
+        for i in 5..7 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+        let state = store.load().expect("reload");
+        assert_eq!(state.active_cascades().len(), 1);
+        assert_eq!(
+            state.active_cascades()[0].since_unix,
+            first_since_unix,
+            "cascade since_unix must not be overwritten by subsequent fires",
+        );
+    }
+
+    /// MLP2-026: cascade engaged-state survives a daemon restart.
+    /// Simulate by dropping and recreating the `FenceStore` (the
+    /// in-memory rate window is rebuilt empty; the disk-persisted
+    /// cascade record is loaded). Spec §6 inv-4.
+    #[test]
+    fn cascade_record_survives_simulated_daemon_restart() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        for i in 0..5 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+        assert!(store.is_cascaded(worktree.path()));
+
+        // Drop the store; create a new one at the same path
+        // (the in-memory window is freshly empty).
+        drop(store);
+        let store_after_restart =
+            FenceStore::at_path(temp.path().join("state/intercept-fences.json"));
+        assert!(
+            store_after_restart.is_cascaded(worktree.path()),
+            "cascade record must survive daemon restart",
+        );
     }
 }
