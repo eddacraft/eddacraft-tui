@@ -224,7 +224,7 @@ fn run_unblock_all(dry_run: bool) -> Result<()> {
         return Ok(());
     }
     if dry_run {
-        println!("dry-run: would clear {} fence(s):", status.fences.len(),);
+        println!("dry-run: would clear {} fence(s):", status.fences.len());
         for fence in &status.fences {
             println!("  {}", fence.worktree.display());
         }
