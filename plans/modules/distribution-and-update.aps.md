@@ -4,13 +4,15 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 3/5 done |
+| DISTRIB | @aneki | In Progress | 4/5 done |
 
-**Last reviewed:** 2026-05-17 (DISTRIB-003 **In Progress** on
-`feat/distrib-003-homebrew-formula` — extracting the inline `release.yml`
-Homebrew publish step into a tested `scripts/release/bump-homebrew.sh` plus a
-`workflow_dispatch` recovery workflow, smoke install on macOS arm64/x64, and a
-publish runbook. DISTRIB-004 **Done** — release cadence and beta
+**Last reviewed:** 2026-05-17 (DISTRIB-003 **Merged** via PR #1652 — Homebrew
+formula auto-bump extracted from the inline `release.yml` step into a tested
+`scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
+workflow, smoke install on macOS arm64/x64, and publish runbook; operator
+follow-up tracked in
+[`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
+DISTRIB-004 **Done** — release cadence and beta
 support-window policy now lives at `docs/policies/release-cadence.md` and is
 cross-linked from README + CONTRIBUTING. DISTRIB-002 **Merged** via PR #1569 —
 `anvil version --check` + advisory surface + watch/status hint; remaining operator
@@ -20,9 +22,8 @@ DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 [`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Current active state: DISTRIB-001 and DISTRIB-002 are Merged; DISTRIB-004 is
-Done; DISTRIB-003 is In Progress and parallel-safe; DISTRIB-005 remains Draft
-and depends on DISTRIB-002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
+DISTRIB-004 is Done; DISTRIB-005 remains Draft and depends on DISTRIB-002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
 users.)
 
@@ -163,8 +164,13 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
 - **Validation:**
   - CI dry-run on candidate SHA produces a valid formula file
   - Integration: install from the tap on macOS arm64 and x64 runners
-- **Status:** In Progress
+- **Status:** Merged
 - **Picked up:** 2026-05-17 on `feat/distrib-003-homebrew-formula`.
+- **Merged:** 2026-05-17 via PR #1652 (commits `657ca39e`, `53a022eb`,
+  `b36988a2`). Cleanup agent will advance to Released/Shipped once the
+  next release tag ships and the macOS arm64/x64 smoke matrix in
+  `Homebrew — bump and smoke` is green; operator follow-up tracked in
+  [`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
