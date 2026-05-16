@@ -184,6 +184,20 @@ impl FenceStore {
         Ok(record)
     }
 
+    /// MLP2-025b: convenience over [`Self::fence_worktree`] that pins
+    /// the reason string to the
+    /// [`crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION`] const so the
+    /// daemon control-lane has exactly one source of truth for the
+    /// spoof-fence reason. See
+    /// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`
+    /// §5.3.
+    pub fn fence_worktree_for_spoof(
+        &self,
+        worktree: &Path,
+    ) -> Result<FenceRecord, FenceStoreError> {
+        self.fence_worktree(worktree, crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION)
+    }
+
     pub fn unblock_worktree(
         &self,
         worktree: &Path,
@@ -730,5 +744,32 @@ mod tests {
         .expect("default path");
 
         assert_eq!(path, PathBuf::from("/state/anvil/intercept-fences.json"));
+    }
+
+    /// MLP2-025b: `fence_worktree_for_spoof` records a fence whose
+    /// reason is exactly `DEGRADED_SPOOFED_ATTRIBUTION`. Pins the
+    /// reason-string contract that the spec §5.3 / §8 depend on.
+    #[test]
+    fn fence_worktree_for_spoof_records_degraded_reason() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        let record = store
+            .fence_worktree_for_spoof(worktree.path())
+            .expect("spoof fence");
+
+        assert_eq!(
+            record.reason,
+            crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION
+        );
+        assert_eq!(record.reason, "degraded:spoofed-attribution");
+
+        let reloaded = store.load().expect("reload");
+        assert!(reloaded.is_fenced(worktree.path()));
+        assert_eq!(
+            reloaded.active_fences()[0].reason,
+            crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
+        );
     }
 }
