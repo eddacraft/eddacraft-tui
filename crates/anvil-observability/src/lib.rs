@@ -197,18 +197,36 @@ fn open_trace_file(path: &str) -> Result<File, InitTracingError> {
     #[cfg(unix)]
     let existing_metadata = validate_existing_trace_file(path)?;
 
-    let mut options = OpenOptions::new();
-    options.create(true).append(true);
     #[cfg(unix)]
-    options.mode(0o600);
-    let file = options
-        .open(path)
-        .map_err(|err| InitTracingError::TraceSink(format!("file={}: {err}", path.display())))?;
+    let file = open_trace_file_after_validation(path, existing_metadata.is_none())?;
+
+    #[cfg(not(unix))]
+    let file = open_trace_file_after_validation(path, true)?;
 
     #[cfg(unix)]
     validate_opened_trace_file(path, &file, existing_metadata.as_ref())?;
 
     Ok(file)
+}
+
+fn open_trace_file_after_validation(
+    path: &Path,
+    create_missing: bool,
+) -> Result<File, InitTracingError> {
+    let mut options = OpenOptions::new();
+    options.append(true);
+    if create_missing {
+        #[cfg(unix)]
+        options.create_new(true);
+        #[cfg(not(unix))]
+        options.create(true);
+    }
+    #[cfg(unix)]
+    options.mode(0o600);
+
+    options
+        .open(path)
+        .map_err(|err| InitTracingError::TraceSink(format!("file={}: {err}", path.display())))
 }
 
 #[cfg(unix)]
@@ -338,7 +356,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{PermissionsExt, symlink};
 
     use tracing::{field, info_span};
     use tracing_subscriber::Layer;
@@ -477,6 +495,29 @@ mod tests {
             .expect("private mode");
 
         open_trace_file(path.to_str().expect("utf8 path")).expect("regular file accepted");
+
+        std::fs::remove_dir_all(&tmp).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn open_trace_file_missing_path_open_refuses_symlink_substitution() {
+        let tmp = fresh_test_dir("symlink-substitution");
+        let path = tmp.join("trace.jsonl");
+        let target = tmp.join("target.jsonl");
+        symlink(&target, &path).expect("symlink trace path");
+
+        let err = open_trace_file_after_validation(&path, true)
+            .expect_err("create-new open must reject symlink substitution");
+
+        assert!(
+            err.to_string().contains("File exists") || err.to_string().contains("exists"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !target.exists(),
+            "create-new trace open must not create the symlink target"
+        );
 
         std::fs::remove_dir_all(&tmp).expect("cleanup");
     }

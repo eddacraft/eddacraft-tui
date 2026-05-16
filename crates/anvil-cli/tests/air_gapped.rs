@@ -81,6 +81,34 @@ fn run_air_gapped(args: &[&str]) -> Option<std::process::Output> {
     Some(out)
 }
 
+fn run_air_gapped_without_dev(
+    args: &[&str],
+    xdg_config_home: &std::path::Path,
+) -> Option<std::process::Output> {
+    let harness = harness_path();
+    assert!(
+        harness.exists(),
+        "harness script not found at {}; expected to be checked in",
+        harness.display(),
+    );
+    let mut cmd = Command::new(&harness);
+    cmd.arg(ANVIL_BIN);
+    cmd.args(args);
+    cmd.env_remove("ANVIL_DEV");
+    cmd.env_remove("ANVIL_LICENSE");
+    cmd.env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env("XDG_CONFIG_HOME", xdg_config_home);
+    let out = cmd.output().expect("failed to spawn harness");
+    if out.status.code() == Some(SKIP_EXIT_CODE) {
+        eprintln!(
+            "air-gapped harness skipped:\nstderr={}",
+            String::from_utf8_lossy(&out.stderr),
+        );
+        return None;
+    }
+    Some(out)
+}
+
 #[test]
 fn anvil_version_offline_succeeds_with_no_network() {
     let Some(out) = run_air_gapped(&["--no-tui", "version", "--offline"]) else {
@@ -113,6 +141,42 @@ fn anvil_status_verify_json_exits_cleanly_with_no_network() {
         out.status.code().is_some(),
         "anvil status --verify --json was killed by signal under air-gap: {:?}",
         out.status,
+    );
+}
+
+#[test]
+fn anvil_status_verify_json_skips_auth_refresh_with_expired_credentials() {
+    let config_home = tempfile::tempdir().unwrap();
+    let anvil_dir = config_home.path().join("anvil");
+    std::fs::create_dir(&anvil_dir).expect("create anvil config dir");
+    std::fs::write(
+        anvil_dir.join("credentials.json"),
+        r#"{
+  "license": "expired-local-token",
+  "refreshToken": "refresh-token-that-must-not-be-used",
+  "email": "airgap@example.test",
+  "expiresAt": "2000-01-01T00:00:00Z"
+}
+"#,
+    )
+    .expect("write expired credentials");
+
+    let Some(out) = run_air_gapped_without_dev(
+        &["--no-tui", "--json", "status", "--verify"],
+        config_home.path(),
+    ) else {
+        return;
+    };
+
+    assert!(
+        out.status.code().is_some(),
+        "anvil status --verify --json was killed by signal under air-gap: {:?}",
+        out.status,
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("authentication_required"),
+        "status --verify should run the local probe instead of failing auth first: {stderr}",
     );
 }
 

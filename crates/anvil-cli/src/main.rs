@@ -272,6 +272,10 @@ fn requires_auth(cmd: &Commands) -> bool {
     feature_flags::command_needs_licence_gate(command_canonical_name(cmd))
 }
 
+fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
+    matches!(cmd, Commands::Status(args) if args.verify)
+}
+
 /// Evaluate a credential-load result and return the appropriate exit code.
 ///
 /// Separated from I/O so tests can call it with synthetic inputs.
@@ -282,25 +286,32 @@ fn requires_auth(cmd: &Commands) -> bool {
 fn evaluate_auth(
     loaded: &anyhow::Result<Option<auth::credentials::Credentials>>,
     verbose: bool,
+    emit_human_messages: bool,
 ) -> Result<(), u8> {
     match loaded {
         Ok(Some(creds)) if auth::credentials::is_expired(creds) => {
-            eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
+            if emit_human_messages {
+                eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
+            }
             Err(EXIT_AUTH_REQUIRED)
         }
         Ok(Some(creds)) if auth::credentials::is_edict(creds) => {
-            if verify_edict_auth(creds, verbose) {
+            if verify_edict_auth(creds, verbose, emit_human_messages) {
                 Ok(())
             } else {
-                eprintln!(
-                    "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate."
-                );
+                if emit_human_messages {
+                    eprintln!(
+                        "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate."
+                    );
+                }
                 Err(EXIT_AUTH_REQUIRED)
             }
         }
         Ok(Some(_)) => Ok(()),
         Ok(None) => {
-            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            if emit_human_messages {
+                eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            }
             Err(EXIT_AUTH_REQUIRED)
         }
         Err(err) => {
@@ -313,8 +324,10 @@ fn evaluate_auth(
             let redacted = dirs::home_dir()
                 .map(|h| msg.replace(h.to_string_lossy().as_ref(), "~"))
                 .unwrap_or(msg);
-            eprintln!("[auth] credential load failed: {redacted}");
-            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            if emit_human_messages {
+                eprintln!("[auth] credential load failed: {redacted}");
+                eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            }
             Err(EXIT_AUTH_REQUIRED)
         }
     }
@@ -341,6 +354,7 @@ enum SilentRefreshOutcome {
 fn try_silent_refresh(
     creds: &auth::credentials::Credentials,
     verbose: bool,
+    emit_human_messages: bool,
 ) -> SilentRefreshOutcome {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -348,7 +362,7 @@ fn try_silent_refresh(
     {
         Ok(rt) => rt,
         Err(err) => {
-            if verbose {
+            if verbose && emit_human_messages {
                 eprintln!("[auth] could not create refresh runtime: {err:#}");
             }
             return SilentRefreshOutcome::TransientFailure;
@@ -358,22 +372,24 @@ fn try_silent_refresh(
     match rt.block_on(auth::device_flow::try_refresh_credentials(creds)) {
         Ok(new_creds) => {
             if let Err(err) = auth::credentials::save(&new_creds) {
-                if verbose {
+                if verbose && emit_human_messages {
                     eprintln!("[auth] saving refreshed credentials failed: {err:#}");
                 }
                 return SilentRefreshOutcome::TransientFailure;
             }
-            if verbose {
+            if verbose && emit_human_messages {
                 eprintln!("[auth] refreshed expired session via stored refresh token");
             }
             SilentRefreshOutcome::Refreshed
         }
         Err(err) => {
             if auth::device_flow::is_permanent_refresh_failure(&err) {
-                eprintln!("{err}");
+                if emit_human_messages {
+                    eprintln!("{err}");
+                }
                 SilentRefreshOutcome::PermanentFailure
             } else {
-                if verbose {
+                if verbose && emit_human_messages {
                     eprintln!("[auth] silent refresh failed: {err:#}");
                 }
                 SilentRefreshOutcome::TransientFailure
@@ -382,14 +398,18 @@ fn try_silent_refresh(
     }
 }
 
-fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> bool {
+fn verify_edict_auth(
+    creds: &auth::credentials::Credentials,
+    verbose: bool,
+    emit_human_messages: bool,
+) -> bool {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     {
         Ok(rt) => rt,
         Err(err) => {
-            if verbose {
+            if verbose && emit_human_messages {
                 eprintln!("[auth] could not create edict verification runtime: {err:#}");
             }
             return false;
@@ -399,7 +419,7 @@ fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> b
     let client = match auth::client::AnvilClient::with_token(creds.license.clone()) {
         Ok(client) => client,
         Err(err) => {
-            if verbose {
+            if verbose && emit_human_messages {
                 eprintln!("[auth] could not create edict verification client: {err:#}");
             }
             return false;
@@ -409,7 +429,7 @@ fn verify_edict_auth(creds: &auth::credentials::Credentials, verbose: bool) -> b
     match rt.block_on(client.whoami()) {
         Ok(_) => true,
         Err(err) => {
-            if verbose {
+            if verbose && emit_human_messages {
                 eprintln!("[auth] edict verification failed: {err:#}");
             }
             false
@@ -575,7 +595,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
         && auth::credentials::is_expired(creds)
         && creds.refresh_token.is_some()
     {
-        match try_silent_refresh(creds, global.verbose) {
+        match try_silent_refresh(creds, global.verbose, !global.json) {
             SilentRefreshOutcome::Refreshed => loaded = auth::credentials::load(),
             SilentRefreshOutcome::PermanentFailure => {
                 refresh_reason_already_printed = true;
@@ -604,7 +624,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
                     // handing off to the command — guards against clock
                     // skew or partial writes that would otherwise silently
                     // pass the local gate and fail server-side.
-                    return evaluate_auth(&auth::credentials::load(), global.verbose);
+                    return evaluate_auth(&auth::credentials::load(), global.verbose, !global.json);
                 }
                 Err(err) => {
                     eprintln!("Login failed: {err:#}");
@@ -633,7 +653,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
         return Err(EXIT_AUTH_REQUIRED);
     }
 
-    evaluate_auth(&loaded, global.verbose)
+    evaluate_auth(&loaded, global.verbose, !global.json)
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -691,6 +711,7 @@ fn main() -> ExitCode {
     tracing::info!(target: "anvil_cli", "cli command parsed");
 
     if requires_auth(&cli.command)
+        && !skips_auth_for_local_probe(&cli.command)
         && let Err(code) = check_auth(&cli.global, allows_interactive_auth_prompt(&cli.command))
     {
         tracing::warn!(target: "anvil_cli", "cli command authentication required");
@@ -1089,13 +1110,16 @@ mod tests {
 
     #[test]
     fn evaluate_auth_returns_err_when_no_credentials() {
-        assert_eq!(evaluate_auth(&Ok(None), false), Err(EXIT_AUTH_REQUIRED));
+        assert_eq!(
+            evaluate_auth(&Ok(None), false, true),
+            Err(EXIT_AUTH_REQUIRED)
+        );
     }
 
     #[test]
     fn evaluate_auth_returns_err_when_expired() {
         assert_eq!(
-            evaluate_auth(&Ok(Some(expired_creds())), false),
+            evaluate_auth(&Ok(Some(expired_creds())), false, true),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
@@ -1103,19 +1127,19 @@ mod tests {
     #[test]
     fn evaluate_auth_returns_err_on_load_error() {
         assert_eq!(
-            evaluate_auth(&Err(anyhow::anyhow!("disk failure")), false),
+            evaluate_auth(&Err(anyhow::anyhow!("disk failure")), false, true),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_valid() {
-        assert!(evaluate_auth(&Ok(Some(valid_creds())), false).is_ok());
+        assert!(evaluate_auth(&Ok(Some(valid_creds())), false, true).is_ok());
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_no_expiry() {
-        assert!(evaluate_auth(&Ok(Some(no_expiry_creds())), false).is_ok());
+        assert!(evaluate_auth(&Ok(Some(no_expiry_creds())), false, true).is_ok());
     }
 
     #[test]

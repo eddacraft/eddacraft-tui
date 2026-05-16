@@ -329,6 +329,7 @@ fn non_empty_env(name: &str) -> Option<PathBuf> {
 
 #[derive(Debug)]
 struct PidFileGuard {
+    _lock: File,
     path: PathBuf,
     identity: PidFileIdentity,
 }
@@ -339,11 +340,14 @@ impl PidFileGuard {
             ensure_secure_runtime_dir(parent)?;
         }
 
-        match Self::create(path) {
-            Ok(guard) => Ok(guard),
+        let lock = acquire_pid_file_lock(path)?;
+
+        match Self::create_identity(path) {
+            Ok(identity) => Ok(Self::new(path, identity, lock)),
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
                 recover_stale_pid_file(path)?;
-                Self::create(path)
+                Self::create_identity(path)
+                    .map(|identity| Self::new(path, identity, lock))
                     .with_context(|| format!("failed to re-create PID file {}", path.display()))
             }
             Err(err) => {
@@ -352,15 +356,38 @@ impl PidFileGuard {
         }
     }
 
-    fn create(path: &Path) -> std::io::Result<Self> {
+    fn create_identity(path: &Path) -> std::io::Result<PidFileIdentity> {
         let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
         let record = write_pid_record(&mut file)?;
-        let identity = PidFileIdentity::from_file(&file, record)?;
-        Ok(Self {
+        PidFileIdentity::from_file(&file, record)
+    }
+
+    fn new(path: &Path, identity: PidFileIdentity, lock: File) -> Self {
+        Self {
+            _lock: lock,
             path: path.to_path_buf(),
             identity,
-        })
+        }
     }
+}
+
+fn acquire_pid_file_lock(path: &Path) -> Result<File> {
+    let lock_path = path.with_extension("pid.lock");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| format!("failed to open PID file lock {}", lock_path.display()))?;
+
+    lock.try_lock().with_context(|| {
+        format!(
+            "anvil intercept daemon is already running or PID file is locked at {}",
+            path.display()
+        )
+    })?;
+    Ok(lock)
 }
 
 impl Drop for PidFileGuard {
@@ -1430,6 +1457,36 @@ mod tests {
             .expect("foreground loop did not return after shutdown")
             .expect("join failure")
             .expect("foreground loop reported error");
+    }
+
+    #[test]
+    fn pid_file_guard_keeps_stale_recovery_locked_for_lifetime() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pid_file = test_pid_file(&tmp);
+        create_secure_test_pid_dir(pid_file.parent().expect("pid parent"));
+        fs::write(&pid_file, "999999999\nstart_time=1\n").expect("write stale pid");
+
+        let guard = PidFileGuard::acquire(&pid_file).expect("recover stale pid file");
+        let err = PidFileGuard::acquire(&pid_file)
+            .expect_err("second guard should not race stale recovery while first is live");
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("already running") || message.contains("locked"),
+            "second acquisition should report live ownership, got: {message}",
+        );
+        assert_eq!(
+            fs::read_to_string(&pid_file)
+                .expect("live pid file should remain")
+                .lines()
+                .next(),
+            Some(std::process::id().to_string().as_str())
+        );
+
+        drop(guard);
+        assert!(
+            !pid_file.exists(),
+            "owned pid file should be removed on drop"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -132,3 +132,84 @@ fn init_json_mode_skips_post_analysis() {
         serde_json::from_str(&stdout).expect("JSON mode stdout must parse as JSON");
     assert!(parsed.get("schemaVersion").is_some());
 }
+
+#[test]
+fn json_mode_auth_failure_emits_only_json_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_home = tempfile::tempdir().unwrap();
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .arg("status")
+        .current_dir(dir.path())
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_LOG", "off")
+        .env("ANVIL_NO_PROMPT", "1")
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    assert!(!output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "auth failure should not write stdout in JSON mode: {}",
+        String::from_utf8_lossy(&output.stdout),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
+        .unwrap_or_else(|err| panic!("stderr must be one JSON object, got {stderr:?}: {err}"));
+    assert_eq!(
+        parsed.get("error").and_then(|value| value.as_str()),
+        Some("authentication_required")
+    );
+    assert_eq!(
+        stderr.trim().lines().count(),
+        1,
+        "stderr should contain only the JSON auth envelope: {stderr}",
+    );
+    assert!(
+        !stderr.contains("Run `anvil auth login`") && !stderr.contains("Authentication required"),
+        "stderr should not include human auth guidance in JSON mode: {stderr}",
+    );
+}
+
+#[test]
+fn json_verbose_edict_auth_failure_emits_only_json_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_home = tempfile::tempdir().unwrap();
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .arg("--verbose")
+        .arg("status")
+        .current_dir(dir.path())
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_LOG", "off")
+        .env("ANVIL_NO_PROMPT", "1")
+        .env("ANVIL_API_URL", "http://127.0.0.1:9")
+        .env("ANVIL_LICENSE", "anvil_beta_bad")
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .env_remove("ANVIL_DEV")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
+        .unwrap_or_else(|err| panic!("stderr must be one JSON object, got {stderr:?}: {err}"));
+    assert_eq!(
+        parsed.get("error").and_then(|value| value.as_str()),
+        Some("authentication_required")
+    );
+    assert_eq!(
+        stderr.trim().lines().count(),
+        1,
+        "stderr should contain only the JSON auth envelope: {stderr}",
+    );
+    assert!(
+        !stderr.contains("[auth]") && !stderr.contains("Run `anvil auth login`"),
+        "stderr should not include human auth diagnostics in JSON mode: {stderr}",
+    );
+}
