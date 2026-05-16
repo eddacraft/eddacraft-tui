@@ -10,14 +10,14 @@
 > under ADR-033), with downstream spec at `plans/specs/anvil-driver-framework/`.
 > Adjacent modules: INTR (`plans/modules/intercept-rules.aps.md`, In Progress
 > 4/8) for the hot-path rule registry, and INTD
-> (`plans/archive/modules/intercept-daemon.aps.md`, Complete 16/16) for the daemon side
-> that consumes the proto. **Used by:** `anvil intercept status` CLI surface
-> (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's daemon-backed
-> validation client (`crates/anvil-cli/src/mcp/validation.rs`); the in-tree
-> daemon-side capability negotiator (`crates/anvil-intercept/src/auth.rs`);
-> future editor / CI driver integrations consuming
-> `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous client
-> (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
+> (`plans/archive/modules/intercept-daemon.aps.md`, Complete 16/16) for the
+> daemon side that consumes the proto. **Used by:** `anvil intercept status` CLI
+> surface (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's
+> daemon-backed validation client (`crates/anvil-cli/src/mcp/validation.rs`);
+> the in-tree daemon-side capability negotiator
+> (`crates/anvil-intercept/src/auth.rs`); future editor / CI driver integrations
+> consuming `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous
+> client (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
 
 ## 1. Overview
 
