@@ -14,8 +14,8 @@ Progress: **3/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
 **Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
 2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
 `docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
-enforcement completed 2026-05-16. Module status is `In Progress`; ADOPT-003 is
-the remaining in-flight Wave 3A item while ADOPT-004 and ADOPT-006 remain draft.)
+enforcement completed 2026-05-16. Module status is `In Progress`; ADOPT-003 and
+ADOPT-004 are in-flight Wave 3A items while ADOPT-006 remains draft.)
 
 ## Purpose
 
@@ -182,25 +182,35 @@ disables any check, suppresses without resolution, or bypasses a hook.
 ### ADOPT-004: Complete Local-Noise Ignore Policy Across All Surfaces
 
 - **Intent:** Extend the WATCHUX-002 shared ignore policy so every Anvil
-  surface (watch, audit, hooks, `anvil-run`, baseline) honours the same
-  list.
-- **Expected Outcome:** Single source of truth in `anvil-cli/src/util.rs`
-  (already established by WATCHUX-002); all surfaces consume it; the policy
-  covers `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`,
-  generated dirs, common cache dirs, plus `node_modules`, `target`, `dist`,
-  `build`, `__pycache__`, `.venv`. Surface-by-surface conformance tests are
-  added.
+  walking surface (watch, audit, baseline, check, drift, gate) honours the
+  same list, with the cli-side helper re-exporting the kernel-owned
+  canonical const so they cannot drift.
+- **Expected Outcome:** Single canonical const lives in
+  `anvil-kernel::watcher::filter::IGNORE_DIRS` — kernel is the lowest crate
+  every walking consumer can reach (cli depends on kernel; the reverse
+  cycle is what motivated moving the const down from
+  `anvil-cli/src/util.rs`). `anvil-cli/src/util.rs::IGNORE_DIRS` becomes a
+  `pub use` re-export of the kernel const so existing cli command
+  call-sites keep working without churn. Coverage adds `.venv` and
+  reconciles `__pycache__` into the kernel list. `anvil-baseline`,
+  `anvil-run`, and `anvil-hook` continue to operate on caller-supplied
+  file lists and do not walk directories themselves, so they inherit the
+  policy transitively via the cli wrappers (audit/baseline/check/drift/
+  gate/hook command modules). A conformance test asserts the kernel and
+  cli helpers resolve to the same set.
 - **Files:**
-  - `crates/anvil-cli/src/util.rs` (extended)
-  - `crates/anvil-cli/src/commands/audit.rs`
-  - `crates/anvil-cli/src/commands/hook.rs`
-  - `crates/anvil-kernel/src/watcher/filter.rs`
-  - `crates/anvil-baseline/src/*` (consume shared list)
-  - `crates/anvil-run/src/*` (consume shared list)
+  - `crates/anvil-kernel/src/watcher/filter.rs` (canonical const moves
+    here; `default_patterns()` derives from it)
+  - `crates/anvil-cli/src/util.rs` (re-exports the kernel const)
+  - Surface call-sites already consume `is_ignored_dir_name` (audit,
+    baseline, check, drift, gate command modules) — no churn beyond the
+    re-export shape
 - **Validation:**
-  - `cargo test -p eddacraft-anvil util::tests::ignore_policy_covers_all_surfaces`
-  - Per-surface integration tests that assert the policy is honoured
-- **Status:** Draft
+  - `cargo test -p eddacraft-anvil-kernel watcher::filter::tests::ignore_policy_covers_all_surfaces`
+  - `cargo test -p eddacraft-anvil util::tests::cli_helper_matches_kernel_canonical`
+  - Existing per-surface tests in `audit.rs`, `check.rs`, `baseline.rs`,
+    `watcher/filter.rs` continue to pass against the unified set
+- **Status:** In Progress
 - **Dependencies:** WATCHUX-002 (shared helper)
 - **changeType:** feature
 - **releaseIntent:** candidate

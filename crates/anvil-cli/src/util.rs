@@ -3,33 +3,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-/// Directory names that anvil's file walkers always skip.
-///
-/// Shared by `check`, `drift`, `gate`, and `sample_analyser`. Add new
-/// entries here, not at the call site.
-pub(crate) const IGNORE_DIRS: &[&str] = &[
-    ".anvil",
-    ".claude",
-    ".gemini",
-    ".git",
-    ".next",
-    ".nx",
-    ".opencode",
-    ".serena",
-    ".turbo",
-    ".worktrees",
-    "__pycache__",
-    "build",
-    "coverage",
-    "dist",
-    "node_modules",
-    "target",
-];
-
-/// Returns `true` if `name` is one of the directories anvil's walkers skip.
-pub(crate) fn is_ignored_dir_name(name: &str) -> bool {
-    IGNORE_DIRS.contains(&name)
-}
+/// Re-export of [`anvil_kernel::watcher::filter::is_ignored_dir_name`] —
+/// the canonical denylist lives in `anvil-kernel` so the watcher and the
+/// cli command surfaces (`audit`, `baseline`, `check`, `drift`, `gate`)
+/// cannot drift. Add new entries in `anvil-kernel/src/watcher/filter.rs`,
+/// not here.
+pub(crate) use anvil_kernel::watcher::filter::is_ignored_dir_name;
 
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
@@ -330,6 +309,7 @@ fn restrict_windows_permissions(path: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel::watcher::filter::IGNORE_DIRS;
 
     #[test]
     fn is_ignored_dir_name_matches_full_list() {
@@ -344,6 +324,26 @@ mod tests {
             assert!(
                 !is_ignored_dir_name(name),
                 "expected {name} to not be ignored"
+            );
+        }
+    }
+
+    /// ADOPT-004: cli's `is_ignored_dir_name` is the public re-export of
+    /// the kernel-owned canonical list. They must agree on every entry so
+    /// audit/baseline/check/drift/gate (cli consumers) and the watcher
+    /// (kernel consumer) cannot diverge.
+    #[test]
+    fn cli_helper_matches_kernel_canonical() {
+        for entry in IGNORE_DIRS {
+            assert!(
+                is_ignored_dir_name(entry),
+                "cli is_ignored_dir_name disagrees with kernel canonical for {entry}",
+            );
+        }
+        for name in ["src", "tests", "lib", "node_modules.bak", "Target"] {
+            assert!(
+                !is_ignored_dir_name(name),
+                "cli is_ignored_dir_name should not match {name}",
             );
         }
     }

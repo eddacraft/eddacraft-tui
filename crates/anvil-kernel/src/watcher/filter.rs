@@ -1,5 +1,45 @@
 use std::path::Path;
 
+/// Canonical local-noise directory denylist (ADOPT-004 / WATCHUX-002).
+///
+/// Single source of truth for every Anvil walking surface — watch
+/// (this module), and the cli command surfaces audit / baseline /
+/// check / drift / gate (consumed via `anvil-cli`'s
+/// `crate::util::is_ignored_dir_name` re-export of
+/// [`is_ignored_dir_name`]). Add new entries here, not at the call
+/// site; downstream surfaces inherit automatically.
+///
+/// Lives in `anvil-kernel` because kernel is the lowest crate every
+/// walking consumer can reach: `anvil-cli` depends on `anvil-kernel`,
+/// but not the reverse. Entries must stay sorted so a single textual
+/// diff captures any policy change.
+pub const IGNORE_DIRS: &[&str] = &[
+    ".anvil",
+    ".claude",
+    ".gemini",
+    ".git",
+    ".next",
+    ".nx",
+    ".opencode",
+    ".serena",
+    ".turbo",
+    ".venv",
+    ".worktrees",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "target",
+];
+
+/// Returns `true` if `name` is one of the directories every Anvil
+/// walker skips (see [`IGNORE_DIRS`]).
+#[must_use]
+pub fn is_ignored_dir_name(name: &str) -> bool {
+    IGNORE_DIRS.contains(&name)
+}
+
 /// Determines whether a file path should be processed or ignored.
 ///
 /// `respect_extensions` controls whether the parseable-extension gate is
@@ -32,25 +72,11 @@ impl FileFilter {
         self
     }
 
-    /// Default ignore patterns for typical projects.
+    /// Default ignore patterns for typical projects. Derived from the
+    /// canonical [`IGNORE_DIRS`] so watch cannot drift from audit /
+    /// baseline / check / drift / gate.
     pub fn default_patterns() -> Vec<String> {
-        vec![
-            ".anvil".to_string(),
-            ".claude".to_string(),
-            ".gemini".to_string(),
-            ".opencode".to_string(),
-            ".serena".to_string(),
-            ".worktrees".to_string(),
-            "node_modules".to_string(),
-            ".git".to_string(),
-            "target".to_string(),
-            "dist".to_string(),
-            "build".to_string(),
-            ".next".to_string(),
-            ".turbo".to_string(),
-            ".nx".to_string(),
-            "coverage".to_string(),
-        ]
+        IGNORE_DIRS.iter().map(|s| (*s).to_string()).collect()
     }
 
     /// Check if a path should be ignored.
@@ -227,5 +253,75 @@ mod tests {
         let filter = FileFilter::default();
         assert!(filter.should_process(Path::new("src/main.ts")));
         assert!(!filter.should_process(Path::new("src/main.rs")));
+    }
+
+    /// ADOPT-004: the canonical [`IGNORE_DIRS`] list must cover every
+    /// directory name the adoption-friction module spells out. Per-surface
+    /// consumers (`anvil-cli/src/util.rs` re-export, watcher
+    /// `default_patterns()`) derive from this const, so adding an entry
+    /// here propagates everywhere.
+    #[test]
+    fn ignore_policy_covers_all_surfaces() {
+        // Required: the explicit set the ADOPT-004 work item names. These
+        // must always be in the canonical const — removing one is a
+        // policy regression.
+        for required in [
+            ".anvil",
+            ".claude",
+            ".gemini",
+            ".git",
+            ".next",
+            ".nx",
+            ".opencode",
+            ".serena",
+            ".turbo",
+            ".venv",
+            ".worktrees",
+            "__pycache__",
+            "build",
+            "coverage",
+            "dist",
+            "node_modules",
+            "target",
+        ] {
+            assert!(
+                IGNORE_DIRS.contains(&required),
+                "ADOPT-004: kernel IGNORE_DIRS missing {required}",
+            );
+        }
+        // Defence in depth: every IGNORE_DIRS entry must round-trip
+        // through is_ignored_dir_name. Catches a future entry that
+        // somehow bypasses the helper.
+        for entry in IGNORE_DIRS {
+            assert!(
+                is_ignored_dir_name(entry),
+                "is_ignored_dir_name disagrees with IGNORE_DIRS for {entry}",
+            );
+        }
+    }
+
+    #[test]
+    fn default_patterns_derives_from_canonical_const() {
+        let patterns = FileFilter::default_patterns();
+        for entry in IGNORE_DIRS {
+            assert!(
+                patterns.iter().any(|p| p == entry),
+                "default_patterns missing {entry} — must derive from IGNORE_DIRS",
+            );
+        }
+        assert_eq!(
+            patterns.len(),
+            IGNORE_DIRS.len(),
+            "default_patterns must be exactly the IGNORE_DIRS set, no drift",
+        );
+    }
+
+    #[test]
+    fn ignores_python_caches_and_venvs() {
+        let filter = FileFilter::default();
+        assert!(filter.should_ignore(Path::new("__pycache__/foo.cpython-312.pyc")));
+        assert!(filter.should_ignore(Path::new("pkg/__pycache__/x.pyc")));
+        assert!(filter.should_ignore(Path::new(".venv/bin/python")));
+        assert!(filter.should_ignore(Path::new("services/api/.venv/lib/site-packages/x.py")));
     }
 }
