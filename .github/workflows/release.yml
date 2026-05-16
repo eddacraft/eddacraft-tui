@@ -330,6 +330,103 @@ jobs:
       - name: Include package-manager icon in release assets
         run: |
           cp .github/winget/anvil-icon-256.png artifacts/anvil-icon-256.png
+      # Bind public release artefacts to the private source commit/tree
+      # they were built from (#1217). Cargo-dist already emits per-asset
+      # .sha256 sidecars; the provenance file consolidates those with
+      # the private↔public commit pair, the workflow-run URL, and the
+      # build matrix so verifiers do not need to scrape workflow logs.
+      # The file is committed to artifacts/ before the publish steps, so
+      # both the private and public release uploads pick it up via the
+      # existing `artifacts/*` glob; the existing
+      # release-sign-artefacts.yml workflow extends to sign it alongside
+      # the installer scripts.
+      - name: Generate build provenance manifest
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+          BUILD_MATRIX:
+            '${{ toJson(fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix.include) }}'
+        run: |
+          set -euo pipefail
+
+          PROVENANCE="artifacts/anvil-${RELEASE_TAG}-provenance.json"
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Look up the public repo HEAD now so the manifest can record
+          # the commit the public tag will resolve to. The public tag is
+          # created against this SHA later in the "Publish release to
+          # eddacraft/anvil (public)" step.
+          PUBLIC_HEAD=$(gh api repos/eddacraft/anvil/git/ref/heads/main -q '.object.sha')
+
+          # Walk every release asset (excluding the provenance file
+          # itself and cargo-dist's per-binary .sha256 sidecars which are
+          # already redundant with the digest below). Emit one entry per
+          # asset as a compact JSON object so jq can assemble the array.
+          ASSETS_TMP=$(mktemp)
+          while IFS= read -r f; do
+            name=$(basename "$f")
+            sha=$(sha256sum "$f" | awk '{print $1}')
+            size=$(stat -c %s "$f")
+            jq -n --arg n "$name" --arg s "$sha" --argjson sz "$size" \
+              '{name:$n, sha256:$s, size_bytes:$sz}'
+          done < <(
+            find artifacts -maxdepth 1 -type f \
+              ! -name '*.sha256' \
+              ! -name "anvil-*-provenance.json" \
+              | sort
+          ) | jq -s '.' > "$ASSETS_TMP"
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg release_tag "$RELEASE_TAG" \
+            --arg private_repo "$GITHUB_REPOSITORY" \
+            --arg private_sha "$GITHUB_SHA" \
+            --arg private_ref "$GITHUB_REF" \
+            --arg workflow_run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg workflow_run_id "$GITHUB_RUN_ID" \
+            --arg workflow_run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg public_repo "eddacraft/anvil" \
+            --arg public_sha "$PUBLIC_HEAD" \
+            --arg built_at "$BUILT_AT" \
+            --argjson build_matrix "${BUILD_MATRIX:-null}" \
+            --slurpfile assets "$ASSETS_TMP" \
+            '{
+              schema_version: $schema_version,
+              schema:
+                "https://eddacraft.github.io/anvil/schemas/build-provenance-v1.json",
+              release_tag: $release_tag,
+              built_at: $built_at,
+              private_build: {
+                repository: $private_repo,
+                commit_sha: $private_sha,
+                ref: $private_ref,
+                workflow_run_id: $workflow_run_id,
+                workflow_run_attempt: $workflow_run_attempt,
+                workflow_run_url: $workflow_run
+              },
+              public_release: {
+                repository: $public_repo,
+                tag: $release_tag,
+                ref_at_publish: $public_sha
+              },
+              build_matrix: $build_matrix,
+              assets: $assets[0]
+            }' > "$PROVENANCE"
+
+          rm -f "$ASSETS_TMP"
+
+          echo "Generated build provenance manifest:"
+          jq . "$PROVENANCE"
+
+          # Defence in depth: confirm at least one asset was recorded.
+          # An empty assets array means we ran before the artifacts were
+          # downloaded — that would publish an empty manifest, which
+          # silently breaks the verification flow.
+          count=$(jq '.assets | length' "$PROVENANCE")
+          if [ "$count" -lt 1 ]; then
+            echo "::error::Provenance manifest recorded 0 assets — bailing out before publish."
+            exit 1
+          fi
       - name: Publish release to eddacraft/anvil-001 (private)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

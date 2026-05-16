@@ -165,6 +165,56 @@ explicitly direct legacy-binary users to either:
 Once on v0.7.0-beta, all subsequent `anvil update` calls land on the verified
 path. Document the bootstrap step in the release notes.
 
+## Build provenance manifest (#1217)
+
+Every release publishes `anvil-<tag>-provenance.json` alongside the binaries (on
+both the private `eddacraft/anvil-001` release and the public `eddacraft/anvil`
+release). The manifest binds public artefacts to the private source commit and
+tree they were built from, so downstream verifiers do not need to scrape
+workflow logs to trust the binding.
+
+### Schema (v1)
+
+```json
+{
+  "schema_version": "1",
+  "schema": "https://eddacraft.github.io/anvil/schemas/build-provenance-v1.json",
+  "release_tag": "v0.7.0-beta",
+  "built_at": "2026-05-15T11:18:17Z",
+  "private_build": {
+    "repository": "eddacraft/anvil-001",
+    "commit_sha": "…",
+    "ref": "refs/tags/v0.7.0-beta",
+    "workflow_run_id": "…",
+    "workflow_run_attempt": "1",
+    "workflow_run_url": "https://github.com/eddacraft/anvil-001/actions/runs/…"
+  },
+  "public_release": {
+    "repository": "eddacraft/anvil",
+    "tag": "v0.7.0-beta",
+    "ref_at_publish": "…"
+  },
+  "build_matrix": [{ "runner": "…", "targets": ["…"] }],
+  "assets": [{ "name": "…", "sha256": "…", "size_bytes": 0 }]
+}
+```
+
+### Trust binding
+
+The manifest is signed by the same key chain as the installer scripts:
+`release-sign-artefacts.yml` produces an `anvil-<tag>-provenance.json.minisig`
+sidecar and uploads it next to the manifest. Verification:
+
+```sh
+rsign verify -p anvil-release.pub \
+  -x anvil-v0.7.0-beta-provenance.json.minisig \
+  anvil-v0.7.0-beta-provenance.json
+```
+
+Operators who want a stronger guarantee about which private commit was used can
+re-build from that commit and compare the recorded SHA-256s to the locally
+produced ones.
+
 ## References
 
 - [ADR-045: Update Signing Scheme — Minisign](../../plans/decisions/045-update-signing-scheme.md)

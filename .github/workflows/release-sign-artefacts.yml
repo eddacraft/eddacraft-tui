@@ -91,33 +91,43 @@ jobs:
           set -euo pipefail
           mkdir -p assets
           cd assets
-          # We sign the installer scripts (cargo-dist outputs). These cover
-          # the binary chain of trust because the installer scripts already
-          # SHA256-verify the binary tarballs they download.
+          # We sign two classes of asset:
+          #   * Installer scripts (cargo-dist outputs). These cover the
+          #     binary chain of trust because the installer scripts
+          #     already SHA256-verify the binary tarballs they download.
+          #   * Build provenance manifests (#1217). The manifest binds
+          #     public artefacts to the private source commit and tree
+          #     they were built from; signing it lets downstream
+          #     verifiers trust the binding without trusting the
+          #     containing GitHub Release.
           gh release view "${TAG}" --json assets --jq '.assets[].name' \
-            | grep -E -- '-installer\.(sh|ps1)$' \
+            | grep -E -- '(-installer\.(sh|ps1)|-provenance\.json)$' \
             | while read -r asset; do
                 echo "Fetching ${asset}"
                 gh release download "${TAG}" --pattern "${asset}"
               done
           ls -la
 
-      - name: Sign each installer artefact
+      - name: Sign each release artefact
         run: |
           set -euo pipefail
           cd assets
           commit_sha="${GITHUB_SHA}"
           built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           shopt -s nullglob
-          for f in *-installer.sh *-installer.ps1; do
+          for f in *-installer.sh *-installer.ps1 anvil-*-provenance.json; do
             trusted="tag=${TAG};commit=${commit_sha};built=${built_at}"
-            echo "Signing ${f} → ${f}.minisig"
+            case "$f" in
+              *.json) label="provenance manifest" ;;
+              *)      label="installer" ;;
+            esac
+            echo "Signing ${f} → ${f}.minisig (${label})"
             # rsign sign: -W = no encryption prompt; -t = trusted comment;
             # -c = untrusted comment; -x = output path.
             echo "" | rsign sign \
               -s "${RUNNER_TEMP}/anvil-release.key" \
               -t "${trusted}" \
-              -c "anvil ${TAG} installer signature" \
+              -c "anvil ${TAG} ${label} signature" \
               -x "${f}.minisig" \
               "${f}"
           done
@@ -135,7 +145,7 @@ jobs:
             printf '%s\n' "${ANVIL_MINISIGN_PUBLIC_KEY}"
           } > "${RUNNER_TEMP}/anvil-release.pub"
           shopt -s nullglob
-          for f in *-installer.sh *-installer.ps1; do
+          for f in *-installer.sh *-installer.ps1 anvil-*-provenance.json; do
             echo "Verifying ${f} against ${f}.minisig"
             rsign verify -p "${RUNNER_TEMP}/anvil-release.pub" -x "${f}.minisig" "${f}"
           done
