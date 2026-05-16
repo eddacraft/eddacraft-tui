@@ -48,10 +48,27 @@ use tracing::{Instrument, field};
 use crate::ShutdownToken;
 use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
+use crate::fence::FenceStore;
 use crate::kindling_observation::MidEditEmissionRequest;
-use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService};
-use crate::registry::SessionDispatcher;
+use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService, SpoofBlockInfo};
+use crate::registry::{Cross, SessionDispatcher, SessionRegistry};
 use crate::status::{DaemonStatus, StatusProvider};
+
+/// MLP2-025b: capability bundle the daemon control-lane needs to run
+/// the write-time env-tag spoof cross-check. Carries the
+/// `SessionRegistry` (for the cross-check) and the `FenceStore` (for
+/// the side-effect fence on `Cross::Spoofed`).
+///
+/// `None` in tests, embedded fallback callers, and any listener
+/// constructed without a daemon-backed cross-check — in those modes
+/// the scan-buffer handler skips the cross-check entirely and
+/// proceeds to the rule engine. Production wires this via
+/// `IpcListener::with_cross_check_context`.
+#[derive(Clone)]
+pub struct CrossCheckContext {
+    pub registry: Arc<SessionRegistry>,
+    pub fence_store: Arc<FenceStore>,
+}
 
 /// Maximum size of a single NDJSON line, in bytes. Lines larger than
 /// this cause the connection to be torn down with [`IpcError::OversizedLine`]
@@ -521,6 +538,12 @@ pub struct IpcListener<D: SessionDispatcher> {
     limits: IpcLimits,
     #[cfg(unix)]
     status_provider: Arc<dyn StatusProvider>,
+    /// MLP2-025b: optional cross-check capability. Set by the
+    /// daemon at startup via [`Self::with_cross_check_context`];
+    /// `None` for tests and embedded listeners that don't run the
+    /// spoof check.
+    #[cfg(unix)]
+    cross_check: Option<CrossCheckContext>,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -533,6 +556,8 @@ pub struct IpcListener<D: SessionDispatcher> {
     limits: IpcLimits,
     #[cfg(windows)]
     status_provider: Arc<dyn StatusProvider>,
+    #[cfg(windows)]
+    cross_check: Option<CrossCheckContext>,
     #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
 }
@@ -555,6 +580,18 @@ impl<D: SessionDispatcher> IpcListener<D> {
     #[must_use]
     pub fn with_status_provider(mut self, provider: Arc<dyn StatusProvider>) -> Self {
         self.status_provider = provider;
+        self
+    }
+
+    /// MLP2-025b: wire the cross-check capability. The daemon's
+    /// `run_foreground` builder calls this with a context bundling
+    /// the session registry and the fence store; tests and
+    /// embedded listeners can skip it (and get legacy semantics —
+    /// no spoof cross-check).
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_cross_check_context(mut self, context: CrossCheckContext) -> Self {
+        self.cross_check = Some(context);
         self
     }
 }
@@ -672,6 +709,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             scan_buffer,
             limits: IpcLimits::default(),
             status_provider: Arc::new(NoopStatusProvider),
+            cross_check: None,
         })
     }
 
@@ -687,6 +725,8 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let scan_buffer = self.scan_buffer.clone();
         let limits = self.limits;
         let status_provider = Arc::clone(&self.status_provider);
+        // MLP2-025b: captured once for the listener; cloned per spawn.
+        let cross_check = self.cross_check.clone();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
         ));
@@ -729,9 +769,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // MLP2-025b: capture peer PID before moving
                             // the stream into the handler.
                             let peer_pid = peer_pid_for_tokio_unix_stream(&stream);
+                            let conn_cross_check = cross_check.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -806,6 +847,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             scan_buffer,
             limits: IpcLimits::default(),
             status_provider: Arc::new(NoopStatusProvider),
+            cross_check: None,
         })
     }
 
@@ -817,6 +859,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let scan_buffer = self.scan_buffer;
         let limits = self.limits;
         let status_provider = Arc::clone(&self.status_provider);
+        let cross_check = self.cross_check.clone();
         let mut joinset: JoinSet<()> = JoinSet::new();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
@@ -856,6 +899,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let scan_buffer = scan_buffer.clone();
                             let conn_status = Arc::clone(&status_provider);
                             let conn_token = token.clone();
+                            let conn_cross_check = cross_check.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
                                 // MLP2-025b: Windows peer-PID is
@@ -864,7 +908,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 // any env-tagged write — the safe
                                 // default until peer-pid support lands.
                                 let peer_pid: Option<u32> = None;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -917,6 +961,10 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // available; the cross-check treats `None` + present env_tag
     // as `Cross::Spoofed` (fail-closed, spec §7).
     peer_pid: Option<u32>,
+    // MLP2-025b: optional cross-check capability bundle. `None`
+    // disables the write-time spoof check (tests, embedded
+    // callers, listeners not wired to a daemon registry+fence).
+    cross_check: Option<CrossCheckContext>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
@@ -1030,6 +1078,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                         &scan_buffer,
                         &status_provider,
                         peer_pid,
+                        cross_check.as_ref(),
                     )
                     .await
                     {
@@ -1214,8 +1263,10 @@ pub async fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     scan_buffer: &ScanBufferService,
 ) -> Option<Value> {
     let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
-    // MLP2-025b: benchmark fixture; no real socket, so no peer PID.
-    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status, None).await
+    // MLP2-025b: benchmark fixture; no real socket, so no peer PID,
+    // and no cross-check context (we're measuring the rule-engine
+    // hot path, not the security cross-check).
+    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status, None, None).await
 }
 
 fn is_jsonrpc_frame(value: &Value) -> bool {
@@ -1688,6 +1739,9 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
     // MLP2-025b: per-connection peer PID. `None` on platforms / kernels
     // where the PID is not available, or in synthetic test fixtures.
     peer_pid: Option<u32>,
+    // MLP2-025b: optional cross-check capability bundle threaded
+    // from `handle_connection`. `None` disables the spoof check.
+    cross_check: Option<&CrossCheckContext>,
 ) -> Option<Value> {
     match value {
         Value::Array(items) => {
@@ -1743,9 +1797,15 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     }
                     continue;
                 }
-                if let Some(response) =
-                    handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider, peer_pid)
-                        .await
+                if let Some(response) = handle_jsonrpc_request(
+                    item,
+                    dispatcher,
+                    scan_buffer,
+                    status_provider,
+                    peer_pid,
+                    cross_check,
+                )
+                .await
                 {
                     responses.push(response);
                 }
@@ -1757,7 +1817,15 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
             }
         }
         item => {
-            handle_jsonrpc_request(item, dispatcher, scan_buffer, status_provider, peer_pid).await
+            handle_jsonrpc_request(
+                item,
+                dispatcher,
+                scan_buffer,
+                status_provider,
+                peer_pid,
+                cross_check,
+            )
+            .await
         }
     }
 }
@@ -1803,6 +1871,8 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     // MLP2-025b: per-connection peer PID; threaded to
     // `handle_scan_buffer_jsonrpc`. See `handle_connection` doc.
     peer_pid: Option<u32>,
+    // MLP2-025b: optional cross-check capability bundle.
+    cross_check: Option<&CrossCheckContext>,
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
@@ -1900,6 +1970,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             is_notification,
             scan_buffer,
             peer_pid,
+            cross_check,
         )
         .instrument(dispatch_span)
         .await;
@@ -2053,11 +2124,15 @@ async fn handle_scan_buffer_jsonrpc(
     traceparent: Option<&str>,
     is_notification: bool,
     scan_buffer: &ScanBufferService,
-    // MLP2-025b: per-connection peer PID. Consumed by the
-    // cross-check wire-up in B7. For now this function accepts the
-    // parameter but does not use it (the cross-check itself lands
-    // in subtask B7 alongside the registry + fence_store thread-in).
-    _peer_pid: Option<u32>,
+    // MLP2-025b: per-connection peer PID. Used by the cross-check
+    // below.
+    peer_pid: Option<u32>,
+    // MLP2-025b: optional cross-check capability bundle. When
+    // `Some`, the daemon runs the env-tag spoof cross-check before
+    // invoking the rule engine; on `Cross::Spoofed` the write is
+    // blocked and a worktree-level fence is recorded. When `None`,
+    // the cross-check is skipped (legacy semantics).
+    cross_check: Option<&CrossCheckContext>,
 ) -> Option<Value> {
     if let Err(JsonRpcFailure {
         code,
@@ -2082,7 +2157,16 @@ async fn handle_scan_buffer_jsonrpc(
         eprintln!("anvil-intercept: ignoring scan_buffer notification: request id required");
         return None;
     }
-    match scan_buffer_from_jsonrpc(params, method, traceparent, scan_buffer).await {
+    match scan_buffer_from_jsonrpc(
+        params,
+        method,
+        traceparent,
+        scan_buffer,
+        peer_pid,
+        cross_check,
+    )
+    .await
+    {
         Ok(result) => Some(jsonrpc_success(response_id, traceparent, result)),
         Err(JsonRpcFailure {
             code,
@@ -2364,11 +2448,144 @@ fn jsonrpc_dispatch_span(
     dispatch_span
 }
 
+/// MLP2-025b: run the write-time env-tag spoof cross-check. Returns
+/// `Some(serialised_blocked_response)` when the request is spoofed and
+/// should be short-circuited; `None` when the request should fall
+/// through to the rule engine (untagged or matched).
+///
+/// Implements the §4 message-flow arrows 4–7b of
+/// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`:
+/// classify the env tag via `SessionRegistry::cross_check_env_tag`,
+/// on `Cross::Spoofed` fence the worktree (via
+/// `worktree_for_lineage` with file-parent fallback, per
+/// MLP2-025b user-approved option (a)), emit notification +
+/// `tracing::warn!`, and build a `ScanBufferResponse` carrying the
+/// `SpoofBlockInfo`.
+///
+/// Fail-closed defaults (spec §7):
+/// - `env_agent_tag` present + malformed → classify as `Spoofed`.
+/// - `env_agent_tag` present + `peer_pid` `None` → classify as
+///   `Spoofed` (the daemon cannot validate without a writer PID).
+fn run_spoof_cross_check(
+    request: &ScanBufferRequest,
+    peer_pid: Option<u32>,
+    ctx: &CrossCheckContext,
+) -> Option<Value> {
+    // Decode env tag at the boundary. Both absence and parse failure
+    // fold to "no validated tag":
+    // - absence: classify as `Cross::Untagged`, fall through.
+    // - parse failure: classify as `Cross::Spoofed`, fail-closed.
+    let raw = request.env_agent_tag.as_deref();
+    let env_tag = match raw {
+        None => None,
+        Some(raw_value) => match anvil_attribution::env::agent_tag_from_env_value(raw_value) {
+            Ok(tag) => Some(tag),
+            Err(_) => {
+                // Parse failure → treat as spoofed (fail-closed).
+                return Some(spoof_block_response(request, peer_pid, ctx));
+            }
+        },
+    };
+
+    // Untagged writes are out of MLP2-025's scope — they follow the
+    // pre-MLP2-025 enforcement path unchanged.
+    if env_tag.is_none() {
+        return None;
+    }
+
+    // Env tag is `Some` but we have no peer PID → cannot validate
+    // the lineage. Fail-closed (§7).
+    let Some(writer_pid) = peer_pid else {
+        return Some(spoof_block_response(request, None, ctx));
+    };
+
+    match ctx
+        .registry
+        .cross_check_env_tag(env_tag.as_ref(), writer_pid)
+    {
+        Cross::Match | Cross::Untagged => None,
+        Cross::Spoofed => Some(spoof_block_response(request, Some(writer_pid), ctx)),
+    }
+}
+
+/// MLP2-025b: build the response for a spoofed write. Resolves the
+/// worktree to fence (option (a): registered ancestor's worktree
+/// with file-parent fallback), records the fence, emits the
+/// `degraded:spoofed-attribution` notification + `tracing::warn!`,
+/// and serialises a `ScanBufferResponse` with `spoof_block`
+/// populated.
+fn spoof_block_response(
+    request: &ScanBufferRequest,
+    peer_pid: Option<u32>,
+    ctx: &CrossCheckContext,
+) -> Value {
+    // Resolve the worktree to fence (option (a)):
+    // 1. If we know the writer's PID, ask the registry for any
+    //    registered ancestor's worktree (tag-agnostic).
+    // 2. Fall back to the file's parent directory if no ancestor is
+    //    registered. This is imperfect — the parent may not be a
+    //    real worktree root — but it gives `is_fenced` something to
+    //    match against and lets the operator-touch trail surface.
+    let fence_target = peer_pid
+        .and_then(|pid| ctx.registry.worktree_for_lineage(pid))
+        .or_else(|| request.path.parent().map(std::path::Path::to_path_buf))
+        .unwrap_or_else(|| request.path.clone());
+
+    // Record the fence. A failure here is logged via tracing::error
+    // but does not change the verdict — the spoofed write is
+    // ALWAYS blocked, even if the fence record could not be
+    // persisted (spec §7 verdict).
+    let fenced_worktree = match ctx.fence_store.fence_worktree_for_spoof(&fence_target) {
+        Ok(record) => record.worktree,
+        Err(err) => {
+            tracing::error!(
+                target: "anvil_intercept::ipc",
+                reason = crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
+                error = %err,
+                "failed to record spoof fence; blocking write anyway",
+            );
+            fence_target.clone()
+        }
+    };
+
+    // Emit the dual-channel telemetry (spec §8): tracing::warn!
+    // for structured-log collectors, plus the notification path is
+    // already covered by the fence-transition envelope the
+    // FenceStore::fence_worktree_for_spoof call triggers via its
+    // upstream notification bus (when wired).
+    tracing::warn!(
+        target: "anvil_intercept::ipc",
+        reason = crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
+        writer_pid = peer_pid,
+        worktree = %fenced_worktree.display(),
+        path = %request.path.display(),
+        "blocking spoofed-attribution write and fencing worktree",
+    );
+
+    // Build the BlockedSpoofedAttribution response (spec §3.3).
+    let response = midedit::ScanBufferResponse {
+        version: request.version,
+        diagnostics: Vec::new(),
+        truncated: false,
+        rules_sha: None,
+        spoof_block: Some(SpoofBlockInfo {
+            reason: crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION.to_string(),
+            fenced_worktree,
+        }),
+    };
+    // serde::to_value on this shape is infallible (only String /
+    // PathBuf / numeric primitives) — unwrap matches the convention
+    // elsewhere in this file.
+    serde_json::to_value(&response).expect("ScanBufferResponse with SpoofBlockInfo serialises")
+}
+
 async fn scan_buffer_from_jsonrpc(
     params: &Value,
     method: &str,
     traceparent: Option<&str>,
     scan_buffer: &ScanBufferService,
+    peer_pid: Option<u32>,
+    cross_check: Option<&CrossCheckContext>,
 ) -> Result<Value, JsonRpcFailure> {
     let request = {
         let params = params_object(params, method)?;
@@ -2405,6 +2622,15 @@ async fn scan_buffer_from_jsonrpc(
             env_agent_tag,
         }
     };
+
+    // MLP2-025b: run the write-time spoof cross-check before the
+    // rule engine. When `cross_check` is `None` the daemon is in a
+    // legacy / test configuration and the cross-check is skipped.
+    if let Some(ctx) = cross_check
+        && let Some(spoof_response) = run_spoof_cross_check(&request, peer_pid, ctx)
+    {
+        return Ok(spoof_response);
+    }
     let scan_span = tracing::info_span!(
         target: "anvil_intercept::ipc",
         "jsonrpc.scan_buffer",
@@ -2670,8 +2896,171 @@ fn dispatch_command<D: SessionDispatcher>(
 mod tests {
     use super::*;
     use crate::enforcement::EnforcementPipeline;
+    use anvil_intercept_proto::session::AgentTag;
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    // ----------------------------------------------------------------
+    // MLP2-025b: cross-check wire-up tests. Target `run_spoof_cross_check`
+    // directly with synthetic CrossCheckContext fixtures so the tests
+    // stay platform-portable (no real IPC, no real /proc walking).
+    // ----------------------------------------------------------------
+
+    fn make_cross_check_context() -> (CrossCheckContext, tempfile::TempDir) {
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = FenceStore::at_path(temp.path().join("state/fences.json"));
+        (
+            CrossCheckContext {
+                registry: Arc::new(SessionRegistry::new()),
+                fence_store: Arc::new(store),
+            },
+            temp,
+        )
+    }
+
+    fn make_request(text: &str, env_agent_tag: Option<&str>) -> ScanBufferRequest {
+        ScanBufferRequest {
+            path: PathBuf::from("/tmp/spoof-target/x.rs"),
+            text: text.to_string(),
+            version: 1,
+            mode: ScanBufferMode::MidEdit,
+            env_agent_tag: env_agent_tag.map(|s| s.to_string()),
+        }
+    }
+
+    /// MLP2-025b: a write with no `env_agent_tag` always falls
+    /// through to the rule engine — `Cross::Untagged` is the
+    /// pre-MLP2-025 path, unchanged.
+    #[test]
+    fn run_spoof_cross_check_untagged_returns_none() {
+        let (ctx, _temp) = make_cross_check_context();
+        let request = make_request("fn main() {}", None);
+        let response = run_spoof_cross_check(&request, Some(4242), &ctx);
+        assert!(response.is_none(), "untagged write must fall through");
+    }
+
+    /// MLP2-025b: a write with an `env_agent_tag` but no peer PID
+    /// is classified as `Cross::Spoofed` (fail-closed per spec §7).
+    /// The daemon cannot validate the lineage without a writer PID.
+    /// Pin both halves of the verdict: the response carries the
+    /// spoof block AND the fence is recorded on disk.
+    #[test]
+    fn run_spoof_cross_check_present_env_tag_without_peer_pid_is_spoofed() {
+        let (ctx, _temp) = make_cross_check_context();
+        // Real tempdir for the file's parent so the fence-store
+        // canonicalise succeeds. The file itself need not exist —
+        // the fence target is the parent directory.
+        let writer_wt = tempfile::tempdir().expect("writer tempdir");
+        let tag = AgentTag::new("anvil-run", "claude-1", 1_700_000_000);
+        let encoded = anvil_attribution::env::agent_tag_to_env_value(&tag);
+        let mut request = make_request("fn main() {}", Some(&encoded));
+        request.path = writer_wt.path().join("x.rs");
+
+        let response =
+            run_spoof_cross_check(&request, None, &ctx).expect("None peer pid must fail-closed");
+
+        // Confirm the wire shape carries the spoof block.
+        assert_eq!(
+            response["spoof_block"]["reason"],
+            "degraded:spoofed-attribution"
+        );
+        // Confirm the fence_store recorded the worktree.
+        let fences = ctx.fence_store.load().expect("load fences");
+        assert!(
+            !fences.active_fences().is_empty(),
+            "spoof block must record a fence; active={:?}",
+            fences.active_fences()
+        );
+        assert_eq!(
+            fences.active_fences()[0].reason,
+            "degraded:spoofed-attribution"
+        );
+    }
+
+    /// MLP2-025b: a write with a malformed `env_agent_tag` is
+    /// classified as `Cross::Spoofed` rather than surfacing as a
+    /// parse error. Pinned by spec §7 + Q3 verdict.
+    #[test]
+    fn run_spoof_cross_check_malformed_env_tag_is_spoofed() {
+        let (ctx, _temp) = make_cross_check_context();
+        let request = make_request("fn main() {}", Some("not-valid-json"));
+
+        let response = run_spoof_cross_check(&request, Some(4242), &ctx)
+            .expect("malformed env tag must be spoofed");
+
+        assert_eq!(
+            response["spoof_block"]["reason"],
+            "degraded:spoofed-attribution"
+        );
+    }
+
+    /// MLP2-025b: a write with an `env_agent_tag` that matches the
+    /// daemon-issued tag on the writer's PID lineage falls through
+    /// to the rule engine — `Cross::Match` is the legitimate path.
+    /// Exercised via the test process's own PID, which the
+    /// `worktree_for_lineage` walk can actually traverse via /proc.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn run_spoof_cross_check_matching_tag_falls_through() {
+        use std::time::Instant;
+        let (ctx, _temp) = make_cross_check_context();
+        let self_pid = std::process::id();
+        // Read the live pid_starttime via the same helper the
+        // production lookup uses.
+        let starttime =
+            anvil_attribution::process::pid_starttime(self_pid).expect("pid_starttime for self");
+
+        let issued = AgentTag::new("anvil-run", "claude-test", starttime);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        ctx.registry
+            .register_with_lineage(
+                &anvil_intercept_proto::SessionId::new("test-session"),
+                worktree.path(),
+                None,
+                Some(&issued),
+                self_pid,
+                starttime,
+                Instant::now(),
+            )
+            .expect("register with lineage");
+
+        let encoded = anvil_attribution::env::agent_tag_to_env_value(&issued);
+        let request = make_request("fn main() {}", Some(&encoded));
+
+        let response = run_spoof_cross_check(&request, Some(self_pid), &ctx);
+        assert!(
+            response.is_none(),
+            "matching tag must fall through to rule engine; got {response:?}"
+        );
+
+        // No fence should have been recorded.
+        let fences = ctx.fence_store.load().expect("load fences");
+        assert!(fences.active_fences().is_empty());
+    }
+
+    /// MLP2-025b: a write with a present env_agent_tag but no
+    /// registered ancestor on the writer's lineage is `Spoofed`.
+    /// Pinned with a synthetic PID that has no registered ancestor
+    /// — the lineage walk reaches root without matching.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn run_spoof_cross_check_no_registered_ancestor_is_spoofed() {
+        let (ctx, _temp) = make_cross_check_context();
+        let tag = AgentTag::new("anvil-run", "ghost", 1_700_000_000);
+        let encoded = anvil_attribution::env::agent_tag_to_env_value(&tag);
+        let request = make_request("fn main() {}", Some(&encoded));
+
+        let response = run_spoof_cross_check(&request, Some(std::process::id()), &ctx)
+            .expect("no registered ancestor must be spoofed");
+        assert_eq!(
+            response["spoof_block"]["reason"],
+            "degraded:spoofed-attribution"
+        );
+    }
 
     #[cfg(unix)]
     use anvil_intercept_proto::{SessionId, SessionRecord};
@@ -2790,6 +3179,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
             None,
         )
         .await
@@ -3943,6 +4333,7 @@ mod tests {
             &scan_buffer,
             &status,
             None,
+            None,
         )
         .await
         .expect("scan_buffer response");
@@ -4008,6 +4399,7 @@ mod tests {
             &scan_buffer,
             &status,
             None,
+            None,
         )
         .await
         .expect("scan response");
@@ -4050,6 +4442,7 @@ mod tests {
             &scan_buffer,
             &status,
             None,
+            None,
         )
         .await
         .expect("scan response");
@@ -4090,6 +4483,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
             None,
         )
         .await
@@ -4159,10 +4553,16 @@ mod tests {
         });
 
         for _ in 0..5 {
-            let response =
-                handle_jsonrpc_value(frame.clone(), &dispatcher, &scan_buffer, &status, None)
-                    .await
-                    .expect("scan response");
+            let response = handle_jsonrpc_value(
+                frame.clone(),
+                &dispatcher,
+                &scan_buffer,
+                &status,
+                None,
+                None,
+            )
+            .await
+            .expect("scan response");
             assert!(
                 response["result"]["diagnostics"]
                     .as_array()

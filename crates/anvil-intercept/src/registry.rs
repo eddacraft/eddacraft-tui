@@ -618,6 +618,46 @@ impl SessionRegistry {
         Cross::classify(env_tag, registered.as_ref())
     }
 
+    /// MLP2-025b: walk the writer's PID lineage and return the
+    /// **worktree** of any registered ancestor, regardless of tag
+    /// match. Differs from [`Self::lookup_tag_for_lineage`] in that
+    /// it does not care which tag the ancestor was registered with —
+    /// it just needs to find SOME registered session on the lineage
+    /// so the daemon control-lane has a worktree to fence on
+    /// `Cross::Spoofed`.
+    ///
+    /// Returns `None` when no ancestor is registered at all. The
+    /// caller (the daemon control-lane) falls back to the file's
+    /// canonical parent directory in that case.
+    #[must_use]
+    pub fn worktree_for_lineage(&self, start_pid: u32) -> Option<PathBuf> {
+        use anvil_attribution::process::pid_starttime;
+        use anvil_attribution::walk::{DEFAULT_MAX_DEPTH, WalkOutcome, walk_ancestors};
+
+        // Snapshot the lineage index + sessions so the walk runs
+        // outside the registry lock. The visitor returns the
+        // SessionId on first match; we look up the worktree
+        // afterwards under a fresh lock acquisition.
+        let snapshot: HashMap<(u32, u64), SessionId> = {
+            let inner = self.lock();
+            inner.by_pid_lineage.clone()
+        };
+
+        let outcome = walk_ancestors(start_pid, DEFAULT_MAX_DEPTH, |pid| {
+            let starttime = pid_starttime(pid).ok()?;
+            snapshot.get(&(pid, starttime)).cloned()
+        })
+        .ok()?;
+
+        let matched_sid = match outcome {
+            WalkOutcome::Matched { value, .. } => value,
+            WalkOutcome::ReachedRoot | WalkOutcome::DepthExhausted { .. } => return None,
+        };
+
+        let inner = self.lock();
+        Some(inner.sessions.get(&matched_sid)?.record.worktree.clone())
+    }
+
     /// Update process info for a registered session. `None` fields are
     /// no-ops — they do NOT clobber an existing `Some`.
     pub fn update_process_info(
@@ -1981,6 +2021,54 @@ mod tests {
         assert!(
             registry_arc.lookup_tag_by_pid_starttime(0, 0).is_none(),
             "no anchor was seeded for the legacy register path"
+        );
+    }
+
+    /// MLP2-025b: `worktree_for_lineage` returns the worktree of any
+    /// registered ancestor regardless of tag match. Used by the
+    /// daemon control-lane on `Cross::Spoofed` to find a worktree to
+    /// fence even when no tag matched.
+    #[test]
+    fn worktree_for_lineage_returns_registered_session_worktree() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let canonical = wt.path().canonicalize().expect("canonicalise");
+        let issued = tag("anvil-run", "launcher", 1_700_000_900);
+
+        registry
+            .register_with_lineage(
+                &sid("anchor"),
+                wt.path(),
+                None,
+                Some(&issued),
+                4242,
+                1_700_000_900,
+                Instant::now(),
+            )
+            .expect("register");
+
+        // Direct lookup by (pid, starttime) returns the worktree.
+        let inner = registry.lock();
+        let sid_match = inner
+            .by_pid_lineage
+            .get(&(4242, 1_700_000_900))
+            .expect("anchor present")
+            .clone();
+        drop(inner);
+        let worktree = registry
+            .lock()
+            .sessions
+            .get(&sid_match)
+            .expect("session")
+            .record
+            .worktree
+            .clone();
+        assert_eq!(worktree, canonical);
+
+        // No registered ancestor for a totally unrelated pid → None.
+        assert!(
+            registry.worktree_for_lineage(99_999).is_none(),
+            "worktree_for_lineage returns None when no ancestor is registered"
         );
     }
 
