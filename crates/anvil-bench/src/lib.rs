@@ -5,3 +5,4 @@ pub mod fixture;
 pub mod measure;
 pub mod report;
 pub mod scenarios;
+pub mod watch_resource_budget;

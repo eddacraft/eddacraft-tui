@@ -1,21 +1,21 @@
 # Adoption Friction Removal
 
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADOPT | @aneki | Ready  | 2/6 done |
+| ADOPT | @aneki | In Progress | 3/6 done |
 
 **Last reviewed:** 2026-05-16 (promoted **Proposed → Ready** alongside
 acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Progress: **2/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
+Progress: **3/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
 `crates/anvil-cli/src/commands/uninstall.rs` with 10 tests) and
 **Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
 2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
-`docs/runbooks/anvil-hook-coexistence.md`). Module-level `Ready` means "ready
-to begin Wave 3A"; remaining tasks are `In Progress` or `Draft`. ADOPT-002 and
--003 are parallel-safe.)
+`docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
+enforcement completed 2026-05-16. Module status is `In Progress`; ADOPT-003 is
+the remaining in-flight Wave 3A item while ADOPT-004 and ADOPT-006 remain draft.)
 
 ## Purpose
 
@@ -112,30 +112,26 @@ disables any check, suppresses without resolution, or bypasses a hook.
 - **Intent:** Pin a documented, CI-enforced resource ceiling so senior users
   do not notice Anvil on their battery or CPU graph.
 - **Expected Outcome:** `crates/anvil-bench` produces measured CPU
-  steady-state and peak-RSS numbers on a reference repository
-  (committed as a benchmark fixture). CI fails the build if steady-state CPU
-  > 5% or RSS > 200MB on the reference repo. `docs/policies/resource-
-  budget.md` documents the ceiling and the measurement protocol.
+  steady-state and peak-RSS numbers on a deterministic generated reference
+  repository. CI fails the build if steady-state CPU > 5% or RSS > 200MB on the
+  reference repo. `docs/policies/resource-budget.md` documents the ceiling and
+  the measurement protocol.
 - **Files:**
   - `crates/anvil-bench/src/budget.rs` (NEW — evaluator primitive
     landed 2026-05-14 on `feat/adopt-002-resource-budget`)
   - `docs/policies/resource-budget.md` (NEW — landed 2026-05-14)
   - `crates/anvil-bench/benches/watch_resource_budget.rs` (NEW —
-    follow-up: drives `anvil watch` on the fixture and emits a
-    `MeasurementSample`)
-  - `.github/workflows/resource-budget.yml` (NEW — follow-up:
-    runs the bench scenario and asserts on the JSON verdict)
+    drives `anvil watch` on the fixture and emits a `BudgetVerdict`)
+  - `.github/workflows/resource-budget.yml` (NEW — runs the bench
+    scenario and asserts on the JSON verdict)
 - **Validation:**
   - `cargo test -p anvil-bench budget` (11 tests green; covers
     pinned ceiling, pass/fail axes, JSON shape and round-trip)
   - `cargo bench -p anvil-bench --bench watch_resource_budget`
-    (deferred — added with the bench scenario)
   - CI: `resource-budget` workflow green on the candidate SHA
-    (deferred — added with the workflow)
-- **Status:** In Progress
-- **Picked up:** 2026-05-14 (primitive PR open on
-  `feat/adopt-002-resource-budget`; bench scenario + CI workflow
-  follow-up tracked here)
+- **Status:** Done
+- **Completed:** 2026-05-16 on `feat/adopt-002-resource-budget`; added
+  Linux `/proc` sampler, `watch_resource_budget` bench, and CI workflow.
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor

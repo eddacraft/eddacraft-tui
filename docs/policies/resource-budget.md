@@ -1,12 +1,12 @@
 # Resource Budget — `anvil watch`
 
-| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                 |
-| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta sit-on; implementation state `Pre-implementation` |
+| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                                      |
+| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-16 against `crates/anvil-bench/src/watch_resource_budget.rs` and `.github/workflows/resource-budget.yml` |
 
-| Upstream                                                      | Downstream                                                                                                             |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-bench` (`budget`, `fixture`, `measure` modules) | `.github/workflows/resource-budget.yml` (follow-up), `crates/anvil-bench/benches/watch_resource_budget.rs` (follow-up) |
+| Upstream                                                                    | Downstream                                                                                     |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `crates/anvil-bench` (`budget`, `fixture`, `watch_resource_budget` modules) | `.github/workflows/resource-budget.yml`, `crates/anvil-bench/benches/watch_resource_budget.rs` |
 
 Pinned ceiling for `anvil watch` on the reference benchmark fixture. Anvil's
 adoption test is that senior users do not notice it on their battery or CPU
@@ -33,38 +33,38 @@ test alone will go green. The DECISION-LOG + release note steps are the only
 human gate against an intentional bump landing without review; treat this as a
 process invariant, not an enforced one.
 
-## Reference fixture
+## Reference Fixture
 
 The bench scenario runs against the synthetic repository produced by
-`crates/anvil-bench::fixture` with `LanguageMix::default()`. The fixture is
-committed and seeded so the same SHA produces the same file tree on every run —
-that is what makes the ceiling meaningful across machines and runners.
+`crates/anvil-bench::fixture` with `RepoSpec::default()` and
+`LanguageMix::default()`. The fixture is generated from a deterministic seed so
+the same source revision produces the same file tree on every run — that is what
+makes the ceiling meaningful across machines and runners.
 
 ## Measurement protocol
 
-`anvil watch` is started against the fixture and allowed to settle. The bench
-scenario then:
+`cargo bench -p anvil-bench --bench watch_resource_budget` starts `anvil watch`
+against the fixture with `ANVIL_DEV=1` for the local credential pre-check and
+allows it to settle. The bench scenario then:
 
-1. Waits past the initial scan window (deterministic — owned by the scenario,
-   not wall-clock guessed).
-2. Samples CPU steady-state across the measurement window at **0.1%**
-   resolution.
-3. Samples peak RSS across the same window via the existing `MemoryGuard`
-   primitive in `crates/anvil-bench/src/measure.rs` at **1 MiB** resolution.
+1. Waits past the initial scan window using the scenario-owned settle duration.
+2. Samples CPU steady-state across the measurement window from `/proc` tick
+   deltas.
+3. Samples peak RSS across the same window from `/proc/<pid>/status`.
 4. Emits a `MeasurementSample` and feeds it to `anvil_bench::budget::evaluate`.
 
-The precision floor matters because `evaluate` treats "exactly at the ceiling"
-as a Pass. Sampling noisier than the precision floor would make that boundary
-rule meaningless; sampling finer than the floor is allowed and harmless.
+`evaluate` treats "exactly at the ceiling" as a Pass. The sampler emits the raw
+derived CPU and RSS values so CI logs show headroom without hiding slow drift
+behind rounding.
 
-The bench scenario itself is the follow-up step on this APS item; this primitive
-ships the comparison contract first so CI integration work has a stable target.
+Set `ANVIL_BENCH_ANVIL_BIN` to point at the binary under test. If it is unset,
+the bench uses `target/debug/anvil` or `target/release/anvil` when present.
 
 ## CI assertion
 
-The `.github/workflows/resource-budget.yml` job (added in the follow-up step)
-runs the scenario, captures the JSON verdict, and fails the build when
-`status != "pass"`. The verdict shape is:
+The `.github/workflows/resource-budget.yml` job builds a release `anvil` binary,
+runs the scenario, captures the JSON verdict, uploads it as an artifact, and
+fails the build when `status != "pass"`. The verdict shape is:
 
 ```jsonc
 {
@@ -95,5 +95,6 @@ on green builds — slow drift is detectable before it becomes a failure.
 
 - `ResourceBudget::ANVIL_WATCH_V1` — `crates/anvil-bench/src/budget.rs`
 - Fixture generator — `crates/anvil-bench/src/fixture.rs`
-- Memory measurement — `crates/anvil-bench/src/measure.rs`
+- Watch budget sampler — `crates/anvil-bench/src/watch_resource_budget.rs`
+- CI gate — `.github/workflows/resource-budget.yml`
 - APS — `plans/modules/adoption-friction.aps.md` (ADOPT-002)
