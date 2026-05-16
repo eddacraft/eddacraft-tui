@@ -3,6 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 use anvil_kernel_types::hooks::is_anvil_managed_command;
+use anvil_kernel_types::protection_claim::ProtectionClaim;
 use anvil_kernel_types::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,
 };
@@ -13,6 +14,7 @@ use crate::GlobalArgs;
 use crate::commands::hooks::{
     config_hooks_enabled, list_config_hook_commands, resolve_file_mode_hook_paths,
 };
+use crate::commands::protection_claim_section;
 use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
 
 /// JSON output schema version. Bumped to 2.0.0 in LAUNCH-005 because
@@ -35,10 +37,18 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         apply_fixes(&mut checks, global.json);
     }
 
+    // MLP2-051a: resolve the typed `ProtectionClaim` for the current
+    // worktree the same way `anvil status --json` does — daemon-snapshot
+    // if reachable, local-only fallback otherwise. The fetch only runs
+    // for the JSON and plain surfaces that consume it; the TUI branch
+    // does not render the claim (its own surface owns that real-estate)
+    // so we skip the IPC round-trip there.
     if global.json {
-        print_json(&checks)?;
+        let protection_claim = protection_claim_section::fetch_protection_claim_for_cwd();
+        print_json(&checks, &protection_claim)?;
     } else if global.no_tui || !std::io::stdout().is_terminal() {
-        print_plain(&checks);
+        let protection_claim = protection_claim_section::fetch_protection_claim_for_cwd();
+        print_plain(&checks, &protection_claim);
     } else {
         let mut state = DoctorState::new(checks.clone());
         loop {
@@ -835,10 +845,22 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
 
 // --- Output formatters ---
 
-fn print_plain(checks: &[DiagnosticCheck]) {
-    println!();
-    println!("  Anvil Doctor");
-    println!();
+fn print_plain(checks: &[DiagnosticCheck], protection_claim: &ProtectionClaim) {
+    print!("{}", format_plain(checks, protection_claim));
+}
+
+/// Render the full `anvil doctor` plain-text surface to a string.
+/// Extracted so tests can assert the byte-exact layout (including
+/// the MLP2-051a protection-claim section) without capturing
+/// stdout. `print_plain` is a thin wrapper that streams this to
+/// the terminal.
+fn format_plain(checks: &[DiagnosticCheck], protection_claim: &ProtectionClaim) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  Anvil Doctor");
+    let _ = writeln!(out);
 
     for check in checks {
         let icon = match check.status {
@@ -848,7 +870,8 @@ fn print_plain(checks: &[DiagnosticCheck]) {
             CheckStatus::Skipped => "\u{25CB}",
             CheckStatus::Running => "*",
         };
-        println!(
+        let _ = writeln!(
+            out,
             "  {icon} {name}  {message}",
             name = check.name,
             message = check.message,
@@ -859,30 +882,58 @@ fn print_plain(checks: &[DiagnosticCheck]) {
         if !check.remediation.is_empty() {
             let r = &check.remediation;
             if !r.summary.is_empty() {
-                println!("      \u{2192} {summary}", summary = r.summary);
+                let _ = writeln!(out, "      \u{2192} {summary}", summary = r.summary);
             }
             if let Some(cmd) = &r.command {
-                println!("        run:  {cmd}");
+                let _ = writeln!(out, "        run:  {cmd}");
             }
             if let Some(url) = &r.doc_url {
-                println!("        docs: {url}");
+                let _ = writeln!(out, "        docs: {url}");
             }
             if check.auto_fixable {
-                println!("        fix:  anvil doctor --fix");
+                let _ = writeln!(out, "        fix:  anvil doctor --fix");
             }
         }
     }
 
     let summary = anvil_tui::surfaces::doctor::DiagnosticSummary::from_checks(checks);
-    println!();
-    println!(
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
         "  {passed} passed, {failed} failed, {warnings} warnings, {skipped} skipped",
         passed = summary.passed,
         failed = summary.failed,
         warnings = summary.warnings,
         skipped = summary.skipped,
     );
-    println!();
+    let _ = writeln!(out);
+    // MLP2-051a: protection-claim section. Indented with the same
+    // two-space prefix as the diagnostic rows so the surface reads as
+    // one block. The shared helper emits the headline + per-surface
+    // lines in §14 closed-set vocabulary.
+    out.push_str(&indent_block(
+        &protection_claim_section::render_protection_claim_plain(protection_claim),
+        "  ",
+    ));
+    let _ = writeln!(out);
+    out
+}
+
+/// Apply `prefix` to every non-empty line of `body`. Used to slot the
+/// protection-claim section into doctor's two-space indented surface
+/// without forcing the shared renderer to know doctor's layout.
+fn indent_block(body: &str, prefix: &str) -> String {
+    let mut out = String::new();
+    for line in body.lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str(prefix);
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
 }
 
 #[derive(Serialize)]
@@ -927,6 +978,16 @@ struct DoctorOutput {
     schema_version: String,
     checks: Vec<JsonCheck>,
     notifications: Vec<Notification>,
+    /// MLP2-051a: nested [`ProtectionClaim`] wire shape per spec §14,
+    /// byte-identical to the field emitted by `anvil status --json`.
+    /// Consumers parse it against
+    /// `anvil_kernel_types::protection_claim::ProtectionClaim`
+    /// (carrying its own `schema_version` =
+    /// `anvil.protection-claim.v1`). Doctor's surface this so editor
+    /// drivers and CI tooling can interrogate worktree state through
+    /// `anvil doctor --json` without a second round-trip to
+    /// `anvil status --json`.
+    protection_claim: ProtectionClaim,
 }
 
 fn status_str(status: CheckStatus) -> &'static str {
@@ -1023,7 +1084,10 @@ fn notifications_for_doctor(checks: &[DiagnosticCheck]) -> Vec<Notification> {
     notifications
 }
 
-fn build_doctor_output(checks: &[DiagnosticCheck]) -> DoctorOutput {
+fn build_doctor_output(
+    checks: &[DiagnosticCheck],
+    protection_claim: &ProtectionClaim,
+) -> DoctorOutput {
     let json_checks: Vec<JsonCheck> = checks
         .iter()
         .map(|c| JsonCheck {
@@ -1041,11 +1105,15 @@ fn build_doctor_output(checks: &[DiagnosticCheck]) -> DoctorOutput {
         schema_version: SCHEMA_VERSION.to_string(),
         checks: json_checks,
         notifications: notifications_for_doctor(checks),
+        protection_claim: protection_claim.clone(),
     }
 }
 
-fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
-    let output = build_doctor_output(checks);
+fn print_json(
+    checks: &[DiagnosticCheck],
+    protection_claim: &ProtectionClaim,
+) -> anyhow::Result<()> {
+    let output = build_doctor_output(checks, protection_claim);
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
@@ -1395,7 +1463,11 @@ mod tests {
     #[test]
     fn json_output_is_valid() {
         let checks = run_all_checks();
-        let output = build_doctor_output(&checks);
+        let claim = anvil_kernel_types::protection_claim::ProtectionClaim::new(
+            anvil_kernel_types::protection_claim::WorktreeClaimState::Unprotected,
+            vec![],
+        );
+        let output = build_doctor_output(&checks, &claim);
         let json = serde_json::to_string(&output).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(parsed.is_object());
@@ -1964,5 +2036,138 @@ mod tests {
                 "default install command must remain file-mode (Husky)",
             );
         });
+    }
+
+    // -----------------------------------------------------------------
+    // MLP2-051a: protection-claim section parity with `anvil status`.
+    // -----------------------------------------------------------------
+
+    use anvil_kernel_types::protection_claim::{
+        SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
+    };
+
+    /// Build a `ProtectionClaim` for each of the three states the
+    /// MLP2-051a APS entry pins: `Unprotected` (daemon-down / no
+    /// sessions on this worktree), `PreWriteDaemon` (clean daemon
+    /// session), `DegradedProtection` (any fenced surface).
+    fn fixture_claims() -> Vec<(WorktreeClaimState, ProtectionClaim)> {
+        vec![
+            (
+                WorktreeClaimState::Unprotected,
+                ProtectionClaim::new(WorktreeClaimState::Unprotected, vec![]),
+            ),
+            (
+                WorktreeClaimState::PreWriteDaemon,
+                ProtectionClaim::new(
+                    WorktreeClaimState::PreWriteDaemon,
+                    vec![SurfaceClaim {
+                        identifier: "sess-pre-write".to_owned(),
+                        state: SurfaceClaimState::Participating,
+                    }],
+                ),
+            ),
+            (
+                WorktreeClaimState::DegradedProtection,
+                ProtectionClaim::new(
+                    WorktreeClaimState::DegradedProtection,
+                    vec![SurfaceClaim {
+                        identifier: "sess-fenced".to_owned(),
+                        state: SurfaceClaimState::Quarantined,
+                    }],
+                ),
+            ),
+        ]
+    }
+
+    /// `anvil doctor --json` must embed a `protection_claim` field
+    /// whose serialised shape is byte-identical to standalone
+    /// serialisation of the same `ProtectionClaim` — the same shape
+    /// `anvil status --json` emits at the top-level `claim` field.
+    /// Pins MLP2-051a's parity contract for the JSON surface.
+    #[test]
+    fn doctor_json_includes_protection_claim_byte_identical_to_status_claim() {
+        for (state, claim) in fixture_claims() {
+            let output = build_doctor_output(&[], &claim);
+            let json = serde_json::to_value(&output).expect("serialise doctor output");
+            let claim_field = json
+                .get("protection_claim")
+                .expect("protection_claim must be present in doctor JSON");
+            let standalone =
+                serde_json::to_value(&claim).expect("serialise standalone ProtectionClaim");
+            assert_eq!(
+                claim_field, &standalone,
+                "doctor protection_claim must equal a standalone-serialised ProtectionClaim for state {state:?}",
+            );
+        }
+    }
+
+    /// `anvil doctor --json`'s `protection_claim` carries the §14
+    /// `schema_version` token, so consumers can dispatch on the
+    /// claim's own schema without re-reading the outer envelope.
+    #[test]
+    fn doctor_json_protection_claim_carries_schema_version() {
+        let claim = ProtectionClaim::new(WorktreeClaimState::PreWriteDaemon, vec![]);
+        let output = build_doctor_output(&[], &claim);
+        let json = serde_json::to_value(&output).expect("serialise");
+        assert_eq!(
+            json["protection_claim"]["schema_version"]
+                .as_str()
+                .expect("schema_version is a string"),
+            "anvil.protection-claim.v1",
+        );
+    }
+
+    /// `anvil doctor`'s plain output must include the protection
+    /// claim section end-to-end through `format_plain`. The shared
+    /// renderer in `protection_claim_section` owns the line shape;
+    /// `format_plain` indents it with doctor's two-space prefix and
+    /// embeds it after the summary. Assert the headline + surface
+    /// lines appear in the full rendered surface for the three
+    /// reference states.
+    #[test]
+    fn doctor_plain_output_contains_protection_claim_section() {
+        for (state, claim) in fixture_claims() {
+            let rendered = format_plain(&[], &claim);
+            let indented_headline = format!("  protection: {}\n", state.as_str());
+            assert!(
+                rendered.contains(&indented_headline),
+                "format_plain output must contain indented headline for {state:?}: {rendered:?}",
+            );
+            for surface in &claim.surfaces {
+                // Shared renderer emits `  surface <id>: <state>`;
+                // doctor's `indent_block` prepends another two
+                // spaces, so the byte-exact form in the full
+                // surface is four spaces of leading whitespace.
+                let expected_line = format!(
+                    "    surface {}: {}\n",
+                    surface.identifier,
+                    surface.state.as_str()
+                );
+                assert!(
+                    rendered.contains(&expected_line),
+                    "format_plain output must contain per-surface line {expected_line:?} for {state:?}: {rendered:?}",
+                );
+            }
+        }
+    }
+
+    /// `format_plain` must place the protection-claim section after
+    /// the summary line (so the layered surface reads top-to-bottom
+    /// as `checks → summary → protection`). Pins ordering so a future
+    /// rearrangement doesn't silently flip the surface.
+    #[test]
+    fn doctor_plain_output_places_protection_claim_after_summary() {
+        let claim = ProtectionClaim::new(WorktreeClaimState::PreWriteDaemon, vec![]);
+        let rendered = format_plain(&[], &claim);
+        let summary_idx = rendered
+            .find("passed, ")
+            .expect("summary line `<n> passed, …` must be present");
+        let claim_idx = rendered
+            .find("protection: pre-write-daemon")
+            .expect("protection-claim headline must be present");
+        assert!(
+            claim_idx > summary_idx,
+            "protection-claim section must follow the summary line: summary@{summary_idx} claim@{claim_idx} in {rendered:?}",
+        );
     }
 }

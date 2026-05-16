@@ -2,7 +2,6 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::time::Duration;
 
-use anvil_intercept::status::build_protection_claim_from_wire;
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
@@ -15,6 +14,7 @@ use serde::Serialize;
 use crate::GlobalArgs;
 use crate::activation;
 use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
+use crate::commands::protection_claim_section;
 use crate::config_summary::render_rule_mode_summary;
 
 #[derive(Debug, Args)]
@@ -794,67 +794,21 @@ fn hook_layer_state(data: &StatusData, name: &str) -> LayerState {
 ///
 /// MLP2-048 added the JSON `claim` field to `anvil status --json`
 /// using this same derivation, so JSON and plain agree on the
-/// worktree state. The full IPC-backed surface enumeration (per-surface
-/// `Participating` / `Quarantined` / `Detached` entries) is a separate
-/// follow-up; the building block lives at
-/// [`anvil_intercept::status::build_protection_claim`].
+/// worktree state. MLP2-051a hoisted the resolver into
+/// [`protection_claim_section`] so `anvil doctor` (and future
+/// surfaces) share the same wiring; this thin wrapper preserves
+/// `status.rs`'s historical doc comment and call sites.
 ///
 /// Local signals cannot prove the per-surface state that
-/// distinguishes several closed-set variants, so this v1 mapping
-/// deliberately undershoots rather than over-claim:
-///
-/// - `Full` requires `≥1 daemon-backed MCP + ≥1 Participating editor
-///   driver` (spec §14.2). Driver state lives in the daemon
-///   registry, not in the activation diagnostic, so `Full` is
-///   **unreachable from local signals** here. `MLP2-048` is the
-///   load-bearing follow-up.
-/// - `PreWriteEmbedded` requires confirming surfaces are on the
-///   embedded backend — also a daemon-snapshot question.
-/// - `DegradedProtection`, `MultiDaemonDetected`, `PathUncertain`,
-///   `CrossBoundaryMixed` are all daemon-derived diagnoses.
-///
-/// The render still names the protection state honestly: the user
-/// will see `pre-write-daemon`, `save-time-only`, `warming`, or
-/// `unprotected` until daemon-snapshot wiring lights up the richer
-/// variants in `next_action_for`.
-/// MLP2-048: build the `ProtectionClaim` emitted by `anvil status
-/// --json`. When a live daemon snapshot is available, surfaces are
-/// enumerated from the registry via
-/// [`build_protection_claim_from_wire`] so the claim carries real
-/// per-surface state. When no snapshot is available (daemon down,
-/// connect failed, etc.), we fall back to the locally-derivable
-/// worktree state with an explicitly empty `surfaces` array — the
-/// spec's documented fallback shape that avoids over-claiming
-/// per-surface coverage. Both paths emit the same closed-set
-/// vocabulary so consumers parse a single shape.
-fn resolve_protection_claim(
-    activation_diag: &activation::ActivationDiagnostic,
-    layers: &LayerSummary,
-    daemon_snapshot: Option<&DaemonStatusV1>,
-    worktree: &Path,
-) -> ProtectionClaim {
-    if let Some(snapshot) = daemon_snapshot {
-        return build_protection_claim_from_wire(snapshot, worktree);
-    }
-    let worktree_state = derive_protection(activation_diag, layers);
-    ProtectionClaim::new(worktree_state, Vec::new())
-}
-
+/// distinguishes several closed-set variants, so the local fallback
+/// in [`protection_claim_section::derive_local_worktree_state`]
+/// deliberately undershoots rather than over-claim — see that helper
+/// for the §14.2 mapping it can prove.
 fn derive_protection(
     diag: &activation::ActivationDiagnostic,
     _layers: &LayerSummary,
 ) -> WorktreeClaimState {
-    use activation::state::ProtectionState as PS;
-
-    match diag.protection_state() {
-        // Live MCP — daemon-backed pre-write attachment is the
-        // strongest honest claim the local signal can make. `Full`
-        // remains unreachable here; see the doc comment.
-        PS::Protecting => WorktreeClaimState::PreWriteDaemon,
-        PS::Watching => WorktreeClaimState::SaveTimeOnly,
-        PS::ReadyRestartRequired => WorktreeClaimState::Warming,
-        PS::NeedsAction | PS::Unsupported | PS::Error => WorktreeClaimState::Unprotected,
-    }
+    protection_claim_section::derive_local_worktree_state(diag)
 }
 
 /// Best-effort daemon summary. Reads the daemon pid file written by
@@ -1210,8 +1164,11 @@ fn print_json(
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: &Path,
 ) -> anyhow::Result<()> {
-    let layers = derive_layers(data, activation_diag);
-    let claim = resolve_protection_claim(activation_diag, &layers, daemon_snapshot, worktree);
+    let claim = protection_claim_section::resolve_protection_claim(
+        activation_diag,
+        daemon_snapshot,
+        worktree,
+    );
 
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
@@ -2131,17 +2088,19 @@ mod tests {
         (diag, layers)
     }
 
-    /// When a live daemon snapshot is supplied, `resolve_protection_claim`
-    /// MUST consult it: surfaces enumerate real sessions on the queried
-    /// worktree and the state collapses to `PreWriteDaemon` for a clean
-    /// session. Closes the MLP2-048 audit gap — local-only path emitted
-    /// an empty `surfaces` array regardless of daemon state.
+    /// When a live daemon snapshot is supplied,
+    /// `protection_claim_section::resolve_protection_claim` MUST
+    /// consult it: surfaces enumerate real sessions on the queried
+    /// worktree and the state collapses to `PreWriteDaemon` for a
+    /// clean session. Closes the MLP2-048 audit gap — local-only path
+    /// emitted an empty `surfaces` array regardless of daemon state.
     #[test]
     fn resolve_protection_claim_uses_daemon_snapshot_when_available() {
-        let (diag, layers) = unprotected_diag_and_layers();
+        let (diag, _layers) = unprotected_diag_and_layers();
         let worktree = Path::new("/tmp/wt-resolve-pre");
         let snapshot = snapshot_with_session_at(worktree, false, false);
-        let claim = resolve_protection_claim(&diag, &layers, Some(&snapshot), worktree);
+        let claim =
+            protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), worktree);
         assert_eq!(claim.worktree_state, WorktreeClaimState::PreWriteDaemon);
         assert_eq!(claim.surfaces.len(), 1);
         assert_eq!(claim.surfaces[0].identifier, "sess-test");
@@ -2152,46 +2111,49 @@ mod tests {
     /// surface through the snapshot path.
     #[test]
     fn resolve_protection_claim_reflects_fenced_session_from_snapshot() {
-        let (diag, layers) = unprotected_diag_and_layers();
+        let (diag, _layers) = unprotected_diag_and_layers();
         let worktree = Path::new("/tmp/wt-resolve-fenced");
         let snapshot = snapshot_with_session_at(worktree, true, false);
-        let claim = resolve_protection_claim(&diag, &layers, Some(&snapshot), worktree);
+        let claim =
+            protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), worktree);
         assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
         assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Quarantined);
     }
 
     /// IPC `Draining` reaches `Warming` + `Detached` through
-    /// `resolve_protection_claim`. Closes the CLI-side gap that the
-    /// adversarial review flagged: previously this transition was
-    /// only exercised in the intercept-side parity tests.
+    /// `protection_claim_section::resolve_protection_claim`. Closes
+    /// the CLI-side gap that the adversarial review flagged:
+    /// previously this transition was only exercised in the
+    /// intercept-side parity tests.
     #[test]
     fn resolve_protection_claim_reflects_draining_ipc_from_snapshot() {
-        let (diag, layers) = unprotected_diag_and_layers();
+        let (diag, _layers) = unprotected_diag_and_layers();
         let worktree = Path::new("/tmp/wt-resolve-drain");
         let snapshot = snapshot_with_session_at(worktree, false, true);
-        let claim = resolve_protection_claim(&diag, &layers, Some(&snapshot), worktree);
+        let claim =
+            protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), worktree);
         assert_eq!(claim.worktree_state, WorktreeClaimState::Warming);
         assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Detached);
     }
 
     /// When the daemon snapshot is absent (daemon down / connect
-    /// failed) `resolve_protection_claim` falls back to the locally-
+    /// failed) the shared resolver falls back to the locally-
     /// derivable worktree state with an explicitly empty `surfaces`
     /// array. The spec permits this — it does not over-claim per-
     /// surface coverage when there is no daemon evidence.
     #[test]
     fn resolve_protection_claim_falls_back_when_snapshot_absent() {
-        let (diag, layers) = unprotected_diag_and_layers();
+        let (diag, _layers) = unprotected_diag_and_layers();
         let worktree = Path::new("/tmp/wt-resolve-fallback");
-        let claim = resolve_protection_claim(&diag, &layers, None, worktree);
+        let claim = protection_claim_section::resolve_protection_claim(&diag, None, worktree);
         assert!(
             claim.surfaces.is_empty(),
             "fallback path must not invent surfaces: {claim:?}",
         );
         // The local-only derivation collapses to `Unprotected` for a
         // path that does not exist; pin the worktree state too so a
-        // future refactor of `derive_protection` cannot silently
-        // upgrade the fallback claim.
+        // future refactor of `derive_local_worktree_state` cannot
+        // silently upgrade the fallback claim.
         assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
     }
 
@@ -2201,11 +2163,12 @@ mod tests {
     /// snapshot presence.
     #[test]
     fn resolve_protection_claim_unknown_worktree_in_snapshot_is_unprotected() {
-        let (diag, layers) = unprotected_diag_and_layers();
+        let (diag, _layers) = unprotected_diag_and_layers();
         let known_worktree = Path::new("/tmp/wt-resolve-known");
         let queried = Path::new("/tmp/wt-resolve-not-in-snapshot");
         let snapshot = snapshot_with_session_at(known_worktree, false, false);
-        let claim = resolve_protection_claim(&diag, &layers, Some(&snapshot), queried);
+        let claim =
+            protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), queried);
         assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
         assert!(claim.surfaces.is_empty());
     }

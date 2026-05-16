@@ -2510,7 +2510,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051a: `anvil doctor` typed protection claim section
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `crates/anvil-cli/src/commands/doctor.rs` gains a
   "protection claim" section that consumes the daemon snapshot
   (or the local-only fallback) and prints both the worktree
