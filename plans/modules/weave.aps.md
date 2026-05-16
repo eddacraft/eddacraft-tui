@@ -4,7 +4,7 @@ APS Module: weave + anvil-weave
 Thin, provider-agnostic agent runtime (weave) plus Anvil-specific
 harness (anvil-weave) with zero-copy semantic graph access.
 
-Scopes: WEAVE (weave crate, eddacraft/weave-rs), AHARNESS (anvil-weave crate)
+Scopes: WEAVE (weave crate, eddacraft/weave-rs + anvil-weave crate — Phase 3 items were originally drafted under an `AHARNESS-NNN` prefix; merged into the WEAVE namespace 2026-05-16 for tracking consistency)
 -->
 
 # weave — Agent Runtime
@@ -337,7 +337,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ## Phase 3 — Anvil Integration (anvil-weave)
 
-### AHARNESS-030: anvil-weave crate scaffold
+### WEAVE-030: anvil-weave crate scaffold
 
 - **Intent:** Create the `crates/anvil-weave/` crate with dependencies on
   weave and anvil-kernel-types
@@ -350,7 +350,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### AHARNESS-031: GraphQueryTool — semantic graph queries
+### WEAVE-031: GraphQueryTool — semantic graph queries
 
 - **Intent:** Implement a Tool that queries the kernel's petgraph semantic graph
   with zero-copy access, supporting queries like "what imports this symbol",
@@ -360,11 +360,11 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave graph_query`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** AHARNESS-030, KERN Phase 2 (semantic graph)
+- **Dependencies:** WEAVE-030, KERN Phase 2 (semantic graph)
 
 ---
 
-### AHARNESS-032: PolicyEvalTool — policy evaluation
+### WEAVE-032: PolicyEvalTool — policy evaluation
 
 - **Intent:** Implement a Tool that evaluates a structural policy against the
   current graph state and returns violations with context
@@ -373,11 +373,11 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave policy_eval`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** AHARNESS-030, KERN Phase 3 (policy engine)
+- **Dependencies:** WEAVE-030, KERN Phase 3 (policy engine)
 
 ---
 
-### AHARNESS-033: Standard tools (read, edit, bash)
+### WEAVE-033: Standard tools (read, edit, bash)
 
 - **Intent:** Implement standard file-operation and shell-execution tools for
   anvil-weave, with sandboxing appropriate for a governance context
@@ -386,11 +386,11 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave standard_tools`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** AHARNESS-030
+- **Dependencies:** WEAVE-030
 
 ---
 
-### AHARNESS-034: Kernel event → agent trigger wiring
+### WEAVE-034: Kernel event → agent trigger wiring
 
 - **Intent:** Wire kernel EngineEvents (violations, snapshot completions) to
   trigger agent reasoning, so the agent reacts to structural changes
@@ -400,11 +400,11 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave triggers`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** AHARNESS-031, AHARNESS-032
+- **Dependencies:** WEAVE-031, WEAVE-032
 
 ---
 
-### AHARNESS-035: AnvilHarness — pre-wired agent configuration
+### WEAVE-035: AnvilHarness — pre-wired agent configuration
 
 - **Intent:** Provide a convenience struct that wires weave Agent with
   Anvil tools, a configured provider, and session persistence into a
@@ -414,7 +414,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave harness`
 - **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** AHARNESS-031, AHARNESS-032, AHARNESS-033, AHARNESS-034
+- **Dependencies:** WEAVE-031, WEAVE-032, WEAVE-033, WEAVE-034
 
 ---
 
@@ -455,7 +455,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 - **Validation:** `cargo test -p eddacraft-anvil-weave remediation_e2e`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** AHARNESS-034, AHARNESS-035
+- **Dependencies:** WEAVE-034, WEAVE-035
 
 ---
 

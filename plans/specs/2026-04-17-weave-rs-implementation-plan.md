@@ -207,7 +207,7 @@ Thin, provider-agnostic agent runtime (weave) in standalone repo
 (eddacraft/weave-rs) plus Anvil-specific harness (anvil-weave) with
 zero-copy semantic graph access.
 
-Scopes: WEAVE (weave crate), AHARNESS (anvil-weave crate)
+Scopes: WEAVE (weave crate + anvil-weave crate — Phase 3 items were originally drafted under an `AHARNESS-NNN` prefix; merged into the WEAVE namespace 2026-05-16)
 -->
 ```
 
@@ -296,9 +296,9 @@ no `-p` needed). Replace `cargo test -p anvil-agent` with
 `cargo test -p anvil-weave`. Replace `cargo build -p anvil-agent` with
 `cargo build -p anvil-weave`.
 
-- [ ] **Step 12: Update AHARNESS-030 scaffold path**
+- [ ] **Step 12: Update WEAVE-030 scaffold path**
 
-Change `crates/anvil-agent/` to `crates/anvil-weave/` in AHARNESS-030.
+Change `crates/anvil-agent/` to `crates/anvil-weave/` in WEAVE-030.
 
 - [ ] **Step 13: Update WEAVE-040 — CI enforcement**
 
@@ -382,7 +382,7 @@ zero-copy semantic graph access.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [weave](./modules/weave.aps.md) | WEAVE, AHARNESS | Draft | 0/21 | KERN (anvil-weave only) |
+| [weave](./modules/weave.aps.md) | WEAVE | Draft | 0/21 | KERN (anvil-weave only) |
 
 **Architecture Decision:** [D-024: Internal Agent Harness](./decisions/024-internal-agent-harness.md)
 ```

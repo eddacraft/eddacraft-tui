@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 41/66 done |
+| MLP2 | @aneki | In Progress | 43/68 done |
 
 **Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
 MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
@@ -2904,7 +2904,7 @@ remaining v2 integration surface.
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 5/7 |
-| D. Multi-session + fence isolation | 4 (MLP2-023..-026) | 2/4 |
+| D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 2/6 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
@@ -2914,7 +2914,7 @@ remaining v2 integration surface.
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 (all In Progress on feat/mlp2-group-k) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 3/4 |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
-| **Total** | **66** | **41/66** |
+| **Total** | **68** | **43/68** |
 
 ## Recommended landing order
 
