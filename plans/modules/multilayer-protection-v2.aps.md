@@ -4,11 +4,16 @@
 | ---- | ------ | ----------- | ---------- |
 | MLP2 | @aneki | In Progress | 49/69 done |
 
-**Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
-MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
-binds the no-op L4 engine, and `anvil status --json` still emits a local-only
-claim with empty `surfaces`. Added Group M (MLP2-061..066) for review-
-discovered corrective work. Earlier history: wave 1G shipped 2026-05-15 via PR #1576
+**Last reviewed:** 2026-05-16 (audit closure for MLP2-016 — PR #1627
+merged at `0aacdac8` binds `CommitAntipatternEngine` in production
+`run_pre_push` + `l4_validate::run`, satisfying the 2026-05-15
+audit's "real engine + e2e test without fixture injection" gate;
+MLP2-016 advances `In Progress` → `Merged`. MLP2-048 remains
+`In Progress`. Earlier 2026-05-15: full MLP/MLP2 Council audit
+reopened MLP2-016 and MLP2-048 from Done to In Progress: production
+pre-push still binds the no-op L4 engine, and `anvil status --json`
+still emits a local-only claim with empty `surfaces`. Added Group M
+(MLP2-061..066) for review-discovered corrective work. Earlier history: wave 1G shipped 2026-05-15 via PR #1576
 at `33659b6c` — Group H closed 5/5: MLP2-037 (`anvil hook bootstrap
 --witness-recent` with `--reverse` git rev-list +
 `validation_at: "bootstrap-recovery"`), MLP2-038 (end-to-end
@@ -723,7 +728,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-016: `validate_at_l4` server-side rule-engine execution
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Pre-push's `NeedsL4Validation` decisions currently
   emit `InternalError { TimedOut }` because the L4 engine isn't
   wired. This task swaps in the real rule-engine call.
@@ -745,6 +750,29 @@ task's `Source:` line cites the Council finding IDs.
   pipeline is not sufficient evidence. Completion requires the
   production default path to use a real rule engine and an end-to-end
   test that does not inject a fixture engine.
+  **Audit closure (2026-05-16, PR #1627 at `0aacdac8`):** new
+  `crates/anvil-cli/src/l4_engine.rs::CommitAntipatternEngine`
+  materialises the commit's tree via
+  `git diff-tree --diff-filter=ACMR` + `git show <sha>:<path>`
+  into a tempdir, runs `anvil_checks::antipattern::run_antipattern_check`,
+  and maps findings to `ValidationDiagnostic`. Bound as the
+  production default in `commands::hook::run_pre_push` and
+  `commands::l4_validate::run` via `default_engine()`. E2e test
+  `production_default_engine_blocks_known_antipattern` drives
+  the default constructor (no fixture injection) against a real
+  git repo carrying a `/* eslint-disable */` `.ts` file and pins
+  `AP-001` in the resulting `Block { diagnostics }` with
+  `exit_code == EXIT_BLOCK`. Council quick (adversarial +
+  kernel + ops) ran pre-PR: 3 CRITICAL + 5 MAJOR fixed in-PR
+  (empty-catalogue → `EngineUnavailable { BinaryMissing }`,
+  zero-SHA guard, `--diff-filter=ACMR` delete-only intent,
+  `TempDir` failure no longer `Timeout`, `tracing::warn!` on
+  engine-unavailable carrying reason, captured git stderr to
+  `tracing::debug!`, collapsed two-pass alloc,
+  `warn_only_antipattern_admits_under_on_warn_allow` pin).
+  Follow-ups (registry bundling for installed binaries,
+  `git cat-file --batch` perf, `EngineUnavailableReason::IoError`)
+  tracked in `plans/reviews/post-merge/feat-mlp2-016-real-engine.md`.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** MLP-004, MLP-006
