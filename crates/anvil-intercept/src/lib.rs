@@ -102,6 +102,14 @@ impl SessionDispatcher for RegistryDispatcher {
         agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
         lineage: Option<&anvil_intercept_proto::session::LineageAnchor>,
     ) -> Result<(), RegistryError> {
+        // MLP2-026: cascade-before-registry lock ordering (spec §6
+        // inv-2). Snapshot the fence-store state in a single load
+        // call; release the implicit fence-file lock by letting the
+        // FenceState value go out of scope before
+        // SessionRegistry::register acquires its Inner mutex inside
+        // the downstream call. The fence check and the cascade check
+        // share the same snapshot so they never disagree about which
+        // worktree is in which mode.
         let fences =
             self.fence_store
                 .load()
@@ -110,6 +118,11 @@ impl SessionDispatcher for RegistryDispatcher {
                 })?;
         if fences.is_fenced(worktree) {
             return Err(RegistryError::WorktreeFenced {
+                worktree: worktree.to_path_buf(),
+            });
+        }
+        if fences.is_cascaded(worktree) {
+            return Err(RegistryError::WorktreeCascaded {
                 worktree: worktree.to_path_buf(),
             });
         }
@@ -1172,6 +1185,49 @@ mod tests {
 
         assert!(matches!(err, RegistryError::WorktreeFenced { .. }));
         assert!(registry.active_sessions().is_empty());
+    }
+
+    /// MLP2-026: cascaded worktree refuses new session
+    /// registrations with `RegistryError::WorktreeCascaded`. Pin
+    /// the cascade-before-registry lock ordering (spec §6 inv-2)
+    /// — `register()` returns the error BEFORE any registry-side
+    /// state is touched.
+    #[test]
+    fn dispatcher_refuses_cascaded_worktree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("worktree");
+        fs::create_dir(&worktree).expect("create worktree");
+        let store = fence::FenceStore::at_path(tmp.path().join("state/intercept-fences.json"));
+        // Fire 5 fences to engage the cascade (capacity 4 → 5th
+        // returns Throttle).
+        for i in 0..5 {
+            store
+                .fence_worktree(&worktree, format!("fire {i}"))
+                .expect("fence");
+        }
+        assert!(store.is_cascaded(&worktree));
+
+        // unblock_worktree clears the per-fire fence but NOT the
+        // cascade (spec §10 Q4: distinct affordances).
+        store.unblock_worktree(&worktree).expect("unblock");
+
+        let registry = Arc::new(SessionRegistry::new());
+        let dispatcher = RegistryDispatcher::new(Arc::clone(&registry), Arc::new(store.clone()));
+        let err = dispatcher
+            .register(&SessionId::new("sess-cascaded"), &worktree, None, None)
+            .expect_err("cascaded worktree must reject registration");
+        assert!(matches!(err, RegistryError::WorktreeCascaded { .. }));
+        assert!(
+            registry.active_sessions().is_empty(),
+            "no session created before the cascade refusal"
+        );
+
+        // After clear_cascade, registration succeeds.
+        store.clear_cascade(&worktree).expect("clear cascade");
+        dispatcher
+            .register(&SessionId::new("sess-after-clear"), &worktree, None, None)
+            .expect("clear cascade unblocks registration");
+        assert_eq!(registry.active_sessions().len(), 1);
     }
 
     #[test]

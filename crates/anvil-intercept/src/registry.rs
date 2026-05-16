@@ -150,6 +150,14 @@ pub enum RegistryError {
         cap: usize,
         live: usize,
     },
+
+    /// MLP2-026: the worktree is in `degraded:fence-cascade` mode
+    /// (5 fences fired within 60 seconds) and refuses new session
+    /// registrations until an operator clears the cascade via
+    /// `anvil intercept unblock --acknowledge-cascade <worktree>`.
+    /// Mirrors the `SessionCapExceeded` precedent. See spec §3.5.
+    #[error("worktree is in degraded fence-cascade mode and refuses new sessions: {worktree:?}")]
+    WorktreeCascaded { worktree: PathBuf },
 }
 
 impl PartialEq for RegistryError {
@@ -172,6 +180,9 @@ impl PartialEq for RegistryError {
             | (Self::UnknownSession(a), Self::UnknownSession(b))
             | (Self::SessionAlreadyExists(a), Self::SessionAlreadyExists(b)) => a == b,
             (Self::WorktreeFenced { worktree: a }, Self::WorktreeFenced { worktree: b }) => a == b,
+            (Self::WorktreeCascaded { worktree: a }, Self::WorktreeCascaded { worktree: b }) => {
+                a == b
+            }
             (
                 Self::FenceStateUnavailable { message: a },
                 Self::FenceStateUnavailable { message: b },
