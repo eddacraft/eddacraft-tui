@@ -1,8 +1,8 @@
 # Resource Budget — `anvil watch`
 
-| Type   | Authority     | Owner                                                                                            | Status | Freshness                                                                                                 |
-| ------ | ------------- | ------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------- |
-| Policy | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta sit-on; implementation state `Pre-implementation` |
+| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                 |
+| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta sit-on; implementation state `Pre-implementation` |
 
 | Upstream                                                      | Downstream                                                                                                             |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |

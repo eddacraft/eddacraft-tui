@@ -1,8 +1,8 @@
 # Release Cadence And Support Policy
 
-| Type   | Authority     | Owner                                                                                                          | Status | Freshness                                                                                                        |
-| ------ | ------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Policy | Authoritative | DISTRIB ([`plans/modules/distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md)) | Live   | Last reviewed 2026-05-16 against `plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md` and `plans/aps-rules.md` |
+| Type  | Authority     | Owner                                                                                                          | Status | Freshness                                                                                                        |
+| ----- | ------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DISTRIB ([`plans/modules/distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md)) | Live   | Last reviewed 2026-05-16 against `plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md` and `plans/aps-rules.md` |
 
 | Upstream                                                                     | Downstream                                                      |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
