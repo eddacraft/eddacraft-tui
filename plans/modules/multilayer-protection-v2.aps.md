@@ -2,14 +2,24 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 49/71 done |
+| MLP2 | @aneki | In Progress | 49/76 done |
 
-**Last reviewed:** 2026-05-16 (audit closure for MLP2-016 — PR #1627
+**Last reviewed:** 2026-05-17 (MLP2-051 re-spec on branch
+`chore/aps-mlp2-051-respec` — split into MLP2-051 umbrella +
+051a..051e sub-tasks after a 2026-05-17 audit showed only
+`anvil status` renders a `ProtectionClaim` today; the other four
+target surfaces — `anvil doctor`, MCP shim, TS driver-client, GH
+Action — emit no claim and need additive rendering rather than
+string-to-typed migration. Total count goes 71 → 76 with no
+done-count change. MLP2-048 closed 2026-05-16 via PR #1625 at
+`f13e1014` — `anvil status --json` now consumes the daemon
+snapshot via the new `build_protection_claim_from_wire` adapter,
+with a documented empty-`surfaces` fallback when the daemon is
+unreachable. 2026-05-16: audit closure for MLP2-016 — PR #1627
 merged at `0aacdac8` binds `CommitAntipatternEngine` in production
 `run_pre_push` + `l4_validate::run`, satisfying the 2026-05-15
 audit's "real engine + e2e test without fixture injection" gate;
-MLP2-016 advances `In Progress` → `Merged`. MLP2-048 remains
-`In Progress`. Earlier 2026-05-15: full MLP/MLP2 Council audit
+MLP2-016 advanced `In Progress` → `Merged`. Earlier 2026-05-15: full MLP/MLP2 Council audit
 reopened MLP2-016 and MLP2-048 from Done to In Progress: production
 pre-push still binds the no-op L4 engine, and `anvil status --json`
 still emits a local-only claim with empty `surfaces`. Added Group M
@@ -2431,29 +2441,206 @@ task's `Source:` line cites the Council finding IDs.
 - **Dependencies:** MLP-009, MLP2-048, MLP2-049
 - **Source:** MLP-009 footnote 3.
 
-#### MLP2-051: Driver / CLI / MCP-shim protection-claim conformance pass
+#### MLP2-051: Driver / CLI / MCP-shim protection-claim conformance pass (umbrella)
 
-- **Status:** Draft
-- **Intent:** Every surface that renders a protection claim
-  consumes
-  `crates/anvil-kernel-types/src/protection_claim.rs`
-  types rather than pattern-matching strings. Audit each
-  surface and rip out string-based renders.
+- **Status:** Re-specced 2026-05-17 — split into MLP2-051a..-051e
+  below. The original task assumed every surface already rendered
+  a protection claim using stringly-typed values that needed
+  migration to the closed-set types in
+  `crates/anvil-kernel-types/src/protection_claim.rs`. An audit
+  on 2026-05-17 (after MLP2-048 closed the `anvil status` lane)
+  showed only **one** surface — `anvil status` plain + JSON — has
+  ever rendered the claim. The other four target surfaces
+  (`anvil doctor`, MCP shim, TS driver-client, GH Action) emit no
+  claim today, so the work is *additive* (new rendering on each
+  surface) rather than *migrative* (rip out string matching).
+  That changes scope enough to warrant a split. Keeping MLP2-051
+  as a coordinating umbrella so the original `Dependencies:
+  MLP2-051` references in MLP2-049/050 still resolve; the
+  HARD-GATE close lives on the sub-tasks.
+- **Intent (umbrella):** Each render surface that the spec §14
+  protection-claim vocabulary touches consumes the same closed-set
+  types from `crates/anvil-kernel-types/src/protection_claim.rs`
+  and produces parity-checked output. The umbrella is closed when
+  every sub-task is `Merged`.
+- **Audit findings (2026-05-17, branch
+  `chore/aps-mlp2-051-respec`):**
+  - `anvil status` (plain + JSON) — **typed today**. Plain
+    renderer consumes `LegibleSnapshot { protection:
+    WorktreeClaimState, ... }`; JSON path consumes
+    `ProtectionClaim` via the daemon-snapshot adapter shipped
+    with MLP2-048. No further work here — kept as the reference
+    implementation.
+  - `anvil doctor` (`crates/anvil-cli/src/commands/doctor.rs`) —
+    renders enforcement layer state but emits no
+    `ProtectionClaim`. Adds new section. → **MLP2-051a**.
+  - MCP shim `crates/anvil-cli/src/mcp/validation.rs` — emits
+    `Diagnostic` / `Mode` / `ValidationBackendFailure`, no claim.
+    Cross-boundary: the MCP wire shape is consumed by editor
+    drivers, so the addition must be wire-additive (new optional
+    field) under `serde(skip_serializing_if = "Option::is_none")`.
+    → **MLP2-051b**.
+  - TS driver-client `packages/anvil-driver-client/` — no
+    `protection_claim/` module, no `ProtectionClaim` mirror.
+    Needs a Zod mirror + adapter to parse the optional field from
+    MLP2-051b's MCP response. → **MLP2-051c**.
+  - GH Action check status — `apps/action/*` tree does not exist
+    today. Gated on the Marketplace publishing track
+    (MLP2-042..045), which the release cut-line defers unless
+    Boring Week exercises that surface. → **MLP2-051d**, blocked
+    by MLP2-042+043.
+- **Cross-surface parity test:** consumes the sub-tasks. Same
+  `DaemonStatusV1` input drives every surface; the rendered
+  claim's `worktree_state` + sorted-by-identifier `surfaces` must
+  match byte-for-byte across all five surfaces. → **MLP2-051e**.
+- **Files:** see sub-tasks.
+- **Validation:** umbrella is `Merged` when 051a + 051b + 051c +
+  051e are `Merged`. 051d is required only if MLP2-042..045 ship
+  (Boring Week gate).
+- **Confidence:** high (post-audit). Sub-tasks each have a
+  smaller, well-scoped surface.
+- **Priority:** Critical (HARD-GATE close — distributed across
+  sub-tasks).
+- **Dependencies:** MLP-009, MLP2-048 (both shipped).
+- **Source:** MLP-009 footnote 4; 2026-05-17 audit on
+  `chore/aps-mlp2-051-respec`.
+
+#### MLP2-051a: `anvil doctor` typed protection claim section
+
+- **Status:** Ready
+- **Intent:** `crates/anvil-cli/src/commands/doctor.rs` gains a
+  "protection claim" section that consumes the daemon snapshot
+  (or the local-only fallback) and prints both the worktree
+  state and the per-surface entries. Reuses
+  `anvil_intercept::status::build_protection_claim_from_wire`
+  + the local fallback path from `status.rs::resolve_protection_claim`
+  — extract that helper into a shared module if both binaries
+  need it, otherwise call through `commands::status`.
 - **Expected Outcome:**
-  - Audit list: `anvil status`, `anvil doctor`, MCP shim
-    `validation.rs`, editor driver client, GitHub Action
-    check status.
-  - Each migrated to consume the closed-set types.
-  - Parity test: same input → same rendered claim across
-    surfaces.
-- **Files:** Spans `crates/anvil-cli/src/commands/{status,doctor}.rs`,
-  `crates/anvil-cli/src/mcp/validation.rs`,
-  `packages/anvil-driver-client/src/protection_claim.ts`.
-- **Validation:** Cross-surface parity test.
-- **Confidence:** medium
+  - Doctor output prints `protection: <worktree_state>` and
+    one line per surface with its `identifier` + `state`.
+  - Daemon-down path emits the same documented fallback shape
+    used by `anvil status --json` (worktree state from local
+    activation diagnostic, empty `surfaces`).
+  - `--json` mode emits the same `ProtectionClaim` shape used
+    by `anvil status --json`.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  potentially a shared helper module if extraction is needed.
+- **Validation:** Snapshot test for plain + JSON output across
+  at least Unprotected / PreWriteDaemon / DegradedProtection
+  states. Parity with `anvil status --json` for the same daemon
+  input.
+- **Confidence:** high
 - **Priority:** Critical (HARD-GATE close)
-- **Dependencies:** MLP-009, MLP2-048
-- **Source:** MLP-009 footnote 4.
+- **Dependencies:** MLP2-048
+- **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051b: MCP shim emits typed protection claim in `validate_write` response
+
+- **Status:** Ready
+- **Intent:** `crates/anvil-cli/src/mcp/validation.rs` extends the
+  `validate_write` response with an optional `protection_claim`
+  field carrying the closed-set
+  `anvil_kernel_types::protection_claim::ProtectionClaim` shape.
+  Wire-additive via `serde(default, skip_serializing_if = "Option::is_none")`
+  so a pre-MLP2-051b driver round-trips unchanged.
+- **Expected Outcome:**
+  - MCP response carries `protection_claim` when the daemon is
+    reachable; field is omitted otherwise (no over-claim).
+  - Existing `Diagnostic` / `Mode` / enforcement decision fields
+    unchanged.
+  - New rust unit test pins the wire-additive contract:
+    response without `protection_claim` deserialises into a
+    driver pinned to the new shape (driver-side compat).
+- **Files:** `crates/anvil-cli/src/mcp/validation.rs`,
+  contract test in `crates/anvil-cli/tests/`.
+- **Validation:** Wire round-trip test +
+  `serde(deny_unknown_fields)` audit (must NOT be set on the
+  response struct so future additive fields stay safe).
+- **Confidence:** medium (cross-boundary; needs driver-client
+  pairing in MLP2-051c to actually be consumed).
+- **Priority:** Critical (HARD-GATE close)
+- **Dependencies:** MLP2-048, MLP2-051a (reuse the shared
+  claim-building helper if extracted).
+- **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051c: TS driver-client `ProtectionClaim` mirror + MCP response adapter
+
+- **Status:** Ready
+- **Intent:** Add `packages/anvil-driver-client/src/protection_claim/`
+  with a Zod schema mirroring
+  `crates/anvil-kernel-types/src/protection_claim.rs` (closed-set
+  string unions for `WorktreeClaimState` + `SurfaceClaimState`,
+  `ProtectionClaim` + `SurfaceClaim` structs). Wire it through
+  the MCP response parser so consumers receive a typed claim
+  when the daemon supplied one.
+- **Expected Outcome:**
+  - Hand-rolled `parseProtectionClaim` (no Zod dep unless
+    elsewhere in this package — match the MLP2-029 pattern).
+  - Byte-exact JSON parity test against a captured Rust
+    `ProtectionClaim` fixture (mirrors MLP2-029/-030 pattern).
+  - Missing-field tolerance: pre-MLP2-051b MCP response (no
+    `protection_claim`) parses cleanly with the field absent.
+- **Files:** new
+  `packages/anvil-driver-client/src/protection_claim/index.ts`
+  + tests, MCP response adapter updates in `client/` or wherever
+  `validate_write` deserialisation lives.
+- **Validation:** Cross-language parity test against a captured
+  Rust fixture (matches the MLP2-029 pattern). All package
+  tests green.
+- **Confidence:** high (the MLP2-029 + MLP2-030 mirrors set
+  the pattern; this is the third such mirror).
+- **Priority:** Critical (HARD-GATE close)
+- **Dependencies:** MLP2-048, MLP2-051b (consumes the wire
+  field).
+- **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051d: GH Action check renders typed protection claim
+
+- **Status:** Blocked
+- **Intent:** When the GitHub Action publishing track lands
+  (MLP2-042..045), its check-status output consumes the typed
+  `ProtectionClaim` from `anvil status --json` rather than
+  re-deriving state from CLI exit codes or stdout strings.
+- **Expected Outcome:** GH Action emits a single claim line
+  using the closed-set vocabulary; parity test against the CLI
+  surface.
+- **Files:** TBD — `apps/action/*` tree does not exist yet.
+- **Validation:** End-to-end test in the action repo (or
+  vendored harness if the action lives in-tree).
+- **Confidence:** low — file paths TBD until MLP2-042..045
+  decide the action's home.
+- **Priority:** Critical (HARD-GATE close, but release cut-line
+  defers Marketplace track unless Boring Week exercises it).
+- **Dependencies:** MLP2-042 + MLP2-043 (Action exists),
+  MLP2-051b + MLP2-051c (typed claim is on the wire), MLP2-048.
+- **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051e: Cross-surface protection-claim parity test
+
+- **Status:** Blocked
+- **Intent:** Single end-to-end harness drives a fixed
+  `DaemonStatusV1` input through every surface (CLI status,
+  CLI doctor, MCP shim, TS driver-client) and asserts the
+  rendered `ProtectionClaim` is byte-identical across all of
+  them.
+- **Expected Outcome:**
+  - Reuses the per-state fixtures from MLP2-049
+    (`crates/anvil-cli/tests/fixtures/status_v1/`).
+  - One Rust integration test for the three Rust surfaces;
+    one TS test for the driver-client surface that re-reads
+    the same fixture.
+- **Files:** new `crates/anvil-cli/tests/protection_claim_cross_surface.rs`,
+  new TS spec in `packages/anvil-driver-client/__tests__/`.
+- **Validation:** Both tests green; same input → same JSON
+  string across every surface (or byte-equivalent claim
+  object after deserialise + canonical sort).
+- **Confidence:** high (fixtures already exist; the harness
+  is straightforward composition).
+- **Priority:** Critical (HARD-GATE close)
+- **Dependencies:** MLP2-051a + MLP2-051b + MLP2-051c (all
+  three render surfaces produce a claim).
+- **Source:** MLP2-051 re-spec, 2026-05-17.
 
 #### MLP2-052: Additive-optional-fields forward-compat test
 
@@ -3136,13 +3323,13 @@ to redesign once GV2-001..-023 land.
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
-| J. Protection-claim render conformance | 5 (MLP2-048..-052) | 3/5 |
+| J. Protection-claim render conformance | 10 (MLP2-048..-052 + MLP2-051a..-051e) | 3/10 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **71** | **49/71** |
+| **Total** | **76** | **49/76** |
 
 ## Recommended landing order
 
