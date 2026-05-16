@@ -2085,6 +2085,8 @@ mod tests {
                 worktree: worktree.to_path_buf(),
                 session_id: session.id.clone(),
                 fenced,
+                cascaded: false,
+                cascade_since: None,
             }],
             fences: if fenced {
                 vec![FenceStateV1 {
