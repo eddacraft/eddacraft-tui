@@ -349,9 +349,10 @@ and gates `/anvil` docs behind it via Vercel Edge.
 Connect the LLM-powered council review flow to Anvil's deterministic attestation
 format. Discovery-first: understand the interface before building.
 
-| Module                                                      | Scope | Status   | Progress | Dependencies |
-| ----------------------------------------------------------- | ----- | -------- | -------- | ------------ |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | Blocked  | 0/6      | MLP-002      |
+| Module                                                                          | Scope | Status   | Progress | Dependencies |
+| ------------------------------------------------------------------------------- | ----- | -------- | -------- | ------------ |
+| [council-gate-bridge](./modules/council-gate-bridge.aps.md)                     | CGBDG | Blocked  | 0/6      | MLP-002      |
+| [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md) | CPTA  | Proposed | 0/7      | CGBDG (sibling — overlap check via CPTA-001) |
 
 ### Observability Foundation
 
