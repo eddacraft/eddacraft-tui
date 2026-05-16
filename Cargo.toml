@@ -76,6 +76,12 @@ dirs = "6"
 # Identity (project_uuid for MLP-001 / A7.2)
 uuid = { version = "1", features = ["v4", "v7"] }
 
+# Semver parsing (anvil-rules required-version floor, anvil-l4 version-floor evaluation)
+semver = "1"
+
+# Filesystem test fixtures
+tempfile = "3"
+
 # Error handling
 thiserror = "2"
 

@@ -29,7 +29,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }
-tempfile = "3"
+tempfile.workspace = true
 
 [[bench]]
 name = "kernel"

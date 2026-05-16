@@ -46,7 +46,7 @@ crossterm = { workspace = true }
 ratatui = { workspace = true }
 anyhow = { workspace = true }
 dirs = { workspace = true }
-tempfile = "3"
+tempfile.workspace = true
 demand = "2.0.0"
 walkdir = { workspace = true }
 ignore = "0.4"
