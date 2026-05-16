@@ -13,7 +13,7 @@ It builds on:
 - `plans/specs/2026-04-22-notification-delivery-architecture.md`
 - `plans/specs/2026-04-22-notification-telemetry-stream-contract.md`
 - `plans/specs/anvil-driver-framework/anvil-driver-framework-design-spec.md`
-- `plans/modules/intercept-daemon.aps.md` (INTD-013)
+- `plans/archive/modules/intercept-daemon.aps.md` (INTD-013)
 
 ## Principle
 

@@ -67,7 +67,7 @@ TSRET work items themselves.
 
 - [x] **M1.** → **APS: INTD-014** (JSON-RPC 2.0 conformance +
       round-trip latency benchmark). Filed in #1065
-      (`plans/modules/intercept-daemon.aps.md`).
+      (`plans/archive/modules/intercept-daemon.aps.md`).
 - [x] **M2.** → **Embedded in DRVR-002 expected outcome** as a
       sign-off prerequisite (#1065). Must pick
       fence-on-daemon-loss vs fail-soft before DRVR-002 freezes.
@@ -88,7 +88,7 @@ TSRET work items themselves.
 - [x] **M7.** → **APS: DRVR-007** (same-UID trust boundary
       documented + hardened).
 - [x] **M8.** **Landed** — INTD-002 Expected Outcome amended in
-      #1065 (`plans/modules/intercept-daemon.aps.md`) with full
+      #1065 (`plans/archive/modules/intercept-daemon.aps.md`) with full
       socket/pipe creation sequence: `lstat`/`openat` +
       `O_NOFOLLOW`, `mkdir` with explicit mode, post-creation
       `stat`/`fstat` verify, `fchmod` socket fd before `listen()`,
@@ -199,9 +199,9 @@ TSRET work items themselves.
 
 | Module | ID | Council ref |
 |---|---|---|
-| INTD | [INTD-014](../modules/intercept-daemon.aps.md) JSON-RPC conformance + latency bench | M1 |
-| INTD | [INTD-015](../modules/intercept-daemon.aps.md) daemon-enforced telemetry scoping | M5 |
-| INTD | [INTD-016](../modules/intercept-daemon.aps.md) DoS protection budgets | M9 |
+| INTD | [INTD-014](../archive/modules/intercept-daemon.aps.md) JSON-RPC conformance + latency bench | M1 |
+| INTD | [INTD-015](../archive/modules/intercept-daemon.aps.md) daemon-enforced telemetry scoping | M5 |
+| INTD | [INTD-016](../archive/modules/intercept-daemon.aps.md) DoS protection budgets | M9 |
 | DRVR | [DRVR-006](../modules/surface-drivers.aps.md) Pin MCP daemon-RPC surface | C2 |
 | DRVR | [DRVR-007](../modules/surface-drivers.aps.md) Driver trust + enforcement contract | M5 / M6 / M7 / M11 |
 | DRVR | [DRVR-008](../modules/surface-drivers.aps.md) Non-VSCode LSP capability negotiation | M10 |

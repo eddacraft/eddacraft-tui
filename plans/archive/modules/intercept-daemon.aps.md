@@ -565,6 +565,8 @@ a new lane.
   fence-transition grouping
 - **Status:** Complete
 
+#### INTD-014
+
 ### INTD-014: JSON-RPC 2.0 Conformance + Round-Trip Latency Benchmark
 
 - **Intent:** Pin the daemon's IPC surface as genuinely JSON-RPC 2.0

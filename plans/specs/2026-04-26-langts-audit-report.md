@@ -512,7 +512,7 @@ they reference the checklist, not this report.
   cleanly with no disagreement, no ADR needed — capture inline in
   INTD-001's spec instead. If the choice proves contentious, or
   multi-process daemon scenarios appear, then write the ADR. INTD-001
-  carries a forward-reference (see `plans/modules/intercept-daemon.aps.md`
+  carries a forward-reference (see `plans/archive/modules/intercept-daemon.aps.md`
   INTD-001 task) so the trigger is not lost.
 
 ---

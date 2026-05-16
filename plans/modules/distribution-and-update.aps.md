@@ -241,7 +241,7 @@ releases with a documented support window and clean upgrade path" line in
 
 ## Cross-References
 
-- Coordinates with: [`WATCHUX-001`](watch-ux-advisory-rules.aps.md)
+- Coordinates with: [`WATCHUX-001`](../archive/modules/watch-ux-advisory-rules.aps.md)
   (Homebrew detection on install), [`ADTRUST-001`](../archive/modules/adoption-trust-surface.aps.md)
   (status surface where update hint renders).
 - Blocks on: none at module level.

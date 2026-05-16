@@ -1166,7 +1166,7 @@ This spec is **Draft**. Promotion to **Proposed** requires:
 - ADR-037 (witness chain) drafted
 - ADR-038 (hook surface) drafted
 - ADR-039 (baseline policy) drafted
-- MLP module skeleton in `plans/modules/multilayer-protection.aps.md`
+- MLP module skeleton in `plans/archive/modules/multilayer-protection.aps.md`
 - `plans/index.aps.md` updated with MLP row
 - One implementation-volunteer council pass to surface engineering
   blockers

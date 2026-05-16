@@ -274,7 +274,7 @@ optional richness, not load-bearing for protection.
   - ADR-037 — Witness chain (companion: hooks write the witness)
   - ADR-039 — Baseline policy (companion: baseline runs at hook-install time)
 - **APS modules:**
-  - `plans/modules/multilayer-protection.aps.md` — MLP-003 (pre-commit hook), MLP-004 (pre-push hook), MLP-005 (post-* hook handlers)
+  - `plans/archive/modules/multilayer-protection.aps.md` — MLP-003 (pre-commit hook), MLP-004 (pre-push hook), MLP-005 (post-* hook handlers)
 - **Related ADRs:**
   - ADR-001 — Planless-first (hooks installed by `anvil start`; user doesn't author them)
   - ADR-002 — Warnings over blocks (default; aligns with hook noise discipline)

@@ -313,7 +313,7 @@ which scanner consumers exist.
   - [rust-mcp-full-port](../modules/rust-mcp-full-port.aps.md)
     (RMCPF — re-pointed: starts from "TS MCP server is paused"
     rather than "actively migrating from")
-  - [intercept-daemon](../modules/intercept-daemon.aps.md) /
+  - [intercept-daemon](../archive/modules/intercept-daemon.aps.md) /
     [intercept-rules](../modules/intercept-rules.aps.md) /
     [intercept-launcher](../modules/intercept-launcher.aps.md)
     (INTD/INTR/INTL — unaffected)

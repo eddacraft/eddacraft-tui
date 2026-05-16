@@ -248,7 +248,7 @@ not taste.
   authority and daemon enforcement), [ADR-030](./030-surface-drivers-supersede-napi-cutover.md)
   (drivers-on-daemon architecture).
 - APS modules:
-  - [intercept-daemon](../modules/intercept-daemon.aps.md) — INTD-014 owns the
+  - [intercept-daemon](../archive/modules/intercept-daemon.aps.md) — INTD-014 owns the
     daemon JSON-RPC conformance and latency benchmark implementation.
   - [surface-drivers](../modules/surface-drivers.aps.md) — DRVR-002 owns the
     editor-driver protocol and should cite this ADR for save-time latency

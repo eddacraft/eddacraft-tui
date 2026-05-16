@@ -10,7 +10,7 @@
 > disk**. It owns the *user journey* — the integrated path that
 > [LAUNCH](../modules/launch-flow-readiness.aps.md) (save-time polish),
 > [RTAI](../modules/realtime-ai-validation.aps.md) (mid-edit engine),
-> [INTD](../modules/intercept-daemon.aps.md) (daemon),
+> [INTD](../archive/modules/intercept-daemon.aps.md) (daemon),
 > [RMCP](../modules/rust-mcp-launch-shim.aps.md) (Rust MCP stdio launch path),
 > and [DRVR](../modules/surface-drivers.aps.md) (broader drivers) each cover
 > only in part.
@@ -656,7 +656,7 @@ blocker.
   watch flow; this runbook degrades into LAUNCH territory in §4.4
 - [RTAI module](../modules/realtime-ai-validation.aps.md) — mid-edit
   engine; RTAI-001 spike informs §1.5 latency expectations
-- [INTD module](../modules/intercept-daemon.aps.md) — daemon authority;
+- [INTD module](../archive/modules/intercept-daemon.aps.md) — daemon authority;
   INTD-011 owns `anvil intercept status` shape
 - [RMCP module](../modules/rust-mcp-launch-shim.aps.md) — Rust MCP
   stdio launch path that Scenarios A–C ride on

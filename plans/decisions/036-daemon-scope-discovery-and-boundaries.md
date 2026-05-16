@@ -14,7 +14,7 @@ daemon-working slate plan)
 
 A1 shipped with the Anvil intercept daemon as a per-user singleton, manual
 foreground start, and an algorithm-derived socket path that surfaces
-re-derive on their own (`plans/modules/intercept-daemon.aps.md` §Purpose,
+re-derive on their own (`plans/archive/modules/intercept-daemon.aps.md` §Purpose,
 INTD-001..INTD-016). RMCP's launch slice runs **embedded** validation; the
 daemon-backed `scan_buffer` path is wired but not yet announced as the
 default.
@@ -258,9 +258,9 @@ Why per-execution-scope specifically:
   - ADR-038 — Hook surface + noise discipline
   - ADR-039 — Baseline policy + hard-pinned rule classes
 - **APS modules:**
-  - `plans/modules/intercept-daemon.aps.md` (parent — INTD)
+  - `plans/archive/modules/intercept-daemon.aps.md` (parent — INTD)
   - `plans/modules/daemon-lifecycle.aps.md` (DLIFE — partial scope; some work items consolidated into MLP)
-  - `plans/modules/multilayer-protection.aps.md` (MLP — primary v1 module)
+  - `plans/archive/modules/multilayer-protection.aps.md` (MLP — primary v1 module)
 - **Related ADRs:**
   - ADR-015 — Intercept loop enforcement (parent of INTD)
   - ADR-030 — Surface drivers supersede napi cutover (parent of DRVR)

@@ -1149,7 +1149,7 @@ a defensible claim, not a slogan. This module owns:
 - **Outcome (shipped):** Each of the 56 v1-scope footnotes
   filed under MLP-001..MLP-017 + the Wave 3 PRs (#1502 / #1503
   / #1504 / #1505) is now a discrete MLP2-NNN task in
-  [`plans/modules/multilayer-protection-v2.aps.md`](./multilayer-protection-v2.aps.md).
+  [`plans/modules/multilayer-protection-v2.aps.md`](../../modules/multilayer-protection-v2.aps.md).
 - **See also:** `plans/modules/multilayer-protection-v2.aps.md`
   for the integration tracking module.
 

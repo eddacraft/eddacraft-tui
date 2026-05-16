@@ -20,7 +20,7 @@ See: plans/aps-rules.md
 > `.anvil` compiler namespace ownership, drift snapshot/reporting, constraint
 > export APIs, persistent suppression store/service semantics, AP-* explain
 > content, and MCP resource/prompt return paths. These are tracked in
-> [TSGAP](../../modules/scanner-adjacent-ts-retirement.aps.md); TSRET remains Complete.
+> [TSGAP](./scanner-adjacent-ts-retirement.aps.md); TSRET remains Complete.
 >
 > **Plan change (2026-04-29, [ADR-033](../../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The IDE/MCP surfaces this module's TS code exists for are

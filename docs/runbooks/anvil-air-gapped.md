@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                                                                          | Downstream                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ADR-036 §D-3](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md), [RELEASE-PLAN.md Wave 1 — MLP-017](../../RELEASE-PLAN.md), [MLP-017 task in `multilayer-protection.aps.md`](../../plans/modules/multilayer-protection.aps.md) | [`tools/test-harness/network-blocked/run.sh`](../../tools/test-harness/network-blocked/run.sh), [`crates/anvil-cli/tests/air_gapped.rs`](../../crates/anvil-cli/tests/air_gapped.rs), MLP-009 release gate |
+| [ADR-036 §D-3](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md), [RELEASE-PLAN.md Wave 1 — MLP-017](../../RELEASE-PLAN.md), [MLP-017 task in `multilayer-protection.aps.md`](../../plans/archive/modules/multilayer-protection.aps.md) | [`tools/test-harness/network-blocked/run.sh`](../../tools/test-harness/network-blocked/run.sh), [`crates/anvil-cli/tests/air_gapped.rs`](../../crates/anvil-cli/tests/air_gapped.rs), MLP-009 release gate |
 
 ## Claim
 
@@ -19,7 +19,7 @@ update checks are opt-in and off by default.
 This guarantee is part of the daemon-working release gate. See
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) Wave 1 (`MLP-017`) and the canonical
 scope in
-[`plans/modules/multilayer-protection.aps.md`](../../plans/modules/multilayer-protection.aps.md).
+[`plans/archive/modules/multilayer-protection.aps.md`](../../plans/archive/modules/multilayer-protection.aps.md).
 
 ## How it's tested
 
@@ -94,7 +94,7 @@ is incomplete.
   story (a local mirror is sufficient).
 - **macOS / BSD** — the harness skips with exit 77 there. Linux CI is the gate;
   cross-platform extension is a documented follow-up (see MLP-017 footnote in
-  `plans/modules/multilayer-protection.aps.md`).
+  `plans/archive/modules/multilayer-protection.aps.md`).
 
 ## Provenance
 

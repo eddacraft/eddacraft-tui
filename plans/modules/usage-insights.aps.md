@@ -188,9 +188,9 @@ what it caught and what's drifting" line in `v0.7.0-beta`.
 
 ## Cross-References
 
-- Coordinates with: [`MLP-002`](multilayer-protection.aps.md) (witness chain
-  as canonical event source), [`MLP-007`](multilayer-protection.aps.md)
-  (baseline diff for drift), [`MLP-003`](multilayer-protection.aps.md)
+- Coordinates with: [`MLP-002`](../archive/modules/multilayer-protection.aps.md) (witness chain
+  as canonical event source), [`MLP-007`](../archive/modules/multilayer-protection.aps.md)
+  (baseline diff for drift), [`MLP-003`](../archive/modules/multilayer-protection.aps.md)
   (suppression log for suppression view), [`ADTRUST-001`](../archive/modules/adoption-trust-surface.aps.md)
   (status surface where first-week hint renders).
 - Blocks on: none at module level; INSIGHTS-002 / -003 inherit MLP data

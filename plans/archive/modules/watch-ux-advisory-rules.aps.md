@@ -9,7 +9,7 @@ against merged PR #1497; `WATCHUX-005` through `WATCHUX-007` merged via PR #1524
 `WATCHUX-008` implemented on `feat/watchux-008-config-cache`.)
 
 Created from beta-user incident timeline and
-[`plans/specs/2026-05-13-watch-warmup-and-advisory-rules.md`](../specs/2026-05-13-watch-warmup-and-advisory-rules.md).
+[`plans/specs/2026-05-13-watch-warmup-and-advisory-rules.md`](../../specs/2026-05-13-watch-warmup-and-advisory-rules.md).
 Module starts In Progress because urgent beta remediation is already underway on
 `fix/beta-user-bug`; follow-up UX/config work remains sequenced below.)
 

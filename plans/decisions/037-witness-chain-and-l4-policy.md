@@ -305,7 +305,7 @@ witness file is minimal portable proof.
   - ADR-038 — Hook surface + noise discipline (companion: hooks that write the witness)
   - ADR-039 — Baseline policy + hard-pinned classes (companion: baseline genesis + suspicious-refresh)
 - **APS modules:**
-  - `plans/modules/multilayer-protection.aps.md` — MLP-002 (witness chain), MLP-006 (L4 policy), MLP-012 (rules_sha)
+  - `plans/archive/modules/multilayer-protection.aps.md` — MLP-002 (witness chain), MLP-006 (L4 policy), MLP-012 (rules_sha)
 - **Related ADRs:**
   - ADR-001 — Planless-first (witness machinery is anvil-managed; user doesn't author it)
   - ADR-003 — New edges only (witness chain anchors at baseline cutoff)

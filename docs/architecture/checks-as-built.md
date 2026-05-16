@@ -835,7 +835,7 @@ CLI seams (`crates/anvil-cli/src/`):
 - [`plans/modules/realtime-ai-validation.aps.md`](../../plans/modules/realtime-ai-validation.aps.md)
   — AI-001 family open question 3 (rule lives in `anvil-checks`, not in a
   standalone reasoning crate).
-- [`plans/modules/ai-guardrail-profile.aps.md`](../../plans/modules/ai-guardrail-profile.aps.md)
+- [`plans/archive/modules/ai-guardrail-profile.aps.md`](../../plans/archive/modules/ai-guardrail-profile.aps.md)
   — AIGUARD-001 (`--profile ai` profile), AIGUARD-002 (canonical JSON envelope),
   AIGUARD-003 (end-to-end wiring).
 - [`plans/archive/modules/anvil-rust-scanner.aps.md`](../../plans/archive/modules/anvil-rust-scanner.aps.md)

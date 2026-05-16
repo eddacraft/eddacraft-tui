@@ -10,7 +10,7 @@
 > under ADR-033), with downstream spec at `plans/specs/anvil-driver-framework/`.
 > Adjacent modules: INTR (`plans/modules/intercept-rules.aps.md`, In Progress
 > 4/8) for the hot-path rule registry, and INTD
-> (`plans/modules/intercept-daemon.aps.md`, Complete 16/16) for the daemon side
+> (`plans/archive/modules/intercept-daemon.aps.md`, Complete 16/16) for the daemon side
 > that consumes the proto. **Used by:** `anvil intercept status` CLI surface
 > (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's daemon-backed
 > validation client (`crates/anvil-cli/src/mcp/validation.rs`); the in-tree

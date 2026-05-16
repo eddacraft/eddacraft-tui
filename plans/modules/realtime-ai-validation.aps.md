@@ -205,11 +205,11 @@ convention" section). Concretely:
 
 ## Dependencies
 
-- **Blocks on:** [INTD-002](./intercept-daemon.aps.md) (IPC
-  listener), [INTD-003](./intercept-daemon.aps.md) (session
-  registry), [INTD-005](./intercept-daemon.aps.md) (enforcement
-  decision pipeline), [INTD-013](./intercept-daemon.aps.md)
-  (telemetry mirror), [INTD-014](./intercept-daemon.aps.md)
+- **Blocks on:** [INTD-002](../archive/modules/intercept-daemon.aps.md) (IPC
+  listener), [INTD-003](../archive/modules/intercept-daemon.aps.md) (session
+  registry), [INTD-005](../archive/modules/intercept-daemon.aps.md) (enforcement
+  decision pipeline), [INTD-013](../archive/modules/intercept-daemon.aps.md)
+  (telemetry mirror), [INTD-014](../archive/modules/intercept-daemon.aps.md)
   (JSON-RPC conformance + latency benchmark — RTAI's mid-edit
   benchmark extends it).
 - **Blocks on for editor-driver tasks only:** [DRVR-001](./surface-drivers.aps.md)

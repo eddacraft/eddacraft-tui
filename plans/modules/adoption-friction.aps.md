@@ -305,8 +305,8 @@ the user-visible specifics.
 
 ## Cross-References
 
-- Coordinates with: [`WATCHUX-002`](watch-ux-advisory-rules.aps.md) (shared
-  ignore helper), [`MLP-008`](multilayer-protection.aps.md) (hook bootstrap),
+- Coordinates with: [`WATCHUX-002`](../archive/modules/watch-ux-advisory-rules.aps.md) (shared
+  ignore helper), [`MLP-008`](../archive/modules/multilayer-protection.aps.md) (hook bootstrap),
   [`INTL-001`](intercept-launcher.aps.md) (`anvil-run` scaffold needed for
   ADOPT-003's launcher half).
 - Blocks on: WATCHUX-002 landing (already in flight).

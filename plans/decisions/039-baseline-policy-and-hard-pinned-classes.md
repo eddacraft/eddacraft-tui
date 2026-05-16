@@ -332,7 +332,7 @@ context.
   - ADR-037 — Witness chain (companion: baseline writes genesis line)
   - ADR-038 — Hook surface (companion: hooks installed at baseline time)
 - **APS modules:**
-  - `plans/modules/multilayer-protection.aps.md` — MLP-007 (`anvil baseline`)
+  - `plans/archive/modules/multilayer-protection.aps.md` — MLP-007 (`anvil baseline`)
 - **Related ADRs:**
   - ADR-001 — Planless-first (baseline is opt-in via `anvil baseline`; not required)
   - ADR-003 — New edges only (parent doctrine; this ADR pins the mechanism)

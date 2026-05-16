@@ -251,7 +251,7 @@ coexist with or build on this event-delivery pattern rather than fight it.
 
 Source:
 
-- `plans/modules/intercept-daemon.aps.md`
+- `plans/archive/modules/intercept-daemon.aps.md`
 
 Future outputs implied by the plan:
 

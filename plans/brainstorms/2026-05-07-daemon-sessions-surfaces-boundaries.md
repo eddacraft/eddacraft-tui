@@ -36,7 +36,7 @@ Sourced from the modules and specs cited; nothing here is invented.
 - **Process model:** per-user persistent singleton, written in Rust under
   `crates/anvil-intercept/`, supporting crates `anvil-intercept-proto` and
   `anvil-intercept-win32`
-  (`plans/modules/intercept-daemon.aps.md` §Purpose, INTD-001..INTD-016).
+  (`plans/archive/modules/intercept-daemon.aps.md` §Purpose, INTD-001..INTD-016).
 - **Single-instance guard:** PID file at
   `$XDG_RUNTIME_DIR/anvil/intercept.pid` (or
   `$HOME/.local/state/anvil/intercept.pid` fallback). Exclusive create;

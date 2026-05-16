@@ -58,7 +58,7 @@ would create a window where stock LSP clients are fenceable.
 ## 1. Transport recap
 
 JSON-RPC 2.0 over NDJSON, framed per
-[INTD-014](../modules/intercept-daemon.aps.md#intd-014). Transport selection:
+[INTD-014](../archive/modules/intercept-daemon.aps.md#intd-014). Transport selection:
 
 - Linux / macOS: Unix domain socket at `$XDG_RUNTIME_DIR/anvil/intercept.sock`
   (or operator-overridden via `ForegroundOpts::with_pid_file_and_ipc_socket`).
