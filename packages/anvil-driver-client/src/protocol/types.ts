@@ -184,8 +184,24 @@ export interface AnvilScanBufferParams {
   text: string;
   /** Document version (per LSP convention). */
   version: number;
-  /** `mid-edit` for the typical didChange path. */
-  mode: 'mid-edit';
+  /**
+   * `mid-edit` (or `midEdit` alias) for the typical didChange path.
+   * The daemon's `ScanBufferMode::parse` accepts both forms; the
+   * driver-client and Rust launcher emit `midEdit` today.
+   */
+  mode: 'mid-edit' | 'midEdit';
+  /**
+   * MLP2-025c: raw `ANVIL_AGENT_TAG` env value the writer process
+   * inherited from its launcher (anvil-run sets it via
+   * `set_attribution_env`). The daemon decodes via
+   * `anvil_attribution::env::agent_tag_from_env_value` at the
+   * boundary; malformed values fold to `Cross::Spoofed`.
+   *
+   * Omit when `ANVIL_AGENT_TAG` is not present in the writer's
+   * env — the daemon treats absence as `Cross::Untagged` (the
+   * pre-MLP2-025 enforcement path).
+   */
+  env_agent_tag?: string;
 }
 
 /** `anvil/scan_buffer` — server → client result. */
@@ -194,6 +210,22 @@ export interface AnvilScanBufferResult {
   diagnostics: Diagnostic[];
   /** True when the daemon capped the diagnostic set for one scan. */
   truncated: boolean;
+  /**
+   * MLP2-025c: populated when the daemon's spoof cross-check
+   * refused the write because the supplied `env_agent_tag` did
+   * not match any daemon-issued tag on the writer's PID lineage.
+   * Mutually exclusive with diagnostics (the rule engine never
+   * ran for this request).
+   */
+  spoof_block?: AnvilScanBufferSpoofBlock;
+}
+
+/** MLP2-025c: shape of the daemon's spoof-block side effect. */
+export interface AnvilScanBufferSpoofBlock {
+  /** Always `degraded:spoofed-attribution` for v1. */
+  reason: string;
+  /** Canonicalised worktree the daemon fenced. */
+  fenced_worktree: string;
 }
 
 /** `anvil/enforcement/ack` — client → server request params. */

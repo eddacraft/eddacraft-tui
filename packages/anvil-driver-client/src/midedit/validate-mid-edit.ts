@@ -30,7 +30,7 @@
 import type { DriverClient } from '../client/driver-client.js';
 import type { Diagnostic } from '../diagnostics/types.js';
 import { DriverClientError, mapDaemonErrorRetriable, type DriverError } from '../errors.js';
-import { ANVIL_SCAN_BUFFER } from '../protocol/index.js';
+import { ANVIL_SCAN_BUFFER, type AnvilScanBufferParams } from '../protocol/index.js';
 
 import {
   DEFAULT_DEBOUNCE_MS,
@@ -198,11 +198,20 @@ export function createMidEditValidator(
       async (text) => {
         // Build the wire shape pinned by RTAI-002 +
         // crates/anvil-intercept/src/midedit.rs.
-        const requestParams = {
+        //
+        // MLP2-025c: include the writer's `ANVIL_AGENT_TAG` env
+        // value when set so the daemon's spoof cross-check can
+        // validate the lineage. Absence → daemon treats as
+        // `Cross::Untagged` (pre-MLP2-025 path).
+        const envAgentTag = process.env.ANVIL_AGENT_TAG;
+        const requestParams: AnvilScanBufferParams = {
           path: uri,
           text,
           version,
           mode: SCAN_BUFFER_MODE_MID_EDIT,
+          ...(envAgentTag !== undefined && envAgentTag !== ''
+            ? { env_agent_tag: envAgentTag }
+            : {}),
         };
         try {
           const response = await client.request<ScanBufferResponse>(

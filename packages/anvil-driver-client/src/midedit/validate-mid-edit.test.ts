@@ -150,6 +150,115 @@ describe('validateMidEdit — wire shape', () => {
     await client.close();
   });
 
+  it('MLP2-025c: forwards ANVIL_AGENT_TAG as env_agent_tag when set', async () => {
+    const tf = makeFakeTransportFactory([
+      {
+        respond(line, push) {
+          const env = line as { id: string; params: Record<string, unknown> };
+          expect(env.params.env_agent_tag).toBe('test-tag-payload');
+          push({
+            jsonrpc: '2.0',
+            id: env.id,
+            result: { version: 1, diagnostics: [], truncated: false },
+          });
+        },
+      },
+    ]);
+    const client = new DriverClient({
+      transportFactory: tf.factory,
+      midEdit: { debounceMs: 0 },
+    });
+    await client.connect();
+    const previous = process.env.ANVIL_AGENT_TAG;
+    process.env.ANVIL_AGENT_TAG = 'test-tag-payload';
+    try {
+      await client.validateMidEdit({
+        uri: 'a.ts',
+        content: 'A',
+        workspaceRoot: '/x',
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ANVIL_AGENT_TAG;
+      } else {
+        process.env.ANVIL_AGENT_TAG = previous;
+      }
+    }
+    await client.close();
+  });
+
+  it('MLP2-025c: omits env_agent_tag when ANVIL_AGENT_TAG is unset', async () => {
+    const tf = makeFakeTransportFactory([
+      {
+        respond(line, push) {
+          const env = line as { id: string; params: Record<string, unknown> };
+          expect(env.params.env_agent_tag).toBeUndefined();
+          push({
+            jsonrpc: '2.0',
+            id: env.id,
+            result: { version: 1, diagnostics: [], truncated: false },
+          });
+        },
+      },
+    ]);
+    const client = new DriverClient({
+      transportFactory: tf.factory,
+      midEdit: { debounceMs: 0 },
+    });
+    await client.connect();
+    const previous = process.env.ANVIL_AGENT_TAG;
+    delete process.env.ANVIL_AGENT_TAG;
+    try {
+      await client.validateMidEdit({
+        uri: 'a.ts',
+        content: 'A',
+        workspaceRoot: '/x',
+      });
+    } finally {
+      if (previous !== undefined) {
+        process.env.ANVIL_AGENT_TAG = previous;
+      }
+    }
+    await client.close();
+  });
+
+  it('MLP2-025c: omits env_agent_tag when ANVIL_AGENT_TAG is an empty string', async () => {
+    const tf = makeFakeTransportFactory([
+      {
+        respond(line, push) {
+          const env = line as { id: string; params: Record<string, unknown> };
+          expect(env.params.env_agent_tag).toBeUndefined();
+          push({
+            jsonrpc: '2.0',
+            id: env.id,
+            result: { version: 1, diagnostics: [], truncated: false },
+          });
+        },
+      },
+    ]);
+    const client = new DriverClient({
+      transportFactory: tf.factory,
+      midEdit: { debounceMs: 0 },
+    });
+    await client.connect();
+    const previous = process.env.ANVIL_AGENT_TAG;
+    process.env.ANVIL_AGENT_TAG = '';
+    try {
+      await client.validateMidEdit({
+        uri: 'a.ts',
+        content: 'A',
+        workspaceRoot: '/x',
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ANVIL_AGENT_TAG;
+      } else {
+        process.env.ANVIL_AGENT_TAG = previous;
+      }
+    }
+    await client.close();
+  });
+
   it('reuses DriverClient.request (single transport path, only one frame on the wire)', async () => {
     const tf = makeFakeTransportFactory([
       {

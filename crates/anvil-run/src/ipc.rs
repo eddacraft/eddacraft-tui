@@ -265,6 +265,17 @@ fn trim_trailing_newline(buf: &[u8]) -> &[u8] {
 /// Wall-clock-free helper: build the bytes the launcher would send
 /// to register a session. Pulled out so tests can pin the wire
 /// shape without a live daemon.
+///
+/// **MLP2-025c (2026-05-16):** the daemon's MLP2-023+ parser
+/// expects a nested `agent_tag` object and an optional nested
+/// `lineage` object; until this revision the launcher only sent
+/// flat `driver_id` / `claimed_agent_id` / `pid_starttime` keys
+/// the daemon silently ignored — meaning no production session
+/// has had a tag or lineage anchor since MLP2-023 shipped. The
+/// flat keys are kept for backward visibility (they harm
+/// nothing) and the nested objects are added alongside.
+#[allow(clippy::too_many_arguments)]
+// MLP2-025c added launcher_pid for the lineage anchor; the surface mirrors the wire shape and is not naturally bundleable.
 #[must_use]
 pub fn session_register_params(
     session_id: &str,
@@ -274,6 +285,10 @@ pub fn session_register_params(
     claimed_agent_id: &str,
     pid_starttime: u64,
     tmux_pane: Option<&str>,
+    // MLP2-025c: launcher's own PID for the lineage anchor. The
+    // launcher reports `std::process::id()` at register time;
+    // the daemon trusts this claim per the MLP2-025b spec §7.
+    launcher_pid: u32,
 ) -> Value {
     let mut params = serde_json::Map::new();
     params.insert("session_id".into(), Value::String(session_id.into()));
@@ -297,6 +312,39 @@ pub fn session_register_params(
     if let Some(pane) = tmux_pane {
         params.insert("tmux_pane".into(), Value::String(pane.into()));
     }
+
+    // MLP2-025c: nested `agent_tag` object the daemon's MLP2-023
+    // parser actually reads. Same `(driver_id, claimed_agent_id,
+    // pid_starttime)` triple as the flat fields above — duplication
+    // is intentional and bounded; both shapes will coexist until a
+    // future cleanup confirms the flat fields are unused.
+    let mut agent_tag = serde_json::Map::new();
+    agent_tag.insert("driver_id".into(), Value::String(driver_id.into()));
+    agent_tag.insert(
+        "claimed_agent_id".into(),
+        Value::String(claimed_agent_id.into()),
+    );
+    agent_tag.insert(
+        "pid_starttime".into(),
+        Value::Number(serde_json::Number::from(pid_starttime)),
+    );
+    params.insert("agent_tag".into(), Value::Object(agent_tag));
+
+    // MLP2-025c: nested `lineage` anchor for the daemon's
+    // (pid, pid_starttime) lineage index. The launcher's own PID
+    // here is what the daemon walks back to from the writer's
+    // PID at write time — match means trusted attribution.
+    let mut lineage = serde_json::Map::new();
+    lineage.insert(
+        "pid".into(),
+        Value::Number(serde_json::Number::from(launcher_pid)),
+    );
+    lineage.insert(
+        "pid_starttime".into(),
+        Value::Number(serde_json::Number::from(pid_starttime)),
+    );
+    params.insert("lineage".into(), Value::Object(lineage));
+
     Value::Object(params)
 }
 
@@ -361,7 +409,9 @@ mod tests {
             "claude-1",
             1_700_000_000,
             Some("%5"),
+            42_424, // launcher_pid (new)
         );
+        // INTL-003 / pre-MLP2-025c flat metadata.
         assert_eq!(params["session_id"], "sess_abc");
         assert_eq!(params["worktree"], "/tmp/wt");
         assert_eq!(params["cwd"], "/tmp/wt/sub");
@@ -369,6 +419,19 @@ mod tests {
         assert_eq!(params["claimed_agent_id"], "claude-1");
         assert_eq!(params["pid_starttime"], 1_700_000_000);
         assert_eq!(params["tmux_pane"], "%5");
+
+        // MLP2-025c: nested `agent_tag` so the daemon's MLP2-023+
+        // parser actually honours the composite identity (previously
+        // the flat fields were silently dropped by the daemon).
+        assert_eq!(params["agent_tag"]["driver_id"], "anvil-run");
+        assert_eq!(params["agent_tag"]["claimed_agent_id"], "claude-1");
+        assert_eq!(params["agent_tag"]["pid_starttime"], 1_700_000_000);
+
+        // MLP2-025c: nested `lineage` anchor so the daemon's
+        // (pid, pid_starttime) lineage index gets seeded for the
+        // spoof cross-check.
+        assert_eq!(params["lineage"]["pid"], 42_424);
+        assert_eq!(params["lineage"]["pid_starttime"], 1_700_000_000);
     }
 
     #[test]
@@ -381,9 +444,40 @@ mod tests {
             "claude-1",
             42,
             None,
+            7,
         );
         assert!(params.get("tmux_pane").is_none(), "no tmux_pane key");
         assert_eq!(params["cwd"], "/tmp/wt");
+        // MLP2-025c: agent_tag + lineage still present.
+        assert_eq!(params["agent_tag"]["claimed_agent_id"], "claude-1");
+        assert_eq!(params["lineage"]["pid"], 7);
+        assert_eq!(params["lineage"]["pid_starttime"], 42);
+    }
+
+    /// MLP2-025c: the lineage object's `pid` is the **launcher's**
+    /// own PID, and the `pid_starttime` is shared with the
+    /// `agent_tag` (both derive from the same launcher process).
+    /// Pins the spec §7 trust model: the launcher's register-time
+    /// claim about itself is trusted, and the cross-check matches
+    /// the launcher's lineage when child processes write under
+    /// `ANVIL_AGENT_TAG`.
+    #[test]
+    fn session_register_params_lineage_pid_starttime_matches_agent_tag() {
+        let params = session_register_params(
+            "sess_lineage",
+            Path::new("/tmp/wt"),
+            Path::new("/tmp/wt"),
+            "anvil-run",
+            "claude-2",
+            1_700_000_500,
+            None,
+            9999,
+        );
+        assert_eq!(
+            params["agent_tag"]["pid_starttime"], params["lineage"]["pid_starttime"],
+            "agent_tag.pid_starttime and lineage.pid_starttime are the same value",
+        );
+        assert_eq!(params["lineage"]["pid"], 9999);
     }
 
     #[test]

@@ -191,6 +191,10 @@ fn run_wrap_spawn(spawn_args: WrapSpawn) -> i32 {
         claimed_agent_id: &claimed,
         pid_starttime: launcher_pid_starttime,
         tmux_pane: ctx.tmux_pane.as_deref(),
+        // MLP2-025c: launcher's own PID for the daemon's lineage
+        // anchor. The daemon walks the writer's PID lineage back
+        // to this anchor at write time.
+        launcher_pid: std::process::id(),
     }) {
         Ok(r) => r,
         Err(err) => {

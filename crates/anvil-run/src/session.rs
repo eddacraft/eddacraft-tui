@@ -84,6 +84,11 @@ pub struct RegistrationRequest<'a> {
     /// for PID-reuse defence; the launcher value is a hint only.
     pub pid_starttime: u64,
     pub tmux_pane: Option<&'a str>,
+    /// MLP2-025c: launcher's own PID for the daemon's
+    /// `(pid, pid_starttime)` lineage anchor. Callers populate via
+    /// `std::process::id()`. The daemon's write-time spoof cross-check
+    /// (MLP2-025b) walks the writer's PID lineage back to this anchor.
+    pub launcher_pid: u32,
 }
 
 /// Issue the `session.register` JSON-RPC request. The launcher
@@ -104,6 +109,7 @@ pub fn register(req: &RegistrationRequest<'_>) -> Result<Registration> {
         req.claimed_agent_id,
         req.pid_starttime,
         req.tmux_pane,
+        req.launcher_pid,
     );
     let response: Value = ipc::request(
         REGISTER_METHOD,
