@@ -1272,6 +1272,84 @@ task's `Source:` line cites the Council finding IDs.
   2026-05-15 — the integration phase needed its own design
   pass.
 
+#### MLP2-025c: Launcher-side population of `lineage` + `env_agent_tag`
+
+- **Status:** In Progress
+- **Intent:** Populate the wire fields MLP2-025b added so the
+  daemon's lineage index actually gets seeded in production and
+  the write-time spoof cross-check has something to match. Until
+  this lands, every production register call goes through the
+  legacy path with `lineage = None`; the cross-check is wired
+  daemon-side but inert.
+- **Mid-implementation survey** (2026-05-16, no contract spec):
+  the migration is a clean small surface — one Rust function
+  (`session_register_params`) + one struct (`RegistrationRequest`)
+  + one TS interface (`AnvilScanBufferParams`) + one TS call site
+  (`validate-mid-edit.ts`). Bonus: the current Rust launcher
+  sends flat `driver_id` / `claimed_agent_id` / `pid_starttime`
+  fields the daemon **ignores** (since MLP2-023's daemon parser
+  expects a nested `agent_tag`). Activating MLP2-023's composite
+  identity in production is part of this PR's scope — without it
+  the daemon never sees a tag on any registered session.
+- **Expected Outcome:**
+  - `crates/anvil-run/src/ipc.rs` `session_register_params` emits
+    nested `agent_tag` and `lineage` objects matching the daemon's
+    parser (`crates/anvil-intercept/src/ipc.rs:2309`). Flat
+    `driver_id`/`claimed_agent_id`/`pid_starttime`/`cwd`/`tmux_pane`
+    fields are dropped (the daemon never read them).
+  - `RegistrationRequest` gains `launcher_pid: u32` field;
+    callers populate via `std::process::id()`. The existing
+    `pid_starttime` field is reused for the lineage anchor's
+    `pid_starttime` value.
+  - `packages/anvil-driver-client/src/protocol/types.ts`
+    `AnvilScanBufferParams` gains `env_agent_tag?: string`.
+  - `packages/anvil-driver-client/src/midedit/validate-mid-edit.ts`
+    request-builder populates `env_agent_tag` from
+    `process.env.ANVIL_AGENT_TAG`.
+  - All four MLP2-025b primitives become active in production:
+    on every legitimate write, the daemon's
+    `cross_check_env_tag(env_tag, writer_pid)` runs against the
+    populated lineage index and returns `Cross::Match`. Spoofed
+    writes (env tag from out-of-lineage process) return
+    `Cross::Spoofed` and trigger the fence + block.
+- **Files:**
+  - `crates/anvil-run/src/ipc.rs` — `session_register_params`
+    signature change + wire shape rewrite + updated tests.
+  - `crates/anvil-run/src/session.rs` — `RegistrationRequest`
+    gains `launcher_pid`; `register()` threads it into the params
+    call.
+  - `crates/anvil-run/src/spawn.rs` (or wherever the request is
+    built) — populate `launcher_pid: std::process::id()`.
+  - `packages/anvil-driver-client/src/protocol/types.ts` — add
+    `env_agent_tag?: string` to `AnvilScanBufferParams`.
+  - `packages/anvil-driver-client/src/midedit/validate-mid-edit.ts`
+    — read `process.env.ANVIL_AGENT_TAG` and include in scan-buffer
+    request params.
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-run --lib ipc::tests` —
+    existing fixture tests assert the new wire shape (nested
+    `agent_tag` + `lineage`).
+  - `cargo test --workspace` clean.
+  - New TS unit test in `packages/anvil-driver-client/` pinning
+    that `env_agent_tag` is included when `ANVIL_AGENT_TAG` is set
+    and omitted when it isn't.
+- **Trust model:** the launcher's register-time claim about its
+  own `(pid, pid_starttime)` is **trusted** (§7 of the
+  MLP2-025b spec). The launcher is in the daemon's trust zone;
+  if it lies about itself, the operator has bigger problems.
+- **Out of scope:** Windows launcher (peer-PID greenfield for
+  Windows is MLP2-028); behavioural confirmation tests that
+  exercise the full daemon + launcher path with a real spoof
+  (that's a separate integration test sub-item).
+- **Confidence:** high (no design unknowns; spec contract is
+  locked).
+- **Priority:** Critical (MLP2-025/-025b are dead code in
+  production without this).
+- **Dependencies:** MLP2-025, MLP2-025b
+- **Source:** MLP2-025b spec Q6 verdict (2026-05-16); mid-impl
+  discovery 2026-05-16 that the current launcher's flat
+  register-session wire shape is daemon-ignored.
+
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
 - **Status:** In Progress
