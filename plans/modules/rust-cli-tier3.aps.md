@@ -11,7 +11,7 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI3 | —     | In Progress | 2/20     |
+| RCLI3 | —     | In Progress | 3/20     |
 
 **Last reviewed:** 2026-05-17
 
@@ -510,11 +510,13 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-017b: intercept unblock CLI surface
 
-- **Status:** In Progress (2026-05-17 — branch
-  `feat/rcli3-017b-intercept-unblock-worktree`. Adds the per-fence
-  unblock IPC verb wrapping `FenceStore::unblock_worktree` plus the
-  `--worktree` / `--all` / `--dry-run` CLI surface; cascade clearing
-  via `--acknowledge-cascade` remains the existing MLP2-026 path.)
+- **Status:** Merged (2026-05-17 — PR #1657, merge commit
+  `cb642908`. Landed the per-fence unblock IPC verb wrapping
+  `FenceStore::unblock_worktree`, the `--worktree` / `--all` /
+  `--dry-run` CLI surface, and proto `IpcCommand::UnblockWorktree`.
+  Cascade clearing via `--acknowledge-cascade` continues through the
+  MLP2-026 path. Cleanup agent will advance to Released/Shipped once
+  release evidence records this in a tagged build.)
 - **Intent:** Port `anvil intercept unblock --worktree <path>`. CLI surface
   for removing a fenced worktree from the daemon's persistence file, so an
   operator can clear demo / test fences without restarting the daemon.
