@@ -1,10 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,7 +13,24 @@ use thiserror::Error;
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 
+use crate::rate_window::{RateDecision, RateWindow};
+
 const FENCE_FILE_VERSION: u8 = 1;
+
+/// MLP2-026: rate-window capacity for the `degraded:fence-cascade`
+/// detector. `RateWindow` admits up to `capacity` events before
+/// throttling; the 5-in-60s threshold requires capacity 4 so the
+/// fifth `record()` call within 60 s returns
+/// `RateDecision::Throttle` — that is the engage trigger.
+///
+/// See `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+/// §3.1 and the Council 2026-05-15 off-by-one correction.
+pub const CASCADE_RATE_WINDOW_CAPACITY: usize = 4;
+
+/// MLP2-026: rate-window duration paired with
+/// [`CASCADE_RATE_WINDOW_CAPACITY`]. Five fires within 60 s engage
+/// the cascade.
+pub const CASCADE_RATE_WINDOW_DURATION: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Error)]
 pub enum FenceStoreError {
@@ -66,9 +84,42 @@ pub struct FenceRecord {
     pub fenced_at_unix: u64,
 }
 
+/// MLP2-026: per-worktree cascade engaged-state record. Persisted
+/// inside `FenceFile.cascades` so daemon restart preserves the
+/// security-relevant engaged flag — only the in-memory
+/// [`RateWindow`] resets on restart, which is the correct posture:
+/// the engaged flag stays sticky, the firing window is rebuilt.
+///
+/// See `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+/// §3.1.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CascadeRecord {
+    /// Canonical worktree path. Mirrors the
+    /// [`FenceRecord::worktree`] canonicalisation convention.
+    pub worktree: PathBuf,
+    /// Engage timestamp as Unix seconds. Mirrors
+    /// [`FenceRecord::fenced_at_unix`].
+    pub since_unix: u64,
+    /// Always [`crate::telemetry::DEGRADED_FENCE_CASCADE`] for v1.
+    /// Stored explicitly so structured-log consumers do not need
+    /// to look up the constant.
+    pub reason: String,
+}
+
+impl CascadeRecord {
+    fn matches(&self, worktree: &Path) -> bool {
+        self.worktree == worktree
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FenceState {
     records: Vec<FenceRecord>,
+    /// MLP2-026: cascade engaged-state records loaded from
+    /// [`FenceFile::cascades`]. Persistence keeps cascade sticky
+    /// across daemon restart; the in-memory rate windows on
+    /// [`FenceStore`] are NOT persisted.
+    cascades: Vec<CascadeRecord>,
 }
 
 impl FenceState {
@@ -83,6 +134,25 @@ impl FenceState {
             return false;
         };
         self.records.iter().any(|record| record.matches(&canonical))
+    }
+
+    /// MLP2-026: read-only access to the persisted cascade
+    /// engaged-state records.
+    #[must_use]
+    pub fn active_cascades(&self) -> &[CascadeRecord] {
+        &self.cascades
+    }
+
+    /// MLP2-026: `true` iff a [`CascadeRecord`] exists for any
+    /// path that canonicalises to `worktree`. See spec §6 `inv-1`.
+    #[must_use]
+    pub fn is_cascaded(&self, worktree: &Path) -> bool {
+        let Some(canonical) = lookup_path(worktree) else {
+            return false;
+        };
+        self.cascades
+            .iter()
+            .any(|record| record.matches(&canonical))
     }
 
     fn upsert(&mut self, record: FenceRecord) {
@@ -105,6 +175,27 @@ impl FenceState {
             .position(|record| record.matches(worktree))?;
         Some(self.records.remove(index))
     }
+
+    fn upsert_cascade(&mut self, record: CascadeRecord) {
+        if let Some(existing) = self
+            .cascades
+            .iter_mut()
+            .find(|existing| existing.matches(&record.worktree))
+        {
+            *existing = record;
+        } else {
+            self.cascades.push(record);
+        }
+        self.cascades.sort_by(|a, b| a.worktree.cmp(&b.worktree));
+    }
+
+    fn remove_cascade(&mut self, worktree: &Path) -> Option<CascadeRecord> {
+        let index = self
+            .cascades
+            .iter()
+            .position(|record| record.matches(worktree))?;
+        Some(self.cascades.remove(index))
+    }
 }
 
 impl FenceRecord {
@@ -117,17 +208,113 @@ impl FenceRecord {
 struct FenceFile {
     version: u8,
     fences: Vec<FenceRecord>,
+    /// MLP2-026: cascade engaged-state records. Wire-additive via
+    /// `#[serde(default, skip_serializing_if = "Vec::is_empty")]`,
+    /// matching the `FenceRecord::aliases` precedent. `version`
+    /// stays at 1; a pre-MLP2-026 fence file (no `cascades` key)
+    /// deserialises with `cascades = vec![]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    cascades: Vec<CascadeRecord>,
 }
+
+/// MLP2-026: in-memory rate-window registry shared across all
+/// [`FenceStore`] clones. The on-disk [`FenceFile`] is the
+/// persistent layer; this map only tracks the **firing rate** —
+/// it rebuilds empty on daemon restart, which is the correct
+/// posture (the engaged flag survives via [`CascadeRecord`], the
+/// firing window does not).
+type CascadeWindows = Arc<Mutex<HashMap<PathBuf, Arc<RateWindow>>>>;
 
 #[derive(Debug, Clone)]
 pub struct FenceStore {
     path: PathBuf,
+    /// MLP2-026: per-worktree firing-rate trackers. Lazily created
+    /// on first fire for a worktree.
+    cascade_windows: CascadeWindows,
 }
 
 impl FenceStore {
     #[must_use]
     pub fn at_path(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self {
+            path: path.into(),
+            cascade_windows: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// MLP2-026: snapshot accessor for cascade engaged-state. See
+    /// spec §5.2. Returns `false` on `load()` failure rather than
+    /// propagating — the register-time call site (§4.2) is on the
+    /// hot path and a degraded fence-store I/O is a separate
+    /// concern that [`crate::registry::RegistryError::FenceStateUnavailable`]
+    /// surfaces on other paths.
+    #[must_use]
+    pub fn is_cascaded(&self, worktree: &Path) -> bool {
+        self.load()
+            .map(|state| state.is_cascaded(worktree))
+            .unwrap_or(false)
+    }
+
+    /// MLP2-026: operator-clear of a cascade engaged-state. Removes
+    /// the matching [`CascadeRecord`] from the on-disk file, resets
+    /// the in-memory rate window for the worktree, and persists
+    /// the change. Idempotent.
+    ///
+    /// Returns `Ok(true)` when a cascade record existed and was
+    /// removed, `Ok(false)` when no cascade was engaged for the
+    /// worktree (idempotent operator-clear). `Err(_)` only on
+    /// underlying I/O failure.
+    ///
+    /// See spec §5.3.
+    pub fn clear_cascade(&self, worktree: &Path) -> Result<bool, FenceStoreError> {
+        let canonical =
+            lookup_path(worktree).ok_or_else(|| FenceStoreError::WorktreePathInvalid {
+                path: worktree.to_path_buf(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "worktree must be absolute or canonicalisable to clear cascade",
+                ),
+            })?;
+        let mut state = self.load()?;
+        let removed = state.remove_cascade(&canonical);
+        if removed.is_some() {
+            self.save(&state)?;
+        }
+        // Reset the in-memory rate window unconditionally — see spec
+        // §6 inv-3: defensive on both Ok(true) and the
+        // idempotent-miss `Ok(false)` arm.
+        self.reset_cascade_window(&canonical);
+        Ok(removed.is_some())
+    }
+
+    /// MLP2-026: record a fence-fire through the per-worktree
+    /// rate window and return whether the fire engaged a cascade.
+    /// Internal helper called from [`Self::fence_worktree`] (F2).
+    fn record_cascade_fire(&self, worktree: &Path, now: Instant) -> RateDecision {
+        let window = {
+            let mut windows = self
+                .cascade_windows
+                .lock()
+                .expect("cascade_windows lock poisoned");
+            Arc::clone(windows.entry(worktree.to_path_buf()).or_insert_with(|| {
+                Arc::new(RateWindow::new(
+                    CASCADE_RATE_WINDOW_CAPACITY,
+                    CASCADE_RATE_WINDOW_DURATION,
+                ))
+            }))
+        };
+        window.record(now)
+    }
+
+    /// MLP2-026: reset the in-memory rate window for a worktree.
+    /// Drops the existing `RateWindow` so the next fire starts
+    /// counting from zero. Called from [`Self::clear_cascade`].
+    fn reset_cascade_window(&self, worktree: &Path) {
+        let mut windows = self
+            .cascade_windows
+            .lock()
+            .expect("cascade_windows lock poisoned");
+        windows.remove(worktree);
     }
 
     pub fn load(&self) -> Result<FenceState, FenceStoreError> {
@@ -160,8 +347,10 @@ impl FenceStore {
         }
         let mut state = FenceState {
             records: validate_records(&self.path, file.fences)?,
+            cascades: validate_cascades(&self.path, file.cascades)?,
         };
         state.records.sort_by(|a, b| a.worktree.cmp(&b.worktree));
+        state.cascades.sort_by(|a, b| a.worktree.cmp(&b.worktree));
         Ok(state)
     }
 
@@ -223,6 +412,7 @@ impl FenceStore {
         let file = FenceFile {
             version: FENCE_FILE_VERSION,
             fences: state.records.clone(),
+            cascades: state.cascades.clone(),
         };
         let mut content =
             serde_json::to_vec_pretty(&file).map_err(|source| FenceStoreError::Write {
@@ -283,6 +473,33 @@ fn validate_records(
                     reason: format!("duplicate fenced worktree alias: {}", alias.display()),
                 });
             }
+        }
+    }
+    Ok(records)
+}
+
+/// MLP2-026: validate cascade records on `load()`. Mirrors
+/// [`validate_records`]: absolute paths only, no duplicates.
+fn validate_cascades(
+    store_path: &Path,
+    records: Vec<CascadeRecord>,
+) -> Result<Vec<CascadeRecord>, FenceStoreError> {
+    let mut seen = HashSet::new();
+    for record in &records {
+        if !record.worktree.is_absolute() {
+            return Err(FenceStoreError::InvalidRecord {
+                path: store_path.to_path_buf(),
+                reason: format!(
+                    "cascade worktree is not absolute: {}",
+                    record.worktree.display(),
+                ),
+            });
+        }
+        if !seen.insert(record.worktree.clone()) {
+            return Err(FenceStoreError::InvalidRecord {
+                path: store_path.to_path_buf(),
+                reason: format!("duplicate cascade worktree: {}", record.worktree.display()),
+            });
         }
     }
     Ok(records)
@@ -771,5 +988,148 @@ mod tests {
             reloaded.active_fences()[0].reason,
             crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
         );
+    }
+
+    // ---- MLP2-026: cascade engaged-state ----------------------------
+
+    /// MLP2-026: a pre-MLP2-026 fence file (no `cascades` key)
+    /// deserialises with `cascades = vec![]`. Pins the
+    /// wire-additive guard. Use `store.save` to bootstrap the
+    /// state-dir permissions, then overwrite the file with the
+    /// legacy wire shape and `load` it back.
+    #[test]
+    fn fence_file_without_cascades_key_loads_with_empty_cascades() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        // Bootstrap the parent dir with correct perms via the
+        // store's own save path.
+        store.save(&FenceState::default()).expect("bootstrap save");
+        // Now overwrite with the legacy wire shape.
+        std::fs::write(&store.path, br#"{"version":1,"fences":[]}"#).unwrap();
+        let state = store.load().expect("legacy fence file loads");
+        assert!(
+            state.active_cascades().is_empty(),
+            "missing cascades key defaults to vec![]"
+        );
+    }
+
+    /// MLP2-026: `cascades` is omitted from the wire when empty,
+    /// preserving the pre-MLP2-026 wire shape exactly.
+    #[test]
+    fn save_omits_cascades_when_empty() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+
+        // Record a regular fence so the file gets persisted with
+        // a populated `fences` list but no cascades.
+        store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence");
+
+        let raw = std::fs::read_to_string(&store.path).expect("read file");
+        assert!(
+            !raw.contains("\"cascades\""),
+            "cascades omitted on wire when empty: {raw}"
+        );
+    }
+
+    /// MLP2-026: a `CascadeRecord` round-trips through `save` →
+    /// `load`. Pins the persisted shape that the spec §6 inv-4
+    /// (restart preserves engage flag) depends on.
+    #[test]
+    fn cascade_record_round_trips_through_store_reload() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let canonical = worktree.path().canonicalize().expect("canonicalise");
+
+        // Manually inject a cascade record via the store's
+        // internal save (the public engage path lands in F2; this
+        // test only pins persistence, not the engage trigger).
+        let mut state = store.load().expect("initial load");
+        state.upsert_cascade(CascadeRecord {
+            worktree: canonical.clone(),
+            since_unix: 1_700_000_500,
+            reason: "degraded:fence-cascade".to_string(),
+        });
+        store.save(&state).expect("save");
+
+        let reloaded = store.load().expect("reload");
+        assert!(reloaded.is_cascaded(worktree.path()));
+        assert_eq!(reloaded.active_cascades().len(), 1);
+        assert_eq!(reloaded.active_cascades()[0].worktree, canonical);
+        assert_eq!(reloaded.active_cascades()[0].since_unix, 1_700_000_500);
+        assert_eq!(
+            reloaded.active_cascades()[0].reason,
+            "degraded:fence-cascade"
+        );
+    }
+
+    /// MLP2-026: `is_cascaded` returns true iff a `CascadeRecord`
+    /// exists for the canonical form of the supplied worktree.
+    /// Snapshot semantics: reads disk, swallows I/O failures
+    /// (returns false on load error). Spec §5.2.
+    #[test]
+    fn is_cascaded_returns_true_after_cascade_record_persisted() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let canonical = worktree.path().canonicalize().expect("canonicalise");
+
+        assert!(
+            !store.is_cascaded(worktree.path()),
+            "is_cascaded false initially"
+        );
+
+        let mut state = store.load().expect("load");
+        state.upsert_cascade(CascadeRecord {
+            worktree: canonical.clone(),
+            since_unix: 1_700_000_500,
+            reason: "degraded:fence-cascade".to_string(),
+        });
+        store.save(&state).expect("save");
+
+        assert!(
+            store.is_cascaded(worktree.path()),
+            "is_cascaded true after persist"
+        );
+    }
+
+    /// MLP2-026: `clear_cascade` removes the record AND resets
+    /// the in-memory `RateWindow`. Spec §5.3 + §6 inv-3.
+    #[test]
+    fn clear_cascade_is_idempotent_and_resets_window() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = store_in(&temp);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let canonical = worktree.path().canonicalize().expect("canonicalise");
+
+        let mut state = store.load().expect("load");
+        state.upsert_cascade(CascadeRecord {
+            worktree: canonical.clone(),
+            since_unix: 1_700_000_500,
+            reason: "degraded:fence-cascade".to_string(),
+        });
+        store.save(&state).expect("save");
+
+        // First clear: removed=true.
+        let cleared = store.clear_cascade(worktree.path()).expect("clear");
+        assert!(cleared, "first clear removes the record");
+        assert!(!store.is_cascaded(worktree.path()));
+
+        // Second clear (idempotent): removed=false, no error.
+        let cleared = store.clear_cascade(worktree.path()).expect("clear again");
+        assert!(!cleared, "idempotent clear returns false");
+        assert!(!store.is_cascaded(worktree.path()));
+    }
+
+    /// MLP2-026: cascade-rate-window constants match the spec
+    /// §3.1 contract (capacity 4, window 60s — i.e. 5 fires in 60s
+    /// trigger throttle/engage).
+    #[test]
+    fn cascade_rate_window_constants_match_spec() {
+        assert_eq!(CASCADE_RATE_WINDOW_CAPACITY, 4);
+        assert_eq!(CASCADE_RATE_WINDOW_DURATION, Duration::from_secs(60));
     }
 }
