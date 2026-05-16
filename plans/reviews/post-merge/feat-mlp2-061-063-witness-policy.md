@@ -1,25 +1,31 @@
 # Post-merge: feat-mlp2-061-063-witness-policy
 
-PR: <!-- filled on push -->
+PR: #1602
 Branch: `feat/mlp2-061-063-witness-policy`
 APS: MLP2-061, MLP2-062, MLP2-063
-Merged: <!-- filled by cleanup agent -->
-Verified: <!-- filled by cleanup agent -->
+Merged: 2026-05-16 (commit `4d233ee1`)
+Verified: 2026-05-16 by cleanup-agent reconciliation
 
 ## Steps
 
-- [ ] Advance MLP2-061 to `Merged` in
+- [x] Advance MLP2-061 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Advance MLP2-062 to `Merged` in
+- [x] Advance MLP2-062 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Advance MLP2-063 to `Merged` in
+- [x] Advance MLP2-063 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Bump Group M progress counter from `0/6` to `3/6` in the module's
-      `## Stats` table and the `index.aps.md` mirror (agent: yes)
-- [ ] Confirm no template-render path still calls
-      `anvil hook pre-push`-style policy load without the bounded loader —
-      `grep -rn "fs::read_to_string.*policy" crates/` should match nothing
-      after this PR (agent: yes)
+- [x] Bump Group M progress counter to `6/6 (Complete)` in the module's
+      `## Stats` table (PR #1604 advances the other three; this PR alone
+      hit `3/6` but the cleanup sweep ran for both PRs together) and the
+      `index.aps.md` mirror — module total `35/66 → 41/66`; index mirror
+      `36/66 → 42/66` (agent: yes)
+- [x] Confirm no production template-render path still calls
+      `anvil hook pre-push`-style policy load without the bounded
+      loader — `grep -rn "fs::read_to_string.*policy" crates/` matches
+      only test scaffolding under `crates/anvil-cli/src/commands/baseline.rs`
+      (tests reading policy files they just wrote, not real loaders).
+      Production `load_policy` in `hook.rs` and `l4_validate.rs` go
+      through `anvil_config::read_to_string_bounded` (agent: yes)
 
 ## Notes
 

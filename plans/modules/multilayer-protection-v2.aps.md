@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 35/66 done |
+| MLP2 | @aneki | In Progress | 41/66 done |
 
 **Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
 MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
@@ -2673,7 +2673,7 @@ remaining v2 integration surface.
 
 #### MLP2-061: Post-rollover append-head recovery
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Hook-side witness appends derive the next `(seq,
   prev_line_hash)` from the full archive + active chain, not only
   `active.ndjson`, so a rollover cannot cause a fresh genesis to be
@@ -2699,7 +2699,7 @@ remaining v2 integration surface.
 
 #### MLP2-062: `anvil l4-validate` verifies witness-chain integrity before trusting witnessed SHAs
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** The dedicated L4 CLI surface must reject or block on a
   broken witness chain before treating any `commit_sha` as L3 evidence.
 - **Expected Outcome:**
@@ -2721,7 +2721,7 @@ remaining v2 integration surface.
 
 #### MLP2-063: Bounded policy-file load path for hook and L4 validation
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Policy loading for pre-push and `anvil l4-validate`
   must honour the same file-size and parse-resource bounds as
   `.anvil.*` config parsing.
@@ -2745,7 +2745,7 @@ remaining v2 integration surface.
 
 #### MLP2-064: Rule-cache generation guard for invalidate-during-resolve
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Cache misses that resolve outside the mutex must not
   insert stale rules after a watcher invalidation has already observed
   a stricter config write.
@@ -2769,7 +2769,7 @@ remaining v2 integration surface.
 
 #### MLP2-065: Partial-baseline resume detects tree drift before the cursor
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Budgeted baseline scans must not mark a baseline
   complete when files were added or renamed lexicographically before
   the saved continuation cursor between runs.
@@ -2794,7 +2794,7 @@ remaining v2 integration surface.
 
 #### MLP2-066: Maintained YAML parser migration and ADR closeout
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Complete the MLP2-060 follow-up by deciding and tracking
   migration from deprecated `serde_yaml` to a maintained YAML parser
   or recording why alias-reject byte scanning remains the accepted
@@ -2835,8 +2835,8 @@ remaining v2 integration surface.
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 2/5 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 (all In Progress on feat/mlp2-group-k) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 3/4 |
-| M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 0/6 |
-| **Total** | **66** | **35/66** |
+| M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
+| **Total** | **66** | **41/66** |
 
 ## Recommended landing order
 

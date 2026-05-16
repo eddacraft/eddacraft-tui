@@ -1,24 +1,26 @@
 # Post-merge: feat-mlp2-064-066-cache-baseline-yaml
 
-PR: <!-- filled on push -->
+PR: #1604
 Branch: `feat/mlp2-064-066-cache-baseline-yaml`
 APS: MLP2-064, MLP2-065, MLP2-066
-Merged: <!-- filled by cleanup agent -->
-Verified: <!-- filled by cleanup agent -->
+Merged: 2026-05-16 (commit `7736766d`)
+Verified: 2026-05-16 by cleanup-agent reconciliation
 
 ## Steps
 
-- [ ] Advance MLP2-064 to `Merged` in
+- [x] Advance MLP2-064 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Advance MLP2-065 to `Merged` in
+- [x] Advance MLP2-065 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Advance MLP2-066 to `Merged` in
+- [x] Advance MLP2-066 to `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Bump Group M progress counter from `3/6` (after PR1 merges) to
+- [x] Bump Group M progress counter from `3/6` (after PR #1602 merged) to
       `6/6 (Complete)` in the module's `## Stats` table and the
-      `index.aps.md` mirror (agent: yes)
-- [ ] Confirm `pnpm adr:check` still reports `47` indexed ADRs after the
-      module-status update (agent: yes)
+      `index.aps.md` mirror; module total now `41/66`; index mirror
+      `42/66` (agent: yes)
+- [x] Confirm `pnpm adr:check` still reports `47` indexed ADRs after the
+      module-status update — re-ran 2026-05-16: `OK: 47 ADR files;
+      47 indexed in DECISION-LOG; no duplicates, no orphans.` (agent: yes)
 - [ ] **Calendar reminder:** review ADR-046 (YAML parser deferral) on
       `2026-08-15`. Owners: `kernel-maintainer`, `security-analyst`.
       Triggers for earlier review: new `serde_yaml` advisory, or a
