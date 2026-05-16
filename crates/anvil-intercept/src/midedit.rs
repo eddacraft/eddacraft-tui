@@ -49,6 +49,19 @@ pub struct ScanBufferRequest {
     pub text: String,
     pub version: u64,
     pub mode: ScanBufferMode,
+    /// MLP2-025b: env-supplied `AgentTag` from the writer process,
+    /// carried as a raw string (the launcher reads its own
+    /// `ANVIL_AGENT_TAG` env var and forwards it verbatim). The
+    /// daemon decodes via `anvil_attribution::env::agent_tag_from_env_value`
+    /// at the boundary so malformed values fold to the same
+    /// `Cross::Spoofed` verdict as out-of-lineage forgeries, rather
+    /// than surfacing as a deserialisation error.
+    ///
+    /// `None` for pre-MLP2-025b writers — the cross-check returns
+    /// `Cross::Untagged` and enforcement proceeds unchanged. See
+    /// spec §3.1 + Q3 in
+    /// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`.
+    pub env_agent_tag: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -418,6 +431,7 @@ mod tests {
             text: "import { sdk } from './client';\nconst config = { api_key: 'abcdEFGH1234567890' };\nsdk.connect(config);\n".to_string(),
             version: 7,
             mode: ScanBufferMode::MidEdit,
+            env_agent_tag: None,
         }
     }
 
@@ -474,6 +488,7 @@ mod tests {
             text: "a".repeat(CONTENT_SIZE_CAP_BYTES_USIZE + 1),
             version: 1,
             mode: ScanBufferMode::MidEdit,
+            env_agent_tag: None,
         };
 
         let pipeline = EnforcementPipeline::default();
@@ -490,6 +505,7 @@ mod tests {
             text: "api_key='abcdEFGH1234567890'\0".to_string(),
             version: 2,
             mode: ScanBufferMode::MidEdit,
+            env_agent_tag: None,
         };
 
         let pipeline = EnforcementPipeline::default();

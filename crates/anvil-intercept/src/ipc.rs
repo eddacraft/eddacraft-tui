@@ -2318,11 +2318,28 @@ async fn scan_buffer_from_jsonrpc(
         let mode =
             ScanBufferMode::parse(&mode).map_err(|err| invalid_params(method, err.to_string()))?;
 
+        // MLP2-025b: optional env-supplied AgentTag carried as raw
+        // string. Same shape contract as `agent_tag` on
+        // register-session — absent or null both fold to `None`;
+        // value type must be string. Daemon decodes at the boundary
+        // (B7) so malformed values fold to `Cross::Spoofed`.
+        let env_agent_tag = match params.get("env_agent_tag") {
+            Some(value) if value.is_null() => None,
+            Some(Value::String(s)) => Some(s.clone()),
+            Some(_) => {
+                return Err(invalid_params(
+                    method,
+                    "env_agent_tag must be a string or null".to_string(),
+                ));
+            }
+            None => None,
+        };
         ScanBufferRequest {
             path: PathBuf::from(path),
             text,
             version,
             mode,
+            env_agent_tag,
         }
     };
     let scan_span = tracing::info_span!(

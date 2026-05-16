@@ -338,6 +338,7 @@ fn make_request(path: &str, text: String) -> ScanBufferRequest {
         text,
         version: 1,
         mode: ScanBufferMode::MidEdit,
+        env_agent_tag: None,
     }
 }
 
