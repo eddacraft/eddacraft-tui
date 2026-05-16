@@ -1,17 +1,19 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                    |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-15 (MLP/MLP2 Council audit cut-line); base `v0.6.2-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                            |
+| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-16 (post-`v0.6.3-beta` patch + MLP2 Group M closure); base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
+| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.3-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-15 (MLP/MLP2 Council audit reconciled MLP2 from
-`Draft 0/56` to active `In Progress 35/66`, reopened over-claimed L4/status
-items, and added the explicit MLP2 cut-line for `v0.7.0-beta`. RMCPF remains
-sequenced after the daemon-working slate.)
+**Last updated:** 2026-05-16 (full review of index/release-plan/README drift:
+bumped baseline from `v0.6.2-beta` to the shipped `v0.6.3-beta` patch; refreshed
+MLP2 from `35/66` to `41/66` after Group M closed via PRs #1602 + #1604;
+WATCHUX to Complete 8/8, ADTRUST to Complete 6/6 (archived), ADOPT to 2/6,
+DISTRIB to 2/5 against module truth; MLP2 cut-line for `v0.7.0-beta` unchanged.
+RMCPF remains sequenced after the daemon-working slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -22,18 +24,22 @@ sequenced after the daemon-working slate.)
 
 ## Current State
 
-**Latest tag in repo:** `v0.6.2-beta`
+**Latest tag in repo:** `v0.6.3-beta` (shipped 2026-05-15)
 
-`v0.6.2-beta` is now the shipped operational-substrate release. It closed the
-release-operating-model window by landing the main-first branch model, targeted
-CI/readiness checks, and deterministic release commands on `main`.
+`v0.6.3-beta` is the latest shipped patch — Homebrew-aware curl installer,
+shared local-noise ignore policy in watch/audit, initial-watch-as-baseline
+semantics, immediate watch startup feedback, and `anvil uninstall`. It sits on
+top of `v0.6.2-beta`, which closed the release-operating-model window
+(main-first branch model, targeted CI/readiness checks, and deterministic
+release commands on `main`).
 
 | Area                              | Status  | Evidence                                                                                                                                       |
 | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPMODEL` main-first cutover      | Shipped | 12/12, archived 2026-05-11. Cutover SHA `b6f236e9`; `main` ruleset 16217152; `dev-retired-2026-05-11` tag.                                     |
 | `RELORCH` release orchestration   | Shipped | 12/12, archived. Deterministic `assess`, `preflight`, `prepare`, `promote`, `tag`, `monitor`, `verify`, and `closeout` command surface exists. |
 | `CICD` targeting + drift controls | Shipped | 12/12, archived 2026-05-12. Fast PR targeting, integration SHA readiness, workflow contract map, and APS/repo/release drift checks are live.   |
-| Release tag                       | Shipped | `HEAD` is tagged `v0.6.2-beta`; changelog preparation entries exist in `CHANGELOG.md` and public release notes.                                |
+| Beta watch UX hotfix              | Shipped | WATCHUX 8/8 closed in `v0.6.3-beta`; ADOPT-005 `anvil uninstall` shipped 2026-05-14 via PR #1521 and rode the same tag.                        |
+| Release tag                       | Shipped | `HEAD` is tagged `v0.6.3-beta`; changelog entries live in `CHANGELOG.md` and the public release notes.                                         |
 
 The next release should be a **product-surface** release, not another operating
 model release. Its claim moves from "the operating model is executable" to
@@ -65,14 +71,14 @@ and was accepted on 2026-05-14.
 | Pick | Module                                                              | Status      | Progress | Role                                                                                                                                                                                                                                                                            |
 | ---- | ------------------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | N1   | [`MLP`](./plans/archive/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                    |
-| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 35/66    | Active follow-up integration module from the MLP-018 split plus Council hardening. It is part of the current protection claim only at the cut-line named below; 66/66 is not required for `v0.7.0-beta`.                                                                        |
+| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 41/66    | Active follow-up integration module from the MLP-018 split plus Council hardening. Group M closed 6/6 on 2026-05-16 via PRs #1602 + #1604. It is part of the current protection claim only at the cut-line named below; 66/66 is not required for `v0.7.0-beta`.                |
 | N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)                 | Done        | 9/9 done | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. Shipped via PR #1528 (merged 2026-05-14 at `5d38e546`); narratively **Merged**, advances to Released/Shipped → Complete on `v0.7.0-beta` release evidence.            |
 | N3   | Carry-forward gates                                                 | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                       |
 | N4   | Documentation lanes                                                 | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                    |
-| N5   | [`WATCHUX`](./plans/archive/modules/watch-ux-advisory-rules.aps.md) | In Progress | 0/8      | Beta incident remediation and first-run/watch UX: Homebrew installer detection, local-noise ignore policy, initial watch scan baseline semantics, immediate watch startup feedback; later items cover warning/failing language, warm-up TUI, rule modes, and config visibility. |
-| N6   | [`ADTRUST`](./plans/modules/adoption-trust-surface.aps.md)          | Ready       | 0/6      | Adoption Trust Surface: `anvil status` legibility, degraded-state surfacing, `anvil doctor --fix`, daemon-down recovery, JSON schema pin, first-run verification recipe. Wave 3B.                                                                                               |
-| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | Ready       | 1/6      | Adoption Friction Removal: hook coexistence, resource budget, AI auto-detect, complete ignore policy, **clean uninstall (ADOPT-005) shipped 2026-05-14 via PR #1521**, editor coexistence. Wave 3A.                                                                             |
-| N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md)         | Ready       | 0/5      | Distribution & Self-Update: signature verification, `anvil version --check` advisory surface, Homebrew formula automation, cadence policy, `anvil migrate`. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A.                   |
+| N5   | [`WATCHUX`](./plans/archive/modules/watch-ux-advisory-rules.aps.md) | Complete    | 8/8 done | Beta incident remediation and first-run/watch UX. WATCHUX-001..-004 merged via PR #1497; -005..-007 via PR #1524; -008 on `feat/watchux-008-config-cache`. Rode `v0.6.3-beta`. Module archived.                                                                                 |
+| N6   | [`ADTRUST`](./plans/archive/modules/adoption-trust-surface.aps.md)  | Complete    | 6/6      | Adoption Trust Surface — all six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537); module archived. Cross-crate wire-ups for -002 (watch TUI + hook bridge) and -004 (anvil-hook + kernel embedded fallback) tracked under MLP2 group J.                       |
+| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | In Progress | 2/6      | Adoption Friction Removal: **ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`), **ADOPT-005 clean uninstall shipped 2026-05-14 via PR #1521** (rode `v0.6.3-beta`); resource budget (-002), AI auto-detect (-003), complete ignore policy (-004), editor coexistence (-006) remain. Wave 3A. |
+| N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md)         | In Progress | 2/5      | Distribution & Self-Update: **DISTRIB-001 minisign verification Merged via PR #1562**, **DISTRIB-002 `anvil version --check` advisory surface Merged via PR #1569**; Homebrew formula automation (-003), cadence policy (-004), `anvil migrate` (-005) remain. ADR-044 §9 makes -001/-002 load-bearing for the MCP-backend swap discovery gap. Wave 3A. |
 | N9   | [`INSIGHTS`](./plans/modules/usage-insights.aps.md)                 | Ready       | 0/4      | Usage Insights: local-only `anvil insights` weekly summary, suppression health, drift trend, first-week adoption hint. Wave 4.                                                                                                                                                  |
 
 **Hard release gates:**
@@ -142,22 +148,21 @@ failure for most downstream work.
 | `MLP-013` hard-pinned rule classes      | Parallel  | Done (2026-05-13) | New `validation` module in `crates/anvil-config/`: rejects five disable-attempt shapes for `secrets` / `command-safety` (canonical + legacy locations + mode-disabled); tuning passes through; error messages cite ADR-039 and the `@anvil-ignore` bypass. 19 new tests green; 5 cross-format hard-pinned integration tests. `anvil-checks` rule-registration mirror deferred (see footnote 1).                                                                           |
 | `MLP-017` air-gapped guarantee scaffold | Parallel  | Done (2026-05-13) | Linux network-namespace harness at `tools/test-harness/network-blocked/run.sh` (probes the kernel; exits 77 to skip on restricted hosts and non-Linux). Integration test suite at `crates/anvil-cli/tests/air_gapped.rs` (3 tests green covering `anvil version --offline`, `anvil status --verify --json`, and an executable-bit guard). Runbook at `docs/runbooks/anvil-air-gapped.md` documenting the extend-per-command protocol.                                     |
 
-### Wave 1A: Beta Watch UX Hotfix
+### Wave 1A: Beta Watch UX Hotfix — Shipped in `v0.6.3-beta`
 
-This lane is in the current release because beta feedback showed that first-run
-watch can look hung, scan local agent worktrees, and render advisory baseline
-findings as failures. The hotfix subset is scoped to WATCHUX-001 through
-WATCHUX-004; the larger warm-up TUI, rule-mode, config-command, and cache work
-remains sequenced after the hotfix unless it becomes required for the release
-claim.
+This lane shipped in `v0.6.3-beta` (2026-05-15) because beta feedback showed
+first-run watch could look hung, scan local agent worktrees, and render
+advisory baseline findings as failures. WATCHUX-001..-004 closed the hotfix
+subset (PR #1497); WATCHUX-005..-007 (PR #1524) and WATCHUX-008 closed the
+follow-up UX/config-cache work. Module archived.
 
-| Work                                   | Parallel? | Status      | Notes                                                                                                       |
-| -------------------------------------- | --------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| `WATCHUX-001` Homebrew installer       | Parallel  | In Progress | Detect existing Homebrew Anvil before curl installer runs standalone install; guide user to `brew upgrade`. |
-| `WATCHUX-002` shared ignore policy     | Parallel  | In Progress | Skip `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`, generated/cache dirs in audit/watch paths. |
-| `WATCHUX-003` initial watch baseline   | Parallel  | In Progress | Initial scan builds graph/readiness state without emitting existing API surface as new violations.          |
-| `WATCHUX-004` watch startup feedback   | Parallel  | In Progress | Print immediate startup feedback and avoid TUI mode when stdin/stdout are not both terminals.               |
-| `WATCHUX-005` warning/failing language | Follow-up | Ready       | Required before broad beta if advisory findings still render as `Failing`; otherwise follow-up UX PR.       |
+| Work                                   | Parallel? | Status | Notes                                                                                                       |
+| -------------------------------------- | --------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| `WATCHUX-001` Homebrew installer       | Parallel  | Done   | Detect existing Homebrew Anvil before curl installer runs standalone install; redirect to `brew upgrade`.   |
+| `WATCHUX-002` shared ignore policy     | Parallel  | Done   | Skip `.claude`, `.opencode`, `.gemini`, `.serena`, `.worktrees`, generated/cache dirs in audit/watch paths. |
+| `WATCHUX-003` initial watch baseline   | Parallel  | Done   | Initial scan builds graph/readiness state without emitting existing API surface as new violations.          |
+| `WATCHUX-004` watch startup feedback   | Parallel  | Done   | Immediate startup feedback; non-TTY falls back to plain output instead of attempting TUI.                   |
+| `WATCHUX-005` warning/failing language | Follow-up | Done   | Advisory findings render as `Warning`, not `Failing`. Merged via PR #1524.                                  |
 
 ### Wave 2: Hook, Policy, And Baseline Surfaces
 
@@ -196,33 +201,34 @@ Parallel-safe with Wave 3 and 3B. No shared single-point-of-failure inside the
 wave. ADOPT-004 waits for WATCHUX-002 (shared ignore helper, already in flight);
 the rest are independent.
 
-| Work          | Parallel?           | Status   | Notes                                                                                              |
-| ------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------- |
-| `ADOPT-001`   | Parallel            | Draft    | Hook coexistence with lefthook / husky / pre-commit-framework. Extends MLP-008 bootstrap recovery. |
-| `ADOPT-002`   | Parallel            | Draft    | Resource budget — CPU/RSS measurement and CI ceiling in `crates/anvil-bench`.                      |
-| `ADOPT-003`   | Parallel            | Draft    | AI tool auto-detect (Claude Code, Cursor, Aider, Windsurf, Codex).                                 |
-| `ADOPT-004`   | After WATCHUX-002   | Draft    | Complete the local-noise ignore policy across watch, audit, hooks, `anvil-run`.                    |
-| `ADOPT-005`   | —                   | **Done** | `anvil uninstall` shipped 2026-05-14 via PR #1521.                                                 |
-| `ADOPT-006`   | Parallel            | Draft    | Editor surface coexistence matrix.                                                                 |
-| `DISTRIB-001` | First (sig scheme)  | Draft    | Harden `anvil update` resolution chain + signature verification (cosign or minisign, new ADR).     |
-| `DISTRIB-002` | After `DISTRIB-001` | Draft    | `anvil version --check` newer-version + advisory surface.                                          |
-| `DISTRIB-003` | Parallel            | Draft    | Homebrew formula auto-bump on release.                                                             |
-| `DISTRIB-004` | Parallel            | Draft    | `docs/policies/release-cadence.md` + EOL policy.                                                   |
-| `DISTRIB-005` | After `DISTRIB-002` | Draft    | `anvil migrate` for cross-version config reconciliation.                                           |
+| Work          | Parallel?           | Status   | Notes                                                                                                  |
+| ------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `ADOPT-001`   | Parallel            | **Done** | Hook coexistence with lefthook / husky / pre-commit-framework — shipped 2026-05-15. Runbook at `docs/runbooks/anvil-hook-coexistence.md`. |
+| `ADOPT-002`   | Parallel            | Draft    | Resource budget — CPU/RSS measurement and CI ceiling in `crates/anvil-bench`.                          |
+| `ADOPT-003`   | Parallel            | Draft    | AI tool auto-detect (Claude Code, Cursor, Aider, Windsurf, Codex).                                     |
+| `ADOPT-004`   | After WATCHUX-002   | Draft    | Complete the local-noise ignore policy across watch, audit, hooks, `anvil-run`.                        |
+| `ADOPT-005`   | —                   | **Done** | `anvil uninstall` shipped 2026-05-14 via PR #1521; rode `v0.6.3-beta`.                                 |
+| `ADOPT-006`   | Parallel            | Draft    | Editor surface coexistence matrix.                                                                     |
+| `DISTRIB-001` | First (sig scheme)  | **Done** | Minisign verification + ADR-045 — Merged via PR #1562.                                                 |
+| `DISTRIB-002` | After `DISTRIB-001` | **Done** | `anvil version --check` advisory surface + watch/status hint — Merged via PR #1569.                    |
+| `DISTRIB-003` | Parallel            | Draft    | Homebrew formula auto-bump on release.                                                                 |
+| `DISTRIB-004` | Parallel            | Draft    | `docs/policies/release-cadence.md` + EOL policy.                                                       |
+| `DISTRIB-005` | After `DISTRIB-002` | Draft    | `anvil migrate` for cross-version config reconciliation.                                               |
 
-### Wave 3B: Trust Surface
+### Wave 3B: Trust Surface — Shipped 2026-05-14
 
-Parallel-safe with Wave 3 and 3A. ADTRUST-001 unblocks ADTRUST-002 and
-ADTRUST-005; ADTRUST-003 / -004 / -006 are parallel after ADTRUST-001.
+All six ADTRUST items shipped on 2026-05-14 and the module is archived. Cross-
+crate wire-ups for -002 (watch TUI + hook bridge) and -004 (anvil-hook + kernel
+embedded fallback) carry forward under MLP2 group J.
 
-| Work          | Parallel?           | Status | Notes                                                                                                      |
-| ------------- | ------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
-| `ADTRUST-001` | First               | Draft  | `anvil status` plain-mode legibility — single screen, names the protection state, single next-action line. |
-| `ADTRUST-002` | After `ADTRUST-001` | Draft  | Degraded-state surfacing within 60s of next save-time interaction; banner rate-limited.                    |
-| `ADTRUST-003` | Parallel            | Draft  | `anvil doctor --fix` recovery for documented bad states.                                                   |
-| `ADTRUST-004` | Parallel            | Draft  | Daemon-down auto-recovery — hooks detect and re-arm; `anvil start` is idempotent.                          |
-| `ADTRUST-005` | After `ADTRUST-001` | Draft  | `anvil status --json` schema pinned at `anvil-status.v1`.                                                  |
-| `ADTRUST-006` | Parallel            | Draft  | First-run claim summary + verification recipe.                                                             |
+| Work          | Parallel? | Status   | Notes                                                                                                      |
+| ------------- | --------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `ADTRUST-001` | First     | **Done** | `anvil status` plain-mode legibility — PR #1531.                                                           |
+| `ADTRUST-002` | Sequenced | **Done** | Degraded-state banner primitive, rate-limited — PR #1534.                                                  |
+| `ADTRUST-003` | Parallel  | **Done** | `anvil doctor --fix` recovery for documented bad states — PR #1536.                                        |
+| `ADTRUST-004` | Parallel  | **Done** | `anvil start` idempotency contract pin — PR #1537.                                                         |
+| `ADTRUST-005` | Sequenced | **Done** | `anvil status --json` schema pinned at `anvil-status.v1` — PR #1532.                                       |
+| `ADTRUST-006` | Parallel  | **Done** | First-run claim summary + verification recipe — PR #1533.                                                  |
 
 ### Wave 4: Release-Gate Closure
 
