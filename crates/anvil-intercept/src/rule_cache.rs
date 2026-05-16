@@ -177,6 +177,17 @@ struct CacheInner {
     /// An entry's `last_used` is the generation at its most recent
     /// access; the lowest `last_used` in the map is the LRU entry.
     next_generation: u64,
+    /// MLP2-064: per-worktree invalidation generation token. Bumped
+    /// each time `invalidate` or `invalidate_on_change` drops an
+    /// entry for the key. The token survives entry removal so a
+    /// `get_or_resolve` miss path can snapshot the value *before*
+    /// dropping the lock to resolve, then re-check after the resolve
+    /// and refuse to insert if invalidation raced. Pre-fix the
+    /// stale-reinsert window was acknowledged in the module-level
+    /// comment ("invalidate semantics are eventual"); MLP2-064
+    /// closes it because the next evaluation must observe the
+    /// invalidation, not the pre-invalidation snapshot.
+    invalidate_tokens: HashMap<WorktreeKey, u64>,
     /// Cumulative LRU evictions since cache construction. The
     /// counter resets only on a new cache instance — operators
     /// inspect rate of change rather than absolute value.
@@ -189,6 +200,11 @@ struct CacheInner {
     /// change see only the meaningful pressure (watcher-driven
     /// config edits, registry unregister hooks).
     invalidations: u64,
+    /// MLP2-064: cumulative count of `get_or_resolve` insertions
+    /// suppressed because an invalidation raced the resolve. Tests
+    /// and telemetry can read this to confirm the generation guard
+    /// fired without depending on internal timing.
+    stale_inserts_rejected: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -283,7 +299,13 @@ impl RuleSetCache {
     where
         F: FnOnce(&WorktreeKey) -> Result<RuleSetEntry, E>,
     {
-        {
+        // MLP2-064: snapshot the per-key invalidation token under
+        // the lock *before* dropping it to resolve. After the
+        // resolve, re-check the token and refuse to insert if the
+        // entry was invalidated while we were outside the lock — the
+        // freshly-resolved value may itself be a clone of the same
+        // stale config read the invalidation was racing against.
+        let token_snapshot: u64 = {
             let mut guard = self.lock();
             let next = guard.next_generation;
             if let Some(existing) = guard.map.get_mut(key) {
@@ -292,21 +314,15 @@ impl RuleSetCache {
                 guard.next_generation = next.wrapping_add(1);
                 return Ok(cloned);
             }
-        }
+            guard.invalidate_tokens.get(key).copied().unwrap_or(0)
+        };
         // Resolve outside the lock so a slow resolver does not block
-        // sibling worktree look-ups. Trade-offs:
-        // - Two concurrent resolvers on the same key both compute and
-        //   the second insert wins. If the config file is stable across
-        //   both reads they produce identical entries; if it changes,
-        //   the later insert wins with the newer content — also correct.
-        // - A watcher invalidate that arrives between this miss-check
-        //   and the insert below is a no-op (the entry is not yet in
-        //   the map), so the fresh insert here can re-populate a
-        //   stale entry. This is consistent with the module-level
-        //   "invalidate semantics are eventual" contract: the *next*
-        //   `.anvil.*` watcher event clears the re-inserted entry, and
-        //   in-flight evaluations are independently pinned by
-        //   MLP2-002 so they never see the stale data either.
+        // sibling worktree look-ups. The generation guard below
+        // closes the stale-reinsert window: an invalidate that
+        // arrives between the miss-check and the insert bumps
+        // `invalidate_tokens[key]`; the post-resolve compare sees the
+        // bump and discards the fresh entry so the next caller
+        // re-resolves against the up-to-date config.
         // MLP2-058: log cache miss before resolve so a config-parse
         // failure (resolver returns Err) is observable as
         // "miss + no insert" rather than silently dropped. Debug
@@ -319,7 +335,7 @@ impl RuleSetCache {
             "rule_cache miss; resolving",
         );
         let fresh = resolver(key)?;
-        self.insert_with_eviction(key.clone(), fresh.clone());
+        self.insert_if_generation_unchanged(key.clone(), fresh.clone(), token_snapshot);
         Ok(fresh)
     }
 
@@ -335,6 +351,12 @@ impl RuleSetCache {
         if dropped {
             guard.invalidations = guard.invalidations.saturating_add(1);
         }
+        // MLP2-064: bump the per-key token even when no entry is
+        // currently cached. A `get_or_resolve` that snapshotted `0`
+        // and is mid-resolve must observe this bump and refuse to
+        // insert; otherwise the stale-reinsert window stays open.
+        let token = guard.invalidate_tokens.entry(key.clone()).or_insert(0);
+        *token = token.wrapping_add(1);
         dropped
     }
 
@@ -385,6 +407,18 @@ impl RuleSetCache {
             // permanently stale cache.
             guard.map.keys().cloned().collect()
         };
+        // MLP2-064: bump the per-key invalidation token for every
+        // worktree whose entry was present in `map` at the time the
+        // watcher fired. A concurrent `get_or_resolve` for one of
+        // these keys that is outside the lock must observe the bump
+        // and refuse to insert. Note that keys which have never been
+        // cached are NOT in `to_drop`; the explicit `invalidate(key)`
+        // path is the surface that bumps tokens for never-cached
+        // keys (Council quick #2).
+        for key in &to_drop {
+            let token = guard.invalidate_tokens.entry(key.clone()).or_insert(0);
+            *token = token.wrapping_add(1);
+        }
         for key in to_drop {
             if guard.map.remove(&key).is_some() {
                 hits.push(key);
@@ -446,6 +480,58 @@ impl RuleSetCache {
     #[must_use]
     pub fn invalidations(&self) -> u64 {
         self.lock().invalidations
+    }
+
+    /// MLP2-064: cumulative count of `get_or_resolve` insertions
+    /// suppressed because an invalidation raced the resolve. Tests
+    /// rely on this to confirm the generation guard fired without
+    /// depending on internal timing; operators can also surface it
+    /// for "config churn that prevented memoisation" telemetry.
+    #[must_use]
+    pub fn stale_inserts_rejected(&self) -> u64 {
+        self.lock().stale_inserts_rejected
+    }
+
+    /// MLP2-064: insert path that re-checks the per-key invalidation
+    /// token under the lock. If the token has advanced since
+    /// `token_snapshot`, an invalidation arrived while we were
+    /// resolving and the freshly-resolved entry may itself be stale
+    /// — we drop it on the floor and bump `stale_inserts_rejected`
+    /// so the next caller re-resolves.
+    fn insert_if_generation_unchanged(
+        &self,
+        key: WorktreeKey,
+        entry: RuleSetEntry,
+        token_snapshot: u64,
+    ) {
+        // Council quick review (MAJOR): read `current`, bump the
+        // rejection counter, and capture `rejected` inside a single
+        // lock scope so the logged fields cannot drift relative to
+        // one another under concurrent rejections. Logging happens
+        // after the guard drops because `tracing` subscribers may
+        // themselves acquire locks.
+        let log_payload = {
+            let mut guard = self.lock();
+            let current = guard.invalidate_tokens.get(&key).copied().unwrap_or(0);
+            if current == token_snapshot {
+                None
+            } else {
+                guard.stale_inserts_rejected = guard.stale_inserts_rejected.saturating_add(1);
+                Some((current, guard.stale_inserts_rejected))
+            }
+        };
+        if let Some((current, rejected)) = log_payload {
+            tracing::debug!(
+                target: "anvil_intercept::rule_cache",
+                worktree = %key.as_path().display(),
+                invalidate_token_before = token_snapshot,
+                invalidate_token_after = current,
+                stale_inserts_rejected_total = rejected,
+                "rule_cache stale-insert rejected; invalidation raced resolve",
+            );
+            return;
+        }
+        self.insert_with_eviction(key, entry);
     }
 
     /// MLP2-057: insert with capacity enforcement. Called from the
@@ -1344,6 +1430,84 @@ mod tests {
         let hits = cache.invalidate_on_change(&unrelated);
         assert!(hits.is_empty());
         assert_eq!(cache.invalidations(), 0);
+    }
+
+    /// MLP2-064: deterministic barrier test for the generation
+    /// guard. Resolver invalidates the worktree mid-resolve;
+    /// `get_or_resolve` MUST refuse to insert the freshly-resolved
+    /// (potentially stale) entry, leaving the cache empty so the
+    /// next caller re-resolves. Pre-fix the stale value re-populated
+    /// the cache and was served to the next caller.
+    #[test]
+    fn get_or_resolve_drops_fresh_entry_when_invalidate_races_resolve() {
+        let cache = Arc::new(RuleSetCache::new());
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+
+        let result = cache
+            .clone()
+            .get_or_resolve::<_, ()>(&k, |resolver_key| {
+                // Simulate a watcher invalidation that arrives while
+                // we are still resolving. After this returns the
+                // outer code re-locks and notices the generation
+                // bump.
+                cache.invalidate(resolver_key);
+                Ok(entry("stale-while-resolving"))
+            })
+            .unwrap();
+
+        // Caller still receives the freshly-resolved entry — we
+        // don't fail the call, we just refuse to cache it.
+        assert_eq!(result.rules_sha, "stale-while-resolving");
+        // Cache must NOT carry the stale entry forward.
+        assert_eq!(cache.lookup(&k), CacheOutcome::Miss);
+        assert_eq!(
+            cache.stale_inserts_rejected(),
+            1,
+            "generation guard must have rejected the insert"
+        );
+
+        // Next caller re-resolves and produces the up-to-date
+        // value, which IS cached normally.
+        let result2 = cache
+            .get_or_resolve::<_, ()>(&k, |_| Ok(entry("fresh-after-invalidate")))
+            .unwrap();
+        assert_eq!(result2.rules_sha, "fresh-after-invalidate");
+        assert!(matches!(
+            cache.lookup(&k),
+            CacheOutcome::Hit(e) if e.rules_sha == "fresh-after-invalidate"
+        ));
+    }
+
+    /// MLP2-064: an invalidation token MUST be bumped even when no
+    /// entry is currently cached. Otherwise a concurrent
+    /// `get_or_resolve` that snapshotted `0` would never observe the
+    /// bump and would happily insert a stale entry.
+    #[test]
+    fn invalidate_bumps_token_even_when_no_entry_is_cached() {
+        let cache = Arc::new(RuleSetCache::new());
+        let dir = TempDir::new().unwrap();
+        let k = key(&dir);
+
+        // Pre-bump the token without ever caching `k`.
+        let dropped = cache.invalidate(&k);
+        assert!(
+            !dropped,
+            "no entry should be present, so invalidate is a no-op for the entry"
+        );
+
+        // A subsequent resolver that thinks the world is at gen=0
+        // must lose the race against this bump.
+        let result = cache
+            .clone()
+            .get_or_resolve::<_, ()>(&k, |resolver_key| {
+                cache.invalidate(resolver_key);
+                Ok(entry("stale-payload"))
+            })
+            .unwrap();
+        assert_eq!(result.rules_sha, "stale-payload");
+        assert_eq!(cache.lookup(&k), CacheOutcome::Miss);
+        assert_eq!(cache.stale_inserts_rejected(), 1);
     }
 
     #[test]

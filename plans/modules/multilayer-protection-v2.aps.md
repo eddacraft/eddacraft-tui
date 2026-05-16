@@ -2744,7 +2744,7 @@ remaining v2 integration surface.
 
 #### MLP2-064: Rule-cache generation guard for invalidate-during-resolve
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Cache misses that resolve outside the mutex must not
   insert stale rules after a watcher invalidation has already observed
   a stricter config write.
@@ -2768,7 +2768,7 @@ remaining v2 integration surface.
 
 #### MLP2-065: Partial-baseline resume detects tree drift before the cursor
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Budgeted baseline scans must not mark a baseline
   complete when files were added or renamed lexicographically before
   the saved continuation cursor between runs.
@@ -2793,7 +2793,7 @@ remaining v2 integration surface.
 
 #### MLP2-066: Maintained YAML parser migration and ADR closeout
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Complete the MLP2-060 follow-up by deciding and tracking
   migration from deprecated `serde_yaml` to a maintained YAML parser
   or recording why alias-reject byte scanning remains the accepted

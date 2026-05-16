@@ -190,6 +190,7 @@ fn run_create_or_refresh(
     accept_suspicious: bool,
     scan_budget: usize,
 ) -> Result<()> {
+    let mut refresh = refresh;
     // MLP2-032 / MLP2-033: establish project identity in the same flow
     // as baseline bootstrap. Default path is `ensure_project_id`
     // (idempotent — returns the existing identity, or atomically
@@ -213,7 +214,47 @@ fn run_create_or_refresh(
     // forces a fresh accumulator — carrying findings scanned under
     // the prior identity into the new one would violate the reset
     // semantics. `--refresh` is the explicit re-scan path.
-    let is_partial_resume = existing.as_ref().is_some_and(|b| b.partial) && !new_identity;
+    let mut is_partial_resume = existing.as_ref().is_some_and(|b| b.partial) && !new_identity;
+    // MLP2-065: detect tree drift before silently skipping pre-cursor
+    // files. If the saved partial fingerprint disagrees with the
+    // current tree's pre-cursor hash, a file was added, renamed, or
+    // removed before the cursor between runs — restart the scan so
+    // the new file is included before the baseline is marked
+    // complete. The same restart fires when an older partial without
+    // a fingerprint is loaded ("drift-detection unavailable —
+    // restart to be safe").
+    if is_partial_resume {
+        let saved_fp = existing
+            .as_ref()
+            .and_then(|b| b.pre_cursor_fingerprint.clone());
+        let saved_cursor = existing.as_ref().and_then(|b| b.continuation.clone());
+        let drift_reason: Option<&str> = match (saved_fp.as_deref(), saved_cursor.as_deref()) {
+            (None, Some(_)) => Some("pre-MLP2-065 baseline carries no drift fingerprint"),
+            (Some(saved), Some(cursor)) => match peek_pre_cursor_fingerprint(repo_root, cursor) {
+                Some(current) if current == saved => None,
+                Some(_) => Some("pre-cursor file list changed since the previous partial pass"),
+                None => {
+                    // Council quick #4 minor: empty / unscannable
+                    // tree at resume time. Restart is safer than
+                    // assuming a now-empty pre-cursor list matches
+                    // the saved one — emit a distinct reason so the
+                    // operator isn't told the file list "changed".
+                    Some("no scannable files visible at resume time")
+                }
+            },
+            _ => None,
+        };
+        if let Some(reason) = drift_reason {
+            println!(
+                "anvil: baseline restart triggered ({reason}). Discarding the partial cursor and rescanning from the start so new files before the cursor are not silently skipped."
+            );
+            is_partial_resume = false;
+            // Treat the drift restart as an implicit refresh so the
+            // existing-baseline guard below doesn't short-circuit
+            // the rerun.
+            refresh = true;
+        }
+    }
     if existing.is_some() && !refresh && !new_identity && !is_partial_resume {
         println!("anvil: baseline already exists at anvil/baseline.json — use --refresh to update");
         return Ok(());
@@ -246,8 +287,11 @@ fn run_create_or_refresh(
     } else {
         None
     };
-    let (new_findings, new_continuation) =
-        scan_repo_for_findings_with_budget(repo_root, scan_budget, resume_cursor.as_deref());
+    let BudgetedScan {
+        findings: new_findings,
+        continuation: new_continuation,
+        pre_cursor_fingerprint: new_pre_cursor_fingerprint,
+    } = scan_repo_for_findings_with_budget_v2(repo_root, scan_budget, resume_cursor.as_deref());
 
     // Snapshot the prior state for the MLP2-035 suspicion analysis
     // *before* the resume branch consumes `existing`. We only need
@@ -276,6 +320,15 @@ fn run_create_or_refresh(
     baseline.cutoff_commit.clone_from(&cutoff);
     baseline.partial = new_continuation.is_some();
     baseline.continuation = new_continuation;
+    // MLP2-065: carry the pre-cursor fingerprint alongside the
+    // cursor so the next resume can detect tree drift. Cleared on a
+    // complete baseline so the on-disk shape stays byte-identical
+    // for the common case.
+    baseline.pre_cursor_fingerprint = if baseline.partial {
+        new_pre_cursor_fingerprint
+    } else {
+        None
+    };
 
     // Council quick #C-3 (MAJOR): an operator running
     // `--refresh --scan-budget=<small>` against a *complete* prior
@@ -416,11 +469,46 @@ fn run_verify(repo_root: &Path) -> Result<()> {
 /// path so the cursor is portable across machines and across worktree
 /// re-locations. The scanner itself still receives absolute paths;
 /// the relative form is bookkeeping for the resume contract.
-fn scan_repo_for_findings_with_budget(
+/// MLP2-065: outcome of one budgeted scan pass. Carries the new
+/// findings, the next continuation cursor (if any), and the
+/// fingerprint of the pre-cursor file list at scan time so the
+/// resume path can detect drift before silently skipping new files.
+pub(crate) struct BudgetedScan {
+    pub findings: Vec<BaselineFinding>,
+    pub continuation: Option<String>,
+    /// `Some(hex_sha256)` when the scan produced a partial result
+    /// (cursor present). Hash spans the sorted relative paths of
+    /// every file lexicographically `< continuation` at scan time.
+    /// `None` when the baseline became complete in this pass.
+    pub pre_cursor_fingerprint: Option<String>,
+}
+
+/// MLP2-065: hash the canonical relative paths that fall before
+/// `cursor` in `sorted_pairs`. Used to detect tree drift across
+/// resume runs — a new file inserted before the cursor between
+/// passes changes this hash, and the resume path forces a restart
+/// rather than silently skipping the new file.
+fn compute_pre_cursor_fingerprint(sorted_pairs: &[(String, String)], cursor: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    for (rel, _) in sorted_pairs {
+        if rel.as_str() >= cursor {
+            break;
+        }
+        hasher.update(rel.as_bytes());
+        hasher.update(b"\n");
+    }
+    hex::encode(hasher.finalize())
+}
+
+/// MLP2-065: budgeted scan that additionally returns the pre-cursor
+/// fingerprint so the resume path can detect tree drift before
+/// marking the baseline complete.
+pub(crate) fn scan_repo_for_findings_with_budget_v2(
     repo_root: &Path,
     budget: usize,
     resume_cursor: Option<&str>,
-) -> (Vec<BaselineFinding>, Option<String>) {
+) -> BudgetedScan {
     // Council quick #C-2 (MAJOR) defence-in-depth: a zero budget
     // would advance zero files per resume, looping forever. The CLI
     // surface rejects this via `parse_scan_budget`; the assert
@@ -433,7 +521,11 @@ fn scan_repo_for_findings_with_budget(
     let config = AntipatternCheckConfig::default();
     let absolute_files = collect_scannable_files(repo_root, &config.extensions);
     if absolute_files.is_empty() {
-        return (Vec::new(), None);
+        return BudgetedScan {
+            findings: Vec::new(),
+            continuation: None,
+            pre_cursor_fingerprint: None,
+        };
     }
 
     // Build (relative, absolute) pairs sorted by the relative path so
@@ -475,8 +567,21 @@ fn scan_repo_for_findings_with_budget(
     // tail — the baseline is now complete.
     let continuation = remaining.get(budget).map(|(rel, _)| rel.clone());
 
+    // MLP2-065: compute the pre-cursor fingerprint when this pass
+    // produces a partial result. The hash spans the relative paths
+    // strictly less than `continuation`; the resume path recomputes
+    // the same hash against the next tree state to detect files
+    // added or renamed before the cursor between runs.
+    let pre_cursor_fingerprint = continuation
+        .as_deref()
+        .map(|cursor| compute_pre_cursor_fingerprint(&pairs, cursor));
+
     if to_scan.is_empty() {
-        return (Vec::new(), continuation);
+        return BudgetedScan {
+            findings: Vec::new(),
+            continuation,
+            pre_cursor_fingerprint,
+        };
     }
 
     let file_refs: Vec<&str> = to_scan.iter().map(|(_, abs)| abs.as_str()).collect();
@@ -511,7 +616,47 @@ fn scan_repo_for_findings_with_budget(
             rule_id: warning.id.clone(),
         });
     }
-    (findings, continuation)
+    BudgetedScan {
+        findings,
+        continuation,
+        pre_cursor_fingerprint,
+    }
+}
+
+/// MLP2-065: peek at the current tree and return the fingerprint of
+/// the pre-`cursor` file list. Called by `run` before resuming a
+/// partial baseline so a drift between save-time and resume-time
+/// state forces a full restart rather than silently skipping new
+/// files. Mirrors the file-list construction in
+/// [`scan_repo_for_findings_with_budget_v2`] so the two hashes
+/// compare like-for-like.
+///
+/// **Known limitation** (Council quick #3 minor): the fingerprint is
+/// computed over the Rust-sorted relative path bytes. On a case-
+/// insensitive filesystem (macOS HFS+/APFS default, Windows NTFS),
+/// a rename that only changes case (`Foo.ts` → `foo.ts`) leaves the
+/// canonical relative-path string unchanged and is not flagged as
+/// drift. Renames of *other* casings that touch a different filename
+/// still trigger restart. The threat model for MLP2-065 is
+/// "operator added or renamed a code file before the cursor between
+/// resume passes"; case-only renames on a case-insensitive FS are
+/// out of scope and accepted as a known limitation.
+pub(crate) fn peek_pre_cursor_fingerprint(repo_root: &Path, cursor: &str) -> Option<String> {
+    let config = AntipatternCheckConfig::default();
+    let absolute_files = collect_scannable_files(repo_root, &config.extensions);
+    if absolute_files.is_empty() {
+        return None;
+    }
+    let mut pairs: Vec<(String, String)> = absolute_files
+        .iter()
+        .filter_map(|abs| {
+            let rel = Path::new(abs).strip_prefix(repo_root).ok()?;
+            let rel_str = rel.to_str()?.replace('\\', "/");
+            Some((rel_str, abs.clone()))
+        })
+        .collect();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    Some(compute_pre_cursor_fingerprint(&pairs, cursor))
 }
 
 /// Walk `repo_root` with `ignore::WalkBuilder`, mirroring
@@ -1415,6 +1560,114 @@ mod tests {
         assert_eq!(after_r3.findings.len(), 10);
     }
 
+    /// MLP2-065 regression: a new violating file inserted
+    /// lexicographically BEFORE the saved continuation cursor between
+    /// resume passes MUST trigger a restart rather than being
+    /// silently skipped. Pre-fix the partial baseline was marked
+    /// complete without ever scanning the inserted file.
+    #[test]
+    fn resume_restarts_when_pre_cursor_file_inserted_between_passes() {
+        let tmp = TempDir::new().unwrap();
+        seed_worktree_with_n_violation_files(tmp.path(), 10);
+
+        // Round 1: partial scan of first 4 files; cursor stops at
+        // src/file_004.ts. The pre-cursor fingerprint hashes
+        // src/file_000.ts .. src/file_003.ts.
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+            4,
+        )
+        .unwrap();
+        let after_r1 = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(after_r1.partial);
+        assert_eq!(after_r1.continuation.as_deref(), Some("src/file_004.ts"));
+        assert!(
+            after_r1.pre_cursor_fingerprint.is_some(),
+            "partial baseline must record drift fingerprint"
+        );
+
+        // Adversary: drop a new violating file BEFORE the cursor
+        // (`000-injected.ts` sorts before `src/file_000.ts`).
+        std::fs::write(
+            tmp.path().join("000-injected.ts"),
+            "const v: any = 'leaked';\n",
+        )
+        .unwrap();
+
+        // Round 2: resume with a budget that would normally complete
+        // the scan. With the drift guard the run MUST restart and
+        // include `000-injected.ts` instead of silently skipping it.
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+            20, // big enough to finish the full tree
+        )
+        .unwrap();
+        let after_r2 = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(!after_r2.partial, "post-restart scan must reach completion");
+        let paths: std::collections::HashSet<&str> = after_r2
+            .findings
+            .iter()
+            .map(|f| f.file_path.as_str())
+            .collect();
+        assert!(
+            paths.contains("000-injected.ts"),
+            "the pre-cursor inserted file must be scanned after restart, got paths: {paths:?}",
+        );
+    }
+
+    /// MLP2-065: a baseline produced by a pre-MLP2-065 anvil carries
+    /// no `pre_cursor_fingerprint`. The resume path treats that as
+    /// "drift-detection unavailable — restart to be safe" so older
+    /// partial baselines never silently skip files on the next
+    /// resume.
+    #[test]
+    fn resume_restarts_when_partial_baseline_lacks_drift_fingerprint() {
+        let tmp = TempDir::new().unwrap();
+        seed_worktree_with_n_violation_files(tmp.path(), 6);
+
+        // Build a partial baseline the normal way, then hand-strip
+        // the fingerprint to simulate an older on-disk shape.
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+            2,
+        )
+        .unwrap();
+        let mut legacy = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(legacy.partial);
+        assert!(legacy.pre_cursor_fingerprint.is_some());
+        legacy.pre_cursor_fingerprint = None;
+        save_baseline(tmp.path(), &legacy).unwrap();
+
+        run_create_or_refresh(
+            tmp.path(),
+            false,
+            false,
+            &SuspicionThresholds::default(),
+            false,
+            20,
+        )
+        .unwrap();
+        let after = load_baseline(tmp.path()).unwrap().unwrap();
+        assert!(!after.partial, "restart must complete the scan");
+        assert_eq!(
+            after.findings.len(),
+            6,
+            "post-restart scan must cover all 6 seeded files"
+        );
+    }
+
     #[test]
     fn resume_path_is_idempotent_against_re_scan_of_cursor_file() {
         // If an operator re-runs `anvil baseline` after a partial
@@ -1571,7 +1824,7 @@ mod tests {
         // caller bypassing the CLI cannot enter the infinite resume
         // loop.
         let tmp = TempDir::new().unwrap();
-        let _ = scan_repo_for_findings_with_budget(tmp.path(), 0, None);
+        let _ = scan_repo_for_findings_with_budget_v2(tmp.path(), 0, None);
     }
 
     #[test]

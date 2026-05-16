@@ -77,6 +77,23 @@ pub struct Baseline {
     /// the baseline is complete.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub continuation: Option<String>,
+
+    /// MLP2-065: fingerprint of the *pre-cursor* file list at the
+    /// time this partial baseline was saved. Hex SHA-256 over the
+    /// canonical-form relative paths (forward-slash, sorted, one
+    /// per NDJSON-style `\n`-terminated line) of every scannable
+    /// file lexicographically `< continuation`. The resume path
+    /// recomputes the same hash against the current tree state and
+    /// refuses to skip pre-cursor files (forcing a restart) when
+    /// the hashes diverge — pre-fix a new file inserted before the
+    /// cursor between resume passes was silently skipped, letting
+    /// the baseline be marked complete without ever scanning the
+    /// inserted file. `None` when the baseline is complete or
+    /// produced by a pre-MLP2-065 anvil; consumers MUST treat
+    /// `None` on a partial baseline as "drift-detection unavailable
+    /// — restart to be safe" (the resume CLI does so today).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pre_cursor_fingerprint: Option<String>,
 }
 
 /// `serde(skip_serializing_if = "is_false")` helper so the
@@ -135,6 +152,7 @@ impl Baseline {
             findings,
             partial: false,
             continuation: None,
+            pre_cursor_fingerprint: None,
         };
         b.canonicalise();
         b
@@ -261,6 +279,12 @@ impl Baseline {
         // MLP2-036: same skip-when-default reasoning as continuation.
         if self.partial {
             map.insert("partial", Value::Bool(true));
+        }
+        // MLP2-065: drift fingerprint travels alongside the cursor.
+        // Skip-when-None preserves the byte-exact pre-MLP2-065 shape
+        // for complete baselines (the field is irrelevant there).
+        if let Some(fp) = &self.pre_cursor_fingerprint {
+            map.insert("pre_cursor_fingerprint", Value::String(fp.clone()));
         }
         let mut bytes = serde_json::to_vec(&map)?;
         bytes.push(b'\n');
