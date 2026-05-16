@@ -12,6 +12,7 @@ pub mod config;
 pub mod defaults;
 pub mod doctor;
 pub mod drift;
+pub mod edda;
 pub mod export;
 pub mod gate;
 pub mod gate_config;

@@ -127,6 +127,8 @@ enum Commands {
     Config(commands::config::ConfigArgs),
     /// Track architecture drift over time.
     Drift(commands::drift::DriftArgs),
+    /// List, show, and trace Edda canonical memories.
+    Edda(commands::edda::EddaArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
     /// Activate Anvil in this repository. Writes `.anvilrc` if missing
@@ -223,6 +225,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Doctor(_) => "doctor",
         Commands::Config(_) => "config",
         Commands::Drift(_) => "drift",
+        Commands::Edda(_) => "edda",
         Commands::Start(_) => "start",
         Commands::Status(_) => "status",
         Commands::Tutorial(_) => "tutorial",
@@ -763,6 +766,7 @@ fn main() -> ExitCode {
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
         Commands::Config(args) => commands::config::run(args, &cli.global),
         Commands::Drift(args) => commands::drift::run(args, &cli.global),
+        Commands::Edda(args) => commands::edda::run(args, &cli.global),
         Commands::Start(args) => commands::start::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),

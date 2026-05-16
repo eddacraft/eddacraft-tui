@@ -143,8 +143,11 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-001: edda list command
 
-- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
-  RCLI foundation, which is complete)
+- **Status:** In Progress (2026-05-17 — branch
+  `feat/rcli3-001-edda-list`. Porting the historical Node.js
+  `anvil edda list` to Rust against the same `.anvil/edda/` YAML
+  shape edda-stack's `MemoryStore` writes, with `--type`, `--status`,
+  `--confidence`, `--since`, `--limit`, `--json` filters.)
 - **Intent:** Port `anvil edda list`. Query active, superseded, and retired
   memories with multi-criteria filtering: `--type` (observation, decision,
   convention, constraint), `--status` (active, superseded, retired),
