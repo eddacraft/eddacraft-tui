@@ -42,6 +42,7 @@ fixture enforces both directions.
 | `infra.yml`                  | PR + Integration      | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply       | CICD         |
 | `release-harness.yml`        | PR + Integration      | `pull_request` / `push` to `main` (release-script paths) plus `workflow_dispatch` — release-command contract        | RELORCH      |
 | `bench.yml`                  | Integration           | `push` to `main` (release-gate) plus `workflow_dispatch`                                                            | CICD         |
+| `resource-budget.yml`        | PR + Integration      | `pull_request` / `push` to `main` (crate and resource-budget policy paths) plus `workflow_dispatch`                 | ADOPT        |
 | `bench-nightly.yml`          | Assurance             | `schedule` plus `workflow_dispatch`                                                                                 | CICD         |
 | `ci-nightly.yml`             | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node | CICD         |
 | `ci-cost-report.yml`         | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics     | CICD         |
@@ -167,6 +168,13 @@ tests (assess, preflight, prepare, promote) on Ubuntu + macOS.
 
 Rust criterion + stress + midedit benchmarks. `bench.yml` is push-to-`main`
 (release-gate) and dispatch; `bench-nightly.yml` covers scheduled assurance.
+
+### `resource-budget.yml` — Resource Budget
+
+ADOPT-002 resource-budget gate for `anvil watch`. Builds the release CLI, runs
+`cargo bench -p anvil-bench --bench watch_resource_budget`, uploads the JSON
+budget verdict, and fails when steady-state CPU or peak RSS exceeds the pinned
+budget in `docs/policies/resource-budget.md`.
 
 ### `ci-nightly.yml` — Scheduled assurance
 
