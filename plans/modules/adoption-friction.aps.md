@@ -6,14 +6,15 @@
 | ----- | ------ | ------ | -------- |
 | ADOPT | @aneki | Ready  | 2/6 done |
 
-**Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
+**Last reviewed:** 2026-05-16 (promoted **Proposed → Ready** alongside
 acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Progress: **1/6** — ADOPT-005 `anvil uninstall` shipped 2026-05-14 (see
-PR #1521; `crates/anvil-cli/src/commands/uninstall.rs` with 10 tests).
-Module-level `Ready` means "ready to begin Wave 3A"; individual tasks
-remain `Draft` until picked up except ADOPT-005 which is **Done**.
-ADOPT-001 hook coexistence is the next unblocking item; ADOPT-002 and
+Progress: **2/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
+`crates/anvil-cli/src/commands/uninstall.rs` with 10 tests) and
+**Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
+2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
+`docs/runbooks/anvil-hook-coexistence.md`). Module-level `Ready` means "ready
+to begin Wave 3A"; remaining tasks are `In Progress` or `Draft`. ADOPT-002 and
 -003 are parallel-safe.)
 
 ## Purpose
@@ -238,7 +239,10 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - Integration: install + uninstall in a fixture repo, verify
     `git status` is clean and `.anvil/` is gone (verified manually on
     fixture; runbook task is to formalise this as a script)
-- **Status:** Done
+- **Status:** Released/Shipped
+- **Evidence:** Merged via PR #1521 (`feat(cli): add 'anvil uninstall' command +
+  ADR-044 MCP entry ownership`) on 2026-05-14. Released in
+  [`v0.6.3-beta`](../releases/v0.6.3-beta.md) (2026-05-15).
 - **Coordinates with:** ADOPT-001 — uninstall ships ahead of the hook
   coexistence work. The shipped implementation calls the silent
   `hooks::uninstall_all_managed_hooks_silent` helper (which clears
