@@ -8,17 +8,17 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance MLP2-059 status to **Merged** in
+- [x] Advance MLP2-059 status to **Merged** in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Update Group L count from `3/4` to `4/4 (Complete)` in the
+- [x] Update Group L count from `3/4` to `4/4 (Complete)` in the
       module summary table (agent: yes)
-- [ ] Bump module total (currently `35/66` on module, `36/66` on
+- [x] Bump module total (now 48/68 after subsequent waves; MLP2-059's +1 is rolled into that total) (currently `35/66` on module, `36/66` on
       index — see Notes) by +1 to reflect MLP2-059 closure
       (agent: yes)
-- [ ] Update `plans/index.aps.md` MLP2 row to reflect MLP2-059
+- [x] Update `plans/index.aps.md` MLP2 row to reflect MLP2-059
       closure + name PR #1606 at the merge commit SHA in the
       wave-history blurb (agent: yes)
-- [ ] Verify cleanup agent ran `wt remove` for the worktree
+- [x] Verify cleanup agent ran `wt remove` for the worktree (confirmed 2026-05-16: no `feat/mlp2-059-rate-limit` worktree remains)
       (agent: yes)
 - [ ] Manual: confirm the new
       `cache_invalidations_rate_limited` field shows on a live

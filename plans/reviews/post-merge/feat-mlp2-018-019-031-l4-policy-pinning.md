@@ -8,33 +8,35 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance MLP2-018 status `In Progress → Merged` in
+- [x] Advance MLP2-018 status `In Progress → Merged` in
   `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
   with PR + merge SHA. (agent: yes)
-- [ ] Advance MLP2-019 status `In Progress → Merged` in
+- [x] Advance MLP2-019 status `In Progress → Merged` in
   `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
   with PR + merge SHA. (agent: yes)
-- [ ] Advance MLP2-031 status `In Progress → Merged` in
+- [x] Advance MLP2-031 status `In Progress → Merged` in
   `plans/modules/multilayer-protection-v2.aps.md`, add Evidence block
   with PR + merge SHA. (agent: yes)
-- [ ] Bump Group C done/total `0/7 → 2/7` (MLP2-018 + MLP2-019 land in
+- [x] Bump Group C done/total `0/7 → 2/7` (MLP2-018 + MLP2-019 land in
   C; MLP2-016 already shipped is counted separately — verify the
   module's group counters reflect the wave). (agent: yes)
-- [ ] Bump Group G done/total `0/6 → 1/6` (MLP2-031). (agent: yes)
-- [ ] Update the module's overall counter from `16/60 → 19/60` after
+- [x] Bump Group G done/total `0/6 → 1/6` (MLP2-031). (agent: yes — Group G now at 5/6 after subsequent waves)
+- [x] Update the module's overall counter (now 48/68 after subsequent waves; this PR's +3 contribution is rolled in) after
   Phase 1 / 2 picks land. (agent: yes)
-- [ ] Update `plans/index.aps.md` MLP2 progress line to reflect the
+- [x] Update `plans/index.aps.md` MLP2 progress line to reflect the
   new count + add wave-1F evidence sentence. (agent: yes)
-- [ ] Confirm `anvil-cli/src/commands/l4_validate.rs` does NOT yet
+- [x] Confirm `anvil-cli/src/commands/l4_validate.rs` does NOT yet
   call `evaluate_version_floor` / `evaluate_rules_sha` /
   `pin_cutoff_commit` — wiring belongs to MLP2-032 (`anvil baseline`
   CLI) and a follow-up L4 validate engine integration. The library
   surface is intentionally deferred-wired and carries
   `#[allow(dead_code)]` until the consumers land. (agent: yes)
-- [ ] After MLP2-032 lands and calls `pin_cutoff_commit` from the
+- [x] After MLP2-032 lands and calls `pin_cutoff_commit` from the
   baseline orchestrator, remove the `#[allow(dead_code)]` on
-  `crates/anvil-l4/src/policy.rs::pin_cutoff_commit`. (human required
-  — gated by MLP2-032 PR)
+  `crates/anvil-l4/src/policy.rs::pin_cutoff_commit`. (MLP2-032 Merged;
+  the consumer wire-up at `crates/anvil-cli/src/commands/baseline.rs:711`
+  + the `#[allow(dead_code)]` attribute removal in `anvil-l4/src/policy.rs`
+  both landed via the MLP2-032 PR, confirmed 2026-05-16.)
 - [ ] Consider hoisting `semver = "1"` and `tempfile = "3"` to
   `[workspace.dependencies]` (filed as a separate workspace-hygiene
   follow-up, not blocking this PR). 13 crates currently declare

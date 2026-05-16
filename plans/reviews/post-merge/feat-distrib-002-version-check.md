@@ -8,7 +8,7 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Step 1 — Move DISTRIB module progress 1/5 → 2/5 and mark
+- [x] Step 1 — Move DISTRIB module progress 1/5 → 2/5 and mark
       DISTRIB-002 Merged once this PR lands. (agent: yes — read
       `plans/modules/distribution-and-update.aps.md` and update the
       progress count + DISTRIB-002 Status to Merged.)

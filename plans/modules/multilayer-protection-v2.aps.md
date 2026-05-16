@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 43/68 done |
+| MLP2 | @aneki | In Progress | 48/68 done |
 
 **Last reviewed:** 2026-05-15 (full MLP/MLP2 Council audit reopened
 MLP2-016 and MLP2-048 from Done to In Progress: production pre-push still
@@ -2436,7 +2436,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-053: Activation orchestrator writes `.github/workflows/anvil-audit.yml`
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Mirrors MLP2-043 for the audit-chain workflow.
   `anvil start` / `anvil baseline` write the template at
   `crates/anvil-cli/src/templates/anvil-audit-workflow.yml`
@@ -2453,7 +2453,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-054: Kindling `gate_evaluated` emission for `anvil audit-chain`
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** The audit-chain command currently produces a
   JSON `AuditReport`. Add a Kindling row per audit run with
   `mode: audit` so historical drift is queryable through the
@@ -2477,7 +2477,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-055: `anvil audit-chain` rule re-scoring via anvil-checks
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** v1 audit-chain is a witness-presence check.
   Extend to re-run the rule engine across history (sharing
   the pipeline with the L4 validate lane from MLP2-016).
@@ -2498,7 +2498,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-056: `anvil audit-chain` time-budget cap
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Bound runtime for very large histories so the
   nightly cron doesn't run away. Profile first; cap second.
 - **Expected Outcome:**
@@ -2624,7 +2624,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-059: Per-worktree invalidation rate limit
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Pre-attribution cache invalidation in
   `WatcherIntegration::ingest_at` is the correct semantic choice
   (cache cleared even for unattributable writers), but it lets an
@@ -2911,10 +2911,10 @@ remaining v2 integration surface.
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
 | J. Protection-claim render conformance | 5 (MLP2-048..-052) | 2/5 |
-| K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 0/4 (all In Progress on feat/mlp2-group-k) |
-| L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 3/4 |
+| K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
+| L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
-| **Total** | **68** | **43/68** |
+| **Total** | **68** | **48/68** |
 
 ## Recommended landing order
 

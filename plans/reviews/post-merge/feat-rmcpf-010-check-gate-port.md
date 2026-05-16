@@ -8,10 +8,10 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Confirm RMCPF-010 row in `plans/index.aps.md` and the entry in
+- [x] Confirm RMCPF-010 row in `plans/index.aps.md` and the entry in
   `plans/modules/rust-mcp-full-port.aps.md` both show `Complete` after merge
   (agent: yes).
-- [ ] Re-run `cargo test -p eddacraft-anvil --test mcp_serve_stdio` on `main`
+- [x] Re-run `cargo test -p eddacraft-anvil --test mcp_serve_stdio` on `main`
   post-merge and confirm 19/19 green so the new check/gate tool tests landed
   cleanly with everything else (agent: yes).
 - [ ] Manual smoke: run `cargo run -p eddacraft-anvil --bin anvil -- mcp serve

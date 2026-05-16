@@ -8,7 +8,7 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] After merge, advance WOUT module narrative state in
+- [x] After merge, advance WOUT module narrative state in
   `plans/index.aps.md` from `Done` (schema) to `Merged` once #1554 is on
   `main`. (agent: yes)
 - [ ] On the next `0.7.x-beta` release tag containing this commit, advance

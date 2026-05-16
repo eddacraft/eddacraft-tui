@@ -8,13 +8,13 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Confirm `cargo test -p eddacraft-anvil --bin anvil mcp::tools` is green on `main` after merge (agent: yes)
-- [ ] Confirm `cargo test -p eddacraft-anvil --test mcp_serve_stdio` is green on `main` after merge (agent: yes)
-- [ ] Verify the Rust MCP `tools/list` exposes seven tools (`anvil_validate_write`, `anvil_status`, `anvil_check`, `anvil_gate`, `anvil_query_boundary`, `anvil_suppress`, `anvil_fix`) — covered by `mcp_serve_stdio_tools_list_returns_registered_tools` (agent: yes)
-- [ ] Verify the Rust MCP `initialize` response omits the `prompts` capability and `prompts/list` returns JSON-RPC `-32601 Method not found` — covered by `mcp_serve_stdio_initialize_does_not_advertise_prompts_capability` and `mcp_serve_stdio_prompts_list_returns_method_not_found` (agent: yes)
-- [ ] Advance RMCPF-011 from `In Progress` to `Merged` and update progress count in `plans/index.aps.md` once the PR merges (agent: yes)
-- [ ] Advance RMCPF-012 from `In Progress` to `Merged` and update progress count in `plans/index.aps.md` once the PR merges (agent: yes)
-- [ ] Confirm `archive/anvil-mcp-server/src/tools/` and `archive/anvil-mcp-server/src/prompts/` remain frozen reference material — no in-flight TS edits introduced (agent: yes)
+- [x] Confirm `cargo test -p eddacraft-anvil --bin anvil mcp::tools` is green on `main` after merge (agent: yes — re-ran 2026-05-16, 110 passed)
+- [x] Confirm `cargo test -p eddacraft-anvil --test mcp_serve_stdio` is green on `main` after merge (agent: yes — re-ran 2026-05-16, 24 passed)
+- [x] Verify the Rust MCP `tools/list` exposes seven tools (`anvil_validate_write`, `anvil_status`, `anvil_check`, `anvil_gate`, `anvil_query_boundary`, `anvil_suppress`, `anvil_fix`) — covered by `mcp_serve_stdio_tools_list_returns_registered_tools` (agent: yes)
+- [x] Verify the Rust MCP `initialize` response omits the `prompts` capability and `prompts/list` returns JSON-RPC `-32601 Method not found` — covered by `mcp_serve_stdio_initialize_does_not_advertise_prompts_capability` and `mcp_serve_stdio_prompts_list_returns_method_not_found` (agent: yes)
+- [x] Advance RMCPF-011 from `In Progress` to `Merged` and update progress count in `plans/index.aps.md` once the PR merges (agent: yes)
+- [x] Advance RMCPF-012 from `In Progress` to `Merged` and update progress count in `plans/index.aps.md` once the PR merges (agent: yes)
+- [x] Confirm `archive/anvil-mcp-server/src/tools/` and `archive/anvil-mcp-server/src/prompts/` remain frozen reference material — no in-flight TS edits introduced (agent: yes)
 - [ ] When INTD lands `suppression.apply`, file a follow-up to flip `anvil_suppress` from embedded fallback to daemon-RPC translator and pin the wire-shape parity (human required)
 
 ## Notes

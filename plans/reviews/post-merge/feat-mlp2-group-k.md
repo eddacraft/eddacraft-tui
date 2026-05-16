@@ -8,19 +8,19 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance MLP2-053 status to Merged in
+- [x] Advance MLP2-053 status to Merged in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Advance MLP2-054 status to Merged in the same file (agent: yes)
-- [ ] Advance MLP2-055 status to Merged in the same file (agent: yes)
-- [ ] Advance MLP2-056 status to Merged in the same file (agent: yes)
-- [ ] Update Group K count from `0/4 (all In Progress on feat/mlp2-group-k)`
+- [x] Advance MLP2-054 status to Merged in the same file (agent: yes)
+- [x] Advance MLP2-055 status to Merged in the same file (agent: yes)
+- [x] Advance MLP2-056 status to Merged in the same file (agent: yes)
+- [x] Update Group K count from `0/4 (all In Progress on feat/mlp2-group-k)`
       to `4/4 (Complete)` in the module summary table at the bottom of
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Bump module total from `35/66` to `39/66` in the same file (agent: yes)
-- [ ] Update `plans/index.aps.md` MLP2 row from `36/66` to `40/66` and
+- [x] Bump module total (now 48/68 after subsequent waves merged; this PR's +4 contribution is rolled into that total) (agent: yes)
+- [x] Update `plans/index.aps.md` MLP2 row to reflect MLP2-053..-056 closure and
       add a line in the wave-history blurb naming MLP2-053..-056 closure
       via PR #1601 at the merge commit SHA (agent: yes)
-- [ ] Verify cleanup agent ran `wt remove` for the worktree (agent: yes)
+- [x] Verify cleanup agent ran `wt remove` for the worktree (agent: yes — confirmed 2026-05-16: no `feat/mlp2-group-k` worktree remains)
 - [ ] Manual: confirm `anvil/kindling/audit-chain.ndjson` appears in the
       next dogfood run's repo after `anvil audit-chain` executes (human
       required — needs to live-run the CLI against a real audit; the
