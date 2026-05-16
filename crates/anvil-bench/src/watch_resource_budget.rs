@@ -259,13 +259,14 @@ mod tests {
     #[test]
     fn parses_rss_as_mib() {
         let status = "Name:\tanvil\nVmRSS:\t204800 kB\nVmSize:\t300000 kB";
-        assert_eq!(parse_process_rss_mib(status).unwrap(), 200.0);
+        assert!((parse_process_rss_mib(status).unwrap() - 200.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn cpu_window_reports_one_full_core_as_available_parallelism_fraction() {
-        let cpus = std::thread::available_parallelism().map_or(1.0, |n| n.get() as f64);
-        let pct = cpu_pct_for_window(10, 20, 100, 100 + (10 * cpus as u64));
+        let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        let total_end = 100 + (10 * u64::try_from(cpus).unwrap());
+        let pct = cpu_pct_for_window(10, 20, 100, total_end);
         assert!((pct - 100.0).abs() < f64::EPSILON);
     }
 }
