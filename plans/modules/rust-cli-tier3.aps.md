@@ -116,10 +116,21 @@ not less. Follow the canonical model in
 
 Change status to **Ready** when:
 
-- [ ] RCLI Tier 1 Phases 1–7 complete (including parity rework items)
-- [ ] RCLI2 Tier 2 Phases 1–2 complete (non-OPAE items)
-- [ ] Edda YAML schema documented (or inferable from edda-stack contracts)
-- [ ] Ember SQLite schema documented (or inferable from ProposalStore)
+- [x] RCLI Tier 1 Phases 1–7 complete (including parity rework items)
+      — `rust-cli` archived 64/64
+- [x] RCLI2 Tier 2 Phases 1–2 complete (non-OPAE items) — RCLI2-001..-004
+      shipped 2026-04-26; RCLI2-009 complete; -005..-008 remain OPAE-gated
+      and are not Phase 1–2 blockers
+- [x] Edda YAML schema documented (or inferable from edda-stack contracts)
+      — see `packages/edda-stack/src/contracts/edda-memory.ts`,
+      `memory-types.ts`, `provenance.ts`, `evolution.ts`
+- [x] Ember SQLite schema documented (or inferable from ProposalStore)
+      — see `packages/edda-stack/src/contracts/ember-proposal.ts` and
+      `packages/edda-stack/src/contracts/ports/ember.port.ts`
+
+**Readiness audit:** 2026-05-17 — all four gates pass; Phase 1–4
+Proposed items with completed dependencies have been promoted to
+Ready (see status lines below).
 
 ---
 
@@ -132,7 +143,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-001: edda list command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil edda list`. Query active, superseded, and retired
   memories with multi-criteria filtering: `--type` (observation, decision,
   convention, constraint), `--status` (active, superseded, retired),
@@ -210,7 +222,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-005: ember list command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil ember list`. Query proposals by type (observation,
   pattern, anomaly, suggestion) and status (active, promoted, expired,
   rejected) with filtering and expiry display. Reads from `.anvil/ember.db`
@@ -264,7 +277,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-008: plan validate command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil plan validate <path>`. Validate APS markdown
   structure and rules; output issues by severity with line numbers and
   context. Delegates to APS validation logic
@@ -343,7 +357,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-012: agent status and list commands
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil agent status` (current agent identity, registration
   state, heartbeat) and `anvil agent list` (all registered agents with state
   filtering: active, idle, stale, terminated). Includes agent type icons
@@ -381,7 +396,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-014: authorship command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil authorship` with three subcommands: `show [commit]`
   (display AI authorship for a commit from Git Notes refs/notes/ai), `list`
   (recent N commits with AI authorship), `stats [range]` (coverage %, line
@@ -403,7 +419,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-015: explain command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete)
 - **Intent:** Port `anvil explain <warning-id>`. Bidirectional lookup: parse
   finding ID (for example a warning or violation identifier) to find
   explanation, or `--rules` to list all explainable rules, or `--list` to show recent findings from last
@@ -491,7 +508,10 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-017: release command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
+  RCLI foundation, which is complete. Note: RELORCH is also closed, so the
+  underlying deterministic release command surface this CLI wraps is
+  stable.)
 - **Intent:** Port `anvil release`. Interactive release workflow orchestration
   with profile selection (beta, stable, hotfix). Supports `--target <version>`
   (skip prompt), `--execute` (non-dry-run), `--resume` (from saved state),
@@ -547,7 +567,9 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-018: beta command
 
-- **Status:** Proposed
+- **Status:** Ready (2026-05-17 — readiness audit promoted; RCLI-015
+  auth/HTTP infrastructure is Complete in archived `rust-cli.aps.md`,
+  so no remaining open dependency)
 - **Intent:** Port `anvil beta invite` and `anvil beta revoke`. Admin-only
   commands (require `ANVIL_ADMIN_KEY`) for beta access management. Invite
   creates a one-time token with email, TTL, optional name/notes. Revoke
