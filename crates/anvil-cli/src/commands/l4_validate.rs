@@ -20,9 +20,11 @@
 //! 1. Walk the commit range with `git rev-list`.
 //! 2. Resolve the branch's [`anvil_l4::Policy`] rule.
 //! 3. For each unwitnessed commit, decide via [`anvil_l4::Policy::resolve`]
-//!    and run [`anvil_l4::validate_at_l4`] against the supplied
-//!    `--engine` (default [`anvil_l4::NoOpValidationEngine`] preserves
-//!    pre-MLP2-016 surface byte-for-byte).
+//!    and run [`anvil_l4::validate_at_l4`] against the default
+//!    [`crate::l4_engine::CommitAntipatternEngine`] — the real
+//!    `anvil-checks` antipattern pipeline run against the commit's
+//!    tree via git plumbing. Tests substitute fixture engines via
+//!    [`run_with_engine`].
 //! 4. Exit non-zero when any commit blocks; otherwise exit zero.
 //!
 //! The template's `anvil hook pre-push` invocation can swap to
@@ -37,14 +39,15 @@ use std::process::{Command, Stdio};
 use anvil_config::ConfigFormat;
 use anvil_hook::is_hex_sha;
 use anvil_l4::{
-    BlockKind, CommitDecision, EngineUnavailableReason, NoOpValidationEngine, OnWarn, Policy,
-    Severity, ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
+    BlockKind, CommitDecision, EngineUnavailableReason, OnWarn, Policy, Severity,
+    ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_witness::{verify_chain_dag, witness_paths};
 use anyhow::{Context, Result};
 use clap::Args;
 
 use crate::GlobalArgs;
+use crate::l4_engine::default_engine;
 
 /// Exit code returned when `l4-validate` blocks the operation. Matches
 /// the pre-push hook's `EXIT_GATE_FAIL`-equivalent exit.
@@ -75,7 +78,7 @@ pub struct L4ValidateArgs {
 }
 
 pub fn run(args: &L4ValidateArgs, global: &GlobalArgs) -> Result<()> {
-    let engine: Box<dyn ValidationEngine> = Box::new(NoOpValidationEngine);
+    let engine = default_engine();
     let outcome = run_with_engine(args, global, engine.as_ref())?;
     // Council #1 / MAJOR-2: a block exit MUST surface the per-rule
     // diagnostics on stderr so CI logs explain which rule refused
@@ -139,7 +142,8 @@ pub enum CommitVerdict {
 
 /// MLP2-046 production entry that takes an injectable
 /// [`ValidationEngine`]. Tests substitute fixtures here; the public
-/// [`run`] wraps this with the default [`NoOpValidationEngine`].
+/// [`run`] wraps this with the production default supplied by
+/// [`crate::l4_engine::default_engine`].
 #[allow(clippy::too_many_lines)]
 pub fn run_with_engine(
     args: &L4ValidateArgs,
@@ -468,7 +472,7 @@ fn short_sha(sha: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_l4::{OnBlock, OnNoWitness, Requirement};
+    use anvil_l4::{NoOpValidationEngine, OnBlock, OnNoWitness, Requirement};
     use std::path::PathBuf;
 
     fn setup_repo(tmp: &tempfile::TempDir) -> PathBuf {
@@ -863,5 +867,54 @@ mod tests {
             rendered.contains("exceeds") || rendered.contains("byte limit"),
             "expected FileTooLarge surface in error chain, got: {rendered}"
         );
+    }
+
+    /// MLP2-016 reopened (2026-05-15 Council audit). The audit's
+    /// load-bearing requirement is that the production default path
+    /// runs a real rule engine, not `NoOpValidationEngine`. This
+    /// test drives [`run_with_engine`] using the same
+    /// [`crate::l4_engine::default_engine`] constructor that the
+    /// production [`run`] entry point uses — no fixture injection —
+    /// against a commit that carries a known `AP-001`
+    /// `eslint-disable` antipattern. The verdict must be
+    /// `Block { diagnostics }` carrying the real rule id, proving
+    /// the engine actually scanned the commit's tree.
+    #[test]
+    fn production_default_engine_blocks_known_antipattern() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(
+            &root,
+            "branches:\n  - pattern: \"*\"\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n    on_warn: reject\n",
+        );
+        // A `.ts` file containing a broad eslint-disable directive —
+        // matches `AP-001` in the antipattern catalogue.
+        let sha = git_commit(
+            &root,
+            "leak",
+            "/* eslint-disable */\nimport { x } from './m';\n",
+            "leak.ts",
+        );
+
+        let args = L4ValidateArgs {
+            range: sha.clone(),
+            branch: Some("main".to_owned()),
+            repo: Some(root.clone()),
+        };
+        let engine = crate::l4_engine::default_engine();
+        let outcome = run_with_engine(&args, &GlobalArgs::default(), engine.as_ref()).unwrap();
+        assert_eq!(outcome.commits.len(), 1);
+        let CommitVerdict::Block { diagnostics } = &outcome.commits[0].verdict else {
+            panic!(
+                "production default engine MUST run real rules — \
+                 expected Block, got {:?}",
+                outcome.commits[0].verdict,
+            );
+        };
+        assert!(
+            diagnostics.iter().any(|d| d.rule_id == "AP-001"),
+            "expected AP-001 in real-engine diagnostics, got {diagnostics:?}",
+        );
+        assert_eq!(outcome.exit_code, Some(EXIT_BLOCK));
     }
 }

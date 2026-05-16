@@ -71,8 +71,8 @@ use anvil_intercept::kindling_observation::{
     PostHookAction, PostHookEmissionRequest, PostHookEmitter,
 };
 use anvil_l4::{
-    BlockKind, CommitDecision, NoOpValidationEngine, OnWarn, Policy, Severity,
-    ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
+    BlockKind, CommitDecision, OnWarn, Policy, Severity, ValidationDiagnostic, ValidationEngine,
+    ValidationVerdict, request_for,
 };
 use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
 use anvil_witness::{
@@ -84,6 +84,7 @@ use clap::{Args, Subcommand};
 
 use crate::GlobalArgs;
 use crate::activation::identity::read_project_id;
+use crate::l4_engine::CommitAntipatternEngine;
 
 /// MLP2-022: wall-clock budget for the pre-push hook.
 ///
@@ -312,13 +313,16 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
 ///   `.yaml` / `.json` / `.toml`). When no policy file exists the
 ///   hook is a no-op (the project hasn't opted into L4 enforcement).
 /// - `NeedsL4Validation` decisions route through MLP2-016's
-///   [`anvil_l4::ValidationEngine`] trait. v1 binds
-///   [`NoOpValidationEngine`], which returns `EngineUnavailable
-///   { reason: NotImplemented }` — preserving the pre-MLP2-016
-///   `InternalError { TimedOut }` + admit-push surface byte-for-byte.
-///   A future PR replaces the no-op with a real engine; the hook
-///   then surfaces `Allow` / `Block` per commit without any further
-///   change to this file.
+///   [`anvil_l4::ValidationEngine`] trait. Production binds
+///   [`CommitAntipatternEngine`] (see `crates/anvil-cli/src/l4_engine.rs`)
+///   which materialises the commit's tree via git plumbing and runs
+///   the `anvil-checks` antipattern catalogue, surfacing `Allow` or
+///   `Block { diagnostics }` per commit. When git plumbing fails the
+///   engine returns `EngineUnavailable`, which the hook collapses to
+///   the legacy `InternalError { TimedOut }` + admit-push surface
+///   per ADR-038 §D-6 (internal failures never block the user).
+///   Tests substitute fixture engines via
+///   [`run_pre_push_with_engine`].
 ///
 /// ## MLP2-020 / -021 / -022 — Wave 1E closure
 ///
@@ -349,14 +353,14 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
 ///   currently a structured tracing event; the daemon-side write to
 ///   the Kindling `SQLite` handle lands with INTD-004).
 fn run_pre_push(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
-    run_pre_push_with_engine(repo_root, sup, &NoOpValidationEngine)
+    run_pre_push_with_engine(repo_root, sup, &CommitAntipatternEngine)
 }
 
 /// MLP2-016: pre-push entry point that takes a pluggable
-/// [`ValidationEngine`]. The production `run_pre_push` binds the
-/// [`NoOpValidationEngine`] (preserves pre-MLP2-016 surface);
-/// integration tests can substitute a fixture engine to drive the
-/// Allow / Block paths through the production call site without
+/// [`ValidationEngine`]. The production `run_pre_push` binds
+/// [`CommitAntipatternEngine`] (the real `anvil-checks` antipattern
+/// pipeline); integration tests substitute a fixture engine to drive
+/// the Allow / Block paths through the production call site without
 /// shelling out.
 //
 // `too_many_lines` is allowed here because the function is a
@@ -573,11 +577,22 @@ fn run_pre_push_with_engine(
                             // emit InternalError { TimedOut } once via
                             // suppression, admit the push (ADR-038).
                             engine_unavailable = true;
-                            // Reason is intentionally discarded at the
-                            // hook surface — operators see the same
-                            // single line regardless. Future telemetry
-                            // can record the reason separately.
-                            let _ = reason;
+                            // Council #C-016I: emit the reason at
+                            // tracing-warn so production incident
+                            // investigations have a machine-readable
+                            // signal distinguishing
+                            // "engine not implemented" from
+                            // "git not on PATH" from
+                            // "rule catalogue missing" — the operator
+                            // still sees one `ValidationPending`
+                            // line via SuppressionLog below.
+                            tracing::warn!(
+                                target: "anvil::hook::pre_push",
+                                kind = "engine_unavailable",
+                                commit = %short_sha(&commit),
+                                reason = ?reason,
+                                "L4 validation engine could not run; admitting push",
+                            );
                         }
                     }
                 }
@@ -2550,18 +2565,20 @@ mod tests {
         );
     }
 
-    /// The default `NoOpValidationEngine` bound at the production
-    /// call site returns `EngineUnavailable { NotImplemented }`.
-    /// Pre-MLP2-016 behaviour (single `InternalError { TimedOut }`
-    /// emit + admit push) is the responsibility of the hook's
-    /// `engine_unavailable` accumulator; this test pins that the
-    /// default engine bound on production produces the variant the
-    /// accumulator routes on.
+    /// `NoOpValidationEngine` (kept in the trait crate for tests and
+    /// future fallback paths) returns
+    /// `EngineUnavailable { NotImplemented }`. The hook's
+    /// `engine_unavailable` accumulator routes that to the legacy
+    /// `InternalError { TimedOut }` line + admit-push surface
+    /// (ADR-038 §D-6). Production no longer binds this engine —
+    /// the audit-required production default is
+    /// [`CommitAntipatternEngine`]; this test exists to pin the
+    /// fallback verdict shape that the accumulator depends on.
     #[test]
-    fn default_noop_engine_produces_engine_unavailable() {
+    fn no_op_engine_produces_engine_unavailable() {
         use anvil_l4::{
-            BranchRule, EngineUnavailableReason, OnBlock, OnNoWitness, OnWarn, Requirement,
-            ValidationVerdict,
+            BranchRule, EngineUnavailableReason, NoOpValidationEngine, OnBlock, OnNoWitness,
+            OnWarn, Requirement, ValidationVerdict,
         };
         let rule = BranchRule {
             pattern: "main".to_string(),

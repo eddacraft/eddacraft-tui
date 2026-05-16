@@ -5,6 +5,7 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod feature_flags;
+mod l4_engine;
 mod mcp;
 mod output;
 mod services;
