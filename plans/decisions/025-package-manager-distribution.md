@@ -4,6 +4,12 @@
 
 Accepted
 
+> **Freshness note (2026-05-16):** This ADR remains the historical package-
+> manager strategy decision. Current release cadence and beta support-window
+> policy lives in [`docs/policies/release-cadence.md`](../../docs/policies/release-cadence.md),
+> and active distribution execution lives in
+> [`plans/modules/distribution-and-update.aps.md`](../modules/distribution-and-update.aps.md).
+
 ## Date
 
 2026-04-18

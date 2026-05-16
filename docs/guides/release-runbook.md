@@ -1,5 +1,13 @@
 # Anvil Release Runbook
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                   |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-16 against `docs/policies/release-cadence.md` and `scripts/release/*` |
+
+| Upstream                                                           | Downstream                            |
+| ------------------------------------------------------------------ | ------------------------------------- |
+| `scripts/release/*`, `docs/policies/release-cadence.md`, APS state | Release operators and `release` skill |
+
 Purpose: ship Anvil with the least manual choreography possible.
 
 This runbook uses the command-driven release model. Deterministic release work
@@ -8,6 +16,9 @@ is owned by the per-phase commands under `scripts/release/`.
 `main` is the only permanent product branch following the OPMODEL-012 cutover on
 2026-05-11. Releases tag a selected green `main` SHA after release readiness —
 there is no `dev -> main` promotion.
+
+Release cadence, beta support windows, and hotfix expectations are defined in
+[`docs/policies/release-cadence.md`](../policies/release-cadence.md).
 
 ## Golden Rule
 

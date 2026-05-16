@@ -1,8 +1,8 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                    |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-16 (post-`v0.6.3-beta` patch + MLP2 Group M closure); base `v0.6.3-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                    |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-16 (post-`v0.6.3-beta` patch, MLP2 Group M closure, release-cadence policy closeout); base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -12,8 +12,8 @@
 bumped baseline from `v0.6.2-beta` to the shipped `v0.6.3-beta` patch; refreshed
 MLP2 from `35/66` to `41/66` after Group M closed via PRs #1602 + #1604; WATCHUX
 to Complete 8/8, ADTRUST to Complete 6/6 (archived), ADOPT to 2/6, DISTRIB to
-2/5 against module truth; MLP2 cut-line for `v0.7.0-beta` unchanged. RMCPF
-remains sequenced after the daemon-working slate.)
+3/5 against module truth after DISTRIB-004; MLP2 cut-line for `v0.7.0-beta`
+unchanged. RMCPF remains sequenced after the daemon-working slate.)
 
 > Companion: [ROADMAP.md](./ROADMAP.md) for thematic horizons. Execution source
 > of truth: [`plans/index.aps.md`](./plans/index.aps.md) and the linked APS
@@ -68,18 +68,18 @@ and was accepted on 2026-05-14.
 
 **Primary APS modules:**
 
-| Pick | Module                                                              | Status      | Progress | Role                                                                                                                                                                                                                                                                                                                                                    |
-| ---- | ------------------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1   | [`MLP`](./plans/archive/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                                                                                            |
-| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 41/66    | Active follow-up integration module from the MLP-018 split plus Council hardening. Group M closed 6/6 on 2026-05-16 via PRs #1602 + #1604. It is part of the current protection claim only at the cut-line named below; 66/66 is not required for `v0.7.0-beta`.                                                                                        |
-| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)                 | Done        | 9/9 done | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. Shipped via PR #1528 (merged 2026-05-14 at `5d38e546`); narratively **Merged**, advances to Released/Shipped → Complete on `v0.7.0-beta` release evidence.                                                                                    |
-| N3   | Carry-forward gates                                                 | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                                                                                               |
-| N4   | Documentation lanes                                                 | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                                                                                            |
-| N5   | [`WATCHUX`](./plans/archive/modules/watch-ux-advisory-rules.aps.md) | Complete    | 8/8 done | Beta incident remediation and first-run/watch UX. WATCHUX-001..-004 merged via PR #1497; -005..-007 via PR #1524; -008 on `feat/watchux-008-config-cache`. Rode `v0.6.3-beta`. Module archived.                                                                                                                                                         |
-| N6   | [`ADTRUST`](./plans/archive/modules/adoption-trust-surface.aps.md)  | Complete    | 6/6      | Adoption Trust Surface — all six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537); module archived. Cross-crate wire-ups for -002 (watch TUI + hook bridge) and -004 (anvil-hook + kernel embedded fallback) tracked under MLP2 group J.                                                                                               |
-| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | In Progress | 2/6      | Adoption Friction Removal: **ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`), **ADOPT-005 clean uninstall shipped 2026-05-14 via PR #1521** (rode `v0.6.3-beta`); resource budget (-002), AI auto-detect (-003), complete ignore policy (-004), editor coexistence (-006) remain. Wave 3A.          |
-| N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md)         | In Progress | 2/5      | Distribution & Self-Update: **DISTRIB-001 minisign verification Merged via PR #1562**, **DISTRIB-002 `anvil version --check` advisory surface Merged via PR #1569**; Homebrew formula automation (-003), cadence policy (-004), `anvil migrate` (-005) remain. ADR-044 §9 makes -001/-002 load-bearing for the MCP-backend swap discovery gap. Wave 3A. |
-| N9   | [`INSIGHTS`](./plans/modules/usage-insights.aps.md)                 | Ready       | 0/4      | Usage Insights: local-only `anvil insights` weekly summary, suppression health, drift trend, first-week adoption hint. Wave 4.                                                                                                                                                                                                                          |
+| Pick | Module                                                              | Status      | Progress | Role                                                                                                                                                                                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------- | ----------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1   | [`MLP`](./plans/archive/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                                                                                   |
+| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 41/66    | Active follow-up integration module from the MLP-018 split plus Council hardening. Group M closed 6/6 on 2026-05-16 via PRs #1602 + #1604. It is part of the current protection claim only at the cut-line named below; 66/66 is not required for `v0.7.0-beta`.                                                                               |
+| N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)                 | Done        | 9/9 done | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. Shipped via PR #1528 (merged 2026-05-14 at `5d38e546`); narratively **Merged**, advances to Released/Shipped → Complete on `v0.7.0-beta` release evidence.                                                                           |
+| N3   | Carry-forward gates                                                 | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                                                                                      |
+| N4   | Documentation lanes                                                 | —           | 0/6      | Adoption, air-gap, witness-chain, hooks-integration runbooks, migration note, INTL manpage. Owner: @aneki (lands in Wave 4). Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope.                                                                                                   |
+| N5   | [`WATCHUX`](./plans/archive/modules/watch-ux-advisory-rules.aps.md) | Complete    | 8/8 done | Beta incident remediation and first-run/watch UX. WATCHUX-001..-004 merged via PR #1497; -005..-007 via PR #1524; -008 on `feat/watchux-008-config-cache`. Rode `v0.6.3-beta`. Module archived.                                                                                                                                                |
+| N6   | [`ADTRUST`](./plans/archive/modules/adoption-trust-surface.aps.md)  | Complete    | 6/6      | Adoption Trust Surface — all six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537); module archived. Cross-crate wire-ups for -002 (watch TUI + hook bridge) and -004 (anvil-hook + kernel embedded fallback) tracked under MLP2 group J.                                                                                      |
+| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | In Progress | 2/6      | Adoption Friction Removal: **ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`), **ADOPT-005 clean uninstall shipped 2026-05-14 via PR #1521** (rode `v0.6.3-beta`); resource budget (-002), AI auto-detect (-003), complete ignore policy (-004), editor coexistence (-006) remain. Wave 3A. |
+| N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md)         | In Progress | 3/5      | Distribution & Self-Update: DISTRIB-001 signature verification and DISTRIB-002 version check are Merged; DISTRIB-004 cadence policy is Done; Homebrew formula automation and `anvil migrate` remain. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A.                                         |
+| N9   | [`INSIGHTS`](./plans/modules/usage-insights.aps.md)                 | Ready       | 0/4      | Usage Insights: local-only `anvil insights` weekly summary, suppression health, drift trend, first-week adoption hint. Wave 4.                                                                                                                                                                                                                 |
 
 **Hard release gates:**
 
@@ -212,7 +212,7 @@ the rest are independent.
 | `DISTRIB-001` | First (sig scheme)  | **Done** | Minisign verification + ADR-045 — Merged via PR #1562.                                                                                    |
 | `DISTRIB-002` | After `DISTRIB-001` | **Done** | `anvil version --check` advisory surface + watch/status hint — Merged via PR #1569.                                                       |
 | `DISTRIB-003` | Parallel            | Draft    | Homebrew formula auto-bump on release.                                                                                                    |
-| `DISTRIB-004` | Parallel            | Draft    | `docs/policies/release-cadence.md` + EOL policy.                                                                                          |
+| `DISTRIB-004` | Parallel            | **Done** | `docs/policies/release-cadence.md` + EOL policy.                                                                                          |
 | `DISTRIB-005` | After `DISTRIB-002` | Draft    | `anvil migrate` for cross-version config reconciliation.                                                                                  |
 
 ### Wave 3B: Trust Surface — Shipped 2026-05-14
@@ -330,12 +330,12 @@ gets-used diverge.
 six weeks** unless a Boring-Week-tier regression appears. Hotfix iteration
 shape:
 
-| Cadence        | Channel                               | Scope                                                                 |
-| -------------- | ------------------------------------- | --------------------------------------------------------------------- |
-| `v0.7.x` patch | Weekly while user signal is non-empty | Bug fixes, false-positive reductions, doc corrections.                |
-| `v0.7.x` patch | Within 48h of any P0 bug              | Crash, data loss, false-claim regression, daemon corruption.          |
-| `v0.7.y` minor | Not before 6 weeks post-tag           | Feature additions; only if `v0.7.0` baseline retention is stable.     |
-| `v0.8.0-beta`  | Demand-pulled                         | Driven by a real adopter requirement, not by completion of a backlog. |
+| Cadence                | Channel                               | Scope                                                                 |
+| ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| `v0.7.x` patch         | Weekly while user signal is non-empty | Bug fixes, false-positive reductions, doc corrections.                |
+| `v0.7.x` patch         | Within 48h of any P0 bug              | Crash, data loss, false-claim regression, daemon corruption.          |
+| Next minor beta        | Not before 6 weeks post-tag           | Feature additions; only if `v0.7.0` baseline retention is stable.     |
+| Breaking beta or major | Demand-pulled                         | Driven by a real adopter requirement, not by completion of a backlog. |
 
 The hotfix policy makes "we sit on this" trustworthy — without it, "the release
 we sit on" becomes "the release we wait on until the next big thing." See also

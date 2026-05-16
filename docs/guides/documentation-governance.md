@@ -34,18 +34,21 @@ source instead.
 
 ## Document Types
 
-| Type        | Purpose                               | Location                                  |
-| ----------- | ------------------------------------- | ----------------------------------------- |
-| APS index   | Module discovery and active state     | `plans/index.aps.md`                      |
-| APS module  | Execution authority                   | `plans/modules/*.aps.md`                  |
-| ADR         | Durable decision rationale            | `plans/decisions/*.md`                    |
-| Spec        | Intended design before or during work | `plans/specs/`, `docs/specs/`             |
-| As-built    | Current implementation map            | `docs/architecture/*-as-built.md`         |
-| Runbook     | Operational procedure                 | `docs/runbooks/*.md`                      |
-| Guide       | Developer practice                    | `docs/guides/*.md`                        |
-| README      | Local orientation                     | nearest package, crate, app, or directory |
-| Public docs | User-facing behaviour                 | `docs/public/**/*.md`                     |
-| Archive     | Historical reference                  | `docs/archive/`, `plans/archive/`         |
+| Type              | Purpose                                | Location                                  |
+| ----------------- | -------------------------------------- | ----------------------------------------- |
+| APS index         | Module discovery and active state      | `plans/index.aps.md`                      |
+| APS module        | Execution authority                    | `plans/modules/*.aps.md`                  |
+| Release plan      | Current release-slate summary          | `RELEASE-PLAN.md`                         |
+| ADR               | Durable decision rationale             | `plans/decisions/*.md`                    |
+| Spec              | Intended design before or during work  | `plans/specs/`, `docs/specs/`             |
+| As-built          | Current implementation map             | `docs/architecture/*-as-built.md`         |
+| Runbook           | Operational procedure                  | `docs/runbooks/*.md`                      |
+| Policy            | Operational limits and expectations    | `docs/policies/*.md`                      |
+| Guide             | Developer practice                     | `docs/guides/*.md`                        |
+| README            | Local orientation                      | nearest package, crate, app, or directory |
+| Contributor guide | Contribution workflow and expectations | `CONTRIBUTING.md`                         |
+| Public docs       | User-facing behaviour                  | `docs/public/**/*.md`                     |
+| Archive           | Historical reference                   | `docs/archive/`, `plans/archive/`         |
 
 Current migration exception: the evergreen release runbook remains at
 `docs/guides/release-runbook.md`. Treat it as runbook authority until DOCGOV-008

@@ -229,12 +229,12 @@ gets-used diverge.
 six weeks** unless a Boring-Week-tier regression appears. Hotfix iteration
 shape:
 
-| Cadence            | Channel                                | Scope                                                                       |
-| ------------------ | -------------------------------------- | --------------------------------------------------------------------------- |
-| `v0.7.x` patch     | Weekly while user signal is non-empty  | Bug fixes, false-positive reductions, doc corrections.                      |
-| `v0.7.x` patch     | Within 48h of any P0 bug               | Crash, data loss, false-claim regression, daemon corruption.                |
-| `v0.7.y` minor     | Not before 6 weeks post-tag            | Feature additions; only if `v0.7.0` baseline retention is stable.           |
-| `v0.8.0-beta`      | Demand-pulled                          | Driven by a real adopter requirement, not by completion of a backlog.       |
+| Cadence                | Channel                               | Scope                                                                 |
+| ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| `v0.7.x` patch         | Weekly while user signal is non-empty | Bug fixes, false-positive reductions, doc corrections.                |
+| `v0.7.x` patch         | Within 48h of any P0 bug              | Crash, data loss, false-claim regression, daemon corruption.          |
+| Next minor beta        | Not before 6 weeks post-tag           | Feature additions; only if `v0.7.0` baseline retention is stable.     |
+| Breaking beta or major | Demand-pulled                         | Driven by a real adopter requirement, not by completion of a backlog. |
 
 The hotfix policy is the half of "let's use this" that does not show up in this
 release plan — it is what makes the *next* release plan trustworthy.

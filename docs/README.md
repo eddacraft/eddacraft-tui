@@ -34,6 +34,7 @@ docs/
 │   └── monorepo-structure.md # Repository layout
 ├── guides/                 # Developer how-to guides (incl. testing, branching strategy)
 ├── runbooks/               # Operational playbooks
+├── policies/               # Operational policies and documented limits
 ├── testing/                # Internal test plans, scenarios, and release reports
 ├── specs/                  # Technical specifications
 ├── reviews/                # Active review work that still needs follow-up
@@ -70,6 +71,8 @@ docs/
   strategy
 - [guides/](guides/) — Developer how-to guides
 - [runbooks/](runbooks/) — Operational playbooks
+- [policies/release-cadence.md](policies/release-cadence.md) — Release cadence,
+  beta support windows, and hotfix expectations
 
 ### Specifications
 

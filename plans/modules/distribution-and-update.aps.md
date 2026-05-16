@@ -4,22 +4,23 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 2/5 done |
+| DISTRIB | @aneki | In Progress | 3/5 done |
 
-**Last reviewed:** 2026-05-15 (DISTRIB-002 **Merged** via PR #1569 — `anvil
-version --check` + advisory surface + watch/status hint; remaining operator
+**Last reviewed:** 2026-05-16 (DISTRIB-004 **Done** — release cadence and beta
+support-window policy now lives at `docs/policies/release-cadence.md` and is
+cross-linked from README + CONTRIBUTING. DISTRIB-002 **Merged** via PR #1569 —
+`anvil version --check` + advisory surface + watch/status hint; remaining operator
 follow-up tracked in
 [`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../reviews/post-merge/feat-distrib-002-version-check.md).
 DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 [`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Module-level `Ready` means "ready to begin Wave 3A"; individual tasks
-remain `Draft` until picked up. DISTRIB-001 (signature verification +
-resolution-chain robustness) is first; -002 layers the version-check
-UX on top; -003/-004 are parallel; -005 (`anvil migrate`) depends on
--002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002 load-bearing for
-the `v0.7.0-beta` MCP-backend swap to actually reach existing users.)
+Current active state: DISTRIB-001 and DISTRIB-002 are Merged; DISTRIB-004 is
+Done; DISTRIB-003 remains Draft and parallel-safe; DISTRIB-005 remains Draft and
+depends on DISTRIB-002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
+users.)
 
 ## Purpose
 
@@ -183,8 +184,13 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `README.md` (cross-link)
   - `CONTRIBUTING.md` (cross-link)
 - **Validation:**
-  - Doc review and council pass; no automated check
-- **Status:** Draft
+  - `pnpm format:check`
+  - Manual link/source/status reconciliation against `plans/index.aps.md`,
+    `RELEASE-PLAN.md`, README, CONTRIBUTING, and documentation governance.
+  - Quick Council pass.
+- **Status:** Done
+- **Picked up:** 2026-05-16 on `docs/distrib-release-cadence`.
+- **Done:** 2026-05-16 (policy doc + README/CONTRIBUTING cross-links).
 - **changeType:** docs
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -245,6 +251,5 @@ releases with a documented support window and clean upgrade path" line in
   (Homebrew detection on install), [`ADTRUST-001`](../archive/modules/adoption-trust-surface.aps.md)
   (status surface where update hint renders).
 - Blocks on: none at module level.
-- New ADR required for DISTRIB-001: signing scheme choice (cosign vs
-  minisign vs Sigstore). Slot in the next available ADR number when the
-  module promotes to Ready.
+- DISTRIB-001 signing scheme decision: [`ADR-045`](../decisions/045-update-signing-scheme.md)
+  chose minisign for update artefact verification.

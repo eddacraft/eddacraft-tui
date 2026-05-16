@@ -1,5 +1,13 @@
 # anvil
 
+| Type   | Authority | Owner  | Status | Freshness                                                                                 |
+| ------ | --------- | ------ | ------ | ----------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-16 against `RELEASE-PLAN.md` and `docs/policies/release-cadence.md` |
+
+| Upstream                                               | Downstream                        |
+| ------------------------------------------------------ | --------------------------------- |
+| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository users and contributors |
+
 <p align="center">
   <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="anvil brandmark" width="120" />
 </p>
@@ -134,6 +142,9 @@ tracked through [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
 [`plans/index.aps.md`](./plans/index.aps.md); `MLP-009` is the hard gate for any
 full-protection claim.
 
+Release cadence and beta support-window expectations are documented in
+[`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
+
 ---
 
 ## For contributors
@@ -183,6 +194,8 @@ Contributor workflow quick links:
   worktrees
 - [Release runbook](docs/guides/release-runbook.md) — direct promotion vs
   `release/*` stabilisation
+- [Release cadence policy](docs/policies/release-cadence.md) — patch cadence,
+  beta support windows, and hotfix expectations
 - [Contributing](CONTRIBUTING.md) — setup, commands, and submission checklist
 
 ## Vision

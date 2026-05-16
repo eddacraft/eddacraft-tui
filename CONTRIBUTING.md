@@ -1,5 +1,13 @@
 # Contributing to Anvil
 
+| Type              | Authority | Owner  | Status | Freshness                                                                               |
+| ----------------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------- |
+| Contributor guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-16 against `docs/policies/release-cadence.md` and worktree policy |
+
+| Upstream                                                             | Downstream                  |
+| -------------------------------------------------------------------- | --------------------------- |
+| `docs/guides/worktree-policy.md`, `docs/policies/release-cadence.md` | Contributors and PR authors |
+
 Thank you for your interest in contributing to Anvil! This guide will help you
 get started.
 
@@ -181,12 +189,15 @@ Release guidance:
 - use a short-lived `release/*` branch only for exceptional stabilisation
 - merge release hardening back to `main`, tag from `main`, then delete the
   stabilisation branch
+- release cadence, beta support windows, and hotfix expectations are documented
+  in `docs/policies/release-cadence.md`
 
 See the detailed guides for the full policy:
 
 - `docs/guides/branching-strategy.md`
 - `docs/guides/worktree-policy.md`
 - `docs/guides/release-runbook.md`
+- `docs/policies/release-cadence.md`
 
 ### Before Submitting
 
