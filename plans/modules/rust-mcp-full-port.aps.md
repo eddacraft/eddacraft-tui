@@ -542,7 +542,7 @@ retirement decisions:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
-| 1 — Tool Parity | 3 | RMCPF-010 Complete; RMCPF-011/-012 Merged (PR #1558) |
-| 2 — Resources and Transports | 2 | Draft |
-| 3 — Cutover | 2 | Draft |
-| **Total** | **10** | **4/10 done** |
+| 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
+| 2 — Resources and Transports | 2 | 0/2 (Draft) |
+| 3 — Cutover | 2 | 0/2 (Draft) |
+| **Total** | **10** | **6/10 done** |
