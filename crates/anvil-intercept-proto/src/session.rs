@@ -84,6 +84,26 @@ impl AgentTag {
     }
 }
 
+/// MLP2-025b: launcher PID + `pid_starttime` carried on
+/// `IpcCommand::RegisterSession` to seed the daemon's lineage
+/// index. The pair is wrapped in a struct (rather than two parallel
+/// optional fields on `RegisterSession`) so the "one supplied, the
+/// other not" mis-pairing is foreclosed by the type system.
+///
+/// The launcher (anvil-run / driver-client) reports its **own** PID
+/// and `pid_starttime` here; the daemon trusts the launcher's
+/// register-time claim about itself. See
+/// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`
+/// §7 for the trust-model rationale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LineageAnchor {
+    /// Launcher process id.
+    pub pid: u32,
+    /// Launcher process start time as Unix seconds since epoch.
+    /// Paired with [`Self::pid`] to defeat PID-reuse spoofs.
+    pub pid_starttime: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -86,6 +86,22 @@ pub enum IpcCommand {
         worktree: PathBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         agent_tag: Option<session::AgentTag>,
+        /// MLP2-025b: launcher PID + `pid_starttime` for the
+        /// lineage anchor. The two are paired in one struct
+        /// (`LineageAnchor`) so the "one supplied, other not"
+        /// mis-pairing is foreclosed by the type. When `Some`,
+        /// the daemon seeds the `(pid, pid_starttime)` lineage
+        /// index for the spoof cross-check (MLP2-025).
+        ///
+        /// Backward-compat: pre-MLP2-025b launchers omit the
+        /// field; the daemon takes the legacy register path and
+        /// the session does not get a lineage anchor (any
+        /// env-tag from a child of the launcher will classify as
+        /// `Cross::Spoofed` — the safe default). Pinned by
+        /// `register_session_without_lineage_round_trips` and
+        /// `register_session_with_lineage_round_trips`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lineage: Option<session::LineageAnchor>,
     },
     /// Heartbeat from a registered session to refresh its liveness TTL
     /// (INTD-003 will enforce a 30 s default).
@@ -241,6 +257,7 @@ mod tests {
                 session_id: SessionId::new("sess_abc"),
                 worktree: PathBuf::from("/tmp/wt"),
                 agent_tag: None,
+                lineage: None,
             },
         );
 
@@ -253,6 +270,10 @@ mod tests {
         assert!(
             parsed.get("agent_tag").is_none(),
             "agent_tag absent from envelope when None: got {line}"
+        );
+        assert!(
+            parsed.get("lineage").is_none(),
+            "lineage absent from envelope when None: got {line}"
         );
     }
 
@@ -267,6 +288,7 @@ mod tests {
                 session_id,
                 worktree,
                 agent_tag,
+                lineage,
             } => {
                 assert_eq!(session_id, SessionId::new("sess_abc"));
                 assert_eq!(worktree, PathBuf::from("/tmp/wt"));
@@ -274,6 +296,7 @@ mod tests {
                     agent_tag.is_none(),
                     "missing agent_tag field defaults to None"
                 );
+                assert!(lineage.is_none(), "missing lineage field defaults to None");
             }
             other => panic!("expected RegisterSession, got {other:?}"),
         }
@@ -294,6 +317,7 @@ mod tests {
                     "claude-code-1",
                     1_700_000_042,
                 )),
+                lineage: None,
             },
         );
 
@@ -305,6 +329,69 @@ mod tests {
 
         let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
         assert_eq!(back, envelope, "agent_tag round-trips losslessly");
+    }
+
+    /// MLP2-025b wire-compat: a pre-MLP2-025b envelope (no `lineage`
+    /// key) deserialises with the field defaulted to `None`.
+    #[test]
+    fn register_session_without_lineage_round_trips() {
+        let wire = r#"{"id":"req-3","command":"register-session","session_id":"sess_l","worktree":"/tmp/wt"}"#;
+        let envelope: IpcEnvelope = serde_json::from_str(wire).expect("deserialise legacy");
+        match envelope.command {
+            IpcCommand::RegisterSession { lineage, .. } => {
+                assert!(lineage.is_none(), "missing lineage field defaults to None");
+            }
+            other => panic!("expected RegisterSession, got {other:?}"),
+        }
+    }
+
+    /// MLP2-025b: a new envelope carrying `lineage` parses correctly
+    /// and survives a round-trip. The launcher reports its own pid +
+    /// pid_starttime; the daemon trusts this register-time claim.
+    #[test]
+    fn register_session_with_lineage_round_trips() {
+        let envelope = IpcEnvelope::request(
+            "req-4",
+            IpcCommand::RegisterSession {
+                session_id: SessionId::new("sess_anchored"),
+                worktree: PathBuf::from("/tmp/wt"),
+                agent_tag: None,
+                lineage: Some(session::LineageAnchor {
+                    pid: 4242,
+                    pid_starttime: 1_700_000_500,
+                }),
+            },
+        );
+
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("parse back");
+        assert_eq!(parsed["lineage"]["pid"], 4242);
+        assert_eq!(parsed["lineage"]["pid_starttime"], 1_700_000_500);
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope, "lineage round-trips losslessly");
+    }
+
+    /// MLP2-025b: `lineage` is omitted from the wire when `None`,
+    /// mirroring the `agent_tag` precedent. Confirms the
+    /// `#[serde(default, skip_serializing_if = "Option::is_none")]`
+    /// guard on the new field.
+    #[test]
+    fn register_session_omits_lineage_when_none() {
+        let envelope = IpcEnvelope::request(
+            "req-5",
+            IpcCommand::RegisterSession {
+                session_id: SessionId::new("sess_n"),
+                worktree: PathBuf::from("/tmp/wt"),
+                agent_tag: None,
+                lineage: None,
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(
+            !line.contains("\"lineage\""),
+            "lineage must be omitted on wire when None: {line}"
+        );
     }
 
     #[test]

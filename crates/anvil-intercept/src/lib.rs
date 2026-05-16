@@ -1103,6 +1103,7 @@ mod tests {
             session_id: SessionId::new("sess_foreground"),
             worktree,
             agent_tag: None,
+            lineage: None,
         });
         let mut line = serde_json::to_string(&envelope).expect("serialise envelope");
         line.push('\n');

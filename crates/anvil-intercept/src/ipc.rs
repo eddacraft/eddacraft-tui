@@ -2188,6 +2188,8 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                     session_id,
                     worktree: PathBuf::from(worktree.as_str()),
                     agent_tag,
+                    // MLP2-025b: lineage wiring lands in subtask B3.
+                    lineage: None,
                 })
             })
         }
@@ -2524,6 +2526,11 @@ fn dispatch_command<D: SessionDispatcher>(
             session_id,
             worktree,
             agent_tag,
+            // MLP2-025b: lineage forwarding to the dispatcher lands in
+            // subtask B3 (widens the `SessionDispatcher::register`
+            // trait method). Bound but unused here for the wire
+            // round-trip to compile.
+            lineage: _,
         } => {
             dispatcher
                 .register(session_id, worktree, agent_tag.as_ref())
@@ -3330,6 +3337,7 @@ mod tests {
                     session_id: SessionId::new("sess_abc"),
                     worktree: PathBuf::from("/tmp/wt-abc"),
                     agent_tag: None,
+                    lineage: None,
                 },
             );
             let mut line = serde_json::to_string(&envelope).unwrap();

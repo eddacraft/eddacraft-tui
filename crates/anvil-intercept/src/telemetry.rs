@@ -16,6 +16,16 @@ pub const NOTIFICATION_SCHEMA: &str = "anvil.notification.v1";
 pub const INTERCEPT_SOURCE: &str = "intercept";
 pub const INTERCEPT_DRIVER_ID: &str = "intercept-daemon-v1";
 
+/// MLP2-025b: reason string emitted on the notification envelope AND
+/// in `tracing::warn!` calls when the daemon control-lane detects an
+/// out-of-lineage env-tag forgery and blocks the write.
+///
+/// Defined as a `pub const` (not an enum) so a future migration to a
+/// typed degraded-mode enum has a single find-target. See
+/// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`
+/// §8.
+pub const DEGRADED_SPOOFED_ATTRIBUTION: &str = "degraded:spoofed-attribution";
+
 static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -432,9 +442,17 @@ mod tests {
 
     use crate::enforcement::{EnforcementDecision, InterruptDecision};
     use crate::telemetry::{
-        ControlDecision, FenceTransition, TelemetryContext, TelemetryCorrelation, TelemetryEmitter,
-        delivered_envelope_for_decision, envelope_for_fence_transition, notification_mapping,
+        ControlDecision, DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition, TelemetryContext,
+        TelemetryCorrelation, TelemetryEmitter, delivered_envelope_for_decision,
+        envelope_for_fence_transition, notification_mapping,
     };
+
+    /// MLP2-025b: pin the reason-string value. A future enum migration
+    /// is the only legitimate reason to touch this constant.
+    #[test]
+    fn degraded_spoofed_attribution_constant_matches_spec() {
+        assert_eq!(DEGRADED_SPOOFED_ATTRIBUTION, "degraded:spoofed-attribution");
+    }
 
     fn context() -> TelemetryContext {
         TelemetryContext {
