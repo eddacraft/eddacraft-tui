@@ -59,9 +59,12 @@ footnotes promoted to its own MLP2-NNN task.)
 > parent binding), MLP2-013, MLP2-014, reopened MLP2-016, reopened MLP2-048,
 > MLP2-061, and MLP2-062. MLP2-050/051 are required only if the release claim
 > includes non-CLI protection-claim parity. Marketplace publishing (MLP2-042..
-> 045), observation fan-out (MLP2-006..008/010/054), and cross-platform
-> attribution (MLP2-027/028) are deferred unless Boring Week exercises those
-> surfaces.
+> 045) is deferred pending the licensing / pricing model lock for
+> distributing `eddacraft/anvil-action` through the GitHub Marketplace —
+> the gate is the commercial / redistribution decision, not the Boring
+> Week validation timing. Observation fan-out (MLP2-006..008/010/054) and
+> cross-platform attribution (MLP2-027/028) remain deferred unless Boring
+> Week feedback exercises those surfaces.
 
 > **Scope.** MLP2 ships the integration work that closes every v1
 > primitive landed by the MLP module into a full surface. MLP
@@ -2611,7 +2614,9 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** low — file paths TBD until MLP2-042..045
   decide the action's home.
 - **Priority:** Critical (HARD-GATE close, but release cut-line
-  defers Marketplace track unless Boring Week exercises it).
+  defers the Marketplace track pending the licensing / pricing
+  model lock for `eddacraft/anvil-action`; the gate is
+  commercial, not code).
 - **Dependencies:** MLP2-042 + MLP2-043 (Action exists),
   MLP2-051b + MLP2-051c (typed claim is on the wire), MLP2-048.
 - **Source:** MLP2-051 re-spec, 2026-05-17.
