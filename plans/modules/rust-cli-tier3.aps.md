@@ -11,9 +11,9 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI3 | —     | In Progress | 1/20     |
+| RCLI3 | —     | In Progress | 2/20     |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-17
 
 > **Post-migration note (2026-04-26):** RCLI Tier 1 is complete (64/64) and
 > the Node.js CLI at `apps/anvil-cli/` has been retired (RCLI-023 archival
@@ -453,10 +453,14 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-016b: mcp install wrapper command 🔒 PULLED FORWARD TO A1 (current release)
 
-- **Status:** Ready (pulled forward 2026-04-26 — required by A1 RTAI Spike
-  Slice demo runbook prerequisites; the runbook's §1.4 install step calls
-  `anvil mcp install --client cursor|claude-code` directly, so this wrapper
-  must ship in the locked release alongside RCLI3-016.)
+- **Status:** Complete (shipped 2026-04-28 under RMCP-007 — commit
+  `79da411d feat(rmcp): add mcp install wrapper`. The wrapper landed in
+  `crates/anvil-cli/src/commands/mcp.rs` with `--client cursor|claude-code`,
+  `--verify`, `--command` override, and `--workspace` override; idempotency
+  and drift-rewrite are covered by the integration suite at
+  `crates/anvil-cli/tests/mcp_config.rs` (`mcp_install_*`). RMCP-007 also
+  closed the runbook follow-up gaps #1194 (`--command` override + `--verify`
+  semantics) and #1195 (Claude Code client config path).)
 - **Intent:** Provide a single-command MCP install / wire-up wrapper around
   `anvil mcp-config`. `anvil mcp install --client <cursor|claude-code>`
   detects the client config path, generates the correct config entry, writes
