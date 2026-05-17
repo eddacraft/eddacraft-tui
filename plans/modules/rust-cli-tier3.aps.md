@@ -11,7 +11,7 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI3 | —     | In Progress | 3/20     |
+| RCLI3 | —     | In Progress | 4/20     |
 
 **Last reviewed:** 2026-05-17
 
@@ -143,11 +143,16 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-001: edda list command
 
-- **Status:** In Progress (2026-05-17 — branch
-  `feat/rcli3-001-edda-list`. Porting the historical Node.js
-  `anvil edda list` to Rust against the same `.anvil/edda/` YAML
-  shape edda-stack's `MemoryStore` writes, with `--type`, `--status`,
-  `--confidence`, `--since`, `--limit`, `--json` filters.)
+- **Status:** Merged (2026-05-17 — PR #1664, merge commit
+  `b47360d0`. Ported the historical Node.js `anvil edda list` to Rust
+  in `crates/anvil-cli/src/commands/edda.rs` with `--type`/`--status`/
+  `--confidence`/`--since`/`--limit`/`--json` filters, matching the
+  legacy JSON envelope shape (`storage_found`, `total`, `limit`,
+  `has_more`, `filters`, `memories`). 5 integration tests +
+  5 unit tests cover the storage-missing envelope, default-active
+  filter, CSV `--type`, pagination, table headers, and parser edges.
+  Cleanup agent will advance to Released/Shipped once a tagged
+  release records the commit.)
 - **Intent:** Port `anvil edda list`. Query active, superseded, and retired
   memories with multi-criteria filtering: `--type` (observation, decision,
   convention, constraint), `--status` (active, superseded, retired),
