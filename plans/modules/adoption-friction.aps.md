@@ -15,8 +15,9 @@ Progress: **3/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
 2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
 `docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
 enforcement completed 2026-05-16; ADOPT-004 shared ignore policy merged
-2026-05-16 via PR #1658. Module status is `In Progress`; ADOPT-003 is the
-remaining in-flight Wave 3A item while ADOPT-006 remains draft.)
+2026-05-16 via PR #1658. Module status is `In Progress`; ADOPT-003 and
+ADOPT-006 (promoted In Progress 2026-05-17 under urgent authorisation) are
+the remaining in-flight Wave 3A items.)
 
 ## Purpose
 
@@ -294,7 +295,14 @@ disables any check, suppresses without resolution, or bypasses a hook.
 - **Validation:**
   - CI: `editor-coexistence` workflow green on candidate SHA
   - Manual: each combination spot-checked in Boring Week
-- **Status:** Draft
+- **Status:** In Progress
+- **Picked up:** 2026-05-17 (urgent-authorised by @aneki via `/goal`;
+  promoted from Draft → In Progress per `plans/aps-rules.md` status rule 1.
+  Initial slice on `feat/adopt-006-editor-coexistence`: matrix policy doc,
+  language-server coexistence harness with rust-analyzer / tsserver /
+  pyright fixtures, and Linux CI workflow. Desktop editor cells
+  (VS Code, Cursor, JetBrains IDEA, Neovim) remain Boring Week manual per
+  the task validation note.)
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor

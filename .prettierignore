@@ -31,3 +31,7 @@ ACKNOWLEDGEMENTS.md
 # workspace-hack Cargo.toml is generated and rewritten by cargo-hakari;
 # oxfmt and hakari disagree on TOML style. Hakari owns this file.
 crates/workspace-hack/Cargo.toml
+# Editor-coexistence harness fixtures (ADOPT-006) are isolated workspaces
+# checked by the harness itself — they each carry their own prettier /
+# eslint / ruff configs.
+tools/test-harness/editor-coexistence/fixtures/
