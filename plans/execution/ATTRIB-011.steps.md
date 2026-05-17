@@ -45,14 +45,27 @@ the kit.
     `tools/starters/acknowledgements/**` and the workflow file itself;
     `workflow_dispatch` for manual re-sync.
   - Steps:
-    1. `actions/checkout@v4` with `fetch-depth: 0` (subtree split needs full
-       history).
-    2. Configure SSH using `MIRROR_DEPLOY_KEY` secret.
-    3. Swap `MIRROR-README.md` → `README.md` inside the subdir on a temp
-       branch (commit so the split picks it up).
-    4. `git subtree split --prefix=tools/starters/acknowledgements -b _mirror_split`.
-    5. `git push --force git@github.com:eddacraft/acknowledgements-starter.git _mirror_split:main`.
+    1. **Ref guard** — refuse to run unless `GITHUB_REF == refs/heads/main`,
+       so `workflow_dispatch` from a feature branch or tag can't silently
+       force-push the wrong tree.
+    2. `actions/checkout@v4` with `fetch-depth: 0` (subtree split needs full
+       history) and `persist-credentials: false` (the in-tree
+       `GITHUB_TOKEN` isn't used; mirror auth is its own secret).
+    3. Sanity-check the `MIRROR_PUSH_TOKEN` secret is non-empty (fail-fast
+       with an actionable error if the operator forgot Action 3).
+    4. Swap `MIRROR-README.md` → `README.md` inside the subdir on a
+       throwaway commit (commit so the split picks it up). If the workflow
+       was `workflow_dispatch`ed with a reason, include it in the throwaway
+       commit message and the GitHub step summary.
+    5. `git subtree split --prefix=tools/starters/acknowledgements -b _mirror_split`.
+    6. `git push --force https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/eddacraft/acknowledgements-starter.git _mirror_split:main`.
+  - Top-level `permissions: contents: read` keeps the default
+    `GITHUB_TOKEN` least-privileged — all writes leave via the mirror PAT.
   - Concurrency group: cancel-in-progress so rapid pushes coalesce.
+  - Workflow contract: add an entry to the Workflow Contract Map in
+    `.github/workflows/README.md` (auxiliary contract; the mirror is
+    outside the five core PR/Integration/Assurance/RC/Publish contracts).
+    `scripts/ci/workflow-contracts.test.sh` enforces this.
 - **Checkpoint:** Workflow lints clean (`actionlint` if available); dry-run
   on a feature branch with `workflow_dispatch` produces the expected split.
 

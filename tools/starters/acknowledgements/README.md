@@ -296,9 +296,9 @@ Absolute paths are also accepted.
 
 ## Future evolution
 
-The kit currently covers a single Rust block. The roadmap, tracked in
-the upstream Anvil project's `attribution-pipeline-v3` APS module, plans
-multi-block markers (ATTRIB-008) for additional ecosystems
+The kit currently covers a single Rust block. The roadmap, tracked in the
+upstream Anvil project's `attribution-pipeline-v3` APS module, plans multi-block
+markers (ATTRIB-008) for additional ecosystems
 (`<!-- BEGIN AUTO-GENERATED rust -->`, `<!-- BEGIN AUTO-GENERATED binaries -->`,
 ...). The marker-count gate is per-marker-text, so adding new blocks is additive
 — existing single-block consumers don't need to change anything.

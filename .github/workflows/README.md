@@ -32,25 +32,26 @@ appear here, and every backtick-quoted workflow name in this file must
 correspond to a file on disk. The `scripts/ci/workflow-contracts.test.sh`
 fixture enforces both directions.
 
-| Workflow                     | Contract              | Trigger surface                                                                                                                                                                       | Owner module |
-| ---------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `ci.yml`                     | PR + Integration      | `pull_request` to `main` / `push` to `main` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke                                                                     | CICD         |
-| `rust.yml`                   | PR + Integration      | `pull_request` to `main` / `push` to `main`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`                                                                             | CICD         |
-| `security.yml`               | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule` and `workflow_dispatch`                                                                                            | CICD         |
-| `codeql.yml`                 | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule`                                                                                                                    | CICD         |
-| `napi.yml`                   | Integration + Publish | `pull_request` / `push` to `main` (napi paths) plus `napi-v*` tags                                                                                                                    | CICD         |
-| `infra.yml`                  | PR + Integration      | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply                                                                         | CICD         |
-| `release-harness.yml`        | PR + Integration      | `pull_request` / `push` to `main` (release-script paths) plus `workflow_dispatch` — release-command contract                                                                          | RELORCH      |
-| `bench.yml`                  | Integration           | `push` to `main` (release-gate) plus `workflow_dispatch`                                                                                                                              | CICD         |
-| `resource-budget.yml`        | PR + Integration      | `pull_request` / `push` to `main` (crate and resource-budget policy paths) plus `workflow_dispatch`                                                                                   | ADOPT        |
-| `bench-nightly.yml`          | Assurance             | `schedule` plus `workflow_dispatch`                                                                                                                                                   | CICD         |
-| `ci-nightly.yml`             | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node                                                                   | CICD         |
-| `ci-cost-report.yml`         | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                       | CICD         |
-| `release-readiness.yml`      | Release candidate     | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials                                                                          | RELORCH      |
-| `release.yml`                | Publish               | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification                                                                            | RELORCH      |
-| `release-sign-artefacts.yml` | Publish               | `release: published` plus `workflow_dispatch` — signs `*-installer.{sh,ps1}` with minisign, uploads `.minisig` back                                                                   | DISTRIB      |
-| `homebrew-bump.yml`          | Publish               | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke | DISTRIB      |
-| `labeler.yml`                | Auxiliary (PR labels) | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                       | CICD         |
+| Workflow                              | Contract              | Trigger surface                                                                                                                                                                       | Owner module |
+| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `ci.yml`                              | PR + Integration      | `pull_request` to `main` / `push` to `main` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke                                                                     | CICD         |
+| `rust.yml`                            | PR + Integration      | `pull_request` to `main` / `push` to `main`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`                                                                             | CICD         |
+| `security.yml`                        | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule` and `workflow_dispatch`                                                                                            | CICD         |
+| `codeql.yml`                          | PR + Integration      | `pull_request` to `main` / `push` to `main` plus weekly `schedule`                                                                                                                    | CICD         |
+| `napi.yml`                            | Integration + Publish | `pull_request` / `push` to `main` (napi paths) plus `napi-v*` tags                                                                                                                    | CICD         |
+| `infra.yml`                           | PR + Integration      | `pull_request` (any base, path-filtered) plus `push` to `main` and `workflow_dispatch` — Pulumi preview/apply                                                                         | CICD         |
+| `release-harness.yml`                 | PR + Integration      | `pull_request` / `push` to `main` (release-script paths) plus `workflow_dispatch` — release-command contract                                                                          | RELORCH      |
+| `bench.yml`                           | Integration           | `push` to `main` (release-gate) plus `workflow_dispatch`                                                                                                                              | CICD         |
+| `resource-budget.yml`                 | PR + Integration      | `pull_request` / `push` to `main` (crate and resource-budget policy paths) plus `workflow_dispatch`                                                                                   | ADOPT        |
+| `bench-nightly.yml`                   | Assurance             | `schedule` plus `workflow_dispatch`                                                                                                                                                   | CICD         |
+| `ci-nightly.yml`                      | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node                                                                   | CICD         |
+| `ci-cost-report.yml`                  | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                       | CICD         |
+| `release-readiness.yml`               | Release candidate     | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials                                                                          | RELORCH      |
+| `release.yml`                         | Publish               | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification                                                                            | RELORCH      |
+| `release-sign-artefacts.yml`          | Publish               | `release: published` plus `workflow_dispatch` — signs `*-installer.{sh,ps1}` with minisign, uploads `.minisig` back                                                                   | DISTRIB      |
+| `homebrew-bump.yml`                   | Publish               | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke | DISTRIB      |
+| `labeler.yml`                         | Auxiliary (PR labels) | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                       | CICD         |
+| `mirror-acknowledgements-starter.yml` | Auxiliary (mirror)    | `push` to `main` (kit + workflow paths) plus `workflow_dispatch` — `git subtree split` + force-push to public `eddacraft/acknowledgements-starter` mirror                             | ATTRIB       |
 
 ### PR vs Integration push contract
 
@@ -217,6 +218,19 @@ DISTRIB-003.
 ### `labeler.yml`
 
 Auto-labels PRs based on path filters.
+
+### `mirror-acknowledgements-starter.yml`
+
+ATTRIB-011. Mirrors `tools/starters/acknowledgements/` to its public sibling
+repo `eddacraft/acknowledgements-starter`. Triggers on `push` to `main` when the
+kit directory or this workflow file changes, plus `workflow_dispatch` for manual
+force-resync. A ref-guard step refuses to run on anything other than
+`refs/heads/main`. Authenticates via `MIRROR_PUSH_TOKEN` (fine-grained PAT
+scoped to the mirror repo, `Contents: Read and write`); deploy keys are disabled
+at the eddacraft org level. The mirror repo is read-only by policy — canonical
+edits land here, the workflow force-pushes the subtree split. See
+`plans/modules/attribution-pipeline-v3.aps.md` (ATTRIB-011) and
+`plans/execution/ATTRIB-011.steps.md`.
 
 ## Local testing
 

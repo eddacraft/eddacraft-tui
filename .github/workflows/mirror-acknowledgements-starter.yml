@@ -39,12 +39,29 @@ concurrency:
   group: mirror-acknowledgements-starter
   cancel-in-progress: true
 
+# Least-privilege GITHUB_TOKEN: this workflow does not touch the anvil-001
+# repo's GitHub state — all writes go to the mirror via MIRROR_PUSH_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   mirror:
     name: Force-push subtree to eddacraft/acknowledgements-starter
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # workflow_dispatch runs on whatever ref the operator selects in the UI.
+      # The mirror is documented as tracking canonical `main`; reject any
+      # other ref so a stray dispatch from a feature branch / tag can't
+      # silently force-push the wrong tree to the public repo.
+      - name: Guard — only mirror from refs/heads/main
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::mirror workflow refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed)"
+            exit 1
+          fi
+
       - name: Checkout (full history — subtree split needs it)
         uses: actions/checkout@v4
         with:
@@ -66,6 +83,8 @@ jobs:
           fi
 
       - name: Swap MIRROR-README onto README (on a throwaway commit)
+        env:
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
         run: |
           set -euo pipefail
           KIT_DIR=tools/starters/acknowledgements
@@ -78,8 +97,11 @@ jobs:
           mv "${tmp}" "${KIT_DIR}/README.md"
           rm "${KIT_DIR}/MIRROR-README.md"
           git add "${KIT_DIR}/README.md" "${KIT_DIR}/MIRROR-README.md"
-          git commit -m 'chore(mirror): prepend public README header [skip ci]' \
-            --allow-empty
+          msg='chore(mirror): prepend public README header [skip ci]'
+          if [ -n "${DISPATCH_REASON:-}" ]; then
+            msg=$(printf '%s\n\nmanual dispatch reason: %s\n' "${msg}" "${DISPATCH_REASON}")
+          fi
+          git commit -m "${msg}" --allow-empty
 
       - name: Subtree split
         run: |
@@ -99,6 +121,8 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
         run: |
           {
             echo '## Mirror result'
@@ -106,6 +130,9 @@ jobs:
             echo 'Source commit (anvil-001 main):    `'"${GITHUB_SHA}"'`'
             echo 'Mirror target:                     `eddacraft/acknowledgements-starter:main`'
             echo 'Trigger:                           `'"${GITHUB_EVENT_NAME}"'`'
+            if [ -n "${DISPATCH_REASON:-}" ]; then
+              echo 'Dispatch reason:                   `'"${DISPATCH_REASON}"'`'
+            fi
             echo
             echo 'Verify with:'
             echo
