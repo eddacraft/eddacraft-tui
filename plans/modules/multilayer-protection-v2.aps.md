@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 50/76 done |
+| MLP2 | @aneki | In Progress | 51/76 done |
 
 **Last reviewed:** 2026-05-17 (MLP2-051 re-spec on branch
 `chore/aps-mlp2-051-respec` — split into MLP2-051 umbrella +
@@ -1243,7 +1243,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025b: Daemon control-lane wire-up for spoof cross-check
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1603, 2026-05-16)
 - **Contract spec:** `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md` (Accepted via PR #1599). All four blockers and six open questions resolved in the spec; implementation follows §3–§9 verbatim.
 - **Intent:** Wire the MLP2-025 Phase 1 primitives into the
   daemon's live write-time decision path so the spoof
@@ -3322,7 +3322,7 @@ to redesign once GV2-001..-023 land.
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 6/7 |
-| D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 2/6 |
+| D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 3/6 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
@@ -3334,7 +3334,7 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **50/76** |
+| **Total** | **76** | **51/76** |
 
 ## Recommended landing order
 
