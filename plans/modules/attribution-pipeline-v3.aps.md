@@ -293,10 +293,11 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-011: Mirror starter kit to a public sibling repo
 
-- **Status:** Pending
+- **Status:** In Progress
 - **Intent:** Make the kit usable from public projects (the Anvil VS Code extension, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
 - **Expected Outcome:** New public repo (proposed: `eddacraft/acknowledgements-starter`) mirrors `tools/starters/acknowledgements/` with a one-shot or scheduled mirror job. Public repo carries its own README pointing at this module for design history.
 - **Validation:** Public repo exists; mirror job succeeds; one external project (anvil VS Code extension) consumes it.
+- **Execution plan:** `plans/execution/ATTRIB-011.steps.md` (kicked off 2026-05-17 on `feat/attrib-011-public-mirror`).
 
 ## Risks
 

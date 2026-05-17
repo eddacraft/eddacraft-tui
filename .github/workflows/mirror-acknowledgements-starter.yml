@@ -1,0 +1,114 @@
+# Mirror the acknowledgements starter kit to its public sibling repo.
+#
+# ATTRIB-011. The canonical source lives at
+# `tools/starters/acknowledgements/` in this (private) repository. This
+# workflow extracts that subdirectory as its own repo via `git subtree
+# split` and force-pushes it to `eddacraft/acknowledgements-starter:main`.
+#
+# Pre-push transformation:
+#   - `MIRROR-README.md` is prepended onto `README.md` so the public repo
+#     reads with a "this is a mirror" banner and a real subtree-add URL
+#     up front. The MIRROR-README file itself is then removed.
+#
+# The mirror is read-only by policy: contributions go upstream to anvil.
+# Force-push every run keeps that contract simple — no merge surface.
+#
+# Auth: deploy key on the mirror repo, private half in repo secret
+# `MIRROR_DEPLOY_KEY`. Public half lives on the mirror repo's
+# Settings → Deploy keys (read+write).
+#
+# See plans/execution/ATTRIB-011.steps.md for the design.
+
+name: Mirror — acknowledgements starter kit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/starters/acknowledgements/**'
+      - '.github/workflows/mirror-acknowledgements-starter.yml'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you force-resyncing? (logged on the mirror commit)'
+        required: false
+        default: 'manual resync'
+
+concurrency:
+  group: mirror-acknowledgements-starter
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    name: Force-push subtree to eddacraft/acknowledgements-starter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history — subtree split needs it)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name  'anvil-mirror-bot'
+          git config --global user.email 'anvil-mirror-bot@users.noreply.github.com'
+
+      - name: Configure SSH for mirror push
+        env:
+          MIRROR_DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
+        run: |
+          if [ -z "${MIRROR_DEPLOY_KEY}" ]; then
+            echo '::error::secret MIRROR_DEPLOY_KEY is empty — wire the deploy key before re-running'
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${MIRROR_DEPLOY_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Swap MIRROR-README onto README (on a throwaway commit)
+        run: |
+          set -euo pipefail
+          KIT_DIR=tools/starters/acknowledgements
+          if [ ! -f "${KIT_DIR}/MIRROR-README.md" ]; then
+            echo "::error::${KIT_DIR}/MIRROR-README.md missing — the public framing header is required"
+            exit 1
+          fi
+          tmp="$(mktemp)"
+          cat "${KIT_DIR}/MIRROR-README.md" "${KIT_DIR}/README.md" > "${tmp}"
+          mv "${tmp}" "${KIT_DIR}/README.md"
+          rm "${KIT_DIR}/MIRROR-README.md"
+          git add "${KIT_DIR}/README.md" "${KIT_DIR}/MIRROR-README.md"
+          git commit -m 'chore(mirror): prepend public README header [skip ci]' \
+            --allow-empty
+
+      - name: Subtree split
+        run: |
+          set -euo pipefail
+          git subtree split \
+            --prefix=tools/starters/acknowledgements \
+            -b _mirror_split
+
+      - name: Force-push to mirror repo
+        run: |
+          set -euo pipefail
+          git push --force \
+            git@github.com:eddacraft/acknowledgements-starter.git \
+            _mirror_split:main
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '## Mirror result'
+            echo
+            echo 'Source commit (anvil-001 main):    `'"${GITHUB_SHA}"'`'
+            echo 'Mirror target:                     `eddacraft/acknowledgements-starter:main`'
+            echo 'Trigger:                           `'"${GITHUB_EVENT_NAME}"'`'
+            echo
+            echo 'Verify with:'
+            echo
+            echo '    gh api repos/eddacraft/acknowledgements-starter/commits/main --jq .sha'
+          } >> "${GITHUB_STEP_SUMMARY}"
