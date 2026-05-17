@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+};
 
 use anvil_witness::{WitnessLine, witness_paths};
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
@@ -21,12 +24,14 @@ pub struct WeeklyInsights {
 }
 
 pub fn weekly_summary(repo_root: &Path, now: DateTime<Utc>) -> anyhow::Result<WeeklyInsights> {
+    let now = truncate_to_seconds(now);
     let window_start = now - Duration::days(7);
     let mut witness_events_observed = 0_u64;
 
     for path in witness_paths(repo_root) {
-        let contents = std::fs::read_to_string(&path)?;
-        for raw in contents.lines() {
+        let file = std::fs::File::open(&path)?;
+        for raw in BufReader::new(file).lines() {
+            let raw = raw?;
             let line = raw.trim();
             if line.is_empty() {
                 continue;
@@ -60,4 +65,8 @@ pub fn weekly_summary(repo_root: &Path, now: DateTime<Utc>) -> anyhow::Result<We
 
 fn format_utc(ts: DateTime<Utc>) -> String {
     ts.to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+fn truncate_to_seconds(ts: DateTime<Utc>) -> DateTime<Utc> {
+    DateTime::from_timestamp(ts.timestamp(), 0).expect("valid UTC timestamp")
 }

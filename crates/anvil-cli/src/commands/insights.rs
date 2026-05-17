@@ -1,19 +1,13 @@
-use std::path::{Path, PathBuf};
-
 use chrono::Utc;
 use clap::Args;
 
-use crate::{GlobalArgs, insights::aggregator};
+use crate::{GlobalArgs, insights::aggregator, util};
 
 #[derive(Debug, Args)]
-pub struct InsightsArgs {
-    /// Show the default seven-day weekly summary.
-    #[arg(long)]
-    pub week: bool,
-}
+pub struct InsightsArgs {}
 
 pub fn run(_args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    let root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
+    let root = util::workspace_root()?;
     let summary = aggregator::weekly_summary(&root, Utc::now())?;
     if global.json {
         println!("{}", serde_json::to_string_pretty(&summary)?);
@@ -36,22 +30,6 @@ fn print_plain(summary: &aggregator::WeeklyInsights) {
     println!("Suppressions resolved: {}", summary.suppressions_resolved);
     println!("Baseline edges added: {}", summary.baseline_edges_added);
     println!("Daemon uptime: {}%", summary.daemon_uptime_percentage);
-}
-
-fn resolve_repo_root() -> Option<PathBuf> {
-    let out = std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let path = String::from_utf8(out.stdout).ok()?;
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    Some(PathBuf::from(trimmed))
 }
 
 #[cfg(test)]
