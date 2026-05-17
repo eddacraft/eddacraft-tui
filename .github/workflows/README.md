@@ -43,6 +43,7 @@ fixture enforces both directions.
 | `release-harness.yml`                 | PR + Integration      | `pull_request` / `push` to `main` (release-script paths) plus `workflow_dispatch` — release-command contract                                                                          | RELORCH      |
 | `bench.yml`                           | Integration           | `push` to `main` (release-gate) plus `workflow_dispatch`                                                                                                                              | CICD         |
 | `resource-budget.yml`                 | PR + Integration      | `pull_request` / `push` to `main` (crate and resource-budget policy paths) plus `workflow_dispatch`                                                                                   | ADOPT        |
+| `editor-coexistence.yml`              | PR + Integration      | `pull_request` / `push` to `main` (anvil-cli/kernel/hook paths, harness, policy doc) plus `workflow_dispatch` — ADOPT-006 LSP/formatter coexistence gate                              | ADOPT        |
 | `bench-nightly.yml`                   | Assurance             | `schedule` plus `workflow_dispatch`                                                                                                                                                   | CICD         |
 | `ci-nightly.yml`                      | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node                                                                   | CICD         |
 | `ci-cost-report.yml`                  | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                       | CICD         |
@@ -177,6 +178,17 @@ ADOPT-002 resource-budget gate for `anvil watch`. Builds the release CLI, runs
 `cargo bench -p anvil-bench --bench watch_resource_budget`, uploads the JSON
 budget verdict, and fails when steady-state CPU or peak RSS exceeds the pinned
 budget in `docs/policies/resource-budget.md`.
+
+### `editor-coexistence.yml` — Editor Coexistence
+
+ADOPT-006 LSP / formatter coexistence gate. Builds the release CLI, installs
+`rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`, then
+runs `tools/test-harness/editor-coexistence/run-harness.sh` against minimal
+language fixtures while `anvil watch` runs concurrently. Uploads the JSON
+verdict and fails when a runner exits non-zero, lock-contention markers appear
+in either log, or the required-targets floor in
+`tools/test-harness/editor-coexistence/required-targets.txt` is not met. Matrix
+and verdict shape are documented in `docs/policies/editor-coexistence.md`.
 
 ### `ci-nightly.yml` — Scheduled assurance
 
