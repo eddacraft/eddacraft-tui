@@ -115,9 +115,17 @@ jobs:
           MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
         run: |
           set -euo pipefail
-          git push --force \
-            "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/eddacraft/acknowledgements-starter.git" \
-            _mirror_split:main
+          # Authenticate via an HTTP Basic header instead of embedding the
+          # token in the URL. The URL-embedded form is fragile: a single
+          # stray byte in the secret (trailing newline, control char) makes
+          # libcurl reject the entire URL with "Malformed input to a URL
+          # function" before it can even talk to GitHub. Sending an explicit
+          # Authorization header sidesteps URL parsing entirely.
+          basic=$(printf '%s' "x-access-token:${MIRROR_PUSH_TOKEN}" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
+              push --force \
+              https://github.com/eddacraft/acknowledgements-starter.git \
+              _mirror_split:main
 
       - name: Summary
         if: always()
