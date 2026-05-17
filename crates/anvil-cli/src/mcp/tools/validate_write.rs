@@ -1038,6 +1038,16 @@ mod tests {
             payload["diagnostics"][0]["location"]["file"],
             "src/secret.ts"
         );
+        // MLP2-051b: `FixtureDaemon` does not override
+        // `query_protection_claim` (the trait default returns
+        // `None`). Pin the absence here so any future regression
+        // that conjures a claim out of an unaware fixture is
+        // caught at the base test rather than only at the
+        // dedicated `FixtureDaemonWithClaim` tests below.
+        assert!(
+            payload.get("protection_claim").is_none(),
+            "FixtureDaemon returns None; claim must not appear, got: {payload}",
+        );
     }
 
     #[test]
@@ -1199,6 +1209,33 @@ mod tests {
         assert_eq!(daemon["correlation"]["daemonStatus"], "available");
         assert_eq!(daemon["decision"], embedded["decision"]);
         assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
+        // MLP2-051b: the second IPC round-trip ran against the live
+        // listener's default `NoopStatusProvider`, which returns an
+        // empty snapshot. The workspace path is not in `worktrees`,
+        // so `build_protection_claim_from_wire` yields the
+        // `unprotected` state with no surfaces. The point is to
+        // prove the field is *present* on the daemon-served
+        // response — the dedicated `mcp_protection_claim.rs`
+        // integration test exercises richer state combinations.
+        let claim = &daemon["protection_claim"];
+        assert!(
+            !claim.is_null(),
+            "daemon-served response must carry protection_claim, got: {daemon}",
+        );
+        assert_eq!(claim["worktree_state"], "unprotected");
+        assert!(
+            claim["surfaces"]
+                .as_array()
+                .expect("surfaces array")
+                .is_empty(),
+        );
+        // Embedded path must NOT carry the claim — pin the negative
+        // here too so a future regression that calls the daemon
+        // unconditionally is caught at the same surface.
+        assert!(
+            embedded.get("protection_claim").is_none(),
+            "embedded response must not carry protection_claim, got: {embedded}",
+        );
     }
 
     #[test]
