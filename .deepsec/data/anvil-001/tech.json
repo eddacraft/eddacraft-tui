@@ -1,0 +1,6 @@
+{
+  "tags": ["github-actions", "node", "rust"],
+  "sentinels": ["Cargo.toml", "package.json"],
+  "detectedAt": "2026-05-17T04:01:44.461Z",
+  "rootPath": "/home/aneki/Projects/src/anvil-001"
+}
