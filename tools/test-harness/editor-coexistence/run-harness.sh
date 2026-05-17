@@ -184,13 +184,27 @@ run_target() {
     present_count=$((present_count - 1))
   elif [[ "${target_exit}" -ne 0 ]]; then
     status="fail"
-    notes="target runner exited ${target_exit}; see ${target_log}"
+    local tail_excerpt
+    tail_excerpt="$(tail -c 600 "${target_log}" 2>/dev/null | tr '\n\r\t' '   ')"
+    notes="target runner exited ${target_exit}; tail: ${tail_excerpt}"
     failed=$((failed + 1))
   elif grep -qiE 'EBUSY|EAGAIN|file lock|resource temporarily unavailable|panicked' \
        "${anvil_log}" "${target_log}"; then
     status="fail"
     notes="lock-contention or panic detected in logs"
     failed=$((failed + 1))
+  fi
+
+  # Stream the per-target logs on stderr for CI visibility — they don't fit
+  # in the verdict JSON and the scratch dir is wiped immediately after.
+  if [[ "${status}" == "fail" ]]; then
+    {
+      echo "=== ${name} anvil watch log ==="
+      cat "${anvil_log}" 2>/dev/null || true
+      echo "=== ${name} target log ==="
+      cat "${target_log}" 2>/dev/null || true
+      echo "=== end ${name} ==="
+    } >&2
   fi
 
   emit_result "${name}" "${status}" "${duration_ms}" "${events}" "${target_exit}" "${notes}"
