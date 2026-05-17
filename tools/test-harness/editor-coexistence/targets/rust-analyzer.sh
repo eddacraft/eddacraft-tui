@@ -23,6 +23,14 @@ fi
 if ! command -v cargo >/dev/null 2>&1; then
   exit 200
 fi
+# `command -v` is satisfied by rustup's shim even when the actual
+# rust-analyzer component is not installed; the shim then errors with
+# `Unknown binary 'rust-analyzer' in official toolchain ...`. Treat that
+# as "not really present" so the harness records a skip rather than a
+# hard fail on a runner that hasn't installed the component.
+if ! rust-analyzer --version >/dev/null 2>&1; then
+  exit 200
+fi
 
 rust-analyzer --version
 cd "${target_dir}"

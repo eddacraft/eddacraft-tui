@@ -43,8 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
-        with:
-          components: rust-analyzer
+      - name: Install rust-analyzer component
+        # `components:` on setup-rust-toolchain has historically been a
+        # no-op when paired with the rustup-cached default toolchain on
+        # the GitHub-hosted runners; install explicitly so the rustup
+        # shim resolves to a real binary.
+        run: rustup component add rust-analyzer || true
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: rust-ci
