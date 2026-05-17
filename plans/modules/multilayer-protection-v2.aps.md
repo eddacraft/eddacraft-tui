@@ -2608,14 +2608,15 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051c: TS driver-client `ProtectionClaim` mirror + MCP response adapter
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Add `packages/anvil-driver-client/src/protection_claim/`
-  with a Zod schema mirroring
+  with a hand-rolled parser mirroring
   `crates/anvil-kernel-types/src/protection_claim.rs` (closed-set
   string unions for `WorktreeClaimState` + `SurfaceClaimState`,
   `ProtectionClaim` + `SurfaceClaim` structs). Wire it through
   the MCP response parser so consumers receive a typed claim
-  when the daemon supplied one.
+  when the daemon supplied one. Hand-rolled, no Zod dep — matches
+  the MLP2-029 AgentTag + MLP2-030 mid-edit mirror pattern.
 - **Expected Outcome:**
   - Hand-rolled `parseProtectionClaim` (no Zod dep unless
     elsewhere in this package — match the MLP2-029 pattern).
