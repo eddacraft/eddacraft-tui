@@ -13,9 +13,10 @@
 # The mirror is read-only by policy: contributions go upstream to anvil.
 # Force-push every run keeps that contract simple — no merge surface.
 #
-# Auth: deploy key on the mirror repo, private half in repo secret
-# `MIRROR_DEPLOY_KEY`. Public half lives on the mirror repo's
-# Settings → Deploy keys (read+write).
+# Auth: fine-grained PAT scoped to `eddacraft/acknowledgements-starter`
+# with `Contents: Read and write`, stored in the repo secret
+# `MIRROR_PUSH_TOKEN`. Deploy keys are disabled at the eddacraft org
+# level, so SSH is not an option; HTTPS + token is the supported path.
 #
 # See plans/execution/ATTRIB-011.steps.md for the design.
 
@@ -55,18 +56,14 @@ jobs:
           git config --global user.name  'anvil-mirror-bot'
           git config --global user.email 'anvil-mirror-bot@users.noreply.github.com'
 
-      - name: Configure SSH for mirror push
+      - name: Sanity-check mirror push token
         env:
-          MIRROR_DEPLOY_KEY: ${{ secrets.MIRROR_DEPLOY_KEY }}
+          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
         run: |
-          if [ -z "${MIRROR_DEPLOY_KEY}" ]; then
-            echo '::error::secret MIRROR_DEPLOY_KEY is empty — wire the deploy key before re-running'
+          if [ -z "${MIRROR_PUSH_TOKEN}" ]; then
+            echo '::error::secret MIRROR_PUSH_TOKEN is empty — wire the fine-grained PAT before re-running'
             exit 1
           fi
-          mkdir -p ~/.ssh
-          printf '%s\n' "${MIRROR_DEPLOY_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Swap MIRROR-README onto README (on a throwaway commit)
         run: |
@@ -92,10 +89,12 @@ jobs:
             -b _mirror_split
 
       - name: Force-push to mirror repo
+        env:
+          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
         run: |
           set -euo pipefail
           git push --force \
-            git@github.com:eddacraft/acknowledgements-starter.git \
+            "https://x-access-token:${MIRROR_PUSH_TOKEN}@github.com/eddacraft/acknowledgements-starter.git" \
             _mirror_split:main
 
       - name: Summary

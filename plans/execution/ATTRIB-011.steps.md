@@ -19,7 +19,7 @@ the kit.
 | Visibility | Public | Whole point of ATTRIB-011 — unblock public consumers. |
 | Mirror mechanism | Scheduled-on-change `git subtree split` → force-push to mirror `main` | One-shot is brittle; subtree split is the canonical Git primitive; no third-party action dependency. |
 | Trigger | `push` to `main` with path filter `tools/starters/acknowledgements/**`, plus `workflow_dispatch` | Avoid running on every unrelated push; manual override available for forced re-sync. |
-| Auth | Deploy key on the mirror repo, private half in `MIRROR_DEPLOY_KEY` secret on anvil-001 | PAT would tie the mirror to a user account; deploy key is scoped to the one repo. |
+| Auth | Fine-grained PAT scoped to `eddacraft/acknowledgements-starter` (`Contents: Read and write`), stashed in `mirror-push-token` in agent-vault, mirrored into the `MIRROR_PUSH_TOKEN` repo secret on anvil-001 | **Deploy keys are disabled at the eddacraft org level** (HTTP 422 on `POST /repos/.../keys` confirmed 2026-05-17). PAT is the supported path; scope to one repo + minimum permissions keeps blast radius tight. Revisit with a GitHub App if more mirrors arrive. |
 | Public README sourcing | Separate `MIRROR-README.md` inside the kit, swapped to `README.md` during the split | In-tree README is anvil-internal-flavoured (`git subtree add` examples from anvil-001); public consumers need standalone framing. |
 | Divergence policy | Force-push, no merge | Mirror is downstream-only; PRs against the mirror are explicitly rejected via README + (later) issue template. |
 
@@ -56,17 +56,24 @@ the kit.
 - **Checkpoint:** Workflow lints clean (`actionlint` if available); dry-run
   on a feature branch with `workflow_dispatch` produces the expected split.
 
-### 3. Create the public repo (operator step — surfaces in PR)
+### 3. Create the public repo + wire auth (operator step — surfaces in PR)
 
-- **Purpose:** Provision `eddacraft/acknowledgements-starter` empty.
-  Externally visible action; left to the operator rather than performed
-  autonomously.
+- **Purpose:** Provision `eddacraft/acknowledgements-starter` empty and
+  give the mirror workflow push credentials. Externally visible action;
+  left to the operator rather than performed autonomously.
 - **Produces:** Public repo with no initial README/licence (mirror push
-  will populate). Deploy key created with **write** access; public half
-  committed nowhere, private half pasted into anvil-001 secret
-  `MIRROR_DEPLOY_KEY`.
-- **Checkpoint:** `gh repo view eddacraft/acknowledgements-starter` succeeds;
-  Settings → Deploy keys shows one key with write access.
+  will populate). Fine-grained PAT created via
+  <https://github.com/settings/personal-access-tokens/new> with:
+  - Resource owner: `eddacraft`
+  - Repository access: only `acknowledgements-starter`
+  - Permissions → Repository → Contents: Read and write
+  - Expiry: pick a horizon (90/180 days) and add a renewal reminder.
+
+  Private half stashed in agent-vault under `mirror-push-token` and
+  mirrored into the anvil-001 repo secret `MIRROR_PUSH_TOKEN`.
+- **Checkpoint:** `gh repo view eddacraft/acknowledgements-starter`
+  succeeds; `gh secret list --repo eddacraft/anvil | grep MIRROR_PUSH_TOKEN`
+  finds the secret.
 
 ### 4. First mirror run
 
@@ -110,6 +117,6 @@ the kit.
 | Risk | Impact | Mitigation |
 | ---- | ------ | ---------- |
 | Force-push wipes the public repo if someone commits there directly | Medium | README states "mirror, do not PR here"; later: add `BRANCH_PROTECTION` script disabling direct pushes |
-| Deploy-key compromise leaks write to the mirror only (not anvil-001) | Low | Scope is exactly one public repo; key rotation is `gh repo deploy-key delete + add`, no impact to private code |
+| PAT compromise leaks write to the mirror only (not anvil-001) | Low | Fine-grained PAT scoped to exactly one repo, `Contents: write` only; rotation is regenerate-on-github + `gh secret set MIRROR_PUSH_TOKEN`. Set an expiry + calendar reminder. |
 | Subtree split history diverges between runs of the workflow | Low | Force-push every time; mirror history is intentionally not stable |
 | Public README references private paths by accident | Low | Action 1 owns the swap; Action 4 visually verifies the first run |
