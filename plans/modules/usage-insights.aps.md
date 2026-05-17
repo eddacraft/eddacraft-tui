@@ -1,18 +1,17 @@
 # Usage Insights
 
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | Ready  | 0/4 done |
+| INSIGHTS | @aneki | In Progress | 1/4 done |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Module-level `Ready` means "ready to begin Wave 4"; individual tasks
-remain `Draft` until picked up. INSIGHTS-001 is load-bearing; the
-other three extend its data path. All data stays local-only — no
-telemetry on this module.)
+Module-level `In Progress` means Wave 4 work has started. INSIGHTS-001
+is load-bearing; the other three extend its data path. All data stays
+local-only — no telemetry on this module.)
 
 ## Purpose
 
@@ -55,7 +54,7 @@ number visible to the user, not just to a future post-release survey.
 - **Depends on:**
   - `crates/anvil-witness/*` (witness lines as the canonical event source)
   - `crates/anvil-baseline/*` (baseline-add events and drift counters)
-  - `crates/anvil-hook/src/suppression_log.rs` (from MLP-003)
+  - `crates/anvil-hook/src/suppression.rs` (current in-memory suppression surface)
   - `crates/anvil-cli/src/commands/`
 - **Exposes:**
   - `anvil insights` top-level command with `--week`, `--suppressions`,
@@ -82,7 +81,13 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::insights::tests::weekly_summary_matches_fixture`
   - `cargo test -p eddacraft-anvil commands::insights::tests::derives_from_witness_chain`
-- **Status:** Draft
+- **Status:** Done
+- **Done:** 2026-05-17 — `anvil insights` and `--json` emit the pinned
+  `anvil.insights.v1` weekly summary from the witness chain. The v1 schema
+  reports `witness_events_observed` separately so hook/commit evidence is not
+  mislabelled as save-time observations. Counters without durable event sources
+  in the current codebase are present and zero-filled for v1; INSIGHTS-002/-003/-004
+  extend the data path.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor

@@ -19,6 +19,7 @@ pub mod gate_config;
 pub mod hook;
 pub mod hooks;
 pub mod init;
+pub mod insights;
 pub mod intercept;
 pub mod l4_validate;
 pub mod licenses;

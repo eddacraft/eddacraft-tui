@@ -5,6 +5,7 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod feature_flags;
+mod insights;
 mod l4_engine;
 mod mcp;
 mod output;
@@ -142,6 +143,8 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Show local-only weekly activity insights.
+    Insights(commands::insights::InsightsArgs),
     /// MLP2-040 — migrate a legacy `.anvilrc` to the multi-format
     /// `.anvil.<ext>` surface from MLP-011. Existing `.anvilrc` projects
     /// keep working through gate's fallback; this command is the one-shot
@@ -231,6 +234,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Insights(_) => "insights",
         Commands::Migrate(_) => "migrate",
         Commands::Intercept(_) => "intercept",
         Commands::L4Validate(_) => "l4-validate",
@@ -772,6 +776,7 @@ fn main() -> ExitCode {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::Insights(args) => commands::insights::run(args, &cli.global),
         Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::L4Validate(args) => commands::l4_validate::run(args, &cli.global),
@@ -981,6 +986,14 @@ mod tests {
     #[test]
     fn bypass_auth_licenses() {
         assert!(!requires_auth(&parse_command(&["licenses"])));
+    }
+
+    #[test]
+    fn bypass_auth_insights() {
+        // INSIGHTS-001 is explicitly local-only and reads only in-repo
+        // witness evidence, so users can check value signals without
+        // a network/auth dependency.
+        assert!(!requires_auth(&parse_command(&["insights"])));
     }
 
     #[test]
