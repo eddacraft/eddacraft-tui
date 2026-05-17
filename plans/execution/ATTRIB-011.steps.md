@@ -19,7 +19,7 @@ the kit.
 | Visibility | Public | Whole point of ATTRIB-011 — unblock public consumers. |
 | Mirror mechanism | Scheduled-on-change `git subtree split` → force-push to mirror `main` | One-shot is brittle; subtree split is the canonical Git primitive; no third-party action dependency. |
 | Trigger | `push` to `main` with path filter `tools/starters/acknowledgements/**`, plus `workflow_dispatch` | Avoid running on every unrelated push; manual override available for forced re-sync. |
-| Auth | Fine-grained PAT scoped to `eddacraft/acknowledgements-starter` (`Contents: Read and write`), stashed in `mirror-push-token` in agent-vault, mirrored into the `MIRROR_PUSH_TOKEN` repo secret on anvil-001 | **Deploy keys are disabled at the eddacraft org level** (HTTP 422 on `POST /repos/.../keys` confirmed 2026-05-17). PAT is the supported path; scope to one repo + minimum permissions keeps blast radius tight. Revisit with a GitHub App if more mirrors arrive. |
+| Auth | Fine-grained PAT scoped to `eddacraft/acknowledgements-starter` (`Contents: Read and write`), stashed in `mirror-push-token` in agent-vault, mirrored into the `MIRROR_PUSH_TOKEN` repo secret on `eddacraft/anvil-001` | **Deploy keys are disabled at the eddacraft org level** (HTTP 422 on `POST /repos/.../keys` confirmed 2026-05-17). PAT is the supported path; scope to one repo + minimum permissions keeps blast radius tight. Revisit with a GitHub App if more mirrors arrive. |
 | Public README sourcing | Separate `MIRROR-README.md` inside the kit, swapped to `README.md` during the split | In-tree README is anvil-internal-flavoured (`git subtree add` examples from anvil-001); public consumers need standalone framing. |
 | Divergence policy | Force-push, no merge | Mirror is downstream-only; PRs against the mirror are explicitly rejected via README + (later) issue template. |
 
@@ -72,7 +72,7 @@ the kit.
   Private half stashed in agent-vault under `mirror-push-token` and
   mirrored into the anvil-001 repo secret `MIRROR_PUSH_TOKEN`.
 - **Checkpoint:** `gh repo view eddacraft/acknowledgements-starter`
-  succeeds; `gh secret list --repo eddacraft/anvil | grep MIRROR_PUSH_TOKEN`
+  succeeds; `gh secret list --repo eddacraft/anvil-001 | grep MIRROR_PUSH_TOKEN`
   finds the secret.
 
 ### 4. First mirror run
