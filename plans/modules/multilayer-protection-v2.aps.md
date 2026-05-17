@@ -2,16 +2,29 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 52/76 done |
+| MLP2 | @aneki | In Progress | 53/76 done |
 
-**Last reviewed:** 2026-05-17 (MLP2-051 re-spec on branch
-`chore/aps-mlp2-051-respec` — split into MLP2-051 umbrella +
-051a..051e sub-tasks after a 2026-05-17 audit showed only
-`anvil status` renders a `ProtectionClaim` today; the other four
-target surfaces — `anvil doctor`, MCP shim, TS driver-client, GH
-Action — emit no claim and need additive rendering rather than
-string-to-typed migration. Total count goes 71 → 76 with no
-done-count change. MLP2-048 closed 2026-05-16 via PR #1625 at
+**Last reviewed:** 2026-05-17 (MLP2-026 closed via PR #1624 at
+`5e3798da` — `degraded:fence-cascade` mode ships persisted
+`CascadeRecord` state in `FenceFile`, `RateWindow::new(4, 60s)`
+on `FenceStore`, `WorktreeStatus`/`WorktreeStatusV1` `cascaded`
++ `cascade_since` fields, registry-side `WorktreeCascaded`
+refusal under documented cascade-before-registry lock ordering,
+`IpcCommand::UnblockCascade { worktree, operator }` with
+daemon-derived `OperatorContext`, and the
+`anvil intercept unblock --acknowledge-cascade <worktree>` CLI
+affordance — implementation follows
+`plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md`
+§3–§9 verbatim. MLP2-026 advances `In Progress` → `Merged`;
+done-count 52 → 53 of 76 (rebased on top of MLP2-051b closure
+at PR #1668). Earlier 2026-05-17: MLP2-051 re-spec
+on branch `chore/aps-mlp2-051-respec` — split into MLP2-051
+umbrella + 051a..051e sub-tasks after a 2026-05-17 audit showed
+only `anvil status` renders a `ProtectionClaim` today; the other
+four target surfaces — `anvil doctor`, MCP shim, TS
+driver-client, GH Action — emit no claim and need additive
+rendering rather than string-to-typed migration. Total count
+went 71 → 76 with no done-count change. MLP2-048 closed 2026-05-16 via PR #1625 at
 `f13e1014` — `anvil status --json` now consumes the daemon
 snapshot via the new `build_protection_claim_from_wire` adapter,
 with a documented empty-`surfaces` fallback when the daemon is
@@ -1393,7 +1406,31 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
-- **Status:** In Progress
+- **Status:** Merged
+- **Closure (2026-05-17, PR #1624 at `5e3798da`):** seven impl
+  commits (F1–F7) on `feat/mlp2-026-fence-cascade` shipped the
+  spec verbatim: `CascadeRecord` + wire-additive
+  `FenceFile.cascades` (F1), `fence_worktree()` engage path +
+  `DEGRADED_FENCE_CASCADE` / `DEGRADED_FENCE_CASCADE_CLEAR`
+  consts + engage notification + `tracing::warn!` (F2/F7),
+  `WorktreeStatus`/`WorktreeStatusV1` `cascaded` +
+  `cascade_since` fields with serde-default wire compat (F3),
+  `RegistryError::WorktreeCascaded` + register-time refusal
+  under cascade-before-registry lock ordering (F4),
+  `IpcCommand::UnblockCascade { worktree, operator }` with
+  daemon-derived `OperatorContext { uid, pid, hostname }` (F5),
+  and `anvil intercept unblock --acknowledge-cascade <worktree>`
+  CLI subcommand (F6). All five spec invariants pinned:
+  `is_cascaded` reflects on-disk `CascadeRecord` (inv-1),
+  cascade-before-registry ordering (inv-2), `clear_cascade`
+  idempotency (inv-3), engage-flag survives daemon restart
+  (inv-4). Test suite: `cargo test -p eddacraft-anvil-intercept
+  --lib` green with new `fence::tests::*` (engage threshold,
+  round-trip, persists-until-acknowledged), `registry::tests::
+  register_on_cascaded_worktree_is_refused`, `ipc::tests::
+  unblock_cascade_round_trips_with_operator_context`, and
+  `commands::intercept::tests::
+  unblock_acknowledge_cascade_dispatches_ipc` on the CLI side.
 - **Contract spec:** `plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md` (Accepted via PR #1617). Five resolved open questions; no `BLOCKING` remains; implementation follows §3–§9 verbatim.
 - **Intent:** When five fences fire within 60s, the daemon
   enters `degraded:fence-cascade` mode requiring operator-
