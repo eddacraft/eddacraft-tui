@@ -2540,7 +2540,9 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051b: MCP shim emits typed protection claim in `validate_write` response
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1668, 2026-05-17 — `feat/mlp2-051b-mcp-protection-claim`
+  rebase-merged at `7ff0e123`). Awaiting `v0.7.0-beta` release evidence to
+  advance to Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/mcp/validation.rs` extends the
   `validate_write` response with an optional `protection_claim`
   field carrying the closed-set
