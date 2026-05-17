@@ -14,9 +14,12 @@ prettier, eslint) and a matching fixture under `fixtures/<lang>/`, the harness:
 2. Runs the target tool in its non-mutating mode (LSP `initialize` + `shutdown`
    for language servers, `--check` for formatters).
 3. Stops `anvil watch` (SIGTERM) and waits for clean exit.
-4. Asserts: the target tool exited 0, `anvil watch` exited cleanly, no `EBUSY` /
-   `EAGAIN` lock-contention messages appear in either log, and `anvil watch`
-   reported no save-time findings against the fixture baseline.
+4. Asserts: the target tool exited 0, `anvil watch` exited cleanly, and no
+   `EBUSY` / `EAGAIN` / lock-contention / `panicked` markers appear in either
+   log. `anvil_events` is reported in the verdict for visibility but is not yet
+   load-bearing — anvil watch's output is human-readable today; the
+   finding-count assertion tightens when `anvil watch --json` lands (tracked in
+   ADOPT-006 follow-up).
 
 A target is **skipped** if its binary is not on PATH on the current machine. The
 list of targets that must be present on a CI runner lives in
@@ -46,9 +49,9 @@ editor-coexistence/
 
 Each `targets/<name>.sh` is a self-contained runner that:
 
-- Exits 0 if the target is unavailable (the harness records that as a `skip`).
-- Otherwise runs the target against the fixture and exits 0 on pass, non-zero on
-  fail.
+- Exits **200** if the target tool is not resolvable on the current host (the
+  harness records that as a `skip`).
+- Exits 0 on a successful run against the fixture, non-zero on a real failure.
 
 ## Running locally
 

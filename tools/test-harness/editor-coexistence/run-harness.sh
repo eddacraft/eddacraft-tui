@@ -20,6 +20,23 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTLE_MS="${SETTLE_MS:-1500}"
 SCHEMA_VERSION=1
 
+# Portable millisecond epoch. `date +%s%3N` is GNU-only; macOS / BSD
+# truncate the format and emit literal `%3N`. Try GNU date, then gdate
+# (Homebrew coreutils), then python3 as the universal fallback.
+_epoch_ms() {
+  local ms
+  ms="$(date +%s%3N 2>/dev/null)"
+  if [[ -n "${ms}" && "${ms}" != *N ]]; then
+    printf '%s' "${ms}"
+    return
+  fi
+  if command -v gdate >/dev/null 2>&1; then
+    gdate +%s%3N
+    return
+  fi
+  python3 -c 'import time; print(time.time_ns() // 1_000_000)'
+}
+
 if [[ -z "${ANVIL_BIN:-}" ]]; then
   echo "harness: ANVIL_BIN must be set to the anvil binary under test" >&2
   exit 2
@@ -89,7 +106,10 @@ run_target() {
   local name="$1"
   local runner="${HERE}/targets/${name}.sh"
   if [[ ! -x "${runner}" ]]; then
-    emit_result "${name}" skip 0 0 -1 "no runner script"
+    # A required-targets.txt entry without a matching runner is a harness
+    # integrity bug, not a runner skip. Record fail so CI surfaces it.
+    emit_result "${name}" fail 0 0 -1 "no runner script at ${runner} (harness integrity)"
+    failed=$((failed + 1))
     return
   fi
 
@@ -135,7 +155,7 @@ run_target() {
   fi
 
   local target_start target_end duration_ms target_exit
-  target_start="$(date +%s%3N)"
+  target_start="$(_epoch_ms)"
 
   # Start anvil watch in background against the scratch repo.
   (
@@ -167,7 +187,7 @@ run_target() {
   wait "${_active_anvil_pid}" 2>/dev/null || true
   _active_anvil_pid=""
 
-  target_end="$(date +%s%3N)"
+  target_end="$(_epoch_ms)"
   duration_ms=$((target_end - target_start))
 
   # Lock-contention / panic detection across both logs is the load-bearing

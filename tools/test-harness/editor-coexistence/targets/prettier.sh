@@ -8,13 +8,14 @@ case "${1:-}" in
   *) echo "usage: $0 (--print-fixture | --run-against <dir>)" >&2; exit 2 ;;
 esac
 
-if ! command -v prettier >/dev/null 2>&1 && ! command -v npx >/dev/null 2>&1; then
+cmd=()
+if command -v prettier >/dev/null 2>&1; then
+  cmd=(prettier)
+elif command -v npx >/dev/null 2>&1 && npx --no-install prettier --version >/dev/null 2>&1; then
+  cmd=(npx --no-install prettier)
+else
   exit 200
 fi
 
 cd "${target_dir}"
-if command -v prettier >/dev/null 2>&1; then
-  exec prettier --check .
-else
-  exec npx --no-install prettier --check .
-fi
+exec "${cmd[@]}" --check .

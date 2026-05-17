@@ -118,17 +118,26 @@ across multiple events; users with that profile raise the window via
 
 ## Verification protocol
 
-`tools/test-harness/editor-coexistence/run-harness.sh` is the entry point. It:
+`tools/test-harness/editor-coexistence/run-harness.sh` is the entry point. For
+each target in `required-targets.txt` it:
 
-1. Generates (or reuses) a deterministic fixture under
-   `tools/test-harness/editor-coexistence/fixtures/<lang>/` for each language
-   under test.
-2. Starts `anvil watch` against the fixture with `ANVIL_DEV=1`.
-3. For each language-server target on PATH (`rust-analyzer`, `tsserver`,
-   `pyright`, `ruff`, `prettier`, `eslint`), runs a short LSP / CLI session
-   against the fixture and captures structured output.
-4. Stops `anvil watch` cleanly and reads back its event log.
-5. Emits a JSON verdict per target with the cells listed below.
+1. Copies the matching deterministic fixture from
+   `tools/test-harness/editor-coexistence/fixtures/<lang>/` into a scratch
+   directory and runs `git init` so anvil treats it as a workspace.
+2. Starts `anvil watch --source` against the scratch fixture with `ANVIL_DEV=1`,
+   redirecting stdout / stderr to a per-target log, and waits a settle window
+   for the initial scan to complete.
+3. Invokes the per-target runner script
+   (`targets/<name>.sh --run-against <scratch-repo>`) — a short non-mutating
+   exercise (LSP probe, `tsc --noEmit`, `pyright`, `ruff check`,
+   `prettier --check`, `eslint`) against the fixture.
+4. Sends `SIGTERM` to `anvil watch`, waits for the process to exit, and computes
+   the verdict cells from: the runner's exit code, the OS-level conflict markers
+   (`EBUSY` / `EAGAIN` / lock-contention / `panicked`) in either log, and the
+   wall-clock duration. The `anvil_events` cell is currently reported as `0` for
+   visibility only; it tightens to a hard gate once `anvil watch --json` lands
+   (tracked in ADOPT-006 follow-up).
+5. Emits the per-target JSON verdict and a roll-up.
 
 A target is **PASS** when the language server completes its session with exit
 code 0 and no `EBUSY` / lock-contention error or panic is logged from either
