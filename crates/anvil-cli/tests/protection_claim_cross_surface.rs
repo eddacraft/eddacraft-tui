@@ -17,11 +17,15 @@
 //!
 //! - **Output parity** (the test cases below): a fixed snapshot in →
 //!   the same `ProtectionClaim` out, regardless of how each surface
-//!   serialises it. The canonical compact JSON is saved as the fixture
+//!   serialises it. The canonical pretty-printed JSON (with trailing
+//!   newline — same convention as the MLP2-049 fixtures) is saved
 //!   under `tests/fixtures/status_v1/cross_surface/<case>.json` so the
 //!   TS driver-client surface (`packages/anvil-driver-client/src/
 //!   protection_claim/cross_surface.test.ts`) reads the exact same
-//!   bytes the Rust helper produced.
+//!   bytes the Rust helper produced. JSON formatting is irrelevant
+//!   for the parity contract itself — the TS leg parses via
+//!   `JSON.parse` — but pretty-printing makes the fixtures readable
+//!   in code review.
 //!
 //! - **Call-site pin** (`all_rust_render_surfaces_route_through_the_
 //!   shared_helper`): grep-style assertion that each surface's source
@@ -389,12 +393,19 @@ fn every_fixture_round_trips_through_protection_claim() {
 ///
 /// Each surface declares TWO markers: an `import` substring (e.g. a
 /// `use` declaration) and a `call` substring (e.g. an expression
-/// containing `::` and `(`). Both must match, on lines that strip
-/// cleanly when comment-skipped. A change that demotes the helper to
-/// a documentation reference only — keeping the symbol's name in a
-/// `///` line but removing the actual import + call — drops the call
-/// marker and fails the pin, even though the import or doc-string
-/// might survive.
+/// containing argument syntax that a `///` doc line would not
+/// naturally include — `(`, `&`, identifier tails). The scan is a
+/// raw substring `contains()` over the full file, so the guarantee
+/// is structural, not lexical: pick markers whose exact text would
+/// not appear in a comment, and a refactor that demotes the helper
+/// to a documentation reference only (keeping the symbol's name in
+/// a `///` line but removing the actual import + call) drops at
+/// least one of the two markers and fails the pin.
+///
+/// When updating, prefer call expressions that include argument
+/// names (`(snapshot, worktree)`) over bare path references — the
+/// extra punctuation is what keeps doc-comments from spuriously
+/// matching.
 ///
 /// Updating intentionally: if a surface legitimately moves to a new
 /// helper, update the surface's entry below and add a new integration
