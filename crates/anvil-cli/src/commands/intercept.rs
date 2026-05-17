@@ -264,6 +264,19 @@ fn run_status(args: &StatusArgs) -> Result<()> {
 /// they can act on.
 #[cfg(unix)]
 pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
+    use anvil_intercept::ipc;
+
+    let socket_path =
+        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+    query_daemon_status_at(&socket_path)
+}
+
+/// Issue a `query_status` JSON-RPC request against an already-resolved
+/// daemon socket. Factored from [`query_daemon_status`] so MLP2-051b's
+/// MCP shim can reuse the same wire path against its existing
+/// per-client socket without re-resolving the per-user default.
+#[cfg(unix)]
+pub(crate) fn query_daemon_status_at(socket_path: &std::path::Path) -> Result<DaemonStatusV1> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
@@ -272,9 +285,7 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
 
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
-    let socket_path =
-        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
+    if let Err(err) = ipc::validate_socket_path_for_client(socket_path) {
         // Same NotFound / ENOENT as the MCP path means the daemon
         // simply is not running; surface that as the actionable
         // single line rather than as a generic IO error.
@@ -291,7 +302,7 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
             )),
         };
     }
-    let mut stream = UnixStream::connect(&socket_path).with_context(|| {
+    let mut stream = UnixStream::connect(socket_path).with_context(|| {
         format!(
             "failed to connect to intercept daemon socket {}",
             socket_path.display(),

@@ -12,7 +12,10 @@ use std::time::Duration;
 use anvil_intercept::enforcement::{EnforcementPipeline, ProposedChange};
 #[cfg(unix)]
 use anvil_intercept::ipc;
+#[cfg(unix)]
+use anvil_intercept::status::build_protection_claim_from_wire;
 use anvil_intercept_rules::ChangeKind;
+use anvil_kernel_types::protection_claim::ProtectionClaim;
 use anvil_kernel_types::{Diagnostic, Mode};
 #[cfg(unix)]
 use serde::Deserialize;
@@ -121,6 +124,19 @@ pub trait DaemonValidationClient {
         &self,
         request: &PreWriteValidationRequest<'_>,
     ) -> DaemonValidationOutcome;
+
+    /// MLP2-051b: best-effort fetch of the per-workspace
+    /// [`ProtectionClaim`] for inclusion on the `validate_write`
+    /// response. The default returns `None`, which causes the MCP
+    /// shim to omit the `protection_claim` field entirely (the
+    /// spec's no-over-claim posture when no daemon snapshot is
+    /// available). Live daemon clients override to query the
+    /// daemon and return `Some(...)` on success, `None` on any
+    /// failure (timeout, parse, daemon-down) — the claim is
+    /// advisory, never blocking.
+    fn query_protection_claim(&self, _workspace_root: &Path) -> Option<ProtectionClaim> {
+        None
+    }
 }
 
 pub struct LocalDaemonValidationClient;
@@ -164,6 +180,27 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
             DaemonValidationOutcome::Unavailable
         }
     }
+
+    fn query_protection_claim(&self, workspace_root: &Path) -> Option<ProtectionClaim> {
+        #[cfg(unix)]
+        {
+            let socket_path = ipc::resolve_socket_path().ok()?;
+            SocketDaemonValidationClient { socket_path }.query_protection_claim(workspace_root)
+        }
+        // The Windows path has a working `query_daemon_status` over
+        // named pipes (see `commands::intercept::query_daemon_status`)
+        // but no `_at(&Path)` form yet, so the MCP shim cannot reuse
+        // it without an extraction. Returning `None` here is the
+        // documented v1 gap — drivers running on Windows simply never
+        // see `protection_claim` on the MCP response. Lifting the
+        // gap is tracked alongside the rest of the Windows MCP-shim
+        // catch-up under MLP2-028 / the Windows section of MLP2-051d.
+        #[cfg(not(unix))]
+        {
+            let _ = workspace_root;
+            None
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -179,6 +216,22 @@ impl DaemonValidationClient for SocketDaemonValidationClient {
                 DaemonValidationOutcome::OperationalFailure(failure)
             }
         }
+    }
+
+    fn query_protection_claim(&self, workspace_root: &Path) -> Option<ProtectionClaim> {
+        // The claim is advisory metadata — never block on a fetch
+        // failure. A stale / missing snapshot maps to `None`, which
+        // causes the MCP shim to omit the field instead of synthesising
+        // a misleading "unprotected" claim.
+        let snapshot = crate::commands::intercept::query_daemon_status_at(&self.socket_path)
+            .map_err(|err| {
+                eprintln!(
+                    "anvil-mcp: protection_claim query_status failed (omitting field): {err}",
+                );
+                err
+            })
+            .ok()?;
+        Some(build_protection_claim_from_wire(&snapshot, workspace_root))
     }
 }
 

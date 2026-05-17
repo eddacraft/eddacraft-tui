@@ -3,6 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
 use anvil_kernel_types::diagnostics::ControlDecision;
+use anvil_kernel_types::protection_claim::ProtectionClaim;
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -184,6 +185,33 @@ fn call_with_validation_client(
         diagnostics = validation.diagnostics;
     }
 
+    // MLP2-051b: best-effort claim attached only when the daemon
+    // served the validation. By the time we reach here only two
+    // `DaemonStatus` values are possible:
+    //   - `Available`  — daemon answered scan_buffer.
+    //   - `NotWired`   — embedded fallback ran (silent demotion).
+    // `Unavailable` (operational failure) short-circuits to the
+    // backend-failure payload above before this point, so it is
+    // structurally unreachable here; the gate keeps `Available` as
+    // the only state that triggers the claim fetch so the embedded
+    // path cannot over-claim daemon coverage. The fetch adds one
+    // extra IPC round-trip (capped at 2 s in
+    // `query_daemon_status_at`, distinct from the scan_buffer
+    // 2 s cap, so the cumulative wall-clock ceiling for a
+    // healthy-but-hung daemon is 4 s). A future optimisation can
+    // fold the claim into the daemon's `scan_buffer` reply so this
+    // gate disappears without changing the wire shape.
+    debug_assert_ne!(
+        daemon_status,
+        DaemonStatus::Unavailable,
+        "operational failure must short-circuit before the claim gate",
+    );
+    let protection_claim = if daemon_status == DaemonStatus::Available {
+        daemon.query_protection_claim(&request.workspace_root)
+    } else {
+        None
+    };
+
     let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
 
     tool_result(&validation_payload(
@@ -194,6 +222,7 @@ fn call_with_validation_client(
         None,
         enforcement_mode,
         request.partial_scan,
+        protection_claim.as_ref(),
     ))
 }
 
@@ -235,6 +264,7 @@ fn problem_payload(
         enforcement_mode,
         ControlDecision::Block,
         false,
+        None,
     )
 }
 
@@ -298,6 +328,11 @@ fn server_cwd_unavailable_payload(problem: ToolProblem, err: &std::io::Error) ->
     })
 }
 
+// Same justification as `validation_payload_with_decision` below: the
+// eight inputs are individually meaningful fields of the response
+// envelope and folding them into a builder/struct only relocates the
+// arity. Inherits the override from its sole call site.
+#[allow(clippy::too_many_arguments)]
 fn validation_payload(
     path: &str,
     diagnostics: &[Diagnostic],
@@ -306,6 +341,7 @@ fn validation_payload(
     problem: Option<ToolProblem>,
     enforcement_mode: EnforcementMode,
     partial_scan: bool,
+    protection_claim: Option<&ProtectionClaim>,
 ) -> Value {
     let decision = enforcement::decision_for(diagnostics, enforcement_mode);
     validation_payload_with_decision(
@@ -317,10 +353,11 @@ fn validation_payload(
         enforcement_mode,
         decision,
         partial_scan,
+        protection_claim,
     )
 }
 
-// Eight related fields, all part of the `anvil.mcp.validate-write.v1`
+// Nine related fields, all part of the `anvil.mcp.validate-write.v1`
 // response envelope; folding them into a struct would just move the
 // argument count to that struct's constructor without simplifying the
 // shape.
@@ -334,6 +371,7 @@ fn validation_payload_with_decision(
     enforcement_mode: EnforcementMode,
     decision: ControlDecision,
     partial_scan: bool,
+    protection_claim: Option<&ProtectionClaim>,
 ) -> Value {
     // The `enforcementMode` and `daemonStatus` correlation fields are
     // part of the `anvil.mcp.validate-write.v1` schema and are
@@ -371,6 +409,17 @@ fn validation_payload_with_decision(
             "message": problem.message,
             "retriable": false
         });
+    }
+
+    // MLP2-051b: wire-additive `protection_claim`. Omitted when the
+    // daemon could not supply a snapshot (the field is `Option`-shaped
+    // for round-trip parity with the producer-side struct). Drivers
+    // pinned to a pre-MLP2-051b shape continue to parse this response
+    // unchanged because the new field is the only addition and is
+    // omitted from the default no-daemon path.
+    if let Some(claim) = protection_claim {
+        payload["protection_claim"] =
+            serde_json::to_value(claim).expect("ProtectionClaim serialises");
     }
 
     payload
@@ -1726,5 +1775,253 @@ mod tests {
             Mode::Unknown("pre-write".to_string()),
         )
         .with_remediation_hint("Use a placeholder or environment variable instead.")
+    }
+
+    /// Test fixture that mirrors the production [`FixtureDaemon`] but
+    /// also surfaces a canned [`ProtectionClaim`] through the new
+    /// [`DaemonValidationClient::query_protection_claim`] trait method.
+    /// Kept separate so the existing `FixtureDaemon` construction
+    /// sites above stay untouched.
+    struct FixtureDaemonWithClaim {
+        outcome: DaemonValidationOutcome,
+        claim: Option<anvil_kernel_types::protection_claim::ProtectionClaim>,
+    }
+
+    impl DaemonValidationClient for FixtureDaemonWithClaim {
+        fn validate_pre_write(
+            &self,
+            _request: &PreWriteValidationRequest<'_>,
+        ) -> DaemonValidationOutcome {
+            self.outcome.clone()
+        }
+
+        fn query_protection_claim(
+            &self,
+            _workspace_root: &Path,
+        ) -> Option<anvil_kernel_types::protection_claim::ProtectionClaim> {
+            self.claim.clone()
+        }
+    }
+
+    /// Pinned reference claim used by the MLP2-051b tests below.
+    fn sample_protection_claim() -> anvil_kernel_types::protection_claim::ProtectionClaim {
+        use anvil_kernel_types::protection_claim::{
+            ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
+        };
+        ProtectionClaim::new(
+            WorktreeClaimState::PreWriteDaemon,
+            vec![SurfaceClaim {
+                identifier: "mcp-shim-claude".to_string(),
+                state: SurfaceClaimState::Participating,
+            }],
+        )
+    }
+
+    /// MLP2-051b: when the daemon serves the validation AND surfaces
+    /// a protection claim, the `validate_write` response carries the
+    /// closed-set claim shape under `protection_claim`.
+    #[test]
+    fn protection_claim_attached_to_response_when_daemon_supplies_one() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemonWithClaim {
+            outcome: DaemonValidationOutcome::Diagnostics(vec![]),
+            claim: Some(sample_protection_claim()),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["correlation"]["backend"], "daemon");
+        assert_eq!(payload["correlation"]["daemonStatus"], "available");
+        let claim = &payload["protection_claim"];
+        assert_eq!(claim["schema_version"], "anvil.protection-claim.v1");
+        assert_eq!(claim["worktree_state"], "pre-write-daemon");
+        let surfaces = claim["surfaces"].as_array().expect("surfaces array");
+        assert_eq!(surfaces.len(), 1);
+        assert_eq!(surfaces[0]["identifier"], "mcp-shim-claude");
+        assert_eq!(surfaces[0]["state"], "participating");
+    }
+
+    /// MLP2-051b: when the daemon is wired but cannot supply a claim
+    /// (snapshot fetch failed / no worktree match), the field is
+    /// omitted entirely rather than synthesised as `unprotected`. The
+    /// no-over-claim posture lets drivers distinguish "daemon said
+    /// nothing" from "daemon said unprotected".
+    #[test]
+    fn protection_claim_omitted_when_daemon_returns_none() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemonWithClaim {
+            outcome: DaemonValidationOutcome::Diagnostics(vec![]),
+            claim: None,
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["correlation"]["daemonStatus"], "available");
+        assert!(
+            payload.get("protection_claim").is_none(),
+            "claim must be omitted when daemon returns None, got: {payload}",
+        );
+    }
+
+    /// MLP2-051b: the embedded-only path (no daemon was wired) never
+    /// emits a `protection_claim`. The shim does not call
+    /// `query_protection_claim` at all here — there is no daemon to
+    /// answer — so the field stays absent.
+    #[test]
+    fn protection_claim_omitted_when_daemon_not_wired() {
+        let workspace = tempdir().expect("workspace exists");
+        // A claim is "available" on the fixture but the validation
+        // outcome demotes to embedded; the shim must NOT attach the
+        // claim because the daemon was never consulted for the
+        // validation. Pinning this prevents a future regression that
+        // calls `query_protection_claim` unconditionally and over-
+        // claims daemon coverage on the embedded path.
+        let daemon = FixtureDaemonWithClaim {
+            outcome: DaemonValidationOutcome::Unavailable,
+            claim: Some(sample_protection_claim()),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["correlation"]["backend"], "embedded");
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+        assert!(
+            payload.get("protection_claim").is_none(),
+            "embedded-path responses must not carry a daemon-derived claim, got: {payload}",
+        );
+    }
+
+    /// MLP2-051b: a backend operational failure short-circuits the
+    /// payload, so even a daemon-supplied claim is never attached.
+    /// The failure response is a hard stop carrying `error` +
+    /// `decision: block`; folding a claim onto it would muddle the
+    /// "we could not validate" signal with daemon state.
+    #[test]
+    fn protection_claim_omitted_on_backend_failure() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemonWithClaim {
+            outcome: DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
+                code: "validation-backend-unavailable",
+                message: "Anvil could not validate the proposed write.",
+                retriable: true,
+            }),
+            claim: Some(sample_protection_claim()),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "validation-backend-unavailable");
+        assert!(
+            payload.get("protection_claim").is_none(),
+            "backend-failure responses must not carry a protection_claim, got: {payload}",
+        );
+    }
+
+    /// MLP2-051b driver-compat pin: an MCP response that DOES carry
+    /// `protection_claim` deserialises into a struct that pins the
+    /// new shape (the additive field is `Option<ProtectionClaim>`),
+    /// AND a response without the field deserialises into the same
+    /// struct with the field set to `None`. Together these prove the
+    /// "wire-additive" contract: pre-MLP2-051b drivers ignore the new
+    /// field, post-MLP2-051b drivers read it when present, and an
+    /// absent field is never a deserialise error.
+    #[test]
+    fn protection_claim_field_is_wire_additive_for_driver_clients() {
+        use anvil_kernel_types::protection_claim::ProtectionClaim;
+        use serde::Deserialize;
+
+        /// Mirror of the subset of fields a driver-side parser cares
+        /// about. The `protection_claim` field is `Option`-shaped per
+        /// the MLP2-051b spec; `serde(default)` keeps absence
+        /// indistinguishable from `null` and `skip_serializing_if`-
+        /// omitted producers.
+        #[derive(Debug, Deserialize)]
+        #[allow(dead_code)]
+        struct DriverViewWithClaim {
+            decision: String,
+            #[serde(default)]
+            protection_claim: Option<ProtectionClaim>,
+        }
+
+        let workspace = tempdir().expect("workspace exists");
+        let with_claim = parse_payload(&call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &FixtureDaemonWithClaim {
+                outcome: DaemonValidationOutcome::Diagnostics(vec![]),
+                claim: Some(sample_protection_claim()),
+            },
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+        let parsed_with: DriverViewWithClaim =
+            serde_json::from_value(with_claim).expect("driver parses payload with claim");
+        let claim = parsed_with
+            .protection_claim
+            .expect("driver sees Some(claim) when daemon supplies one");
+        assert_eq!(
+            claim.worktree_state,
+            anvil_kernel_types::protection_claim::WorktreeClaimState::PreWriteDaemon,
+        );
+
+        let without_claim = parse_payload(&call_with_validation_client(
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &FixtureDaemonWithClaim {
+                outcome: DaemonValidationOutcome::Unavailable,
+                claim: None,
+            },
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+        let parsed_without: DriverViewWithClaim =
+            serde_json::from_value(without_claim).expect("driver parses payload without claim");
+        assert!(
+            parsed_without.protection_claim.is_none(),
+            "absent protection_claim must parse as None, not error",
+        );
     }
 }

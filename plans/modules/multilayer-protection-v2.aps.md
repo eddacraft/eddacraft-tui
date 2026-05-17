@@ -2540,7 +2540,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051b: MCP shim emits typed protection claim in `validate_write` response
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `crates/anvil-cli/src/mcp/validation.rs` extends the
   `validate_write` response with an optional `protection_claim`
   field carrying the closed-set
