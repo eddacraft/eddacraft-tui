@@ -2525,8 +2525,18 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051: Driver / CLI / MCP-shim protection-claim conformance pass (umbrella)
 
-- **Status:** Re-specced 2026-05-17 — split into MLP2-051a..-051e
-  below. The original task assumed every surface already rendered
+- **Status:** Merged 2026-05-17 — all four umbrella-required sub-tasks
+  (MLP2-051a #1655, -051b #1668, -051c #1675, -051e #1679) rebase-merged
+  to `main`; the HARD-GATE close for §14 closed-set rendering is now
+  pinned on every shipping surface. MLP2-051d remains `Blocked` on the
+  Marketplace track licensing/pricing model lock and is carved out of the
+  umbrella's closure condition per the spec ("051d is required only if
+  MLP2-042..045 ship"); it re-attaches if the Marketplace track ships
+  later. Awaiting `v0.7.0-beta` release evidence to advance to
+  Released/Shipped → Complete.
+- **Source note:** Originally re-specced 2026-05-17 — split into
+  MLP2-051a..-051e below. The original task assumed every surface
+  already rendered
   a protection claim using stringly-typed values that needed
   migration to the closed-set types in
   `crates/anvil-kernel-types/src/protection_claim.rs`. An audit
@@ -2589,7 +2599,9 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051a: `anvil doctor` typed protection claim section
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1655, 2026-05-16 — `feat/mlp2-051a-doctor-claim`
+  rebase-merged at `5c762f3d`). Awaiting `v0.7.0-beta` release evidence to
+  advance to Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/commands/doctor.rs` gains a
   "protection claim" section that consumes the daemon snapshot
   (or the local-only fallback) and prints both the worktree
@@ -2650,7 +2662,9 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051c: TS driver-client `ProtectionClaim` mirror + MCP response adapter
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1675, 2026-05-17 — `feat/mlp2-051c-ts-driver-protection-claim`
+  rebase-merged at `d4970b19`). Awaiting `v0.7.0-beta` release evidence to
+  advance to Released/Shipped → Complete.
 - **Intent:** Add `packages/anvil-driver-client/src/protection_claim/`
   with a hand-rolled parser mirroring
   `crates/anvil-kernel-types/src/protection_claim.rs` (closed-set
@@ -2705,8 +2719,10 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051e: Cross-surface protection-claim parity test
 
-- **Status:** In Progress (branch `feat/mlp2-051e-cross-surface-parity`,
-  2026-05-17 — deps MLP2-051a/b/c all Merged via PRs #1655/#1668/#1675).
+- **Status:** Merged (PR #1679, 2026-05-17 — `feat/mlp2-051e-cross-surface-parity`
+  rebase-merged at `d6df62f2`; deps MLP2-051a/b/c all Merged via PRs
+  #1655/#1668/#1675). Awaiting `v0.7.0-beta` release evidence to advance to
+  Released/Shipped → Complete.
 - **Intent:** Single end-to-end harness drives a fixed
   `DaemonStatusV1` input through every surface (CLI status,
   CLI doctor, MCP shim, TS driver-client) and asserts the
@@ -3411,13 +3427,13 @@ to redesign once GV2-001..-023 land.
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
-| J. Protection-claim render conformance | 10 (MLP2-048..-052 + MLP2-051a..-051e) | 4/10 |
+| J. Protection-claim render conformance | 10 (MLP2-048..-052 + MLP2-051a..-051e) | 8/10 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **54/76** |
+| **Total** | **76** | **58/76** |
 
 ## Recommended landing order
 
