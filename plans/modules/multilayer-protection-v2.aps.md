@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 51/76 done |
+| MLP2 | @aneki | In Progress | 52/76 done |
 
 **Last reviewed:** 2026-05-17 (MLP2-051 re-spec on branch
 `chore/aps-mlp2-051-respec` — split into MLP2-051 umbrella +
@@ -3330,13 +3330,13 @@ to redesign once GV2-001..-023 land.
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
 | H. Hook + config surface completion | 5 (MLP2-037..-041) | 5/5 (Complete) |
 | I. GitHub Action publishing | 6 (MLP2-042..-047) | 1/6 |
-| J. Protection-claim render conformance | 10 (MLP2-048..-052 + MLP2-051a..-051e) | 3/10 |
+| J. Protection-claim render conformance | 10 (MLP2-048..-052 + MLP2-051a..-051e) | 4/10 |
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **51/76** |
+| **Total** | **76** | **52/76** |
 
 ## Recommended landing order
 
