@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 | ----- | ------- | ----------- | -------- |
 | OPSUP | OpenCode | In Progress | 2/7      |
 
-**Last reviewed:** 2026-05-14
+**Last reviewed:** 2026-05-17
 
 ## Cross-cutting convention
 
@@ -234,4 +234,5 @@ Remaining non-registry slices move to **Ready** when:
       or opt-in until an explicit promotion decision?
 - [ ] How do legacy check names map to the new registry IDs — via
       alias table or one-shot rename in a major release?
-- [ ] Wall-time budget — global default, per-check, or per-track?
+- [x] Wall-time budget — OPSUP-006 chose per-check soft budgets; no global
+      default is declared for current core checks.
