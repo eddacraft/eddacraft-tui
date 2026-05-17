@@ -11,8 +11,9 @@
 //! evidence-only — no commit had ever been blocked by a real rule.
 //!
 //! This module is the real engine. It materialises the commit's tree
-//! via `git diff-tree` + `git show <sha>:<path>`, hands the resulting
-//! file paths to [`anvil_checks::antipattern::run_antipattern_check`],
+//! via `git diff-tree` + `git cat-file --batch` (MLP2-068: one batched
+//! blob fetch per commit instead of N+1 `git show` spawns), hands the
+//! resulting file paths to [`anvil_checks::antipattern::run_antipattern_check`],
 //! and maps the resulting per-rule findings onto
 //! [`ValidationDiagnostic`] entries the hook surfaces under
 //! [`ValidationVerdict::Block`]. Git plumbing failures degrade to
@@ -64,6 +65,7 @@
 //! must opt into stricter routing per branch — and is pinned by the
 //! `warn_only_antipattern_admits_under_on_warn_allow` test below.
 
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -162,8 +164,13 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
     };
     let workspace_root = tmp.path().to_path_buf();
     let mut materialised: Vec<String> = Vec::with_capacity(scannable.len());
-    for path in &scannable {
-        let Some(blob) = read_commit_blob(repo_root, commit_sha, path) else {
+    // MLP2-068: batch the blob fetch into a single `git cat-file
+    // --batch` invocation so a 200-file commit pays one git spawn,
+    // not 200.
+    let path_refs: Vec<&str> = scannable.iter().map(|s| s.as_str()).collect();
+    let blobs = read_commit_blobs_batch(repo_root, commit_sha, &path_refs);
+    for (path, blob_opt) in scannable.iter().zip(blobs) {
+        let Some(blob) = blob_opt else {
             continue;
         };
         let target = workspace_root.join(path);
@@ -260,34 +267,183 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Option<Vec<String>> {
     )
 }
 
-/// `git show <sha>:<path>` — returns the blob bytes at `path` inside
-/// the tree of `sha`. Returns `None` when git fails or the path is not
-/// in the tree (e.g. deletion). git stderr is forwarded to
-/// `tracing::debug!` so production incident debugging can distinguish
-/// "git not on PATH" from "object missing from pack".
-fn read_commit_blob(repo_root: &Path, sha: &str, path: &str) -> Option<Vec<u8>> {
+/// MLP2-068: batched blob fetch. Spawns `git cat-file --batch` once,
+/// pipes `<sha>:<path>` revspecs for every entry in `paths` over
+/// stdin, and returns a vec aligned with `paths` carrying the blob
+/// bytes (or `None` for paths that failed validation, were missing in
+/// the tree, or hit a git invocation failure).
+///
+/// Pre-MLP2-068, the engine spawned one `git show` per scannable file
+/// — a 200-file commit paid ~1–3 s on process startup alone, most of
+/// `PRE_PUSH_BUDGET`. This helper amortises the spawn cost across the
+/// whole batch.
+///
+/// Guards preserved from the singular `read_commit_blob` it replaces:
+/// - Non-hex / zero SHA → entire result is `None` per input, git is
+///   never invoked.
+/// - Path containing `:` → that entry yields `None` without travelling
+///   to git, so `<rev>:<path>` revspec parsing stays unambiguous
+///   (Council #C-016G).
+///
+/// git stderr is forwarded to `tracing::debug!` on invocation failure
+/// so production incident debugging can still distinguish "git not on
+/// PATH" from "object missing from pack" (MLP2-016 surface intact).
+fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<Option<Vec<u8>>> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
     if !is_hex_sha(sha) || is_zero_sha(sha) {
-        return None;
+        return vec![None; paths.len()];
     }
-    // git's `<rev>:<path>` revspec splits on the first `:`. Filenames
-    // legitimately containing a colon would mis-parse; skip them
-    // rather than feed git an ambiguous spec. Council #C-016G.
-    if path.contains(':') {
-        return None;
+
+    // Build the per-input query list. Paths containing `:` are
+    // recorded as refused up-front (per Council #C-016G) and excluded
+    // from the stdin batch. `had_query[i]` is `true` iff `paths[i]`
+    // produced a stdin line — the parse-output scatter relies on this
+    // boolean, not a stored index, to keep the order invariant
+    // explicit: each `true` slot consumes exactly one parsed entry in
+    // the order git emitted them.
+    let mut queries: Vec<String> = Vec::with_capacity(paths.len());
+    let mut had_query: Vec<bool> = Vec::with_capacity(paths.len());
+    for path in paths {
+        if path.contains(':') {
+            had_query.push(false);
+            continue;
+        }
+        had_query.push(true);
+        queries.push(format!("{sha}:{path}\n"));
     }
-    let spec = format!("{sha}:{path}");
-    let output = Command::new("git")
+
+    let mut results: Vec<Option<Vec<u8>>> = vec![None; paths.len()];
+    if queries.is_empty() {
+        return results;
+    }
+
+    let Ok(mut child) = Command::new("git")
         .arg("-C")
         .arg(repo_root)
-        .args(["show", spec.as_str()])
+        .args(["cat-file", "--batch"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()
-        .ok()?;
+        .spawn()
+    else {
+        return results;
+    };
+
+    // Stream stdin from a worker thread so a full stdout pipe (large
+    // blobs) cannot deadlock against a full stdin pipe. wait_with_output
+    // drains stdout/stderr concurrently once we call it, but only if we
+    // are not blocked writing stdin first.
+    let query_count = queries.len();
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let writer = std::thread::spawn(move || {
+        for q in &queries {
+            if stdin.write_all(q.as_bytes()).is_err() {
+                break;
+            }
+        }
+        // Closing stdin signals end-of-input to cat-file --batch so it
+        // exits cleanly.
+        drop(stdin);
+    });
+
+    let Ok(output) = child.wait_with_output() else {
+        let _ = writer.join();
+        return results;
+    };
+    let _ = writer.join();
     if !output.status.success() {
-        log_git_failure("show", &spec, &output.stderr);
-        return None;
+        log_git_failure("cat-file --batch", sha, &output.stderr);
+        return results;
     }
-    Some(output.stdout)
+
+    let Some(parsed) = parse_batch_stdout(&output.stdout, query_count) else {
+        log_git_failure("cat-file --batch (parse)", sha, &output.stderr);
+        return results;
+    };
+
+    // `parsed` carries one entry per query in the same order they were
+    // written to stdin. Drain it into the slots that produced queries,
+    // leaving the refused (colon-path) slots as the pre-set `None`.
+    // `.flatten()` collapses "iterator exhausted" and "parsed entry is
+    // None" — both map to the same fail-safe outcome.
+    let mut parsed_iter = parsed.into_iter();
+    for (slot, queried) in results.iter_mut().zip(had_query.iter()) {
+        if *queried {
+            *slot = parsed_iter.next().flatten();
+        }
+    }
+    results
+}
+
+/// Parse the streaming `git cat-file --batch` stdout into a vec of
+/// `expected` entries. Each record is either:
+///
+/// - `<oid> SP <type> SP <size> LF <size bytes> LF` (object found —
+///   `<oid>`/`<type>`/`<size>` each contain no whitespace, so the hit
+///   header is exactly three space-separated fields)
+/// - `<input> SP missing LF` (revspec did not resolve; `<input>` is
+///   echoed verbatim and may contain spaces because filenames legally
+///   do, so miss detection anchors on the trailing ` missing` suffix)
+///
+/// All-or-nothing: any framing error returns `None` for the whole
+/// batch. A corrupt mid-stream frame leaves the cursor at an unknown
+/// offset, so partial recovery is not safe. The caller degrades to
+/// `EngineUnavailable`, which is fail-safe (never silently admits).
+///
+/// Non-blob types (tree / commit / tag — produced when a path is a
+/// submodule gitlink or an unexpected revspec) are reported as `None`
+/// for that slot rather than passed through as file content, so the
+/// antipattern scanner never sees raw tree or commit bytes
+/// masquerading as a source file. The body bytes are still consumed
+/// so subsequent records stay aligned.
+fn parse_batch_stdout(stdout: &[u8], expected: usize) -> Option<Vec<Option<Vec<u8>>>> {
+    let mut out: Vec<Option<Vec<u8>>> = Vec::with_capacity(expected);
+    let mut cursor = 0usize;
+    while out.len() < expected {
+        let rel = stdout.get(cursor..)?.iter().position(|&b| b == b'\n')?;
+        let header = &stdout[cursor..cursor + rel];
+        cursor += rel + 1;
+        let header_str = std::str::from_utf8(header).ok()?;
+        // Miss / error lines echo the input (which may contain spaces)
+        // followed by ` <reason>`. Suffix-match catches the ` missing`
+        // (and defensively the rarer ` ambiguous`) tail without
+        // misclassifying a hit header — hit headers are exactly three
+        // whitespace-free fields and so never end in ` missing`.
+        if header_str.ends_with(" missing") || header_str.ends_with(" ambiguous") {
+            out.push(None);
+            continue;
+        }
+        // Hit form: exactly three space-separated, whitespace-free
+        // fields. Anything else is unrecognised — return `None` for
+        // the whole batch rather than risk reading garbage as body
+        // bytes.
+        let parts: Vec<&str> = header_str.split(' ').collect();
+        if parts.len() != 3 {
+            return None;
+        }
+        let obj_type = parts[1];
+        let size: usize = parts[2].parse().ok()?;
+        let body_end = cursor.checked_add(size)?;
+        if body_end > stdout.len() {
+            return None;
+        }
+        if obj_type == "blob" {
+            out.push(Some(stdout[cursor..body_end].to_vec()));
+        } else {
+            // Non-blob (tree / commit / tag) — discard the body but
+            // keep cursor aligned for the next record.
+            out.push(None);
+        }
+        cursor = body_end;
+        // Each object body is terminated by a single LF — consume it.
+        if stdout.get(cursor) != Some(&b'\n') {
+            return None;
+        }
+        cursor += 1;
+    }
+    Some(out)
 }
 
 /// Forward captured git stderr to `tracing::debug!` so a production
@@ -414,20 +570,175 @@ mod tests {
     }
 
     /// Council #C-016G: filenames containing a colon would mis-parse
-    /// `<rev>:<path>`. The engine must refuse to construct the
-    /// revspec rather than feed git an ambiguous string.
+    /// `<rev>:<path>`. The batch helper must yield `None` for those
+    /// entries rather than feed git an ambiguous string. Other valid
+    /// entries in the same batch must still resolve.
     #[test]
-    fn read_commit_blob_refuses_colon_path() {
+    fn read_commit_blobs_batch_returns_none_for_colon_path() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        assert!(read_commit_blob(&root, &sha, "weird:path.ts").is_none());
+        let bodies = read_commit_blobs_batch(&root, &sha, &["weird:path.ts", "f.txt"]);
+        assert_eq!(bodies.len(), 2);
+        assert!(bodies[0].is_none(), "colon path must be refused");
+        assert_eq!(bodies[1].as_deref(), Some(b"body\n".as_ref()));
     }
 
-    /// `read_commit_blob` round-trips a known body through git.
+    /// MLP2-068: `read_commit_blobs_batch` round-trips a known body
+    /// through a single `git cat-file --batch` invocation.
     #[test]
-    fn read_commit_blob_returns_file_bytes() {
+    fn read_commit_blobs_batch_returns_file_bytes() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        let bytes = read_commit_blob(&root, &sha, "f.txt").expect("git show succeeded");
-        assert_eq!(bytes, b"body\n");
+        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt"]);
+        assert_eq!(bodies.len(), 1);
+        assert_eq!(bodies[0].as_deref(), Some(b"body\n".as_ref()));
+    }
+
+    /// MLP2-068: multiple paths return in input order from a single
+    /// git invocation. This is the core contract that lets
+    /// `validate_commit` pay O(1) git spawns instead of O(N).
+    #[test]
+    fn read_commit_blobs_batch_returns_aligned_bodies() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        std::fs::write(root.join("a.ts"), "alpha\n").unwrap();
+        std::fs::write(root.join("b.ts"), "bravo\n").unwrap();
+        std::fs::write(root.join("c.ts"), "charlie\n").unwrap();
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "three"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let bodies = read_commit_blobs_batch(&root, &sha, &["c.ts", "a.ts", "b.ts"]);
+        assert_eq!(bodies.len(), 3);
+        assert_eq!(bodies[0].as_deref(), Some(b"charlie\n".as_ref()));
+        assert_eq!(bodies[1].as_deref(), Some(b"alpha\n".as_ref()));
+        assert_eq!(bodies[2].as_deref(), Some(b"bravo\n".as_ref()));
+    }
+
+    /// MLP2-068: paths not present in the commit's tree surface as
+    /// `None` alongside paths that resolve, so the per-input alignment
+    /// invariant survives partial misses.
+    #[test]
+    fn read_commit_blobs_batch_returns_none_for_missing_path() {
+        let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
+        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt", "missing.ts"]);
+        assert_eq!(bodies.len(), 2);
+        assert_eq!(bodies[0].as_deref(), Some(b"body\n".as_ref()));
+        assert!(bodies[1].is_none());
+    }
+
+    /// MLP2-068: zero SHA is hex-shaped but never a real commit. The
+    /// batch helper refuses before invoking git and returns all `None`
+    /// so the engine collapses to `EngineUnavailable` upstream.
+    #[test]
+    fn read_commit_blobs_batch_refuses_zero_sha() {
+        let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
+        let bodies = read_commit_blobs_batch(&root, &"0".repeat(40), &["f.txt", "g.txt"]);
+        assert_eq!(bodies, vec![None, None]);
+    }
+
+    /// MLP2-068: non-hex SHA is refused before invoking git.
+    #[test]
+    fn read_commit_blobs_batch_refuses_non_hex_sha() {
+        let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
+        let bodies = read_commit_blobs_batch(&root, "HEAD", &["f.txt"]);
+        assert_eq!(bodies, vec![None]);
+    }
+
+    /// MLP2-068: blob bodies are returned as raw bytes — binary
+    /// content (NUL bytes, embedded LFs) round-trips exactly and the
+    /// next record in the same batch stays aligned. A bug in the
+    /// streaming parser that mis-reads body length would corrupt the
+    /// second slot, so the dual-file fixture pins the alignment
+    /// invariant against the size-driven body read.
+    #[test]
+    fn read_commit_blobs_batch_round_trips_binary_content() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        let binary: &[u8] = b"\x00\x01\x02 line\n\x00 more\n\xff\xfe";
+        let no_newline: &[u8] = b"no-trailing-newline";
+        std::fs::write(root.join("bin.dat"), binary).unwrap();
+        std::fs::write(root.join("plain.txt"), no_newline).unwrap();
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "two"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let bodies = read_commit_blobs_batch(&root, &sha, &["bin.dat", "plain.txt"]);
+        assert_eq!(bodies.len(), 2);
+        assert_eq!(bodies[0].as_deref(), Some(binary));
+        assert_eq!(bodies[1].as_deref(), Some(no_newline));
+    }
+
+    /// MLP2-068 Council: a non-blob object (tree / commit / tag) at
+    /// the parsed position must surface as `None`, not as raw
+    /// non-source bytes the antipattern scanner would happily ingest.
+    /// Exercise the parser directly because constructing a real
+    /// submodule fixture in a unit test is heavyweight; the parser is
+    /// the single chokepoint protecting the scanner.
+    #[test]
+    fn parse_batch_stdout_refuses_non_blob_object() {
+        let stdout = b"deadbeef tree 5\nabcde\ndeadbeef blob 4\nbody\n";
+        let parsed = parse_batch_stdout(stdout, 2).expect("framed correctly");
+        assert_eq!(parsed.len(), 2);
+        assert!(
+            parsed[0].is_none(),
+            "tree-typed record must not be materialised as blob bytes",
+        );
+        assert_eq!(parsed[1].as_deref(), Some(b"body".as_ref()));
+    }
+
+    /// MLP2-068: `git cat-file --batch` echoes the input verbatim on a
+    /// miss. A path that legitimately contains a space — and ends with
+    /// the word "missing" — would produce a miss header ending in
+    /// ` missing missing`. Pin the parser against treating this as a
+    /// hit (which would try to parse "missing" as a size).
+    #[test]
+    fn parse_batch_stdout_handles_path_ending_in_missing() {
+        let stdout = b"deadbeef:weird missing missing\ndeadbeef blob 2\nok\n";
+        let parsed = parse_batch_stdout(stdout, 2).expect("framed correctly");
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed[0].is_none(), "miss line classified as miss");
+        assert_eq!(parsed[1].as_deref(), Some(b"ok".as_ref()));
+    }
+
+    /// MLP2-068: empty input list does not spawn git at all. Pin the
+    /// empty-fast-path to keep the engine's "no scannable files"
+    /// short-circuit honest.
+    #[test]
+    fn read_commit_blobs_batch_empty_input_returns_empty_vec() {
+        let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
+        let bodies = read_commit_blobs_batch(&root, &sha, &[]);
+        assert!(bodies.is_empty());
     }
 
     /// MLP2-016 reopened: a commit with no scannable files surfaces
@@ -578,5 +889,63 @@ mod tests {
         {
             panic!("production default re-bound NoOpValidationEngine");
         }
+    }
+
+    /// MLP2-068: a synthesised 200-file commit must validate well
+    /// within the 2 s `PRE_PUSH_BUDGET`. Before the batch path, this
+    /// would pay 200× `git show` spawns (~5–15 ms each) and burn most
+    /// of the budget before any rule fired. With `git cat-file --batch`
+    /// the engine pays one git process per `validate_commit` call.
+    /// 1.0 s is the threshold — comfortably under 2 s but far above
+    /// the batch path's actual cost, so the test is not flake-prone
+    /// on contended CI hardware yet a regression that drops the batch
+    /// helper (re-introducing per-file spawns) trips it cleanly.
+    #[test]
+    fn validate_commit_handles_200_file_commit_under_budget() {
+        use std::time::{Duration, Instant};
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        for i in 0..200 {
+            let body = format!("export const x{i} = {i};\n");
+            std::fs::write(root.join(format!("src/f{i:03}.ts")), body).unwrap();
+        }
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "200 files"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let start = Instant::now();
+        let verdict = validate_commit(&root, &sha);
+        let elapsed = start.elapsed();
+        // The fixture intentionally contains no antipattern triggers,
+        // so the verdict is `Allow`. The point of the test is wall
+        // clock, but pin the verdict shape too so a regression that
+        // breaks blob alignment (e.g. wrong-content materialised
+        // under wrong path) becomes visible.
+        assert!(
+            matches!(verdict, ValidationVerdict::Allow),
+            "expected Allow for 200 clean files, got {verdict:?}",
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "200-file validation took {elapsed:?}, expected < 1.0 s; \
+             regression likely re-introduces per-file git spawns",
+        );
     }
 }

@@ -3329,7 +3329,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-068: `git cat-file --batch` for `CommitAntipatternEngine` blob fetch
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `CommitAntipatternEngine::validate_commit` (shipped
   MLP2-016, PR #1627) reads each scannable file in a commit via a
   separate `git show <sha>:<path>` `Command::spawn`. At ~5–15 ms
