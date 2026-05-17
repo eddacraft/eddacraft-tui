@@ -1,8 +1,7 @@
 # Agent setup for `anvil-001`
 
-This is a deepsec scanning workspace. Project `anvil-001` was just registered
-(target: `..`). Setup is incomplete — `data/anvil-001/INFO.md` still has
-placeholder sections.
+This is a deepsec scanning workspace. Project `anvil-001` is registered (target:
+`..`) and `data/anvil-001/INFO.md` contains the current project context.
 
 ## What to do
 

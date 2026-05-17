@@ -18,20 +18,20 @@ export const anvilInterceptTrustBoundary: MatcherPlugin = {
     if (/\/tests?\/|_test\.rs$/.test(filePath)) return [];
 
     const lines = content.split('\n');
+    const matches: CandidateMatch[] = [];
+
     for (let i = 0; i < lines.length; i++) {
       if (!TRUST_BOUNDARY_RE.test(lines[i])) continue;
       const start = Math.max(0, i - 2);
       const end = Math.min(lines.length, i + 5);
-      return [
-        {
-          vulnSlug: 'anvil-intercept-trust-boundary',
-          lineNumbers: [i + 1],
-          snippet: lines.slice(start, end).join('\n'),
-          matchedPattern: 'intercept trust-boundary, driver, IPC, or canonicalisation surface',
-        },
-      ];
+      matches.push({
+        vulnSlug: 'anvil-intercept-trust-boundary',
+        lineNumbers: [i + 1],
+        snippet: lines.slice(start, end).join('\n'),
+        matchedPattern: 'intercept trust-boundary, driver, IPC, or canonicalisation surface',
+      });
     }
 
-    return [];
+    return matches;
   },
 };
