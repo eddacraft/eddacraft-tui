@@ -2,9 +2,23 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 53/76 done |
+| MLP2 | @aneki | In Progress | 54/76 done |
 
-**Last reviewed:** 2026-05-17 (MLP2-026 closed via PR #1624 at
+**Last reviewed:** 2026-05-17 (MLP2-025c closed via PR #1608 at
+`1ea23349` — launcher migration that activates the MLP2-025/-025b
+spoof cross-check in production: `session_register_params`
+emits nested `agent_tag` + `lineage` (daemon parser has been
+waiting for these since MLP2-023), `RegistrationRequest` gains
+`launcher_pid`, TS driver-client `AnvilScanBufferParams` gains
+optional `env_agent_tag` and `validateMidEdit` forwards
+`process.env.ANVIL_AGENT_TAG`. Cross-check is now live —
+`Cross::Match` admits, `Cross::Spoofed` blocks + fences with
+`degraded:spoofed-attribution`. MLP2-025c advances `In Progress`
+→ `Merged`; done-count 53 → 54 of 76. Also reconciles the
+Group D stats footer that drifted across the MLP2-026
+2026-05-17 closure: Group D 3/6 → 5/6 (was previously stale
+after MLP2-026's bump to Merged left the footer untouched).
+Earlier 2026-05-17: MLP2-026 closed via PR #1624 at
 `5e3798da` — `degraded:fence-cascade` mode ships persisted
 `CascadeRecord` state in `FenceFile`, `RateWindow::new(4, 60s)`
 on `FenceStore`, `WorktreeStatus`/`WorktreeStatusV1` `cascaded`
@@ -1328,12 +1342,40 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025c: Launcher-side population of `lineage` + `env_agent_tag`
 
-- **Status:** In Progress
+- **Status:** Merged (PR #1608, 2026-05-16 at `1ea23349`)
+- **Closure (2026-05-17, PR #1608 at `1ea23349`):** the launcher
+  migration shipped per the locked spec. `session_register_params`
+  (`crates/anvil-run/src/ipc.rs`) now emits nested `agent_tag`
+  (the shape the daemon's MLP2-023+ parser has been waiting for —
+  flat fields were silently dropped on every production session
+  since MLP2-023 shipped) and nested `lineage` (the MLP2-025b
+  anchor). `RegistrationRequest` gained `launcher_pid: u32`;
+  `run.rs` populates from `std::process::id()`. TS driver-client
+  `AnvilScanBufferParams` gained optional `env_agent_tag?: string`
+  + `AnvilScanBufferResult.spoof_block?`; `validateMidEdit` reads
+  `process.env.ANVIL_AGENT_TAG` and forwards it (empty string and
+  undefined both fold to "omit" — daemon classifies absence as
+  `Cross::Untagged`). Three new wire-shape pins in `ipc::tests`
+  (incl. spec §7 trust-model invariant pin `session_register_
+  params_lineage_pid_starttime_matches_agent_tag`); three new
+  driver-client tests pin env_agent_tag set/unset/empty-string.
+  Behaviour change after merge: every `anvil-run` launcher emits
+  a proper `agent_tag`+`lineage` on register, every TS-driver
+  mid-edit scan-buffer carries the writer's `ANVIL_AGENT_TAG`,
+  and the daemon's spoof cross-check becomes active —
+  `Cross::Match` admits, `Cross::Spoofed` blocks + fences with
+  `degraded:spoofed-attribution`, `Cross::Untagged` preserves the
+  pre-MLP2-025 path. Flat `driver_id`/`claimed_agent_id`/
+  `pid_starttime`/`cwd`/`tmux_pane` stayed on the wire alongside
+  the new nested objects (deferred cleanup; the daemon doesn't
+  read them, they harm nothing). Out of scope and tracked
+  separately: Windows peer-PID (MLP2-028), end-to-end spoof
+  confirmation test against a real daemon+launcher+spoofer triple.
 - **Intent:** Populate the wire fields MLP2-025b added so the
   daemon's lineage index actually gets seeded in production and
   the write-time spoof cross-check has something to match. Until
-  this lands, every production register call goes through the
-  legacy path with `lineage = None`; the cross-check is wired
+  this landed, every production register call went through the
+  legacy path with `lineage = None`; the cross-check was wired
   daemon-side but inert.
 - **Mid-implementation survey** (2026-05-16, no contract spec):
   the migration is a clean small surface — one Rust function
@@ -3362,7 +3404,7 @@ to redesign once GV2-001..-023 land.
 | A. Daemon enforcement + observation | 10 (MLP2-001..-010) | 4/10 |
 | B. Witness chain extensions | 5 (MLP2-011..-015) | 5/5 (Complete) |
 | C. L4 policy execution | 7 (MLP2-016..-022) | 6/7 |
-| D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 3/6 |
+| D. Multi-session + fence isolation | 6 (MLP2-023..-026 + MLP2-025b + MLP2-025c) | 5/6 |
 | E. Cross-platform attribution | 2 (MLP2-027..-028) | 0/2 |
 | F. TypeScript driver-client mirrors | 2 (MLP2-029..-030) | 2/2 |
 | G. Baseline + identity wiring | 6 (MLP2-031..-036) | 5/6 |
@@ -3374,7 +3416,7 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **52/76** |
+| **Total** | **76** | **54/76** |
 
 ## Recommended landing order
 
