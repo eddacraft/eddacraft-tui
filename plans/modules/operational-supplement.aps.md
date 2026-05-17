@@ -12,7 +12,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 1/7      |
+| OPSUP | OpenCode | In Progress | 2/7      |
 
 **Last reviewed:** 2026-05-14
 
@@ -190,7 +190,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Provide reusable check guards and runtime budgets so absent file
   shapes short-circuit before expensive work.
 - **Expected Outcome:** `CheckDefinition` declares optional file-shape globs
@@ -208,7 +208,8 @@ Remaining non-registry slices move to **Ready** when:
   `crates/anvil-cli/src/commands/mod.rs`,
   `plans/modules/operational-supplement.aps.md`,
   `plans/index.aps.md`
-- **Validation:** `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`
+- **Validation:** Validation passed 2026-05-17 with `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`.
+- **Validation Evidence:** Passed 2026-05-17 with `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`.
 
 ### OPSUP-007 — False-positive reporting channel
 
