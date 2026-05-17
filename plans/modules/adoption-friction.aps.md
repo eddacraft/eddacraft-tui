@@ -6,10 +6,11 @@
 | ----- | ------ | ------ | -------- |
 | ADOPT | @aneki | In Progress | 5/6 done |
 
-**Last reviewed:** 2026-05-16 (promoted **Proposed → Ready** alongside
-acceptance of
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Progress: **3/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
+**Last reviewed:** 2026-05-17 (Proposed → Ready promotion on 2026-05-16
+alongside acceptance of
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md);
+counter and narrative refreshed on 2026-05-17 for ADOPT-006 merge.
+Progress: **5/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
 `crates/anvil-cli/src/commands/uninstall.rs` with 10 tests) and
 **Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
 2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
