@@ -1,0 +1,14 @@
+{
+  "schema_version": "anvil.protection-claim.v1",
+  "worktree_state": "degraded-protection",
+  "surfaces": [
+    {
+      "identifier": "sess-clean",
+      "state": "participating"
+    },
+    {
+      "identifier": "sess-fenced",
+      "state": "quarantined"
+    }
+  ]
+}

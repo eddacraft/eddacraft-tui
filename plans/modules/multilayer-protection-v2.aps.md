@@ -2705,7 +2705,8 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051e: Cross-surface protection-claim parity test
 
-- **Status:** Blocked
+- **Status:** In Progress (branch `feat/mlp2-051e-cross-surface-parity`,
+  2026-05-17 — deps MLP2-051a/b/c all Merged via PRs #1655/#1668/#1675).
 - **Intent:** Single end-to-end harness drives a fixed
   `DaemonStatusV1` input through every surface (CLI status,
   CLI doctor, MCP shim, TS driver-client) and asserts the

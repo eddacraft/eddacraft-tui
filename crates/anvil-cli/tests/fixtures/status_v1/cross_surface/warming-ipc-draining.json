@@ -1,0 +1,10 @@
+{
+  "schema_version": "anvil.protection-claim.v1",
+  "worktree_state": "warming",
+  "surfaces": [
+    {
+      "identifier": "sess-drain",
+      "state": "detached"
+    }
+  ]
+}

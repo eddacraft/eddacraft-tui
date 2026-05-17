@@ -1,0 +1,10 @@
+{
+  "schema_version": "anvil.protection-claim.v1",
+  "worktree_state": "pre-write-daemon",
+  "surfaces": [
+    {
+      "identifier": "sess-alpha",
+      "state": "participating"
+    }
+  ]
+}
