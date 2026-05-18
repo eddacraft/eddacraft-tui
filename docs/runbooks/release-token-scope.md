@@ -2,12 +2,18 @@
 
 ## Purpose
 
-`ANVIL_RELEASES_TOKEN` is the GitHub PAT the release workflow uses to publish
-the WinGet manifest fork, the Scoop bucket (`eddacraft/scoop-bucket`), and the
-Homebrew tap (`eddacraft/homebrew-tap`). When a release job 403s on it, the
-cause is almost always **the existing token is missing a scope on a repo** — not
-that the token has expired or been compromised. The fix is usually a one-click
-in-place edit, not a rotation.
+`ANVIL_RELEASES_TOKEN` is the GitHub PAT the release workflow uses to publish to
+the Scoop bucket (`eddacraft/scoop-bucket`) and the Homebrew tap
+(`eddacraft/homebrew-tap`), plus internal release-time steps (asset downloads,
+ACKNOWLEDGEMENTS publish). When a release job 403s on it, the cause is almost
+always **the existing token is missing a scope on a repo** — not that the token
+has expired or been compromised. The fix is usually a one-click in-place edit,
+not a rotation.
+
+> **WinGet uses a different token.** The `winget` job in `release.yml`
+> authenticates with `WINGET_TOKEN`, not `ANVIL_RELEASES_TOKEN`. A 403 on the
+> winget job is a separate scope problem on `WINGET_TOKEN` — adjusting
+> `ANVIL_RELEASES_TOKEN` will not fix it.
 
 This runbook leads with the scope-fix path. Full mint + install + revoke is at
 the bottom for the cases where you actually do need to rotate (expiry, suspected
@@ -18,7 +24,6 @@ compromise, classic → fine-grained conversion).
 - The release workflow's `scoop` job fails the pre-flight or the PUT with
   `HTTP 403` / "Resource not accessible by personal access token". The
   pre-flight emits a `::error::` annotation pointing here.
-- The `winget` job fails its `gh repo fork` or `gh api` call with a similar 403.
 - The `Publish Homebrew formula to eddacraft/homebrew-tap` step in `release.yml`
   (or the `republish` job in `homebrew-bump.yml`) fails with a 403 on the
   `gh api ... -X PUT` write to `Formula/anvil.rb`.
@@ -30,17 +35,16 @@ compromise, classic → fine-grained conversion).
 
 ## Required scopes
 
-`ANVIL_RELEASES_TOKEN` is consumed by three release-time publishers and needs
-the following access:
+`ANVIL_RELEASES_TOKEN` is consumed by release-time publish steps and needs the
+following access:
 
-| Resource                          | Why                                                                        | Minimum scope    |
-| --------------------------------- | -------------------------------------------------------------------------- | ---------------- |
-| `eddacraft/anvil-001`             | `gh release download` for installer SHAs and icon                          | `contents:read`  |
-| `eddacraft/scoop-bucket`          | `gh api` PUT for `bucket/anvil.json`                                       | `contents:write` |
-| `${FORK_USER}/winget-pkgs` (fork) | `gh repo fork`, branch creation, `gh api` PUT for manifest files           | `contents:write` |
-| `eddacraft/homebrew-tap`          | `gh api` PUT for `Formula/anvil.rb` via `scripts/release/bump-homebrew.sh` | `contents:write` |
+| Resource                 | Why                                                                                           | Minimum scope    |
+| ------------------------ | --------------------------------------------------------------------------------------------- | ---------------- |
+| `eddacraft/anvil-001`    | `gh release download` for installer SHAs and icon; ACKNOWLEDGEMENTS.md publish on release.yml | `contents:write` |
+| `eddacraft/scoop-bucket` | `gh api` PUT for `bucket/anvil.json`                                                          | `contents:write` |
+| `eddacraft/homebrew-tap` | `gh api` PUT for `Formula/anvil.rb` via `scripts/release/bump-homebrew.sh`                    | `contents:write` |
 
-Plus `metadata:read` on all four (mandatory for any fine-grained PAT).
+Plus `metadata:read` on all three (mandatory for any fine-grained PAT).
 `workflow` scope is not needed — the token never invokes other workflows.
 
 ## Edit the existing token (primary path)
@@ -50,7 +54,7 @@ re-paste. This is almost always what you want.
 
 1. Open <https://github.com/settings/personal-access-tokens>, click the row for
    `ANVIL_RELEASES_TOKEN`'s underlying PAT, then **Edit**.
-2. **Repository access:** ensure all four repos above are listed under "Only
+2. **Repository access:** ensure all three repos above are listed under "Only
    select repositories". Add any that are missing.
 3. **Repository permissions:** confirm `Contents: Read and write` is selected
    (read-only will pass the pre-flight but fail the PUT).
@@ -135,8 +139,6 @@ Use this path **only** when:
 - **Repository access:** Only select repositories
   - `eddacraft/anvil-001`
   - `eddacraft/scoop-bucket`
-  - `${FORK_USER}/winget-pkgs` (the user/bot that holds the winget-pkgs fork —
-    currently the `eddacraft` org's fork)
   - `eddacraft/homebrew-tap`
 - **Repository permissions:**
   - `Contents: Read and write`
@@ -164,9 +166,9 @@ verification step above is sufficient.
 
 ### 5. Revoke the old PAT
 
-Once the next release's `scoop`, `winget`, and Homebrew publish jobs all end
-`Ready`, revoke the old PAT at
-<https://github.com/settings/personal-access-tokens> → old token → **Revoke**.
+Once the next release's `scoop` and Homebrew publish jobs both end `Ready`,
+revoke the old PAT at <https://github.com/settings/personal-access-tokens> → old
+token → **Revoke**.
 
 ## Failure modes
 
@@ -192,8 +194,9 @@ fresh token".
 ## Cross-references
 
 - Module: `plans/modules/v050-release-followups.aps.md` §V050F-012
-- Release workflow: `.github/workflows/release.yml` (`scoop` and `winget` jobs,
-  plus the `Publish Homebrew formula to eddacraft/homebrew-tap` step)
+- Release workflow: `.github/workflows/release.yml` (`scoop` job and the
+  `Publish Homebrew formula to eddacraft/homebrew-tap` step). The `winget` job
+  in the same workflow uses `WINGET_TOKEN` — out of scope for this runbook.
 - Homebrew recovery workflow: `.github/workflows/homebrew-bump.yml`
   (`workflow_dispatch` `republish` job)
 - v0.4.0-beta manual recovery commit: `eddacraft/scoop-bucket@4f3becf6`

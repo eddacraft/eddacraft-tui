@@ -8,16 +8,18 @@
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.3-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-17 (structural amendment: two-level release claim —
-tag-time **daemon-working** verifiable from code state alone, post-tag
-**sit-on** graduates via release-notes / web-copy update after Wave 5 Boring
-Week confirmation. Wave 5 relocated from pre-tag hard gate to post-tag
-validation gate, resolving the chicken-and-egg of testers running unreleased
-branch builds. Cut-line extended with **MLP2-025 + MLP2-025b + MLP2-025c**
-(security chain finish), **MLP2-026** (operator-recovery clear path; contract
-Accepted via PR #1617), and **ADOPT-003** (AI auto-detect — sit-on adoption
-leverage). **MLP2-051 respec landed on `732eef55`** splitting it into an
-umbrella + five sub-tasks (-051a..-051e); the cut-line picks up **-051a
+**Last updated:** 2026-05-18 (third-pass freight: CIB-005 + CIB-007 joined the
+sit-on bundle after an abandoned `v0.6.4-beta` hotfix attempt against
+`v0.6.3-beta`; tracking issue #1694 closed. Prior structural amendment
+2026-05-17 — two-level release claim — tag-time **daemon-working** verifiable
+from code state alone, post-tag **sit-on** graduates via release-notes /
+web-copy update after Wave 5 Boring Week confirmation. Wave 5 relocated from
+pre-tag hard gate to post-tag validation gate, resolving the chicken-and-egg of
+testers running unreleased branch builds. Cut-line extended with **MLP2-025 +
+MLP2-025b + MLP2-025c** (security chain finish), **MLP2-026** (operator-recovery
+clear path; contract Accepted via PR #1617), and **ADOPT-003** (AI auto-detect —
+sit-on adoption leverage). **MLP2-051 respec landed on `732eef55`** splitting it
+into an umbrella + five sub-tasks (-051a..-051e); the cut-line picks up **-051a
 (`anvil doctor` typed claim) + -051b (MCP shim typed claim) + -051c (TS
 driver-client mirror) + -051e (cross-surface parity test)** — the three Ready
 render-surface items plus the parity test that closes the HARD-GATE once they
