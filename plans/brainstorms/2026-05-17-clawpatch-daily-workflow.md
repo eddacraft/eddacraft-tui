@@ -24,7 +24,16 @@ signal-to-noise ratio is proven.
 ### 1. Morning Repo Health Scan
 
 Run `clawpatch map`, then a small bounded review such as
-`clawpatch review --limit 3 --jobs 3`.
+`clawpatch review --limit 10 --jobs 5`.
+
+Empirically (`.clawpatch/runs/`) `--jobs 5` is ~3× more efficient per feature
+than `--jobs 3` against the Codex provider, with no observed throttling, so
+prefer the wider wave even for small scans:
+
+- Smoke after a small branch: `--limit 5 --jobs 5` (~80 s, single wave)
+- Morning health scan: `--limit 10 --jobs 5` (~2.5 min, ~12 % of backlog)
+- Full sweep (rare): `--limit 81 --jobs 8` (~12 min projected; stay under the
+  jobs=10 default until measured)
 
 Use this as an advisory scan for new or stale risk, especially maintainability,
 test-gap, API-contract, and build-release findings. Do not treat this as a
