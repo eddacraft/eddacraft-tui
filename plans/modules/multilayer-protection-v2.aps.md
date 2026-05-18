@@ -1450,6 +1450,16 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Critical (MLP2-025/-025b are dead code in
   production without this).
 - **Dependencies:** MLP2-025, MLP2-025b
+- **releaseNote:**
+  - audience: user
+  - type: security
+  - text: "Anvil now performs end-to-end agent-tag spoof
+    rejection. The launcher and TypeScript driver-client
+    forward each writer's `ANVIL_AGENT_TAG` and PID lineage
+    to the daemon, which cross-checks them against the tag
+    it issued at registration. Spoofed tags block the
+    offending write and fence the worktree with
+    `degraded:spoofed-attribution`."
 - **Source:** MLP2-025b spec Q6 verdict (2026-05-16); mid-impl
   discovery 2026-05-16 that the current launcher's flat
   register-session wire shape is daemon-ignored.
@@ -1659,6 +1669,17 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP2-009, MLP2-023
+- **releaseNote:**
+  - audience: operator
+  - type: added
+  - text: "Anvil now engages a `degraded:fence-cascade` mode
+    when five fences fire on the same worktree within sixty
+    seconds, refusing new sessions until an operator
+    acknowledges. Run
+    `anvil intercept unblock --acknowledge-cascade <worktree>`
+    to clear; `anvil status` surfaces `cascaded` /
+    `cascade_since`, and the engaged state survives daemon
+    restart."
 - **Source:** MLP-014 footnote 3.
 
 ### E. Cross-platform attribution
@@ -1922,6 +1943,14 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** MLP-001, MLP-007, MLP2-031
+- **releaseNote:**
+  - audience: user
+  - type: changed
+  - text: "`anvil baseline` now mints `anvil/project-id` on
+    first run (preserved on re-run) and pins `cutoff_commit`
+    into the canonical policy file in the same flow, so
+    adopting Anvil into an existing repo no longer fails on
+    a missing project identity."
 - **Source:** MLP-001 footnote 3, MLP-007 footnote 5.
 
 #### MLP2-033: `--new-identity` fork opt-out CLI flag
@@ -1985,6 +2014,14 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** high
 - **Priority:** Low
 - **Dependencies:** MLP-001, MLP-007, MLP2-032
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil start --new-identity` and
+    `anvil baseline --new-identity` mint a fresh
+    `project_uuid` and record the previous one as
+    `forked_from`, giving forks an explicit opt-out from
+    inheriting their parent repo's identity."
 - **Source:** MLP-001 footnote 2.
 
 #### MLP2-034: Scanner integration — populate `BaselineFinding` from anvil-checks
@@ -2267,6 +2304,13 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** high
 - **Priority:** Low
 - **Dependencies:** MLP-011
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil start --format json|toml` lets you choose
+    `.anvil.json` or `.anvil.toml` at adoption time. The
+    default remains yaml, and all three formats round-trip
+    through the same canonical representation."
 - **Source:** MLP-011 footnote 1.
 
 #### MLP2-040: `.anvilrc` → `.anvil.<ext>` filename migration
@@ -2289,6 +2333,14 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** medium
 - **Priority:** Low
 - **Dependencies:** MLP-011
+- **releaseNote:**
+  - audience: user
+  - type: changed
+  - text: "Anvil now discovers `.anvil.yaml`, `.anvil.yml`,
+    `.anvil.json`, and `.anvil.toml` first, falling back to
+    legacy `.anvilrc` only when none are present. Run
+    `anvil migrate` to convert an existing `.anvilrc` to the
+    new filename."
 - **Source:** MLP-011 footnote 2.
 
 #### MLP2-041: Typed `AnvilConfig` schema
@@ -2415,6 +2467,13 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** MLP-006, MLP2-016
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil l4-validate` is now a dedicated CLI
+    subcommand for running L4 verification over a commit
+    range, replacing the previous `anvil hook pre-push`
+    reuse for CI and GitHub Action consumers."
 - **Source:** MLP-006 deferred lane, MLP-010 footnote 5.
 
 #### MLP2-047: Pre-push end-to-end subprocess integration tests
@@ -2485,6 +2544,15 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** medium
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP-009
+- **releaseNote:**
+  - audience: user
+  - type: changed
+  - text: "`anvil status --json` now emits a typed
+    `ProtectionClaim` built from the live daemon snapshot,
+    including per-surface entries with closed-set state
+    values. When the daemon is unreachable, output falls
+    back to a locally-derivable worktree state with an empty
+    `surfaces` array rather than over-claiming coverage."
 - **Source:** MLP-009 footnote 1.
 
 #### MLP2-049: Per-state golden fixture files
@@ -2635,6 +2703,13 @@ task's `Source:` line cites the Council finding IDs.
 - **Confidence:** high
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP2-048
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil doctor` now prints a typed protection-claim
+    section showing the worktree state and per-surface
+    entries, with `--json` emitting the same
+    `ProtectionClaim` shape as `anvil status --json`."
 - **Source:** MLP2-051 re-spec, 2026-05-17.
 
 #### MLP2-051b: MCP shim emits typed protection claim in `validate_write` response
@@ -2666,6 +2741,14 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP2-048, MLP2-051a (reuse the shared
   claim-building helper if extracted).
+- **releaseNote:**
+  - audience: developer
+  - type: added
+  - text: "The MCP shim's `validate_write` response now
+    carries an optional typed `protection_claim` field using
+    the closed-set vocabulary. The field is omitted when the
+    daemon is unreachable, and pre-existing drivers
+    round-trip the response unchanged."
 - **Source:** MLP2-051 re-spec, 2026-05-17.
 
 #### MLP2-051c: TS driver-client `ProtectionClaim` mirror + MCP response adapter
@@ -2700,6 +2783,14 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Critical (HARD-GATE close)
 - **Dependencies:** MLP2-048, MLP2-051b (consumes the wire
   field).
+- **releaseNote:**
+  - audience: developer
+  - type: added
+  - text: "`@anvil/driver-client` ships a hand-rolled
+    `ProtectionClaim` parser mirroring the Rust closed-set
+    types, and the MCP response adapter surfaces the typed
+    claim when the daemon supplied one. Responses without
+    the field parse cleanly for backward compatibility."
 - **Source:** MLP2-051 re-spec, 2026-05-17.
 
 #### MLP2-051d: GH Action check renders typed protection claim
@@ -3140,6 +3231,13 @@ remaining v2 integration surface.
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** MLP2-046, MLP2-011
+- **releaseNote:**
+  - audience: user
+  - type: security
+  - text: "`anvil l4-validate` now verifies witness-chain
+    integrity before trusting any witnessed commit SHA as L3
+    evidence. Broken or tampered chains produce a blocking
+    result instead of a silent allow or empty trusted set."
 - **Source:** Council full audit 2026-05-15 (security: CI/Marketplace
   L4 surface trusted witness files without first verifying the chain).
 

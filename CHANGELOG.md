@@ -14,10 +14,9 @@ engineering maintenance are recorded in the
   adoption, L4 policy, and wrapped agent launch now operate as a single
   verifiable claim: every commit is witnessed, every save passes the same
   protection pipeline, and every agent-driven write is attributable to a
-  registered session. `anvil status` renders the protection claim in plain text
-  and `--json`; `anvil doctor`, the MCP shim, and the TypeScript driver-client
-  emit the same typed claim shape so editors, CI, and agents read identical
-  state.
+  registered session. `anvil doctor`, `anvil status`, the MCP shim, and the
+  TypeScript driver-client all emit the same typed protection-claim shape so
+  editors, CI, and agents read identical state.
 - **Wrapped agent launch via `anvil-run`.** A new
   `anvil-run --tool <name> -- <command...>` launcher wraps AI-agent processes
   (Claude Code, Codex, and similar) so the daemon can attribute work, enforce
@@ -27,6 +26,17 @@ engineering maintenance are recorded in the
   zsh and bash, a hook side-channel for sessions that cannot be launched through
   the wrapper, blocked-launch UX with actionable error output, and periodic
   heartbeats so the daemon can reap crashed launchers.
+- **`anvil doctor` typed protection-claim section.** `anvil doctor` now prints
+  the worktree state and per-surface entries, with `--json` emitting the same
+  `ProtectionClaim` shape as `anvil status --json`.
+- **`anvil l4-validate` CLI command.** A dedicated subcommand for running L4
+  verification over a commit range, replacing the previous `anvil hook pre-push`
+  reuse for CI and GitHub Action consumers.
+- **`anvil intercept unblock --acknowledge-cascade`.** When five fences fire on
+  the same worktree within sixty seconds, Anvil engages a
+  `degraded:fence-cascade` mode and refuses new sessions until an operator
+  acknowledges. Use the new flag to clear; `anvil status` surfaces `cascaded` /
+  `cascade_since` and the engaged state survives daemon restart.
 - **`anvil insights` weekly summary.** Reports last-week activity at a glance —
   saves observed, findings raised, suppressions applied and resolved, baseline
   edges added, and daemon uptime — derived from the witness chain with no
@@ -36,6 +46,12 @@ engineering maintenance are recorded in the
   `anvil version --check` reports newer releases and security advisories against
   the running version. The watch TUI and `anvil status` show a one-line "update
   available" hint, rate-limited to once per 24 hours.
+- **`anvil start --new-identity` and `anvil baseline --new-identity`.** Mints a
+  fresh `project_uuid` and records the previous one as `forked_from`, giving
+  forks an explicit opt-out from inheriting their parent repo's identity.
+- **`anvil start --format json|toml`.** Choose `.anvil.json` or `.anvil.toml` at
+  adoption time. The default remains yaml, and all three formats round-trip
+  through the same canonical representation.
 - **Hook coexistence with lefthook, husky, and pre-commit-framework.** Anvil
   hooks now install alongside the three dominant 2026 hook managers without
   conflict — registering as managed entries in the host manager's config rather
@@ -58,10 +74,35 @@ engineering maintenance are recorded in the
 
 ### Changed
 
+- **`anvil status --json` ProtectionClaim shape.** Output is now a typed
+  `ProtectionClaim` built from the live daemon snapshot, including per-surface
+  entries with closed-set state values. When the daemon is unreachable, output
+  falls back to a locally-derivable worktree state with an empty `surfaces`
+  array rather than over-claiming coverage.
+- **`anvil baseline` writes project identity.** Baseline now mints
+  `anvil/project-id` on first run (preserved on re-run) and pins `cutoff_commit`
+  into the canonical policy file in the same flow, so adopting Anvil into an
+  existing repo no longer fails on a missing project identity.
+- **Config filename: `.anvilrc` → `.anvil.<ext>`.** Anvil discovers
+  `.anvil.yaml`, `.anvil.yml`, `.anvil.json`, and `.anvil.toml` first, falling
+  back to legacy `.anvilrc` only when none are present. Run `anvil migrate` to
+  convert an existing `.anvilrc` to the new filename.
 - **Signed `anvil update`.** `anvil update` now verifies downloads against a
   published minisign signature on every supported install path — Homebrew,
   curl-installer sidecar, and the axoupdater library fallback — before replacing
   the running binary. Signature mismatches are loud and actionable.
+
+### Security
+
+- **End-to-end agent-tag spoof rejection.** The launcher and TypeScript
+  driver-client forward each writer's `ANVIL_AGENT_TAG` and PID lineage to the
+  daemon, which cross-checks them against the tag it issued at registration.
+  Spoofed tags block the offending write and fence the worktree with
+  `degraded:spoofed-attribution`.
+- **`anvil l4-validate` chain integrity check.** L4 validation now verifies
+  witness-chain integrity before trusting any witnessed commit SHA as L3
+  evidence. Broken or tampered chains produce a blocking result instead of a
+  silent allow or empty trusted set.
 
 ### Fixed
 
@@ -70,6 +111,16 @@ engineering maintenance are recorded in the
   `audit`, hooks, baseline, drift, gate, and `anvil-run`. The canonical list
   lives in the kernel and is re-exported to CLI surfaces so the two cannot
   drift; `.venv` is now included and `__pycache__` reconciled.
+
+### Developer-facing
+
+- **MCP shim `validate_write` response carries `protection_claim`.** The field
+  is optional and uses the closed-set vocabulary; omitted when the daemon is
+  unreachable. Pre-existing drivers round-trip the response unchanged.
+- **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
+  closed-set types; the MCP response adapter surfaces the typed claim when the
+  daemon supplied one. Responses without the field parse cleanly for backward
+  compatibility.
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
