@@ -12,9 +12,11 @@
 #     `git subtree add --prefix tools/starters …` and get
 #     `tools/starters/acknowledgements/*` automatically — the kit names
 #     itself instead of relying on the consumer to type the right prefix.
-#   - `MIRROR-README.md` is prepended onto `README.md` so the public repo
-#     reads with a "this is a mirror" banner and a real subtree-add URL
-#     up front. The MIRROR-README file itself is then removed.
+#   - `MIRROR-README.md` is promoted to the wrap parent's root (i.e. the
+#     mirror repo's top level), so the public repo has a "this is a
+#     mirror" landing page above the `acknowledgements/` folder. The
+#     kit's own `README.md` (the marker-splice contract) is preserved
+#     verbatim under `acknowledgements/README.md`.
 #
 # The mirror is read-only by policy: contributions go upstream to anvil.
 # Force-push every run keeps that contract simple — no merge surface.
@@ -88,7 +90,7 @@ jobs:
             exit 1
           fi
 
-      - name: Wrap kit + swap MIRROR-README onto README (throwaway commit)
+      - name: Wrap kit + promote MIRROR-README to mirror root (throwaway commit)
         env:
           DISPATCH_REASON: ${{ github.event.inputs.reason }}
         run: |
@@ -107,12 +109,12 @@ jobs:
           fi
           mkdir -p "${WRAP_PARENT}"
           git mv "${KIT_DIR}" "${WRAP_DIR}"
-          tmp="$(mktemp)"
-          cat "${WRAP_DIR}/MIRROR-README.md" "${WRAP_DIR}/README.md" > "${tmp}"
-          mv "${tmp}" "${WRAP_DIR}/README.md"
-          rm "${WRAP_DIR}/MIRROR-README.md"
+          # Promote MIRROR-README to the wrap-parent root → mirror's
+          # top-level README. The kit's own README.md (the marker-splice
+          # contract) stays untouched under acknowledgements/README.md.
+          git mv "${WRAP_DIR}/MIRROR-README.md" "${WRAP_PARENT}/README.md"
           git add -A
-          msg='chore(mirror): wrap kit + prepend public README header [skip ci]'
+          msg='chore(mirror): wrap kit + promote public README [skip ci]'
           if [ -n "${DISPATCH_REASON:-}" ]; then
             msg=$(printf '%s\n\nmanual dispatch reason: %s\n' "${msg}" "${DISPATCH_REASON}")
           fi

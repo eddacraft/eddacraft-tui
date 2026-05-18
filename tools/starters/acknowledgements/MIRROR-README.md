@@ -40,6 +40,15 @@ git subtree pull --prefix tools/starters \
 Or just `cp -r` the `acknowledgements/` directory in if you don't want subtree
 tracking.
 
+## Documentation
+
+The kit's full contract — marker syntax, idempotency guarantees, the `--check`
+exit-code semantics, strict licence-field enforcement, the single-source licence
+allow-list pattern, atomic-write / empty-output / marker-count gates, and the
+configuration reference — lives in
+[`acknowledgements/README.md`](./acknowledgements/README.md). That file is
+mirrored verbatim from upstream and is the canonical reference.
+
 ## Design history
 
 The starter kit grew out of the Rust-CLI attribution pipeline shipped with the
@@ -47,8 +56,3 @@ The starter kit grew out of the Rust-CLI attribution pipeline shipped with the
 bundled-binaries support, multi-block markers) lives in the
 `attribution-pipeline-v3` APS module in that repository. This mirror is purely
 the kit; consult anvil for the "why".
-
----
-
-The remainder of this file is the kit's contract documentation, mirrored
-verbatim from upstream:
