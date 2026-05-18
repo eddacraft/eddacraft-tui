@@ -45,7 +45,7 @@ pub fn descriptor() -> Value {
                 },
                 "patch": {
                     "type": ["string", "null"],
-                    "description": "Unified diff or client patch payload."
+                    "description": "Unified diff. When supplied without proposedContent, the validator reads the on-disk file at workspaceRoot+path, applies the patch in memory, and validates the resulting post-image. The disk file is never written. When proposedContent is also supplied, the patch is correlation metadata only."
                 },
                 "contentSha256": {
                     "type": "string",
@@ -137,12 +137,21 @@ fn call_with_validation_client(
 ) -> Value {
     let request = match ValidateWriteRequest::parse(arguments, default_workspace_root) {
         Ok(request) => request,
-        Err(problem) => {
+        Err(ParseError::Problem(problem)) => {
             // Input problems short-circuit before we have a trusted
             // workspace root to read `.anvil.yaml` from. They always
             // map to `block` regardless of enforcement mode — the tool
             // cannot evaluate a request it cannot parse.
             return tool_result(&problem_payload(problem, None, EnforcementMode::Block));
+        }
+        Err(ParseError::UntrustedWorkspaceRoot { expected }) => {
+            // CIB-007: same `block` outcome as any other input
+            // problem, plus a recoverable `expectedWorkspaceRoot`
+            // field so the caller can retry with the right value.
+            return tool_result(&untrusted_workspace_root_payload(
+                &expected,
+                EnforcementMode::Block,
+            ));
         }
     };
 
@@ -154,6 +163,47 @@ fn call_with_validation_client(
             Some(&request.relative_path),
             enforcement_mode,
         ));
+    }
+
+    // CIB-005: when the caller sent a patch but no `proposedContent`,
+    // read the on-disk file and apply the patch in memory to produce
+    // the post-image, then feed it through the same pipeline as a
+    // full-content payload. The validator never writes to disk.
+    //
+    // Race-window note: the read is point-in-time. If the file
+    // changes between this validation call and the agent's
+    // subsequent write, the patch validated here may differ from the
+    // patch the agent actually applies. The agent is responsible for
+    // re-reading its base before writing; the validator's contract
+    // is "if you write the same patch against the same base, this is
+    // the result we validated".
+    let mut request = request;
+    if request.content.is_none() && request.patch_text.is_some() {
+        match materialise_patch_content(
+            &request.workspace_root,
+            &request.relative_path,
+            request.patch_text.as_deref().expect("checked above"),
+        ) {
+            Ok(post_image) => {
+                request.content = Some(post_image);
+            }
+            Err(problem) => {
+                return tool_result(&problem_payload(
+                    problem,
+                    Some(&request.relative_path),
+                    enforcement_mode,
+                ));
+            }
+        }
+        // Re-run the post-content input checks (size, NUL) now that
+        // we have materialised content.
+        if let Some(problem) = request.input_problem() {
+            return tool_result(&problem_payload(
+                problem,
+                Some(&request.relative_path),
+                enforcement_mode,
+            ));
+        }
     }
 
     let mut backend = ValidationBackend::Embedded;
@@ -266,6 +316,20 @@ fn problem_payload(
         false,
         None,
     )
+}
+
+/// CIB-007: dedicated payload for `untrusted-workspace-root` that
+/// includes the shim's expected `workspaceRoot`. Mirrors
+/// `problem_payload` for everything else, so the response envelope
+/// stays consistent with the other input-problem paths.
+fn untrusted_workspace_root_payload(expected: &Path, enforcement_mode: EnforcementMode) -> Value {
+    let problem = ToolProblem::new(
+        "untrusted-workspace-root",
+        "workspaceRoot must match the MCP server workspace.",
+    );
+    let mut payload = problem_payload(problem, None, enforcement_mode);
+    payload["error"]["expectedWorkspaceRoot"] = json!(expected.to_string_lossy());
+    payload
 }
 
 fn backend_failure_payload(
@@ -541,23 +605,47 @@ impl ToolProblem {
     }
 }
 
+/// CIB-007: the `untrusted-workspace-root` case carries a dynamic
+/// `expectedWorkspaceRoot` in its error payload so the caller can
+/// retry with the right value on the next call. `ToolProblem` is
+/// `Copy` with `&'static` strings to keep the common path cheap, so
+/// the dynamic case is modelled as a separate enum variant rather
+/// than bloating every `ToolProblem` site with an owned-string
+/// detail map.
+#[derive(Debug)]
+enum ParseError {
+    Problem(ToolProblem),
+    UntrustedWorkspaceRoot { expected: PathBuf },
+}
+
+impl From<ToolProblem> for ParseError {
+    fn from(problem: ToolProblem) -> Self {
+        Self::Problem(problem)
+    }
+}
+
 struct ValidateWriteRequest {
     workspace_root: PathBuf,
     relative_path: String,
     operation: Operation,
     content: Option<String>,
-    patch_only: bool,
+    /// CIB-005: raw patch text retained so we can materialise the
+    /// post-image from the on-disk file when no `proposedContent` was
+    /// supplied. `None` when the caller sent full content or a
+    /// preview.
+    patch_text: Option<String>,
     partial_scan: bool,
     preflight_problem: Option<ToolProblem>,
 }
 
 impl ValidateWriteRequest {
-    fn parse(arguments: &Value, default_workspace_root: &Path) -> Result<Self, ToolProblem> {
+    fn parse(arguments: &Value, default_workspace_root: &Path) -> Result<Self, ParseError> {
         let Some(arguments) = arguments.as_object() else {
             return Err(ToolProblem::new(
                 "invalid-tool-arguments",
                 "Validate-write arguments must be an object.",
-            ));
+            )
+            .into());
         };
 
         let workspace_root =
@@ -591,7 +679,8 @@ impl ValidateWriteRequest {
         // for partial validation (the caller sent a slim payload). When both
         // are present, proposedContent is authoritative. Patch text is never
         // scanned as file content because diff hunks include removed lines and
-        // metadata that would mislead the secret/reasoning checks.
+        // metadata that would mislead the secret/reasoning checks; CIB-005
+        // materialises the post-image from on-disk content before scanning.
         let (content, partial_scan) = match proposed_content {
             Some(full) => (Some(full.to_string()), false),
             None => match preview_content {
@@ -599,14 +688,14 @@ impl ValidateWriteRequest {
                 None => (None, false),
             },
         };
-        let patch_only = content.is_none() && patch_content.is_some();
+        let patch_text = patch_content.map(str::to_string);
 
         Ok(Self {
             workspace_root,
             relative_path,
             operation,
             content,
-            patch_only,
+            patch_text,
             partial_scan,
             preflight_problem,
         })
@@ -617,16 +706,15 @@ impl ValidateWriteRequest {
             return Some(problem);
         }
 
-        if self.content.is_none() && self.operation.requires_content() {
-            if self.patch_only {
-                return Some(ToolProblem::new(
-                    "patch-only-unsupported",
-                    "Patch-only validation is not supported in this release; supply proposedContent.",
-                ));
-            }
+        // CIB-005: patch-only is a valid input shape — content is
+        // materialised from disk later, in `materialise_patch_content`.
+        // Only flag "missing-content" when there is neither content
+        // nor a patch to derive it from.
+        if self.content.is_none() && self.patch_text.is_none() && self.operation.requires_content()
+        {
             return Some(ToolProblem::new(
                 "missing-content",
-                "Validate-write requires proposedContent for this operation.",
+                "Validate-write requires proposedContent or patch for this operation.",
             ));
         }
 
@@ -680,7 +768,7 @@ impl Operation {
 fn workspace_root(
     value: Option<&Value>,
     default_workspace_root: &Path,
-) -> Result<PathBuf, ToolProblem> {
+) -> Result<PathBuf, ParseError> {
     let default_workspace_root = canonical_workspace_root(default_workspace_root)?;
 
     match value {
@@ -690,22 +778,27 @@ fn workspace_root(
                 return Err(ToolProblem::new(
                     "invalid-workspace-root",
                     "workspaceRoot must be an absolute path.",
-                ));
+                )
+                .into());
             }
             let root = canonical_workspace_root(&root)?;
             if root == default_workspace_root {
                 Ok(root)
             } else {
-                Err(ToolProblem::new(
-                    "untrusted-workspace-root",
-                    "workspaceRoot must match the MCP server workspace.",
-                ))
+                // CIB-007: surface the shim's expected workspace root
+                // so the caller can self-correct on the next call.
+                // Trust boundary is unchanged — the mismatch still
+                // blocks the write.
+                Err(ParseError::UntrustedWorkspaceRoot {
+                    expected: default_workspace_root,
+                })
             }
         }
         Some(_) => Err(ToolProblem::new(
             "invalid-workspace-root",
             "workspaceRoot must be a string when provided.",
-        )),
+        )
+        .into()),
         None => Ok(default_workspace_root),
     }
 }
@@ -838,6 +931,198 @@ fn workspace_escape_problem() -> ToolProblem {
         "workspace-escape",
         "Validate-write path must stay inside workspaceRoot.",
     )
+}
+
+/// CIB-005: materialise the post-image of a patch against the
+/// on-disk file. Returns the post-image content if the patch applies
+/// cleanly; otherwise a structured `ToolProblem` whose code
+/// distinguishes "file missing/unreadable" from "patch context did
+/// not match disk". The on-disk file is never written.
+fn materialise_patch_content(
+    workspace_root: &Path,
+    relative_path: &str,
+    patch_text: &str,
+) -> Result<String, ToolProblem> {
+    let absolute = workspace_root.join(relative_path);
+    let original = fs::read_to_string(&absolute).map_err(|_| {
+        ToolProblem::new(
+            "patch-target-unreadable",
+            "Validate-write could not read the patch target file at workspaceRoot+path.",
+        )
+    })?;
+
+    apply_unified_diff(&original, patch_text).map_err(|_| {
+        ToolProblem::new(
+            "patch-apply-failed",
+            "Validate-write could not apply the supplied patch to the current on-disk content (context mismatch or unsupported diff shape).",
+        )
+    })
+}
+
+/// Minimal unified-diff applier covering the shapes agents commonly
+/// produce: optional `--- a/...` / `+++ b/...` headers, hunk headers
+/// of the form `@@ -<old_start>[,<old_count>] +<new_start>[,<new_count>] @@`,
+/// and body lines prefixed with ` ` (context), `-` (removed), or `+`
+/// (added). The `\ No newline at end of file` marker is recognised
+/// and adjusts the trailing-newline policy of the corresponding
+/// side. Anything else returns `Err`; the caller maps that to a
+/// `patch-apply-failed` block so the agent gets a clear signal
+/// rather than a silent partial validation.
+fn apply_unified_diff(original: &str, patch: &str) -> Result<String, ApplyError> {
+    let mut original_lines: Vec<&str> = original.split('\n').collect();
+    let original_trailing_newline = original.ends_with('\n');
+    if original_trailing_newline {
+        // The split produces a trailing empty element for the
+        // newline-terminated case; drop it so `lines` holds one
+        // entry per logical source line.
+        original_lines.pop();
+    }
+
+    let mut output_lines: Vec<String> = Vec::new();
+    let mut new_trailing_newline = original_trailing_newline;
+    let mut cursor: usize = 0;
+
+    let mut iter = patch.split('\n').peekable();
+    while let Some(raw_line) = iter.next() {
+        if raw_line.starts_with("---") || raw_line.starts_with("+++") {
+            continue;
+        }
+        if raw_line.starts_with("diff --git") || raw_line.starts_with("index ") {
+            continue;
+        }
+        if let Some(rest) = raw_line.strip_prefix("@@") {
+            let (old_start, old_count, new_count) = parse_hunk_header(rest)?;
+            let old_start_idx = old_start.saturating_sub(1);
+            if old_start_idx > original_lines.len() || cursor > old_start_idx {
+                return Err(ApplyError::HunkOutOfRange);
+            }
+            while cursor < old_start_idx {
+                output_lines.push(original_lines[cursor].to_string());
+                cursor += 1;
+            }
+
+            let mut old_consumed: usize = 0;
+            let mut new_consumed: usize = 0;
+            let mut last_side_was_addition = false;
+            while old_consumed < old_count || new_consumed < new_count {
+                let body = iter.next().ok_or(ApplyError::TruncatedHunk)?;
+                if let Some(marker) = body.strip_prefix('\\') {
+                    // `\ No newline at end of file`. Affects the side
+                    // owned by the previous body line.
+                    if !marker.trim_start().starts_with("No newline") {
+                        return Err(ApplyError::UnsupportedMarker);
+                    }
+                    if last_side_was_addition {
+                        new_trailing_newline = false;
+                    } else {
+                        // Removed/context side marker applies to the
+                        // original; if it asserts the original has no
+                        // trailing newline that's an invariant of the
+                        // input, not something we mutate.
+                    }
+                    continue;
+                }
+                let (prefix, content) =
+                    body.split_at(body.chars().next().map_or(0, char::len_utf8));
+                match prefix {
+                    " " => {
+                        if cursor >= original_lines.len() || original_lines[cursor] != content {
+                            return Err(ApplyError::ContextMismatch);
+                        }
+                        output_lines.push(content.to_string());
+                        cursor += 1;
+                        old_consumed += 1;
+                        new_consumed += 1;
+                        last_side_was_addition = false;
+                    }
+                    "-" => {
+                        if cursor >= original_lines.len() || original_lines[cursor] != content {
+                            return Err(ApplyError::ContextMismatch);
+                        }
+                        cursor += 1;
+                        old_consumed += 1;
+                        last_side_was_addition = false;
+                    }
+                    "+" => {
+                        output_lines.push(content.to_string());
+                        new_consumed += 1;
+                        last_side_was_addition = true;
+                    }
+                    _ => return Err(ApplyError::InvalidLinePrefix),
+                }
+            }
+            // A trailing-newline marker for the new side can follow
+            // the final `+` line of a hunk. Peek without consuming
+            // any non-marker line that belongs to the next hunk.
+            if let Some(next) = iter.peek()
+                && let Some(marker) = next.strip_prefix('\\')
+                && marker.trim_start().starts_with("No newline")
+            {
+                iter.next();
+                if last_side_was_addition {
+                    new_trailing_newline = false;
+                }
+            }
+        } else if !raw_line.is_empty() {
+            return Err(ApplyError::UnexpectedContent);
+        }
+        // Blank lines between hunks fall through to the next loop
+        // iteration; some patch producers emit them as visual
+        // padding.
+    }
+
+    while cursor < original_lines.len() {
+        output_lines.push(original_lines[cursor].to_string());
+        cursor += 1;
+    }
+
+    let mut result = output_lines.join("\n");
+    if new_trailing_newline && !result.is_empty() {
+        result.push('\n');
+    }
+    Ok(result)
+}
+
+#[derive(Debug)]
+enum ApplyError {
+    ContextMismatch,
+    HunkOutOfRange,
+    InvalidLinePrefix,
+    InvalidHunkHeader,
+    TruncatedHunk,
+    UnexpectedContent,
+    UnsupportedMarker,
+}
+
+fn parse_hunk_header(rest: &str) -> Result<(usize, usize, usize), ApplyError> {
+    // Expected shape: ` -<old_start>[,<old_count>] +<new_start>[,<new_count>] @@[ optional section header]`.
+    // Both side counts are needed so we know when the hunk body is
+    // exhausted (added-only or removed-only hunks would never satisfy
+    // a single-side terminator).
+    let mut tokens = rest.split_whitespace();
+    let old_tok = tokens
+        .find(|t| t.starts_with('-'))
+        .ok_or(ApplyError::InvalidHunkHeader)?;
+    let new_tok = tokens
+        .find(|t| t.starts_with('+'))
+        .ok_or(ApplyError::InvalidHunkHeader)?;
+    let (old_start, old_count) = parse_range(old_tok.strip_prefix('-').unwrap_or(""))?;
+    let (_new_start, new_count) = parse_range(new_tok.strip_prefix('+').unwrap_or(""))?;
+    Ok((old_start, old_count, new_count))
+}
+
+fn parse_range(body: &str) -> Result<(usize, usize), ApplyError> {
+    let (start_str, count_str) = match body.split_once(',') {
+        Some((s, c)) => (s, c),
+        None => (body, "1"),
+    };
+    let start: usize = start_str
+        .parse()
+        .map_err(|_| ApplyError::InvalidHunkHeader)?;
+    let count: usize = count_str
+        .parse()
+        .map_err(|_| ApplyError::InvalidHunkHeader)?;
+    Ok((start, count))
 }
 
 fn path_to_slash_string(path: &Path) -> String {
@@ -1296,21 +1581,159 @@ mod tests {
         assert_eq!(payload["diagnostics"], json!([]));
     }
 
+    /// CIB-005: a patch-only payload against an existing file is
+    /// applied to the on-disk content in memory, and the resulting
+    /// post-image goes through the full pre-write pipeline. The disk
+    /// file is never written by this tool.
     #[test]
-    fn patch_only_blocks_as_unsupported() {
+    fn patch_only_validates_after_applying_to_on_disk_file() {
         let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/example.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "export const value = 1;\n").expect("seed target");
+
         let payload = call_payload(
             workspace.path(),
             &json!({
                 "path": "src/example.ts",
                 "operation": "update",
-                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@\n-old\n+new\n"
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["summary"]["total"], 0);
+        // Validator is read-only — on-disk file must be untouched.
+        assert_eq!(
+            fs::read_to_string(&target).expect("target readable"),
+            "export const value = 1;\n",
+            "validate_write must never write to disk",
+        );
+    }
+
+    /// CIB-005: post-image of a patch is fed through the same secret
+    /// detection pipeline as a full `proposedContent` payload. A patch
+    /// that introduces a secret blocks the write.
+    #[test]
+    fn patch_only_post_image_secret_blocks_write() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/secret.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "const placeholder = 'redacted';\n").expect("seed target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "update",
+                "patch": "--- a/src/secret.ts\n+++ b/src/secret.ts\n@@ -1 +1 @@\n-const placeholder = 'redacted';\n+const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
         );
 
         assert_eq!(payload["decision"], "block");
-        assert_eq!(payload["error"]["code"], "patch-only-unsupported");
         assert_eq!(payload["safeDefault"], "do-not-write");
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+    }
+
+    /// CIB-005 acceptance: a one-string rename inside a large file
+    /// (the 2026-05-18 beta tester case) succeeds without a full
+    /// `proposedContent` payload.
+    #[test]
+    fn patch_only_one_string_rename_in_large_file_validates_cleanly() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("meta/tags.json");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("meta dir created");
+
+        // Synthesise a large JSON-shaped fixture so the one-line rename
+        // case mirrors the original screenshot scale (~2700 lines) but
+        // keeps the test deterministic and fast. Final two body lines
+        // are the renamed entry and the closing bracket.
+        let mut body = String::from("[\n");
+        for idx in 0..1500 {
+            std::fmt::Write::write_fmt(
+                &mut body,
+                format_args!("  {{\"id\": {idx}, \"tag\": \"tag-{idx}\"}},\n"),
+            )
+            .expect("string write");
+        }
+        body.push_str("  {\"id\": 1500, \"tag\": \"old-name\"}\n]\n");
+        fs::write(&target, &body).expect("seed large fixture");
+
+        // Build the patch precisely to avoid string-literal
+        // line-continuation whitespace surprises.
+        // File layout (1-indexed):
+        //   line 1     "["
+        //   lines 2..  body entries for idx 0..1499 (line 1501 = idx 1499)
+        //   line 1502  "  {\"id\": 1500, \"tag\": \"old-name\"}"
+        //   line 1503  "]"
+        // The hunk renames line 1502 with the surrounding two lines
+        // as context.
+        let patch = String::from("--- a/meta/tags.json\n")
+            + "+++ b/meta/tags.json\n"
+            + "@@ -1501,3 +1501,3 @@\n"
+            + "   {\"id\": 1499, \"tag\": \"tag-1499\"},\n"
+            + "-  {\"id\": 1500, \"tag\": \"old-name\"}\n"
+            + "+  {\"id\": 1500, \"tag\": \"new-name\"}\n"
+            + " ]\n";
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "meta/tags.json",
+                "operation": "update",
+                "patch": patch
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "expected allow, got payload: {payload}"
+        );
+        assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// CIB-005: a patch-only payload whose context does not match the
+    /// current on-disk file is rejected with a clear, structured
+    /// error rather than a silent wrong-content validation.
+    #[test]
+    fn patch_only_context_mismatch_blocks_with_clear_code() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/example.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "export const value = 1;\n").expect("seed target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const VALUE = 1;\n+export const VALUE = 2;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "patch-apply-failed");
+    }
+
+    /// CIB-005: a patch-only payload that targets a non-existent file
+    /// is rejected with a clear, structured error so the caller can
+    /// distinguish "patch is wrong" from "file is missing".
+    #[test]
+    fn patch_only_missing_target_blocks_with_clear_code() {
+        let workspace = tempdir().expect("workspace exists");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/nope.ts",
+                "operation": "update",
+                "patch": "--- a/src/nope.ts\n+++ b/src/nope.ts\n@@ -1 +1 @@\n-old\n+new\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "patch-target-unreadable");
     }
 
     #[test]
@@ -1468,6 +1891,17 @@ mod tests {
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "untrusted-workspace-root");
+
+        // CIB-007: the error payload must include the expected
+        // `workspaceRoot` so callers can self-correct on the next call
+        // without operator intervention. The value is the shim's
+        // canonicalised cwd.
+        let expected = fs::canonicalize(workspace.path()).expect("workspace canonicalises");
+        assert_eq!(
+            payload["error"]["expectedWorkspaceRoot"],
+            json!(expected.to_string_lossy()),
+            "untrusted-workspace-root must carry expectedWorkspaceRoot",
+        );
     }
 
     #[test]

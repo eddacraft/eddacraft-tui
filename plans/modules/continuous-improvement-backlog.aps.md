@@ -186,7 +186,7 @@ archive.
 
 ### CIB-005: Pre-write validator patch-mode support
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Stop forcing agents to ship full `proposedContent` to
   `anvil_validate_write` when they only need to apply a small edit; accept a
   diff/patch payload instead so token cost scales with the change, not the file.
@@ -273,7 +273,16 @@ archive.
 
 ### CIB-007: Untrusted-workspace-root preflight gate is unrecoverable for legitimate callers
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Triage Decision (2026-05-18):** Option **(b)** — keep the strict
+  equality check, add an `expectedWorkspaceRoot` field to the
+  `untrusted-workspace-root` error payload so the caller can
+  self-correct on the next call. Option (a) (worktree-aware accept) is
+  the more leveraged fix but widens the trust boundary and needs an
+  ADR per `docs/guides/adr-process.md`, which is out of scope for the
+  CIB-005 hotfix this item is paired with. Option (a) can be opened
+  as a follow-up CIB if (b)'s recoverability proves insufficient in
+  practice.
 - **Intent:** Stop the `untrusted-workspace-root` MCP preflight from
   rejecting agents that pass a legitimate sibling `workspaceRoot`
   (worktree siblings, monorepo sub-packages, macOS `/private`-prefixed
