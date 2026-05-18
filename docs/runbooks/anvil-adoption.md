@@ -30,8 +30,12 @@ tuned, and an AI coding tool wired into your editor.
    "Resource budget" below).
 3. Editor / LSP / formatter stack runs exactly as it did pre-install (see
    "Editor coexistence" below).
-4. `anvil uninstall` returns the repo to byte-identical pre-install state for
-   tracked files.
+4. `anvil uninstall` returns tracked files to **canonical form** — single
+   trailing newline, marker-bounded blocks cleanly removed. See the
+   [hook coexistence runbook](anvil-hook-coexistence.md) "Round-trip guarantee"
+   section for the precise exceptions (notably: Husky files with non-canonical
+   trailing whitespace are canonicalised, and user-added `extends:` / `repos:`
+   entries in Lefthook or pre-commit-framework configs are not auto-removed).
 
 If any of these break, surface it before the team-wide rollout — the ADOPT
 module is owned and we want the bug, not the workaround.
@@ -82,11 +86,20 @@ This:
   detected (lefthook, husky, pre-commit-framework), or under `.git/hooks/` if
   none is detected. See the
   [hook coexistence runbook](anvil-hook-coexistence.md) for the full
-  per-framework behaviour and the manual `extends:` / `repos:` step Lefthook and
-  pre-commit-framework require.
-- Auto-detects installed AI coding tools (Claude Code, Cursor, Aider, Windsurf,
-  Codex) and caches the result at `.anvil/cache/detected-agents.json` (advisory;
-  reconciled on next start).
+  per-framework behaviour.
+
+> **Important — Lefthook or pre-commit-framework users:** install completes
+> without error, but Anvil hooks will not actually run until you add a single
+> manual `extends:` (Lefthook) or `repos:` (pre-commit-framework) entry. The
+> coexistence runbook documents the exact line to add per framework. Skipping
+> this leaves the install in a silent-failure state — no error at commit time,
+> but pre-push will refuse for missing witnesses on the next push. Husky and
+> Plain installs are fully automatic.
+
+- Prepares the protection surfaces used by AI coding tools. The detector
+  primitive for Claude Code, Cursor, Aider, Windsurf, and Codex exists, but
+  `anvil start` does not yet cache those results automatically; pass
+  `--tool <name>` to `anvil-run` when wrapping a launch.
 
 ### 3. Confirm the protection claim
 
@@ -123,9 +136,10 @@ regression past it is interesting.
 
 ### Editor coexistence
 
-`v0.7.0-beta` runs a CI coexistence matrix covering VS Code, Cursor, JetBrains,
-and Neovim with `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and
-`eslint`. The pinned compatibility matrix is at
+`v0.7.0-beta` runs a CI headless coexistence harness for `rust-analyzer`,
+`tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`. Desktop editor coverage
+for VS Code, Cursor, JetBrains, and Neovim is a Boring Week/manual validation
+lane. The pinned compatibility matrix is at
 [`docs/policies/editor-coexistence.md`](../policies/editor-coexistence.md).
 
 **Operator check.** Open your normal editor in a freshly-activated repo. The
@@ -152,15 +166,19 @@ worktree never gets scanned by `audit` after being correctly excluded from
 
 ### AI tool auto-detect
 
-`anvil start` (and `anvil-run`) enumerate installed AI tools without
-configuration. Detection covers macOS, Linux, and Windows via documented
-heuristics (binary on PATH, well-known config paths, env-var hints). Detection
-is cached and non-authoritative; passing `--tool <name>` to `anvil-run` always
-wins over the cached value.
+The AI-tool detector primitive enumerates installed tools without configuration.
+Detection covers macOS, Linux, and Windows via documented heuristics (binary on
+PATH, well-known config paths, env-var hints). `anvil start` cache wiring is
+still tracked under ADOPT-003, so operator-facing wrapped launches should pass
+`--tool <name>` to `anvil-run` explicitly for this release.
 
 If your AI tool is missed, the auto-detect path is in
 `crates/anvil-cli/src/activation/detect_agents.rs`. Add a heuristic and file a
 PR — the surface is meant to be additive.
+
+Detection is **purely local** — PATH probes and well-known config-path checks
+only, no network calls. Air-gap operators can confirm by reading
+`detect_agents.rs` directly; the call surface holds no HTTP clients.
 
 ## First week: settling in
 
@@ -185,9 +203,10 @@ anvil insights
 ```
 
 Derived from the witness chain. Schema is pinned at `anvil.insights.v1`
-(`schemas/anvil-insights.v1.json`). Suppression-health view, drift sparkline,
-and first-week adoption hint are tracked under INSIGHTS-002 through
-INSIGHTS-004.
+(`schemas/anvil-insights.v1.json`). INSIGHTS-001 (weekly summary) ships with
+`v0.7.0-beta`; the suppression-health view, drift sparkline, and first-week
+adoption hint (INSIGHTS-002 / -003 / -004) are **Draft** for a follow-up release
+— don't expect them in the v0.7.0-beta build.
 
 ### Update path is honest
 
@@ -215,6 +234,12 @@ overwriting the whole file).
 `--global` additionally removes `~/.anvil/`, Anvil MCP entries from
 `~/.claude.json` and `~/.cursor/mcp.json`, stored credentials, and stops the
 running daemon.
+
+> **Blast radius:** the daemon is **user-scoped, not project-scoped**. Running
+> `anvil uninstall --global` from one repo stops the daemon serving every other
+> Anvil-enabled repo on the machine — active witness sessions in sibling
+> worktrees will see the daemon disappear mid-session. Close or pause other
+> Anvil work before invoking `--global`.
 
 **The Anvil binary itself is never removed by `anvil uninstall`.** Remove it
 with the install method's native command (`brew uninstall`, `winget uninstall`,

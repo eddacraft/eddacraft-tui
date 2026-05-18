@@ -200,3 +200,26 @@ into `.pre-commit-config.yaml`. Copy the `local` repo stanza from
 **`git diff` shows a trailing-whitespace change after uninstall** The original
 file had non-canonical trailing whitespace. The diff is cosmetic and safe to
 commit. See the round-trip guarantee above.
+
+## See also
+
+- [Adoption runbook](anvil-adoption.md) — first-week operator journey that this
+  runbook supports.
+- [Witness chain runbook](anvil-witness-chain.md) — what the pre-commit /
+  pre-push hooks Anvil installs actually write.
+- [`anvil-run` manpage](anvil-run.md) — the wrapped-launch ingress that
+  cooperates with these hooks.
+- [v0.6.x → v0.7.0-beta migration note](v0.6.x-to-v0.7.0-beta-migration.md) —
+  what changes for hook installs across the upgrade.
+- [ADR-038](../../plans/decisions/038-hook-surface-and-noise-discipline.md) —
+  doctrine anchor for the entire hook surface.
+
+## Provenance
+
+- Filed 2026-05-15 alongside the ADOPT-001 closure.
+- `See also` + Provenance metadata added 2026-05-18 alongside the N4 doc-lane
+  closure so this runbook matches the structural bar set by the rest of the
+  runbook set.
+- Doctrine anchor: ADR-038 (Hook Surface and Noise Discipline).
+- Implementation: `crates/anvil-hook/src/coexistence.rs`,
+  `crates/anvil-cli/src/commands/hooks.rs`.

@@ -73,8 +73,11 @@ line):
 
 - `GENESIS-FRESH` — the project was started with `anvil start` and no
   pre-existing history was baselined.
-- `GENESIS-BASELINED:<commit_sha>` — the project was baselined onto an existing
-  commit; the SHA pins which commit the chain anchors against.
+- `GENESIS-BASELINED` — the project was baselined onto an existing commit. The
+  cutoff commit SHA is recorded on the line body as a separate `cutoff_commit`
+  field, **not** glued onto the anchor string. ADR-037 §D-2 keeps the anchor
+  namespace closed-set; `GenesisAnchor::parse()` explicitly rejects the
+  colon-suffix form (e.g. `GENESIS-BASELINED:<sha>`).
 
 Any other first-line value triggers `VerifyError::UnknownGenesis`. A non-first
 line that carries a genesis anchor triggers `VerifyError::StrayGenesis`.
@@ -126,8 +129,9 @@ orchestrator, MLP2-053) runs this command and emits a `degraded:audit-drift`
 marker when threshold is met.
 
 A Kindling observation row is appended to `anvil/kindling/audit-chain.ndjson` on
-every run; downstream consumers tail that file the same way they consume the
-rollover manifest.
+every run. Note this sidecar lives under `anvil/kindling/` — a different tree
+from the rollover manifest at `anvil/witness/manifest/chain.ndjson`. Downstream
+consumers tail it as a plain NDJSON stream.
 
 ### `anvil hook pre-push`
 
@@ -191,8 +195,21 @@ that is missing from the walked file set. Two real cases:
   references an archive not on disk, restore it from git (it is tracked).
 - **Branch lacks the parent's witness lines.** The merge happened against a
   branch whose pre-commit hook never ran (e.g. legacy commits, `--no-verify`).
-  Run `anvil hook bootstrap --witness-recent` on the parent branch to
-  retroactively witness the gap, then re-merge.
+  Recovery is a five-step sequence — skipping any one of them produces a repeat
+  OrphanMerge on re-merge:
+  1. `git checkout <parent-branch>` — switch to the branch missing witnesses.
+  2. Confirm the branch has an upstream (`git rev-parse @{u}` succeeds). If not,
+     `git branch --set-upstream-to origin/<parent-branch>` first;
+     `--witness-recent` walks `@{u}..HEAD` and silently does nothing when `@{u}`
+     is unset.
+  3. `anvil hook bootstrap --witness-recent` — appends retroactive witness
+     lines.
+  4. `git add anvil/witness/active.ndjson && git commit -m "..." && git push` —
+     the witness file must be **committed and pushed** before the re-merge,
+     otherwise the merged-from hashes still won't exist anywhere the verifier
+     can find them.
+  5. On the feature branch: rebase or merge from the updated parent, then
+     re-attempt the original merge.
 
 ### 4. `UnknownGenesis` or `StrayGenesis`
 
@@ -200,12 +217,14 @@ that is missing from the walked file set. Two real cases:
 first line in <path> does not reference a known genesis anchor: <actual>
 ```
 
-Cause: someone hand-edited a `GENESIS-FRESH` / `GENESIS-BASELINED:<sha>` anchor.
+Cause: someone hand-edited a `GENESIS-FRESH` or `GENESIS-BASELINED` anchor.
 
 - **Recover:** `git log -- anvil/witness/active.ndjson` to find the change. The
   anchor is set once by `anvil baseline` (which emits the `GENESIS-BASELINED`
   line at MLP2-013) or by the first pre-commit append after `anvil start`
-  (`GENESIS-FRESH`). Restore the original bytes.
+  (`GENESIS-FRESH`). Restore the original bytes. Do not glue the cutoff SHA onto
+  the anchor string — `parse()` will reject the result and the line becomes
+  `UnknownGenesis` instead of recovering.
 
 ### 5. Chain corruption shipped to the remote
 
@@ -213,16 +232,56 @@ When a broken chain reaches `main`:
 
 1. Open an incident channel and stop merges to `main` until the chain is
    restored.
-2. Identify the last good commit on `main` via
-   `anvil audit-chain --branch main --since <suspected-good-tag>`. The first
-   commit reported as unwitnessed (or the commit whose witness line triggered
-   the break) is the boundary.
-3. Decide between:
-   - **Re-witness** with `anvil hook bootstrap --witness-recent` on a branch
-     based at `main`, then merge the recovery branch. Use this when only the
-     witness file is wrong and the code is intact.
-   - **Revert** the offending commit. Use this when the underlying commit itself
-     is the problem (admin override / force-push damage).
+2. Identify the boundary commit on `main` via
+   `anvil audit-chain --branch main --since <suspected-good-tag>`. The report
+   has **two distinct shapes** and they route to different recovery paths — read
+   carefully:
+   - **Unwitnessed commit:** a line in the `Unwitnessed commits:` section names
+     a commit SHA but no chain-break diagnostic was emitted. Example output
+     fragment:
+
+     ```text
+     Unwitnessed commits (3):
+       8f2a1b3c  feat: add metric (no witness line found)
+       d0e9c4a2  refactor: extract helper (no witness line found)
+       7a6b5c4d  fix: typo (no witness line found)
+     Chain integrity: OK
+     ```
+
+     Cause: a teammate landed commits without `anvil` on PATH or with
+     `--no-verify`. The chain itself is intact — there's just no witness for
+     those SHAs. **Route → re-witness (step 3a).**
+
+   - **Chain break:** the `Chain integrity` line reports a `ChainBreak` /
+     `SequenceGap` / `OrphanMerge` with a specific `active.ndjson:<line>`
+     anchor. Example:
+
+     ```text
+     Unwitnessed commits (0):
+     Chain integrity: FAILED — ChainBreak at active.ndjson:412
+       expected <hash_a>, got <hash_b>
+     ```
+
+     Cause: a witness line in the chain itself was tampered or replaced. The
+     recorded commit may be perfectly fine; the _witness record_ is wrong.
+     **Route → revert (step 3b).** Running `--witness-recent` here appends new
+     lines on top of a corrupt chain and makes the incident worse.
+
+3. Apply the matching recovery:
+   - **3a — Re-witness (unwitnessed-commits route):**
+     `anvil hook bootstrap --witness-recent` on a branch based at `main`, commit
+     the witness file, push the recovery branch, then merge it. Use this when
+     only the witness record is missing and the code is intact.
+
+   - **3b — Revert (chain-break route):** `git revert <boundary-commit>` and
+     push. Use this when the underlying commit itself is the problem (admin
+     override, single-commit tamper). **Scope this to single-commit incidents.**
+     For multi-commit force-push damage, every rewritten commit has a new SHA,
+     leaving every downstream witness line orphaned by parent-commit-SHA —
+     revert won't restore the chain. In that case escalate to the team and
+     rebuild via `--witness-recent` from the last good tag, accepting that the
+     merge history will show the rebuild.
+
 4. Run `anvil audit-chain --threshold 1 --branch main` and confirm zero drift
    before re-opening merges.
 
@@ -255,6 +314,29 @@ witnessed. Oldest-first ordering (`--reverse`) keeps the hash chain anchored to
 each commit's actual parent. Commit the resulting `anvil/witness/active.ndjson`
 change before pushing again.
 
+Operator notes:
+
+- **Upstream required.** The walk is `@{u}..HEAD`. On a branch without a
+  tracking remote it walks zero commits and silently does nothing. Set one first
+  via `git branch --set-upstream-to origin/<branch>`, or fall back to
+  `git rev-list --reverse <base-sha>..HEAD --` to identify the unwitnessed range
+  manually.
+- **Run from one operator at a time.** The flock makes single-line appends safe,
+  but `--witness-recent` is a _read-then-multi-write_: it walks the rev-list
+  once, then appends N lines. Two operators running it concurrently on the same
+  branch both walk the same N commits and both append N lines — the second
+  writer's appends land after the first and the chain develops duplicate seqs /
+  orphaned hashes. Coordinate via the incident channel before running.
+- **The commit of the witness file does trigger pre-commit.** The recovery
+  commit gets one more witness line appended; that is expected and correct, not
+  a recursive loop. **Do not use `--no-verify` on the recovery commit** — it
+  would land the recovery without witnessing it and re-create the original
+  problem on next push.
+- **Idempotence.** Re-running `--witness-recent` without committing the prior
+  run's output appends a second set of retroactive lines for the same commits —
+  the run does not check the chain for already-witnessed SHAs. Always commit (or
+  `git checkout --` to discard) between runs.
+
 ## Rollover boundary checks
 
 A rollover is **not** a chain break. When active crosses 1000 lines or 1 MiB the
@@ -269,6 +351,15 @@ writer:
 If a rollover lands on an archive name that already exists with identical bytes,
 the operation is idempotent. If the names match but the bytes differ that is a
 corruption signal — surface it via `anvil doctor` and treat it as case 5 above.
+
+**Interrupted rollover.** The four steps run inside the flock, but a `kill -9`
+or disk-full between step 2 (rename) and step 3 (manifest append) leaves the
+archive on disk with no manifest entry. The chain itself remains valid:
+`witness_paths()` enumerates files on disk regardless of manifest state, so
+`verify_chain_dag` still walks the orphaned segment. Recovery is to run
+`anvil audit-chain --rescan`, which rebuilds the audit view from the on-disk
+segments. The manifest gap heals at the next rollover (the writer always
+appends; it never rewrites past entries).
 
 ## Verifying archives against the manifest
 

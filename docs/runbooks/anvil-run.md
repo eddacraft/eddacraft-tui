@@ -92,10 +92,8 @@ The 64 / 69 / 73 / 75 / 78 values are the BSD `sysexits.h` codes — common enou
 that operators recognise them, and most real tools never exit with values in
 that range. A wrapped tool exiting 69 is **indistinguishable** from "daemon
 unavailable" looking at the exit code alone. Shell wrappers that must tell the
-two apart either read the launcher's stderr banner or check `$ANVIL_RUN_REFUSED`
-(set by [`shell/anvil-run.sh`](../../crates/anvil-run/shell/anvil-run.sh) when
-the launcher itself emits a refusal). Pure exit-code switching is good enough
-for the common case; the dual signal exists for the rest.
+two apart should read the launcher's stderr banner; pure exit-code switching is
+good enough for the common case.
 
 ## ENVIRONMENT
 
@@ -123,11 +121,6 @@ daemon at registration. Constant name: `ANVIL_TASK_ID_ENV`.
 pid_starttime). Used by MLP-014's attribution-recovery walk if the child ever
 needs to be re-identified by a descendant. Constant name: `ANVIL_AGENT_TAG_ENV`.
 
-`ANVIL_RUN_REFUSED` : Set by the shell wrappers when the launcher emits a
-refusal banner. Not set by the launcher binary itself — it is a wrapper-script
-signal so the calling shell can branch on launcher refusal versus child failure
-without parsing stderr.
-
 ## TRUST MODEL
 
 Env propagation is **advisory only**. Any same-UID process can spoof or unset
@@ -143,11 +136,32 @@ Env propagation is **advisory only**. Any same-UID process can spoof or unset
    the authentication backstop. Env propagation is correctness for the normal
    path, not a security boundary.
 
+These daemon-side requirements are enforced in `crates/anvil-intercept` and
+tested under `crates/anvil-intercept-lib/tests/`. Neither `ANVIL_TASK_ID` nor
+`ANVIL_AGENT_TAG` is a substitute for the witness chain as an audit record; the
+chain (ADR-037 §D-2) is the only authenticated provenance.
+
 See
 [`plans/modules/intercept-launcher.aps.md`](../../plans/modules/intercept-launcher.aps.md)
 for the contract.
 
-## FILES
+## SECURITY CONSIDERATIONS
+
+- **`ANVIL_RUN_DISABLE` is an honour-system control.** Any same-UID process (a
+  sibling shell, a parent process, an attacker who already has user execution)
+  can set it and bypass the loop. The witness chain and the server-side pre-push
+  hook are the **actual** backstop; the launcher is correctness for the normal
+  path, not a security perimeter.
+- **PATH fallthrough is intentional.** If `anvil-run` is not on `$PATH` the
+  shell wrappers exec the wrapped command directly rather than blocking. A
+  misconfigured `$PATH` therefore silently drops enforcement. Operators who need
+  hard enforcement should pin the full launcher path in `ANVIL_RUN_BIN`.
+- **`anvil baseline --refresh --accept-suspicious` is operator-acked.** When a
+  refresh would drop ≥75% of findings the binary refuses without the
+  `--accept-suspicious` flag. The ack is meaningful — review the delta in
+  findings before confirming, because an adversary who can introduce noise to
+  inflate the baseline can later trip the suspicion heuristic and try to get the
+  operator to ack a whitewashed state.
 
 `<repo>/anvil/witness/active.ndjson` : The in-tree witness chain the daemon
 consults during fence decisions. See
