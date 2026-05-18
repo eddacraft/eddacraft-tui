@@ -224,8 +224,8 @@ echo $?  # 75
 ## DIAGNOSTICS
 
 **`anvil-run: daemon unavailable (exit 69)`** : The daemon socket / pipe was not
-reachable. Run `anvil intercept start` and retry, or check `anvil doctor` for
-the daemon-status diagnostic.
+reachable. Run `anvil intercept start --foreground` and retry, or check
+`anvil doctor` for the daemon-status diagnostic.
 
 **`anvil-run: worktree fenced (exit 75)`** : The worktree's fence state is
 active. Clear it with `anvil intercept unblock --worktree <path>` once the
@@ -242,8 +242,7 @@ explicitly.
 ## BUGS AND LIMITATIONS
 
 - **Foreground tty handoff** is not yet wired for fully interactive launches
-  (e.g. a wrapped REPL with arrow-key history). Deferred under INTL-029 / PR
-  #1529.
+  (e.g. a wrapped REPL with arrow-key history). Deferred to PR #1529.
 - **Blocked-launch shell quoting** for unblock-instruction commands with spaces
   or special characters is best-effort in v1. Deferred under the same follow-up.
 - **Fish shell** is unsupported. Source `shell/anvil-run.sh` only from zsh or

@@ -254,13 +254,13 @@ design — Anvil does not edit user-owned config blocks on uninstall.
 
 **`anvil start` says hooks already exist (Husky/Lefthook/pre-commit).** That is
 the expected coexistence path — Anvil installs under your host manager. Verify
-with the coexistence report at the end of `anvil hook install --config` and read
-the [hook coexistence runbook](anvil-hook-coexistence.md).
+with the coexistence report at the end of `anvil hooks install --config` and
+read the [hook coexistence runbook](anvil-hook-coexistence.md).
 
 **`anvil status --verify` reports a degraded surface.** Read the one-line
-reason. Common cases: daemon not running (`anvil intercept start`), MCP shim
-unauthenticated (`anvil auth login` — note the `anvil_validate_write` gate
-returns `block` with `code: authentication-required` until then; the gate
+reason. Common cases: daemon not running (`anvil intercept start --foreground`),
+MCP shim unauthenticated (`anvil auth login` — note the `anvil_validate_write`
+gate returns `block` with `code: authentication-required` until then; the gate
 refusal is a tooling state, not a content veto).
 
 **Watch is CPU-noisy on my machine.** Check the resource-budget policy file —
