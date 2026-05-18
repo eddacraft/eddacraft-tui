@@ -63,6 +63,10 @@ are the governance guarantees we've already invested in via FLAGS.
 - Adoption guide in `docs/guides/feature-flag-inventory.md` explaining how to
   add a new flag (one PR, one file) and removing the "split across surfaces"
   language left over from FLAGM
+- Optional advisory seed from `clawpatch map` output: use
+  `.clawpatch/features/*.json` during design/discovery to inventory candidate
+  surfaces, entrypoints, tags, and trust boundaries before manually curating the
+  shipped flag definitions into `flags/manifest.json`
 
 ## Out of Scope
 
@@ -77,6 +81,9 @@ are the governance guarantees we've already invested in via FLAGS.
 - Dashboard-side flag registration or runtime admin UI — future work, not
   blocked by this
 - Reworking the resolver, snapshot loader, or telemetry — those stay as-is
+- Treating `.clawpatch/features/*.json` as source of truth, runtime input, or a
+  CI gate — Clawpatch output is advisory discovery data only; FLAGCAT remains
+  human-curated and APS-governed
 
 ## Interfaces
 
@@ -97,6 +104,9 @@ are the governance guarantees we've already invested in via FLAGS.
   the TS accessors by key and variant names
 - `.openfeature.yaml` — opt-in config for anyone who wants to run
   `openfeature generate` locally (no CI integration)
+- A one-off inventory note or section in the FLAGCAT design note that records
+  any useful `clawpatch map` findings and how they were accepted, declined, or
+  deferred during manual manifest curation
 
 ## Acceptance Criteria
 
@@ -113,6 +123,9 @@ are the governance guarantees we've already invested in via FLAGS.
       manifest, TS re-exports, and Rust codegen output drift
 - [ ] `docs/guides/feature-flag-inventory.md` documents the "add a flag" flow
       as a single-file edit + regenerate (one PR, one source of truth)
+- [ ] If `clawpatch map` is used during discovery, the design note records that
+      it was advisory only and lists which mapped surfaces informed manifest
+      categorisation; no Clawpatch state is consumed by runtime code or CI
 - [ ] The resolver's existing OpenFeature-shaped exports (`resolveFlag`,
       `ResolutionDetails`, `FlagOverrides`) are unchanged — FLAGCAT only
       replaces **where definitions live**, not how they're evaluated
@@ -132,6 +145,10 @@ are the governance guarantees we've already invested in via FLAGS.
   must be edge-compatible (no Node-only imports in the consumer path)
 - The CLI gated-command list stays CLI-local; it is CLI routing metadata, not
   flag-manifest data
+- Clawpatch feature IDs are unstable local review artefacts. They may seed an
+  inventory conversation, but manifest `key` values, owners, classes, defaults,
+  targeting, status, and `createdFor` must be chosen explicitly under feature
+  flag governance.
 
 ## Design Spec
 
@@ -140,6 +157,9 @@ note covering:
 
 - Manifest JSON layout vs. upstream OpenFeature `flags.json` (what we extend,
   what we leave alone so upstream tooling keeps working)
+- Whether to run `clawpatch map` as a one-off advisory input, and if so how its
+  `{kind, source, entrypoints, tags, trustBoundaries}` records are mapped into a
+  human-reviewed feature inventory without becoming canonical state
 - Rust codegen approach (`build.rs` + `serde_json` vs. minimal parser) and how
   constants are named to match the TS accessors
 - How the consistency check runs (Vitest over the JSON + generated files, or
@@ -168,6 +188,7 @@ Change status to **Ready** when:
 | Consistency check is flaky (timezone, formatter drift)       | Compare parsed JSON + generated constants by structural equality, not stringwise; run through the same formatter as the source |
 | Docs-site edge bundle regresses                              | Ship the catalogue as an ESM package with no Node-only imports on the consumer path (same constraint FLAGM-004 already met) |
 | Migration lands partially and the duplicate definitions sit on `dev` | Each work item is behaviour-preserving and ships independently; no cutover needs both halves landed in the same PR |
+| Clawpatch feature mapping is mistaken for product truth      | Keep it in FLAGCAT-001 discovery only: copy any useful observations into the design note, then manually curate manifest entries under APS and feature-flag governance |
 
 ## Tasks
 
@@ -179,7 +200,9 @@ Change status to **Ready** when:
   `plans/specs/YYYY-MM-DD-feature-flag-catalogue-design.md` documents the
   manifest JSON location, the TS loader package's public surface, the Rust
   `build.rs` approach (or alternative), how naming maps from JSON keys to
-  Rust constants, and how the consistency check runs in CI.
+  Rust constants, and how the consistency check runs in CI. If `clawpatch map`
+  is used, the note includes an advisory inventory section that categorises the
+  mapped surfaces and records which observations informed manifest curation.
 - **Scope:** `plans/specs/`, `docs/guides/feature-flag-inventory.md`
 - **Non-scope:** Any code change
 - **Validation:** `test -f plans/specs/*-feature-flag-catalogue-design.md`
