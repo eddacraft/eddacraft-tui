@@ -172,7 +172,21 @@ impl DetectionEnv for RealDetectionEnv {
                 continue;
             }
             let candidate = dir.join(name);
-            if is_executable_file(&candidate) {
+            // On Windows, accept the bare `dir.join(name)` only when
+            // the caller already supplied an extension (the agent
+            // rules never do, but a future rule might list
+            // `tool.bat`). Without this guard a plain text file
+            // named `claude` on PATH would match `is_executable_file`
+            // because Windows has no execute bit to gate on; the
+            // PATHEXT-style `.exe` fallback below is the real check
+            // for the extensionless-name case. On Unix the
+            // executable-bit check inside `is_executable_file`
+            // already screens out plain files.
+            #[cfg(windows)]
+            let accept_bare = candidate.extension().is_some();
+            #[cfg(not(windows))]
+            let accept_bare = true;
+            if accept_bare && is_executable_file(&candidate) {
                 return true;
             }
             #[cfg(windows)]
@@ -203,14 +217,17 @@ impl DetectionEnv for RealDetectionEnv {
     }
 }
 
-/// `true` if `path` is a regular file the current user could
-/// execute. On Unix the existence check is supplemented with a
-/// `mode & 0o111` bit check so a stray non-executable file named
-/// `claude` (a download artefact, a leftover config) on PATH does
-/// not register as Claude Code installed. On Windows the
-/// `set_extension("exe")` callers handle the launcher contract;
-/// no equivalent mode bit exists so the plain file-exists check
-/// is left in place there.
+/// `true` if `path` is a regular file with any Unix execute bit
+/// set (owner / group / other), used as a lightweight gate against
+/// non-executable files on PATH. This is a coarser check than
+/// `access(X_OK)` — a file owned by another user with `0o110`
+/// would pass here but fail under the current uid — but it is
+/// enough to reject the common false-positive cases (download
+/// artefacts, leftover config files, plain text) without taking
+/// a libc dep. On Windows there is no execute bit, so the plain
+/// existence check is left in place; the `set_extension("exe")`
+/// callers in [`RealDetectionEnv::has_binary`] handle the
+/// extensionless-name spoof there.
 fn is_executable_file(path: &Path) -> bool {
     if !path.is_file() {
         return false;
