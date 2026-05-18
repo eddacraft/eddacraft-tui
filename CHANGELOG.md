@@ -8,6 +8,69 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+### Added
+
+- **End-to-end daemon-backed protection.** Hooks, the witness chain, baseline
+  adoption, L4 policy, and wrapped agent launch now operate as a single
+  verifiable claim: every commit is witnessed, every save passes the same
+  protection pipeline, and every agent-driven write is attributable to a
+  registered session. `anvil status` renders the protection claim in plain text
+  and `--json`; `anvil doctor`, the MCP shim, and the TypeScript driver-client
+  emit the same typed claim shape so editors, CI, and agents read identical
+  state.
+- **Wrapped agent launch via `anvil-run`.** A new
+  `anvil-run --tool <name> -- <command...>` launcher wraps AI-agent processes
+  (Claude Code, Codex, and similar) so the daemon can attribute work, enforce
+  fences, and reap stale sessions. Includes daemon connectivity preflight,
+  session registration with daemon-minted agent tags, process-group ownership
+  for targeted interruption, clean exit cleanup, shell-integration functions for
+  zsh and bash, a hook side-channel for sessions that cannot be launched through
+  the wrapper, blocked-launch UX with actionable error output, and periodic
+  heartbeats so the daemon can reap crashed launchers.
+- **`anvil insights` weekly summary.** Reports last-week activity at a glance —
+  saves observed, findings raised, suppressions applied and resolved, baseline
+  edges added, and daemon uptime — derived from the witness chain with no
+  separate event store. `--json` emits the pinned `anvil.insights.v1` schema for
+  editor and CI consumers.
+- **`anvil version --check` and security-advisory surface.**
+  `anvil version --check` reports newer releases and security advisories against
+  the running version. The watch TUI and `anvil status` show a one-line "update
+  available" hint, rate-limited to once per 24 hours.
+- **Hook coexistence with lefthook, husky, and pre-commit-framework.** Anvil
+  hooks now install alongside the three dominant 2026 hook managers without
+  conflict — registering as managed entries in the host manager's config rather
+  than overwriting `.git/hooks/`. Uninstall removes only Anvil's own entries.
+- **AI tool auto-detect.** `anvil start` and `anvil-run` auto-detect Claude
+  Code, Cursor, Aider, Windsurf, and Codex installations without configuration.
+  Detected tools are reported in a short summary and cached at
+  `.anvil/cache/detected-agents.json`.
+- **Editor compatibility matrix and CI gate.** A documented compatibility matrix
+  at `docs/policies/editor-coexistence.md` plus a headless harness and CI gate
+  cover `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`
+  against Rust, TypeScript, and Python fixtures.
+- **Measured resource budget.** Anvil now publishes a documented resource
+  ceiling (CPU steady-state and peak RSS) measured on a reference repository,
+  with a CI workflow that fails the build on regression.
+- **Release cadence and EOL policy.** `docs/policies/release-cadence.md`
+  documents the hotfix iteration cadence, patch/minor/major scope semantics, the
+  "sit on a release" minimum window, and the support window for `-beta`
+  releases. Cross-linked from README and CONTRIBUTING.
+
+### Changed
+
+- **Signed `anvil update`.** `anvil update` now verifies downloads against a
+  published minisign signature on every supported install path — Homebrew,
+  curl-installer sidecar, and the axoupdater library fallback — before replacing
+  the running binary. Signature mismatches are loud and actionable.
+
+### Fixed
+
+- **Local-noise ignore policy now covers every surface.** Generated files, cache
+  directories, and agent worktrees are ignored consistently across `watch`,
+  `audit`, hooks, baseline, drift, gate, and `anvil-run`. The canonical list
+  lives in the kernel and is re-exported to CLI surfaces so the two cannot
+  drift; `.venv` is now included and `__pycache__` reconciled.
+
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
 Patch release for beta-user first-run and watch friction. No new APIs and no
