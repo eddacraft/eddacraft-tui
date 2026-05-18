@@ -1,8 +1,8 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-17 (two passes: structural — two-level claim split + Wave 5 relocated post-tag + cut-line extended with MLP2-025/-025b/-025c + MLP2-026 + ADOPT-003 + MLP2-051a/-051b/-051c/-051e; freight — fresh-cut review added RCLI3-016b + RCLI3-017b + DISTRIB-003 + MLP2-068 + MLP2-069 + ADOPT-004 + OPSUP-006 as sit-on quality riders); base `v0.6.3-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-18 (third-pass freight: CIB-005 + CIB-007 joined the sit-on bundle after an abandoned v0.6.4-beta hotfix attempt against `v0.6.3-beta`; tracking issue #1694 closed. Prior 2026-05-17 review covered two passes: structural — two-level claim split + Wave 5 relocated post-tag + cut-line extended with MLP2-025/-025b/-025c + MLP2-026 + ADOPT-003 + MLP2-051a/-051b/-051c/-051e; freight — fresh-cut review added RCLI3-016b + RCLI3-017b + DISTRIB-003 + MLP2-068 + MLP2-069 + ADOPT-004 + OPSUP-006); base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -47,6 +47,25 @@ merit:
   `anvil-run` / `baseline`).
 - **OPSUP-006** — File-presence guards and wall-time caps. Defensive guards
   against absent files and runaway checks.
+
+**Third-pass freight (2026-05-18):** two additional MCP-shim friction fixes
+joining the bundle after a hotfix-cut attempt against `v0.6.3-beta` was
+abandoned (tracking issue #1694, closed). The CIB-005 fix depended on
+intermediate `apply_patch` infrastructure (`f03f8aa9`) and `protection_claim`
+integration (`7ff0e123`) that landed between `v0.6.3-beta` and PR #1692, so the
+cherry-pick was entangled with v0.7.0-beta tool-UX work; deferring as freight is
+the lower-risk path:
+
+- **CIB-005** — Pre-write validator patch-mode support. `anvil_validate_write`
+  accepts patch-only payloads via the existing `apply_patch` helpers; token cost
+  scales with the change, not the file. Closes the primary friction from the
+  2026-05-18 beta tester incident (single-Read budget hit on a 2770-line JSON
+  metadata file). Merged via PR #1692.
+- **CIB-007** — Untrusted-workspace-root preflight returns a recoverable
+  `expectedWorkspaceRoot` field on rejection so callers can self-correct without
+  operator round-trip. Triage option **(b)**; option (a) (worktree-aware accept)
+  widens the trust boundary and remains deferred behind an ADR. Merged via PR
+  #1692.
 
 Release notes for the freight bundle ride under a "Sit-on quality improvements"
 section, not under the protection-surface claim, so the daemon-working claim's
