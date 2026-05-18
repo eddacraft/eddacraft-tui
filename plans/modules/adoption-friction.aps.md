@@ -4,21 +4,22 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADOPT | @aneki | In Progress | 5/6 done |
+| ADOPT | @aneki | Merged | 6/6 done |
 
-**Last reviewed:** 2026-05-17 (Proposed → Ready promotion on 2026-05-16
-alongside acceptance of
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md);
-counter and narrative refreshed on 2026-05-17 for ADOPT-006 merge.
-Progress: **5/6** — ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521;
-`crates/anvil-cli/src/commands/uninstall.rs` with 10 tests) and
-**Released/Shipped via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on
-2026-05-15**; ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
+**Last reviewed:** 2026-05-18 (counter and narrative refreshed for
+ADOPT-003 CLI-wiring + `anvil-run` half merge via PR #1700; module
+status In Progress → Merged. Progress: **6/6** — ADOPT-005
+`anvil uninstall` merged 2026-05-14 (PR #1521) and **Released/Shipped
+via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on 2026-05-15**;
+ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
 `docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
-enforcement completed 2026-05-16; ADOPT-004 shared ignore policy merged
-2026-05-16 via PR #1658; ADOPT-006 editor coexistence matrix + harness +
-CI gate merged 2026-05-17 via PR #1682. Module status is `In Progress`;
-ADOPT-003 is the remaining in-flight Wave 3A item.)
+enforcement completed 2026-05-16; ADOPT-004 shared ignore policy
+merged 2026-05-16 via PR #1658; ADOPT-006 editor coexistence matrix +
+harness + CI gate merged 2026-05-17 via PR #1682; **ADOPT-003 AI tool
+auto-detect — primitive merged 2026-05-14 via PR #1543, CLI wiring +
+`anvil-run` half merged 2026-05-18 via PR #1700**. Cleanup agent
+advances Merged → Released/Shipped → Complete when release evidence
+from the v0.7.0-beta runbook lands.)
 
 ## Purpose
 
@@ -178,10 +179,18 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - `cargo clippy --workspace --all-targets -- -D warnings` clean
   - Integration: fixture environments with each tool installed
     (deferred — manual Boring Week validation)
-- **Status:** In Progress
+- **Status:** Merged
 - **Picked up:** 2026-05-14 (primitive merged via PR #1543;
   CLI wiring + `anvil-run` half on
   `feat/adopt-003-cli-wiring` 2026-05-18)
+- **Evidence:** Primitive merged via PR #1543 on 2026-05-14
+  (commit `7a730c61`). CLI wiring + `anvil-run` half merged
+  via PR #1700 on 2026-05-18 (rebase commits `985002bb` +
+  `a0967e96`). Validation: 1615 CLI tests + 9 anvil-run
+  detection tests green; `cargo clippy --workspace
+  --all-targets -- -D warnings` clean; full pnpm gate chain
+  green. Cleanup agent advances Merged → Released/Shipped →
+  Complete when v0.7.0-beta release evidence lands.
 - **Dependencies:** INTL-001 (for the `anvil-run` half) —
   landed via PR #1528 on 2026-05-14, no longer blocking.
 - **changeType:** feature
