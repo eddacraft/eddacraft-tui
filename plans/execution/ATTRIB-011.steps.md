@@ -3,7 +3,7 @@
 ## Purpose
 
 Land ATTRIB-011: make `tools/starters/acknowledgements/` consumable from
-public projects (Anvil VS Code extension; future public repos) that
+public projects (eddacraft-tui; future public repos) that
 cannot `git subtree` from the private `anvil-001` repo.
 
 Canonical source stays in anvil-001. The public repo
@@ -107,15 +107,21 @@ the kit.
   and the workflow.
 - **Checkpoint:** `markdownlint` clean; cross-references resolve.
 
-### 6. First downstream consumption (Anvil VS Code extension)
+### 6. First downstream consumption (eddacraft-tui)
 
 - **Purpose:** Satisfy the APS validation criterion that one external
-  project consumes the public mirror.
-- **Produces:** Either a tracking note in the VS Code extension repo or
-  (if reach allows) a PR there adopting the kit via `git subtree add` from
-  the public mirror.
-- **Checkpoint:** External consumer either landed or recorded as queued
-  with a concrete next step.
+  project consumes the public mirror. eddacraft-tui (public Rust repo,
+  ships its own CLI) is the natural first consumer — same Rust+cargo-about
+  ingest path the kit was designed around, and being public it can pull
+  directly from the mirror without the private-repo subtree obstacle that
+  motivated ATTRIB-011 in the first place.
+- **Produces:** PR against `eddacraft/eddacraft-tui` adopting the kit via
+  `git subtree add --prefix tools/starters/acknowledgements
+  https://github.com/eddacraft/acknowledgements-starter.git main --squash`,
+  plus the consumer-side bootstrap (`attribution.toml`, `about.toml`,
+  `about.hbs`, `ACKNOWLEDGEMENTS.md`) and the CI freshness gate.
+- **Checkpoint:** PR in eddacraft-tui either merged or open with a green
+  `--check` from the kit's freshness gate proving the round-trip works.
 
 ### 7. Mark ATTRIB-011 Complete; bump module counter
 

@@ -302,3 +302,26 @@ markers (ATTRIB-008) for additional ecosystems
 (`<!-- BEGIN AUTO-GENERATED rust -->`, `<!-- BEGIN AUTO-GENERATED binaries -->`,
 ...). The marker-count gate is per-marker-text, so adding new blocks is additive
 — existing single-block consumers don't need to change anything.
+
+## Public mirror
+
+This directory is the canonical source. A read-only public mirror is maintained
+at
+[`eddacraft/acknowledgements-starter`](https://github.com/eddacraft/acknowledgements-starter)
+for projects (typically public ones) that can't `git subtree` from this private
+repository.
+
+The mirror is force-pushed by
+`.github/workflows/mirror-acknowledgements-starter.yml` on every change to
+`main` under this directory. Direct commits to the public mirror are overwritten
+on the next sync — all edits land here.
+
+To force a manual re-sync (e.g. after editing the workflow itself):
+
+```bash
+gh workflow run mirror-acknowledgements-starter.yml --ref main \
+  -f reason='why you re-synced'
+```
+
+The `reason` input is recorded on the throwaway prepend-README commit and in the
+GitHub step summary, so manual dispatches are auditable later.

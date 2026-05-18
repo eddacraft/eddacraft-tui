@@ -160,8 +160,8 @@ the same source of truth.
 
 - `little-termi` — already runs a hand-ported v1 copy; primary
   validation target for ATTRIB-009.
-- The Anvil VS Code extension (Node ecosystem) — will adopt the kit
-  once published.
+- `eddacraft-tui` (public, Rust + cargo-about) — first consumer of
+  the published mirror under ATTRIB-011.
 - Owner's future public projects — drives the
   ATTRIB-011 milestone (extract to a public sibling repo so non-anvil
   consumers don't have to copy out of a private repo).
@@ -177,10 +177,10 @@ Recorded on transition to Ready (2026-04-25).
 
 | Question | Decision | Rationale |
 | --- | --- | --- |
-| Starter-kit location | `tools/starters/acknowledgements/` inside this repo | Vendor-friendly: downstream repos `git subtree pull` for updates instead of copy-paste rot. `docs/guides/...` would be read-only and force manual reconciliation; a sibling repo is overkill for the current consumer set. **Public-extract is queued as ATTRIB-011** since anvil-001 is private and the VS Code extension + future public projects can't `git subtree` from it. |
+| Starter-kit location | `tools/starters/acknowledgements/` inside this repo | Vendor-friendly: downstream repos `git subtree pull` for updates instead of copy-paste rot. `docs/guides/...` would be read-only and force manual reconciliation; a sibling repo is overkill for the current consumer set. **Public-extract is queued as ATTRIB-011** since anvil-001 is private and `eddacraft-tui` + future public projects can't `git subtree` from it. |
 | Intermediate format | CycloneDX SBOM JSON | Standards-compliant; every modern licence tool emits it (`cargo-cyclonedx`, `cyclonedx-npm`, `cyclonedx-gradle-plugin`, `cyclonedx-python`); gives future vuln-scanning leverage for free. A homegrown TOML schema is lighter today but pays back the cost the moment a fourth ecosystem joins. |
 | `deny.toml` in v3 scope? | Yes — included in v3 | ATTRIB-006 (single-source-of-truth licence allow-list) only earns its keep when both `about.toml` and `deny.toml` consume it. Splitting them across modules means doing the refactor twice. |
-| First downstream consumer | `little-termi` (existing hand-port; primary validation target for ATTRIB-009). Plus the Anvil VS Code extension and the owner's future public projects as anticipated consumers — these drive the ATTRIB-011 public-extract milestone. | — |
+| First downstream consumer | `little-termi` (existing hand-port; primary validation target for ATTRIB-009). Plus `eddacraft-tui` (public Rust CLI; first consumer of the ATTRIB-011 public mirror) and the owner's future public projects as anticipated consumers — these drive the ATTRIB-011 public-extract milestone. | — |
 | Owner | `joshuaboys` | — |
 | Discrepancy notes accuracy | Confirmed accurate (verified 2026-04-25) | All claims in `plans/specs/2026-04-23-rustnx-completion-design.md`'s shipped-implementation note still hold: file path (`ACKNOWLEDGEMENTS.md`), generator (`tools/generate-acknowledgements.sh` wrapping `cargo about generate` scoped to `crates/anvil-cli/Cargo.toml`), CLI surface (`anvil licenses` via `include_str!`), CI gate (`acknowledgements-diff`), and release-pipeline publish (`.github/workflows/release.yml` mirrors the file to `eddacraft/anvil`). |
 
@@ -203,7 +203,7 @@ All items satisfied; see [Decisions](#decisions) above.
 - [x] Starter-kit location decided and recorded (ADR or design note).
 - [x] Intermediate format chosen (CycloneDX vs custom).
 - [x] First downstream consumer identified beyond anvil itself
-      (`little-termi`; plus VS Code extension + future public projects).
+      (`little-termi`; plus `eddacraft-tui` + future public projects).
 - [x] Decision recorded on whether `deny.toml` is part of v3 scope
       (yes — included in v3).
 - [x] Owner named (`joshuaboys`).
@@ -294,9 +294,9 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 ### ATTRIB-011: Mirror starter kit to a public sibling repo
 
 - **Status:** In Progress
-- **Intent:** Make the kit usable from public projects (the Anvil VS Code extension, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
+- **Intent:** Make the kit usable from public projects (`eddacraft-tui`, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
 - **Expected Outcome:** New public repo (proposed: `eddacraft/acknowledgements-starter`) mirrors `tools/starters/acknowledgements/` with a one-shot or scheduled mirror job. Public repo carries its own README pointing at this module for design history.
-- **Validation:** Public repo exists; mirror job succeeds; one external project (anvil VS Code extension) consumes it.
+- **Validation:** Public repo exists; mirror job succeeds; one external project (`eddacraft-tui`) consumes it.
 - **Execution plan:** `plans/execution/ATTRIB-011.steps.md` (kicked off 2026-05-17 on `feat/attrib-011-public-mirror`).
 
 ## Risks
@@ -306,7 +306,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 | Scope creeps into supply-chain attestation / SBOM publication | High | v3 stops at the markdown attribution artefact; SBOM publication is explicitly out of scope and queued under `release-management` |
 | CycloneDX intermediate is heavier than the project needs today | Medium | Keep `cargo-about` direct path supported; CycloneDX is additive, not forced |
 | Hand-ported starter-kit copies drift from canonical | Medium | ATTRIB-009 validates the kit by re-porting it into a known consumer (little-termi); divergence is a CI failure there |
-| Public consumers (VS Code extension, future public projects) can't `git subtree` from a private repo | Medium | ATTRIB-011 mirrors the kit to a public sibling repo; design history stays in this private module |
+| Public consumers (`eddacraft-tui`, future public projects) can't `git subtree` from a private repo | Medium | ATTRIB-011 mirrors the kit to a public sibling repo; design history stays in this private module |
 | Manual `## Thanks` section still rots over time | Low | CI requires the section exists with at least one entry per ecosystem represented in the auto-generated block; contents stay manual by design |
 | `licences.toml` drift gate produces false-positive churn during adds | Low | Drift gate runs `--check` mode; surfaces an actionable diff rather than blocking the commit silently |
 
