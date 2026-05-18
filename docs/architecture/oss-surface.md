@@ -7,12 +7,14 @@ how they relate to the closed product.
 
 For the underlying decision, see
 [ADR-018: Product / IP Architecture](../../plans/decisions/018-product-ip-architecture.md).
+ADR-047 proposes moving `eddacraft-tui`'s canonical source back into Anvil while
+keeping the public repo as a read-only mirror.
 
 ## TL;DR
 
 | Repo                                                                        | Layer                  | License      | Status         |
 | --------------------------------------------------------------------------- | ---------------------- | ------------ | -------------- |
-| [`eddacraft/eddacraft-tui`](https://github.com/eddacraft/eddacraft-tui)     | Presentation primitive | `Apache-2.0` | Public, in use |
+| [`eddacraft/eddacraft-tui`](https://github.com/eddacraft/eddacraft-tui)     | Presentation primitive | `Apache-2.0` | Public; mirror proposed |
 | [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) | Format / protocol      | `Apache-2.0` | Public, in use |
 | [`eddacraft/kindling`](https://github.com/eddacraft/kindling)               | Memory primitive       | `Apache-2.0` | Public, in use |
 
@@ -35,14 +37,21 @@ applications benefits from sharing the same visual identity and component
 library. The widgets themselves have no Anvil-specific business logic — they are
 pure presentation primitives.
 
+**Source topology:** Today the public repo is the standalone source. ADR-047
+proposes making Anvil's `crates/eddacraft-tui/` the canonical source and the
+public repo a read-only mirror while preserving crates.io distribution.
+
 **Consumed by:**
 
-- The closed Anvil CLI (via crates.io once published, currently via git rev)
+- The closed Anvil CLI (currently via crates.io; ADR-047 proposes an in-workspace
+  path crate)
 - Other eddacraft tools, current and future
 - Any third-party Rust TUI application that wants the eddacraft look
 
 **Contribution surface:** new widgets, theme refinements, accessibility
-improvements, docs, examples.
+improvements, docs, examples. If ADR-047 is accepted, source changes land in
+Anvil first and are mirrored publicly rather than being merged directly into the
+public repo.
 
 ### `anvil-plan-spec` — Format / protocol
 

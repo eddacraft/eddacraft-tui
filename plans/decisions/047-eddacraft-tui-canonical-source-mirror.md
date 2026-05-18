@@ -122,7 +122,11 @@ for the actual primary consumer.
 
 ## References
 
-- Related ADRs: ADR-018 (product / IP architecture), ADR-020 (versioning
-  strategy), ADR-025 (package manager distribution strategy)
-- APS modules: TUIEXTRACT (archived), ATTRIB-011 mirror pattern
+- Amends: ADR-018's `eddacraft-tui` contribution/source-topology assumption;
+  ADR-020's `eddacraft-tui` canonical-source assumption only. Independent crate
+  versioning remains unchanged.
+- Related ADRs: ADR-025 (package manager distribution strategy)
+- APS modules: TUIEXTRACT (archived), ATTRIB-011 mirror pattern. Implementation
+  requires a new APS module or work item before code, mirror automation, or
+  release-flow changes begin.
 - Repos: `eddacraft/anvil-001`, `eddacraft/eddacraft-tui`
