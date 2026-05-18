@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
 use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
@@ -178,7 +179,17 @@ fn call_with_validation_client(
     // is "if you write the same patch against the same base, this is
     // the result we validated".
     let mut request = request;
-    if request.content.is_none() && request.patch_text.is_some() {
+    // Materialise only when content is missing, a patch was supplied,
+    // AND the operation actually consumes content. Delete and rename
+    // do not require post-image content, so a patch field on those
+    // operations is correlation metadata only — reading the on-disk
+    // file there would scan content that is about to disappear and
+    // could block the operation on findings in soon-to-be-removed
+    // bytes (Copilot review, 2026-05-18).
+    if request.content.is_none()
+        && request.patch_text.is_some()
+        && request.operation.requires_content()
+    {
         match materialise_patch_content(
             &request.workspace_root,
             &request.relative_path,
@@ -675,18 +686,26 @@ impl ValidateWriteRequest {
         let proposed_content = optional_string(arguments.get("proposedContent"))?;
         let preview_content = optional_string(arguments.get("preview"))?;
         let patch_content = optional_string(arguments.get("patch"))?;
-        // When proposedContent is absent but preview is present, use preview
-        // for partial validation (the caller sent a slim payload). When both
-        // are present, proposedContent is authoritative. Patch text is never
-        // scanned as file content because diff hunks include removed lines and
-        // metadata that would mislead the secret/reasoning checks; CIB-005
-        // materialises the post-image from on-disk content before scanning.
-        let (content, partial_scan) = match proposed_content {
-            Some(full) => (Some(full.to_string()), false),
-            None => match preview_content {
-                Some(preview) => (Some(preview.to_string()), true),
-                None => (None, false),
-            },
+        // Precedence (Copilot review, 2026-05-18):
+        // 1. `proposedContent` is authoritative when present (full post-image).
+        // 2. Otherwise `patch` is authoritative — the post-image is
+        //    materialised from on-disk content and matches what the agent
+        //    will actually write. `preview` is ignored in this branch so
+        //    we do not run partial validation on a stale slice while the
+        //    actual change comes from the patch.
+        // 3. Otherwise `preview` triggers partial validation on the slim
+        //    payload.
+        // Patch text is never scanned as file content directly because
+        // diff hunks include removed lines and metadata that would mislead
+        // the secret/reasoning checks; CIB-005 materialises the post-image
+        // from on-disk content before scanning.
+        let (content, partial_scan) = match (proposed_content, patch_content, preview_content) {
+            (Some(full), _, _) => (Some(full.to_string()), false),
+            (None, None, Some(preview)) => (Some(preview.to_string()), true),
+            // (None, Some(_), _) — patch authoritative, defer to
+            //   materialisation; preview is ignored.
+            // (None, None, None) — no content path.
+            _ => (None, false),
         };
         let patch_text = patch_content.map(str::to_string);
 
@@ -976,15 +995,30 @@ fn materialise_patch_content(
         ));
     }
 
-    let original = fs::read_to_string(&absolute).map_err(|_| {
+    // Capped read (Copilot review, 2026-05-18): `fs::read_to_string`
+    // pre-allocates and reads to EOF, so a pseudo-file that reports a
+    // small `len()` and then streams more data, or a real file that
+    // grew between the stat and the read, would still trigger an
+    // unbounded allocation before any post-read length check. Use
+    // `Read::take` with a one-byte tolerance over the ceiling so an
+    // attempt to exceed the cap surfaces as `patch-target-unreadable`
+    // mid-stream rather than after `MAX_PROPOSED_CONTENT_BYTES` are
+    // already in memory.
+    let file = fs::File::open(&absolute).map_err(|_| {
         ToolProblem::new(
             "patch-target-unreadable",
             "Validate-write could not read the patch target file at workspaceRoot+path.",
         )
     })?;
-    // Post-read backstop in case the file grew between the stat and
-    // the read (or `metadata.len()` reported 0 for a pseudo-file
-    // that then streamed real bytes into `read_to_string`).
+    let mut original = String::new();
+    file.take(MAX_PROPOSED_CONTENT_BYTES as u64 + 1)
+        .read_to_string(&mut original)
+        .map_err(|_| {
+            ToolProblem::new(
+                "patch-target-unreadable",
+                "Validate-write could not read the patch target file at workspaceRoot+path.",
+            )
+        })?;
     if original.len() > MAX_PROPOSED_CONTENT_BYTES {
         return Err(ToolProblem::new(
             "patch-target-unreadable",
@@ -1033,7 +1067,19 @@ fn apply_unified_diff(original: &str, patch: &str) -> Result<String, ApplyError>
         }
         if let Some(rest) = raw_line.strip_prefix("@@") {
             let (old_start, old_count, new_count) = parse_hunk_header(rest)?;
-            let old_start_idx = old_start.saturating_sub(1);
+            // Unified-diff convention: `-N,M` with M > 0 means "starting
+            // at 1-indexed line N, take M lines" → 0-indexed start
+            // N-1. `-N,0` (pure insertion) means "insert AFTER 1-indexed
+            // line N" → 0-indexed insertion point is N. The two cases
+            // need different cursor placement; collapsing them into a
+            // single `saturating_sub(1)` would insert at the wrong
+            // position for pure-insertion hunks (Copilot review,
+            // 2026-05-18).
+            let old_start_idx = if old_count == 0 {
+                old_start
+            } else {
+                old_start.saturating_sub(1)
+            };
             if old_start_idx > original_lines.len() || cursor > old_start_idx {
                 return Err(ApplyError::HunkOutOfRange);
             }
@@ -1056,10 +1102,15 @@ fn apply_unified_diff(original: &str, patch: &str) -> Result<String, ApplyError>
                     if last_side_was_addition {
                         new_trailing_newline = false;
                     } else {
-                        // Removed/context side marker applies to the
-                        // original; if it asserts the original has no
-                        // trailing newline that's an invariant of the
-                        // input, not something we mutate.
+                        // Old/context-side marker asserts the original
+                        // lacked a trailing newline. The patch may
+                        // restore one on the new side (Case C, Copilot
+                        // review 2026-05-18): if a subsequent `+` line
+                        // in this hunk has no following new-side
+                        // marker, the new side gets a trailing newline.
+                        // Default to upgrading; a new-side marker below
+                        // will downgrade if present.
+                        new_trailing_newline = true;
                     }
                     continue;
                 }
@@ -1737,10 +1788,26 @@ mod tests {
     /// CIB-005 / adversarial review: a pure-insertion hunk of the
     /// form `@@ -N,0 +N,M @@` (no removed lines, only additions) is
     /// the standard unified-diff shape models emit for append-only
-    /// or insert-before edits. Must apply cleanly, not silently
-    /// reject as `patch-apply-failed`.
+    /// or insert-before edits. Must apply cleanly AND insert at the
+    /// correct position (after line N, per the unified-diff
+    /// convention) so the validator scans the same post-image the
+    /// caller would write.
     #[test]
-    fn patch_only_pure_insertion_hunk_applies_cleanly() {
+    fn patch_only_pure_insertion_hunk_applies_at_correct_position() {
+        // Direct unit-test of the patch applier so we can assert the
+        // post-image bytes, not just the validator decision.
+        let original = "line a\nline b\nline c\n";
+        let patch = "--- a/x\n+++ b/x\n@@ -2,0 +3,2 @@\n+inserted-1\n+inserted-2\n";
+        let post_image =
+            super::apply_unified_diff(original, patch).expect("pure-insertion patch applies");
+        assert_eq!(
+            post_image, "line a\nline b\ninserted-1\ninserted-2\nline c\n",
+            "pure-insertion `-N,0` inserts AFTER line N",
+        );
+
+        // End-to-end smoke through the validator: pure-insertion hunk
+        // must produce decision=allow and not block as
+        // patch-apply-failed.
         let workspace = tempdir().expect("workspace exists");
         let target = workspace.path().join("src/example.ts");
         fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
@@ -1758,6 +1825,116 @@ mod tests {
         assert_eq!(
             payload["decision"], "allow",
             "pure-insertion hunks must apply cleanly, got: {payload}"
+        );
+        assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// CIB-005 / Copilot review: a patch that adds a trailing newline
+    /// to a file that previously lacked one (Case C: `\ No newline`
+    /// marker on the removed side only) must materialise a post-image
+    /// that ends with `\n`. The original validator inherited the
+    /// original's trailing-newline state and could not upgrade.
+    #[test]
+    fn patch_can_add_trailing_newline_to_unterminated_file() {
+        let original = "alpha\nbeta";
+        let patch = String::from("--- a/x\n+++ b/x\n@@ -2 +2 @@\n")
+            + "-beta\n"
+            + "\\ No newline at end of file\n"
+            + "+beta-prime\n";
+        let post_image = super::apply_unified_diff(original, &patch)
+            .expect("trailing-newline-add patch applies");
+        assert_eq!(
+            post_image, "alpha\nbeta-prime\n",
+            "patch with old-side `\\ No newline` and unmarked new side adds a trailing newline",
+        );
+    }
+
+    /// CIB-005 / Copilot review: a patch that strips the trailing
+    /// newline from a previously-terminated file (Case D: marker on
+    /// new side) materialises a post-image without `\n`.
+    #[test]
+    fn patch_can_strip_trailing_newline_from_terminated_file() {
+        let original = "alpha\nbeta\n";
+        let patch = String::from("--- a/x\n+++ b/x\n@@ -2 +2 @@\n")
+            + "-beta\n"
+            + "+beta-prime\n"
+            + "\\ No newline at end of file\n";
+        let post_image =
+            super::apply_unified_diff(original, &patch).expect("trailing-newline-strip applies");
+        assert_eq!(
+            post_image, "alpha\nbeta-prime",
+            "patch with new-side `\\ No newline` strips the trailing newline",
+        );
+    }
+
+    /// CIB-005 / Copilot review: when `patch` is supplied alongside
+    /// `preview` (without `proposedContent`), the patch is
+    /// authoritative — preview is not used for partial validation,
+    /// because doing so would scan a stale slice while the post-image
+    /// the caller actually writes comes from the patch.
+    #[test]
+    fn patch_with_preview_uses_patch_post_image_not_preview_slice() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/example.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "const placeholder = 'redacted';\n").expect("seed target");
+
+        // Preview is clean. Patch inserts a real secret into the
+        // post-image. The validator must scan the post-image (block)
+        // rather than the preview (allow).
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "preview": "const placeholder = 'redacted';\n",
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-const placeholder = 'redacted';\n+const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "block",
+            "preview+patch must scan the patch post-image, not the preview slice; got: {payload}"
+        );
+        assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
+        // The presence of `patch` should not flip partial-scan mode on.
+        assert!(
+            payload["correlation"].get("partialScan").is_none(),
+            "patch-mode validation is full, not partial",
+        );
+    }
+
+    /// CIB-005 / Copilot review: `delete` and `rename` operations do
+    /// not require post-image content. A `patch` field on those
+    /// operations must be treated as correlation metadata only —
+    /// materialisation must not read the about-to-be-removed file
+    /// and produce findings on its contents.
+    #[test]
+    fn patch_on_delete_operation_does_not_materialise_or_scan() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/old.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        // Seed the file with content that would normally trigger a
+        // secret block. If materialisation ran, this would surface as
+        // an error in the response.
+        fs::write(
+            &target,
+            "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+        )
+        .expect("seed target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/old.ts",
+                "operation": "delete",
+                "patch": "--- a/src/old.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "delete with patch metadata must not scan the file being removed; got: {payload}"
         );
         assert_eq!(payload["summary"]["total"], 0);
     }
