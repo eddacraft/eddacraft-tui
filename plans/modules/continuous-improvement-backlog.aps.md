@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 3/4      |
+| CIB | —     | In Progress | 3/6      |
 
 ## Purpose
 
@@ -183,3 +183,89 @@ archive.
   retrieval reference, normal admin commands resolve it with `op read` when
   `ANVIL_ADMIN_KEY` is absent, and the runbook documents setup/status/unset.
 - **Confidence:** high
+
+### CIB-005: Pre-write validator patch-mode support
+
+- **Status:** Proposed
+- **Intent:** Stop forcing agents to ship full `proposedContent` to
+  `anvil_validate_write` when they only need to apply a small edit; accept a
+  diff/patch payload instead so token cost scales with the change, not the file.
+- **Expected Outcome:** `anvil_validate_write` invoked with `patch` and no
+  `content` no longer returns the `patch-only-unsupported` error currently
+  hard-coded at
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs:621-625`. The validator
+  reads the on-disk file at the `workspaceRoot`-relative path, applies the
+  patch to produce the post-image buffer, then feeds that buffer through the
+  existing `ProposedChange` (`crates/anvil-intercept/src/enforcement.rs:32`)
+  and `EnforcementPipeline::diagnostics_for_proposed_changes()`
+  (`crates/anvil-intercept/src/enforcement.rs:70`) pipeline — every existing
+  rule continues to fire against the post-image, with no rule-side changes.
+  Patch format (unified diff vs. structured edit ops), line-ending behaviour,
+  and the read-then-apply race window have documented semantics. The existing
+  rejection test (`patch_only_blocks_as_unsupported` at
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs:1312`) flips to a positive
+  acceptance test, and a new test covers the original screenshot case: a
+  one-string rename inside a 2770-line JSON file succeeds without
+  `proposedContent`.
+- **Validation:** `cargo test -p anvil-cli mcp::tools::validate_write`;
+  `cargo test -p anvil-intercept enforcement`; manual end-to-end check via the
+  MCP tool with a patch-only payload against a >20k-token fixture, confirming
+  the call succeeds, the diagnostics returned match what full-content
+  validation would have produced, and the disk file is unchanged (validator
+  is read-only).
+- **Identified From:** Beta tester screenshot 2026-05-18 — agent hit its
+  single-Read budget on a 2770-line (~25.6k token) JSON metadata file for a
+  one-string tag rename at idx 394 and was forced into a stop-and-ask. The
+  validator already parses the `patch` field (detection at
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs:589-602`) but rejects it
+  deliberately rather than for any architectural reason; the `contentSha256` +
+  `preview` slim-payload design intent in the same file's descriptor comment
+  signals patch-mode was planned and deferred, not abandoned.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `crates/anvil-cli/src/mcp/validation.rs` (entry at line 432),
+  `crates/anvil-intercept/src/enforcement.rs` (consumer; no expected changes).
+- **Coordinates with:** CIB-006 (risk-tiered validation builds on this — once
+  patches are first-class, the safelist tier can dispatch on patch shape).
+- **Out of Scope:** The same screenshot also surfaced the
+  `untrusted-workspace-root` gate
+  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`). That is a
+  separate preflight concern and is intentionally not folded into this item.
+- **Confidence:** high
+
+### CIB-006: Risk-tiered validation for trivial edits
+
+- **Status:** Proposed
+- **Intent:** Even with patch-mode (CIB-005) in place, full pipeline
+  validation is overkill for genuinely trivial changes. Add a lightweight
+  validator tier so a defined safelist of change shapes short-circuits the
+  rules that cannot possibly apply, dropping both latency and token cost on
+  the hot path.
+- **Expected Outcome:** A documented safelist (initial entries: single-string
+  value rename inside a JSON file at a stable path, no key add/remove, no
+  structural change) is matched against the parsed patch before the full
+  pipeline runs. When a change matches, only rules whose declared inputs
+  overlap the touched node fire; the remainder are skipped with a recorded
+  reason. Out-of-safelist edits continue to run the full pipeline unchanged.
+  The decision (full vs. tiered) is surfaced in the validator response so
+  callers can audit. Out-of-safelist behaviour and safelist criteria are
+  documented in `crates/anvil-cli/src/mcp/tools/validate_write.rs` and
+  cross-linked from the validator README.
+- **Validation:** `cargo test -p anvil-cli mcp::tools::validate_write`
+  covering safelist hits and near-miss cases that must fall through to full
+  validation. Benchmark in `crates/anvil-bench` showing meaningful
+  wall-time drop on the safelist path against a representative JSON metadata
+  fixture; regression test ensuring no rule that *should* fire is skipped on
+  any safelist shape.
+- **Identified From:** Beta tester screenshot 2026-05-18 — same incident as
+  CIB-005. The change was a one-string rename at idx 394; even patch-mode
+  alone still validates the whole post-image, so risk-tiering is the natural
+  follow-up to push trivial cases below the cost floor entirely.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `crates/anvil-intercept-rules/src/lib.rs` (rule input declarations at
+  `RuleInput` line 51 will likely need a "touched-node" predicate to support
+  selective firing).
+- **Coordinates with:** CIB-005 (must land first — without patch-mode there
+  is no cheap way to know which node was touched).
+- **Confidence:** medium — the plumbing is straightforward but the policy
+  decision (which shapes are "safe enough" to skim) carries real
+  under-validation risk and needs sign-off before the safelist grows.
