@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 3/7      |
+| CIB | —     | In Progress | 5/7      |
 
 ## Purpose
 
@@ -186,7 +186,10 @@ archive.
 
 ### CIB-005: Pre-write validator patch-mode support
 
-- **Status:** In Progress
+- **Status:** Merged
+- **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
+  merged 2026-05-18 as `3a647d4b`. Advances to `Released/Shipped` when
+  the next hotfix tag records release evidence.
 - **Intent:** Stop forcing agents to ship full `proposedContent` to
   `anvil_validate_write` when they only need to apply a small edit; accept a
   diff/patch payload instead so token cost scales with the change, not the file.
@@ -273,7 +276,11 @@ archive.
 
 ### CIB-007: Untrusted-workspace-root preflight gate is unrecoverable for legitimate callers
 
-- **Status:** In Progress
+- **Status:** Merged
+- **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
+  merged 2026-05-18 as `3a647d4b` (option **(b)** — recoverable error
+  payload). Advances to `Released/Shipped` when the next hotfix tag
+  records release evidence.
 - **Triage Decision (2026-05-18):** Option **(b)** — keep the strict
   equality check, add an `expectedWorkspaceRoot` field to the
   `untrusted-workspace-root` error payload so the caller can
