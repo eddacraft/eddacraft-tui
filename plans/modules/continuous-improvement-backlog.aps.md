@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 3/6      |
+| CIB | —     | In Progress | 3/7      |
 
 ## Purpose
 
@@ -228,8 +228,9 @@ archive.
   patches are first-class, the safelist tier can dispatch on patch shape).
 - **Out of Scope:** The same screenshot also surfaced the
   `untrusted-workspace-root` gate
-  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`). That is a
-  separate preflight concern and is intentionally not folded into this item.
+  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`). Tracked
+  separately as CIB-007 and intended to ship in the same hotfix tag so the
+  beta tester's full friction surface clears in one cut.
 - **Confidence:** high
 
 ### CIB-006: Risk-tiered validation for trivial edits
@@ -269,3 +270,64 @@ archive.
 - **Confidence:** medium — the plumbing is straightforward but the policy
   decision (which shapes are "safe enough" to skim) carries real
   under-validation risk and needs sign-off before the safelist grows.
+
+### CIB-007: Untrusted-workspace-root preflight gate is unrecoverable for legitimate callers
+
+- **Status:** Proposed
+- **Intent:** Stop the `untrusted-workspace-root` MCP preflight from
+  rejecting agents that pass a legitimate sibling `workspaceRoot`
+  (worktree siblings, monorepo sub-packages, macOS `/private`-prefixed
+  symlink variants) without giving the caller enough information to
+  recover without a human round-trip.
+- **Expected Outcome:** The strict equality check at
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs:696-703` is updated
+  along one of two paths, chosen during triage:
+  - **(a) Relax to worktree-aware accept:** any path that canonicalises
+    to a Git worktree linked to the shim's primary working tree is
+    accepted. The trust boundary (no traversal outside the shim's tree)
+    is preserved; symlink resolution still goes through
+    `canonical_workspace_root()` at line 713.
+  - **(b) Keep the strict check but return a recoverable error:** the
+    `ToolProblem` payload includes the expected `workspaceRoot` (the
+    shim's canonicalised cwd) so the caller can retry with the right
+    value on the next call without operator intervention.
+  Either way the existing positive case (no `workspaceRoot` provided, or
+  exact match after canonicalisation) continues to pass, and the
+  rejection test at
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs:1470` is updated to
+  cover whichever resolution lands. The
+  `docs/architecture/mcp-shim-as-built.md` request-shape note (line 160)
+  is updated to match.
+- **Validation:** `cargo test -p anvil-cli mcp::tools::validate_write`;
+  manual end-to-end check from a worktree at
+  `~/Projects/src/anvil-001-<branch>` against an MCP shim launched in
+  `~/Projects/src/anvil-001`, confirming the call now either succeeds
+  (option a) or fails with a recoverable payload that names the expected
+  root (option b); `pnpm format:check` for any in-repo doc touched.
+- **Identified From:** Beta tester screenshot 2026-05-18 — same incident
+  as CIB-005. After patch-mode was worked around, the same agent then
+  tripped `untrusted-workspace-root`
+  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`) because
+  its understood `workspaceRoot` did not canonicalise to the shim's
+  launch cwd. The gate is correct as a trust boundary, but its current
+  error text is unrecoverable: the agent cannot know what value would
+  satisfy the shim short of asking the operator, so the friction surface
+  rolls back to "stop and ask".
+- **Files:**
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs` (`workspace_root()`
+  at line 680, `canonical_workspace_root()` at line 713, rejection test
+  at line 1470); `docs/architecture/mcp-shim-as-built.md` (request-shape
+  table at line 160); `plans/decisions/DECISION-LOG.md` if option (a) is
+  chosen, because that path widens the trust boundary and needs an ADR
+  per `docs/guides/adr-process.md`.
+- **Coordinates with:** CIB-005 (same beta incident, same file; both
+  should ship in the same hotfix tag so the tester's full friction
+  surface clears in one cut, not two), CIB-006 (out of scope here —
+  risk-tiering does not depend on this gate).
+- **Out of Scope:** Broader MCP trust-boundary review (auth, multi-root
+  workspaces, daemon-mediated workspace registration). Anything beyond
+  worktree-sibling recognition and recoverable error payloads belongs in
+  a dedicated APS module, not a hotfix-eligible CIB item.
+- **Confidence:** medium — option (b) is high-confidence and small;
+  option (a) is higher-leverage but its trust-boundary widening needs an
+  ADR before code lands. Triage selects between them.
