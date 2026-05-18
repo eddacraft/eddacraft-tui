@@ -2,9 +2,17 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 54/76 done |
+| MLP2 | @aneki | In Progress | 59/76 done |
 
-**Last reviewed:** 2026-05-17 (MLP2-025c closed via PR #1608 at
+**Last reviewed:** 2026-05-18 (MLP2-025 umbrella closed — Phase 1
+primitives shipped via PR #1597 on 2026-05-15; Phase 2 (-025b PR
+#1603) and Phase 3 (-025c PR #1608) had already shipped on
+2026-05-16, leaving the umbrella's status stale at `In Progress
+(Phase 1 only…)`. Advanced `In Progress` → `Merged`; done-count
+54 → 59 of 76 (the +5 closes the prior counter drift between
+the module header and the index narrative, which had already
+counted -025b/-025c and the -051a..-051e wave as done). Earlier
+2026-05-17 entry preserved below — MLP2-025c closed via PR #1608 at
 `1ea23349` — launcher migration that activates the MLP2-025/-025b
 spoof cross-check in production: `session_register_params`
 emits nested `agent_tag` + `lineage` (daemon parser has been
@@ -1144,7 +1152,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025: Registry-side spoof rejection cross-check
 
-- **Status:** In Progress (Phase 1 only; Phase 2 deferred to MLP2-025b)
+- **Status:** Merged (Phase 1 primitives — PR #1597, merged 2026-05-15. Phase 2 daemon control-lane wire-up shipped as MLP2-025b (PR #1603, 2026-05-16); Phase 3 launcher-side population shipped as MLP2-025c (PR #1608, 2026-05-16 at `1ea23349`). End-to-end spoof cross-check is live in production.)
 - **Intent:** Env-supplied `AgentTag` must match the tag the
   daemon issued for this PID lineage at INTL-003
   registration. Mismatches treated as missing, not honoured.

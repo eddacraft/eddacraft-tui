@@ -178,12 +178,12 @@ merge-parent hash binding), MLP2-013, MLP2-014, reopened MLP2-016, reopened
 MLP2-048, MLP2-061, MLP2-062 — **all Merged** — plus the security-chain finish
 and operator-recovery additions named below:
 
-- **MLP2-025 + MLP2-025b + MLP2-025c** (Critical, security surface) —
-  registry-side spoof rejection works end-to-end only when all three land. The
-  split happened during implementation; the original cut-line predated it.
-  MLP2-025/-025b are dead code in production until -025c wires the launcher
-  half. Required for the daemon-working claim to honestly include "agent
-  attribution survives a spoof attempt."
+- **MLP2-025 + MLP2-025b + MLP2-025c** (Critical, security surface) — **all
+  three Merged.** Registry-side spoof rejection is live end-to-end: Phase 1
+  primitives PR #1597 (2026-05-15), Phase 2 daemon control-lane PR #1603
+  (2026-05-16), Phase 3 launcher migration PR #1608 (2026-05-16 at
+  `1ea23349`). Umbrella status closed 2026-05-18. The daemon-working claim
+  can honestly include "agent attribution survives a spoof attempt."
 - **MLP2-026** (High, operator recovery) — `degraded:fence-cascade` detection +
   `anvil intercept unblock --acknowledge-cascade` clear path. Contract spec
   Accepted via PR #1617; partial implementation landed on main. Without it,
