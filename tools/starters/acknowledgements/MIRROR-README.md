@@ -15,21 +15,30 @@ markers is preserved verbatim.
 
 ## Adopting the kit
 
+This mirror is namespaced — its root contains a single `acknowledgements/`
+directory holding the kit files. That means you point `git subtree` at the
+parent directory you want the kit to live under, and the `acknowledgements/`
+folder names itself. If you ever adopt a second starter kit alongside this one,
+it can do the same trick under its own name and the two won't collide.
+
 As a tracked subtree (recommended — easy to pull updates):
 
 ```bash
-git subtree add --prefix tools/starters/acknowledgements \
+git subtree add --prefix tools/starters \
   https://github.com/eddacraft/acknowledgements-starter.git main --squash
 ```
+
+Result: the kit lands at `tools/starters/acknowledgements/*`.
 
 To pull future updates:
 
 ```bash
-git subtree pull --prefix tools/starters/acknowledgements \
+git subtree pull --prefix tools/starters \
   https://github.com/eddacraft/acknowledgements-starter.git main --squash
 ```
 
-Or just `cp -r` the directory in if you don't want subtree tracking.
+Or just `cp -r` the `acknowledgements/` directory in if you don't want subtree
+tracking.
 
 ## Design history
 

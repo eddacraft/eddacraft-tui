@@ -29,11 +29,16 @@ edits required.
 1. Copy the kit:
 
    ```bash
-   git subtree add --prefix tools/starters/acknowledgements \
+   git subtree add --prefix tools/starters \
      <upstream> main --squash
    ```
 
-   Or just `cp -r` the directory in if you don't want subtree tracking.
+   The public mirror's root is a single `acknowledgements/` directory, so this
+   lands the kit at `tools/starters/acknowledgements/*` — the kit namespaces
+   itself instead of relying on the consumer to type the right prefix.
+
+   Or just `cp -r` the `acknowledgements/` directory in if you don't want
+   subtree tracking.
 
 2. Bootstrap the consumer-side files (one-off, then commit):
 
