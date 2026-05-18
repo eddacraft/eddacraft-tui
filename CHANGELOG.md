@@ -14,28 +14,29 @@ engineering maintenance are recorded in the
   adoption, L4 policy, and wrapped agent launch now operate as a single
   verifiable claim: every commit is witnessed, every save passes the same
   protection pipeline, and every agent-driven write is attributable to a
-  registered session. `anvil doctor`, `anvil status`, the MCP shim, and the
+  registered session. `anvil doctor`, `anvil status`, the MCP server, and the
   TypeScript driver-client all emit the same typed protection-claim shape so
   editors, CI, and agents read identical state.
 - **Wrapped agent launch via `anvil-run`.** A new
   `anvil-run --tool <name> -- <command...>` launcher wraps AI-agent processes
   (Claude Code, Codex, and similar) so the daemon can attribute work, enforce
-  fences, and reap stale sessions. Includes daemon connectivity preflight,
-  session registration with daemon-minted agent tags, process-group ownership
-  for targeted interruption, clean exit cleanup, shell-integration functions for
-  zsh and bash, a hook side-channel for sessions that cannot be launched through
-  the wrapper, blocked-launch UX with actionable error output, and periodic
-  heartbeats so the daemon can reap crashed launchers.
+  fences, and clean up stale sessions. Includes daemon connectivity preflight,
+  session registration with daemon-minted agent tags, process-group ownership so
+  the daemon can target the right process tree, clean exit cleanup,
+  shell-integration functions for zsh and bash, a fallback registration path via
+  the pre-commit hook for sessions that cannot be launched through the wrapper,
+  blocked-launch UX with actionable error output, and periodic heartbeats so the
+  daemon notices when a launcher crashes.
 - **`anvil doctor` typed protection-claim section.** `anvil doctor` now prints
   the worktree state and per-surface entries, with `--json` emitting the same
   `ProtectionClaim` shape as `anvil status --json`.
-- **MCP shim `validate_write` response carries `protection_claim`.** The field
-  is optional and uses the closed-set vocabulary; omitted when the daemon is
-  unreachable. Pre-existing drivers round-trip the response unchanged.
+- **MCP server `validate_write` response carries `protection_claim`.** The field
+  is optional; omitted when the daemon is unreachable. Pre-existing drivers
+  round-trip the response unchanged.
 - **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
-  closed-set types; the MCP response adapter surfaces the typed claim when the
-  daemon supplied one. Responses without the field parse cleanly for backward
-  compatibility.
+  types so editors and agents read protection state in a typed shape; the MCP
+  response adapter surfaces the claim when the daemon supplied one. Responses
+  without the field parse cleanly for backward compatibility.
 - **`anvil l4-validate` CLI command.** A dedicated subcommand for running L4
   verification over a commit range, replacing the previous `anvil hook pre-push`
   reuse for CI and GitHub Action consumers.
@@ -82,10 +83,10 @@ engineering maintenance are recorded in the
 ### Changed
 
 - **`anvil status --json` ProtectionClaim shape.** Output is now a typed
-  `ProtectionClaim` built from the live daemon snapshot, including per-surface
-  entries with closed-set state values. When the daemon is unreachable, output
-  falls back to a locally-derivable worktree state with an empty `surfaces`
-  array rather than over-claiming coverage.
+  `ProtectionClaim` built from the live daemon snapshot, with per-surface
+  entries drawn from a fixed set of state values. When the daemon is
+  unreachable, output falls back to a worktree state derived from local data
+  with an empty `surfaces` array rather than over-claiming coverage.
 - **`anvil baseline` writes project identity.** Baseline now mints
   `anvil/project-id` on first run (preserved on re-run) and pins `cutoff_commit`
   into the canonical policy file in the same flow, so adopting Anvil into an
@@ -107,9 +108,9 @@ engineering maintenance are recorded in the
   Spoofed tags block the offending write and fence the worktree with
   `degraded:spoofed-attribution`.
 - **`anvil l4-validate` chain integrity check.** L4 validation now verifies
-  witness-chain integrity before trusting any witnessed commit SHA as L3
-  evidence. Broken or tampered chains produce a blocking result instead of a
-  silent allow or empty trusted set.
+  witness-chain integrity before trusting any witnessed commit SHA as
+  prior-layer evidence. Broken or tampered chains produce a blocking result
+  instead of a silent allow or empty trusted set.
 
 ### Fixed
 
