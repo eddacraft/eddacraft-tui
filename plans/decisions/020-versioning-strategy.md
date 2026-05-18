@@ -4,6 +4,12 @@
 
 Accepted
 
+> **Freshness note (2026-05-18):** ADR-047 proposes moving
+> `eddacraft-tui`'s canonical source back into Anvil while preserving independent
+> crate versioning and crates.io distribution. The classification below remains
+> directionally correct for versioning, but `eddacraft-tui` would no longer have
+> an independently canonical source repo once ADR-047 is accepted.
+
 ## Date
 
 2026-04-14

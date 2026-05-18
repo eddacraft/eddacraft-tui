@@ -4,6 +4,12 @@
 
 Accepted
 
+> **Freshness note (2026-05-18):** ADR-047 proposes changing
+> `eddacraft-tui`'s source-of-truth topology: the crate remains part of the
+> Apache-2.0 OSS surface, but its canonical source moves back into Anvil and the
+> public repository becomes a read-only mirror. This amends the contribution
+> assumption for that repo without changing the three-piece OSS surface.
+
 ## Date
 
 2026-04-07
