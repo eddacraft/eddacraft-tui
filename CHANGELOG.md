@@ -29,6 +29,13 @@ engineering maintenance are recorded in the
 - **`anvil doctor` typed protection-claim section.** `anvil doctor` now prints
   the worktree state and per-surface entries, with `--json` emitting the same
   `ProtectionClaim` shape as `anvil status --json`.
+- **MCP shim `validate_write` response carries `protection_claim`.** The field
+  is optional and uses the closed-set vocabulary; omitted when the daemon is
+  unreachable. Pre-existing drivers round-trip the response unchanged.
+- **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
+  closed-set types; the MCP response adapter surfaces the typed claim when the
+  daemon supplied one. Responses without the field parse cleanly for backward
+  compatibility.
 - **`anvil l4-validate` CLI command.** A dedicated subcommand for running L4
   verification over a commit range, replacing the previous `anvil hook pre-push`
   reuse for CI and GitHub Action consumers.
@@ -111,16 +118,6 @@ engineering maintenance are recorded in the
   `audit`, hooks, baseline, drift, gate, and `anvil-run`. The canonical list
   lives in the kernel and is re-exported to CLI surfaces so the two cannot
   drift; `.venv` is now included and `__pycache__` reconciled.
-
-### Developer-facing
-
-- **MCP shim `validate_write` response carries `protection_claim`.** The field
-  is optional and uses the closed-set vocabulary; omitted when the daemon is
-  unreachable. Pre-existing drivers round-trip the response unchanged.
-- **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
-  closed-set types; the MCP response adapter surfaces the typed claim when the
-  daemon supplied one. Responses without the field parse cleanly for backward
-  compatibility.
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
