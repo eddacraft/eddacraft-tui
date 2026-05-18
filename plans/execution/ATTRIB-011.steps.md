@@ -127,6 +127,14 @@ the kit.
   gate.
 - **Checkpoint:** PR in eddacraft-tui either merged or open with a green
   `--check` from the kit's freshness gate proving the round-trip works.
+- **Shipped:** eddacraft/eddacraft-tui#33, merged 2026-05-18. First
+  adoption attempt landed at the wrong subtree prefix
+  (`tools/starters/` rather than `tools/starters/acknowledgements/`),
+  diagnosed as uutils coreutils 0.2.2's
+  [#10508](https://github.com/uutils/coreutils/issues/10508) dirname
+  bug truncating the multi-segment `--prefix`. Fixed locally by
+  installing uutils 0.8.0 ahead of the system `/usr/bin/dirname`, then
+  re-doing the adoption as a "relocate" PR.
 
 ### 7. Mark ATTRIB-011 Complete; bump module counter
 
@@ -135,6 +143,7 @@ the kit.
   `plans/modules/attribution-pipeline-v3.aps.md`; module done/total in
   `plans/index.aps.md` bumps `4/11` → `5/11`.
 - **Checkpoint:** APS validation clean.
+- **Shipped:** This PR (2026-05-18).
 
 ## Risks
 

@@ -293,11 +293,12 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-011: Mirror starter kit to a public sibling repo
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Make the kit usable from public projects (`eddacraft-tui`, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
 - **Expected Outcome:** New public repo (proposed: `eddacraft/acknowledgements-starter`) mirrors `tools/starters/acknowledgements/` with a one-shot or scheduled mirror job. Public repo carries its own README pointing at this module for design history.
 - **Validation:** Public repo exists; mirror job succeeds; one external project (`eddacraft-tui`) consumes it.
 - **Execution plan:** `plans/execution/ATTRIB-011.steps.md` (kicked off 2026-05-17 on `feat/attrib-011-public-mirror`).
+- **Shipped:** 2026-05-18. Public mirror live at <https://github.com/eddacraft/acknowledgements-starter>, force-pushed by `.github/workflows/mirror-acknowledgements-starter.yml` on every change to `tools/starters/acknowledgements/`. `eddacraft-tui` consumes it via subtree at `tools/starters/acknowledgements/` (eddacraft/eddacraft-tui#33, merged 2026-05-18). Final design + doc fixes landed via PRs #1677 (scaffold), #1686 (PAT auth fix for CURLE_URL_MALFORMAT), #1689 (kit README mirror pointer + Action 6 retarget to eddacraft-tui), #1691 (per-kit-prefix doc discipline; wrap design rejected).
 
 ## Risks
 
