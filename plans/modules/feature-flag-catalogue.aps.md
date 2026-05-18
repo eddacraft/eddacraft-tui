@@ -5,14 +5,18 @@
 
 | Scope   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Draft  | 1/7      |
+| FLAGCAT | —     | medium   | Draft  | 2/7      |
 
-**Last reviewed:** 2026-05-11 — FLAGS and FLAGM are archived as Complete; the
-five flag definitions and per-surface modules referenced below are still the
-current state on `dev`. **2026-05-11:** FLAGCAT-007 resolved by
+**Last reviewed:** 2026-05-18 — FLAGCAT-001 design note landed at
+[`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md);
+manifest layout, TS loader surface, Rust `build.rs` codegen approach, naming
+map, consistency-check strategy, and migration ordering are pinned. **2026-05-11:**
+FLAGCAT-007 resolved by
 [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md): USAGE stores
 the resolved flag context inline, manifest `key` is the stable join key, and
-ADR-019 remains gate-affecting-only for standalone Kindling flag facts.
+ADR-019 remains gate-affecting-only for standalone Kindling flag facts. FLAGS
+and FLAGM remain archived as Complete; the five flag definitions and
+per-surface modules referenced below are still the current state on `main`.
 
 ## Purpose
 
@@ -152,8 +156,9 @@ are the governance guarantees we've already invested in via FLAGS.
 
 ## Design Spec
 
-Not yet written. A follow-up work item (FLAGCAT-001) produces a short design
-note covering:
+Landed 2026-05-18 at
+[`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
+(closes FLAGCAT-001). The note covers:
 
 - Manifest JSON layout vs. upstream OpenFeature `flags.json` (what we extend,
   what we leave alone so upstream tooling keeps working)
@@ -171,8 +176,9 @@ note covering:
 
 Change status to **Ready** when:
 
-- [ ] Design note documents the manifest layout, codegen approach, and
-      consistency-check strategy (FLAGCAT-001)
+- [x] Design note documents the manifest layout, codegen approach, and
+      consistency-check strategy (FLAGCAT-001) —
+      [`2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
 - [ ] Rust codegen approach confirmed against the `anvil-kernel-types` build
       profile — prototype a `build.rs` walk from `CARGO_MANIFEST_DIR` to the
       workspace root's `flags/manifest.json` and verify `cargo:rerun-if-changed`
@@ -192,7 +198,7 @@ Change status to **Ready** when:
 
 ## Tasks
 
-### FLAGCAT-001: Design note — manifest layout, Rust codegen, consistency check — Draft
+### FLAGCAT-001: Design note — manifest layout, Rust codegen, consistency check — Complete
 
 - **Intent:** Before changing any runtime, agree the manifest layout, the Rust
   codegen mechanism, and the drift-detection strategy.
@@ -207,6 +213,18 @@ Change status to **Ready** when:
 - **Non-scope:** Any code change
 - **Validation:** `test -f plans/specs/*-feature-flag-catalogue-design.md`
 - **Confidence:** high
+- **Resolution (2026-05-18):**
+  [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
+  pins the manifest at `flags/manifest.json` (repo root, OpenFeature-adjacent),
+  the TS loader at `packages/anvil/flags-catalogue/` with accessors named for
+  byte-compatible call-site migration, Rust codegen via a `build.rs` walk to
+  the workspace root with `serde_json` as a `[build-dependencies]` entry on
+  `eddacraft-anvil-kernel-types`, a deterministic JSON-key-to-Rust naming map
+  (`.`/`-` → `_`), a single Vitest-driven consistency check that compares
+  parsed JSON, TS accessors, and a JSON dump of the Rust codegen, and a
+  five-step migration order (FLAGCAT-002 → -006). Clawpatch was deliberately
+  not run for this design pass; instructions for future sweeps are recorded
+  in the note's "Clawpatch advisory inventory" section.
 
 ### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Draft
 
