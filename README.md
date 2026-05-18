@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                 |
-| ------ | --------- | ------ | ------ | ----------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-16 against `RELEASE-PLAN.md` and `docs/policies/release-cadence.md` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                          |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-18 against `RELEASE-PLAN.md`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -137,10 +137,13 @@ uninstall hotfix on top of the `v0.6.2-beta` operational substrate (main-first
 branch governance, targeted CI/readiness checks, and deterministic release
 commands).
 
-Next candidate: **`v0.7.0-beta`** — the daemon-working product slate. It is
-tracked through [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
-[`plans/index.aps.md`](./plans/index.aps.md); `MLP-009` is the hard gate for any
-full-protection claim.
+Next candidate: **`v0.7.0-beta`** — the daemon-working product slate. The
+tag-time claim is that Anvil protects this project end-to-end through the
+daemon, hooks, witness chain, baseline, and wrapped agent-launch surfaces, with
+a signature-verified update path. The broader “sit on this for a month” claim
+graduates only after post-tag Boring Week evidence. Current cut-line, docs-phase
+closure, and deferrals live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
+[`plans/index.aps.md`](./plans/index.aps.md).
 
 Release cadence and beta support-window expectations are documented in
 [`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
@@ -154,37 +157,18 @@ Release cadence and beta support-window expectations are documented in
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![Rust](https://img.shields.io/badge/Rust-2024%20edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=24-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=22.13-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 eddacraft monorepo. Currently home to **anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
-save, before they reach code review.
+save, before they reach code review. Active release work is on the `v0.7.0-beta`
+daemon-working slate: protection claims, hook/witness evidence, baseline
+adoption, wrapped agent launch via `anvil-run`, and release/distribution
+hardening.
 
-Current trust/provenance direction includes line-level authorship attribution
-planning (human/AI/mixed/unknown + model metadata + confidence), tracked in APS
-module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
-
-### Test coverage snapshot
-
-Coverage is advisory, not a merge gate. CI publishes the authoritative per-PR
-coverage summaries; this table is a quick local snapshot from 2026-05-08 so
-contributors can see the current shape at a glance.
-
-| Surface                         | Line coverage | Status            | Notes                                                   |
-| ------------------------------- | ------------: | ----------------- | ------------------------------------------------------- |
-| Rust workspace                  |         84.1% | Above target      | `cargo llvm-cov report --summary-only`                  |
-| TypeScript workspace            |         79.5% | Just below target | Aggregated Vitest coverage artifacts across 19 projects |
-| `packages/kindling-integration` |         19.9% | Needs uplift      | Largest TypeScript gap                                  |
-| `packages/libs/render`          |         44.8% | Needs uplift      | Render utility package                                  |
-| `packages/anvil/runtime`        |         70.3% | Needs uplift      | Runtime orchestration surface                           |
-| `apps/anvil-api`                |         73.4% | Needs uplift      | API service                                             |
-| `packages/anvil/policy`         |         74.2% | Needs uplift      | OPA/Rego wrapper package                                |
-| `packages/edda-stack`           |         77.2% | Near target       | Memory lifecycle stack                                  |
-| `packages/anvil-driver-client`  |         77.9% | Near target       | Driver client package                                   |
-
-Target: **80% line coverage** for actively tracked packages and crates. See
-[`plans/modules/test-coverage-uplift.aps.md`](plans/modules/test-coverage-uplift.aps.md)
-for the live uplift plan.
+Coverage is advisory rather than a merge gate. Nightly CI publishes the
+authoritative coverage artefacts; local commands are listed in
+[Test Coverage](#test-coverage).
 
 Contributor workflow quick links:
 
@@ -257,18 +241,25 @@ and tooling.
 
 ### Packages — Ecosystem
 
-| Directory                        | Package                                 | Description                                       |
-| -------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| `packages/adapters`              | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
-| `packages/aps`                   | `@eddacraft/anvil-aps`                  | APS document parser                               |
-| `packages/eslint-plugin-anvil`   | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
-| `archive/anvil-vscode-extension` | `anvil-vscode`                          | VS Code integration                               |
-| `packages/kindling-integration`  | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
-| `packages/edda-stack`            | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
-| `packages/libs/render`           | `@eddacraft/render`                     | Shared render-layer utilities                     |
-| `packages/shared`                | —                                       | Shared cross-cutting utilities                    |
-| `packages/transactional`         | `@eddacraft/transactional`              | Shared transactional email templates              |
+| Directory                       | Package                                 | Description                                       |
+| ------------------------------- | --------------------------------------- | ------------------------------------------------- |
+| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
+| `packages/anvil-driver-client`  | `@eddacraft/anvil-driver-client`        | TypeScript driver-client contracts                |
+| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
+| `packages/docs-meta`            | `@eddacraft/anvil-docs-meta`            | Documentation metadata and docs-check parser      |
+| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
+| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
+| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
+| `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
+
+Archived integrations retained for historical context:
+
+| Directory                        | Former package                | Status                                            |
+| -------------------------------- | ----------------------------- | ------------------------------------------------- |
+| `archive/anvil-vscode-extension` | `anvil-vscode`                | Archived per ADR-033; not release-active          |
+| `archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server` | Archived TypeScript MCP server; Rust shim is live |
+| `packages/libs/render`           | `@eddacraft/render`           | Retained package; not part of the active release  |
+| `packages/shared`                | —                             | Retained shared utilities                         |
 
 ### Packages — Tooling
 
@@ -279,24 +270,34 @@ and tooling.
 
 ### Crates (Rust)
 
-| Directory                      | Description                                                    |
-| ------------------------------ | -------------------------------------------------------------- |
-| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)      |
-| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy          |
-| `crates/anvil-kernel-types`    | Shared types for the Rust kernel (events, graph, trust)        |
-| `crates/anvil-architecture`    | Architecture rule evaluation                                   |
-| `crates/anvil-bench`           | Stress-test harness for capacity discovery                     |
-| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001) |
-| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)      |
-| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                   |
-| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon           |
-| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                     |
-| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                      |
-| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)      |
-| `crates/anvil-policy`          | OPA/policy evaluation engine                                   |
-| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)        |
-| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph         |
-| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                 |
+| Directory                      | Description                                                        |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `crates/anvil-architecture`    | Architecture rule evaluation                                       |
+| `crates/anvil-attribution`     | Agent/session attribution primitives for protection evidence       |
+| `crates/anvil-baseline`        | Baseline adoption and genesis witness helpers                      |
+| `crates/anvil-bench`           | Stress-test harness for capacity discovery                         |
+| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001)     |
+| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)          |
+| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)          |
+| `crates/anvil-config`          | Multi-format `.anvil.<ext>` configuration discovery and validation |
+| `crates/anvil-hook`            | Git hook installation, coexistence, witness writes, and L4 handoff |
+| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                       |
+| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon               |
+| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                         |
+| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                          |
+| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy              |
+| `crates/anvil-kernel-types`    | Shared types for kernel, diagnostics, and protection claims        |
+| `crates/anvil-l4`              | L4 policy and witness-chain validation engine                      |
+| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)          |
+| `crates/anvil-policy`          | Policy wrapper and OPA integration surface                         |
+| `crates/anvil-policy-engine`   | Policy-engine internals                                            |
+| `crates/anvil-rayon-init`      | Shared Rayon initialisation                                        |
+| `crates/anvil-rules`           | Rule registry and deterministic rules digest                       |
+| `crates/anvil-run`             | Wrapped agent launcher and session registration ingress            |
+| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)            |
+| `crates/anvil-witness`         | Hash-chained witness log writer, rollover, manifest, and verifier  |
+| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph             |
+| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                     |
 
 ### Infrastructure
 
@@ -326,9 +327,9 @@ and tooling.
 
 ### Prerequisites
 
-- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 24** is
-  the recommended/pinned version for contributors — see `.nvmrc` /
-  `.node-version`
+- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 22** is
+  the default CI/setup-workspace version, with Node 24 exercised in nightly
+  compatibility jobs
 - **pnpm** >= 10.20.0
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
@@ -339,8 +340,8 @@ and tooling.
 ### Setup
 
 ```bash
-git clone https://github.com/eddacraft/anvil-001.git
-cd anvil-001
+gx clone eddacraft/anvil-001
+gx anvil-001
 pnpm install
 pnpm build
 ```
@@ -357,8 +358,10 @@ pnpm test
 # Type checking
 pnpm typecheck
 
-# Linting
-pnpm lint
+# Linting / formatting / docs checks
+pnpm lint:check
+pnpm format:check
+pnpm docs:check
 
 ```
 
@@ -390,7 +393,7 @@ pnpm test:e2e:harness
 TypeScript coverage is emitted by each Vitest project under its local
 `coverage/` directory, with JSON summaries in `coverage/coverage-summary.json`
 where the project config enables them. Per APS CICD-006, CI coverage runs in the
-nightly `ci-nightly.yml` workflow — not on PR or `dev`-push events; the
+nightly `ci-nightly.yml` workflow — not on PR or `main` push events; the
 `coverage-typescript` nightly job uploads the root, package, and app `coverage/`
 directories as `coverage-report-22.x` (14-day retention) and writes a
 per-project line/branch/function/statement table to the GitHub Actions job
@@ -400,7 +403,7 @@ Rust coverage uses `cargo-llvm-cov` and writes the local HTML report to
 `target/llvm-cov/html/`. The local command also prints the workspace summary.
 The nightly `coverage-rust` job uploads `coverage-rust.json`,
 `coverage-rust-summary.txt`, and the HTML report directory as
-`coverage-report-rust` (14-day retention); PRs and `dev`-push runs use the
+`coverage-report-rust` (14-day retention); PRs and `main` push runs use the
 strict `cargo nextest` test gate without coverage instrumentation to keep
 feedback fast.
 
@@ -516,13 +519,20 @@ and cold start scaling. See the
 
 ## Deployment
 
-| App                  | Platform        | Trigger                                               |
-| -------------------- | --------------- | ----------------------------------------------------- |
-| `anvil` (Rust)       | GitHub Releases | Git tag (`v*`) via `release.yml` (cargo-dist)         |
-| `anvil-cli` (legacy) | npm             | Git tag (`v*`) via `publish.yml` GitHub Action        |
-| `docs-site`          | Vercel          | Push to `main` (automatic via Vercel Git integration) |
-| `website`            | Vercel          | Push to `main` (automatic via Vercel Git integration) |
-| `anvil-api`          | Vercel          | Push to `main` (automatic via Vercel Git integration) |
+| App / surface             | Platform                     | Trigger                                                |
+| ------------------------- | ---------------------------- | ------------------------------------------------------ |
+| `anvil` (Rust)            | GitHub Releases / cargo-dist | Git tag (`v*`) via `release.yml`                       |
+| Homebrew formula          | `eddacraft/tap`              | Release follow-up via `homebrew-bump.yml`              |
+| Release signatures        | GitHub Actions artefacts     | `release-sign-artefacts.yml`                           |
+| Release readiness         | GitHub Actions               | Exact-SHA readiness checks via `release-readiness.yml` |
+| `apps/docs-public`        | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
+| `apps/anvil-docs-private` | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
+| `apps/docs-shell`         | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
+| `apps/website`            | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
+| `apps/anvil-api`          | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
+
+The legacy Node CLI and TypeScript MCP server are archived; new releases ship
+the Rust binary and Rust MCP shim surfaces.
 
 ### Native Binary Targets
 
@@ -545,20 +555,26 @@ The Rust CLI is built for the following platforms via cargo-dist:
 
 The repository has several GitHub Actions workflows:
 
-- **ci.yml** — Lint, typecheck, test, and build on every push and PR. Runs
-  against Node.js 20.x and 22.x with smart change detection (docs-only changes
-  skip code tests).
-- **publish.yml** — Publishes `@eddacraft/anvil-cli` to npm on version tags
-  (`v*`) by default (beta tags are forced CLI-only). Workspace package
-  publishing is manual/explicit only. Validates tag/package version alignment,
-  runs the full test suite, and creates a GitHub release.
-- **security.yml** — SAST (Semgrep), dependency audit, secret scan, and licence
-  compliance on every PR.
-- **labeler.yml** — Automatic PR labelling based on changed paths.
-- **infra.yml** — Infrastructure provisioning and validation.
-- **bench.yml** — Rust kernel benchmark runs.
+- **ci.yml** — main/PR TypeScript lint, format, typecheck, unit tests, build,
+  E2E harness, docs lint, docs metadata validation, and change classification.
+- **rust.yml** — Rust clippy, tests, formatting, OPA/Rego checks,
+  acknowledgements freshness, and targeted cross-platform build smoke.
+- **ci-nightly.yml** — nightly coverage and broader Node 22/24 compatibility
+  coverage.
+- **release-readiness.yml** — exact-SHA release-readiness checks without
+  publishing credentials.
+- **release.yml** — cargo-dist release workflow for `v*` tags.
+- **release-sign-artefacts.yml** — release artefact signing.
+- **homebrew-bump.yml** — Homebrew tap formula update workflow.
+- **release-harness.yml** — release command harness validation.
+- **resource-budget.yml** — runtime resource-budget validation.
+- **security.yml** — dependency audit, secret scan, OPA/Regal, and security
+  targeting.
 - **codeql.yml** — GitHub CodeQL static analysis.
-- **rust.yml** — Rust CI (clippy, test, format).
+- **bench.yml** / **bench-nightly.yml** — Rust kernel benchmark runs.
+- **infra.yml** — Infrastructure provisioning and validation.
+- **napi.yml** — NAPI/native binding canary workflow.
+- **labeler.yml** — Automatic PR labelling based on changed paths.
 
 A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
 also provided at `.github/actions/anvil-check/` for running anvil analysis in
@@ -573,8 +589,8 @@ your own workflows.
 
 ## Contributing
 
-1. Fork and clone
-2. Create feature branch: `git checkout -b feature/my-feature`
+1. Fork and clone with `gx clone <repo>`
+2. Create a Worktrunk branch from `main`: `wt switch --create feat/my-feature`
 3. Make changes, run
    `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
 4. `git commit` will also run the Husky pre-commit hook, which applies
@@ -585,15 +601,22 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
 ## Documentation
 
-| Document                                                                | Description                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------- |
-| [Quick Start](./docs/public/anvil/quickstart.md)                        | Get running in 5 minutes                    |
-| [CLI README](./crates/anvil-cli/README.md)                              | Native CLI binary overview                  |
-| [First Project](./docs/public/anvil/first-project.md)                   | Real-world setup example                    |
-| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)    | Common issues and solutions                 |
-| [Configuration](./docs/public/anvil/operations/config.md)               | Configuration options                       |
-| [Architecture](./docs/architecture/overview.md)                         | System design                               |
-| [Release Runbook](./docs/guides/release-runbook.md)                     | Safe CLI release checklist                  |
-| [Plans](./plans/index.aps.md)                                           | Detailed roadmap                            |
-| [LAC Module](./plans/modules/lineage-authorship-confidence.aps.md)      | Line-level authorship + confidence planning |
-| [ADR-014](./plans/decisions/014-language-allocation-tree-ts-vs-rust.md) | TS vs Rust language allocation policy       |
+| Document                                                                        | Description                                     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [Quick Start](./docs/public/anvil/quickstart.md)                                | Get running in 5 minutes                        |
+| [CLI README](./crates/anvil-cli/README.md)                                      | Native CLI binary overview                      |
+| [First Project](./docs/public/anvil/first-project.md)                           | Real-world setup example                        |
+| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)            | Common issues and solutions                     |
+| [Configuration](./docs/public/anvil/operations/config.md)                       | Configuration options                           |
+| [Architecture](./docs/architecture/overview.md)                                 | System design                                   |
+| [Release Plan](./RELEASE-PLAN.md)                                               | Current release candidate cut-line              |
+| [Release Runbook](./docs/guides/release-runbook.md)                             | Command-driven release procedure                |
+| [Release Cadence](./docs/policies/release-cadence.md)                           | Beta support windows and patch expectations     |
+| [Adoption Runbook](./docs/runbooks/anvil-adoption.md)                           | Fresh-user and sustained-use adoption procedure |
+| [Air-Gapped Runbook](./docs/runbooks/anvil-air-gapped.md)                       | Network-blocked operation guarantee             |
+| [Hook Coexistence](./docs/runbooks/anvil-hook-coexistence.md)                   | Lefthook / Husky / pre-commit integration       |
+| [Witness Chain Runbook](./docs/runbooks/anvil-witness-chain.md)                 | Operator guide for witness-chain evidence       |
+| [anvil-run Manpage](./docs/runbooks/anvil-run.md)                               | Wrapped-launch ingress and session registration |
+| [v0.6.x → v0.7.0 Migration](./docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md) | Upgrade notes for the daemon-working candidate  |
+| [Plans](./plans/index.aps.md)                                                   | APS index and current planning state            |
+| [Documentation Governance](./docs/guides/documentation-governance.md)           | Documentation authority, metadata, and closeout |
