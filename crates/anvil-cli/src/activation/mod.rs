@@ -16,13 +16,6 @@
 //! single literal vocabulary word users see.
 
 pub mod baseline;
-// Contract surface for the ADOPT-003 follow-up that wires the
-// detector into `anvil start` / `anvil-run`. The
-// `cfg_attr(not(test), allow(dead_code))` form lifts the
-// suppression automatically the moment a non-test consumer
-// references the module, so a follow-up cannot accidentally rely
-// on the allow forever.
-#[cfg_attr(not(test), allow(dead_code))]
 pub mod detect_agents;
 pub mod diagnostic;
 pub mod identity;

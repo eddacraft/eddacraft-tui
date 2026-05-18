@@ -45,6 +45,7 @@ pub mod blocked;
 pub mod cleanup;
 pub mod cli;
 pub mod context;
+pub mod detection;
 pub mod exit_codes;
 pub mod heartbeat;
 pub mod hook;

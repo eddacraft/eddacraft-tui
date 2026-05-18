@@ -21,8 +21,9 @@
 //! they can be reviewed in a diff when a tool ships a renamed
 //! binary or moves its config directory.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 /// Closed enum of AI tools Anvil knows how to detect today.
@@ -113,14 +114,6 @@ pub struct AgentInventory {
     pub detected: Vec<DetectedAgent>,
 }
 
-impl AgentInventory {
-    /// `true` if the inventory contains an agent of `kind`.
-    #[must_use]
-    pub fn contains(&self, kind: AgentKind) -> bool {
-        self.detected.iter().any(|a| a.kind == kind)
-    }
-}
-
 /// Trait abstracting the host so the pure primitive stays
 /// testable. The CLI implements this with `which`, `Path::exists`,
 /// `std::env::var`, and `dirs::home_dir`.
@@ -142,6 +135,187 @@ pub trait DetectionEnv {
     /// only to construct the config-path candidates from the
     /// agent rule.
     fn home_dir(&self) -> Option<String>;
+}
+
+/// Real host-backed [`DetectionEnv`] used by `anvil start`. Queries
+/// the live process environment for binary lookup (manual PATH
+/// search to avoid pulling the `which` dev-dep onto the runtime
+/// surface), `Path::exists` for config-path existence,
+/// `std::env::var` for environment variables, and `dirs::home_dir`
+/// for the user's home directory. Stateless — clone or instantiate
+/// freely; one detection pass is one call to [`detect_all`].
+///
+/// Windows note: the trait contract is "follow the platform's
+/// normal extension rules". The current impl tries `name` and
+/// `name.exe` on Windows; richer PATHEXT handling is filed as a
+/// follow-up because every rule today names a POSIX binary.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RealDetectionEnv;
+
+impl DetectionEnv for RealDetectionEnv {
+    fn has_binary(&self, name: &str) -> bool {
+        let Some(path) = std::env::var_os("PATH") else {
+            return false;
+        };
+        for dir in std::env::split_paths(&path) {
+            // POSIX gives empty `PATH` components the meaning of
+            // "current working directory". `anvil start` runs from
+            // the user's repo root and a planted `claude` in cwd
+            // would let any repo claim Claude Code is installed
+            // for any user who runs `anvil start` inside it. We
+            // intentionally diverge from that POSIX semantic and
+            // skip empty components — the cost is false negatives
+            // for the (vanishingly rare) user who genuinely keeps
+            // an AI-tool binary in cwd; the win is closing a
+            // spoofing surface that the detection cache feeds.
+            if dir.as_os_str().is_empty() {
+                continue;
+            }
+            let candidate = dir.join(name);
+            if is_executable_file(&candidate) {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                let mut with_exe = candidate.clone();
+                with_exe.set_extension("exe");
+                if is_executable_file(&with_exe) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn path_exists(&self, path: &str) -> bool {
+        Path::new(path).exists()
+    }
+
+    fn env(&self, name: &str) -> Option<String> {
+        // `std::env::var` returns `Err` for both missing and
+        // non-UTF-8 values; the trait contract collapses both to
+        // `None`, so swallowing the error variant is correct here.
+        std::env::var(name).ok()
+    }
+
+    fn home_dir(&self) -> Option<String> {
+        dirs::home_dir().map(|p| p.to_string_lossy().into_owned())
+    }
+}
+
+/// `true` if `path` is a regular file the current user could
+/// execute. On Unix the existence check is supplemented with a
+/// `mode & 0o111` bit check so a stray non-executable file named
+/// `claude` (a download artefact, a leftover config) on PATH does
+/// not register as Claude Code installed. On Windows the
+/// `set_extension("exe")` callers handle the launcher contract;
+/// no equivalent mode bit exists so the plain file-exists check
+/// is left in place there.
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let Ok(metadata) = std::fs::metadata(path) else {
+            return false;
+        };
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+/// Relative path of the on-disk cache, joined onto the repo root.
+/// The matching consumer in `anvil-run` pins the same path via
+/// `anvil_run::detection::cache_path`; the
+/// `cache_path_is_relative_to_anvil_cache_dir` test pins both.
+#[must_use]
+pub fn cache_path(root: &Path) -> PathBuf {
+    root.join(".anvil")
+        .join("cache")
+        .join("detected-agents.json")
+}
+
+/// Outcome of [`detect_and_cache`]. Always carries the in-memory
+/// inventory the detector observed, even when the disk write
+/// failed — the caller chooses how to surface the write error
+/// (typically by logging the `write_error` field) without losing
+/// the data needed to render the human summary line.
+#[derive(Debug)]
+pub struct CacheOutcome {
+    pub inventory: AgentInventory,
+    /// `Some` when the cache write failed. The inventory above is
+    /// still the live detection result; the error is informational.
+    pub write_error: Option<anyhow::Error>,
+}
+
+/// Run detection against the given [`DetectionEnv`] and write the
+/// inventory to `<root>/.anvil/cache/detected-agents.json`. The
+/// detection result is returned in [`CacheOutcome::inventory`]
+/// regardless of whether the cache write succeeded — Council
+/// review surfaced that swallowing the inventory on write failure
+/// silently degraded the user-facing summary line. A write error
+/// is reported via [`CacheOutcome::write_error`] so the caller can
+/// log it and still print the correct "AI tools detected: …" line.
+///
+/// The write is read-compare-skipped: if the existing cache file
+/// already deserialises to the same `AgentInventory`, the write is
+/// suppressed. This keeps the cache file's mtime stable across
+/// repeated `anvil start` runs on an unchanged host, so backup /
+/// sync / file-watch consumers do not see spurious churn on every
+/// activation. A serialisation drift would still rewrite because
+/// the comparison is structural, not textual.
+///
+/// The write is best-effort atomic via [`crate::util::atomic_write`]
+/// (same primitive the warmup cache and `.anvilrc` paths use) so a
+/// crashed mid-write never leaves a half-serialised JSON document
+/// for `anvil-run` to read.
+pub fn detect_and_cache(root: &Path, env: &dyn DetectionEnv) -> CacheOutcome {
+    let inventory = detect_all(env);
+    let write_error = write_inventory_cache(root, &inventory).err();
+    CacheOutcome {
+        inventory,
+        write_error,
+    }
+}
+
+fn write_inventory_cache(root: &Path, inventory: &AgentInventory) -> anyhow::Result<()> {
+    let path = cache_path(root);
+
+    // Read-compare-skip: avoid rewriting an unchanged inventory so
+    // the cache file's mtime stays stable across activations.
+    if let Ok(existing) = std::fs::read_to_string(&path)
+        && let Ok(prev) = serde_json::from_str::<AgentInventory>(&existing)
+        && &prev == inventory
+    {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    let json = serde_json::to_string_pretty(inventory).context("serialising AI tool inventory")?;
+    crate::util::atomic_write(&path, json.as_bytes())
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(())
+}
+
+/// Render the inventory as a single-line summary suitable for the
+/// `anvil start` human output. Returns the empty string when no
+/// agents were detected — the caller decides whether to print a
+/// "no AI tools detected" placeholder or skip the line entirely.
+#[must_use]
+pub fn render_inventory_summary(inv: &AgentInventory) -> String {
+    if inv.detected.is_empty() {
+        return String::new();
+    }
+    let ids: Vec<&str> = inv.detected.iter().map(|a| a.kind.id()).collect();
+    format!("AI tools detected: {}", ids.join(", "))
 }
 
 /// Detect every known agent. Order in the returned inventory
@@ -528,7 +702,7 @@ mod tests {
         let inv = detect_all(&env);
         assert_eq!(inv.detected.len(), 5);
         for k in AgentKind::all() {
-            assert!(inv.contains(*k), "missing {k:?}");
+            assert!(inv.detected.iter().any(|a| a.kind == *k), "missing {k:?}");
         }
     }
 
@@ -572,8 +746,186 @@ mod tests {
         let json = serde_json::to_string_pretty(&inv).unwrap();
         let parsed: AgentInventory = serde_json::from_str(&json).unwrap();
         assert_eq!(inv, parsed);
-        // Stable kind ids appear in the JSON.
-        assert!(json.contains("\"claude_code\"") || json.contains("\"claude-code\""));
+        // Stable kebab-case kind id appears in the JSON. The
+        // snake_case fallback that used to live here would have
+        // hidden an accidental `rename_all` regression.
+        assert!(
+            json.contains("\"claude-code\""),
+            "expected kebab-case kind id; got:\n{json}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn is_executable_file_rejects_non_executable_regular_files() {
+        // Council MAJOR — a stray non-executable file named
+        // `claude` on PATH would otherwise mark Claude Code as
+        // installed and pollute the cache that anvil-run reads.
+        // PATH-mutation tests are blocked by the workspace's
+        // `unsafe_code = "forbid"` lint (Rust 1.83 made
+        // `set_var` unsafe), so we exercise the helper directly.
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plain = tmp.path().join("claude");
+        std::fs::write(&plain, b"#!/bin/sh\necho not really installed\n").unwrap();
+
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(
+            !is_executable_file(&plain),
+            "non-executable regular file must not pass the binary check"
+        );
+
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(
+            is_executable_file(&plain),
+            "regular file with any exec bit must pass the binary check"
+        );
+
+        let missing = tmp.path().join("nope");
+        assert!(!is_executable_file(&missing));
+    }
+
+    #[test]
+    fn detect_and_cache_writes_inventory_json_at_pinned_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let env = StubEnv::default().with_home("/home/dev").binary("claude");
+        let outcome = detect_and_cache(tmp.path(), &env);
+        assert!(outcome.write_error.is_none(), "write must succeed");
+
+        let cache = tmp.path().join(".anvil/cache/detected-agents.json");
+        assert!(
+            cache.is_file(),
+            "cache file must be written at the pinned path"
+        );
+        let raw = std::fs::read_to_string(&cache).unwrap();
+        let reparsed: AgentInventory = serde_json::from_str(&raw).unwrap();
+        assert_eq!(reparsed, outcome.inventory);
+        // The wire contract that anvil-run reads against: kebab-case ids
+        // in the `kind` field. Pin the literal so a serde rename in
+        // detect_agents.rs is caught here before anvil-run drifts.
+        assert!(raw.contains("\"kind\": \"claude-code\""), "got:\n{raw}");
+    }
+
+    #[test]
+    fn detect_and_cache_creates_missing_parent_directories() {
+        // `.anvil/cache/` may not exist when `anvil start` runs on a
+        // fresh repo. The cache writer must create the directory tree
+        // before atomic_write touches the file.
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(!tmp.path().join(".anvil").exists());
+        let env = StubEnv::default().with_home("/home/dev");
+        let outcome = detect_and_cache(tmp.path(), &env);
+        assert!(outcome.write_error.is_none());
+        assert!(tmp.path().join(".anvil/cache").is_dir());
+    }
+
+    #[test]
+    fn detect_and_cache_overwrites_stale_inventory_on_rerun() {
+        // The cache is a snapshot of the latest detection; the writer
+        // must not append or grow the file across runs.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let env_first = StubEnv::default()
+            .with_home("/home/dev")
+            .binary("claude")
+            .binary("cursor");
+        let _ = detect_and_cache(tmp.path(), &env_first);
+
+        let env_second = StubEnv::default().with_home("/home/dev").binary("aider");
+        let outcome = detect_and_cache(tmp.path(), &env_second);
+
+        let cache_text =
+            std::fs::read_to_string(tmp.path().join(".anvil/cache/detected-agents.json")).unwrap();
+        let reparsed: AgentInventory = serde_json::from_str(&cache_text).unwrap();
+        assert_eq!(reparsed, outcome.inventory);
+        assert_eq!(reparsed.detected.len(), 1);
+        assert_eq!(reparsed.detected[0].kind, AgentKind::Aider);
+    }
+
+    #[test]
+    fn detect_and_cache_does_not_rewrite_when_inventory_is_unchanged() {
+        // Council MAJOR — `atomic_write` always rewrites, so a naive
+        // call on every `anvil start` thrashes the cache's mtime even
+        // when nothing changed. The read-compare-skip in
+        // `write_inventory_cache` must hold the mtime stable across
+        // identical activations so file-watch / backup / sync
+        // consumers see no spurious churn.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let env = StubEnv::default().with_home("/home/dev").binary("claude");
+
+        let outcome = detect_and_cache(tmp.path(), &env);
+        assert!(outcome.write_error.is_none());
+
+        let cache = tmp.path().join(".anvil/cache/detected-agents.json");
+        let mtime_before = std::fs::metadata(&cache).unwrap().modified().unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let _ = detect_and_cache(tmp.path(), &env);
+        let mtime_after = std::fs::metadata(&cache).unwrap().modified().unwrap();
+
+        assert_eq!(
+            mtime_before, mtime_after,
+            "rerun with unchanged inventory must not rewrite the cache"
+        );
+    }
+
+    #[test]
+    fn detect_and_cache_returns_inventory_even_when_write_fails() {
+        // Council MAJOR — when the write side fails, the detector's
+        // observation must still reach the caller so the human
+        // summary line can be rendered honestly. The `write_error`
+        // field carries the failure for the caller to log; the
+        // `inventory` field must reflect what `detect_all` saw.
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Pre-create a *file* at the cache directory location so
+        // `create_dir_all(parent)` cannot succeed and the write
+        // fails before atomic_write runs.
+        let blocked_dir = tmp.path().join(".anvil");
+        std::fs::write(&blocked_dir, b"not a directory").unwrap();
+
+        let env = StubEnv::default().with_home("/home/dev").binary("claude");
+        let outcome = detect_and_cache(tmp.path(), &env);
+
+        assert!(
+            outcome.write_error.is_some(),
+            "blocked cache path must surface a write error"
+        );
+        assert_eq!(
+            outcome.inventory.detected.len(),
+            1,
+            "inventory must reflect live detection even on write failure"
+        );
+        assert_eq!(outcome.inventory.detected[0].kind, AgentKind::ClaudeCode);
+    }
+
+    #[test]
+    fn render_inventory_summary_is_empty_when_nothing_detected() {
+        let inv = AgentInventory::default();
+        assert_eq!(render_inventory_summary(&inv), "");
+    }
+
+    #[test]
+    fn render_inventory_summary_lists_kebab_case_ids() {
+        let env = StubEnv::default()
+            .with_home("/home/dev")
+            .binary("claude")
+            .binary("cursor");
+        let inv = detect_all(&env);
+        let line = render_inventory_summary(&inv);
+        // Stable, comma-separated, kebab-case — matches the JSON
+        // wire shape so a user reading the human line and grepping
+        // the cache see the same labels.
+        assert_eq!(line, "AI tools detected: claude-code, cursor");
+    }
+
+    #[test]
+    fn cache_path_is_relative_to_anvil_cache_dir() {
+        // Pin the writer-side cache path so it cannot drift away from
+        // the consumer's pinned path in `anvil_run::detection::cache_path`.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cache = cache_path(tmp.path());
+        let rel = cache.strip_prefix(tmp.path()).unwrap();
+        assert_eq!(rel, Path::new(".anvil/cache/detected-agents.json"));
     }
 
     #[test]

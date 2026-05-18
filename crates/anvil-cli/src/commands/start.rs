@@ -195,6 +195,20 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         activation::orchestrator::run(root, global)?
     };
 
+    // ADOPT-003 CLI wiring — auto-detect installed AI tools and
+    // cache the result for `anvil-run`. Cache write is skipped in
+    // read-only modes (`--verify`, `--json`); the in-memory
+    // inventory is still computed so the human summary line can
+    // describe what was visible without mutating disk. A cache
+    // write failure is non-fatal — the diagnostic + install report
+    // are the load-bearing surfaces, and degraded behaviour
+    // (anvil-run not seeing the cache) is preferable to aborting
+    // `anvil start` over an advisory follow-up cache. The
+    // `agents_cached` flag annotates the summary line so the
+    // user can distinguish "detected and cached" from "detected
+    // (probe only)" / "detected (cache not written)".
+    let (agent_inventory, agents_cached) = run_agent_detection(root, read_only);
+
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
     // diagnostic's `WatchTier::Offered` gate (config valid + no
     // `last_error` + supported languages) plus an additional
@@ -247,6 +261,21 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             )
         {
             print!("{}", render_first_run_recipe(&diagnostic));
+        }
+        // ADOPT-003 — print the auto-detected AI tool summary after
+        // the diagnostic block. Suppressed when nothing was
+        // detected (empty render keeps the start output uncluttered
+        // for users with no AI tooling installed). When the cache
+        // was not written (read-only probe or write failure), the
+        // line carries an explicit qualifier so users do not
+        // mistake the summary for a successful cache update.
+        let summary = activation::detect_agents::render_inventory_summary(&agent_inventory);
+        if !summary.is_empty() {
+            if agents_cached {
+                println!("  {summary}");
+            } else {
+                println!("  {summary} (not cached)");
+            }
         }
     }
 
@@ -417,6 +446,38 @@ fn write_warmup_cache_if_mutating(root: &Path, read_only: bool, verbose: bool) {
     }
 }
 
+/// ADOPT-003 — run AI-tool detection and (when not read-only) cache
+/// the inventory to `.anvil/cache/detected-agents.json`. Returns
+/// `(inventory, cached)`. `cached` is `true` when the cache file
+/// reflects the returned inventory; the human renderer uses it to
+/// annotate the summary line under `--verify` so users do not
+/// mistake a read-only probe for one that updated the cache.
+///
+/// Council MAJOR fix — detection result is returned unconditionally
+/// (in both read-only and mutating modes, and even when the cache
+/// write fails). A write failure is surfaced as a non-fatal stderr
+/// warning so users without `--verbose` are not blind to it; the
+/// summary line still names the live detection.
+fn run_agent_detection(
+    root: &Path,
+    read_only: bool,
+) -> (activation::detect_agents::AgentInventory, bool) {
+    use activation::detect_agents::{RealDetectionEnv, detect_all, detect_and_cache};
+    let env = RealDetectionEnv;
+    if read_only {
+        return (detect_all(&env), false);
+    }
+    let outcome = detect_and_cache(root, &env);
+    if let Some(error) = outcome.write_error {
+        // Surface unconditionally — a silent write failure would
+        // misalign the in-memory summary printed below from what
+        // `anvil-run` later reads (or fails to read).
+        eprintln!("anvil: detected-agents cache not written: {error:#}");
+        return (outcome.inventory, false);
+    }
+    (outcome.inventory, true)
+}
+
 /// What `--watch` should do based on the orchestrator's diagnostic.
 ///
 /// Splitting the decision into a single enum keeps the synthesis
@@ -580,6 +641,51 @@ mod tests {
             all_languages_unsupported: false,
             language_profile: activation::language_profile::RepoLanguageProfile::default(),
         }
+    }
+
+    /// ADOPT-003 — `run_agent_detection` writes the cache when the
+    /// command is mutating and reports `cached = true`. The path
+    /// under `.anvil/cache` is the same one anvil-run reads from;
+    /// if this test breaks the consumer surface breaks with it.
+    #[test]
+    fn run_agent_detection_writes_cache_in_mutating_mode() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let (_inv, cached) = run_agent_detection(tmp.path(), /* read_only = */ false);
+        let cache = tmp
+            .path()
+            .join(".anvil")
+            .join("cache")
+            .join("detected-agents.json");
+        assert!(
+            cache.is_file(),
+            "mutating start must write the detected-agents cache"
+        );
+        assert!(cached, "successful mutating run must report cached=true");
+    }
+
+    /// ADOPT-003 — read-only modes (`--verify`, `--json`) must
+    /// never mutate disk; the cache file stays absent and the
+    /// caller is told `cached = false` so the rendered summary can
+    /// be annotated. The in-memory inventory is still returned so
+    /// the caller can render the summary without committing to a
+    /// write.
+    #[test]
+    fn run_agent_detection_does_not_write_cache_in_read_only_mode() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let (_inv, cached) = run_agent_detection(tmp.path(), /* read_only = */ true);
+        let cache = tmp
+            .path()
+            .join(".anvil")
+            .join("cache")
+            .join("detected-agents.json");
+        assert!(
+            !cache.exists(),
+            "read-only start must not touch the detected-agents cache"
+        );
+        assert!(
+            !cached,
+            "read-only probe must not claim the cache was updated"
+        );
     }
 
     /// ADTRUST-006 validation: the first-run recipe names a real

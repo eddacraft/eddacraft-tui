@@ -155,24 +155,35 @@ disables any check, suppresses without resolution, or bypasses a hook.
   cached in `.anvil/cache/detected-agents.json` (non-authoritative) and
   reconciled on next start. Detection covers macOS, Linux, and Windows.
 - **Files:**
-  - `crates/anvil-cli/src/activation/detect_agents.rs` (NEW —
-    primitive landed 2026-05-14 on
-    `feat/adopt-003-agent-detect`)
+  - `crates/anvil-cli/src/activation/detect_agents.rs`
+    (primitive landed 2026-05-14, PR #1543; CLI wiring
+    follow-up 2026-05-18 adds `RealDetectionEnv`,
+    `detect_and_cache`, `cache_path`,
+    `render_inventory_summary`, executable-bit check)
   - `crates/anvil-cli/src/commands/start.rs` (CLI wiring —
-    follow-up: thread `detect_all` + cache JSON to
-    `.anvil/cache/detected-agents.json`)
-  - `crates/anvil-run/src/detection.rs` (NEW; depends on
-    INTL-001 — follow-up for the `anvil-run` half)
+    runs detection on every `anvil start`, writes cache under
+    non-read-only modes, prints `AI tools detected: …`
+    summary with `(not cached)` qualifier under `--verify`)
+  - `crates/anvil-run/src/detection.rs` (NEW — narrow
+    consumer that reads the cache and returns kebab-case
+    agent ids; 9 tests pin the wire contract from the
+    consumer side)
 - **Validation:**
-  - `cargo test -p eddacraft-anvil --bin anvil detect_agents`
-    (17 tests green on `feat/adopt-003-agent-detect`)
+  - `cargo test -p eddacraft-anvil --bin anvil` — 1615 tests
+    green (27 in `activation::detect_agents`, covering
+    read-compare-skip, write-error inventory preservation,
+    Unix executable-bit check)
+  - `cargo test -p eddacraft-anvil-run --lib detection` — 9
+    tests green on the cache-consumer surface
+  - `cargo clippy --workspace --all-targets -- -D warnings` clean
   - Integration: fixture environments with each tool installed
-    (deferred to CLI-wiring follow-up)
+    (deferred — manual Boring Week validation)
 - **Status:** In Progress
-- **Picked up:** 2026-05-14 (primitive PR open on
-  `feat/adopt-003-agent-detect`; CLI wiring + `anvil-run` half
-  follow-up tracked here)
-- **Dependencies:** INTL-001 (for the `anvil-run` half)
+- **Picked up:** 2026-05-14 (primitive merged via PR #1543;
+  CLI wiring + `anvil-run` half on
+  `feat/adopt-003-cli-wiring` 2026-05-18)
+- **Dependencies:** INTL-001 (for the `anvil-run` half) —
+  landed via PR #1528 on 2026-05-14, no longer blocking.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
