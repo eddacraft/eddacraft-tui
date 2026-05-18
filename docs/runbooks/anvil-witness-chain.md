@@ -321,21 +321,28 @@ Operator notes:
   via `git branch --set-upstream-to origin/<branch>`, or fall back to
   `git rev-list --reverse <base-sha>..HEAD --` to identify the unwitnessed range
   manually.
-- **Run from one operator at a time.** The flock makes single-line appends safe,
-  but `--witness-recent` is a _read-then-multi-write_: it walks the rev-list
-  once, then appends N lines. Two operators running it concurrently on the same
-  branch both walk the same N commits and both append N lines — the second
-  writer's appends land after the first and the chain develops duplicate seqs /
-  orphaned hashes. Coordinate via the incident channel before running.
+- **Run from one operator at a time.** The flock makes a single line append
+  atomic, and the writer reads the chain tip inside `append_witness` so seqs
+  stay monotonic across the boundary. The real concurrency race is between
+  `commit_is_witnessed(SHA)` and the subsequent append: both reads happen
+  outside the flock, so two operators running `--witness-recent` simultaneously
+  on the same branch can both observe "not yet witnessed" for the same SHA and
+  each append a retroactive line for it, producing **duplicate witnesses for the
+  same commit SHA** (each line internally consistent, but the chain now carries
+  two entries that claim to witness the same commit). Coordinate via the
+  incident channel before running.
 - **The commit of the witness file does trigger pre-commit.** The recovery
   commit gets one more witness line appended; that is expected and correct, not
   a recursive loop. **Do not use `--no-verify` on the recovery commit** — it
   would land the recovery without witnessing it and re-create the original
   problem on next push.
-- **Idempotence.** Re-running `--witness-recent` without committing the prior
-  run's output appends a second set of retroactive lines for the same commits —
-  the run does not check the chain for already-witnessed SHAs. Always commit (or
-  `git checkout --` to discard) between runs.
+- **Idempotence within a single operator.** Re-running `--witness-recent` after
+  committing the prior run is safe — `commit_is_witnessed()` walks the committed
+  chain (active + archives) and skips SHAs that already appear. Re-running
+  before committing the prior run's output (uncommitted `active.ndjson`) will
+  also skip already-appended SHAs because `commit_is_witnessed()` reads the file
+  regardless of git tracking state; the duplicate-witness risk above is
+  specifically about **concurrent** operators racing on the same chain.
 
 ## Rollover boundary checks
 

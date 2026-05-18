@@ -149,8 +149,10 @@ reconcile hook execution order manually.
 
 ## Verifying the coexistence report
 
-`anvil hook install --config` and `anvil hook uninstall --config` both print a
-coexistence report. The report surfaces four signals per hook event:
+`anvil hooks install --config` and `anvil hooks uninstall --config` (the
+install-time CLI; note the plural — `anvil hook` is the runtime hook-entry
+namespace) both print a coexistence report. The report surfaces four signals per
+hook event:
 
 | Signal                   | Meaning                                                                                                                                     |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,7 +181,7 @@ show as a one-line diff in `git diff`.
 
 ## Troubleshooting
 
-**`anvil hook install` says "framework not supported"** The repo uses
+**`anvil hooks install` says "framework not supported"** The repo uses
 cargo-husky or `core.hooksPath`. Anvil falls back to plain `.git/hooks/` writes.
 Verify with `git config core.hooksPath`.
 

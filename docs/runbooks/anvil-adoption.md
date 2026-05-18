@@ -104,13 +104,18 @@ This:
 ### 3. Confirm the protection claim
 
 ```bash
-anvil status --verify
+anvil status                                       # human-readable
+anvil status --json | jq '.claim.worktree_state'   # → "full"
 ```
 
-A clean activation produces a `Full` protection claim on every render surface
-(CLI, doctor, MCP shim, TS driver). Any degraded surface prints a one-line
-reason and the remediation command — read the line, run the command, re-run
-`anvil status`.
+The protection claim is on the plain `anvil status` flow under the `.claim` key
+(`anvil status --verify` is a separate activation-diagnostic path; it does not
+render the claim).
+
+A clean activation produces a `"full"` worktree state on every render surface
+(CLI status `.claim`, doctor `.protection_claim`, MCP shim, TS driver). Any
+degraded surface prints a one-line reason and the remediation command — read the
+line, run the command, re-run `anvil status`.
 
 ```bash
 anvil doctor
@@ -168,9 +173,9 @@ worktree never gets scanned by `audit` after being correctly excluded from
 
 The AI-tool detector primitive enumerates installed tools without configuration.
 Detection covers macOS, Linux, and Windows via documented heuristics (binary on
-PATH, well-known config paths, env-var hints). `anvil start` cache wiring is
-still tracked under ADOPT-003, so operator-facing wrapped launches should pass
-`--tool <name>` to `anvil-run` explicitly for this release.
+PATH, well-known config paths, env-var hints). The current `anvil start` command
+does not write a detected-agent cache, so operator-facing wrapped launches
+should pass `--tool <name>` to `anvil-run` explicitly for this release.
 
 If your AI tool is missed, the auto-detect path is in
 `crates/anvil-cli/src/activation/detect_agents.rs`. Add a heuristic and file a
@@ -282,10 +287,12 @@ the expected coexistence path — Anvil installs under your host manager. Verify
 with the coexistence report at the end of `anvil hooks install --config` and
 read the [hook coexistence runbook](anvil-hook-coexistence.md).
 
-**`anvil status --verify` reports a degraded surface.** Read the one-line
-reason. Common cases: daemon not running (`anvil intercept start --foreground`),
-MCP shim unauthenticated (`anvil auth login` — note the `anvil_validate_write`
-gate returns `block` with `code: authentication-required` until then; the gate
+**`anvil status` reports a degraded surface.** Read the one-line reason
+(`anvil status` for the human-readable output, or
+`anvil status --json | jq '.claim'` for the structured form). Common cases:
+daemon not running (`anvil intercept start --foreground`), MCP shim
+unauthenticated (`anvil auth login` — note the `anvil_validate_write` gate
+returns `block` with `code: authentication-required` until then; the gate
 refusal is a tooling state, not a content veto).
 
 **Watch is CPU-noisy on my machine.** Check the resource-budget policy file —
