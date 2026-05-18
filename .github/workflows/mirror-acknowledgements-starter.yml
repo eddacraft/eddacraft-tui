@@ -6,17 +6,26 @@
 # split` and force-pushes it to `eddacraft/acknowledgements-starter:main`.
 #
 # Pre-push transformation:
-#   - The kit is wrapped in a self-named `acknowledgements/` directory
-#     before splitting, so the mirror's root contains `acknowledgements/`
-#     rather than a flat dump of the kit's files. That lets consumers do
-#     `git subtree add --prefix tools/starters …` and get
-#     `tools/starters/acknowledgements/*` automatically — the kit names
-#     itself instead of relying on the consumer to type the right prefix.
-#   - `MIRROR-README.md` is promoted to the wrap parent's root (i.e. the
-#     mirror repo's top level), so the public repo has a "this is a
-#     mirror" landing page above the `acknowledgements/` folder. The
-#     kit's own `README.md` (the marker-splice contract) is preserved
-#     verbatim under `acknowledgements/README.md`.
+#   - `MIRROR-README.md` is prepended onto `README.md` so the public repo
+#     reads with a "this is a mirror" banner up front. The MIRROR-README
+#     file itself is then removed.
+#
+# The mirror is intentionally **flat-rooted** (the kit's files at the
+# public repo's top level, no wrapping subdirectory). Consumers adopt
+# with a per-kit prefix:
+#
+#     git subtree add --prefix tools/starters/acknowledgements \
+#       https://github.com/eddacraft/acknowledgements-starter.git main --squash
+#
+# Each starter kit is its own independently tracked subtree at its own
+# per-kit prefix — so adding a second starter
+# (`--prefix tools/starters/logging`, etc.) doesn't collide and pulls
+# stay scoped to one kit. A previous iteration of this workflow wrapped
+# the kit in an `acknowledgements/` directory so consumers could use
+# `--prefix tools/starters`, but that forces the entire parent directory
+# to become a single subtree — precluding the multi-kit independence
+# we actually want. See plans/execution/ATTRIB-011.steps.md decisions
+# table for the analysis.
 #
 # The mirror is read-only by policy: contributions go upstream to anvil.
 # Force-push every run keeps that contract simple — no merge surface.
@@ -90,31 +99,22 @@ jobs:
             exit 1
           fi
 
-      - name: Wrap kit + promote MIRROR-README to mirror root (throwaway commit)
+      - name: Swap MIRROR-README onto README (on a throwaway commit)
         env:
           DISPATCH_REASON: ${{ github.event.inputs.reason }}
         run: |
           set -euo pipefail
           KIT_DIR=tools/starters/acknowledgements
-          # Stage the wrapped layout under a scratch parent so the split
-          # picks up `acknowledgements/<files>` rather than a flat root.
-          # Using a hidden parent (`.mirror-wrap`) keeps the working tree
-          # tidy and ensures the split prefix can't accidentally pull in
-          # sibling starter kits added later under `tools/starters/`.
-          WRAP_PARENT=tools/starters/.mirror-wrap
-          WRAP_DIR="${WRAP_PARENT}/acknowledgements"
           if [ ! -f "${KIT_DIR}/MIRROR-README.md" ]; then
             echo "::error::${KIT_DIR}/MIRROR-README.md missing — the public framing header is required"
             exit 1
           fi
-          mkdir -p "${WRAP_PARENT}"
-          git mv "${KIT_DIR}" "${WRAP_DIR}"
-          # Promote MIRROR-README to the wrap-parent root → mirror's
-          # top-level README. The kit's own README.md (the marker-splice
-          # contract) stays untouched under acknowledgements/README.md.
-          git mv "${WRAP_DIR}/MIRROR-README.md" "${WRAP_PARENT}/README.md"
-          git add -A
-          msg='chore(mirror): wrap kit + promote public README [skip ci]'
+          tmp="$(mktemp)"
+          cat "${KIT_DIR}/MIRROR-README.md" "${KIT_DIR}/README.md" > "${tmp}"
+          mv "${tmp}" "${KIT_DIR}/README.md"
+          rm "${KIT_DIR}/MIRROR-README.md"
+          git add "${KIT_DIR}/README.md" "${KIT_DIR}/MIRROR-README.md"
+          msg='chore(mirror): prepend public README header [skip ci]'
           if [ -n "${DISPATCH_REASON:-}" ]; then
             msg=$(printf '%s\n\nmanual dispatch reason: %s\n' "${msg}" "${DISPATCH_REASON}")
           fi
@@ -123,13 +123,8 @@ jobs:
       - name: Subtree split
         run: |
           set -euo pipefail
-          # Split from the wrapper parent. The split branch's root is
-          # therefore `acknowledgements/<files>`, so consumers can
-          # `git subtree add --prefix tools/starters` and the kit lands
-          # at `tools/starters/acknowledgements/*` without naming it
-          # again in the prefix.
           git subtree split \
-            --prefix=tools/starters/.mirror-wrap \
+            --prefix=tools/starters/acknowledgements \
             -b _mirror_split
 
       - name: Force-push to mirror repo

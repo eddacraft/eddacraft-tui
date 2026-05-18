@@ -22,7 +22,7 @@ the kit.
 | Auth | Fine-grained PAT scoped to `eddacraft/acknowledgements-starter` (`Contents: Read and write`), stashed in `mirror-push-token` in agent-vault, mirrored into the `MIRROR_PUSH_TOKEN` repo secret on `eddacraft/anvil-001` | **Deploy keys are disabled at the eddacraft org level** (HTTP 422 on `POST /repos/.../keys` confirmed 2026-05-17). PAT is the supported path; scope to one repo + minimum permissions keeps blast radius tight. Revisit with a GitHub App if more mirrors arrive. |
 | Public README sourcing | Separate `MIRROR-README.md` inside the kit, swapped to `README.md` during the split | In-tree README is anvil-internal-flavoured (`git subtree add` examples from anvil-001); public consumers need standalone framing. |
 | Divergence policy | Force-push, no merge | Mirror is downstream-only; PRs against the mirror are explicitly rejected via README + (later) issue template. |
-| Mirror layout — self-namespacing | Wrap the kit in an `acknowledgements/` directory inside the workflow before splitting; mirror's root is therefore `acknowledgements/<files>`, not flat | First mirror run shipped flat (files at the public repo root). Fine for a single kit but a footgun the moment a second starter kit mirrors next to it — adopting both at `--prefix tools/starters` would collide on `README.md`, etc. Self-namespacing means the kit carries its own name, the doc-recommended `git subtree add --prefix tools/starters` shortens *and* hardens, and future starters can do the same trick under their own name. Cost: one `git mv` step in the workflow and a doc tweak. No live consumer yet, so the breaking change is free now. |
+| Mirror layout | **Flat-rooted** (kit files at the public repo's top level); consumers adopt with a per-kit prefix (`--prefix tools/starters/acknowledgements`) | Considered and rejected a wrap design (mirror root contains a single `acknowledgements/` subdirectory, consumers adopt with `--prefix tools/starters`). The wrap looked elegant — kit names itself, can't collide with siblings on file names — but `git subtree add` makes the **prefix directory** the tracked subtree. Adopting at `--prefix tools/starters` would lock the whole parent to one kit and preclude adding `--prefix tools/starters/logging` (or any other independently tracked starter) at the same level. Per-kit prefixes give each starter its own subtree at its own subdirectory; no collision possible because each kit owns a different prefix, and per-kit `subtree pull` updates only that kit. README discipline (insist on the per-kit prefix in the adoption doc) is the right enforcement layer, not a structural mirror change. |
 
 ## Actions
 
@@ -117,12 +117,14 @@ the kit.
   directly from the mirror without the private-repo subtree obstacle that
   motivated ATTRIB-011 in the first place.
 - **Produces:** PR against `eddacraft/eddacraft-tui` adopting the kit via
-  `git subtree add --prefix tools/starters
+  `git subtree add --prefix tools/starters/acknowledgements
   https://github.com/eddacraft/acknowledgements-starter.git main --squash`
-  (mirror is self-namespaced; the `acknowledgements/` directory lands
-  under `tools/starters/` automatically). Plus the consumer-side
-  bootstrap (`attribution.toml`, `about.toml`, `about.hbs`,
-  `ACKNOWLEDGEMENTS.md`) and the CI freshness gate.
+  (per-kit prefix — each starter kit is its own independently tracked
+  subtree at its own subdirectory; a future `logging-starter` would go
+  to `tools/starters/logging` etc., never sharing a subtree with this
+  one). Plus the consumer-side bootstrap (`attribution.toml`,
+  `about.toml`, `about.hbs`, `ACKNOWLEDGEMENTS.md`) and the CI freshness
+  gate.
 - **Checkpoint:** PR in eddacraft-tui either merged or open with a green
   `--check` from the kit's freshness gate proving the round-trip works.
 

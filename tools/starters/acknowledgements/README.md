@@ -26,19 +26,17 @@ edits required.
 
 ## Adoption checklist (downstream consumer)
 
-1. Copy the kit:
+1. Copy the kit. Use a **per-kit prefix** so it becomes its own independently
+   tracked subtree (each starter kit you adopt should get its own subdirectory
+   at its own subtree prefix — using the parent `tools/starters` would lock the
+   entire parent to one kit):
 
    ```bash
-   git subtree add --prefix tools/starters \
+   git subtree add --prefix tools/starters/acknowledgements \
      <upstream> main --squash
    ```
 
-   The public mirror's root is a single `acknowledgements/` directory, so this
-   lands the kit at `tools/starters/acknowledgements/*` — the kit namespaces
-   itself instead of relying on the consumer to type the right prefix.
-
-   Or just `cp -r` the `acknowledgements/` directory in if you don't want
-   subtree tracking.
+   Or just `cp -r` the directory in if you don't want subtree tracking.
 
 2. Bootstrap the consumer-side files (one-off, then commit):
 
