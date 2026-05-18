@@ -944,12 +944,53 @@ fn materialise_patch_content(
     patch_text: &str,
 ) -> Result<String, ToolProblem> {
     let absolute = workspace_root.join(relative_path);
+
+    // Cap the on-disk read at `MAX_PROPOSED_CONTENT_BYTES` (the same
+    // 1 MiB ceiling that gates `proposedContent`) before we touch the
+    // file. Without this, an attacker or malfunctioning agent could
+    // point patch-mode at a multi-GiB blob or a `/proc`-style
+    // pseudo-file and OOM or hang the shim. The metadata check is
+    // also our first cheap filter — pseudo-files and special devices
+    // typically report `len() == 0`, so we still rely on the
+    // post-read size check below to catch streaming pseudo-files.
+    //
+    // Residual TOCTOU note: a symlink or file swap between this
+    // metadata stat and the read below would not bypass the
+    // workspace-escape gate (`reject_symlink_escape` ran at parse
+    // time, anchored at the first existing ancestor), but it could
+    // race a different file's content into the read. The response
+    // never echoes raw file content (only structural error codes
+    // and redacted diagnostics), so this is not an exfiltration
+    // path. Hardening to O_NOFOLLOW-style reads is tracked for a
+    // follow-up if the current contract proves insufficient.
+    let metadata = fs::metadata(&absolute).map_err(|_| {
+        ToolProblem::new(
+            "patch-target-unreadable",
+            "Validate-write could not read the patch target file at workspaceRoot+path.",
+        )
+    })?;
+    if !metadata.is_file() || metadata.len() > MAX_PROPOSED_CONTENT_BYTES as u64 {
+        return Err(ToolProblem::new(
+            "patch-target-unreadable",
+            "Validate-write could not read the patch target file at workspaceRoot+path.",
+        ));
+    }
+
     let original = fs::read_to_string(&absolute).map_err(|_| {
         ToolProblem::new(
             "patch-target-unreadable",
             "Validate-write could not read the patch target file at workspaceRoot+path.",
         )
     })?;
+    // Post-read backstop in case the file grew between the stat and
+    // the read (or `metadata.len()` reported 0 for a pseudo-file
+    // that then streamed real bytes into `read_to_string`).
+    if original.len() > MAX_PROPOSED_CONTENT_BYTES {
+        return Err(ToolProblem::new(
+            "patch-target-unreadable",
+            "Validate-write could not read the patch target file at workspaceRoot+path.",
+        ));
+    }
 
     apply_unified_diff(&original, patch_text).map_err(|_| {
         ToolProblem::new(
@@ -1691,6 +1732,89 @@ mod tests {
             "expected allow, got payload: {payload}"
         );
         assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// CIB-005 / adversarial review: a pure-insertion hunk of the
+    /// form `@@ -N,0 +N,M @@` (no removed lines, only additions) is
+    /// the standard unified-diff shape models emit for append-only
+    /// or insert-before edits. Must apply cleanly, not silently
+    /// reject as `patch-apply-failed`.
+    #[test]
+    fn patch_only_pure_insertion_hunk_applies_cleanly() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/example.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "line a\nline b\n").expect("seed target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -2,0 +3,2 @@\n+inserted-1\n+inserted-2\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "pure-insertion hunks must apply cleanly, got: {payload}"
+        );
+        assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// CIB-005 / adversarial review: a pure-deletion hunk of the
+    /// form `@@ -N,M +N,0 @@` (lines removed, no additions). Exercises
+    /// the `new_count = 0` branch of the body-loop guard.
+    #[test]
+    fn patch_only_pure_deletion_hunk_applies_cleanly() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/example.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        fs::write(&target, "keep me\ndelete me\nkeep me too\n").expect("seed target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -2,1 +1,0 @@\n-delete me\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "pure-deletion hunks must apply cleanly, got: {payload}"
+        );
+        assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// CIB-005 / adversarial review: an on-disk file larger than
+    /// `MAX_PROPOSED_CONTENT_BYTES` in patch mode must be rejected
+    /// before the read can OOM the process. The same 1 MiB ceiling
+    /// that applies to `proposedContent` applies to the patch-mode
+    /// read target.
+    #[test]
+    fn patch_only_oversize_target_blocks_before_read() {
+        let workspace = tempdir().expect("workspace exists");
+        let target = workspace.path().join("src/huge.ts");
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("src dir created");
+        let oversize = "x".repeat(MAX_PROPOSED_CONTENT_BYTES + 1);
+        fs::write(&target, &oversize).expect("seed oversize target");
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/huge.ts",
+                "operation": "update",
+                "patch": "--- a/src/huge.ts\n+++ b/src/huge.ts\n@@ -1 +1 @@\n-old\n+new\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(
+            payload["error"]["code"], "patch-target-unreadable",
+            "oversize target must be rejected before the read, got: {payload}"
+        );
     }
 
     /// CIB-005: a patch-only payload whose context does not match the
