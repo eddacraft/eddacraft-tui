@@ -5,7 +5,9 @@
 //! and `status` (INTD-011); backgrounded launch (`stop`, daemonised
 //! `start`) arrives with later INTD tasks.
 
-use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground, wait_for_shutdown_signal};
+use anvil_intercept::{
+    ForegroundOpts, Shutdown, config::Resolved, run_foreground, wait_for_shutdown_signal,
+};
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
@@ -885,8 +887,47 @@ fn run_start(args: &StartArgs) -> Result<()> {
             }
             signal_shutdown.trigger();
         });
-        run_foreground(ForegroundOpts::default(), token).await
+        // INTD-016 / MLP2-024 / #1671 audit closure: load
+        // `.anvil.yaml` from the daemon's launch CWD so the
+        // operator-visible `enforcement.dos.*` and
+        // `enforcement.session.per_worktree_max` knobs actually reach
+        // the listener and registry. Mirror of the same load in
+        // `crates/anvil-intercept/src/main.rs`. Read errors degrade
+        // to defaults with operator-visible stderr.
+        let enforcement_config = load_enforcement_config();
+        run_foreground(
+            ForegroundOpts::default().with_enforcement_config(enforcement_config),
+            token,
+        )
+        .await
     })
+}
+
+/// Mirror of `anvil-intercept/src/main.rs::load_enforcement_config`.
+/// Kept inline (rather than re-exported) because the diagnostic
+/// prefix differs ("anvil intercept" vs "anvil-intercept") and
+/// `eprintln!` is the only side-effect — duplication is cheaper
+/// than threading a prefix through a shared helper for two callers.
+fn load_enforcement_config() -> Resolved {
+    let cwd = match std::env::current_dir() {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!(
+                "anvil intercept: cannot resolve CWD for config load ({err}); using defaults"
+            );
+            return Resolved::default();
+        }
+    };
+    match Resolved::load(&cwd, None) {
+        Ok(resolved) => resolved,
+        Err(err) => {
+            eprintln!(
+                "anvil intercept: failed to load .anvil.yaml from {} ({err}); using defaults",
+                cwd.display()
+            );
+            Resolved::default()
+        }
+    }
 }
 
 #[cfg(test)]

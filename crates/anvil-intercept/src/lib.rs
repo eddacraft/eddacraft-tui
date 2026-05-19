@@ -149,9 +149,24 @@ struct DaemonState {
 }
 
 impl DaemonState {
-    fn new(fence_store: fence::FenceStore, fences: fence::FenceState) -> Self {
+    fn new(
+        fence_store: fence::FenceStore,
+        fences: fence::FenceState,
+        enforcement_config: &config::Resolved,
+    ) -> Self {
+        // MLP2-024: build the registry with the operator-configured
+        // per-worktree cap. Pre-fix the cap shipped at the
+        // compile-time default regardless of `.anvil.yaml`; the
+        // `daemon_config_wired::run_foreground_applies_session_per_worktree_cap_from_config`
+        // regression pins this chained builder call. The
+        // `with_unregister_hook` companion (MLP2-057) stays unwired —
+        // its only consumer is `RuleSetCache::invalidate`, which
+        // requires the cache `run_foreground` does not construct
+        // until MLP2-014 lands.
+        let registry = SessionRegistry::new()
+            .with_per_worktree_cap(enforcement_config.session_per_worktree_max);
         Self {
-            registry: Arc::new(SessionRegistry::new()),
+            registry: Arc::new(registry),
             fence_store: Arc::new(fence_store),
             fences: Arc::new(fences),
         }
@@ -169,6 +184,18 @@ pub struct ForegroundOpts {
     pid_file: Option<PathBuf>,
     fence_store: Option<PathBuf>,
     scan_buffer: midedit::ScanBufferService,
+    /// INTD-016 / MLP2-024: the resolved enforcement config. Defaults
+    /// to [`config::Resolved::default`] (the no-config baseline) so
+    /// existing callers — tests, embedded mode, the legacy binary
+    /// entry — keep working. `main.rs` and `anvil-cli` load via
+    /// [`config::Resolved::load`] and pass the result through
+    /// [`Self::with_enforcement_config`].
+    ///
+    /// Non-`Option` by design: keeping the field always-present
+    /// makes the wire-up in [`run_foreground`] unconditional, which
+    /// is what the post-#1671 audit closure rule asks for — see the
+    /// regression test `daemon_config_wired::*` for the contract.
+    enforcement_config: config::Resolved,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -184,6 +211,7 @@ impl ForegroundOpts {
             pid_file: Some(pid_file.into()),
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
+            enforcement_config: config::Resolved::default(),
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -203,6 +231,7 @@ impl ForegroundOpts {
             pid_file: Some(pid_file.into()),
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
+            enforcement_config: config::Resolved::default(),
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -219,6 +248,7 @@ impl ForegroundOpts {
             pid_file: Some(pid_file.into()),
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
+            enforcement_config: config::Resolved::default(),
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -237,6 +267,31 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_scan_buffer_service(mut self, scan_buffer: midedit::ScanBufferService) -> Self {
         self.scan_buffer = scan_buffer;
+        self
+    }
+
+    /// Install the resolved enforcement config. `main.rs` and
+    /// `anvil-cli` load via [`config::Resolved::load`] at daemon
+    /// startup; tests construct a [`config::Resolved`] inline to drive
+    /// specific cap / limit / mode values.
+    ///
+    /// Wires three previously-inert builders in [`run_foreground`]:
+    ///
+    /// * `SessionRegistry::with_per_worktree_cap` (MLP2-024 — reads
+    ///   `enforcement.session.per_worktree_max`).
+    /// * `IpcListener::with_limits` (INTD-016 — reads
+    ///   `enforcement.dos.*`).
+    /// * `Fanout` / cross-session telemetry policy (INTD-015).
+    ///
+    /// The post-#1671 audit closed the gap where each of those
+    /// builders had its definition + doc-comment claiming the daemon
+    /// wires it up, but zero production callers. The regression suite
+    /// in `crates/anvil-intercept/tests/daemon_config_wired.rs` pins
+    /// the wire-up so a future refactor trips a test rather than
+    /// silently ressurecting the bug.
+    #[must_use]
+    pub fn with_enforcement_config(mut self, enforcement_config: config::Resolved) -> Self {
+        self.enforcement_config = enforcement_config;
         self
     }
 
@@ -795,6 +850,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         fence_store.load().with_context(|| {
             format!("failed to load fence state {}", fence_store_path.display())
         })?,
+        &opts.enforcement_config,
     );
     if daemon_state.active_fence_count() > 0 {
         tracing::info!(
@@ -845,6 +901,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // `io::ErrorKind::Unsupported` so the lineage walk fails
         // shut), blocking legitimate sessions. The cfg gate widens
         // when those tickets land.
+        // INTD-016: clone the resolved limits once for the listener
+        // chain. Capturing into a local also keeps the closure below
+        // `Copy`-friendly without borrowing `opts` across the `map`.
+        let ipc_limits = opts.enforcement_config.ipc_limits;
+
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
             ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
@@ -852,7 +913,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
         .map(|listener| {
-            let listener = listener.with_status_provider(Arc::clone(&status_provider));
+            let listener = listener
+                .with_status_provider(Arc::clone(&status_provider))
+                .with_limits(ipc_limits);
             #[cfg(target_os = "linux")]
             let listener = listener.with_cross_check_context(ipc::CrossCheckContext {
                 registry: Arc::clone(&daemon_state.registry),
@@ -868,7 +931,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
-        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
+        .map(|listener| {
+            listener
+                .with_status_provider(Arc::clone(&status_provider))
+                .with_limits(ipc_limits)
+        })
         .context("failed to bind intercept IPC listener")?;
 
         let listener_token = token.clone();
