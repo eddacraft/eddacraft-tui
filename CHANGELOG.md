@@ -70,8 +70,8 @@ engineering maintenance are recorded in the
   Aider, Windsurf, and Codex installations without configuration, reports a
   short summary, and writes the inventory to
   `.anvil/cache/detected-agents.json`. `anvil-run` consumes that cache to
-  cross-reference `--tool` selections; a missing or stale cache is advisory,
-  not an error.
+  cross-reference `--tool` selections; a missing or stale cache is advisory, not
+  an error.
 - **Editor compatibility matrix and CI gate.** A documented compatibility matrix
   at `docs/policies/editor-coexistence.md` plus a headless harness and CI gate
   cover `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`
