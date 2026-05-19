@@ -45,11 +45,13 @@ engineering maintenance are recorded in the
   `degraded:fence-cascade` mode and refuses new sessions until an operator
   acknowledges. Use the new flag to clear; `anvil status` surfaces `cascaded` /
   `cascade_since` and the engaged state survives daemon restart.
-- **`anvil insights` weekly summary.** Reports last-week activity at a glance —
-  saves observed, findings raised, suppressions applied and resolved, baseline
-  edges added, and daemon uptime — derived from the witness chain with no
-  separate event store. `--json` emits the pinned `anvil.insights.v1` schema for
-  editor and CI consumers.
+- **`anvil insights` weekly summary.** New CLI surface and `anvil.insights.v1`
+  JSON schema for editor and CI consumers, derived from the witness chain with
+  no separate event store. This release populates `witness_events_observed`;
+  `total_saves_observed`, `findings_raised`, `suppressions_applied`,
+  `suppressions_resolved`, `baseline_edges_added`, and
+  `daemon_uptime_percentage` ship as schema-locked placeholders (`0`) pending
+  the downstream metric wiring tracked in `INSIGHTS` follow-ups.
 - **`anvil version --check` and security-advisory surface.**
   `anvil version --check` reports newer releases and security advisories against
   the running version. The watch TUI and `anvil status` show a one-line "update
@@ -64,10 +66,12 @@ engineering maintenance are recorded in the
   hooks now install alongside the three dominant 2026 hook managers without
   conflict — registering as managed entries in the host manager's config rather
   than overwriting `.git/hooks/`. Uninstall removes only Anvil's own entries.
-- **AI tool auto-detect.** `anvil start` and `anvil-run` auto-detect Claude
-  Code, Cursor, Aider, Windsurf, and Codex installations without configuration.
-  Detected tools are reported in a short summary and cached at
-  `.anvil/cache/detected-agents.json`.
+- **AI tool auto-detect.** `anvil start` auto-detects Claude Code, Cursor,
+  Aider, Windsurf, and Codex installations without configuration, reports a
+  short summary, and writes the inventory to
+  `.anvil/cache/detected-agents.json`. `anvil-run` consumes that cache to
+  cross-reference `--tool` selections; a missing or stale cache is advisory,
+  not an error.
 - **Editor compatibility matrix and CI gate.** A documented compatibility matrix
   at `docs/policies/editor-coexistence.md` plus a headless harness and CI gate
   cover `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`
