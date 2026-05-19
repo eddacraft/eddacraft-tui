@@ -2,7 +2,7 @@
 
 | ID       | Owner  | Status      | Progress |
 | -------- | ------ | ----------- | -------- |
-| WATCHUX | @aneki | Complete | 8/8 done |
+| WATCHUX | @aneki | Complete | 8/8 |
 
 **Last reviewed:** 2026-05-16 (`WATCHUX-001` through `WATCHUX-004` reconciled
 against merged PR #1497, **Released/Shipped via

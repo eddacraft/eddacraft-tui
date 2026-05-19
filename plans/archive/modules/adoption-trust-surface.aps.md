@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADTRUST | @aneki | Complete | 6/6 done |
+| ADTRUST | @aneki | Complete | 6/6 |
 
 **Closed out 2026-05-14.** All six tasks shipped:
 

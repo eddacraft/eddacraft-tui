@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 60/76 done |
+| MLP2 | @aneki | In Progress | 60/76 |
 
 **Last reviewed:** 2026-05-19 (MLP2-068 advanced `In Progress` →
 `Merged` after implementation commit `d54a5f86`; Group O advances 0/2 →

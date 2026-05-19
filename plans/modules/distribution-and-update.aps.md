@@ -4,7 +4,7 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 4/5 done |
+| DISTRIB | @aneki | In Progress | 4/5 |
 
 **Last reviewed:** 2026-05-17 (DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested

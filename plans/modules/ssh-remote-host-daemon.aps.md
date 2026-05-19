@@ -2,7 +2,7 @@
 
 | ID        | Owner  | Status   | Progress |
 | --------- | ------ | -------- | -------- |
-| SSHREMOTE | @aneki | Proposed | 0/8 done |
+| SSHREMOTE | @aneki | Proposed | 0/8 |
 
 **Last reviewed:** 2026-05-14 (created from the accepted planning direction that
 SSH support should run the daemon on the remote host, not bridge remote files

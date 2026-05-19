@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 1/4 done |
+| INSIGHTS | @aneki | In Progress | 1/4 |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
