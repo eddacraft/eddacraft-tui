@@ -45,6 +45,19 @@ engineering maintenance are recorded in the
   `degraded:fence-cascade` mode and refuses new sessions until an operator
   acknowledges. Use the new flag to clear; `anvil status` surfaces `cascaded` /
   `cascade_since` and the engaged state survives daemon restart.
+- **`anvil intercept unblock --worktree <PATH>` / `--all`.** Per-fence operator
+  recovery on the CLI. Pass `--worktree` to clear one fenced worktree (or
+  `--all` to clear every fence); both are idempotent — re-running on an unfenced
+  worktree exits zero with an informational note. `--dry-run` previews what
+  would clear without modifying state. The previous "stop the daemon and delete
+  the data directory" recovery is still available for corrupted on-disk state,
+  but is no longer required for normal fence clearing.
+- **`anvil edda list` ported to Rust.** The Edda memory-listing CLI is now part
+  of the Rust `anvil` binary with identical behaviour to the legacy Node.js
+  command — `--type`, `--status`, `--confidence`, `--since`, `--limit`, and the
+  same `storage_found` / `storage_path` / `total` / `has_more` JSON envelope.
+  Sort order, table headers, and exit codes match the previous surface so
+  scripts and editor integrations carry forward unchanged.
 - **`anvil insights` weekly summary.** New CLI surface and `anvil.insights.v1`
   JSON schema for editor and CI consumers, derived from the witness chain with
   no separate event store. This release populates `witness_events_observed`;
@@ -103,6 +116,22 @@ engineering maintenance are recorded in the
   published minisign signature on every supported install path — Homebrew,
   curl-installer sidecar, and the axoupdater library fallback — before replacing
   the running binary. Signature mismatches are loud and actionable.
+- **Homebrew formula automation.** Releases now publish the matching Homebrew
+  formula automatically, so `brew upgrade eddacraft/tap/anvil` picks up new
+  versions without a manual tap refresh. The previous lag between a tag landing
+  and Homebrew users seeing the upgrade is closed.
+- **MCP `anvil_validate_write` accepts patch-only payloads.** The pre-write
+  validator now accepts a unified-diff `patch` instead of the full proposed
+  `content` for change-shaped edits. Token cost scales with the size of the
+  change rather than the file, which removes the read-budget ceiling on edits to
+  large files (the original 2026-05-18 friction report cited a 2770-line JSON
+  file). The `content` mode remains supported; clients pick whichever fits their
+  workflow.
+- **MCP `anvil_validate_write` returns a recoverable workspace-root signal.**
+  When the validator refuses on an untrusted workspace root it now returns an
+  `expectedWorkspaceRoot` field on the rejection so callers can self-correct and
+  retry without an operator round-trip. Pre-existing clients that ignore the
+  field continue to receive the same refusal shape.
 
 ### Security
 
