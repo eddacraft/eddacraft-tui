@@ -401,6 +401,63 @@ impl Resolved {
     }
 }
 
+/// Resolve the daemon's enforcement config from
+/// `<cwd>/.anvil.yaml`. The single load helper used by both daemon
+/// entry points (`anvil intercept start` and the standalone
+/// `anvil-intercept` binary) so the contract — propagate
+/// `LoadError`, never silently fall back — is enforced in exactly
+/// one place.
+///
+/// **Caller contract.** The returned `Err` MUST propagate to the
+/// binary's exit code. Silently degrading to `Resolved::default()`
+/// reintroduces the #1671-class wire-up gap that this loader exists
+/// to close: the operator writes `enforcement.dos.*` or
+/// `enforcement.session.per_worktree_max` in YAML, the daemon
+/// parses it, then a downstream error throws the whole `Resolved`
+/// out and the daemon silently runs at defaults. The
+/// `LoadError::Parse` / `LoadError::Io` doc-comments spell this out;
+/// the unit test
+/// `load_for_daemon_cwd_propagates_parse_error_at_call_site` pins
+/// it so a future refactor that re-introduces the silent fallback
+/// trips a regression rather than shipping.
+///
+/// **Behaviour.**
+///
+/// * Missing `.anvil.yaml` → `Ok(Resolved::default())`. This is the
+///   documented "no operator config" outcome, not a fallback —
+///   `Resolved::load` folds `NotFound` into the `Ok` branch.
+/// * Present and valid → `Ok(resolved)`.
+/// * Present and malformed → `Err(LoadError::Parse)`. Fatal.
+/// * IO error other than `NotFound` → `Err(LoadError::Io)`. Fatal.
+/// * `std::env::current_dir()` fails → `Ok(Resolved::default())`
+///   with an `eprintln!` diagnostic. This is an environment
+///   condition (restricted chroot, removed CWD) — there is no
+///   operator-supplied `.anvil.yaml` being silently overridden,
+///   because the loader cannot locate one in the first place. The
+///   distinction matters: it is the "no operator config" outcome,
+///   not a parse failure on a present file.
+pub fn load_for_daemon_cwd() -> Result<Resolved, LoadError> {
+    let cwd = match std::env::current_dir() {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!(
+                "anvil: cannot resolve CWD for config lookup ({err}); \
+                 starting daemon on defaults"
+            );
+            return Ok(Resolved::default());
+        }
+    };
+    load_for_daemon_cwd_at(&cwd)
+}
+
+/// Split of [`load_for_daemon_cwd`] that takes the CWD as an
+/// argument so tests can pin the propagation contract without
+/// touching `std::env::set_current_dir` (which is process-wide
+/// state and forces test serialization).
+pub(crate) fn load_for_daemon_cwd_at(cwd: &Path) -> Result<Resolved, LoadError> {
+    Resolved::load(cwd, None)
+}
+
 impl Default for Resolved {
     /// Daemon's no-config baseline. Matches
     /// `from_config_files(None, None)` so `Resolved::default()`
@@ -625,6 +682,67 @@ mod tests {
             LoadError::Parse { path, .. } => assert_eq!(path, user_path),
             err @ LoadError::Io { .. } => panic!("unexpected error: {err:?}"),
         }
+    }
+
+    // -------- Daemon-startup helper propagation contract --------
+
+    /// #1671 audit closure: the daemon-startup helper
+    /// [`load_for_daemon_cwd`] must propagate parse errors so a
+    /// malformed `.anvil.yaml` fails daemon startup with a non-zero
+    /// exit. Pre-PR-1721 the binary call sites did
+    /// `match ... { Err(_) => Resolved::default() }` and a typo in
+    /// YAML silently disabled every configured enforcement knob —
+    /// the same "operator wrote a knob, daemon ignored it" bug
+    /// class this loader exists to close.
+    ///
+    /// Exercised via the test-only `load_for_daemon_cwd_at(cwd)`
+    /// split so the test does not need to `std::env::set_current_dir`
+    /// (process-wide state that would force serialization across
+    /// the suite).
+    #[test]
+    fn load_for_daemon_cwd_propagates_parse_error_at_call_site() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(workspace.path(), "not valid: yaml: [");
+
+        let result = super::load_for_daemon_cwd_at(workspace.path());
+
+        match result {
+            Err(LoadError::Parse { path, .. }) => {
+                assert!(
+                    path.ends_with(".anvil.yaml"),
+                    "parse error must name the offending file; got {}",
+                    path.display()
+                );
+            }
+            Ok(resolved) => panic!(
+                "load_for_daemon_cwd_at MUST propagate a parse error from a malformed \
+                 .anvil.yaml. Silent fallback to `Resolved::default()` reintroduces \
+                 the #1671-class wire-up gap: the operator wrote a knob, the daemon \
+                 ignored it. got Ok({resolved:?})"
+            ),
+            Err(other) => panic!("expected LoadError::Parse, got {other:?}"),
+        }
+    }
+
+    /// Companion: a missing `.anvil.yaml` is **not** an error — it is
+    /// the documented "no operator config" outcome (a fresh
+    /// workspace, no operator-supplied policy). The helper folds it
+    /// into `Ok(Resolved::default())` via `Resolved::load`'s
+    /// `NotFound`-tolerant branch, distinct from the parse-failure
+    /// path above.
+    #[test]
+    fn load_for_daemon_cwd_treats_missing_file_as_no_config() {
+        let workspace = tempdir().expect("workspace");
+        // Deliberately do NOT write `.anvil.yaml` — the directory is
+        // empty.
+
+        let resolved =
+            super::load_for_daemon_cwd_at(workspace.path()).expect("missing file is not fatal");
+        assert_eq!(
+            resolved,
+            Resolved::default(),
+            "missing .anvil.yaml must yield the no-config baseline"
+        );
     }
 
     // -------- Project + user merge with stricter-wins --------

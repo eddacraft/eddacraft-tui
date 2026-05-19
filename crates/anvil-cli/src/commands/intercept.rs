@@ -6,7 +6,7 @@
 //! `start`) arrives with later INTD tasks.
 
 use anvil_intercept::{
-    ForegroundOpts, Shutdown, config::Resolved, run_foreground, wait_for_shutdown_signal,
+    ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal,
 };
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anyhow::{Context, Result};
@@ -888,47 +888,18 @@ fn run_start(args: &StartArgs) -> Result<()> {
             signal_shutdown.trigger();
         });
         // INTD-016 / MLP2-024 / #1671 audit closure: load
-        // `.anvil.yaml` from the daemon's launch CWD so the
-        // operator-visible `enforcement.dos.*` and
-        // `enforcement.session.per_worktree_max` knobs actually reach
-        // the listener and registry. Mirror of the same load in
-        // `crates/anvil-intercept/src/main.rs`. Parse / IO failures
-        // are fatal per the `config::LoadError::{Parse, Io}`
-        // contract — silently degrading on a malformed config would
-        // recreate the same "operator wrote a knob, daemon ignored
-        // it" gap this PR exists to close.
-        let enforcement_config = load_enforcement_config()?;
+        // `.anvil.yaml` from the daemon's launch CWD via the shared
+        // helper so both daemon entry points (standalone
+        // `anvil-intercept` and `anvil intercept start`) honour the
+        // same propagation contract. See `config::load_for_daemon_cwd`
+        // for why parse / IO failures must be fatal.
+        let enforcement_config = config::load_for_daemon_cwd()
+            .context("anvil intercept: failed to load enforcement config")?;
         run_foreground(
             ForegroundOpts::default().with_enforcement_config(enforcement_config),
             token,
         )
         .await
-    })
-}
-
-/// Mirror of `anvil-intercept/src/main.rs::load_enforcement_config`.
-/// Kept inline (rather than re-exported from `anvil_intercept`)
-/// because the stderr diagnostic prefix differs
-/// ("anvil intercept" vs "anvil-intercept") and the body is two
-/// lines after the prefix decision. See that file for the rationale
-/// behind treating parse / IO failures as fatal and CWD-resolution
-/// failure as the documented "no operator config" outcome.
-fn load_enforcement_config() -> Result<Resolved> {
-    let cwd = match std::env::current_dir() {
-        Ok(path) => path,
-        Err(err) => {
-            eprintln!(
-                "anvil intercept: cannot resolve CWD for config lookup ({err}); \
-                 starting on daemon defaults"
-            );
-            return Ok(Resolved::default());
-        }
-    };
-    Resolved::load(&cwd, None).with_context(|| {
-        format!(
-            "loading enforcement config from {}",
-            cwd.join(".anvil.yaml").display()
-        )
     })
 }
 
