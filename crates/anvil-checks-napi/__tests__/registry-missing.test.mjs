@@ -34,7 +34,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -114,7 +114,12 @@ test('load failures on a malformed override still throw (C1 contract preserved)'
   // that into a `GenericFailure`. This narrower case is the one place a
   // user can still produce an unloadable registry, and it should surface
   // loudly rather than fall back silently.
-  const corruptPath = join(tmpdir(), `anvil-corrupt-registry-${randomUUID()}.json`);
+  // `mkdtempSync` atomically creates a private dedicated directory
+  // owned by this process — avoids the CodeQL "insecure temp file
+  // creation" pattern that `tmpdir() + randomUUID()` triggers, even
+  // though randomUUID provides ~128 bits of entropy in practice.
+  const corruptDir = mkdtempSync(join(tmpdir(), 'anvil-corrupt-'));
+  const corruptPath = join(corruptDir, 'registry.json');
   writeFileSync(corruptPath, '{ this is not valid json');
   process.env.ANVIL_REGISTRY_PATH = corruptPath;
 
