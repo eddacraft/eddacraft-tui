@@ -14,10 +14,24 @@
 //!   3. Upward walk from the current working directory.
 //!   4. Upward walk from the executable's directory (handles installed
 //!      binaries run outside the monorepo).
+//!   5. The compile-time-embedded registry (`EMBEDDED_REGISTRY`).
 //!
-//! If no registry is found, the loader returns an empty catalogue plus a
-//! warning diagnostic. This keeps `anvil check` working even when the
-//! compiled registry is missing.
+//! The embedded fallback is the production path for stock installs
+//! (`cargo install`, cargo-dist tarballs, Homebrew). Without it
+//! `~/.cargo/bin/anvil` and friends have nothing for the upward walks
+//! to find, `load_registry_patterns` returns `[]`, and
+//! `CommitAntipatternEngine` surfaces `EngineUnavailable::BinaryMissing`
+//! on every pre-push. Embedding makes the rule pack atomic with the
+//! binary: every signed-binary update ships a matching catalogue.
+//!
+//! The path-based steps stay ahead of the embedded fallback so monorepo
+//! development still picks up live `patterns:compile` output and so
+//! `ANVIL_REGISTRY_PATH` keeps working as an escape hatch for custom
+//! rule packs. The loader only surfaces an empty-with-warning result
+//! when an explicit / env-var path was supplied but failed to load —
+//! a missing override is a configuration bug worth flagging, but a
+//! stock install with no override falls through silently to the
+//! embedded catalogue.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -29,6 +43,23 @@ use crate::antipattern::types::{AntiPattern, AntiPatternCategory, Confidence, Wa
 
 const REGISTRY_RELATIVE_PATH: &str = "patterns/compiled/registry.json";
 const SUPPORTED_SCHEMA_VERSION: u32 = 1;
+
+/// Compile-time-embedded copy of `patterns/compiled/registry.json`. Used as
+/// the final fallback when no on-disk registry is discovered, so stock
+/// installs (`~/.cargo/bin/anvil`, Homebrew, cargo-dist tarballs) enforce
+/// the same rule pack the binary was built against. Refreshed by
+/// `build.rs`'s `rerun-if-changed` directive whenever the source JSON
+/// changes.
+const EMBEDDED_REGISTRY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../patterns/compiled/registry.json"
+));
+
+/// Sentinel `source_path` value used when the embedded fallback is loaded.
+/// Carried on `LoadRegistryResult.source_path` so diagnostics can
+/// distinguish on-disk loads from the baked-in pack without leaking a
+/// real filesystem path the operator could mistake for an editable file.
+const EMBEDDED_REGISTRY_SOURCE_LABEL: &str = "<embedded>";
 
 // =============================================================================
 // Compiled registry wire format (mirrors format/schemas.ts)
@@ -144,23 +175,52 @@ fn exe_start_dir() -> Option<PathBuf> {
         .and_then(|p| p.parent().map(Path::to_path_buf))
 }
 
-fn resolve_registry_path(opts: &LoadRegistryOptions) -> Option<PathBuf> {
+/// Outcome of path resolution. Distinguishes "a path was supplied / set
+/// but does not exist" (`OverrideMissing`) from "no override and no
+/// upward walk matched" (`NoneFound`) so the loader can decide whether
+/// to warn the operator or silently fall through to the embedded
+/// fallback.
+enum ResolvedPath {
+    Found(PathBuf),
+    OverrideMissing { source: &'static str, value: String },
+    NoneFound,
+}
+
+fn resolve_registry_path(opts: &LoadRegistryOptions) -> ResolvedPath {
     if let Some(p) = opts.registry_path.as_ref() {
-        return if p.exists() { Some(p.clone()) } else { None };
+        return if p.exists() {
+            ResolvedPath::Found(p.clone())
+        } else {
+            ResolvedPath::OverrideMissing {
+                source: "registry_path",
+                value: p.display().to_string(),
+            }
+        };
     }
 
     if let Ok(env_path) = std::env::var("ANVIL_REGISTRY_PATH") {
         let p = PathBuf::from(&env_path);
-        return if p.exists() { Some(p) } else { None };
+        return if p.exists() {
+            ResolvedPath::Found(p)
+        } else {
+            ResolvedPath::OverrideMissing {
+                source: "ANVIL_REGISTRY_PATH",
+                value: env_path,
+            }
+        };
     }
 
     if let Ok(cwd) = std::env::current_dir()
         && let Some(found) = walk_upwards(&cwd)
     {
-        return Some(found);
+        return ResolvedPath::Found(found);
     }
 
-    exe_start_dir().and_then(|d| walk_upwards(&d))
+    if let Some(found) = exe_start_dir().and_then(|d| walk_upwards(&d)) {
+        return ResolvedPath::Found(found);
+    }
+
+    ResolvedPath::NoneFound
 }
 
 // =============================================================================
@@ -211,15 +271,26 @@ fn parse_registry(path: &Path) -> LoadRegistryResult {
         }
     };
 
-    let registry: CompiledRegistry = match serde_json::from_str(&raw) {
+    parse_registry_str(&raw, Some(path.to_path_buf()), &path.display().to_string())
+}
+
+/// Shared parse + schema-validate path used by both on-disk and embedded
+/// loads. `source_path` is `Some(path)` for disk loads and a synthetic
+/// `<embedded>` sentinel for the compile-time fallback; `display_label`
+/// is the string used in warning messages.
+fn parse_registry_str(
+    raw: &str,
+    source_path: Option<PathBuf>,
+    display_label: &str,
+) -> LoadRegistryResult {
+    let registry: CompiledRegistry = match serde_json::from_str(raw) {
         Ok(r) => r,
         Err(err) => {
             return LoadRegistryResult {
                 registry: None,
-                source_path: Some(path.to_path_buf()),
+                source_path,
                 warnings: vec![format!(
-                    "Registry at {} failed schema validation: {err}",
-                    path.display()
+                    "Registry at {display_label} failed schema validation: {err}"
                 )],
             };
         }
@@ -228,10 +299,9 @@ fn parse_registry(path: &Path) -> LoadRegistryResult {
     if registry.schema_version != SUPPORTED_SCHEMA_VERSION {
         return LoadRegistryResult {
             registry: None,
-            source_path: Some(path.to_path_buf()),
+            source_path,
             warnings: vec![format!(
-                "Registry at {} failed schema validation: expected schema_version={SUPPORTED_SCHEMA_VERSION}, got {}",
-                path.display(),
+                "Registry at {display_label} failed schema validation: expected schema_version={SUPPORTED_SCHEMA_VERSION}, got {}",
                 registry.schema_version
             )],
         };
@@ -239,20 +309,41 @@ fn parse_registry(path: &Path) -> LoadRegistryResult {
 
     LoadRegistryResult {
         registry: Some(registry),
-        source_path: Some(path.to_path_buf()),
+        source_path,
         warnings: Vec::new(),
     }
+}
+
+/// Parse the compile-time-embedded registry. The bytes are validated at
+/// build time only in the sense that the file existed when `cargo build`
+/// ran; serde parsing happens here at first load. A failure here means a
+/// corrupt or schema-mismatched JSON shipped with the binary — surface
+/// as a warning so operators see the cause rather than a silent empty
+/// catalogue.
+fn embedded_registry_result() -> LoadRegistryResult {
+    parse_registry_str(
+        EMBEDDED_REGISTRY,
+        Some(PathBuf::from(EMBEDDED_REGISTRY_SOURCE_LABEL)),
+        EMBEDDED_REGISTRY_SOURCE_LABEL,
+    )
 }
 
 /// Load and validate the compiled registry.
 ///
 /// Caches the result per resolved path. Pass `registry_path` in tests to
-/// target a fixture; omit in production to let discovery find the workspace
-/// registry.
+/// target a fixture; omit in production to let discovery find the
+/// workspace registry, with a final fallback to the compile-time
+/// embedded copy.
 #[must_use]
 pub fn load_compiled_registry(opts: &LoadRegistryOptions) -> LoadRegistryResult {
     let resolved = resolve_registry_path(opts);
-    let key = cache_key(resolved.as_deref());
+    let key = match &resolved {
+        ResolvedPath::Found(path) => cache_key(Some(path)),
+        ResolvedPath::OverrideMissing { source, value } => {
+            format!("__override_missing__:{source}:{value}")
+        }
+        ResolvedPath::NoneFound => format!("__embedded__:{EMBEDDED_REGISTRY_SOURCE_LABEL}"),
+    };
 
     if let Ok(guard) = cache().lock()
         && let Some(entry) = guard.as_ref()
@@ -262,14 +353,23 @@ pub fn load_compiled_registry(opts: &LoadRegistryOptions) -> LoadRegistryResult 
     }
 
     let result = match resolved {
-        Some(path) => parse_registry(&path),
-        None => LoadRegistryResult {
-            registry: None,
-            source_path: None,
-            warnings: vec![
-                "Compiled pattern registry not found; scanner catalogue will be empty.".to_string(),
-            ],
-        },
+        ResolvedPath::Found(path) => parse_registry(&path),
+        ResolvedPath::OverrideMissing { source, value } => {
+            // An explicit override was supplied but does not exist.
+            // Warn the operator (this is a config bug) and still fall
+            // back to the embedded catalogue so the scanner stays
+            // useful — the previous behaviour was to silently return
+            // an empty catalogue here.
+            let mut embedded = embedded_registry_result();
+            embedded.warnings.insert(
+                0,
+                format!(
+                    "Configured {source} = {value} does not exist; falling back to embedded registry."
+                ),
+            );
+            embedded
+        }
+        ResolvedPath::NoneFound => embedded_registry_result(),
     };
 
     if let Ok(mut guard) = cache().lock() {
@@ -460,13 +560,35 @@ mod tests {
     }
 
     #[test]
-    fn returns_empty_catalogue_when_file_does_not_exist() {
+    fn missing_override_warns_and_falls_back_to_embedded() {
+        // #1630: a configured override that points at a non-existent path
+        // is a config bug — surface it via a warning — but the scanner
+        // must still get a useful catalogue from the embedded fallback
+        // rather than going silent. Previous behaviour returned an empty
+        // catalogue, which made `CommitAntipatternEngine` look broken.
         reset_registry_cache();
         let result = load_compiled_registry(&LoadRegistryOptions {
             registry_path: Some(PathBuf::from("/nonexistent/registry.json")),
         });
-        assert!(result.registry.is_none());
-        assert!(!result.warnings.is_empty());
+        assert!(
+            result.registry.is_some(),
+            "embedded fallback must load even when override is missing; warnings={:?}",
+            result.warnings
+        );
+        assert!(
+            !result.registry.unwrap().patterns.is_empty(),
+            "embedded fallback must carry a non-empty pattern set"
+        );
+        assert!(
+            result.warnings.iter().any(|w| w.contains("does not exist")),
+            "missing override must surface a warning; got={:?}",
+            result.warnings
+        );
+        // source_path reflects the embedded fallback, not the missing path.
+        assert_eq!(
+            result.source_path.as_deref(),
+            Some(Path::new(EMBEDDED_REGISTRY_SOURCE_LABEL))
+        );
     }
 
     #[test]
@@ -683,13 +805,50 @@ mod tests {
     }
 
     #[test]
-    fn load_registry_patterns_returns_empty_on_missing_file() {
+    fn load_registry_patterns_falls_back_to_embedded_on_missing_file() {
+        // #1630: missing on-disk registry now falls back to the embedded
+        // catalogue rather than producing an empty pattern list.
         reset_registry_cache();
         let patterns = load_registry_patterns(&LoadRegistryOptions {
             registry_path: Some(PathBuf::from("/nonexistent/registry.json")),
         });
-        assert!(patterns.is_empty());
+        assert!(
+            !patterns.is_empty(),
+            "embedded fallback must populate the scanner catalogue"
+        );
+        // Sanity check: a known pattern from the workspace registry is
+        // present, proving the embedded snapshot tracks the source file.
+        assert!(
+            patterns.iter().any(|p| p.id == "AP-001"),
+            "embedded pattern set must include AP-001"
+        );
     }
+
+    #[test]
+    fn embedded_registry_parses_and_is_non_empty() {
+        // #1630: the compile-time-embedded registry must always be
+        // loadable. A parse failure here means the build embedded a
+        // corrupt / schema-mismatched JSON, which would silently degrade
+        // every stock install. Pin the contract.
+        let result = embedded_registry_result();
+        assert!(
+            result.registry.is_some(),
+            "embedded registry must parse; warnings={:?}",
+            result.warnings
+        );
+        assert!(result.warnings.is_empty());
+        let registry = result.registry.unwrap();
+        assert_eq!(registry.schema_version, SUPPORTED_SCHEMA_VERSION);
+        assert!(!registry.patterns.is_empty());
+    }
+
+    // Integration coverage for the "stock install / no resolved path"
+    // branch lives in the install smoke test rather than here — exercising
+    // it as a unit test would mean mutating process-global CWD or
+    // `ANVIL_REGISTRY_PATH` and interfering with parallel test threads.
+    // The two unit tests above pin the embedded fallback's invariants
+    // (parses, non-empty) and the override-missing warning path, which
+    // together cover every behaviour the production resolver can reach.
 
     fn tempdir_for(suffix: &str) -> PathBuf {
         let mut dir = std::env::temp_dir();
