@@ -81,6 +81,7 @@ These define how Anvil behaves by default. All features must align.
 | [037](037-witness-chain-and-l4-policy.md) | Witness chain and L4 policy framework for cross-surface policy evidence | Accepted |
 | [039](039-baseline-policy-and-hard-pinned-classes.md) | Baseline policy and hard-pinned rule classes; codifies which warning classes never get baselined | Accepted |
 | [041](041-flag-snapshot-usage-join-contract.md) | Usage rows store resolved flag context inline; manifest `key` is the stable join key; ADR-019 stays gate-affecting-only for standalone Kindling flag facts | Accepted |
+| [048](048-feature-group-architectural-model.md) | Feature Group is a defaults carrier (class + audiences + lifecycle) with per-flag override; hybrid taxonomy (`primaryGroup` surface + `tags` capability); kill-switch is a universal runtime channel via `FlagOverrides.emergency`, not a per-group class | Accepted |
 
 ## Planning and Process
 

@@ -7,7 +7,15 @@
 | ------- | ----- | -------- | ------ | -------- |
 | FLAGCAT | —     | medium   | Draft  | 2/7      |
 
-**Last reviewed:** 2026-05-18 — FLAGCAT-001 design note landed at
+**Last reviewed:** 2026-05-19 — Feature gating model landed at
+[`plans/specs/2026-05-19-feature-gating-model.md`](../specs/2026-05-19-feature-gating-model.md)
+with architectural pin [ADR-048](../decisions/048-feature-group-architectural-model.md):
+Feature Groups are defaults carriers (class + audiences + lifecycle) under a
+hybrid `primaryGroup` (surface) + `tags` (capability) taxonomy, with universal
+kill-switch via the existing emergency-override channel. Spec adds canonical
+audiences (9) and environments (7, `prod` → `production`) inventories plus a
+seven-group primary taxonomy and the day-1 gating policy. **2026-05-18:**
+FLAGCAT-001 design note landed at
 [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md);
 manifest layout, TS loader surface, Rust `build.rs` codegen approach, naming
 map, consistency-check strategy, and migration ordering are pinned. **2026-05-11:**
@@ -156,9 +164,23 @@ are the governance guarantees we've already invested in via FLAGS.
 
 ## Design Spec
 
-Landed 2026-05-18 at
-[`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
-(closes FLAGCAT-001). The note covers:
+Two design artefacts now cover FLAGCAT:
+
+1. **FLAGCAT-001 design note** —
+   [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
+   pins manifest layout, TS loader surface, Rust `build.rs` codegen, naming
+   map, consistency-check strategy, and migration ordering.
+2. **Feature gating model spec + ADR-048** —
+   [`plans/specs/2026-05-19-feature-gating-model.md`](../specs/2026-05-19-feature-gating-model.md)
+   and
+   [`plans/decisions/048-feature-group-architectural-model.md`](../decisions/048-feature-group-architectural-model.md)
+   extend FLAGCAT scope to include `groups.json`, `audiences.json`, and
+   `environments.json` alongside `manifest.json`; adds `primaryGroup` and
+   optional `tags` fields to `FeatureFlagDefinition`; renames
+   `EnvironmentNameSchema` `prod` → `production`; and pins the day-1 gating
+   policy plus the FeatureBoard translation table.
+
+The FLAGCAT-001 note covers:
 
 - Manifest JSON layout vs. upstream OpenFeature `flags.json` (what we extend,
   what we leave alone so upstream tooling keeps working)
