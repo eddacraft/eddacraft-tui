@@ -1352,6 +1352,28 @@ task's `Source:` line cites the Council finding IDs.
 - **Source:** MLP2-025 mid-implementation discovery,
   2026-05-15 — the integration phase needed its own design
   pass.
+- **Post-merge addendum (2026-05-19, PR #1717):** the
+  2026-05-18 umbrella closure was premature on the production
+  wire-up axis. `IpcListener::with_cross_check_context` had
+  zero call sites: `run_foreground` built the listener with
+  `cross_check: None`, and the scan-buffer handler silently
+  skipped the cross-check on every request. A second upstream
+  gap — `validate_scan_buffer_request_shape` and
+  `validate_oversized_scan_buffer_params` did not allow
+  `env_agent_tag` in their params allowlists — would have
+  rejected tagged requests at the schema gate before the
+  cross-check could read them. DeepSec finding #1671 (filed
+  2026-05-17) surfaced the wire-up gap during the 2026-05-19
+  release-readiness triage. PR #1717 closes both gaps and
+  pins them with an integration test (`tests/spoof_cross_check_wired.rs`)
+  that goes through the real Unix socket via `run_foreground`.
+  The wire-up is **Linux-only** by `cfg(target_os = "linux")`
+  — `pid_starttime` / `parent_pid` are Linux-only today
+  (deferred to MLP2-027 for macOS) and Windows accept passes
+  `peer_pid: None` (deferred to MLP2-028). Wiring on non-Linux
+  would classify every env-tagged write as `Cross::Spoofed`
+  and block legitimate sessions; the cfg gate widens
+  automatically when MLP2-027 / MLP2-028 land.
 
 #### MLP2-025c: Launcher-side population of `lineage` + `env_agent_tag`
 

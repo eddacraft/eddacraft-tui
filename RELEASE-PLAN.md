@@ -8,10 +8,13 @@
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.3-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-19 (final release-plan/index sweep reconciles ADOPT to
-6/6 Merged via PR #1700, MLP2 to 60/76 after MLP2-068, WOUT to the freight
-bundle, and explicitly defers remaining Draft/Blocked candidate-intent items
-that are not needed for the daemon-working tag-time claim.)
+**Last updated:** 2026-05-19 (MLP2-025 bullet narrowed to "on Linux" after the
+DeepSec #1671 triage exposed a production wire-up gap closed by PR #1717 —
+cross-platform spoof-detection now explicitly rides on MLP2-027/-028 per the
+existing deferred entry. Earlier same-day sweep: final release-plan/index
+reconciliation — ADOPT to 6/6 Merged via PR #1700, MLP2 to 60/76 after MLP2-068,
+WOUT to the freight bundle, and explicit deferral of remaining Draft/Blocked
+candidate-intent items not needed for the daemon-working tag-time claim.)
 
 Previous update: 2026-05-18 (docs-phase reconciliation records **N4 closed
 6/6**: `docs/runbooks/anvil-air-gapped.md`,
@@ -196,8 +199,16 @@ and operator-recovery additions named below:
   three Merged.** Registry-side spoof rejection is live end-to-end: Phase 1
   primitives PR #1597 (2026-05-15), Phase 2 daemon control-lane PR #1603
   (2026-05-16), Phase 3 launcher migration PR #1608 (2026-05-16 at `1ea23349`).
-  Umbrella status closed 2026-05-18. The daemon-working claim can honestly
-  include "agent attribution survives a spoof attempt."
+  Umbrella status closed 2026-05-18; the production wire-up gap surfaced by
+  DeepSec #1671 triage was closed by PR #1717, which installs the
+  `CrossCheckContext` in `run_foreground` under a `cfg(target_os = "linux")`
+  gate and extends the oversized scan_buffer fast-path validator to accept
+  `env_agent_tag`. The daemon-working claim can honestly include **"on Linux,
+  agent attribution survives a spoof attempt"**; cross-platform parity
+  (`pid_starttime` / `parent_pid` on macOS, peer-PID + lineage on Windows) rides
+  on MLP2-027 (macOS) and MLP2-028 (Windows), both deferred per the "Deferred or
+  out-of-scope" entry below. The cfg gate in `run_foreground` widens
+  automatically when those tickets land — no release-plan re-amendment needed.
 - **MLP2-026** (High, operator recovery) — `degraded:fence-cascade` detection +
   `anvil intercept unblock --acknowledge-cascade` clear path. Contract spec
   Accepted via PR #1617; partial implementation landed on main. Without it,
