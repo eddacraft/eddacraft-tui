@@ -5,9 +5,7 @@
 //! and `status` (INTD-011); backgrounded launch (`stop`, daemonised
 //! `start`) arrives with later INTD tasks.
 
-use anvil_intercept::{
-    ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal,
-};
+use anvil_intercept::{ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal};
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};

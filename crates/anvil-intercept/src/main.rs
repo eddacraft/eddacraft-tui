@@ -14,9 +14,7 @@
 
 use std::process::ExitCode;
 
-use anvil_intercept::{
-    ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal,
-};
+use anvil_intercept::{ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
@@ -110,4 +108,3 @@ fn main() -> ExitCode {
         }
     }
 }
-
