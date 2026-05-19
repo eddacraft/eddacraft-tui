@@ -270,6 +270,7 @@ Codebase-maintenance and code-review-backlog are retained for history.
 | Module                                                                      | Scope | Status      | Progress           |
 | --------------------------------------------------------------------------- | ----- | ----------- | ------------------ |
 | [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 5/7                |
+| [clawpatch-pre-tag-v0.7.0-beta](./modules/clawpatch-pre-tag-v0.7.0-beta.aps.md) | CLAWP | In Progress | 0/64               |
 | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md)       | MAINT | Complete    | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md)         | CRB   | Complete    | 29/29              |
 
