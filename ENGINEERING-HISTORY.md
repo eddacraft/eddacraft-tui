@@ -9,6 +9,360 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
+### Multi-Layer Protection v2 (MLP2) — daemon-working integration
+
+MLP2 closes the gap between every v1 primitive shipped in `v0.6.0-beta` and the
+full surfaces it targets. 12 groups (A–L) cover 60+ integration items split out
+from MLP-018, plus Council-flagged production hardening. Module is 60/76 at tag
+time; the cut-line for the daemon-working claim is named in
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). MLP2-042..-045 + MLP2-051d (Marketplace
+publishing + GH Action check render) remain blocked on the licensing / pricing
+track and are explicitly carved out of the protection claim.
+
+### Witness Chain Hardening (MLP-002..-005, MLP2-011..-015, MLP2-061..-063)
+
+- **DAG-aware verifier** — `verify_chain_dag` walks the merge-join graph via
+  `parent_commits[]` + `prev_line_hashes[]` lockstep arrays; the legacy linear
+  `verify_chain` becomes a `#[deprecated]` thin wrapper. Four production call
+  sites (pre-push hook, `anvil l4-validate`, `anvil audit-chain`,
+  `save_with_genesis`) migrated to the DAG verifier.
+- **Genesis anchor on baseline** — `anvil-baseline::save_with_genesis` emits
+  `GENESIS-BASELINED` (bare) or `GENESIS-FRESH` as the chain's first witness
+  line; the cutoff commit SHA lives on the line body as a separate
+  `cutoff_commit: Option<String>` field rather than glued onto the anchor
+  string. `GenesisAnchor::parse()` explicitly rejects the colon-suffix form.
+- **`rules_sha` threading** — MLP2-014 threads `anvil_rules::rules_sha` onto
+  every pre-commit witness line; empty `rule_ids` list reserved for the future
+  rule-engine wiring.
+- **80-writer stress test promoted** — MLP2-015 lifted the 80-way
+  concurrent-writer test out of `#[ignore]` after 10/10 ~10ms flake budget on CI
+  hardware.
+- **Shared `witness_paths()` helper** — MLP2-061/-062 collapsed three parallel
+  walkers (pre-push, `anvil l4-validate`, `anvil audit-chain`) onto a single
+  source-of-truth function. Closed a trust-gap where any drift in ordering would
+  let the verifier and the witnessed-set harvester cover different bytes.
+- **Manifest event stream** — MLP2-012 writes one `ManifestEntry` per rollover
+  to `anvil/witness/manifest/chain.ndjson` (archive path, full SHA-256, line
+  count, `[start..=end]` seq range). Content-addressed archive naming makes
+  re-run rollovers idempotent.
+
+### L4 Policy Engine (MLP2-016..-022, MLP2-031, MLP2-046, MLP2-068)
+
+- **Typed `ValidationEngine` trait** — new `validate_at_l4` pipeline in
+  `crates/anvil-l4/src/validate.rs` returns
+  `Allow / Block { diagnostics } / EngineUnavailable { reason }`. Pre-push hook
+  swaps the inline `InternalError { TimedOut }` fall-through for trait dispatch
+  with `on_warn`-aware verdict routing; default `NoOpValidationEngine` preserves
+  pre-MLP2-016 byte-identical surface until a real engine binds.
+- **Real antipattern engine binding** — `0aacdac8` wires the real engine into
+  pre-push + `anvil l4-validate` so commit-blob walks resolve through the
+  production validator.
+- **Version floor + cutoff-commit ancestry** — MLP2-018 ships
+  `evaluate_version_floor(policy_floor, witness_anvil_version)` with semver
+  build-metadata precedence; MLP2-019 ships `RecognisedRulesRegistry` keyed on
+  lowercase 64-char hex digests with `RuleSetMetadata` enforcement;
+  MLP2-020/-021 thread the floor + cutoff-commit ancestry check into the
+  pre-push hook (`git rev-list --first-parent --max-count=100000` per ref,
+  hex-shape validation on `Policy::cutoff_commit`).
+- **Time-budget cap** — MLP2-022 lands `PRE_PUSH_BUDGET = 2s` between-commit
+  check; on exceed, emits a distinct `ErrorClass::TimedOut` line plus a
+  structured `tracing::warn!` with `kind="gate_evaluated"`, `gate_id="prePush"`,
+  `partial=true`, `commits_processed`, `commits_skipped_for_cutoff` for future
+  Kindling fan-out (INTD-004).
+- **`anvil l4-validate` CLI** — MLP2-046 extracts the L4-policy validator into a
+  dedicated subcommand, replacing the `anvil hook pre-push` reuse for CI and
+  GitHub Action consumers.
+- **Atomic policy pin** — MLP2-031 ships `pin_cutoff_commit(path, cutoff)` with
+  temp-then-rename writer, hex-shape pre-flight, symlink refusal on path + temp
+  sibling, multi-format round-trip (yaml/yml/json/toml), and
+  `PolicyPinError::BaselineNotAMap` so hand-edited scalar `baseline:` is never
+  silently overwritten.
+- **`git cat-file --batch` for commit blobs** — MLP2-068 (`d54a5f86`) batches
+  per-commit blob fetches in `CommitAntipatternEngine`, replacing N-way
+  fork-exec on history walks. Performance follow-on filed under Group O
+  (MLP2-068 Merged; MLP2-069 `EngineUnavailableReason::IoError` variant remains
+  Draft post-tag).
+
+### Audit Chain L5 (MLP-015, MLP2-053..-056)
+
+- **`anvil audit-chain` CLI** — re-walks a branch's commits and reports any that
+  lack an L3 witness line. `--threshold` (default 5) toggles the
+  `degraded:audit-drift` marker; `--rescan` opt-in re-evaluates today's rules
+  against history; `--max-runtime` caps wall-clock walk; emits a Kindling row to
+  `anvil/kindling/audit-chain.ndjson` per run.
+- **Nightly L5 workflow** — `.github/workflows/anvil-audit.yml` template ships
+  in-tree at `crates/anvil-cli/src/templates/anvil-audit-workflow.yml` and is
+  copied by the activation orchestrator at adoption time. Active by default;
+  operator disables by commenting out the `schedule:` block.
+- **Group K closed 4/4** via PR `d96ab458` covering audit-chain workflow
+  template, Kindling emission integration, rule rescan, and time-budget cap.
+
+### Session Registry + Composite Identity (MLP2-001..-003, -023..-026)
+
+- **Composite session key** — MLP2-023 extends the registry to
+  `(WorktreeKey, Option<AgentTag>)` via additive `agent_tag` on
+  `SessionRecord` + `IpcCommand::RegisterSession` (wire-additive via
+  `serde(default, skip_serializing_if)`). Composite `by_composite` index,
+  deterministic `attribute_path` tiebreak (untagged-first then
+  earliest-started + lexicographic SessionId), per-tag `unregister` /
+  `evict_stale`. Unblocks MLP2-003/-024/-025/-026.
+- **`ProjectIdentity::verify_against_worktree`** — MLP2-003 cross-checks live
+  git state (`git rev-list --max-parents=0 HEAD` first-commit +
+  `git config --get remote.origin.url` canonicalised). Typed
+  `AttachStatus { Clean, Fork, Mismatch, ProjectIdMissing }` and the pinned
+  `degraded:identity-mismatch` wire-signal constant.
+- **Per-worktree session cap** — MLP2-024 adds
+  `enforcement.session.per_worktree_max` (default 16) under a new
+  `SessionConfigFile` proto block, stricter-wins merge with zero-clamp.
+  `RegistryError::SessionCapExceeded { worktree, cap, live }` is typed.
+- **End-to-end agent-tag spoof rejection** — MLP2-025/-025b/-025c: the launcher
+  and TS driver-client both forward `ANVIL_AGENT_TAG` and PID lineage; the
+  daemon cross-checks them against the tag it issued at registration.
+  `Cross::Match` admits, `Cross::Spoofed` blocks and fences with
+  `degraded:spoofed-attribution`. `session_register_params` emits nested
+  `agent_tag` and `lineage`; `RegistrationRequest` gains `launcher_pid: u32`
+  from `std::process::id()`.
+- **`degraded:fence-cascade` operator-recovery lane** — MLP2-026 ships persisted
+  `CascadeRecord` state in `FenceFile`, `RateWindow::new(4, 60s)` on
+  `FenceStore`, status surface `cascaded`/`cascade_since` fields, registry-side
+  `WorktreeCascaded` refusal under documented cascade-before-registry lock
+  ordering. `IpcCommand::UnblockCascade { worktree, operator }` derives
+  `OperatorContext` from daemon-side IPC peer credentials.
+- **Bounded LRU rule cache** — MLP2-057 caps `rule_cache` at
+  `DEFAULT_RULE_SET_CACHE_CAPACITY = 1024` with `evictions` counter and
+  `tracing::warn!` on capacity pressure. New
+  `SessionRegistry::with_unregister_hook(Arc<dyn Fn(&Path) + Send + Sync>)`
+  fires AFTER lock release on `unregister` + per-session in `evict_stale`.
+
+### Intercept Launcher (INTL-001..-009)
+
+- **`anvil-run` crate ships** — `crates/anvil-run/` lands via PR #1528 with
+  INTL-001..-009 covered by 49 unit + 3 shell-integration tests. Wrap mode
+  (`anvil-run --tool <name> -- <cmd...>`) + hook mode
+  (`anvil-run hook register --tool <name>`) parse via `clap`.
+- **Process-group ownership** — `setpgid` on Unix, named Job Object on Windows.
+  Cleanup `Drop` guard ensures the session unregisters on every exit path
+  including panic / signal.
+- **Daemon preflight + heartbeat** — `preflight` queries reachability +
+  worktree-fence state before spawn; `heartbeat` ticker keeps the daemon
+  registry alive while the child runs. No `--no-heartbeat` CLI surface
+  (skip-field, test-only) — long-running sessions cannot age out of the registry
+  by operator misconfiguration.
+- **Stable BSD-sysexits exit codes** — `64/EXIT_USAGE`,
+  `69/EXIT_DAEMON_UNAVAILABLE`, `73/EXIT_SPAWN_FAILED`, `75/EXIT_FENCED`,
+  `78/EXIT_BAD_CONFIG`. `forward_child_status` maps Unix signals to
+  `128 + signo`; Windows forwards the raw code modulo 256. Tests pin the codes
+  and the cross-platform behaviour.
+- **Side-channel registration (INTL-007)** — `anvil-run hook register` lets
+  tools that did not start through the launcher register a session with the
+  daemon. Enforcement capped at fence-only per ADR-038 noise-discipline.
+- **Shell integration** — `crates/anvil-run/shell/anvil-run.sh` exposes
+  `claude()`, `codex()`, `aider()`, and a generic `anvil-wrap` for ad-hoc tools.
+  Honours `ANVIL_RUN_DISABLE`; falls through to direct `command` exec when the
+  launcher is not on `$PATH` (lose-enforcement-preferred over block-the-user).
+
+### Baseline Hardening (MLP2-013, MLP2-032..-036)
+
+- **`--new-identity` fork opt-out** — MLP2-033 adds the flag to `anvil start` +
+  `anvil baseline` via `mint_new_identity(root, version) -> ProjectIdentity`.
+  Mints fresh v7 UUID, records previous `project_uuid` as `forked_from`;
+  baseline rewrite bypasses the "already exists" short-circuit so
+  `metadata.project_uuid` cannot diverge from the freshly-minted identity.
+- **Adversarial-refresh detection** — MLP2-035 Phase 1 ships
+  `analyze_refresh(old, new, thresholds) -> RefreshSuspicion` in
+  `crates/anvil-baseline/src/diff.rs`. Refuses to overwrite `baseline.json` when
+  a refresh would drop ≥75% of findings AND ≥10 absolute, unless the operator
+  passes `--accept-suspicious`. Knobs: `--suspicion-ratio`,
+  `--suspicion-min-removed`. Constant `degraded:baseline-suspicious` exposed.
+- **Partial-baseline continuation** — MLP2-036 Phase 1 lets large repos (>100k
+  files) baseline in budgeted chunks. `Baseline` schema gains `partial: bool` +
+  `continuation: Option<String>` (both `serde(skip_serializing_if)` so complete
+  baselines serialise byte-identically). `scan_repo_for_findings_with_budget`
+  returns `(Vec<Finding>, Option<String>)` with files sorted by repo-relative
+  path + forward-slash normalisation. `--scan-budget` flag (default 50000); zero
+  rejected at boundary.
+- **Whitewash defence** — `--refresh` complete → partial refuses without
+  `--accept-suspicious`; cutoff pin + suspicion detection skipped while partial.
+
+### Hook Coexistence (ADOPT-001)
+
+- **Framework probe + managed-block install** — `anvil hook bootstrap` probes
+  the repo root for marker files in fixed order (Husky → Lefthook →
+  pre-commit-framework → cargo-husky → CoreHooksPath → Plain), first match wins.
+  Husky and Plain installs are byte-stable round-trip; Lefthook +
+  pre-commit-framework ship an `.anvil-*.yml` snippet + marker-bounded comment
+  block in the host config and require a one-time manual `extends:` / `repos:`
+  merge.
+- **Coexistence report** — `anvil hooks install --config` and
+  `anvil hooks uninstall --config` print per-event signals (`file_mode_paths`,
+  `third_party_managers`, `foreign_config_entries`, `core_hooks_path`) so
+  duplicate-execution and `core.hooksPath` cases are visible.
+- **Round-trip canonicalisation** — install + uninstall returns marker-bounded
+  blocks cleanly; Husky files with non-canonical trailing whitespace are
+  canonicalised (documented). User-added Lefthook `extends:` and
+  pre-commit-framework `repos:` entries are not auto-removed — out of scope for
+  the uninstall contract.
+
+### Resource Budget Gate (ADOPT-002)
+
+- **`anvil-bench` crate** — Linux `/proc` sampler primitive plus a reference
+  repo + `watch_resource_budget` bench scenario that drives `anvil watch`
+  against the fixture and emits a `BudgetVerdict`. CI workflow at
+  `.github/workflows/resource-budget.yml` fails the build if steady-state CPU >
+  5% or RSS > 200 MB.
+- **Documented ceiling** — `docs/policies/resource-budget.md` pins the numbers +
+  measurement protocol so the gate semantics survive refactors.
+
+### Editor Coexistence (ADOPT-006)
+
+- **Headless harness + CI gate** — covers `rust-analyzer`, `tsserver`,
+  `pyright`, `ruff`, `prettier`, `eslint` against Rust/TS/Python fixtures.
+  `.github/workflows/editor-coexistence.yml` blocks the candidate on regression.
+  Compatibility matrix at `docs/policies/editor-coexistence.md`.
+- **Implementation notes** — `7614cb88` handles rustup `rust-analyzer` shim and
+  installs the component in CI; `40a86fb1` pivots the rust-analyzer runner to
+  `cargo check` with failed-tail logging when the full LSP probe was unreliable
+  in headless CI.
+
+### Distribution & Self-Update (DISTRIB-001..-004)
+
+- **Minisign-verified `anvil update`** — DISTRIB-001 wires signature
+  verification into Homebrew, curl-installer sidecar, and the axoupdater library
+  fallback. Signature mismatches fail loudly.
+- **`anvil version --check` advisory surface** — DISTRIB-002 ships the
+  network-gated update + security-advisory check; off by default. ADR-044 §9
+  makes -001 and -002 load-bearing for the MCP-backend swap discovery gap.
+- **Homebrew formula automation** — DISTRIB-003 (PR #1652 + `657ca39e`) extracts
+  the formula auto-bump into a tested script so releases publish the matching
+  formula automatically; `brew upgrade` users see new tags without a manual tap
+  refresh.
+- **Release cadence + EOL policy** — DISTRIB-004 ships
+  `docs/policies/release-cadence.md` documenting hotfix cadence,
+  patch/minor/major semantics, the "sit on a release" minimum window, and the
+  `-beta` support window.
+
+### MCP Hardening (RMCPF / RMCP / CIB)
+
+- **Typed `protection_claim` on `validate_write` response** — MLP2-051b (PR
+  #1668) emits the optional `Option<ProtectionClaim>`, gated on
+  `DaemonStatus::Available`, fetched via the new `query_daemon_status_at`
+  helper. Wire-additive; pre-existing drivers round-trip the response unchanged.
+- **Patch-mode validator (CIB-005)** — PR #1692 makes `anvil_validate_write`
+  accept unified-diff `patch` payloads via the existing `apply_patch` helpers.
+  Token cost scales with the change, not the file. Closes the 2026-05-18
+  beta-tester incident on a 2770-line JSON file. Council follow-on `121eeecd`
+  addresses review.
+- **Recoverable workspace-root preflight (CIB-007)** — same PR returns
+  `expectedWorkspaceRoot` on rejection so callers can self-correct without an
+  operator round-trip. Option (b) triage; option (a) (worktree-aware accept)
+  deferred behind an ADR.
+
+### Driver Client Mirror (MLP2-029..-030, MLP2-051c)
+
+- **TS `AgentTag` mirror** — MLP2-029 lands `parseAgentTag` in
+  `packages/anvil-driver-client/src/session/` with per-field type guards (no Zod
+  dep), `ANVIL_AGENT_TAG_ENV` / `ANVIL_TASK_ID_ENV` constants, and a byte-exact
+  JSON-parity test against the Rust `agent_tag_round_trips_through_json`
+  fixture.
+- **TS mid-edit Kindling observation mirror** — MLP2-030 ships
+  `fromMidEditResponse` + `GateEvaluatedObservation` with 13 parity tests
+  including byte-exact JSON parity against a captured Rust `to_string` fixture,
+  severity → enforcement mapping, and the volume-control contract (`null` for
+  empty diagnostics).
+- **TS `ProtectionClaim` mirror** — MLP2-051c (`d4970b19`) ships the TS parser;
+  MCP response adapter surfaces the claim when the daemon supplied one;
+  responses without the field parse cleanly for backward compatibility.
+
+### Kernel Local-Noise Ignore Canonicalisation (ADOPT-004)
+
+- **Canonical const moves to `anvil-kernel`** — PR #1658 (`34671da7`) relocates
+  `IGNORE_DIRS` from `anvil-cli/src/util.rs` to
+  `anvil-kernel::watcher::filter::IGNORE_DIRS` so every walking consumer (watch,
+  audit, baseline, check, drift, gate) inherits the same list. CLI helper
+  becomes a `pub use` re-export.
+- **Coverage expansion** — `.venv` added; `__pycache__` reconciled. A
+  conformance test asserts the kernel and CLI helpers resolve to the same set.
+
+### YAML Resource Bounds (MLP2-060)
+
+- **Alias rejection + size + depth caps** — MLP2-060 hardens
+  `anvil-config::parse` against billion-laughs and other YAML resource attacks:
+  rejects aliases outright via a quote/comment-aware byte scanner, caps the file
+  at 1 MiB pre-parse, and bounds post-parse depth at 32 levels. 10 new tests
+  including the classic billion-laughs payload and a 40-level JSON depth
+  rejection. ADR-046 documents the YAML-parser-migration deferral that motivated
+  the in-place hardening.
+
+### Insights (INSIGHTS-001)
+
+- **`anvil insights` weekly summary** —
+  `crates/anvil-cli/src/commands/insights.rs` derives a weekly rollup from the
+  witness chain with no separate event store. JSON schema pinned at
+  `anvil.insights.v1` / `schemas/anvil-insights.v1.json`. This release populates
+  `witness_events_observed`; the other six counters (`total_saves_observed`,
+  `findings_raised`, `suppressions_applied`, `suppressions_resolved`,
+  `baseline_edges_added`, `daemon_uptime_percentage`) ship as schema-locked
+  placeholders pending INSIGHTS-002..-004 metric wiring.
+
+### Operations Support Framework (OPSUP-006)
+
+- **File-presence + wall-time guards** — `f0d0490e` adds a defensive guard
+  framework to short-circuit expensive commands when a required file is absent
+  or a runaway loop exceeds a wall-time cap. Defence in depth for the
+  daemon-working surface.
+
+### Architecture Decisions
+
+- **ADR-045 — update signing scheme.** Pins the minisign-based signature
+  verification design that DISTRIB-001 implements.
+- **ADR-046 — YAML parser migration deferral.** Documents why
+  `anvil-config::parse` stays on `serde_yaml` for `v0.7.0-beta` with MLP2-060's
+  in-place resource-bounds hardening, deferring the migration to a future
+  release.
+- **ADR-047 — eddacraft-tui canonical source mirror.** Pins the source model +
+  governance for the eddacraft-tui mirror after the ATTRIB-011 scaffolding
+  lands.
+- **ADR-048 — feature group architectural model.** Pins three coupled decisions:
+  Feature Group is a defaults carrier (class + audiences + lifecycle) with
+  per-flag override; hybrid taxonomy (`primaryGroup` carries defaults, `tags`
+  are taxonomy-only); kill-switch is a universal runtime channel via the
+  existing `FlagOverrides.emergency` mechanism rather than a per-group default
+  class. Companion spec at `plans/specs/2026-05-19-feature-gating-model.md`.
+
+### Release Engineering
+
+- **Main-first cutover (OPMODEL-012)** — `dev` branch retired at the 2026-05-11
+  cutover; all branches and PRs now target `main`. Historical branch deletion
+  scheduled per #1419.
+- **Release-record schema (OPMODEL-004)** —
+  `plans/specs/2026-05-10-release-record-schema.md` pins the per-release
+  `releaseRecord` JSON shape that the cleanup agent advances through
+  `Merged → Released/Shipped → Complete/Archived` lifecycle states.
+- **Release-readiness workflow** — targeted CI gates split from best-effort
+  coverage; `cargo llvm-cov nextest` runs `continue-on-error` so a
+  coverage-merge regression cannot mask real test signal.
+- **Air-gap harness baseline** — `tools/test-harness/network-blocked/run.sh`
+  - `crates/anvil-cli/tests/air_gapped.rs` enforce no-network on every
+    protection command via Linux network-namespace unprivileged user-and-
+    network-namespace stripping. Coverage extension to `anvil-run`,
+    `anvil audit-chain`, `anvil l4-validate`, `anvil hook pre-push` tracked
+    under GH #1705 (not tag-blocking).
+
+### Documentation & Governance
+
+- **Six N4 user-facing runbooks** filed for `v0.7.0-beta`: air-gap
+  (`docs/runbooks/anvil-air-gapped.md`), hook coexistence
+  (`anvil-hook-coexistence.md`), witness-chain operator
+  (`anvil-witness-chain.md`), adoption (`anvil-adoption.md`), migration
+  (`v0.6.x-to-v0.7.0-beta-migration.md`), `anvil-run` manpage (`anvil-run.md`).
+  Plus the Wave 0 operator-facing release runbook at
+  `v0.7.0-beta-release-runbook.md`.
+- **DOCGOV-005 `docs:check`** — gates metadata, tags, links (anchor + file
+  existence), APS-drift, ADR-index, index-freshness, asbuilt-paths surfaces.
+  Slugifier in `scripts/docs/check-links.mjs` collapses non-alphanumerics +
+  spaces into single hyphens for anchor matching (matters for runbook
+  cross-references).
+
 ## [0.6.0-beta]
 
 ### Daemon-Backed Mid-Edit Validation (INTD)
