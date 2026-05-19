@@ -835,13 +835,29 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             .with_scan_buffer(scan_buffer.clone()),
         );
 
+        // MLP2-025b: the production cross-check capability bundle.
+        // Wires the same registry + fence store the dispatcher uses,
+        // so the write-time env-tag spoof cross-check runs against
+        // live daemon state. Without this, scan_buffer requests with
+        // a spoofed `env_agent_tag` fall through to the rule engine
+        // — the documented MLP2-025b fail-closed verdict is
+        // unreachable in production.
+        let cross_check_context = ipc::CrossCheckContext {
+            registry: Arc::clone(&daemon_state.registry),
+            fence_store: Arc::clone(&daemon_state.fence_store),
+        };
+
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
             ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
-        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
+        .map(|listener| {
+            listener
+                .with_status_provider(Arc::clone(&status_provider))
+                .with_cross_check_context(cross_check_context.clone())
+        })
         .context("failed to bind intercept IPC listener")?;
 
         #[cfg(windows)]
@@ -850,7 +866,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
-        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
+        .map(|listener| {
+            listener
+                .with_status_provider(Arc::clone(&status_provider))
+                .with_cross_check_context(cross_check_context.clone())
+        })
         .context("failed to bind intercept IPC listener")?;
 
         let listener_token = token.clone();

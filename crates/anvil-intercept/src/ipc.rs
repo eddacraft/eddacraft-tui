@@ -2425,10 +2425,19 @@ fn validate_scan_buffer_request_shape(
 
     let params = params_object(map.get("params").unwrap_or(&Value::Null), method)?;
     for key in params.keys() {
-        if !matches!(key.as_str(), "path" | "text" | "version" | "mode") {
+        // MLP2-025b adds `env_agent_tag` as the writer-side raw
+        // ANVIL_AGENT_TAG carrier read by the daemon's spoof
+        // cross-check. The TS driver-client emits this field on
+        // every scan_buffer request, so the daemon allowlist must
+        // accept it — without this, the cross-check is unreachable
+        // because the request is rejected at the schema gate.
+        if !matches!(
+            key.as_str(),
+            "path" | "text" | "version" | "mode" | "env_agent_tag"
+        ) {
             return Err(invalid_params(
                 method,
-                "scan_buffer params only allow path, text, version, and mode fields",
+                "scan_buffer params only allow path, text, version, mode, and env_agent_tag fields",
             ));
         }
     }
