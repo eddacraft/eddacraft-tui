@@ -835,18 +835,16 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             .with_scan_buffer(scan_buffer.clone()),
         );
 
-        // MLP2-025b: the production cross-check capability bundle.
-        // Wires the same registry + fence store the dispatcher uses,
-        // so the write-time env-tag spoof cross-check runs against
-        // live daemon state. Without this, scan_buffer requests with
-        // a spoofed `env_agent_tag` fall through to the rule engine
-        // — the documented MLP2-025b fail-closed verdict is
-        // unreachable in production.
-        let cross_check_context = ipc::CrossCheckContext {
-            registry: Arc::clone(&daemon_state.registry),
-            fence_store: Arc::clone(&daemon_state.fence_store),
-        };
-
+        // MLP2-025b: install the production cross-check capability.
+        // Currently Linux-only — MLP2-027 (macOS) and MLP2-028
+        // (Windows) add the platform-specific peer-PID and lineage
+        // support the cross-check depends on. Wiring it on non-Linux
+        // today would classify every env-tagged write as
+        // `Cross::Spoofed` (Windows accept passes `peer_pid: None`,
+        // and on macOS `pid_starttime` / `parent_pid` return
+        // `io::ErrorKind::Unsupported` so the lineage walk fails
+        // shut), blocking legitimate sessions. The cfg gate widens
+        // when those tickets land.
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
             ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
@@ -854,9 +852,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
         .map(|listener| {
+            let listener = listener.with_status_provider(Arc::clone(&status_provider));
+            #[cfg(target_os = "linux")]
+            let listener = listener.with_cross_check_context(ipc::CrossCheckContext {
+                registry: Arc::clone(&daemon_state.registry),
+                fence_store: Arc::clone(&daemon_state.fence_store),
+            });
             listener
-                .with_status_provider(Arc::clone(&status_provider))
-                .with_cross_check_context(cross_check_context.clone())
         })
         .context("failed to bind intercept IPC listener")?;
 
@@ -866,11 +868,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         } else {
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
-        .map(|listener| {
-            listener
-                .with_status_provider(Arc::clone(&status_provider))
-                .with_cross_check_context(cross_check_context.clone())
-        })
+        .map(|listener| listener.with_status_provider(Arc::clone(&status_provider)))
         .context("failed to bind intercept IPC listener")?;
 
         let listener_token = token.clone();

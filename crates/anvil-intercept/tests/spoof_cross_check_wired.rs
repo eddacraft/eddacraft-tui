@@ -54,9 +54,9 @@ async fn wait_for_path(path: &std::path::Path) {
 
 /// Spawn `run_foreground` against a private socket + pid file + fence
 /// store under `tmp`, wait for both side-effects to be observable, and
-/// return the shutdown handle, the spawned task, and the fence-store
-/// path so the test can inspect persisted fences after the daemon
-/// shuts down.
+/// return `(shutdown, task handle, socket path, fence-store path)` so
+/// the test can talk to the daemon over the socket and inspect
+/// persisted fences after shutdown.
 async fn spawn_daemon(
     tmp: &TempDir,
 ) -> (
@@ -172,9 +172,11 @@ async fn run_foreground_blocks_spoofed_env_tag() {
     // Confirm the side-effect fence was recorded — the fail-closed
     // verdict is "block AND fence", not "block alone".
     shutdown.trigger();
-    let _ = tokio::time::timeout(Duration::from_secs(5), handle)
+    tokio::time::timeout(Duration::from_secs(5), handle)
         .await
-        .expect("daemon shutdown timed out");
+        .expect("daemon shutdown timed out")
+        .expect("daemon task join failure")
+        .expect("daemon run_foreground reported error");
 
     let fence_json = std::fs::read_to_string(&fence_store)
         .unwrap_or_else(|e| panic!("read fence store {}: {e}", fence_store.display()));
@@ -207,7 +209,9 @@ async fn run_foreground_passes_through_untagged_writes() {
     );
 
     shutdown.trigger();
-    let _ = tokio::time::timeout(Duration::from_secs(5), handle)
+    tokio::time::timeout(Duration::from_secs(5), handle)
         .await
-        .expect("daemon shutdown timed out");
+        .expect("daemon shutdown timed out")
+        .expect("daemon task join failure")
+        .expect("daemon run_foreground reported error");
 }

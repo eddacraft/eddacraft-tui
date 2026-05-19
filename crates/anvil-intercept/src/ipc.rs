@@ -84,6 +84,12 @@ pub const MAX_ACTIVE_CONNECTIONS: usize = 32;
 pub const CONNECTION_READ_TIMEOUT: Duration = Duration::from_mins(1);
 const MAX_JSONRPC_ID_BYTES: usize = 256;
 const MAX_SCAN_BUFFER_MODE_BYTES: usize = 32;
+/// Cap for the `env_agent_tag` wire field in the oversized fast-path
+/// validator. The field carries a JSON-encoded `AgentTag` —
+/// `{tag_kind, session_id, pid_starttime}` — which is structurally
+/// small. 1 KiB is well above any realistic payload while keeping the
+/// fast-path memory bound tight.
+const MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES: usize = 1024;
 const MAX_TRACE_METHOD_LEN: usize = 128;
 
 /// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
@@ -908,9 +914,15 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 let _connection_permit = connection_permit;
                                 // MLP2-025b: Windows peer-PID is
                                 // greenfield (tracked under MLP2-028).
-                                // `None` here forces fail-closed on
-                                // any env-tagged write — the safe
-                                // default until peer-pid support lands.
+                                // `None` here is paired with the
+                                // Linux-only cross-check wire-up in
+                                // `run_foreground` — on Windows
+                                // `cross_check` is `None` and this
+                                // value never reaches the fail-closed
+                                // path. Once MLP2-028 lands the
+                                // wire-up gate widens and `None`
+                                // becomes the documented fail-closed
+                                // default for un-validated peers.
                                 let peer_pid: Option<u32> = None;
                                 if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
@@ -1505,6 +1517,11 @@ fn validate_oversized_scan_buffer_params(
     let mut saw_text = false;
     let mut saw_version = false;
     let mut saw_mode = false;
+    // MLP2-025b: `env_agent_tag` is an optional wire field — the
+    // post-parse validator accepts it; the fast-path must too,
+    // otherwise oversized scan_buffer requests carrying a tag are
+    // rejected before the cross-check sees them.
+    let mut saw_env_agent_tag = false;
 
     loop {
         *index = skip_json_whitespace(bytes, *index);
@@ -1560,6 +1577,17 @@ fn validate_oversized_scan_buffer_params(
                 saw_mode = true;
                 if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_MODE_BYTES) {
                     return Err("oversized scan_buffer mode is missing or too large");
+                }
+            }
+            "env_agent_tag" => {
+                if saw_env_agent_tag {
+                    return Err(
+                        "oversized scan_buffer params contain duplicate env_agent_tag fields",
+                    );
+                }
+                saw_env_agent_tag = true;
+                if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES) {
+                    return Err("oversized scan_buffer env_agent_tag is missing or too large");
                 }
             }
             _ => return Err("oversized scan_buffer params contain unsupported fields"),
@@ -2427,10 +2455,13 @@ fn validate_scan_buffer_request_shape(
     for key in params.keys() {
         // MLP2-025b adds `env_agent_tag` as the writer-side raw
         // ANVIL_AGENT_TAG carrier read by the daemon's spoof
-        // cross-check. The TS driver-client emits this field on
-        // every scan_buffer request, so the daemon allowlist must
-        // accept it — without this, the cross-check is unreachable
-        // because the request is rejected at the schema gate.
+        // cross-check. The TS driver-client emits this field when
+        // `process.env.ANVIL_AGENT_TAG` is set and non-empty
+        // (`packages/anvil-driver-client/.../validate-mid-edit.ts`),
+        // so the daemon allowlist must accept it — without this,
+        // tagged scan_buffer requests are rejected at the schema
+        // gate before the cross-check can read the tag. Absent or
+        // null tags intentionally take the `Cross::Untagged` path.
         if !matches!(
             key.as_str(),
             "path" | "text" | "version" | "mode" | "env_agent_tag"
