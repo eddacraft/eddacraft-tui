@@ -13,7 +13,8 @@ with architectural pin [ADR-048](../decisions/048-feature-group-architectural-mo
 Feature Groups are defaults carriers (class + audiences + lifecycle) under a
 hybrid `primaryGroup` (surface) + `tags` (capability) taxonomy, with universal
 kill-switch via the existing emergency-override channel. Spec adds canonical
-audiences (9) and environments (7, `prod` → `production`) inventories plus a
+audiences (9) and environments (5, `prod` → `production` and `dev` →
+`development`) inventories plus a
 seven-group primary taxonomy and the day-1 gating policy. **2026-05-18:**
 FLAGCAT-001 design note landed at
 [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md);
@@ -248,7 +249,31 @@ Change status to **Ready** when:
   not run for this design pass; instructions for future sweeps are recorded
   in the note's "Clawpatch advisory inventory" section.
 
-### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Draft
+### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Draft (deferred until post-`v0.7.0-beta`)
+
+> **Sequencing note (2026-05-19):** Operator decision to defer this task and
+> the rest of FLAGCAT-002..-006 until after the `v0.7.0-beta` tag cuts. The
+> migration of the five shipped flags plus the `EnvironmentName` enum changes
+> (`Prod` → `Production`, `Dev` → `Development`, add `Demo`, drop `Staging`)
+> touch runtime construction sites (CLI eval context, kernel resolver, tests);
+> the contracts-level change is safer outside the release-freeze window.
+> Nothing in the current cut depends on the catalogue existing. Pre-tag,
+> day-1 gating policy stays advisory and any new flag entries land via the
+> existing per-surface modules; FLAGCAT-002 retrofits them on adoption.
+>
+> **Environment-list re-validation (2026-05-19):** Spec env inventory
+> reduced from seven to five (`local`, `development`, `preview`, `demo`,
+> `production`) after operator review. Renames `prod` → `production` and
+> `dev` → `development` to match `NODE_ENV`/`VERCEL_ENV` native values and
+> drop a translation hop in the per-surface auto-detection code. `test` and
+> `staging` dropped — `NODE_ENV=test` stays aliased to `development` (test
+> is a transient runtime state, not a deployment); `staging` has no real
+> target today and gets added back via manifest amendment if we stand one
+> up later. `demo` is retained as a near-term real target (operator
+> confirmed demo-specific behaviour is planned). FLAGCAT-002 renames
+> `EnvironmentName::Prod` → `Production` and `Dev` → `Development`, adds
+> the new `Demo` variant, drops `Staging`, and updates the construction
+> sites in the same change.
 
 - **Intent:** Stand up the new package, import the five existing flag
   definitions into `flags/manifest.json`, and export typed accessors that

@@ -93,37 +93,57 @@ logical audience and the old id remains in the manifest with
 
 ### Environments (`flags/environments.json`)
 
-Seven environments. Environment is single-valued per evaluation (a session
+Five environments. Environment is single-valued per evaluation (a session
 is in exactly one environment); environment matching uses equality, not OR.
 
 ```jsonc
 {
   "schemaVersion": 1,
   "environments": [
-    { "id": "local",      "name": "Local development",       "status": "active" },
-    { "id": "dev",        "name": "Dev cluster / branch",    "status": "active" },
-    { "id": "test",       "name": "Test / QA cluster",       "status": "active" },
-    { "id": "preview",    "name": "Vercel preview deploys",  "status": "active" },
-    { "id": "staging",    "name": "Pre-production staging",  "status": "active" },
-    { "id": "demo",       "name": "Customer demo deploys",   "status": "active" },
-    { "id": "production", "name": "Production",              "status": "active" }
+    { "id": "local",       "name": "Local development",      "status": "active" },
+    { "id": "development", "name": "Dev cluster / branch",   "status": "active" },
+    { "id": "preview",     "name": "Vercel preview deploys", "status": "active" },
+    { "id": "demo",        "name": "Customer demo deploys",  "status": "active" },
+    { "id": "production",  "name": "Production",             "status": "active" }
   ]
 }
 ```
 
-**Rename of `prod` → `production`.** The current `EnvironmentNameSchema`
-enum value is `prod`; this spec renames it to `production` for FB-compat
-(FB and FeatureBoard SDK use `production` consistently). No flag *targeting
-rule* references `prod` today — environment lives in `EvaluationContext`,
-not in flag definitions — so the rename does not change any flag's
-resolution semantics. It does, however, touch every runtime construction
-site of `EnvironmentName::Prod` (CLI `cli_evaluation_context`, kernel
-resolver evaluation paths, and their tests in
-`crates/anvil-kernel-types/src/feature_flags.rs` and
-`crates/anvil-kernel/src/feature_flags/resolver.rs`). FLAGCAT-002 amends
-`EnvironmentNameSchema`, renames the Rust enum variant
-`EnvironmentName::Prod` → `EnvironmentName::Production`, and updates the
-construction sites in the same change.
+**Renames `prod` → `production` and `dev` → `development`.** The current
+`EnvironmentNameSchema` enum values are `prod` and `dev`; this spec renames
+them to `production` and `development` for FB- and Node/Vercel-compat
+(`NODE_ENV` and `VERCEL_ENV` both use the long forms natively, removing a
+translation hop in the auto-detection code). `test` and `staging` are
+dropped from the inventory — `NODE_ENV=test` stays aliased to `development`
+in the per-surface auto-detection (it is a transient test-runner state, not
+a deployment); `staging` has no real deployment target today and gets added
+back via a manifest amendment if we stand one up later.
+
+`TargetingCondition` accepts `attribute: 'environment'` and the resolver
+matches against the value carried in `EvaluationContext` — so a flag *could*
+target on environment in principle. None of the five shipped flag
+definitions does today, which is why the renames do not change any
+flag's resolution semantics. They do, however, touch every runtime
+construction site of `EnvironmentName::Prod` and `EnvironmentName::Dev`
+(CLI `cli_evaluation_context`, kernel resolver evaluation paths, and their
+tests in `crates/anvil-kernel-types/src/feature_flags.rs` and
+`crates/anvil-kernel/src/feature_flags/resolver.rs`).
+
+FLAGCAT-002 amends `EnvironmentNameSchema` and the matching Rust
+`EnvironmentName` enum as a single coherent change:
+
+- renames `EnvironmentName::Prod` → `Production`
+- renames `EnvironmentName::Dev` → `Development`
+- **adds** `EnvironmentName::Demo` (new variant — `demo` is in the
+  inventory but has no current enum entry)
+- drops the `Staging` variant (no real deployment target today; reintroduced
+  by manifest amendment if one is stood up later)
+- leaves `Local` and `Preview` untouched
+- updates every construction site to use the new variant names
+
+`NODE_ENV=test` continues to map to `development` in the per-surface
+auto-detection (test is a transient runtime state, not a deployment); no
+`Test` variant is added.
 
 ### Primary groups (`flags/groups.json`)
 
@@ -331,7 +351,7 @@ export type FlagAudienceId =
   | 'staff-anvil-internal'
   | 'channel-early-access' | 'channel-general';
 export type FlagEnvironmentId =
-  | 'local' | 'dev' | 'test' | 'preview' | 'staging' | 'demo' | 'production';
+  | 'local' | 'development' | 'preview' | 'demo' | 'production';
 ```
 
 ## Rust codegen (extends FLAGCAT-001)
