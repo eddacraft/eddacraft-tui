@@ -175,3 +175,6 @@ plans/reviews/*
 # DBCON operator scratch — snapshots and exported CSVs must never land in git
 scripts/dbcon/snapshots/
 scripts/dbcon/*.csv
+
+# Local scratch — drafts, throwaway notes, intermediate artefacts
+.scratch/
