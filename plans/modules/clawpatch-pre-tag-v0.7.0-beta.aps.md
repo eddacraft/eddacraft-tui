@@ -2,9 +2,9 @@
 
 <!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
-| ID    | Owner  | Status      | Progress    |
-| ----- | ------ | ----------- | ----------- |
-| CLAWP | @aneki | In Progress | 0/64 done |
+| ID    | Owner  | Status      | Progress |
+| ----- | ------ | ----------- | -------- |
+| CLAWP | @aneki | In Progress | 0/64     |
 
 **Last reviewed:** 2026-05-19 (filed at v0.7.0-beta cut pre-flight after running `claw-sweep` on `main` per the release runbook §1. Canonical report: [`plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`](../audits/2026-05-19-clawpatch-v0.7.0-beta.json). 64 open findings tracked here; 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
@@ -282,7 +282,7 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
 - **Status:** Draft
-- **Recommendation:** Strengthen `start_json_emits_state_literal_in_status_verify_shape` to assert the concrete expected read-only fresh result, at minimum `state == "needs_action"` or the intended fresh JSON state, and explicitly reject `protecting`. Also assert the complete status-verify JSON key set if the contract is that the shape matches `anvil status --verify ...
+- **Recommendation:** Strengthen `start_json_emits_state_literal_in_status_verify_shape` to assert the concrete expected read-only fresh result, at minimum `state == "needs_action"` or the intended fresh JSON state, and explicitly reject `protecting`. Also assert the complete status-verify JSON key set if the contract is that the shape matches `anvil status --verify`...
 - **Evidence:** `crates/anvil-cli/tests/start.rs:17`, `crates/anvil-cli/tests/start.rs:38`, `crates/anvil-cli/tests/start.rs:230` (`start_json_emits_state_literal_in_status_verify_shape`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
@@ -326,7 +326,7 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
 - **Status:** Draft
-- **Recommendation:** Add collision fixtures with two distinct symbol IDs and different files but the same symbol name: mark the original as previously public or privileged, add the second symbol in the delta, and assert the expansion violation is still emitted for the new file/symbol identity. If the implementation fails, change baseline keys to include file and/or ...
+- **Recommendation:** Add collision fixtures with two distinct symbol IDs and different files but the same symbol name: mark the original as previously public or privileged, add the second symbol in the delta, and assert the expansion violation is still emitted for the new file/symbol identity. If the implementation fails, change baseline keys to include file and/or...
 - **Evidence:** `crates/anvil-kernel/tests/architecture_parity.rs:612` (`previously_public_symbol_suppressed`), `crates/anvil-kernel/tests/architecture_parity.rs:649` (`previously_privileged_symbol_suppressed`), `crates/anvil-kernel/tests/architecture_parity.rs:670` (`baseline_suppresses_known_but_flags_new`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
@@ -464,7 +464,7 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
 - **Status:** Draft
-- **Recommendation:** Add a regression test that validates the cap in an isolated process before any other rayon consumer can initialise the global pool. If direct global-pool testing is too fragile for unit tests, factor the cap calculation into a small pure helper and test that helper, then add one integration or subprocess smoke test for `init_global` applying it ...
+- **Recommendation:** Add a regression test that validates the cap in an isolated process before any other rayon consumer can initialise the global pool. If direct global-pool testing is too fragile for unit tests, factor the cap calculation into a small pure helper and test that helper, then add one integration or subprocess smoke test for `init_global` applying it...
 - **Evidence:** `crates/anvil-rayon-init/src/lib.rs:61` (`init_global`), `crates/anvil-rayon-init/src/lib.rs:93` (`tests::init_global_is_idempotent`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
