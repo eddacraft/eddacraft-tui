@@ -1,7 +1,6 @@
 use anvil_kernel_types::Visibility;
 
-use crate::graph::SymbolGraph;
-use crate::graph::incremental::GraphDelta;
+use crate::graph::{GraphDelta, SymbolGraph};
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::{Invariant, Severity, Violation};
 
@@ -26,7 +25,10 @@ impl Invariant for PublicApiExpansion {
             let Some(sym) = graph.get_symbol(sym_id) else {
                 continue;
             };
-            if sym.visibility == Visibility::Public && !delta.previously_public.contains(&sym.name)
+            if sym.visibility == Visibility::Public
+                && !delta
+                    .previously_public
+                    .contains(&GraphDelta::symbol_baseline_key(sym))
             {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
@@ -106,12 +108,12 @@ mod tests {
     #[test]
     fn does_not_fire_on_previously_public_symbol() {
         let mut graph = SymbolGraph::new();
-        graph
-            .add_symbol(make_sym(1, "greet", "src/api.ts", Visibility::Public))
-            .unwrap();
+        let existing = make_sym(1, "greet", "src/api.ts", Visibility::Public);
 
         let mut previously_public = std::collections::HashSet::new();
-        previously_public.insert("greet".to_string());
+        previously_public.insert(GraphDelta::symbol_baseline_key(&existing));
+
+        graph.add_symbol(existing).unwrap();
 
         let delta = GraphDelta {
             added_symbols: vec![1],

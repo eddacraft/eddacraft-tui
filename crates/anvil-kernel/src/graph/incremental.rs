@@ -16,14 +16,18 @@ pub struct GraphDelta {
     pub errors: Vec<String>,
     /// Import sources that existed before this update (for new-dep detection).
     pub previously_imported: HashSet<String>,
-    /// Symbol names that were already public before this update (for API-expansion detection).
+    /// Symbol identities that were already public before this update (for API-expansion detection).
     pub previously_public: HashSet<String>,
-    /// Symbol names that were already privileged before this update (for privilege-expansion detection).
+    /// Symbol identities that were already privileged before this update (for privilege-expansion detection).
     pub previously_privileged: HashSet<String>,
     pub file: String,
 }
 
 impl GraphDelta {
+    pub fn symbol_baseline_key(symbol: &SymbolNode) -> String {
+        format!("{}::{:?}::{}", symbol.file, symbol.kind, symbol.name)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.added_symbols.is_empty()
             && self.removed_symbols.is_empty()
@@ -58,13 +62,13 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         .iter()
         .filter_map(|&id| graph.get_symbol(id))
         .filter(|s| s.visibility == Visibility::Public)
-        .map(|s| s.name.clone())
+        .map(GraphDelta::symbol_baseline_key)
         .collect();
     let previously_privileged: HashSet<String> = old_ids
         .iter()
         .filter_map(|&id| graph.get_symbol(id))
         .filter(|s| s.trust_level == TrustLevel::Privileged)
-        .map(|s| s.name.clone())
+        .map(GraphDelta::symbol_baseline_key)
         .collect();
 
     let removed_ids = graph.remove_file(&file);

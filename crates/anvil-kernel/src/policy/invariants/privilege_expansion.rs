@@ -1,7 +1,6 @@
 use anvil_kernel_types::TrustLevel;
 
-use crate::graph::SymbolGraph;
-use crate::graph::incremental::GraphDelta;
+use crate::graph::{GraphDelta, SymbolGraph};
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::{Invariant, Severity, Violation};
 
@@ -27,7 +26,9 @@ impl Invariant for PrivilegeExpansion {
                 continue;
             };
             if sym.trust_level == TrustLevel::Privileged
-                && !delta.previously_privileged.contains(&sym.name)
+                && !delta
+                    .previously_privileged
+                    .contains(&GraphDelta::symbol_baseline_key(sym))
             {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
@@ -116,17 +117,12 @@ mod tests {
     #[test]
     fn does_not_fire_on_previously_privileged_symbol() {
         let mut graph = SymbolGraph::new();
-        graph
-            .add_symbol(make_sym(
-                1,
-                "deleteFiles",
-                "src/cleanup.ts",
-                TrustLevel::Privileged,
-            ))
-            .unwrap();
+        let existing = make_sym(1, "deleteFiles", "src/cleanup.ts", TrustLevel::Privileged);
 
         let mut previously_privileged = std::collections::HashSet::new();
-        previously_privileged.insert("deleteFiles".to_string());
+        previously_privileged.insert(GraphDelta::symbol_baseline_key(&existing));
+
+        graph.add_symbol(existing).unwrap();
 
         let delta = GraphDelta {
             added_symbols: vec![1],

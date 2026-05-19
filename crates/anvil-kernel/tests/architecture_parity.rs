@@ -599,18 +599,18 @@ fn previously_public_symbol_suppressed() {
     let config = layered_config();
     let mut graph = SymbolGraph::new();
 
-    graph
-        .add_symbol(sym(
-            80,
-            "existingExport",
-            "src/app/service.ts",
-            Visibility::Public,
-            TrustLevel::Internal,
-        ))
-        .unwrap();
+    let existing = sym(
+        80,
+        "existingExport",
+        "src/app/service.ts",
+        Visibility::Public,
+        TrustLevel::Internal,
+    );
 
     let mut previously_public = HashSet::new();
-    previously_public.insert("existingExport".to_string());
+    previously_public.insert(GraphDelta::symbol_baseline_key(&existing));
+
+    graph.add_symbol(existing).unwrap();
 
     let delta = GraphDelta {
         added_symbols: vec![80],
@@ -636,18 +636,18 @@ fn previously_privileged_symbol_suppressed() {
     let config = layered_config();
     let mut graph = SymbolGraph::new();
 
-    graph
-        .add_symbol(sym(
-            81,
-            "existingPriv",
-            "src/infra/legacy.ts",
-            Visibility::Internal,
-            TrustLevel::Privileged,
-        ))
-        .unwrap();
+    let existing = sym(
+        81,
+        "existingPriv",
+        "src/infra/legacy.ts",
+        Visibility::Internal,
+        TrustLevel::Privileged,
+    );
 
     let mut previously_privileged = HashSet::new();
-    previously_privileged.insert("existingPriv".to_string());
+    previously_privileged.insert(GraphDelta::symbol_baseline_key(&existing));
+
+    graph.add_symbol(existing).unwrap();
 
     let delta = GraphDelta {
         added_symbols: vec![81],
@@ -673,16 +673,13 @@ fn baseline_suppresses_known_but_flags_new() {
     let config = layered_config();
     let mut graph = SymbolGraph::new();
 
-    // Known public symbol
-    graph
-        .add_symbol(sym(
-            82,
-            "knownExport",
-            "src/app/service.ts",
-            Visibility::Public,
-            TrustLevel::Internal,
-        ))
-        .unwrap();
+    let known = sym(
+        82,
+        "knownExport",
+        "src/app/service.ts",
+        Visibility::Public,
+        TrustLevel::Internal,
+    );
     // New public symbol
     graph
         .add_symbol(sym(
@@ -695,7 +692,9 @@ fn baseline_suppresses_known_but_flags_new() {
         .unwrap();
 
     let mut previously_public = HashSet::new();
-    previously_public.insert("knownExport".to_string());
+    previously_public.insert(GraphDelta::symbol_baseline_key(&known));
+
+    graph.add_symbol(known).unwrap();
 
     let delta = GraphDelta {
         added_symbols: vec![82, 83],
@@ -713,6 +712,98 @@ fn baseline_suppresses_known_but_flags_new() {
         .collect();
     assert_eq!(api_violations.len(), 1);
     assert_eq!(api_violations[0].symbol, "brandNewExport");
+}
+
+/// Same-name public symbols in different files are distinct baseline entries.
+#[test]
+fn same_name_different_file_public_symbol_still_flags_new_export() {
+    let config = layered_config();
+    let mut graph = SymbolGraph::new();
+
+    let known = sym(
+        84,
+        "sharedName",
+        "src/app/legacy.ts",
+        Visibility::Public,
+        TrustLevel::Internal,
+    );
+    graph.add_symbol(known.clone()).unwrap();
+    graph
+        .add_symbol(sym(
+            85,
+            "sharedName",
+            "src/app/new.ts",
+            Visibility::Public,
+            TrustLevel::Internal,
+        ))
+        .unwrap();
+
+    let mut previously_public = HashSet::new();
+    previously_public.insert(GraphDelta::symbol_baseline_key(&known));
+
+    let delta = GraphDelta {
+        added_symbols: vec![85],
+        file: "src/app/new.ts".to_string(),
+        previously_public,
+        ..Default::default()
+    };
+
+    let mut engine = build_engine();
+    let violations = engine.evaluate(&delta, &graph, &config);
+
+    let api_violations: Vec<_> = violations
+        .iter()
+        .filter(|v| v.policy_id == "public-api-expansion")
+        .collect();
+    assert_eq!(api_violations.len(), 1);
+    assert_eq!(api_violations[0].file, "src/app/new.ts");
+    assert_eq!(api_violations[0].symbol, "sharedName");
+}
+
+/// Same-name privileged symbols in different files are distinct baseline entries.
+#[test]
+fn same_name_different_file_privileged_symbol_still_flags_new_access() {
+    let config = layered_config();
+    let mut graph = SymbolGraph::new();
+
+    let known = sym(
+        86,
+        "sharedPrivilegedName",
+        "src/infra/legacy.ts",
+        Visibility::Internal,
+        TrustLevel::Privileged,
+    );
+    graph.add_symbol(known.clone()).unwrap();
+    graph
+        .add_symbol(sym(
+            87,
+            "sharedPrivilegedName",
+            "src/infra/new.ts",
+            Visibility::Internal,
+            TrustLevel::Privileged,
+        ))
+        .unwrap();
+
+    let mut previously_privileged = HashSet::new();
+    previously_privileged.insert(GraphDelta::symbol_baseline_key(&known));
+
+    let delta = GraphDelta {
+        added_symbols: vec![87],
+        file: "src/infra/new.ts".to_string(),
+        previously_privileged,
+        ..Default::default()
+    };
+
+    let mut engine = build_engine();
+    let violations = engine.evaluate(&delta, &graph, &config);
+
+    let priv_violations: Vec<_> = violations
+        .iter()
+        .filter(|v| v.policy_id == "privilege-expansion")
+        .collect();
+    assert_eq!(priv_violations.len(), 1);
+    assert_eq!(priv_violations[0].file, "src/infra/new.ts");
+    assert_eq!(priv_violations[0].symbol, "sharedPrivilegedName");
 }
 
 // ── Layer boundary edge cases ───────────────────────────────────────
