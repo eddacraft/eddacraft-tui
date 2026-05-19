@@ -27,11 +27,15 @@
 //! The path-based steps stay ahead of the embedded fallback so monorepo
 //! development still picks up live `patterns:compile` output and so
 //! `ANVIL_REGISTRY_PATH` keeps working as an escape hatch for custom
-//! rule packs. The loader only surfaces an empty-with-warning result
-//! when an explicit / env-var path was supplied but failed to load —
-//! a missing override is a configuration bug worth flagging, but a
-//! stock install with no override falls through silently to the
-//! embedded catalogue.
+//! rule packs. The loader only returns an empty (`registry: None`)
+//! result when an explicit / env-var path successfully resolves but
+//! parsing or schema validation fails — that case is a real corruption
+//! signal the napi binding turns into a `GenericFailure`. A *missing*
+//! override is a configuration bug worth flagging, so the loader emits
+//! a warning, but it still falls back to the embedded catalogue so the
+//! scanner stays functional rather than silently disabling enforcement.
+//! A stock install with no override falls through silently (no warning)
+//! to the embedded catalogue.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -570,13 +574,12 @@ mod tests {
         let result = load_compiled_registry(&LoadRegistryOptions {
             registry_path: Some(PathBuf::from("/nonexistent/registry.json")),
         });
+        let registry = result
+            .registry
+            .as_ref()
+            .expect("embedded fallback must load even when override is missing");
         assert!(
-            result.registry.is_some(),
-            "embedded fallback must load even when override is missing; warnings={:?}",
-            result.warnings
-        );
-        assert!(
-            !result.registry.unwrap().patterns.is_empty(),
+            !registry.patterns.is_empty(),
             "embedded fallback must carry a non-empty pattern set"
         );
         assert!(
