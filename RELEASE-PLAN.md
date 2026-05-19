@@ -1,14 +1,19 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-18 (docs-phase reconciliation: **N4 closed 6/6** — adoption runbook (`docs/runbooks/anvil-adoption.md`), `v0.6.x → v0.7.0-beta` migration note (`docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md`), and `anvil-run` manpage (`docs/runbooks/anvil-run.md`) filed 2026-05-18 alongside the live air-gap, hooks-integration, and witness-chain operator runbooks; all six lanes closed for the v0.7.0-beta tag gate. Third-pass freight: CIB-005 + CIB-007 joined the sit-on bundle after an abandoned v0.6.4-beta hotfix attempt against `v0.6.3-beta`; tracking issue #1694 closed. Prior 2026-05-17 review covered structural claim split + freight); base `v0.6.3-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-19 (final release-plan/index sweep: ADOPT reconciled to 6/6 Merged, MLP2 reconciled to 60/76 after MLP2-068, WOUT added to release freight, Draft/Blocked items explicitly deferred). Prior 2026-05-18 review closed N4 docs lanes and added CIB-005 + CIB-007 as sit-on freight after the abandoned v0.6.4-beta hotfix attempt; base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.3-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-18 (docs-phase reconciliation records **N4 closed
+**Last updated:** 2026-05-19 (final release-plan/index sweep reconciles ADOPT to
+6/6 Merged via PR #1700, MLP2 to 60/76 after MLP2-068, WOUT to the freight
+bundle, and explicitly defers remaining Draft/Blocked candidate-intent items
+that are not needed for the daemon-working tag-time claim.)
+
+Previous update: 2026-05-18 (docs-phase reconciliation records **N4 closed
 6/6**: `docs/runbooks/anvil-air-gapped.md`,
 `docs/runbooks/anvil-hook-coexistence.md`,
 `docs/runbooks/anvil-witness-chain.md`, `docs/runbooks/anvil-adoption.md`,
@@ -30,9 +35,8 @@ into an umbrella + five sub-tasks (-051a..-051e); the cut-line picks up **-051a
 driver-client mirror) + -051e (cross-surface parity test)** — the three Ready
 render-surface items plus the parity test that closes the HARD-GATE once they
 land. **MLP2-051d** (GH Action check render) remains Blocked on the Marketplace
-publishing track (MLP2-042/-043) and stays deferred. MLP2 counter 50/76 after
-MLP2-016 advanced post-`0aacdac8` plus the Group N/O filings and the -051
-respec.)
+publishing track (MLP2-042/-043) and stays deferred. Current final-sweep MLP2
+counter is 60/76 after MLP2-068 reconciliation.)
 
 **Second-pass freight (2026-05-17):** seven additional items added as release
 freight after a fresh-cut review without inherited "previously deferred"
@@ -47,7 +51,8 @@ merit:
   (Ready, INTD-007 already provides the IPC verb).
 - **DISTRIB-003** — Homebrew Formula Automation (`releaseIntent: candidate`).
   Hands-free `brew upgrade anvil`.
-- **MLP2-068** — `git cat-file --batch` perf follow-on to MLP2-016.
+- **MLP2-068** — `git cat-file --batch` perf follow-on to MLP2-016; merged via
+  `d54a5f86` and included as release freight.
 - **MLP2-069** — `EngineUnavailableReason::IoError` variant — clearer operator
   errors when `TempDir`/disk-full collapses onto the wrong reason.
 - **ADOPT-004** — Complete Local-Noise Ignore Policy across every surface
@@ -55,6 +60,9 @@ merit:
   `anvil-run` / `baseline`).
 - **OPSUP-006** — File-presence guards and wall-time caps. Defensive guards
   against absent files and runaway checks.
+- **WOUT** — stable `anvil --json watch` NDJSON contract for downstream
+  consumers; WOUT-001..006 are Merged and ride as developer-facing release
+  freight.
 
 **Third-pass freight (2026-05-18):** two additional MCP-shim friction fixes
 joining the bundle after a hotfix-cut attempt against `v0.6.3-beta` was
@@ -155,13 +163,13 @@ the install-path the release exists to enable).
 | Pick | Module                                                              | Status      | Progress | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ---- | ------------------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | N1   | [`MLP`](./plans/archive/modules/multilayer-protection.aps.md)       | Complete    | 18/18    | Multi-layer protection v1 primitives: project identity, witness chain, hooks, L4 policy, baseline, audit, attribution, workflow template, and protection-claim vocabulary. MLP-018 closed by splitting follow-up integration work into MLP2.                                                                                                                                                                                                                                                                                                                  |
-| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 58/76    | Active follow-up integration module from the MLP-018 split plus Council hardening. Groups B, F, H, K, L, M all Complete. MLP2-025 split into -025/-025b/-025c during implementation; MLP2-051 split into an umbrella + -051a..-051e per the 2026-05-17 respec; Group N (MLP2-067 daemon graph cache) + Group O (MLP2-068..-069 audit follow-ons) filed 2026-05-16/17 as future work. It is part of the current protection claim only at the cut-line named below; 76/76 is not required for `v0.7.0-beta`.                                                    |
+| N1b  | [`MLP2`](./plans/modules/multilayer-protection-v2.aps.md)           | In Progress | 60/76    | Active follow-up integration module from the MLP-018 split plus Council hardening. Groups B, F, H, K, L, M all Complete; Group O is 1/2 after MLP2-068 merged as release freight. MLP2-025 split into -025/-025b/-025c during implementation; MLP2-051 split into an umbrella + -051a..-051e per the 2026-05-17 respec. MLP2-067 and MLP2-069 remain future work. It is part of the current protection claim only at the cut-line named below; 76/76 is not required for `v0.7.0-beta`.                                                                       |
 | N2   | [`INTL`](./plans/modules/intercept-launcher.aps.md)                 | Done        | 9/9 done | `anvil-run` launcher, session registration, process-group control, shell wrappers, side-channel register. Shipped via PR #1528 (merged 2026-05-14 at `5d38e546`); narratively **Merged**, advances to Released/Shipped → Complete on `v0.7.0-beta` release evidence.                                                                                                                                                                                                                                                                                          |
 | N3   | Carry-forward gates                                                 | Confirmed   | 6/6      | ADR-036..039 Accepted (2026-05-13); project-id, noise-discipline policy, AIGUARD envelope, INTR-004 promoted, DRVR forward-compat — all hold. G5 closed 2026-05-13 when INTR-004 (path-deny rule) was promoted Draft → Ready in `intercept-rules.aps.md`.                                                                                                                                                                                                                                                                                                     |
 | N4   | Documentation lanes                                                 | —           | 6/6      | **Done 2026-05-18.** All six runbooks live: air-gap (`docs/runbooks/anvil-air-gapped.md`), hooks-integration (`docs/runbooks/anvil-hook-coexistence.md`), witness-chain operator (`docs/runbooks/anvil-witness-chain.md`), adoption (`docs/runbooks/anvil-adoption.md`), `v0.6.x → v0.7.0-beta` migration (`docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md`), and `anvil-run` (INTL) manpage (`docs/runbooks/anvil-run.md`). Owner: @aneki. Status column is `—` because these are not APS modules — see Wave 0 outcome row for the actual ownership scope. |
 | N5   | [`WATCHUX`](./plans/archive/modules/watch-ux-advisory-rules.aps.md) | Complete    | 8/8 done | Beta incident remediation and first-run/watch UX. WATCHUX-001..-004 merged via PR #1497; -005..-007 via PR #1524; -008 on `feat/watchux-008-config-cache`. Rode `v0.6.3-beta`. Module archived.                                                                                                                                                                                                                                                                                                                                                               |
 | N6   | [`ADTRUST`](./plans/archive/modules/adoption-trust-surface.aps.md)  | Complete    | 6/6      | Adoption Trust Surface — all six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537); module archived. Cross-crate wire-ups for -002 (watch TUI + hook bridge) and -004 (anvil-hook + kernel embedded fallback) tracked under MLP2 group J.                                                                                                                                                                                                                                                                                                     |
-| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | In Progress | 5/6      | Adoption Friction Removal: **ADOPT-001 hook coexistence Done**, **ADOPT-002 resource budget Done**, **ADOPT-004 shared ignore policy Merged via PR #1658**, **ADOPT-005 clean uninstall Released/Shipped via PR #1521** (rode `v0.6.3-beta`), **ADOPT-006 editor coexistence Merged via PR #1682**; **ADOPT-003 AI auto-detect remains In Progress**. Wave 3A.                                                                                                                                                                                                |
+| N7   | [`ADOPT`](./plans/modules/adoption-friction.aps.md)                 | Merged      | 6/6      | Adoption Friction Removal: **ADOPT-001 hook coexistence Done**, **ADOPT-002 resource budget Done**, **ADOPT-003 AI auto-detect Merged via PR #1700**, **ADOPT-004 shared ignore policy Merged via PR #1658**, **ADOPT-005 clean uninstall Released/Shipped via PR #1521** (rode `v0.6.3-beta`), and **ADOPT-006 editor coexistence Merged via PR #1682**. Cleanup agent advances Merged → Released/Shipped → Complete when v0.7.0-beta release evidence lands. Wave 3A.                                                                                       |
 | N8   | [`DISTRIB`](./plans/modules/distribution-and-update.aps.md)         | In Progress | 4/5      | Distribution & Self-Update: DISTRIB-001 signature verification, DISTRIB-002 version check, and DISTRIB-003 Homebrew formula automation are Merged; DISTRIB-004 cadence policy is Done; `anvil migrate` remains. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A.                                                                                                                                                                                                                                             |
 | N9   | [`INSIGHTS`](./plans/modules/usage-insights.aps.md)                 | In Progress | 1/4      | Usage Insights: INSIGHTS-001 `anvil insights` weekly summary is Done; suppression health, drift trend, and first-week adoption hint remain. Local-only, no telemetry. Wave 4.                                                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -194,10 +202,10 @@ and operator-recovery additions named below:
   `anvil intercept unblock --acknowledge-cascade` clear path. Contract spec
   Accepted via PR #1617; partial implementation landed on main. Without it,
   fence cascade reaches a refused state with no operator-clear verb.
-- **ADOPT-003** (High, sit-on adoption leverage) — AI Tool Auto-Detect primitive
-  landed; CLI wiring in `start.rs` and the `anvil-run` half remain. Without it,
-  Boring Week testers manually wire Anvil into each AI tool, distorting the
-  friction signal the test exists to read.
+- **ADOPT-003** (High, sit-on adoption leverage) — AI Tool Auto-Detect
+  primitive, CLI wiring in `start.rs`, and the `anvil-run` cache consumer all
+  merged via PR #1700. Boring Week testers no longer have to manually wire each
+  AI tool just to produce a fair friction signal.
 - **MLP2-051a + MLP2-051b + MLP2-051c + MLP2-051e** (Critical, HARD-GATE close)
   — protection-claim conformance pass across `anvil doctor`, MCP shim, and TS
   driver-client, plus the cross-surface parity test that closes the gate once
@@ -237,15 +245,15 @@ real sit-on quality regardless of theme.
   `brew upgrade anvil` actually updates without manual maintainer action. For a
   "sit-on for a month" claim, the dominant macOS install path needs hands-free
   update delivery. Three new files: workflow + script + runbook.
-- **MLP2-068** (Draft, High) — Replace per-blob `git show` spawns in
+- **MLP2-068** (Merged, High) — Replace per-blob `git show` spawns in
   `CommitAntipatternEngine` with a single `git cat-file --batch` pipe per
   `validate_commit` call. Direct perf follow-on to MLP2-016, which just bound
   the real antipattern engine into production. Filed 2026-05-17 in Group O after
   the audit.
-- **MLP2-069** (Draft, High) — Add `EngineUnavailableReason::IoError` variant to
-  `anvil-l4`. Today `TempDir` / disk-full / blob-write failures collapse onto
-  `BinaryMissing`, which misleads operators. Operator-error clarity follow-on to
-  MLP2-016. Group O sibling.
+- **MLP2-069** (Draft, High; deferred) — Add `EngineUnavailableReason::IoError`
+  variant to `anvil-l4`. Today `TempDir` / disk-full / blob-write failures
+  collapse onto `BinaryMissing`, which misleads operators. Operator-error
+  clarity follow-on to MLP2-016. Group O sibling.
 - **ADOPT-004** (Draft) — Complete Local-Noise Ignore Policy Across All
   Surfaces. WATCHUX-002 established the shared ignore list in
   `anvil-cli/src/util.rs`; this extends it across `watch`, `audit`, `hooks`,
@@ -253,16 +261,20 @@ real sit-on quality regardless of theme.
   pattern, low-risk extension. Operators routinely hit noise from `.claude` /
   `.opencode` / `.gemini` / `.worktrees` / common cache dirs during Boring Week.
   Surface-by-surface conformance tests added.
-- **OPSUP-006** (Draft) — File-presence guards and wall-time caps. Reusable
+- **OPSUP-006** (Complete) — File-presence guards and wall-time caps. Reusable
   check guards and runtime budgets so absent files do not break the run and
   runaway checks cannot exceed their wall-time budget. Operationally defensive —
   exactly the kind of footgun that surfaces during a real-use observation
   window. Self-contained kernel-internal helpers; no wire-shape change.
 
-These seven items are bundled as **freight on the tag**, not as part of the
+These items are bundled as **freight on the tag**, not as part of the
 daemon-working release claim. The release notes should describe them under a
 "Sit-on quality improvements" section rather than under the protection-surface
 claim, so the claim's verifiability stays clean.
+
+**Additional developer-facing freight:** WOUT-001..006 are Merged and should be
+included in the release notes as a stable `anvil --json watch` NDJSON contract
+for downstream consumers.
 
 **Deferred or out-of-scope for this cut:**
 
@@ -276,6 +288,9 @@ claim, so the claim's verifiability stays clean.
   (Group A MLP2-004/-005/-007/-008), **cross-platform attribution** (Group E
   MLP2-027/-028), and **audit-chain rescoring** follow-ons are deferred unless
   Boring Week exercises those surfaces.
+- **MLP2-069**, **DISTRIB-005**, and **INSIGHTS-002..004** are explicitly
+  deferred from the tag-time claim. They retain candidate intent in their APS
+  modules, but their current Draft state does not block `v0.7.0-beta`.
 
 **Tag-time hygiene** (mechanical but tag-blocking):
 
@@ -412,19 +427,19 @@ Parallel-safe with Wave 3 and 3B. No shared single-point-of-failure inside the
 wave. ADOPT-004 waits for WATCHUX-002 (shared ignore helper, already in flight);
 the rest are independent.
 
-| Work          | Parallel?           | Status   | Notes                                                                                                                                     |
-| ------------- | ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADOPT-001`   | Parallel            | **Done** | Hook coexistence with lefthook / husky / pre-commit-framework — shipped 2026-05-15. Runbook at `docs/runbooks/anvil-hook-coexistence.md`. |
-| `ADOPT-002`   | Parallel            | Draft    | Resource budget — CPU/RSS measurement and CI ceiling in `crates/anvil-bench`.                                                             |
-| `ADOPT-003`   | Parallel            | Draft    | AI tool auto-detect (Claude Code, Cursor, Aider, Windsurf, Codex).                                                                        |
-| `ADOPT-004`   | After WATCHUX-002   | Draft    | Complete the local-noise ignore policy across watch, audit, hooks, `anvil-run`.                                                           |
-| `ADOPT-005`   | —                   | **Done** | `anvil uninstall` shipped 2026-05-14 via PR #1521; rode `v0.6.3-beta`.                                                                    |
-| `ADOPT-006`   | Parallel            | Draft    | Editor surface coexistence matrix.                                                                                                        |
-| `DISTRIB-001` | First (sig scheme)  | **Done** | Minisign verification + ADR-045 — Merged via PR #1562.                                                                                    |
-| `DISTRIB-002` | After `DISTRIB-001` | **Done** | `anvil version --check` advisory surface + watch/status hint — Merged via PR #1569.                                                       |
-| `DISTRIB-003` | Parallel            | Draft    | Homebrew formula auto-bump on release.                                                                                                    |
-| `DISTRIB-004` | Parallel            | **Done** | `docs/policies/release-cadence.md` + EOL policy.                                                                                          |
-| `DISTRIB-005` | After `DISTRIB-002` | Draft    | `anvil migrate` for cross-version config reconciliation.                                                                                  |
+| Work          | Parallel?           | Status     | Notes                                                                                                                                     |
+| ------------- | ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADOPT-001`   | Parallel            | **Done**   | Hook coexistence with lefthook / husky / pre-commit-framework — shipped 2026-05-15. Runbook at `docs/runbooks/anvil-hook-coexistence.md`. |
+| `ADOPT-002`   | Parallel            | **Done**   | Resource budget — CPU/RSS measurement and CI ceiling in `crates/anvil-bench`.                                                             |
+| `ADOPT-003`   | Parallel            | **Merged** | AI tool auto-detect (Claude Code, Cursor, Aider, Windsurf, Codex) via PR #1700.                                                           |
+| `ADOPT-004`   | After WATCHUX-002   | **Merged** | Complete the local-noise ignore policy across watch, audit, hooks, `anvil-run` via PR #1658.                                              |
+| `ADOPT-005`   | —                   | **Done**   | `anvil uninstall` shipped 2026-05-14 via PR #1521; rode `v0.6.3-beta`.                                                                    |
+| `ADOPT-006`   | Parallel            | **Merged** | Editor surface coexistence matrix via PR #1682.                                                                                           |
+| `DISTRIB-001` | First (sig scheme)  | **Done**   | Minisign verification + ADR-045 — Merged via PR #1562.                                                                                    |
+| `DISTRIB-002` | After `DISTRIB-001` | **Done**   | `anvil version --check` advisory surface + watch/status hint — Merged via PR #1569.                                                       |
+| `DISTRIB-003` | Parallel            | **Merged** | Homebrew formula auto-bump on release via PR #1652.                                                                                       |
+| `DISTRIB-004` | Parallel            | **Done**   | `docs/policies/release-cadence.md` + EOL policy.                                                                                          |
+| `DISTRIB-005` | After `DISTRIB-002` | Draft      | `anvil migrate` for cross-version config reconciliation.                                                                                  |
 
 ### Wave 3B: Trust Surface — Shipped 2026-05-14
 
@@ -460,17 +475,19 @@ Do not tag until these are green and reflected in release evidence.
 
 ### Wave 5: Boring Week Validation Gate
 
-**Pre-tag gate.** No amount of test fixture coverage proves "ready to use." The
-only proof is using it.
+**Post-tag sit-on graduation gate.** No amount of test fixture coverage proves
+"ready to use." The only proof is using it. The `v0.7.0-beta` tag may be cut
+once the tag-time daemon-working claim is satisfied; Boring Week graduates the
+separate sit-on claim after signed binaries and real install paths exist.
 
 **Entry criteria — which work must be green before Wave 5 can start:**
 
-| Wave                          | Required for entry                                                                                                                                                                                                 | Rationale                                                                                                                                                                                                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wave 3 (Coordination + INTL)  | `MLP-014` + `INTL-001..-005` only                                                                                                                                                                                  | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
-| Wave 3A (Adoption Friction)   | All six ADOPT items + DISTRIB-001..-003                                                                                                                                                                            | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking.                                                                                                                                                                                                                                    |
-| Wave 3B (Trust Surface)       | All six ADTRUST items                                                                                                                                                                                              | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
-| Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (v1 primitives), MLP2 cut-line (`MLP2-011`, `MLP2-013`, `MLP2-014`, `MLP2-016`, `MLP2-048`, `MLP2-061`, `MLP2-062`), INSIGHTS-001 + -004, documentation lanes, release runbook | INSIGHTS-002 / -003 (suppression health, drift sparkline) are not Boring-Week-blocking; deferred MLP2 surfaces must be named honestly in release notes.                                                                                                                                                                      |
+| Wave                          | Required for entry                                                                                                                                                                                          | Rationale                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wave 3 (Coordination + INTL)  | `MLP-014` + `INTL-001..-005` only                                                                                                                                                                           | INTL-001..-005 deliver the wrapped-launch ingress that the protection-claim render path depends on. INTL-006..-009 (shell wrappers, side-channel registration, blocked-launch UX, heartbeat) are sequenced for the same release but can defer to `v0.7.1` per the Risks table — they refine UX rather than enable the claim. |
+| Wave 3A (Adoption Friction)   | All six ADOPT items + DISTRIB-001..-003                                                                                                                                                                     | DISTRIB-004 (cadence doc) and DISTRIB-005 (`anvil migrate`) are not Boring-Week-blocking.                                                                                                                                                                                                                                    |
+| Wave 3B (Trust Surface)       | All six ADTRUST items                                                                                                                                                                                       | All are load-bearing for the legibility gate.                                                                                                                                                                                                                                                                                |
+| Wave 4 (Release-Gate Closure) | MLP-004 / -009 / -010 / -015 / -016 (v1 primitives), MLP2 cut-line (`MLP2-011`, `MLP2-013`, `MLP2-014`, `MLP2-016`, `MLP2-048`, `MLP2-061`, `MLP2-062`), INSIGHTS-001, documentation lanes, release runbook | INSIGHTS-002 / -003 / -004 are not Boring-Week-blocking; deferred MLP2 surfaces must be named honestly in release notes.                                                                                                                                                                                                     |
 
 If any Wave 3 INTL item from the deferrable set (-006..-009) is _not_ green at
 freeze time, it must be explicitly listed as deferred-to-v0.7.1 in the release
@@ -504,9 +521,10 @@ trust test. The instrument is the journal, not a benchmark.
 
 ## Cut Criteria For `v0.7.0-beta`
 
-`v0.7.0-beta` is cuttable only when the release evidence supports the public
-claim ("Anvil is ready to live on a senior engineer's machine for a month
-without being uninstalled") without caveats.
+`v0.7.0-beta` is cuttable when the release evidence supports the tag-time
+daemon-working claim without caveats. The stronger sit-on claim ("Anvil is ready
+to live on a senior engineer's machine for a month without being uninstalled")
+graduates only after post-tag Boring Week evidence.
 
 | Criterion                    | Required Evidence                                                                                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -523,11 +541,11 @@ without being uninstalled") without caveats.
 | Air-gapped guarantee         | Core commands pass under a network-blocked sandbox.                                                                                                                       |
 | Release machinery            | `scripts/release/*` can assess, prepare, tag, monitor, verify, and close out the exact `main` SHA being released.                                                         |
 | Docs/runbooks                | User-facing docs and runbooks match the shipped claim; no protection state is described more strongly than evidence.                                                      |
-| Boring Week                  | Wave 5 protocol completed; no cut blockers raised.                                                                                                                        |
+| Boring Week                  | Post-tag sit-on graduation evidence; not a tag-time blocker for the daemon-working claim.                                                                                 |
 
-**Anti-goal:** do not ship a partial MLP/INTL/ADTRUST/ADOPT slice under the full
-"let's use this" claim. If scope must be cut, rename the release claim before
-tagging.
+**Anti-goal:** do not ship a partial MLP/INTL/ADTRUST/ADOPT slice under the
+daemon-working claim. If scope must be cut, rename the tag-time release claim
+before tagging.
 
 **Anti-goal:** do not bypass Wave 5 because the candidate looks good. The
 candidate always looks good. The Boring Week exists because looks-good and

@@ -3,17 +3,17 @@
 PR: <!-- filled when opened -->
 Branch: `feat/mlp2-068-cat-file-batch`
 APS: MLP2-068 (`plans/modules/multilayer-protection-v2.aps.md`)
-Merged: <!-- filled by cleanup agent -->
+Merged: `d54a5f86` (reconciled 2026-05-19)
 Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance MLP2-068 status `In Progress` → `Merged` in
+- [x] Advance MLP2-068 status `In Progress` → `Merged` in
       `plans/modules/multilayer-protection-v2.aps.md` (agent: yes)
-- [ ] Update MLP2 module progress count in
-      `plans/modules/multilayer-protection-v2.aps.md` (52/76 → 53/76)
+- [x] Update MLP2 module progress count in
+      `plans/modules/multilayer-protection-v2.aps.md` (59/76 → 60/76)
       and in `plans/index.aps.md` (agent: yes)
-- [ ] Advance Group O count `0/2 → 1/2` in the Stats table (agent: yes)
+- [x] Advance Group O count `0/2 → 1/2` in the Stats table (agent: yes)
 
 ## Notes
 

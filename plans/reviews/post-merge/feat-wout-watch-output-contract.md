@@ -3,7 +3,7 @@
 PR: #1554
 Branch: `feat/wout-watch-output-contract`
 APS: WOUT
-Merged: <!-- filled by cleanup agent -->
+Merged: PR #1554 (reconciled 2026-05-19)
 Verified: <!-- filled by cleanup agent -->
 
 ## Steps

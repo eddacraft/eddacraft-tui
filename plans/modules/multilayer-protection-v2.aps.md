@@ -2,9 +2,14 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 59/76 done |
+| MLP2 | @aneki | In Progress | 60/76 done |
 
-**Last reviewed:** 2026-05-18 (MLP2-025 umbrella closed — Phase 1
+**Last reviewed:** 2026-05-19 (MLP2-068 advanced `In Progress` →
+`Merged` after implementation commit `d54a5f86`; Group O advances 0/2 →
+1/2 and module progress advances 59/76 → 60/76. MLP2-069 remains Draft and
+does not gate `v0.7.0-beta`.)
+
+Earlier 2026-05-18: MLP2-025 umbrella closed — Phase 1
 primitives shipped via PR #1597 on 2026-05-15; Phase 2 (-025b PR
 #1603) and Phase 3 (-025c PR #1608) had already shipped on
 2026-05-16, leaving the umbrella's status stale at `In Progress
@@ -3435,7 +3440,11 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-068: `git cat-file --batch` for `CommitAntipatternEngine` blob fetch
 
-- **Status:** In Progress
+- **Status:** Merged
+- **Merged:** 2026-05-19 reconciliation after implementation commit
+  `d54a5f86` (`feat(l4-engine): MLP2-068 batch git cat-file for commit
+  blobs`). Cleanup agent advances to Released/Shipped when `v0.7.0-beta`
+  release evidence lands.
 - **Intent:** `CommitAntipatternEngine::validate_commit` (shipped
   MLP2-016, PR #1627) reads each scannable file in a commit via a
   separate `git show <sha>:<path>` `Command::spawn`. At ~5–15 ms
@@ -3538,8 +3547,8 @@ to redesign once GV2-001..-023 land.
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
-| O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 0/2 |
-| **Total** | **76** | **58/76** |
+| O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
+| **Total** | **76** | **60/76** |
 
 ## Recommended landing order
 

@@ -2,9 +2,13 @@
 
 | ID   | Owner  | Status      | Progress |
 | ---- | ------ | ----------- | -------- |
-| WOUT | @aneki | Done        | 6/6      |
+| WOUT | @aneki | Merged      | 6/6      |
 
-**Last reviewed:** 2026-05-14
+**Last reviewed:** 2026-05-19 (final release sweep: PR #1554 is merged; WOUT
+rides `v0.7.0-beta` as developer-facing release freight and advances to
+Released/Shipped when release evidence lands.)
+
+Earlier 2026-05-14:
 
 **Execution authorisation:** operator `@aneki` authorised this module for
 implementation on 2026-05-14 via `/goal complete WOUT using /dev-workflow`.
