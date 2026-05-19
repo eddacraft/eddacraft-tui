@@ -275,20 +275,25 @@ impl ForegroundOpts {
     /// startup; tests construct a [`config::Resolved`] inline to drive
     /// specific cap / limit / mode values.
     ///
-    /// Wires three previously-inert builders in [`run_foreground`]:
+    /// Wires two previously-inert builders in [`run_foreground`]:
     ///
     /// * `SessionRegistry::with_per_worktree_cap` (MLP2-024 — reads
     ///   `enforcement.session.per_worktree_max`).
     /// * `IpcListener::with_limits` (INTD-016 — reads
     ///   `enforcement.dos.*`).
-    /// * `Fanout` / cross-session telemetry policy (INTD-015).
+    ///
+    /// `Fanout` / cross-session telemetry policy (INTD-015) is *not*
+    /// wired here — `run_foreground` does not construct a `Fanout` at
+    /// all today. That is a separate audit gap surfaced by the same
+    /// grep; wiring it requires `run_foreground` to grow a `Fanout`
+    /// call site first.
     ///
     /// The post-#1671 audit closed the gap where each of those
     /// builders had its definition + doc-comment claiming the daemon
     /// wires it up, but zero production callers. The regression suite
     /// in `crates/anvil-intercept/tests/daemon_config_wired.rs` pins
     /// the wire-up so a future refactor trips a test rather than
-    /// silently ressurecting the bug.
+    /// silently resurrecting the bug.
     #[must_use]
     pub fn with_enforcement_config(mut self, enforcement_config: config::Resolved) -> Self {
         self.enforcement_config = enforcement_config;

@@ -892,9 +892,12 @@ fn run_start(args: &StartArgs) -> Result<()> {
         // operator-visible `enforcement.dos.*` and
         // `enforcement.session.per_worktree_max` knobs actually reach
         // the listener and registry. Mirror of the same load in
-        // `crates/anvil-intercept/src/main.rs`. Read errors degrade
-        // to defaults with operator-visible stderr.
-        let enforcement_config = load_enforcement_config();
+        // `crates/anvil-intercept/src/main.rs`. Parse / IO failures
+        // are fatal per the `config::LoadError::{Parse, Io}`
+        // contract — silently degrading on a malformed config would
+        // recreate the same "operator wrote a knob, daemon ignored
+        // it" gap this PR exists to close.
+        let enforcement_config = load_enforcement_config()?;
         run_foreground(
             ForegroundOpts::default().with_enforcement_config(enforcement_config),
             token,
@@ -904,30 +907,29 @@ fn run_start(args: &StartArgs) -> Result<()> {
 }
 
 /// Mirror of `anvil-intercept/src/main.rs::load_enforcement_config`.
-/// Kept inline (rather than re-exported) because the diagnostic
-/// prefix differs ("anvil intercept" vs "anvil-intercept") and
-/// `eprintln!` is the only side-effect — duplication is cheaper
-/// than threading a prefix through a shared helper for two callers.
-fn load_enforcement_config() -> Resolved {
+/// Kept inline (rather than re-exported from `anvil_intercept`)
+/// because the stderr diagnostic prefix differs
+/// ("anvil intercept" vs "anvil-intercept") and the body is two
+/// lines after the prefix decision. See that file for the rationale
+/// behind treating parse / IO failures as fatal and CWD-resolution
+/// failure as the documented "no operator config" outcome.
+fn load_enforcement_config() -> Result<Resolved> {
     let cwd = match std::env::current_dir() {
         Ok(path) => path,
         Err(err) => {
             eprintln!(
-                "anvil intercept: cannot resolve CWD for config load ({err}); using defaults"
+                "anvil intercept: cannot resolve CWD for config lookup ({err}); \
+                 starting on daemon defaults"
             );
-            return Resolved::default();
+            return Ok(Resolved::default());
         }
     };
-    match Resolved::load(&cwd, None) {
-        Ok(resolved) => resolved,
-        Err(err) => {
-            eprintln!(
-                "anvil intercept: failed to load .anvil.yaml from {} ({err}); using defaults",
-                cwd.display()
-            );
-            Resolved::default()
-        }
-    }
+    Resolved::load(&cwd, None).with_context(|| {
+        format!(
+            "loading enforcement config from {}",
+            cwd.join(".anvil.yaml").display()
+        )
+    })
 }
 
 #[cfg(test)]

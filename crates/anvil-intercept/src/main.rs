@@ -17,7 +17,7 @@ use std::process::ExitCode;
 use anvil_intercept::{
     ForegroundOpts, Shutdown, config::Resolved, run_foreground, wait_for_shutdown_signal,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -87,11 +87,12 @@ fn main() -> ExitCode {
                 // `enforcement.session.per_worktree_max` knobs actually
                 // reach the listener and registry. Pre-fix the daemon
                 // always ran on `Resolved::default()` and silently
-                // ignored every YAML override. Read errors fall back to
-                // defaults with operator-visible diagnostics rather
-                // than aborting startup — a malformed config should
-                // not brick the daemon's recovery path.
-                let enforcement_config = load_enforcement_config();
+                // ignored every YAML override. Parse / IO failures are
+                // fatal per the `config::LoadError::{Parse, Io}`
+                // contract — silently degrading on a malformed config
+                // would recreate the same "operator wrote a knob,
+                // daemon ignored it" gap this PR exists to close.
+                let enforcement_config = load_enforcement_config()?;
                 run_foreground(
                     ForegroundOpts::default().with_enforcement_config(enforcement_config),
                     token,
@@ -110,33 +111,41 @@ fn main() -> ExitCode {
     }
 }
 
-/// Load the resolved enforcement config from `<cwd>/.anvil.yaml`,
-/// degrading to `Resolved::default()` if the file is missing,
-/// unreadable, or malformed. Operator visibility is via stderr —
-/// the daemon must not refuse to start because of a typo in YAML.
+/// Load the resolved enforcement config from `<cwd>/.anvil.yaml`.
 ///
+/// `Resolved::load` already treats `NotFound` as "no config" and
+/// returns `Ok(Resolved::default())` — a fresh workspace with no
+/// `.anvil.yaml` is fine. The error variants that DO surface are
+/// fatal per the [`config::LoadError`] contract:
+///
+/// * `LoadError::Parse` — malformed YAML. Silent fallback would
+///   mask operator typos and re-introduce the same
+///   "configured-but-ignored" bug class this PR closes.
+/// * `LoadError::Io` — non-`NotFound` IO error (permission denied,
+///   etc.). Also operator-actionable.
+///
+/// CWD-resolution failure is treated separately: it is an
+/// environment-level condition (some chroots / service managers)
+/// where there is no operator-supplied `.anvil.yaml` to honour in
+/// the first place, so falling back to defaults is not a silent
+/// override — it is the documented "no operator config" outcome.
 /// `user_config_path = None` until the daemon grows a dedicated
-/// user-config search (a follow-on item). A single project-style
-/// `.anvil.yaml` in the launch directory is the documented
-/// operator surface today.
-fn load_enforcement_config() -> Resolved {
+/// user-config search (separate item).
+fn load_enforcement_config() -> Result<Resolved> {
     let cwd = match std::env::current_dir() {
         Ok(path) => path,
         Err(err) => {
             eprintln!(
-                "anvil-intercept: cannot resolve CWD for config load ({err}); using defaults"
+                "anvil-intercept: cannot resolve CWD for config lookup ({err}); \
+                 starting on daemon defaults"
             );
-            return Resolved::default();
+            return Ok(Resolved::default());
         }
     };
-    match Resolved::load(&cwd, None) {
-        Ok(resolved) => resolved,
-        Err(err) => {
-            eprintln!(
-                "anvil-intercept: failed to load .anvil.yaml from {} ({err}); using defaults",
-                cwd.display()
-            );
-            Resolved::default()
-        }
-    }
+    Resolved::load(&cwd, None).with_context(|| {
+        format!(
+            "loading enforcement config from {}",
+            cwd.join(".anvil.yaml").display()
+        )
+    })
 }
