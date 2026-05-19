@@ -71,10 +71,22 @@ usage() {
 
 # ── Parse args ───────────────────────────────────────────────────────────
 
+require_value() {
+  # require_value <flag-name> <value-or-empty>
+  if [ -z "${2:-}" ] || [ "${2:0:2}" = "--" ]; then
+    c_err "$1 requires a value"
+    usage 4
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ref)     GIT_REF="$2"; shift 2 ;;
-    --scratch) SCRATCH_DIR="$2"; shift 2 ;;
+    --ref)
+      require_value "$1" "${2:-}"
+      GIT_REF="$2"; shift 2 ;;
+    --scratch)
+      require_value "$1" "${2:-}"
+      SCRATCH_DIR="$2"; shift 2 ;;
     --keep-prod-daemon) KEEP_PROD_DAEMON=true; shift ;;
     --restore) MODE="restore"; shift ;;
     --status)  MODE="status"; shift ;;
@@ -154,15 +166,27 @@ mode_restore() {
   if prod_daemon_running; then
     c_info "prod daemon already running"
   elif [ -x "$PROD_BINARY" ]; then
-    nohup "$PROD_BINARY" intercept start >/dev/null 2>&1 &
-    sleep 1
-    if prod_daemon_running; then
+    # `anvil intercept start` currently requires --foreground; nohup +
+    # background detaches it from this shell so the script can exit.
+    nohup "$PROD_BINARY" intercept start --foreground >/dev/null 2>&1 &
+    # Wait up to 5 s for the daemon to come up
+    local started=false
+    for _ in 1 2 3 4 5; do
+      if prod_daemon_running; then
+        started=true
+        break
+      fi
+      sleep 1
+    done
+    if [ "$started" = true ]; then
       c_ok "prod daemon started"
     else
-      c_warn "started but not detected after 1 s — check 'anvil intercept status'"
+      c_err "prod daemon did not start within 5 s — check 'anvil intercept status'"
+      exit 2
     fi
   else
-    c_warn "no prod binary at $PROD_BINARY; start the daemon manually"
+    c_err "no prod binary at $PROD_BINARY; cannot restart daemon"
+    exit 2
   fi
   exit 0
 }
@@ -210,10 +234,22 @@ mode_setup() {
   fi
 
   c_step "linking $binary → $SYMLINK_PATH"
-  mkdir -p "$(dirname "$SYMLINK_PATH")"
-  ln -sf "$binary" "$SYMLINK_PATH"
+  local symlink_dir
+  symlink_dir="$(dirname "$SYMLINK_PATH")"
+  if ! mkdir -p "$symlink_dir"; then
+    c_err "failed to create $symlink_dir (permission denied?)"
+    exit 3
+  fi
+  if [ -e "$SYMLINK_PATH" ] && [ ! -L "$SYMLINK_PATH" ]; then
+    c_err "$SYMLINK_PATH exists but is not a symlink — refusing to overwrite"
+    exit 3
+  fi
+  if ! ln -sf "$binary" "$SYMLINK_PATH"; then
+    c_err "failed to create symlink at $SYMLINK_PATH"
+    exit 3
+  fi
   if [ ! -L "$SYMLINK_PATH" ]; then
-    c_err "symlink not created"
+    c_err "symlink not created at $SYMLINK_PATH"
     exit 3
   fi
   c_ok "symlink ready"
