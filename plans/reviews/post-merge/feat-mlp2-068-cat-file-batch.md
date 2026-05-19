@@ -1,6 +1,6 @@
 # Post-merge: feat/mlp2-068-cat-file-batch
 
-PR: <!-- filled when opened -->
+PR: #1683
 Branch: `feat/mlp2-068-cat-file-batch`
 APS: MLP2-068 (`plans/modules/multilayer-protection-v2.aps.md`)
 Merged: `d54a5f86` (reconciled 2026-05-19)

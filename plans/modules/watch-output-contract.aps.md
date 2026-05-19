@@ -1,12 +1,13 @@
 # Watch Output Contract
 
-| ID   | Owner  | Status      | Progress |
-| ---- | ------ | ----------- | -------- |
-| WOUT | @aneki | Merged      | 6/6      |
+| ID   | Owner  | Status | Progress |
+| ---- | ------ | ------ | -------- |
+| WOUT | @aneki | Done   | 6/6      |
 
-**Last reviewed:** 2026-05-19 (final release sweep: PR #1554 is merged; WOUT
-rides `v0.7.0-beta` as developer-facing release freight and advances to
-Released/Shipped when release evidence lands.)
+**Last reviewed:** 2026-05-19 (final release sweep: PR #1554 is **Merged** in the
+lifecycle narrative — schema `Status: Done` per `plans/aps-rules.md` §"Module
+Schema Status Values"; WOUT rides `v0.7.0-beta` as developer-facing release
+freight and advances to Released/Shipped when release evidence lands.)
 
 Earlier 2026-05-14:
 
