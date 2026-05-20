@@ -2,12 +2,22 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 60/76 |
+| MLP2 | @aneki | In Progress | 60/78 |
 
-**Last reviewed:** 2026-05-19 (MLP2-068 advanced `In Progress` →
+**Last reviewed:** 2026-05-20 (Group P added — MLP2-070 lineage anchor
+daemon-derivation hardening + MLP2-071 INTD-015 cross-session policy
+follow-up. Both filed against the release council pass 1 verdicts for
+[#1674](https://github.com/eddacraft/anvil-001/issues/1674) and
+[#1722](https://github.com/eddacraft/anvil-001/issues/1722); neither blocks
+the `v0.7.0-beta` tag. Module total advances 76 → 78; done-count unchanged
+at 60. INTD-015 follow-up filed here rather than in
+`intercept-daemon.aps.md` because that module is archived at 16/16
+Complete.)
+
+Earlier 2026-05-19: MLP2-068 advanced `In Progress` →
 `Merged` after implementation commit `d54a5f86`; Group O advances 0/2 →
 1/2 and module progress advances 59/76 → 60/76. MLP2-069 remains Draft and
-does not gate `v0.7.0-beta`.)
+does not gate `v0.7.0-beta`.
 
 Earlier 2026-05-18: MLP2-025 umbrella closed — Phase 1
 primitives shipped via PR #1597 on 2026-05-15; Phase 2 (-025b PR
@@ -3551,6 +3561,147 @@ to redesign once GV2-001..-023 land.
   adversarial-reviewer); post-merge plan
   `plans/reviews/post-merge/feat-mlp2-016-real-engine.md`.
 
+### P. v0.7.0-beta release-council follow-ups (2026-05-20)
+
+#### MLP2-070: Re-derive lineage anchor inside the daemon IPC handler
+
+- **Status:** Draft
+- **Intent:** `SessionRegistry::register_with_lineage`
+  (`crates/anvil-intercept/src/registry.rs:526-553`) admits
+  `daemon_issued_tag`, `pid`, and `pid_starttime` from its caller.
+  The MLP2-025 spoof cross-check assumes those values are
+  daemon-derived; if a same-UID IPC caller reaches the register
+  path with attacker-supplied lineage, the cross-check passes
+  against the attacker's self-declared anchor. Move lineage
+  derivation off the wire: read `pid` from the connected peer's
+  `SO_PEERCRED` / `GetNamedPipeClientProcessId` and
+  `pid_starttime` from `/proc/PID/stat` field 22 (Linux) /
+  `proc_pidinfo` (macOS) / `GetProcessTimes` (Windows) inside
+  the daemon's IPC handler, and reject any request whose body
+  carries lineage fields rather than allowing them to override
+  the peer-derived values.
+- **Expected Outcome:**
+  - The wire shape for `session_register_params` drops the
+    `lineage` and `pid_starttime` body fields (or keeps them
+    only as advisory and refuses on mismatch with the peer-
+    derived values, behind an additive-fields forward-compat
+    pin in the MLP2-052 style).
+  - `register_with_lineage` is reached only from the daemon's
+    own IPC handler with peer-credential-derived `pid` and
+    `pid_starttime`. The legacy `register` path remains for
+    callers that do not want the lineage index.
+  - Regression test: a hand-crafted IPC frame carrying a
+    forged `pid` / `pid_starttime` / `daemon_issued_tag` is
+    rejected (or the body values are ignored in favour of the
+    peer-derived ones, with a `tracing::warn!` on mismatch).
+  - Cross-check parity preserved: the MLP2-025 spoof reject
+    path still fires on PID-reuse-after-launcher-exit, with no
+    change to the public `register` surface or the
+    `degraded:spoofed-attribution` fence reason.
+- **Files:** `crates/anvil-intercept/src/registry.rs`
+  (signature change on `register_with_lineage` or new
+  daemon-internal variant), `crates/anvil-intercept/src/ipc.rs`
+  (peer-credential plumb-through to the register handler),
+  `crates/anvil-intercept-proto/src/session.rs` (wire-shape
+  pin), `crates/anvil-intercept/tests/midedit_contract.rs` (or
+  new dedicated lineage-forgery test).
+- **Validation:** `cargo test -p eddacraft-anvil-intercept`
+  (registry + ipc) + new lineage-forgery regression test.
+  Existing MLP2-025 spoof cross-check tests must continue to
+  pass byte-identically.
+- **Confidence:** medium — the surface is well-understood (the
+  peer-credential read pattern is already used by INTD-015's
+  `originating_driver_id` mint in `fanout.rs`), but the IPC
+  handler refactor crosses the proto crate's wire-shape.
+- **Priority:** Medium — does not block `v0.7.0-beta` (the
+  manifest allowlist gates IPC reach in the same-UID trust
+  zone), but should land before any non-Anvil same-UID driver
+  ships against the daemon.
+- **Dependencies:** MLP-014 (parent multi-session work,
+  Complete per `plans/archive/modules/multilayer-protection.aps.md`),
+  MLP2-023 (composite session key), MLP2-025 (spoof cross-check
+  primitives, Merged), INTD-002 (peer-credential plumbing).
+- **Source:** Release council pass 1, 2026-05-20
+  ([`plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
+  ship-with-doc verdict on DeepSec
+  [#1674](https://github.com/eddacraft/anvil-001/issues/1674)
+  ("IPC clients can mint trusted lineage tags"). Operator
+  framing in [`docs/runbooks/v0.7.0-beta-security-note.md`](../../docs/runbooks/v0.7.0-beta-security-note.md)
+  §M1.
+
+#### MLP2-071: INTD-015 cross-session policy follow-up
+
+- **Status:** Blocked
+- **Blocked on:** Cross-session-attribution model design pass.
+  The INTD-015 fan-out filter is wired
+  (`crates/anvil-intercept/src/fanout.rs`) and the daemon
+  parses `telemetry.allow_cross_session` correctly
+  (`crates/anvil-intercept/src/config.rs:239`), but the
+  end-to-end policy enforcement path that surfaces
+  cross-session events to subscribers under operator opt-in
+  is paused pending the design pass that decides which
+  cross-session attribution shapes survive the spoof-cross-
+  check trust model and which need additional daemon-side
+  guards.
+- **Intent:** Resume INTD-015 once the design pass produces a
+  written contract. The release-council pass 1 verdict
+  (2026-05-20, operations-reviewer) treated the existing
+  inert-but-parsed shape as ship-correct for `v0.7.0-beta`
+  because the default (`false`) keeps the redaction filter on
+  the cold path; the follow-up exists so an operator who
+  *does* enable the flag eventually sees the redacted-delivery
+  contract the spec describes, rather than a no-op.
+- **Expected Outcome (post-unblock):**
+  - Design pass artefact filed under `plans/specs/` defining
+    the cross-session-attribution contract: which
+    `(rule_id, hash_of_path)` pairs reach which subscribers,
+    how the spoof cross-check interacts with cross-session
+    deliveries, and how the per-startup HMAC salt (tracked in
+    `v0.6.0-beta-security-note.md` §H2 follow-up) feeds the
+    redaction primitive.
+  - Implementation slice that wires the design through
+    `Fanout::route` and the subscribe IPC frames added by
+    INTD-011 / DRVR-001, with regression coverage for the
+    three INTD-015 cases (own-session honoured, cross-session
+    rejected when flag false, redacted delivery when flag true).
+  - Operator-facing release-note line removed from CHANGELOG
+    "Known gaps" once the flag does what its documentation
+    says.
+- **Files:** `plans/specs/` (new design pass artefact, TBD
+  name), `crates/anvil-intercept/src/fanout.rs`,
+  `crates/anvil-intercept/src/config.rs`,
+  `crates/anvil-intercept/src/ipc.rs` (subscribe frame
+  surface).
+- **Validation:** Existing `fanout` unit tests stay green
+  throughout the design pass. Implementation slice adds the
+  three INTD-015 cases above + a default-deny pin on missing
+  originator.
+- **Confidence:** low (until design pass) — the wiring is
+  understood, but the cross-session-attribution shape
+  interacts with MLP2-025's spoof cross-check, MLP2-014's
+  per-task fence isolation, and the v0.6.0-beta §H2
+  per-startup HMAC follow-up, so the contract has to land
+  first.
+- **Priority:** Medium — operator-visible (the documented
+  flag does not currently produce the documented behaviour),
+  but the safe default keeps it cold-path.
+- **Dependencies:** MLP-014 (multi-session + per-task fence
+  isolation, Complete), INTD-015 (Complete in
+  `plans/archive/modules/intercept-daemon.aps.md`), MLP2-070
+  (lineage anchor daemon-derivation — the spoof-cross-check
+  hardening this design pass interacts with), per-startup
+  HMAC salt tracked in `v0.6.0-beta-security-note.md` §H2
+  follow-up.
+- **Source:** Release council pass 1, 2026-05-20
+  ([`plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
+  defer-with-issue verdict on
+  [#1722](https://github.com/eddacraft/anvil-001/issues/1722)
+  ("INTD-015 — Fanout cross-session policy unreachable").
+  Filed in MLP2 rather than `intercept-daemon.aps.md` because
+  the canonical INTD module is archived at 16/16 Complete
+  (`plans/archive/modules/intercept-daemon.aps.md`); MLP2 is
+  the active home for daemon integration debt.
+
 ## Stats
 
 | Phase | Items | Status |
@@ -3570,7 +3721,8 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
-| **Total** | **76** | **60/76** |
+| P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
+| **Total** | **78** | **60/78** |
 
 ## Recommended landing order
 

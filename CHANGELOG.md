@@ -153,6 +153,33 @@ engineering maintenance are recorded in the
   lives in the kernel and is re-exported to CLI surfaces so the two cannot
   drift; `.venv` is now included and `__pycache__` reconciled.
 
+### Known gaps
+
+These are shipped behaviours an operator should know about before adopting
+`v0.7.0-beta`. Each one has a tracked follow-up; none change the v1 same-UID
+local-IPC trust boundary documented in
+[`docs/runbooks/v0.6.0-beta-security-note.md`](docs/runbooks/v0.6.0-beta-security-note.md).
+
+- **Lineage-anchor mint surface accepts caller-supplied values.**
+  `SessionRegistry::register_with_lineage` in
+  `crates/anvil-intercept/src/registry.rs` admits `daemon_issued_tag`, `pid`,
+  and `pid_starttime` from its caller rather than re-deriving them from
+  `SO_PEERCRED` / `/proc/PID/stat` per call. The same-UID manifest allowlist
+  still gates which drivers can reach the IPC surface in the first place; the
+  cross-check against out-of-lineage spoofs is unaffected. See
+  [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
+  §M1 for the operator framing and
+  [#1674](https://github.com/eddacraft/anvil-001/issues/1674)
+  - MLP2-070 for the tracked fix.
+- **`telemetry.allow_cross_session` is inert in v0.7.0-beta.** The daemon parses
+  the flag and the cross-session fanout filter is wired, but the end-to-end
+  policy enforcement path documented in INTD-015 is paused pending a design pass
+  on the cross-session-attribution model. Leaving the default (`false`) is the
+  documented safe posture for this tag; the flag may not produce the
+  redacted-delivery behaviour described in `v0.6.0-beta-security-note.md` §H2
+  until the follow-up lands. Tracked in
+  [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071.
+
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
 Patch release for beta-user first-run and watch friction. No new APIs and no

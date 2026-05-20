@@ -168,6 +168,7 @@ autonomous-state.json
 review/
 plans/reviews/*
 !plans/reviews/post-merge/
+!plans/reviews/release-council/
 
 # GitHub Local Runners
 .github/actions-runner
