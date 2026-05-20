@@ -87,10 +87,58 @@ EOF
 
 mkdir -p "$tmp/plans/modules"
 write_module "$tmp/plans/modules/fixture.aps.md"
+
+# #1769: lifecycle fixture exercises the broader done-state set
+# (`Done`, `Complete`, `Merged`, `Released/Shipped`) plus the
+# trailing-prose forms (`Complete — merged ...`, `Done — landed ...`)
+# that real modules already use. Header progress matches the count of
+# done items, so this module must NOT produce an `aps-progress-mismatch`
+# finding. A negative test below locks that behaviour.
+cat > "$tmp/plans/modules/lifecycle.aps.md" <<'EOF'
+# Lifecycle Module
+
+| ID | Owner | Status | Progress |
+| --- | --- | --- | --- |
+| LIFE | — | In Progress | 5/6 |
+
+### LIFE-001: Canonical Done
+
+- **Status:** Done
+- **Files:** `src/a.ts`
+
+### LIFE-002: Legacy Complete alias
+
+- **Status:** Complete
+- **Validation:** `pnpm test` — validation passed.
+- **Files:** `src/b.ts`
+
+### LIFE-003: Merged terminal
+
+- **Status:** Merged
+- **Files:** `src/c.ts`
+
+### LIFE-004: Released/Shipped terminal
+
+- **Status:** Released/Shipped
+- **Files:** `src/d.ts`
+
+### LIFE-005: Trailing-prose Complete
+
+- **Status:** Complete — merged 2026-04-29 via PR #100 (`feat/LIFE-005`).
+- **Validation:** `pnpm test` — validation passed.
+- **Files:** `src/e.ts`
+
+### LIFE-006: Still in progress
+
+- **Status:** In Progress (release-council pending)
+- **Files:** `src/f.ts`
+EOF
+
 cat > "$tmp/plans/index.aps.md" <<'EOF'
 # Fixture Index
 
 | [fixture](./modules/fixture.aps.md) | FIX | 1/4 | Fixture module. |
+| [lifecycle](./modules/lifecycle.aps.md) | LIFE | 5/6 | Lifecycle fixture. |
 EOF
 cat > "$tmp/package.json" <<'EOF'
 {"version":"1.2.3"}
@@ -119,6 +167,51 @@ assert_json_has_code "$candidate_json" 'shipped-aps-without-release-record'
 # `/N` count is the regression sentinel for the b-suffix fix.
 assert_json_has_message_substring "$candidate_json" 'changed-file-without-aps-reference' 'src/unknown.ts'
 assert_json_has_message_substring "$candidate_json" 'aps-progress-mismatch' '/5'
+
+# #1769: the LIFE fixture's 5/6 header matches its 5 done items
+# (`Done`, `Complete`, `Merged`, `Released/Shipped`, and trailing-prose
+# `Complete — merged ...`), so `aps-progress-mismatch` must NOT fire for
+# the LIFE module. Regression sentinel for the done-state broadening:
+# a regression that drops `Done`/`Merged`/`Released/Shipped` from the
+# count would surface here as a spurious LIFE mismatch.
+if printf '%s' "$candidate_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const life = doc.findings.find((f) => f.code === "aps-progress-mismatch" && f.module === "LIFE");
+if (life) {
+  throw new Error("LIFE module emitted spurious aps-progress-mismatch: " + life.message);
+}
+'; then :; else echo "done-state broadening regression: LIFE flagged as mismatched" >&2; exit 1; fi
+
+# #1769: lock the canonical aliases individually. Build a fixture per
+# state so a regression that drops any one state surfaces with the
+# specific module name in the failure.
+for state in Done Complete Merged 'Released/Shipped'; do
+  state_tmp="$(mktemp -d)"
+  mkdir -p "$state_tmp/plans/modules"
+  state_slug="$(printf '%s' "$state" | tr '[:upper:]/' '[:lower:]-')"
+  state_id="$(printf '%s' "$state_slug" | tr -d '-' | tr '[:lower:]' '[:upper:]')"
+  cat > "$state_tmp/plans/modules/${state_slug}.aps.md" <<EOF
+# ${state} Module
+
+| ID | Owner | Status | Progress |
+| --- | --- | --- | --- |
+| ${state_id} | — | In Progress | 1/1 |
+
+### ${state_id}-001: Single done item
+
+- **Status:** ${state}
+- **Files:** \`src/x.ts\`
+EOF
+  state_json="$("${CHECK[@]}" --root "$state_tmp" --json)"
+  if printf '%s' "$state_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const mismatch = doc.findings.find((f) => f.code === "aps-progress-mismatch");
+if (mismatch) {
+  throw new Error("expected no mismatch for Status: '"$state"', got: " + mismatch.message);
+}
+'; then :; else echo "done-state regression: '${state}' did not count toward progressDone" >&2; rm -rf "$state_tmp"; exit 1; fi
+  rm -rf "$state_tmp"
+done
 
 cat > "$tmp/published.json" <<'EOF'
 {

@@ -133,14 +133,42 @@ function extractModule(path) {
 const modules = listModulePaths().map(extractModule);
 const items = modules.flatMap((module) => module.items);
 
+// #1769: progress is "done" when a task reaches any of the canonical
+// or lifecycle-terminal states defined in `plans/aps-rules.md`:
+//   - `Done`             — canonical schema value (Status Rule 3)
+//   - `Complete`         — legacy alias the parser normalises to `Done`
+//   - `Merged`           — lifecycle narrative: integration target reached
+//   - `Released/Shipped` — lifecycle narrative: release-record evidence
+// The earlier equality-on-`Complete` check was misaligned with the
+// documented convention and emitted spurious `aps-progress-mismatch`
+// warnings across 15 modules. The narrower
+// `aps-complete-without-validation-evidence` check below intentionally
+// stays keyed on literal `Complete` per Status Rule 4 (the narrative
+// validation gate).
+const DONE_STATES = new Set(['Done', 'Complete', 'Merged', 'Released/Shipped']);
+
+// Real module text carries trailing prose after the terminal-state
+// token, e.g. `Status: Complete — merged 2026-04-29 via PR #1186` or
+// `Status: In Progress (release-council pass-2 verdict ...)`. Split on
+// em-dash / hyphen-with-spaces / opening paren / colon to recover the
+// head token; `Released/Shipped` is preserved because we deliberately
+// do NOT split on `/`.
+function statusHead(status) {
+  return status.split(/\s+[—-]\s+|\s*[(:]/)[0].trim();
+}
+
+function isDoneStatus(status) {
+  return DONE_STATES.has(statusHead(status));
+}
+
 for (const module of modules) {
   if (module.progressDone === null || module.progressTotal === null) continue;
   if (module.items.length === 0) continue;
-  const completeCount = module.items.filter((item) => item.status === 'Complete').length;
-  if (completeCount !== module.progressDone || module.items.length !== module.progressTotal) {
+  const doneCount = module.items.filter((item) => isDoneStatus(item.status)).length;
+  if (doneCount !== module.progressDone || module.items.length !== module.progressTotal) {
     addFinding(
       'aps-progress-mismatch',
-      `${relative(root, module.path)} progress is ${module.progressDone}/${module.progressTotal}, but tasks count as ${completeCount}/${module.items.length}.`,
+      `${relative(root, module.path)} progress is ${module.progressDone}/${module.progressTotal}, but tasks count as ${doneCount}/${module.items.length}.`,
       {
         module: module.id,
       }
