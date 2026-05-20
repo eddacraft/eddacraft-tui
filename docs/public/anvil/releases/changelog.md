@@ -31,6 +31,209 @@ All notable changes to anvil are documented here.
   to the structured `payload` object. The pre-WOUT shape was not guaranteed and
   is no longer produced.
 
+## [0.7.0-beta] — 2026-05-20 — Daemon-Working: End-to-End Verifiable Protection
+
+The release theme is **daemon-working**: the protection claim is now verifiable
+on every supported render surface from code state alone. Hooks, the witness
+chain, baseline adoption, L4 policy, and wrapped agent launch operate as a
+single typed `ProtectionClaim` shape across `anvil status --json`,
+`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
+driver-client. Most of the surface delta is additive; the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+calls out the few places where operator action or expectation needs to shift.
+
+### Added
+
+- **End-to-end daemon-backed protection.** Every commit is witnessed, every save
+  passes the same protection pipeline, and every agent-driven write is
+  attributable to a registered session. `anvil doctor`, `anvil status`, the MCP
+  server, and the TypeScript driver-client all emit the same typed
+  protection-claim shape so editors, CI, and agents read identical state. See
+  the
+  [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md).
+- **Wrapped agent launch via `anvil-run`.** A new
+  `anvil-run --tool <name> -- <command...>` launcher wraps AI-agent processes
+  (Claude Code, Codex, Aider, and similar) so the daemon can attribute work,
+  enforce fences, and clean up stale sessions. Daemon connectivity preflight,
+  session registration with daemon-minted agent tags, process-group ownership,
+  clean exit cleanup, zsh and bash shell-integration functions, a side-channel
+  registration path via the pre-commit hook (`anvil-run hook register`) for
+  sessions that cannot be launched through the wrapper, blocked-launch UX with
+  actionable error output, and periodic heartbeats so the daemon notices when a
+  launcher crashes. See the
+  [`anvil-run` manpage](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md).
+- **`anvil doctor` typed protection-claim section.** `anvil doctor` now prints
+  the worktree state and per-surface entries, with `--json` emitting the same
+  `ProtectionClaim` shape as `anvil status --json`.
+- **MCP server `validate_write` response carries `protection_claim`.** The field
+  is optional; omitted when the daemon is unreachable. Pre-existing drivers
+  round-trip the response unchanged.
+- **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
+  types so editors and agents read protection state in a typed shape; the MCP
+  response adapter surfaces the claim when the daemon supplied one. Responses
+  without the field parse cleanly for backward compatibility.
+- **`anvil l4-validate` CLI command.** A dedicated subcommand for running L4
+  verification over a commit range, replacing the previous `anvil hook pre-push`
+  reuse for CI and GitHub Action consumers.
+- **`anvil intercept unblock --acknowledge-cascade`.** When five fences fire on
+  the same worktree within sixty seconds, Anvil engages a
+  `degraded:fence-cascade` mode and refuses new sessions until an operator
+  acknowledges. Use the new flag to clear; `anvil status` surfaces `cascaded` /
+  `cascade_since` and the engaged state survives daemon restart.
+- **`anvil intercept unblock --worktree <PATH>` / `--all`.** Per-fence operator
+  recovery on the CLI. Pass `--worktree` to clear one fenced worktree (or
+  `--all` to clear every fence); both are idempotent — re-running on an unfenced
+  worktree exits zero with an informational note. `--dry-run` previews what
+  would clear without modifying state. The previous "stop the daemon and delete
+  the data directory" recovery is still available for corrupted on-disk state,
+  but is no longer required for normal fence clearing.
+- **`anvil edda list` ported to Rust.** The Edda memory-listing CLI is now part
+  of the Rust `anvil` binary with identical behaviour to the legacy Node.js
+  command — `--type`, `--status`, `--confidence`, `--since`, `--limit`, and the
+  same `storage_found` / `storage_path` / `total` / `has_more` JSON envelope.
+  Sort order, table headers, and exit codes match the previous surface.
+- **`anvil insights` weekly summary.** New CLI surface and `anvil.insights.v1`
+  JSON schema for editor and CI consumers, derived from the witness chain with
+  no separate event store. This release populates `witness_events_observed`;
+  `total_saves_observed`, `findings_raised`, `suppressions_applied`,
+  `suppressions_resolved`, `baseline_edges_added`, and
+  `daemon_uptime_percentage` ship as schema-locked placeholders (`0`) pending
+  downstream metric wiring tracked in `INSIGHTS` follow-ups.
+- **`anvil version --check` and security-advisory surface.**
+  `anvil version --check` reports newer releases and security advisories against
+  the running version. The watch TUI and `anvil status` show a one-line "update
+  available" hint, rate-limited to once per 24 hours.
+- **`anvil start --new-identity` and `anvil baseline --new-identity`.** Mints a
+  fresh `project_uuid` and records the previous one as `forked_from`, giving
+  forks an explicit opt-out from inheriting their parent repo's identity.
+- **`anvil baseline --refresh --accept-suspicious`.** Adversarial-refresh
+  detection — explicit acknowledgement required when a refresh would drop ≥75%
+  of findings.
+- **`anvil start --format json|toml`.** Choose `.anvil.json` or `.anvil.toml` at
+  adoption time. The default remains yaml, and all three formats round-trip
+  through the same canonical representation.
+- **`anvil migrate`.** Optional one-command rewrite of a legacy `.anvilrc` into
+  the `v0.7.0-beta`-native `.anvil.<ext>` shape. Opt-in; there is no deprecation
+  timer in this release.
+- **Witness chain (`anvil/witness/`) is load-bearing in-tree content.** An
+  in-tree, hash-chained witness file at `anvil/witness/active.ndjson` records
+  which protection layers fired on which commit. It travels with the repo via
+  `git worktree add`, `git clone`, and `git push`. The pre-push hook calls
+  `verify_chain_dag` across all witness segments; the L5 audit
+  (`anvil audit-chain`) re-walks history to catch commits that bypassed
+  pre-commit / pre-push. `.gitattributes` is pre-positioned by `anvil start`
+  with `merge=union -text` so parallel branches never produce conflict markers.
+  See the
+  [witness-chain runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md).
+- **Hook coexistence with lefthook, husky, and pre-commit-framework.** Anvil
+  hooks now install alongside the three dominant 2026 hook managers without
+  conflict — registering as managed entries in the host manager's config rather
+  than overwriting `.git/hooks/`. Uninstall removes only Anvil's own entries.
+  Lefthook and pre-commit-framework require a one-time manual `extends:` or
+  `repos:` merge after install; Husky and Plain are fully automatic. See the
+  [hook coexistence runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md).
+- **AI tool auto-detect.** `anvil start` auto-detects Claude Code, Cursor,
+  Aider, Windsurf, and Codex installations without configuration, reports a
+  short summary, and writes the inventory to
+  `.anvil/cache/detected-agents.json`. `anvil-run` consumes that cache to
+  cross-reference `--tool` selections; a missing or stale cache is advisory, not
+  an error.
+- **Editor compatibility matrix and CI gate.** A documented compatibility matrix
+  at `docs/policies/editor-coexistence.md` plus a headless harness and CI gate
+  cover `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`
+  against Rust, TypeScript, and Python fixtures.
+- **Measured resource budget.** Anvil now publishes a documented resource
+  ceiling (CPU steady-state and peak RSS) measured on a reference repository,
+  with a CI workflow that fails the build on regression.
+- **Release cadence and EOL policy.**
+  [`docs/policies/release-cadence.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/release-cadence.md)
+  documents the hotfix iteration cadence, patch/minor/major scope semantics, the
+  "sit on a release" minimum window, and the support window for `-beta`
+  releases. Cross-linked from README and CONTRIBUTING.
+
+### Changed
+
+- **`anvil status --json` ProtectionClaim shape.** Output is now a typed
+  `ProtectionClaim` built from the live daemon snapshot, with per-surface
+  entries drawn from a fixed set of state values. When the daemon is
+  unreachable, output falls back to a worktree state derived from local data
+  with an empty `surfaces` array rather than over-claiming coverage.
+- **`anvil baseline` writes project identity.** Baseline now mints
+  `anvil/project-id` on first run (preserved on re-run) and pins `cutoff_commit`
+  into the canonical policy file in the same flow, so adopting Anvil into an
+  existing repo no longer fails on a missing project identity.
+- **Config filename: `.anvilrc` → `.anvil.<ext>`.** Anvil discovers
+  `.anvil.yaml`, `.anvil.yml`, `.anvil.json`, and `.anvil.toml` first, falling
+  back to legacy `.anvilrc` only when none are present. Run `anvil migrate` to
+  convert an existing `.anvilrc` to the new filename.
+- **Signed `anvil update`.** `anvil update` now verifies downloads against a
+  published minisign signature on every supported install path — Homebrew,
+  curl-installer sidecar, and the axoupdater library fallback — before replacing
+  the running binary. Signature mismatches are loud and actionable.
+- **Homebrew formula automation.** Releases now publish the matching Homebrew
+  formula automatically, so `brew upgrade eddacraft/tap/anvil` picks up new
+  versions without a manual tap refresh.
+- **MCP `anvil_validate_write` accepts patch-only payloads.** The pre-write
+  validator now accepts a unified-diff `patch` instead of the full proposed
+  `content` for change-shaped edits. Token cost scales with the size of the
+  change rather than the file. The `content` mode remains supported; clients
+  pick whichever fits their workflow.
+- **MCP `anvil_validate_write` returns a recoverable workspace-root signal.**
+  When the validator refuses on an untrusted workspace root it now returns an
+  `expectedWorkspaceRoot` field on the rejection so callers can self-correct and
+  retry without an operator round-trip. Pre-existing clients that ignore the
+  field continue to receive the same refusal shape.
+- **Pre-push hook is stricter.** Applies the full L4-policy pipeline: version
+  floor (`required_anvil_version`), cutoff commit (`cutoff_commit`), a 2 s time
+  budget (emits `partial=true` on exceed rather than blocking), and
+  witness-chain DAG verification. Diagnostic lines map onto the recovery
+  procedures in the
+  [witness-chain runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md).
+- **YAML resource bounds enforced.** `anvil-config::parse` now rejects YAML
+  aliases outright (1 MiB pre-parse cap, depth-32 post-parse cap). A
+  `.anvil.yaml` that uses YAML anchors / aliases will be refused.
+- **Fence persistence extended for cascade.** Fences still persist across daemon
+  restart by design (carry-forward from `v0.6.0-beta`); the persisted state now
+  also tracks the four-fence cascade window (`RateWindow::new(4, 60s)`), and
+  clearing a cascade requires
+  `anvil intercept unblock --acknowledge-cascade <worktree>`.
+
+### Security
+
+- **End-to-end agent-tag spoof rejection.** The launcher and TypeScript
+  driver-client forward each writer's `ANVIL_AGENT_TAG` and PID lineage to the
+  daemon, which cross-checks them against the tag it issued at registration.
+  Spoofed tags block the offending write and fence the worktree with
+  `degraded:spoofed-attribution`.
+- **`anvil l4-validate` chain integrity check.** L4 validation now verifies
+  witness-chain integrity before trusting any witnessed commit SHA as
+  prior-layer evidence. Broken or tampered chains produce a blocking result
+  instead of a silent allow or empty trusted set.
+
+### Fixed
+
+- **Local-noise ignore policy now covers every surface.** Generated files, cache
+  directories, and agent worktrees are ignored consistently across `watch`,
+  `audit`, hooks, baseline, drift, gate, and `anvil-run`. The canonical list
+  lives in the kernel and is re-exported to CLI surfaces so the two cannot
+  drift; `.venv` is now included and `__pycache__` reconciled.
+
+### Operator artefacts
+
+- [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  — surface delta and operator action.
+- [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — protection-claim hard gate, tag-time pre-flight, recovery procedures.
+- [`anvil-run` manpage](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
+  — wrapped-launch ingress, stable exit codes (`64 / 69 / 73 / 75 / 78`),
+  shell-integration semantics.
+- [Witness-chain operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)
+  — line shape, failure modes, recovery procedures.
+- [Hook coexistence runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md)
+  — install/uninstall behaviour per host hook manager.
+- [Air-gap runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-air-gapped.md)
+  — no-network promise (unchanged from `v0.6.x`) and how it's enforced in CI.
+
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
 Patch release for beta-user first-run and watch friction. No new APIs and no

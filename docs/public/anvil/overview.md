@@ -183,5 +183,32 @@ For the full explanation of checks, findings, and gates, see
 
 **Ready to start?** [Go to the quickstart →](/anvil/quickstart)
 
-anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. See the
-[beta testing guide](/anvil/beta-testing-guide) for what to expect.
+anvil is currently in beta — the latest tagged release is `v0.7.0-beta`. See the
+[beta testing guide](/anvil/beta-testing-guide) for what to expect, and the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+if you're upgrading.
+
+### v0.7.0-beta operator surfaces
+
+`v0.7.0-beta` is the **daemon-working** cut: every protection layer (hooks,
+witness chain, baseline adoption, L4 policy, wrapped agent launch) renders a
+single typed `ProtectionClaim` across `anvil status --json`,
+`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
+driver-client. The runbooks below are the source of truth — public docs
+deep-link rather than duplicate them:
+
+- [`anvil-run`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
+  — wrapped-launch ingress for `claude`, `codex`, `aider`, and similar agents.
+- [`anvil l4-validate`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — dedicated L4-policy validator for CI consumers.
+- [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
+  — the `ProtectionClaim` shape and the four surfaces it renders on.
+- [`--new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
+  — fork opt-out on `anvil start` / `anvil baseline`.
+- [`--acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — clear a rate-limited fence cascade after the incident is resolved.
+- [Witness chain](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)
+  and
+  [hook coexistence](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md)
+  — in-tree `anvil/witness/` content and integration under lefthook / husky /
+  pre-commit-framework.

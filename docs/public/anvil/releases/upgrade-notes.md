@@ -9,7 +9,149 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.6.3-beta
+## Current Version: 0.7.0-beta
+
+## Upgrading to 0.7.0-beta
+
+Drop-in upgrade from `0.6.x`. There is no required config migration — existing
+`.anvilrc` files keep working untouched. The release theme is
+**daemon-working**: hooks, the witness chain, baseline adoption, L4 policy, and
+wrapped agent launch operate as a single typed `ProtectionClaim` across
+`anvil status --json`, `anvil doctor --json`, the MCP `validate_write` response,
+and the TypeScript driver-client. Most of the surface delta is additive; the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+is the authoritative operator reference.
+
+```bash
+# Upgrade via the installer (Homebrew-aware)
+sh <(curl -fsSL https://anvil.dev/install)
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+After upgrade, confirm the new protection claim renders cleanly:
+
+```bash
+anvil status --json | jq '.claim.worktree_state'   # → "full"
+```
+
+A `"full"` worktree state on every surface (CLI, doctor, MCP shim, TS driver)
+means the daemon-working contract is honoured. See the
+[v0.7.0-beta release runbook §3](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+for the full cross-surface check.
+
+### Action required
+
+For most teams, none beyond the upgrade. Read the migration note before adopting
+if any of the following apply:
+
+- **Lefthook, husky, or pre-commit-framework users.** Anvil now registers as a
+  managed entry instead of overwriting `.git/hooks/`. Lefthook and
+  pre-commit-framework need a one-time manual `extends:` / `repos:` merge after
+  install. See the
+  [hook coexistence runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md).
+- **`.anvil.yaml` users with YAML anchors / aliases.** `anvil-config::parse` now
+  rejects YAML aliases outright. Quote-escape the symbols inside string scalars
+  or rewrite without aliases.
+- **Multi-branch adoption (enterprise / monorepo).** If you adopt on multiple
+  long-lived branches in parallel, each branch mints its own genesis anchor, and
+  the first cross-branch merge fails with `OrphanMerge`. Roll out on the default
+  branch first; see the migration note's "Multi-branch adoption" section.
+- **Teammates pushing without `anvil` on PATH.** The pre-push hook now applies
+  the full L4-policy pipeline including witness-chain DAG verification.
+  Unwitnessed commits are recovered with
+  `anvil hook bootstrap --witness-recent`.
+- **Cargo install users.** `anvil` and `anvil-run` ship as separate crates:
+
+  ```bash
+  cargo install --git https://github.com/eddacraft/anvil-001 \
+    --tag v0.7.0-beta eddacraft-anvil --bin anvil
+  cargo install --git https://github.com/eddacraft/anvil-001 \
+    --tag v0.7.0-beta eddacraft-anvil-run --bin anvil-run
+  ```
+
+### What's new in 0.7.0-beta
+
+- **`anvil-run`** — wrapped-launch ingress for `claude`, `codex`, `aider`, and
+  similar agents. Stable exit codes (`64 / 69 / 73 / 75 / 78`) and shell
+  integration via `shell/anvil-run.sh`. Full contract in the
+  [`anvil-run` manpage](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md).
+- **`anvil l4-validate`** — dedicated L4-policy validator (formerly fused with
+  `anvil hook pre-push`). Used by CI and GitHub Action consumers.
+- **Protection-claim contract on every surface.** `anvil status --json`,
+  `anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
+  driver-client all emit the same typed `ProtectionClaim` shape. Pre-existing
+  consumers continue to receive a backward-compatible response; the field is
+  wire-additive.
+- **Witness chain in-tree at `anvil/witness/`.** Hash-chained record of which
+  protection layers fired on which commit, intended to be committed.
+  `.gitattributes` is pre-positioned with `merge=union -text` so parallel
+  branches never produce conflict markers. Full operator surface in the
+  [witness-chain runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md).
+- **Hook coexistence with lefthook / husky / pre-commit-framework.** Detection
+  precedence, install/uninstall round-trip guarantees, and per-framework
+  behaviour in the
+  [hook coexistence runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md).
+- **`.anvil.<ext>` configuration alternative.** `.anvil.yaml`, `.anvil.yml`,
+  `.anvil.json`, and `.anvil.toml` discovered first; legacy `.anvilrc` falls
+  back when none are present. `anvil migrate` rewrites at your convenience.
+- **`anvil intercept unblock`.** Per-fence operator recovery —
+  `--worktree <PATH>` for a single fence, `--all` for every fence, `--dry-run`
+  to preview, `--acknowledge-cascade <worktree>` to clear a
+  `degraded:fence-cascade` rate-limited fence (four fences in 60 s).
+- **`anvil baseline --new-identity` / `anvil start --new-identity`.** Fork
+  opt-out — mints a fresh `project_uuid` and records the previous one as
+  `forked_from`.
+- **`anvil baseline --refresh --accept-suspicious`.** Adversarial-refresh
+  detection — explicit ack required when a refresh would drop ≥75% of findings.
+- **`anvil audit-chain`.** L5 audit — re-walks a branch's commits and reports
+  any without a witness line.
+- **`anvil hook bootstrap --witness-recent`.** Retroactively witnesses
+  unwitnessed commits in `@{u}..HEAD`.
+- **`anvil insights`.** Local-only weekly summary derived from the witness
+  chain. `witness_events_observed` is populated this release; other counters
+  ship as schema-locked placeholders pending downstream metric wiring.
+- **`anvil version --check`.** Advisory update check with install-method-aware
+  upgrade hint; rate-limited to once per 24 hours.
+- **Signed `anvil update`.** Every supported install path (Homebrew, curl
+  installer, axoupdater fallback) verifies the published minisign signature
+  before replacing the running binary.
+
+### Carry-forward from `v0.6.0-beta`
+
+The foreground-only daemon launch mode, macOS fence-first interrupt ladder, and
+Windows CI scope (cross-compile matrix on `main`, MCP correlation envelope still
+reports `daemonStatus: not-wired` on Windows) are unchanged. See the
+[v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
+for the original operational realities — the
+[v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+references those sections rather than duplicating them.
+
+### Downgrade
+
+Downgrading to `v0.6.x` is supported on a clean repo (no committed
+`anvil/witness/` lines from `v0.7.0-beta`-only writers). The witness chain shape
+is forward-compatible — older binaries can read `v0.7.0-beta` lines but cannot
+emit the merge-line / `rules_sha` / `cutoff_commit` extensions. The DAG verifier
+accepts both shapes. For mixed-version teams, do **not** enable
+`anvil audit-chain --rescan` during the mixed-version window — it would flag
+`v0.6.x` lines lacking `rules_sha` as drift. See the migration note's
+"Downgrade" section for the full procedure.
 
 ## Upgrading to 0.6.3-beta
 

@@ -19,11 +19,13 @@ minutes.
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.6.0-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.7.0-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
-gaps.
+gaps, and the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+if you're upgrading an existing install.
 
 :::
 
@@ -113,8 +115,13 @@ state — one of:
 When the daemon is running and reachable over owner-only IPC, the
 `anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
 scanner is the correctness-equivalent fallback when the daemon is not available.
-The full daemon-backed path is Unix-first today; on Windows in `v0.6.0-beta` the
-MCP correlation envelope reports `daemonStatus: not-wired`.
+In `v0.7.0-beta` the protection-claim contract (`anvil status --json`,
+`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
+driver-client) renders on every supported platform; the Windows MCP correlation
+envelope still reports `daemonStatus: not-wired` (carry-forward from
+`v0.6.0-beta`, tracked under `chore/windows-status`), and the cross-compile
+matrix runs against `main` per the
+[v0.7.0-beta release runbook §10](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md).
 
 To probe state without writing config:
 
@@ -292,6 +299,31 @@ One warning down. Repeat for the rest at your own pace.
 - [Drift detection](/anvil/tutorials/drift) -- capture snapshots and track
   architectural drift
 - [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
+
+**v0.7.0-beta operator surfaces** (runbooks are the source of truth):
+
+- [`anvil-run` — wrapped-launch ingress](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
+  — route `claude`, `codex`, `aider`, and similar agents through a
+  daemon-attributed session. Stable exit codes (`64 / 69 / 73 / 75 / 78`) and
+  shell-integration script.
+- [`anvil l4-validate`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — dedicated L4-policy validator for CI / pre-push consumers; replaces the
+  prior `anvil hook pre-push` reuse.
+- [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
+  — `anvil status --json | jq '.claim.worktree_state'` and the same
+  `ProtectionClaim` shape on `anvil doctor --json`, the MCP `validate_write`
+  response, and the TypeScript driver-client.
+- [`anvil baseline --new-identity` / `anvil start --new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
+  — fork opt-out: mint a fresh `project_uuid` and record the previous one as
+  `forked_from`.
+- [`anvil intercept unblock --acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — clear a `degraded:fence-cascade` rate-limited fence (four fences in 60 s)
+  after the incident is resolved.
+- [Witness chain](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)
+  and
+  [hook coexistence](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md)
+  — what `anvil/witness/` writes into your repo and how Anvil registers under
+  lefthook / husky / pre-commit-framework instead of overwriting `.git/hooks/`.
 
 ---
 
