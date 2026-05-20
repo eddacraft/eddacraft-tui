@@ -12,10 +12,12 @@
 //! - When SURFENV gains a CLI surface (Phase 4 work), this test stays
 //!   useful as the smoke check for the rule pack itself.
 //!
-//! When anvil legitimately introduces a new `.env*` file, update the
-//! [`ANVIL_ENV_FILES`] list and (if a finding is intentional) annotate
-//! the file with the appropriate `# @anvil-ignore SURFENV-NNN -- ...`
-//! directive — the same workflow operators downstream will use.
+//! When anvil legitimately introduces a new `.env*` file, add it to
+//! [`ANVIL_COMMITTED_ENV_FILES`] (if tracked in git) or
+//! [`ANVIL_OPTIONAL_ENV_FILES`] (if local-only and gitignored) — never
+//! both — and, if a finding is intentional, annotate the file with the
+//! appropriate `# @anvil-ignore SURFENV-NNN -- ...` directive (the same
+//! workflow operators downstream will use).
 
 use std::path::{Path, PathBuf};
 
@@ -23,28 +25,6 @@ use anvil_checks::secret::SecretCheckConfig;
 use anvil_checks::surface::env::{
     check_env_drift, check_gitignore_hygiene, is_env_file, scan_env_file, scan_prod_values,
 };
-
-/// Repo-relative paths of env files anvil cares about for baseline
-/// scanning. Hard-coded so a new committed env file forces an explicit
-/// decision rather than silently widening the baseline (we deliberately
-/// don't walk the tree — the surface is small and a globber would also
-/// pick up uncommitted local-only `.env`s on a contributor's machine).
-///
-/// The list is the concatenation of [`ANVIL_COMMITTED_ENV_FILES`]
-/// (templates tracked in git) and [`ANVIL_OPTIONAL_ENV_FILES`]
-/// (local-only paths that must be gitignored). Tests that scan file
-/// contents (SURFENV-001 / -003 / -004) can skip absent optional
-/// paths cleanly; the SURFENV-002 gitignore hygiene test inputs
-/// optional paths with empty content even when absent so the gitignore
-/// pattern is exercised regardless of which files happen to exist in
-/// this checkout. Operations review flagged the original list as
-/// having a hole at `.github/actions-runner/.env`; closed by including
-/// it below.
-const ANVIL_ENV_FILES: &[&str] = &[
-    "apps/anvil-api/.env.example",
-    "apps/website/.env.local.example",
-    ".github/actions-runner/.env",
-];
 
 /// Committed env templates — intentionally tracked. These files MUST
 /// exist in any non-shallow checkout; the baseline trip-wire fails if
@@ -61,7 +41,21 @@ const ANVIL_COMMITTED_ENV_FILES: &[&str] = &[
 /// the file happens to exist in this checkout. CLAWP-012 (council
 /// pass-2 finding) closed the original gap where an absent optional
 /// path silently dropped out of the hygiene input via `filter_map`.
+/// Operations review previously flagged a hole at
+/// `.github/actions-runner/.env`; closed by including it below.
 const ANVIL_OPTIONAL_ENV_FILES: &[&str] = &[".github/actions-runner/.env"];
+
+/// Single source of truth for "every env file anvil cares about" —
+/// committed templates plus gitignored optional paths, in that order.
+/// All baseline tests iterate this chain rather than a separate union
+/// list, so adding a new path to one of the subsets above is enough; no
+/// follow-up edit can drift them apart.
+fn anvil_env_files() -> impl Iterator<Item = &'static str> {
+    ANVIL_COMMITTED_ENV_FILES
+        .iter()
+        .chain(ANVIL_OPTIONAL_ENV_FILES.iter())
+        .copied()
+}
 
 fn is_optional_anvil_env(relative: &str) -> bool {
     ANVIL_OPTIONAL_ENV_FILES.contains(&relative)
@@ -94,7 +88,7 @@ fn anvil_env_files_are_routed_through_the_scanner() {
     // Trip-wire on `is_env_file` semantics — if someone narrows the
     // discovery rule, the SURFENV pipeline silently stops processing
     // anvil's own files. Catch that here.
-    for relative in ANVIL_ENV_FILES {
+    for relative in anvil_env_files() {
         let path = PathBuf::from(relative);
         assert!(
             is_env_file(&path),
@@ -105,7 +99,7 @@ fn anvil_env_files_are_routed_through_the_scanner() {
 
 #[test]
 fn surfenv_001_secret_scan_is_clean_on_anvil() {
-    for relative in ANVIL_ENV_FILES {
+    for relative in anvil_env_files() {
         let Some(content) = read_repo_file(relative) else {
             // File not present in this checkout (e.g. shallow clone) —
             // skip rather than fail. The discovery test above is the
@@ -135,8 +129,7 @@ fn surfenv_002_gitignore_hygiene_is_clean_on_anvil() {
     // an absent file cannot carry anyway. Committed templates that go
     // missing are caught by the dedicated trip-wire in
     // `anvil_committed_env_templates_are_present`.
-    let env_files: Vec<(PathBuf, String)> = ANVIL_ENV_FILES
-        .iter()
+    let env_files: Vec<(PathBuf, String)> = anvil_env_files()
         .filter_map(|relative| match read_repo_file(relative) {
             Some(content) => Some((PathBuf::from(relative), content)),
             None if is_optional_anvil_env(relative) => {
@@ -177,7 +170,7 @@ fn surfenv_003_prod_value_scan_is_clean_on_anvil() {
     // commits only `.env.example` templates so this should always be
     // empty. The test still runs the scanner to assert "no findings"
     // remains the contract.
-    for relative in ANVIL_ENV_FILES {
+    for relative in anvil_env_files() {
         let Some(content) = read_repo_file(relative) else {
             continue;
         };
@@ -203,11 +196,7 @@ fn surfenv_004_drift_check_template_only_pairwise_run_is_missing_from_concrete_o
     // version asserting nothing useful — fixed by filtering to
     // template files and tripping if zero templates are checked.
     let mut checked_templates = 0;
-    for relative in ANVIL_ENV_FILES
-        .iter()
-        .copied()
-        .filter(|relative| relative.ends_with(".example"))
-    {
+    for relative in anvil_env_files().filter(|relative| relative.ends_with(".example")) {
         let Some(content) = read_repo_file(relative) else {
             continue;
         };
@@ -224,7 +213,7 @@ fn surfenv_004_drift_check_template_only_pairwise_run_is_missing_from_concrete_o
     }
     assert!(
         checked_templates > 0,
-        "expected at least one committed template file in ANVIL_ENV_FILES"
+        "expected at least one committed `.example` template in anvil_env_files()"
     );
 }
 
