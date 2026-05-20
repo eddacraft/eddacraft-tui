@@ -4,7 +4,15 @@
 | ---- | ------ | ----------- | ---------- |
 | MLP2 | @aneki | In Progress | 60/78 |
 
-**Last reviewed:** 2026-05-20 (Group P added — MLP2-070 lineage anchor
+**Last reviewed:** 2026-05-21 (MLP2-071 advanced `Blocked` → `Ready`
+after the cross-session-attribution design pass landed at
+[`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md).
+The spec is the named unblock the prior `Blocked on:` line carried;
+implementation slice contract + validation matrix are now part of the
+MLP2-071 entry. Module total stays at 78; done-count stays at 60 — `Ready`
+is a planning status, not a done-count advance.)
+
+Earlier 2026-05-20: Group P added — MLP2-070 lineage anchor
 daemon-derivation hardening + MLP2-071 INTD-015 cross-session policy
 follow-up. Both filed against the release council pass 1 verdicts for
 [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and
@@ -12,7 +20,7 @@ follow-up. Both filed against the release council pass 1 verdicts for
 the `v0.7.0-beta` tag. Module total advances 76 → 78; done-count unchanged
 at 60. INTD-015 follow-up filed here rather than in
 `intercept-daemon.aps.md` because that module is archived at 16/16
-Complete.)
+Complete.
 
 Earlier 2026-05-19: MLP2-068 advanced `In Progress` →
 `Merged` after implementation commit `d54a5f86`; Group O advances 0/2 →
@@ -3631,18 +3639,20 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** Blocked
-- **Blocked on:** Cross-session-attribution model design pass.
-  The INTD-015 fan-out filter is wired
-  (`crates/anvil-intercept/src/fanout.rs`) and the daemon
-  parses `telemetry.allow_cross_session` correctly
-  (`crates/anvil-intercept/src/config.rs:239`), but the
-  end-to-end policy enforcement path that surfaces
-  cross-session events to subscribers under operator opt-in
-  is paused pending the design pass that decides which
-  cross-session attribution shapes survive the spoof-cross-
-  check trust model and which need additional daemon-side
-  guards.
+- **Status:** Ready
+- **Design pass:** Complete — see
+  [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md).
+  The spec decides the `IpcCommand::SubscribeTelemetry` frame
+  shape, `SubscriberId` peer-credential minting, the
+  `RegistryOwnershipResolver` production impl, the per-startup
+  HMAC salt that folds in §H2 of
+  `docs/runbooks/v0.6.0-beta-security-note.md`, the spoofed-
+  origin denial rule (D6), and the implementation slice
+  contract with its validation matrix. MLP2-070 (lineage-
+  anchor daemon-derivation hardening) is documented as a
+  prerequisite for operators enabling `allow_cross_session:
+  true` in production, not for the wire-up itself; the slice
+  ships safely with the default-false posture.
 - **Intent:** Resume INTD-015 once the design pass produces a
   written contract. The release-council pass 1 verdict
   (2026-05-20, operations-reviewer) treated the existing
