@@ -257,8 +257,10 @@ function parseStatus(value: string): TaskStatus {
     // Narrative lifecycle labels documented in plans/aps-rules.md
     // ("Lifecycle Narrative Labels"). Authors land these on task `Status:`
     // lines (e.g. MLP2-068 advancing In Progress → Merged); without the
-    // alias they default to `open` and drift-check reports false-positive
-    // aps-progress-mismatch on every module that uses the convention.
+    // alias `@eddacraft/anvil-aps` consumers parsing task fields see
+    // `open` for every shipped task, which diverges from the schema
+    // intent. (scripts/aps/drift-check.mjs has its own pattern table —
+    // `DONE_PATTERNS` — so the two surfaces share one lifecycle view.)
     merged: 'completed',
     released: 'completed',
     shipped: 'completed',
