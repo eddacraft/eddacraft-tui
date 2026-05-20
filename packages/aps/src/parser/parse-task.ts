@@ -254,6 +254,17 @@ function parseStatus(value: string): TaskStatus {
     ready: 'open',
     blocked: 'locked',
     canceled: 'cancelled',
+    // Narrative lifecycle labels documented in plans/aps-rules.md
+    // ("Lifecycle Narrative Labels"). Authors land these on task `Status:`
+    // lines (e.g. MLP2-068 advancing In Progress → Merged); without the
+    // alias they default to `open` and drift-check reports false-positive
+    // aps-progress-mismatch on every module that uses the convention.
+    merged: 'completed',
+    released: 'completed',
+    shipped: 'completed',
+    'released/shipped': 'completed',
+    archived: 'completed',
+    'complete/archived': 'completed',
   };
 
   return aliases[normalized] ?? 'open';

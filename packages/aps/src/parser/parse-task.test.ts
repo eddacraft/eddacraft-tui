@@ -295,6 +295,28 @@ describe('parseTaskFields', () => {
     }
   });
 
+  it('should accept narrative lifecycle aliases as completed', () => {
+    // plans/aps-rules.md documents these labels as the post-In Progress
+    // lifecycle. Without aliases, anything past `Merged` defaulted to
+    // `open` and the drift-check progress count missed every shipped
+    // task in modules using the convention.
+    const cases: Array<[string, string]> = [
+      ['Merged', 'completed'],
+      ['merged', 'completed'],
+      ['Released', 'completed'],
+      ['Shipped', 'completed'],
+      ['Released/Shipped', 'completed'],
+      ['released/shipped', 'completed'],
+      ['Archived', 'completed'],
+      ['Complete/Archived', 'completed'],
+    ];
+    for (const [input, expected] of cases) {
+      const para = fieldParagraph({ Status: input });
+      const result = parseTaskFields([para], []);
+      expect(result.status, `"${input}" should map to "${expected}"`).toBe(expected);
+    }
+  });
+
   it('should strip parenthetical suffixes from status values', () => {
     const para = fieldParagraph({ Status: 'Complete (2026-02-15)' });
     const result = parseTaskFields([para], []);

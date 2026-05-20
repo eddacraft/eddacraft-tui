@@ -65,8 +65,10 @@ than written by hand.
 
 The parser is deliberately lenient about prose: it normalises common module
 status words (`In Progress`, `Done`, `Draft`, `Ready`, `Blocked`,
-`Complete`) onto the four execution tokens, and **defaults to `open`** for
-any value it doesn't recognise rather than leaving the field unset. See
+`Complete`) plus the post-In-Progress narrative labels (`Merged`,
+`Released`, `Shipped`, `Released/Shipped`, `Archived`, `Complete/Archived`)
+onto the four execution tokens, and **defaults to `open`** for any value
+it doesn't recognise rather than leaving the field unset. See
 `parseStatus()` in `packages/aps/src/parser/parse-task.ts` for the exact
 alias table; document the canonical execution tokens (`open` / `locked` /
 `completed` / `cancelled`) in new text.
