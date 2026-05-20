@@ -60,6 +60,7 @@ These define how Anvil behaves by default. All features must align.
 | [021](021-in-house-nx-rust-plugin.md) | In-house `@eddacraft/nx-rust` plugin; reject monodon (no licence) and cargo-make (not a substitute) (originally drafted as ADR-026; renumbered in DOCGOV-004 to resolve a duplicate-number conflict) | Proposed |
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
 | [044](044-mcp-entry-activation-owned.md) | `mcpServers.anvil` MCP entries are owned by the activation flow; backend swaps overwrite in place on next `anvil start` with a one-line notice; `--keep-mcp` opts out; protocol-shape changes still route through `anvil migrate` | Proposed |
+| [049](049-cross-language-build-contract.md) | Cross-language `^build` contract: defer to nxrust D-009 (binding upstream); Anvil enforces the seam at the script layer (`test:js && test:rust`, PR #1729) until adopting nxrust generators that enforce at the generator boundary; no parallel Anvil recipe | Accepted |
 
 ## Intercept and Enforcement
 
