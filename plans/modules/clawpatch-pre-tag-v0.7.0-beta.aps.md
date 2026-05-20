@@ -174,7 +174,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_5f9e6b4709` — Rust library eddacraft-anvil-checks-napi
 - **Severity / Triage / Category:** medium / risk / bug
 - **Confidence:** medium
-- **Status:** Merged via PR #1765 (merged at `7c1fcce4`; registry load + `get_default_patterns_json` now wrapped in `catch_unwind` → `panic_to_error`; release-council pass-2 fix-before-tag obligation cleared 2026-05-20)
+- **Status:** Merged via PR #1765 (merged at `7c1fcce4`; `scan_artifact_json`'s registry load now flows through the same `catch_unwind` → `panic_to_error` panic-boundary pattern already used by `get_default_patterns_json` / `get_pattern_json`; release-council pass-2 fix-before-tag obligation cleared 2026-05-20)
 - **Recommendation:** Move the registry load into the same catch_unwind block as scan_artifact_rust, or wrap the whole scan_artifact_json implementation after JSON argument validation so registry panics are converted through panic_to_error.
 - **Evidence:** `crates/anvil-checks-napi/src/lib.rs:170` (`scan_artifact_json`), `crates/anvil-checks-napi/src/lib.rs:183` (`scan_artifact_json`), `crates/anvil-checks-napi/src/lib.rs:254` (`get_default_patterns_json`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
