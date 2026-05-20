@@ -267,7 +267,29 @@ function parseStatus(value: string): TaskStatus {
     'complete/archived': 'completed',
   };
 
-  return aliases[normalized] ?? 'open';
+  if (normalized in aliases) {
+    return aliases[normalized];
+  }
+
+  // Match as a leading prefix with a word boundary so trailing prose like
+  // `Merged 2026-05-17 — all four sub-tasks landed` or
+  // `Complete — merged 2026-04-29 via PR #1186` still resolves. This
+  // mirrors `DONE_PATTERNS` in scripts/aps/drift-check.mjs so both
+  // surfaces share the same view of the narrative lifecycle.
+  //
+  // Longest keys are tried first so `released/shipped` wins over the
+  // shorter `released` prefix when the compound form is present.
+  const keys = Object.keys(aliases).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (normalized.startsWith(key)) {
+      const next = normalized.charAt(key.length);
+      if (next === '' || !/\w/.test(next)) {
+        return aliases[key];
+      }
+    }
+  }
+
+  return 'open';
 }
 
 /**

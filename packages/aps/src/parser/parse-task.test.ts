@@ -295,6 +295,34 @@ describe('parseTaskFields', () => {
     }
   });
 
+  it('should accept narrative status values with trailing prose', () => {
+    // Real module text appends free-form prose after the status token
+    // (PR refs, dates, em-dashes). Without prefix-boundary matching the
+    // alias lookup falls through to `open` for these forms.
+    const cases: Array<[string, string]> = [
+      ['Merged 2026-05-17 — all four umbrella-required sub-tasks landed', 'completed'],
+      ['Complete — merged 2026-04-29 via PR #1186', 'completed'],
+      ['Done — landed via PR #100', 'completed'],
+      ['In Progress — investigating', 'locked'],
+      ['Blocked on upstream review', 'locked'],
+    ];
+    for (const [input, expected] of cases) {
+      const para = fieldParagraph({ Status: input });
+      const result = parseTaskFields([para], []);
+      expect(result.status, `"${input}" should map to "${expected}"`).toBe(expected);
+    }
+  });
+
+  it('should not match alias keys that are word-prefixes of other words', () => {
+    // `releasednonsense` must not match the `released` alias — the
+    // boundary check rejects it when the next char is alphanumeric.
+    for (const input of ['releasednonsense', 'shipped123', 'mergedoverflow']) {
+      const para = fieldParagraph({ Status: input });
+      const result = parseTaskFields([para], []);
+      expect(result.status, `"${input}" must NOT match a lifecycle alias`).toBe('open');
+    }
+  });
+
   it('should accept narrative lifecycle aliases as completed', () => {
     // plans/aps-rules.md documents these labels as the post-In Progress
     // lifecycle. Without aliases, anything past `Merged` defaulted to
