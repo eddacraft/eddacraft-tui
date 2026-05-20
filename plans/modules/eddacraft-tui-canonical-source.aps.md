@@ -4,8 +4,16 @@
 | --------- | ---------- | -------- | -------- |
 | TUIMIRROR | joshuaboys | Proposed | 0/8      |
 
-**Last reviewed:** 2026-05-18
+**Last reviewed:** 2026-05-20
 
+> **Superseded by:** [`tui-reintegration`](./tui-reintegration.aps.md) (TUIR).
+> TUIR carries the same ADR-047 intent at higher resolution — the policy
+> questions left implicit here (read-only vs release mirror, sync direction,
+> versioning ownership, CI gate split, backport policy) are first-class work
+> items in TUIR. Do not start work against TUIMIRROR; plan and execute under
+> TUIR instead. This file is retained as historical context until TUIR-008
+> archives it.
+>
 > **Execution gate:** This module implements ADR-047. Do not promote tasks to
 > `Ready` or begin implementation until ADR-047 is accepted. Until then this is
 > planning context only.
