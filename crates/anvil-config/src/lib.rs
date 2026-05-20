@@ -13,10 +13,22 @@
 //!   recognised extension in a directory; precedence-deterministic.
 //! - [`parse_str`] / [`parse_file`] — produce a `serde_json::Value`
 //!   from any of the four formats, so downstream typed parsers can
-//!   `serde_json::from_value` against the same intermediate.
+//!   `serde_json::from_value` against the same intermediate. These
+//!   functions **parse only**; they do not enforce hard-pinned class
+//!   rejection. Callers loading operator-supplied config must call
+//!   [`validate_hard_pinned_classes`] on the parsed value before
+//!   honouring it — see [ADR-039] and the consumer pattern in
+//!   `commands/init.rs`.
+//! - [`validate_hard_pinned_classes`] (MLP-013) — rejects five
+//!   disable-attempt shapes for the `secrets` and `command-safety`
+//!   classes (canonical + legacy locations + mode-disabled); tuning
+//!   passes through. Error messages cite ADR-039 and the
+//!   `@anvil-ignore` bypass.
 //! - [`canonical_json_bytes`] — RFC 8785-style canonical encoding
 //!   (sorted object keys, no insignificant whitespace) so equivalent
 //!   yaml + json + toml inputs hash byte-identical.
+//!
+//! [ADR-039]: https://github.com/eddacraft/anvil-001/blob/main/docs/adrs/ADR-039.md
 //!
 //! ## Out of scope (deferred)
 //!
@@ -28,8 +40,6 @@
 //! - `.anvilrc` → `.anvil.<ext>` filename migration — separate
 //!   concern; the existing `.anvilrc` reader in `commands/gate.rs`
 //!   keeps working unchanged.
-//! - Hard-pinned class rejection — owned by MLP-013, which will call
-//!   into a `validation` module added in this crate when it lands.
 //!
 //! ## Design notes
 //!
