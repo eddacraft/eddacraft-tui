@@ -337,13 +337,21 @@ fn verify_pending_install(
     _global: &GlobalArgs,
 ) -> anyhow::Result<Option<(tempfile::TempDir, PathBuf, VerifiedArtefact)>> {
     if args.insecure_skip_verify {
-        // `eprintln!` semantics: best-effort; ignore writer errors.
-        let _ = write_skip_verify_warning(&mut std::io::stderr().lock());
+        // Match the prior `eprintln!` panic-on-stderr-failure contract —
+        // ADR-045 requires this warning to surface. Silent drop would
+        // be the same bug ADR-045 calls "verification ships as a silent
+        // no-op". Holding the lock across both writelns is intentional:
+        // atomic multi-line output, no interleave with concurrent stderr
+        // writers (axoupdater / tracing).
+        write_skip_verify_warning(&mut std::io::stderr().lock())
+            .expect("stderr write must succeed for ADR-045 skip-verify warning");
         return Ok(None);
     }
 
     if signature::is_using_dev_public_key() {
-        let _ = write_dev_key_warning(&mut std::io::stderr().lock());
+        // Same panic-on-fail contract — Council CRITICAL per ADR-045.
+        write_dev_key_warning(&mut std::io::stderr().lock())
+            .expect("stderr write must succeed for ADR-045 dev-key warning");
         return Ok(None);
     }
 
@@ -749,6 +757,13 @@ mod tests {
         write_dev_key_warning(&mut buf).expect("infallible for Vec");
         let text = std::str::from_utf8(&buf).expect("utf-8");
 
+        // Pin the `WARNING:` token at the header so a tone-downgrade
+        // (e.g. `note:` / `info:`) is caught — log scrapers and
+        // ADR-045 compliance grep patterns rely on this prefix.
+        assert!(
+            text.starts_with("WARNING:"),
+            "header must lead with `WARNING:`; got:\n{text}"
+        );
         assert!(
             text.contains("ANVIL_RELEASE_PUBLIC_KEY (development build)"),
             "header line missing; got:\n{text}"
@@ -771,12 +786,21 @@ mod tests {
     // ── Clap parsing of the hidden --insecure-skip-verify flag ──────
 
     /// Tiny wrapper to exercise [`UpdateArgs`] through clap without
-    /// booting the full CLI. `UpdateArgs` is `clap::Args` (a subcommand
-    /// args group); wrapping it in a `clap::Parser` is the documented
-    /// pattern for unit-testing flag parsing.
+    /// booting the full CLI. Mirrors the production mount context in
+    /// `main.rs`: `GlobalArgs` (with its `global = true` flags) is
+    /// flattened alongside `UpdateArgs` so realistic invocations like
+    /// `--json --check --insecure-skip-verify` reach the same parse
+    /// shape they would in the real binary.
+    ///
+    /// Note: `hide = true` posture on `--insecure-skip-verify` is
+    /// pinned by `update_help_advertises_insecure_skip_verify_only_implicitly`
+    /// in `tests/update_resolution_chain.rs` — clap's `try_parse_from`
+    /// can't differentiate hidden vs. visible flags at parse time.
     #[derive(clap::Parser, Debug)]
     #[command(name = "anvil-update-test", no_binary_name = true)]
     struct UpdateArgsParser {
+        #[command(flatten)]
+        global: GlobalArgs,
         #[command(flatten)]
         args: UpdateArgs,
     }
@@ -799,8 +823,58 @@ mod tests {
     }
 
     #[test]
+    fn insecure_skip_verify_composes_with_global_args() {
+        use clap::Parser;
+        // The realistic operator-typed form. `--json` is a `global = true`
+        // arg on `GlobalArgs`; if the test wrapper only had `UpdateArgs`,
+        // clap would (correctly) reject it as `UnknownArgument` and this
+        // test would be lying about coverage.
+        let parsed =
+            UpdateArgsParser::try_parse_from(["--json", "--check", "--insecure-skip-verify"])
+                .expect("global args must compose with update-specific flags");
+
+        assert!(parsed.global.json, "--json should propagate");
+        assert!(parsed.args.check, "--check should be set");
+        assert!(parsed.args.insecure_skip_verify);
+    }
+
+    #[test]
+    fn insecure_skip_verify_composes_with_force() {
+        use clap::Parser;
+        // Highest-stakes combination: bypass signature AND force update
+        // past the `is_update_needed` short-circuit. Pinning this so a
+        // future refactor cannot accidentally invert the precedence or
+        // make `--force` mutually exclusive with `--insecure-skip-verify`.
+        let parsed = UpdateArgsParser::try_parse_from(["--force", "--insecure-skip-verify"])
+            .expect("force + skip-verify must compose");
+
+        assert!(parsed.args.force);
+        assert!(parsed.args.insecure_skip_verify);
+    }
+
+    #[test]
+    fn insecure_skip_verify_composes_with_version() {
+        use clap::Parser;
+        // `--insecure-skip-verify` returns `Ok(None)` from
+        // `verify_pending_install` before the trusted-comment
+        // downgrade-vector guard runs. That is intentional — operator
+        // opted out — but the parser-level composition must not become
+        // mutually exclusive by accident.
+        let parsed =
+            UpdateArgsParser::try_parse_from(["--insecure-skip-verify", "--version", "v0.7.0"])
+                .expect("version + skip-verify must compose");
+
+        assert!(parsed.args.insecure_skip_verify);
+        assert_eq!(parsed.args.version.as_deref(), Some("v0.7.0"));
+    }
+
+    #[test]
     fn unknown_flag_is_rejected_with_unknown_argument_kind() {
         use clap::Parser;
+        // Narrower than the binary-level `update_unknown_flag_is_rejected_by_clap`
+        // in `tests/update_resolution_chain.rs` — this pins the
+        // `ErrorKind` discriminant; the integration test pins the
+        // emitted stderr text on the real binary.
         let err = UpdateArgsParser::try_parse_from(["--this-flag-does-not-exist"])
             .expect_err("unknown flags must error");
 
