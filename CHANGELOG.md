@@ -168,9 +168,8 @@ local-IPC trust boundary documented in
   still gates which drivers can reach the IPC surface in the first place; the
   cross-check against out-of-lineage spoofs is unaffected. See
   [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
-  §M1 for the operator framing and
-  [#1674](https://github.com/eddacraft/anvil-001/issues/1674)
-  - MLP2-070 for the tracked fix.
+  §M1 for the operator framing. Tracked in
+  [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and MLP2-070.
 - **`telemetry.allow_cross_session` is inert in v0.7.0-beta.** The daemon parses
   the flag and the cross-session fanout filter is wired, but the end-to-end
   policy enforcement path documented in INTD-015 is paused pending a design pass
