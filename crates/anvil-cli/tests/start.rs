@@ -218,31 +218,56 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
 
 #[test]
 fn start_json_emits_state_literal_in_status_verify_shape() {
+    // LAUNCH-012 acceptance: `anvil start --json` is read-only — the
+    // flag implies `--verify` (see `start.rs` `read_only = verify ||
+    // json`). On a fresh repo with an empty HOME override no MCP entry
+    // exists and no `.anvilrc` is written, so the diagnostic maps
+    // `ConfigStatus::Absent → ProtectionState::NeedsAction` — the same
+    // outcome as `start --verify` (covered by
+    // `start_verify_on_fresh_repo_reports_needs_action`).
+    //
+    // Council-locked truthfulness (CLAWP-022): a fresh repo MUST NEVER
+    // claim `protecting`, `watching`, or `ready_restart_required` on
+    // this read-only path. Accepting any of those would let a
+    // regression silently graduate the diagnostic to a stronger claim
+    // than read-only evidence supports.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &["--json"]);
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
 
-    // Parse and assert structural fields match the LAUNCH-012 shape.
+    // --json implies --verify: no writes should land on disk.
+    assert!(
+        !dir.path().join(".anvilrc").exists(),
+        "--json must not write .anvilrc (read-only)"
+    );
+    assert!(
+        !home.path().join(".cursor/mcp.json").exists(),
+        "--json must not install Cursor MCP entry (read-only)"
+    );
+    assert!(
+        !home.path().join(".claude.json").exists(),
+        "--json must not install Claude Code MCP entry (read-only)"
+    );
+
     let json: serde_json::Value =
         serde_json::from_str(&stdout).expect("--json output must be valid JSON");
-    assert!(json["state"].is_string(), "state must be present");
-    let state = json["state"].as_str().unwrap();
-    assert!(
-        [
-            "protecting",
-            "ready_restart_required",
-            "watching",
-            "needs_action",
-            "unsupported",
-            "error"
-        ]
-        .contains(&state),
-        "state must be a known ProtectionState literal, got {state}"
+    let state = json["state"]
+        .as_str()
+        .expect("state must be present as a string");
+    assert_eq!(
+        state, "needs_action",
+        "fresh repo + empty HOME under read-only --json must land on needs_action, got {state}"
     );
-    assert!(json["headline"].is_string());
-    assert!(json["config"].is_string());
+    for forbidden in ["protecting", "watching", "ready_restart_required"] {
+        assert_ne!(
+            state, forbidden,
+            "fresh repo MUST NOT claim `{forbidden}` on the read-only --json path"
+        );
+    }
+    assert!(json["headline"].is_string(), "headline must be a string");
+    assert!(json["config"].is_string(), "config must be a string");
 }
 
 #[test]

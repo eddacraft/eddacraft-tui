@@ -334,10 +334,23 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-022: start --json test accepts forbidden and wrong states
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-c4fa96f467-1_7bf4640dfa`
+- **GH issue:** [#1752](https://github.com/eddacraft/anvil-001/issues/1752)
 - **Feature:** `feat_test-suite_c4fa96f467` — Rust integration test eddacraft-anvil/start
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1752-clawp-022-start-json-state`
+- **Resolution:** Replace the "any of six known literals" assertion in
+  `start_json_emits_state_literal_in_status_verify_shape` with
+  `assert_eq!(state, "needs_action")` — the concrete read-only fresh
+  outcome, since `--json` implies `--verify` per
+  `crates/anvil-cli/src/commands/start.rs:130`
+  (`read_only = args.verify || global.json`). Add an explicit triple
+  rejection of `protecting`, `watching`, and `ready_restart_required`
+  for the same path, and pin the read-only contract structurally by
+  asserting `.anvilrc`, `~/.cursor/mcp.json`, and `~/.claude.json` are
+  not created. Advances to **Merged** on this PR's merge; counter
+  bump in the same step.
 - **Recommendation:** Strengthen `start_json_emits_state_literal_in_status_verify_shape` to assert the concrete expected read-only fresh result, at minimum `state == "needs_action"` or the intended fresh JSON state, and explicitly reject `protecting`. Also assert the complete status-verify JSON key set if the contract is that the shape matches `anvil status --verify`...
 - **Evidence:** `crates/anvil-cli/tests/start.rs:17`, `crates/anvil-cli/tests/start.rs:38`, `crates/anvil-cli/tests/start.rs:230` (`start_json_emits_state_literal_in_status_verify_shape`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
