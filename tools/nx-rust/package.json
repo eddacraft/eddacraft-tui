@@ -46,10 +46,10 @@
   },
   "devDependencies": {
     "@nx/devkit": "^22.7.2",
-    "@types/node": "^25.7.0",
-    "nx": "^22.7.1",
+    "@types/node": "^25.9.1",
+    "nx": "^22.7.2",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.7"
   },
   "engines": {
     "node": ">=20.0.0"
