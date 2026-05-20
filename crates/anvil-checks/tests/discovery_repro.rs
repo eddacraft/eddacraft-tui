@@ -35,6 +35,22 @@ fn ext_match(path: &str, exts: &[&str]) -> bool {
     exts.iter().any(|e| path.ends_with(e))
 }
 
+/// Returns `true` when the cap is enabled and we have already scanned
+/// enough files. Called before reading the next candidate so the cap
+/// stops at exactly `cap` files (CLAWP-028 — see GH #1741).
+fn cap_reached(files_scanned: usize, cap: Option<usize>) -> bool {
+    cap.is_some_and(|c| files_scanned >= c)
+}
+
+#[test]
+fn cap_reached_honours_boundary() {
+    assert!(!cap_reached(0, None));
+    assert!(!cap_reached(usize::MAX, None));
+    assert!(!cap_reached(499, Some(500)));
+    assert!(cap_reached(500, Some(500)));
+    assert!(cap_reached(501, Some(500)));
+}
+
 #[test]
 #[allow(clippy::too_many_lines)]
 fn discovery_repro_scan() {
@@ -71,6 +87,11 @@ fn discovery_repro_scan() {
     let mut files_scanned = 0usize;
 
     let path_prefix = std::env::var("ANVIL_DISCOVERY_REPRO_PREFIX").ok();
+    let cap = (std::env::var("ANVIL_DISCOVERY_REPRO_CAP_500")
+        .ok()
+        .as_deref()
+        == Some("1"))
+    .then_some(500);
 
     for rel in stdout.lines() {
         if rel.is_empty() {
@@ -88,6 +109,14 @@ fn discovery_repro_scan() {
             continue;
         }
 
+        // SCAN_MAX_FILES cap is opt-in; absence of the cap surfaces the
+        // user-reported FPs that live deeper in the repo than the
+        // welcome scan reaches. Check before the read so the 501st file
+        // is not opened and the count cannot overshoot 500 (CLAWP-028).
+        if cap_reached(files_scanned, cap) {
+            break;
+        }
+
         let abs = std::path::PathBuf::from(&repo_root).join(rel);
         let Ok(meta) = std::fs::metadata(&abs) else {
             continue;
@@ -99,17 +128,6 @@ fn discovery_repro_scan() {
             continue;
         };
         files_scanned += 1;
-        // SCAN_MAX_FILES cap is opt-in; absence of the cap surfaces the
-        // user-reported FPs that live deeper in the repo than the
-        // welcome scan reaches.
-        if std::env::var("ANVIL_DISCOVERY_REPRO_CAP_500")
-            .ok()
-            .as_deref()
-            == Some("1")
-            && files_scanned > 500
-        {
-            break;
-        }
 
         // Secret scanner
         let (secret_findings, _) = scan_content_with_stats(&content, rel, &secret_config);
