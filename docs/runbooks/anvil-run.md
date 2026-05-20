@@ -261,7 +261,10 @@ explicitly.
   or special characters is best-effort in v1. Deferred under the same follow-up.
 - **Fish shell** is unsupported. Source `shell/anvil-run.sh` only from zsh or
   bash.
-- **macOS interrupt path** is fence-first this release (carry-forward from `v0.6.0-beta`): the launcher does not run the full SIGINT → SIGTERM → SIGKILL sequence on macOS. See the carry-forward details in [`docs/runbooks/v0.6.0-beta-release-runbook.md`](v0.6.0-beta-release-runbook.md).
+- **macOS interrupt path** is fence-first this release (carry-forward from
+  `v0.6.0-beta`): the launcher does not run the full SIGINT → SIGTERM → SIGKILL
+  sequence on macOS. See the carry-forward details in
+  [`docs/runbooks/v0.6.0-beta-release-runbook.md`](v0.6.0-beta-release-runbook.md).
 
 ## SEE ALSO
 

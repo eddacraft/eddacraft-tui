@@ -132,9 +132,18 @@ an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 
 ## Release Status
 
-Latest repository tag: **`v0.7.0-beta`** (2026-05-20). The daemon-working product slate: protects this project end-to-end through the daemon, hooks, witness chain, baseline, and wrapped agent-launch surfaces, with a signature-verified update path.
+Latest repository tag: **`v0.7.0-beta`** (2026-05-20). The daemon-working
+product slate: protects this project end-to-end through the daemon, hooks,
+witness chain, baseline, and wrapped agent-launch surfaces, with a
+signature-verified update path.
 
-Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate. The candidate-time expectation is that Anvil provides a unified browser surface for platform engineers and team leads to view last-gate runs, severity-grouped warnings, and historical drift trends, backed by a local-only database. Current cut-line, docs-phase closure, and deferrals live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and [`plans/index.aps.md`](./plans/index.aps.md).
+Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate.
+The candidate-time expectation is that Anvil provides a unified browser surface
+for platform engineers and team leads to view last-gate runs, severity-grouped
+warnings, and historical drift trends, backed by a local-only database. Current
+cut-line, docs-phase closure, and deferrals live in
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
+[`plans/index.aps.md`](./plans/index.aps.md).
 
 Release cadence and beta support-window expectations are documented in
 [`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
