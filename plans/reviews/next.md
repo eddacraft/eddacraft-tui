@@ -13,7 +13,7 @@ hardening, test gaps, maintenance, and documentation drift.
 ### CRB — Code Review Backlog (29/29 complete)
 
 All 29 code review backlog items are resolved. See
-[code-review-backlog.aps.md](../modules/code-review-backlog.aps.md) for full
+[code-review-backlog.aps.md](../archive/modules/code-review-backlog.aps.md) for full
 details and evidence.
 
 | ID | Summary | Priority | Status |
