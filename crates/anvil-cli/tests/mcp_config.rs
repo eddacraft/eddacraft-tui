@@ -664,20 +664,23 @@ fn mcp_install_refuses_non_object_mcp_servers_container() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        serde_json::to_string_pretty(&serde_json::json!({
-            "mcpServers": []
-        }))
-        .unwrap(),
-    )
+    let seeded = serde_json::to_string_pretty(&serde_json::json!({
+        "mcpServers": []
+    }))
     .unwrap();
+    fs::write(&path, &seeded).unwrap();
+    let before = fs::read(&path).unwrap();
 
     let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
 
     assert!(
         !install.status.success(),
         "non-object mcpServers must fail instead of silently skipping insert"
+    );
+    let after = fs::read(&path).unwrap();
+    assert_eq!(
+        before, after,
+        "refused install must leave the seeded config byte-identical"
     );
 }
 
@@ -686,17 +689,20 @@ fn mcp_install_refuses_non_object_config_root() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        serde_json::to_string_pretty(&serde_json::json!([])).unwrap(),
-    )
-    .unwrap();
+    let seeded = serde_json::to_string_pretty(&serde_json::json!([])).unwrap();
+    fs::write(&path, &seeded).unwrap();
+    let before = fs::read(&path).unwrap();
 
     let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
 
     assert!(
         !install.status.success(),
         "non-object config root must fail instead of being replaced"
+    );
+    let after = fs::read(&path).unwrap();
+    assert_eq!(
+        before, after,
+        "refused install must leave the seeded config byte-identical"
     );
 }
 

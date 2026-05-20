@@ -315,10 +315,18 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-021: Non-object config refusal tests do not verify the original file survives
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-b0175af8f6-8_9fe99e50f9`
+- **GH issue:** [#1751](https://github.com/eddacraft/anvil-001/issues/1751)
 - **Feature:** `feat_test-suite_b0175af8f6` — Rust integration test eddacraft-anvil/mcp_config
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1751-clawp-021-config-survives`
+- **Resolution:** Capture the seeded config bytes before invoking
+  `anvil mcp install --client cursor` against a non-object
+  `mcpServers` container and against a non-object config root, then
+  re-read after the refusal and assert byte-identical. The refusal
+  contract is now load-bearing rather than coincidental. Advances to
+  **Merged** on this PR's merge; counter bump in the same step.
 - **Recommendation:** Read the config file after the failed install and assert it remains byte-identical to the seeded non-object JSON.
 - **Evidence:** `crates/anvil-cli/tests/mcp_config.rs:663` (`mcp_install_refuses_non_object_mcp_servers_container`), `crates/anvil-cli/tests/mcp_config.rs:685` (`mcp_install_refuses_non_object_config_root`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
