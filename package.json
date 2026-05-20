@@ -96,7 +96,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
     "@vitest/coverage-v8": "^4.1.6",
-    "eslint": "^10.3.0",
+    "eslint": "^10.4.0",
     "eslint-plugin-anvil": "workspace:*",
     "eslint-plugin-unicorn": "^64.0.0",
     "globals": "^17.6.0",
