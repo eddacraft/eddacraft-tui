@@ -46,9 +46,23 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Feature:** `feat_test-suite_73ba6156c4` — Rust integration test eddacraft-anvil/update_resolution_chain
 - **Severity / Triage / Category:** high / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/clawp-001-test-rewrites-doc-fixes`
+- **Resolution:** The two vacuous integration tests
+  (`update_insecure_skip_verify_flag_is_accepted` and
+  `update_skipping_verification_on_dev_build_logs_unconditional_warning`,
+  both ran against `--check` which short-circuits before
+  `verify_pending_install`) have been deleted from
+  `crates/anvil-cli/tests/update_resolution_chain.rs`. The warning
+  blocks inside `verify_pending_install` are extracted into
+  `write_skip_verify_warning` / `write_dev_key_warning` helpers and
+  unit-tested in `crates/anvil-cli/src/commands/update.rs` against a
+  `Vec<u8>` sink. A clap-parser wrapper (`UpdateArgsParser` with
+  `GlobalArgs` flattened) covers the hidden flag plus combinations
+  with `--json`, `--force`, and `--version`. Advances to **Merged**
+  on this PR's merge; counter bump 0/64 → 1/64 in the same step.
 - **Recommendation:** Replace these with a deterministic parser-level test for the hidden flag and a direct test of the update verification preflight or a mocked library-fallback path that asserts stderr contains the loud `WARNING` text when verification is skipped. Avoid using the real `update --check` network/update probe as a parser surrogate.
-- **Evidence:** `crates/anvil-cli/tests/update_resolution_chain.rs:42` (`update_insecure_skip_verify_flag_is_accepted`), `crates/anvil-cli/tests/update_resolution_chain.rs:96` (`update_skipping_verification_on_dev_build_logs_unconditional_warning`)
+- **Evidence:** Deleted: `crates/anvil-cli/tests/update_resolution_chain.rs` (the two named tests). Added: `crates/anvil-cli/src/commands/update.rs` `write_skip_verify_warning` / `write_dev_key_warning` helpers + 8 unit tests under `mod tests` (2 warning-emission + 6 parser).
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
 ### CLAWP-002: Eval silently drops all but the first Rego query expression/result
