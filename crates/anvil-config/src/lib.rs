@@ -29,7 +29,7 @@
 //!   (sorted object keys, no insignificant whitespace) so equivalent
 //!   yaml + json + toml inputs hash byte-identical.
 //!
-//! [ADR-039]: https://github.com/eddacraft/anvil-001/blob/main/docs/adrs/ADR-039.md
+//! [ADR-039]: https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/039-baseline-policy-and-hard-pinned-classes.md
 //!
 //! ## Out of scope (deferred)
 //!

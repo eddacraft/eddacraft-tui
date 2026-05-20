@@ -785,12 +785,17 @@ mod tests {
 
     // ── Clap parsing of the hidden --insecure-skip-verify flag ──────
 
-    /// Tiny wrapper to exercise [`UpdateArgs`] through clap without
-    /// booting the full CLI. Mirrors the production mount context in
-    /// `main.rs`: `GlobalArgs` (with its `global = true` flags) is
-    /// flattened alongside `UpdateArgs` so realistic invocations like
-    /// `--json --check --insecure-skip-verify` reach the same parse
-    /// shape they would in the real binary.
+    /// Simplified parser wrapper that approximates the production flag
+    /// set for `UpdateArgs` plus the `global = true` flags from
+    /// `GlobalArgs`, both flattened at the same level. This is **not**
+    /// a faithful reproduction of the production mount shape — in
+    /// `main.rs` the real CLI has `GlobalArgs` flattened on the
+    /// top-level `Cli` and `UpdateArgs` mounted as a `Commands::Update`
+    /// subcommand. Flag *parsing* of the combinations exercised here
+    /// reaches the same `bool`/`Option` slots, but subcommand parse
+    /// semantics (flag-placement-before-subcommand, subcommand-level
+    /// conflicts, etc.) are not exercised. Those land on the
+    /// integration tests against the real binary.
     ///
     /// Note: `hide = true` posture on `--insecure-skip-verify` is
     /// pinned by `update_help_advertises_insecure_skip_verify_only_implicitly`

@@ -1,8 +1,9 @@
 //! DISTRIB-001: resolution-chain integration tests.
 //!
 //! Black-box coverage of the observable `anvil update` CLI contract:
-//! `--help` shape, clap rejection of unknown flags, and the signature
-//! fixture/public-key drift check.
+//! `--help` shape, clap rejection of unknown flags, and the minisign
+//! public-key fixture shape (prefix + length sanity check on
+//! `tests/fixtures/minisign/anvil-test.pub.b64`).
 //!
 //! Parser-level acceptance of the hidden `--insecure-skip-verify` flag
 //! and the loud-stderr warning emitted when signature verification is
@@ -12,8 +13,11 @@
 //! not invoke the real update probe, so they stay deterministic
 //! regardless of network state or install posture (CLAWP-001).
 //!
-//! The deeper signature unit tests live in
-//! `crates/anvil-cli/src/commands/update/{signature,fetch}.rs`.
+//! The actual fixture-vs-`DEV_PUBLIC_KEY` drift comparison and the
+//! deeper signature unit tests live in
+//! `crates/anvil-cli/src/commands/update/{signature,fetch}.rs` (see
+//! `is_using_dev_public_key_reports_truth` for the byte-for-byte
+//! check).
 
 use std::process::Command;
 
