@@ -236,7 +236,7 @@ Change status to **Ready** when:
 - **Non-scope:** Any code change
 - **Validation:** `test -f plans/specs/*-feature-flag-catalogue-design.md` — validation passed (the design note exists at `plans/specs/2026-05-18-feature-flag-catalogue-design.md`).
 - **Confidence:** high
-- **Status:** Complete
+- **Status:** Done
 - **Resolution (2026-05-18):**
   [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
   pins the manifest at `flags/manifest.json` (repo root, OpenFeature-adjacent),
