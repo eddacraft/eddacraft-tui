@@ -112,6 +112,7 @@ docs/analysis/claude-code-safety-net-review.md
 apps/anvil-api/.claude/settings.local.json
 
 .gemini/
+.antigravitycli
 gha-creds-*.json
 
 # Local tool state and worktrees
