@@ -264,10 +264,21 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-015: Bare-exclude JSON stream test can pass without any stdout event
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-5361f7c11c-5_df9503bd96`
+- **GH issue:** [#1748](https://github.com/eddacraft/anvil-001/issues/1748)
 - **Feature:** `feat_test-suite_5361f7c11c` — Rust integration test eddacraft-anvil/watch_json_output
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1748-clawp-015-bare-exclude-json`
+- **Resolution:** Added a snapshot-envelope assertion after `parse_envelopes`
+  in `watch_json_stdout_carries_only_ndjson_when_bare_exclude_warning_present`
+  — mirrors the pattern in the sibling
+  `watch_json_emits_initial_progress_and_snapshot` test. Without it, a
+  `collect_until` timeout produced an empty `lines` and the for-loop
+  + stderr-routing assertions all passed vacuously. The contract now
+  proves an event actually arrived before the routing claims are
+  evaluated. Pure test addition; no production change. Advances to
+  **Merged** on this PR's merge; counter bump in the same step.
 - **Recommendation:** After parsing, assert that the captured envelopes contain `WatchEventType::Snapshot`, or assert that `lines` includes the matching snapshot before checking stderr routing.
 - **Evidence:** `crates/anvil-cli/tests/watch_json_output.rs:227` (`watch_json_stdout_carries_only_ndjson_when_bare_exclude_warning_present`), `crates/anvil-cli/tests/watch_json_output.rs:264` (`watch_json_stdout_carries_only_ndjson_when_bare_exclude_warning_present`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

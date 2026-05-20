@@ -261,8 +261,21 @@ fn watch_json_stdout_carries_only_ndjson_when_bare_exclude_warning_present() {
         );
     }
 
-    // And the stream still parses cleanly.
-    let _ = parse_envelopes(&lines, &stderr_text);
+    // CLAWP-015: prove the test exercised the actual contract. Without
+    // this, `collect_until` could time out before any stdout event
+    // arrived (or the watcher could regress and emit nothing at all),
+    // the for-loop above would pass vacuously on an empty `lines`, and
+    // the stderr-routing assertions would mask the failure. Assert the
+    // snapshot envelope is present — same shape as the sibling
+    // `watch_json_emits_initial_progress_and_snapshot` test.
+    let envelopes = parse_envelopes(&lines, &stderr_text);
+    assert!(
+        envelopes
+            .iter()
+            .any(|e| e.event_type == WatchEventType::Snapshot),
+        "no snapshot envelope arrived within {SNAPSHOT_WAIT_BUDGET:?}; \
+         stdout lines={lines:?} stderr={stderr_text}"
+    );
 }
 
 // --- WOUT-005: golden fixture drift guard ---
