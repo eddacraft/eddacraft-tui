@@ -274,7 +274,7 @@ design — Anvil does not edit user-owned config blocks on uninstall.
   after install.
 - **Authoring rules.** See
   [`docs/guides/anvil-rule-authoring.md`](../guides/anvil-rule-authoring.md).
-- **Daemon ops.** See the carry-forward details in
+- **Daemon ops.** See
   [`docs/runbooks/v0.6.0-beta-release-runbook.md`](v0.6.0-beta-release-runbook.md)
   (carry-forward from `v0.6.0-beta`) for foreground-launch + macOS interrupt
   path, both unchanged in `v0.7.0-beta`.

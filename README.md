@@ -132,9 +132,9 @@ an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 
 ## Release Status
 
-Latest repository tag: **`v0.7.0-beta`** (2026-05-20). The daemon-working
-product slate: protects this project end-to-end through the daemon, hooks,
-witness chain, baseline, and wrapped agent-launch surfaces, with a
+Latest repository tag: **`v0.7.0-beta`** (2026-05-20) — the daemon-working
+product slate. Anvil now protects this project end-to-end through the daemon,
+hooks, witness chain, baseline, and wrapped agent-launch surfaces, with a
 signature-verified update path.
 
 Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate.
