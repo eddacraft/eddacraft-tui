@@ -53,7 +53,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - CLAWP-016, -018, -020, -026, -036 — pass 2 verdicts; rationale per finding body
 - CLAWP-029, -030 — closed by PR #1732 (docs fixes bundled)
 
-**Defer with individual GH issue (19):**
+**Defer with individual GH issue (24):**
 - CLAWP-004 → #1736, CLAWP-005 → #1737 (pass 1)
 - CLAWP-006 → #1646, CLAWP-007 → #1648, CLAWP-009 → #1743, CLAWP-010 → #1645
 - CLAWP-011 → #1744, CLAWP-012 → #1745, CLAWP-013 → #1746, CLAWP-014 → #1747, CLAWP-015 → #1748
