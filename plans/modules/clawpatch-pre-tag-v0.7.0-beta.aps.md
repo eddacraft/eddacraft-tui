@@ -483,7 +483,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_105b94af10` — Rust library eddacraft-anvil-config
 - **Severity / Triage / Category:** low / docs-gap / docs-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
 - **Recommendation:** Update the `lib.rs` scope/out-of-scope section to reflect that hard-pinned validation is now part of the crate, and explicitly state that `parse_str`/`parse_file` parse only while callers that load operator config should call `validate_hard_pinned_classes` after parsing.
 - **Evidence:** `crates/anvil-config/src/lib.rs:21`, `crates/anvil-config/src/lib.rs:46`, `crates/anvil-config/tests/hard_pinned_integration.rs:1`
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

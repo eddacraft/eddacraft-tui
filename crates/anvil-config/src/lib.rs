@@ -15,16 +15,15 @@
 //!   from any of the four formats, so downstream typed parsers can
 //!   `serde_json::from_value` against the same intermediate. These
 //!   functions **parse only**; they do not enforce hard-pinned class
-//!   rejection.
+//!   rejection. Callers loading operator configuration should call
+//!   [`validate_hard_pinned_classes`] on the parsed value.
 //! - [`validate_hard_pinned_classes`] (MLP-013) — rejects five
 //!   disable-attempt shapes for the `secrets` and `command-safety`
 //!   classes (canonical + legacy locations + mode-disabled); tuning
 //!   passes through. Error messages cite [ADR-039] and the
-//!   `@anvil-ignore` bypass. Callers that need hard-pin enforcement
-//!   should call this on the parsed value; production wire-up across
-//!   `gate`, `hook`, `activation`, and `rule_cache` is tracked
-//!   separately (the function is available but not yet invoked from
-//!   every consumer).
+//!   `@anvil-ignore` bypass. This validation is shipped as part of the
+//!   crate; callers should call it on the parsed configuration after
+//!   parsing.
 //! - [`canonical_json_bytes`] — RFC 8785-style canonical encoding
 //!   (sorted object keys, no insignificant whitespace) so equivalent
 //!   yaml + json + toml inputs hash byte-identical.
