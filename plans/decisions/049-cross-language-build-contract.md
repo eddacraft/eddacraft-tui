@@ -12,7 +12,7 @@ Accepted
 
 Anvil's `pnpm test` was 40m03s end-to-end before PR
 [#1729](https://github.com/eddacraft/anvil-001/pull/1729). Direct measurement
-showed real work was ~52s; the remaining ~39 minutes was concurrent
+showed real work was ~52s; the remaining ~39 minutes were concurrent
 `cargo build -p X` invocations serialising on the workspace `target/` lock.
 
 The cross-stack `^build` edge that triggered the cascade emerges from the
@@ -55,10 +55,13 @@ In Anvil specifically:
    canonical reference is
    [nxrust `docs/recipes/javascript-rust-test-seams.md`](https://github.com/eddacraft/nxrust/blob/main/docs/recipes/javascript-rust-test-seams.md).
 4. Pre-emptive narrowing of `test.dependsOn` on individual JS projects that
-   don't import Rust artefacts at TS-build time is **out of scope**. Per
-   memory note about JS/TS retirement velocity, manual per-project
-   annotation is paying down decay already decided. Wait for `nxrust doctor`
-   to surface the cases if and when it materialises.
+   don't import Rust artefacts at TS-build time is **out of scope**. The
+   JS/TS surface is contracting under ADR-033 (TS scanner archived) and
+   ADR-030 (surface drivers superseding the napi cutover); per-project
+   annotation across a shrinking surface is local maintenance, not a
+   contract worth pinning. The script-layer split already covers the
+   bottleneck. Wait for `nxrust doctor` to surface specific cases if and
+   when it materialises.
 
 ## Rationale
 
