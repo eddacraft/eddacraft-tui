@@ -69,7 +69,9 @@ trust surface and crates.io contract.
 - ATTRIB-011 mirror precedent —
   `.github/workflows/mirror-acknowledgements-starter.yml` and the
   least-privilege PAT pattern (`http.extraheader` Basic auth, not
-  URL-embedded credentials; see `feedback_git_push_url_embedded_creds`).
+  URL-embedded `x-access-token:${TOKEN}@github.com` — the embedded form
+  is brittle to stray bytes in the secret and fails as
+  `CURLE_URL_MALFORMAT`).
 - `eddacraft/eddacraft-tui` — current public source repo and crates.io
   package owner.
 - `crates/anvil-tui/` — primary in-repo consumer.
@@ -103,10 +105,15 @@ trust surface and crates.io contract.
 **D-TUIR-002:** Public repo role — read-only mirror with release tags
 
 - **Resolution:** `eddacraft/eddacraft-tui:main` is mirror-managed and
-  force-pushed by automation. Release tags (`vX.Y.Z`) are protected by
-  branch/tag rules and are NEVER rewritten by the mirror job. The repo is
-  therefore a hybrid: read-only on `main`, append-only on release tags.
-  Issues remain open; source PRs are closed with a redirect template.
+  force-pushed by automation. Release tags follow the prefixed form
+  `eddacraft-tui-vX.Y.Z` everywhere — Anvil canonical source, mirror,
+  and crates.io. The prefixed form is mandatory because Anvil ships
+  other crates with independent semver from the same monorepo; an
+  unprefixed `vX.Y.Z` would collide with Anvil product tags. Release
+  tags are protected by branch/tag rules and are NEVER rewritten by
+  the mirror job. The repo is therefore a hybrid: read-only on `main`,
+  append-only on `eddacraft-tui-v*` tags. Issues remain open; source
+  PRs are closed with a redirect template.
 - **Status:** Proposed.
 
 **D-TUIR-003:** Sync direction
@@ -122,10 +129,10 @@ trust surface and crates.io contract.
 - **Resolution:** A GitHub Actions workflow (`mirror-eddacraft-tui.yml`)
   in `anvil-001` watches `crates/eddacraft-tui/**` on `main` and
   force-pushes the subtree to `eddacraft/eddacraft-tui:main` on every
-  change. Auth uses a fine-scoped PAT via `http.extraheader` Basic auth
-  (per `feedback_git_push_url_embedded_creds`), scoped to
-  `eddacraft/eddacraft-tui` only. Manual `workflow_dispatch` is
-  supported for catch-up.
+  change. Auth uses a fine-scoped PAT via `http.extraheader` Basic
+  auth, scoped to `eddacraft/eddacraft-tui` only (matching the
+  ATTRIB-011 `.github/workflows/mirror-acknowledgements-starter.yml`
+  pattern). Manual `workflow_dispatch` is supported for catch-up.
 - **Status:** Proposed.
 
 **D-TUIR-005:** crates.io publish source
@@ -155,10 +162,12 @@ trust surface and crates.io contract.
 - **Resolution:**
   - **Anvil side (`anvil-001`):** `cargo test -p eddacraft-tui
     --all-features` and `cargo test --workspace` are the load-bearing
-    gates. Workspace clippy with `-D warnings` and `cargo fmt --all
-    --check` run per the existing repo policy (see
-    `feedback_workspace_clippy_locally` and
-    `feedback_run_cargo_fmt_check_before_push`).
+    gates. Workspace clippy must run as `cargo clippy --workspace
+    --all-targets -- -D warnings` (per-crate `-p` invocations miss
+    doc-markdown errors in sibling crates) and `cargo fmt --all
+    --check` must run alongside it (workspace clippy with `-D
+    warnings` does NOT run rustfmt, so tests + clippy can be green
+    while CI's Format check fails).
   - **Public mirror side:** retain only `cargo test` and `cargo publish
     --dry-run --all-features` as a smoke gate against a fresh checkout
     of the mirrored tree. The mirror does not re-run the full Anvil
@@ -174,7 +183,7 @@ trust surface and crates.io contract.
     development gets atomic widget + consumer changes for free.
   - **External users:** depend on the crates.io release
     (`eddacraft-tui = "X.Y"`), NOT the public git `main`. Git `main`
-    is explicitly documented as mirror-managed and rewriteable.
+    is explicitly documented as mirror-managed and rewritable.
 - **Status:** Proposed.
 
 **D-TUIR-009:** Backport / mirror conflict policy
