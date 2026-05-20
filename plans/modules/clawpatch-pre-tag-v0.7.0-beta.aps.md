@@ -216,10 +216,25 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-012: Optional runner env file is omitted from the gitignore hygiene check when absent
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-3cc630c104-2_e0eaa945f3`
+- **GH issue:** [#1745](https://github.com/eddacraft/anvil-001/issues/1745)
 - **Feature:** `feat_test-suite_3cc630c104` — Rust integration test eddacraft-anvil-checks/surfenv_anvil_baseline
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1745-clawp-012-env-hygiene`
+- **Resolution:** Split `ANVIL_ENV_FILES` into
+  `ANVIL_COMMITTED_ENV_FILES` (templates that must exist) and
+  `ANVIL_OPTIONAL_ENV_FILES` (gitignored, may be absent). The
+  SURFENV-002 hygiene test now includes absent optional paths with
+  empty content so the gitignore pattern is exercised regardless of
+  checkout shape; the hygiene check itself is path-only, so empty
+  content is safe (no in-file suppression directive can exist when
+  the file doesn't). Added a dedicated
+  `anvil_committed_env_templates_are_present` trip-wire so a regression
+  that deletes a tracked template fails loudly instead of silently
+  skipping the SURFENV-001 / -003 / -004 scans for it. Pure test
+  changes. Advances to **Merged** on this PR's merge; counter bump in
+  the same step.
 - **Recommendation:** Keep absent optional env paths in the hygiene input with empty content, or add a separate path-only assertion that the configured gitignore patterns cover every gitignored path in `ANVIL_ENV_FILES`. Required committed templates should still fail if absent.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:44` (`ANVIL_ENV_FILES`), `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:111` (`surfenv_002_gitignore_hygiene_is_clean_on_anvil`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

@@ -30,23 +30,42 @@ use anvil_checks::surface::env::{
 /// don't walk the tree — the surface is small and a globber would also
 /// pick up uncommitted local-only `.env`s on a contributor's machine).
 ///
-/// The list is split into committed and gitignored files. The
-/// gitignored ones still need to pass the SURFENV-002 `.gitignore`
-/// hygiene rule (i.e. they must actually be covered by the gitignore)
-/// — adding them here is the trip-wire that catches a regression where
-/// the gitignore drifts and stops protecting them. Operations review
-/// flagged the original list as having a hole at
-/// `.github/actions-runner/.env`; closed by including it below.
+/// The list is the concatenation of [`ANVIL_COMMITTED_ENV_FILES`]
+/// (templates tracked in git) and [`ANVIL_OPTIONAL_ENV_FILES`]
+/// (local-only paths that must be gitignored). Tests that scan file
+/// contents (SURFENV-001 / -003 / -004) can skip absent optional
+/// paths cleanly; the SURFENV-002 gitignore hygiene test inputs
+/// optional paths with empty content even when absent so the gitignore
+/// pattern is exercised regardless of which files happen to exist in
+/// this checkout. Operations review flagged the original list as
+/// having a hole at `.github/actions-runner/.env`; closed by including
+/// it below.
 const ANVIL_ENV_FILES: &[&str] = &[
-    // Committed env templates — intentionally tracked.
     "apps/anvil-api/.env.example",
     "apps/website/.env.local.example",
-    // Local-only runner config — gitignored. Listed here so the
-    // baseline asserts the gitignore actually covers it. If the file
-    // is absent on this machine (most contributors), `read_repo_file`
-    // returns None and the per-file tests skip cleanly.
     ".github/actions-runner/.env",
 ];
+
+/// Committed env templates — intentionally tracked. These files MUST
+/// exist in any non-shallow checkout; the baseline trip-wire fails if
+/// one disappears, so the SURFENV-001 / -003 / -004 scans cannot be
+/// silently skipped by a regression that deletes a template.
+const ANVIL_COMMITTED_ENV_FILES: &[&str] = &[
+    "apps/anvil-api/.env.example",
+    "apps/website/.env.local.example",
+];
+
+/// Local-only env paths that are gitignored. The SURFENV-002 gitignore
+/// hygiene test still includes these with empty content when absent,
+/// so the gitignore pattern coverage is asserted regardless of whether
+/// the file happens to exist in this checkout. CLAWP-012 (council
+/// pass-2 finding) closed the original gap where an absent optional
+/// path silently dropped out of the hygiene input via `filter_map`.
+const ANVIL_OPTIONAL_ENV_FILES: &[&str] = &[".github/actions-runner/.env"];
+
+fn is_optional_anvil_env(relative: &str) -> bool {
+    ANVIL_OPTIONAL_ENV_FILES.contains(&relative)
+}
 
 fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR points at crates/anvil-checks; walk up two
@@ -108,11 +127,22 @@ fn surfenv_002_gitignore_hygiene_is_clean_on_anvil() {
         return;
     };
 
+    // CLAWP-012: include optional gitignored paths with empty content
+    // when absent, so the gitignore pattern is exercised even on
+    // checkouts where `.github/actions-runner/.env` does not exist
+    // (the common case). The hygiene check itself is path-only —
+    // content is read only for in-file suppression directives, which
+    // an absent file cannot carry anyway. Committed templates that go
+    // missing are caught by the dedicated trip-wire in
+    // `anvil_committed_env_templates_are_present`.
     let env_files: Vec<(PathBuf, String)> = ANVIL_ENV_FILES
         .iter()
-        .filter_map(|relative| {
-            let content = read_repo_file(relative)?;
-            Some((PathBuf::from(relative), content))
+        .filter_map(|relative| match read_repo_file(relative) {
+            Some(content) => Some((PathBuf::from(relative), content)),
+            None if is_optional_anvil_env(relative) => {
+                Some((PathBuf::from(relative), String::new()))
+            }
+            None => None,
         })
         .collect();
 
@@ -122,6 +152,23 @@ fn surfenv_002_gitignore_hygiene_is_clean_on_anvil() {
         unsuppressed.is_empty(),
         "anvil grew an unsuppressed SURFENV-002 finding: {unsuppressed:#?}"
     );
+}
+
+#[test]
+fn anvil_committed_env_templates_are_present() {
+    // Trip-wire (CLAWP-012 companion): every committed template named
+    // in [`ANVIL_COMMITTED_ENV_FILES`] must be readable from this
+    // checkout. Without this, a regression that deletes a template
+    // would let the SURFENV-001 / -003 / -004 baseline scans silently
+    // skip it via `read_repo_file` returning `None`. Optional /
+    // gitignored paths are excluded from this trip-wire by design —
+    // they are expected to be absent on most contributor machines.
+    for relative in ANVIL_COMMITTED_ENV_FILES {
+        assert!(
+            read_repo_file(relative).is_some(),
+            "committed env template {relative} is missing from this checkout — baseline scans would silently skip it"
+        );
+    }
 }
 
 #[test]
