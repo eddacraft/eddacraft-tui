@@ -266,10 +266,24 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-014: Runtime exclude test does not exercise a violation-producing change
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-436ea7fad0-0_75b1e494bf`
+- **GH issue:** [#1747](https://github.com/eddacraft/anvil-001/issues/1747)
 - **Feature:** `feat_test-suite_436ea7fad0` — Rust integration test eddacraft-anvil-kernel/watch_pattern_filter
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1747-clawp-014-runtime-exclude`
+- **Resolution:** Replaced the prior no-import body
+  (`export const added = 1;`) with a bare external import of
+  `unseen-external-pkg` — the `NewDependencyIntroduction` invariant
+  flags exactly this shape (`TrustLevel::External` target not in
+  `previously_imported`), so the runtime add is now a
+  violation-producing change. Added a paired control test
+  `unfiltered_runtime_change_does_emit_violation` that runs the same
+  write with empty `exclude_patterns` and asserts the violation DOES
+  fire — without it, the excluded test could still pass for the wrong
+  reason. Both tests share `RUNTIME_VENDOR_ADD_SOURCE` so the controls
+  cannot drift. Pure test changes. Advances to **Merged** on this PR's
+  merge; counter bump in the same step.
 - **Recommendation:** Make the runtime write use a fixture that would emit a violation when unfiltered, or add a paired control in the same test/suite showing the same runtime change emits a violation without `exclude_patterns`. Then assert that only the excluded configuration suppresses it.
 - **Evidence:** `crates/anvil-kernel/tests/watch_pattern_filter.rs:180` (`excluded_runtime_change_does_not_emit_violation`), `crates/anvil-kernel/tests/watch_pattern_filter.rs:187` (`excluded_runtime_change_does_not_emit_violation`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

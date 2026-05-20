@@ -182,10 +182,34 @@ fn invalid_pattern_surfaces_a_clear_error() {
     );
 }
 
+/// Source body for the post-warmup `vendor/lib/added.ts` write used by
+/// the CLAWP-014 paired-control tests below. Imports a bare external
+/// module name (`unseen-external-pkg`) so the runtime add introduces a
+/// genuinely new external dependency that the `NewDependencyIntroduction`
+/// invariant will flag — see `crates/anvil-kernel/src/policy/invariants/
+/// new_dependency.rs`, which fires only when an added edge points at a
+/// symbol with `TrustLevel::External` that the run has not previously
+/// imported. The committed fixtures (`src/app/main.ts`,
+/// `vendor/lib/util.ts`) use relative imports and so do not pre-populate
+/// the `previously_imported` set with this package. Without an external
+/// import here, the exclude assertion below would pass even if the
+/// exclude pattern did nothing, because no violation would ever fire.
+const RUNTIME_VENDOR_ADD_SOURCE: &str = r#"
+import { helper } from "unseen-external-pkg";
+export const added = helper();
+"#;
+
 #[test]
 fn excluded_runtime_change_does_not_emit_violation() {
     // After initial scan, write a new file that matches the exclude
     // pattern. The watch loop must drop the modify event.
+    //
+    // CLAWP-014: the runtime write must be a fixture that *would* emit
+    // a violation when unfiltered — see `RUNTIME_VENDOR_ADD_SOURCE` and
+    // the paired control test
+    // `unfiltered_runtime_change_does_emit_violation` below, which
+    // proves the same write fires a vendor violation when
+    // `exclude_patterns` is empty.
     let tmp = TempDir::new().unwrap();
     write_fixture(tmp.path());
 
@@ -208,7 +232,7 @@ fn excluded_runtime_change_does_not_emit_violation() {
 
     fs::write(
         tmp.path().join("vendor/lib/added.ts"),
-        "export const added = 1;\n",
+        RUNTIME_VENDOR_ADD_SOURCE,
     )
     .unwrap();
 
@@ -219,6 +243,47 @@ fn excluded_runtime_change_does_not_emit_violation() {
     assert!(
         !touched.iter().any(|f| f.contains("vendor")),
         "vendor file should not produce events; touched files: {touched:?}"
+    );
+}
+
+#[test]
+fn unfiltered_runtime_change_does_emit_violation() {
+    // CLAWP-014 paired control. Same setup and same runtime write as
+    // `excluded_runtime_change_does_not_emit_violation` above, but with
+    // an empty `exclude_patterns`. A vendor violation MUST fire here —
+    // if it doesn't, the exclude test above is passing for the wrong
+    // reason (the write would never have produced a violation anyway).
+    let tmp = TempDir::new().unwrap();
+    write_fixture(tmp.path());
+
+    let (tx, rx) = mpsc::channel();
+    let cfg = WatchConfig {
+        root: tmp.path().to_path_buf(),
+        architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        watcher: watcher_config(tmp.path().to_path_buf()),
+        include_patterns: Vec::new(),
+        exclude_patterns: Vec::new(),
+        warmup_paths: Vec::new(),
+    };
+
+    let handle = run_watch(&cfg, tx).unwrap();
+    thread::sleep(Duration::from_millis(300));
+    let _ = rx.try_iter().count();
+
+    fs::write(
+        tmp.path().join("vendor/lib/added.ts"),
+        RUNTIME_VENDOR_ADD_SOURCE,
+    )
+    .unwrap();
+
+    let events = collect_events(&rx, Duration::from_millis(600));
+    handle.stop().unwrap();
+
+    let touched = touched_files_in_violations(&events);
+    assert!(
+        touched.iter().any(|f| f.contains("vendor/lib/added")),
+        "without exclude_patterns the runtime vendor write must produce \
+         a violation; touched files: {touched:?}"
     );
 }
 
