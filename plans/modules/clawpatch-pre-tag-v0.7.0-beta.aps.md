@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 1/64     |
+| CLAWP | @aneki | In Progress | 2/64     |
 
 **Last reviewed:** 2026-05-20 (CLAWP-001 closed via PR #1732 merged at `6c106a4d`. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
@@ -46,7 +46,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 **Fix-before-tag (3):**
 - CLAWP-001 — Merged via PR #1732 (closed -001, -029, -030 together at `6c106a4d`)
 - CLAWP-008 — registry-load panic outside `catch_unwind` breaks `release-napi` profile contract; tracked in #1650 (elevated from defer)
-- CLAWP-028 — confirmed off-by-one in capped welcome scan; tracked in #1741
+- CLAWP-028 — Merged via PR #1763 (off-by-one fixed in env-gated repro; production `welcome.rs` verified correct and unchanged)
 
 **Ship (9, no action):**
 - CLAWP-002, -003 — pass 1 (kernel-maintainer)
@@ -395,9 +395,11 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_6f256e5de5` — Rust integration test eddacraft-anvil-checks/discovery_repro
 - **Severity / Triage / Category:** low / confirmed-bug / bug
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged
+- **PR:** #1763 (rebase-merged 2026-05-20 at `51db7780`)
+- **Resolution:** Moved the cap check ahead of the file read in `crates/anvil-checks/tests/discovery_repro.rs`, switched to `>=`, and extracted the predicate as `cap_reached(files_scanned, cap)` with a non-gated boundary unit test (`cap_reached_honours_boundary`) so the regression is now caught by `cargo test` without needing `ANVIL_DISCOVERY_REPRO=1`. The release-council's secondary inference that production `welcome.rs` shared the off-by-one was refuted on inspection: `crates/anvil-cli/src/commands/welcome.rs:611-626` pushes-then-checks `candidates.len() >= SCAN_MAX_FILES`, so `files_scanned = candidates.len() - panics - read_failures` cannot exceed 500 and needed no change. Counter bumped 1/64 → 2/64 in this commit.
 - **Recommendation:** Move the cap check before incrementing files_scanned, or change the condition to break before counting/scanning once files_scanned has already reached 500.
-- **Evidence:** `crates/anvil-checks/tests/discovery_repro.rs:91` (`discovery_repro_scan`)
+- **Evidence:** `crates/anvil-checks/tests/discovery_repro.rs` (`cap_reached` predicate + boundary test, cap-check moved ahead of metadata/read).
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
 ### CLAWP-029: Public crate docs still describe shipped validation as deferred
