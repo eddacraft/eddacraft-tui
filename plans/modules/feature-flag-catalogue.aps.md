@@ -234,8 +234,9 @@ Change status to **Ready** when:
   mapped surfaces and records which observations informed manifest curation.
 - **Scope:** `plans/specs/`, `docs/guides/feature-flag-inventory.md`
 - **Non-scope:** Any code change
-- **Validation:** `test -f plans/specs/*-feature-flag-catalogue-design.md`
+- **Validation:** `test -f plans/specs/*-feature-flag-catalogue-design.md` — validation passed (the design note exists at `plans/specs/2026-05-18-feature-flag-catalogue-design.md`).
 - **Confidence:** high
+- **Status:** Complete
 - **Resolution (2026-05-18):**
   [`plans/specs/2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
   pins the manifest at `flags/manifest.json` (repo root, OpenFeature-adjacent),
