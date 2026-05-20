@@ -89,17 +89,21 @@ mkdir -p "$tmp/plans/modules"
 write_module "$tmp/plans/modules/fixture.aps.md"
 
 # #1769: lifecycle fixture exercises the broader done-state set
-# (`Done`, `Complete`, `Merged`, `Released/Shipped`) plus the
-# trailing-prose forms (`Complete — merged ...`, `Done — landed ...`)
-# that real modules already use. Header progress matches the count of
-# done items, so this module must NOT produce an `aps-progress-mismatch`
-# finding. A negative test below locks that behaviour.
+# (`Done`, `Complete`, `Merged`, `Released/Shipped`) plus the trailing-
+# prose forms that real modules already use:
+#   - `Complete — merged 2026-04-29 via PR #...` (em-dash separator)
+#   - `Done — landed via PR #...` (em-dash separator on Done)
+#   - `Merged 2026-05-17 — ...` (date BEFORE em-dash — surfaced by
+#     PR #1771 review against `plans/modules/multilayer-protection-v2`)
+# Header progress matches the count of done items, so this module must
+# NOT produce an `aps-progress-mismatch` finding. A negative test below
+# locks that behaviour.
 cat > "$tmp/plans/modules/lifecycle.aps.md" <<'EOF'
 # Lifecycle Module
 
 | ID | Owner | Status | Progress |
 | --- | --- | --- | --- |
-| LIFE | — | In Progress | 5/6 |
+| LIFE | — | In Progress | 7/8 |
 
 ### LIFE-001: Canonical Done
 
@@ -128,17 +132,27 @@ cat > "$tmp/plans/modules/lifecycle.aps.md" <<'EOF'
 - **Validation:** `pnpm test` — validation passed.
 - **Files:** `src/e.ts`
 
-### LIFE-006: Still in progress
+### LIFE-006: Trailing-prose Done
+
+- **Status:** Done — landed via PR #101 (`feat/LIFE-006`).
+- **Files:** `src/f.ts`
+
+### LIFE-007: Date-then-dash Merged
+
+- **Status:** Merged 2026-05-17 — all umbrella-required sub-tasks landed.
+- **Files:** `src/g.ts`
+
+### LIFE-008: Still in progress
 
 - **Status:** In Progress (release-council pending)
-- **Files:** `src/f.ts`
+- **Files:** `src/h.ts`
 EOF
 
 cat > "$tmp/plans/index.aps.md" <<'EOF'
 # Fixture Index
 
 | [fixture](./modules/fixture.aps.md) | FIX | 1/4 | Fixture module. |
-| [lifecycle](./modules/lifecycle.aps.md) | LIFE | 5/6 | Lifecycle fixture. |
+| [lifecycle](./modules/lifecycle.aps.md) | LIFE | 7/8 | Lifecycle fixture. |
 EOF
 cat > "$tmp/package.json" <<'EOF'
 {"version":"1.2.3"}
@@ -184,7 +198,10 @@ if (life) {
 
 # #1769: lock the canonical aliases individually. Build a fixture per
 # state so a regression that drops any one state surfaces with the
-# specific module name in the failure.
+# specific module name in the failure. State is passed to the inline
+# node script via the `STATE` env var rather than bash-interpolated into
+# the single-quoted JS — easier to read and immune to future state
+# values containing quotes.
 for state in Done Complete Merged 'Released/Shipped'; do
   state_tmp="$(mktemp -d)"
   mkdir -p "$state_tmp/plans/modules"
@@ -203,11 +220,12 @@ for state in Done Complete Merged 'Released/Shipped'; do
 - **Files:** \`src/x.ts\`
 EOF
   state_json="$("${CHECK[@]}" --root "$state_tmp" --json)"
-  if printf '%s' "$state_json" | node -e '
+  if printf '%s' "$state_json" | STATE="$state" node -e '
 const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const state = process.env.STATE;
 const mismatch = doc.findings.find((f) => f.code === "aps-progress-mismatch");
 if (mismatch) {
-  throw new Error("expected no mismatch for Status: '"$state"', got: " + mismatch.message);
+  throw new Error(`expected no mismatch for Status: ${state}, got: ${mismatch.message}`);
 }
 '; then :; else echo "done-state regression: '${state}' did not count toward progressDone" >&2; rm -rf "$state_tmp"; exit 1; fi
   rm -rf "$state_tmp"

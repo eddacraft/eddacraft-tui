@@ -145,20 +145,24 @@ const items = modules.flatMap((module) => module.items);
 // `aps-complete-without-validation-evidence` check below intentionally
 // stays keyed on literal `Complete` per Status Rule 4 (the narrative
 // validation gate).
-const DONE_STATES = new Set(['Done', 'Complete', 'Merged', 'Released/Shipped']);
-
-// Real module text carries trailing prose after the terminal-state
-// token, e.g. `Status: Complete — merged 2026-04-29 via PR #1186` or
-// `Status: In Progress (release-council pass-2 verdict ...)`. Split on
-// em-dash / hyphen-with-spaces / opening paren / colon to recover the
-// head token; `Released/Shipped` is preserved because we deliberately
-// do NOT split on `/`.
-function statusHead(status) {
-  return status.split(/\s+[—-]\s+|\s*[(:]/)[0].trim();
-}
+//
+// Real module text appends free-form prose after the terminal-state
+// token. Examples found in-tree (`plans/modules/`):
+//   - `Complete — merged 2026-04-29 via PR #1186`
+//   - `Complete (commit \`06d764d4\`; file present at ...)`
+//   - `Merged 2026-05-17 — all four umbrella-required sub-tasks ...`
+//   - `Done — landed via PR #100`
+// PR #1771 review-round 1 caught the `Merged 2026-05-17 — ...` form: an
+// earlier split-on-separator approach yielded `Merged 2026-05-17` as
+// the head token, which then failed an exact Set lookup. Match the
+// done-state as a leading prefix with a word boundary instead, so any
+// trailing prose (date, paren, dash, period, slash for compound
+// `Released/Shipped`) is accepted.
+const DONE_PATTERNS = [/^Done\b/, /^Complete\b/, /^Merged\b/, /^Released\/Shipped\b/];
 
 function isDoneStatus(status) {
-  return DONE_STATES.has(statusHead(status));
+  const trimmed = status.trim();
+  return DONE_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 for (const module of modules) {
