@@ -145,6 +145,71 @@ pub enum IpcCommand {
     /// Response: `{"ok": bool}` — `true` when a fence was removed,
     /// `false` for the idempotent no-op case (no fence was engaged).
     UnblockWorktree { worktree: PathBuf },
+    /// MLP2-071 (INTD-015 wire-up): flip this connection into
+    /// telemetry-subscriber mode. The daemon mints the `SubscriberId`
+    /// from the connection's peer credentials at accept time — the
+    /// wire frame carries NO identity claim, mirroring the defence
+    /// `originating_driver_id` already relies on.
+    ///
+    /// After the daemon acknowledges the frame, every
+    /// `anvil.notification.v1` envelope the producer broadcasts is
+    /// routed through `Fanout::route` for this subscriber; the
+    /// resulting `Delivery::Allow` or `Delivery::Redact(envelope)`
+    /// is written back to the same NDJSON socket as a notification
+    /// (`id: None`). `Delivery::Deny` produces no on-wire frame —
+    /// the subscriber sees nothing for events it is not authorised
+    /// to receive.
+    ///
+    /// Subsequent control-lane commands on the same connection
+    /// remain dispatchable; the IPC layer multiplexes outbound
+    /// telemetry frames against inbound command frames.
+    ///
+    /// Backward-compat: pre-MLP2-071 daemons reject this command at
+    /// the JSON-RPC dispatch layer with the standard
+    /// `Method not found` error; new daemons accept it. Pinned by
+    /// `subscribe_telemetry_round_trips` and
+    /// `subscribe_telemetry_uses_kebab_case_discriminator`.
+    SubscribeTelemetry {
+        /// Optional subset filter the subscriber applies *after* the
+        /// daemon's own filter. `None` (or an empty filter struct) =
+        /// every envelope the fan-out approves. `Some(filter)` lets
+        /// a driver narrow further (e.g. only its own session ids)
+        /// without changing the daemon's visibility boundary.
+        ///
+        /// V1 honours `session_ids` if supplied; richer filtering
+        /// (priority floor, rule-id allowlist) is forward-compat
+        /// follow-up — additional fields land on
+        /// `TelemetrySubscriberFilter` with the same
+        /// `#[serde(default, skip_serializing_if = "Option::is_none")]`
+        /// pattern.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        filter: Option<TelemetrySubscriberFilter>,
+    },
+    /// MLP2-071: symmetric tear-down for `SubscribeTelemetry`.
+    /// Optional — disconnecting the IPC socket also unregisters the
+    /// subscriber, so this frame is primarily for clients that want
+    /// to stop receiving without dropping the connection.
+    ///
+    /// Pinned by `unsubscribe_telemetry_round_trips`.
+    UnsubscribeTelemetry,
+}
+
+/// MLP2-071 (INTD-015 wire-up): optional client-side filter applied
+/// on top of the daemon-enforced default-deny filter. The daemon's
+/// `Fanout::route` is the load-bearing visibility boundary; this
+/// struct lets a subscriber narrow further without changing the
+/// daemon's posture.
+///
+/// All fields are optional so the wire shape grows additively. An
+/// empty filter (all-`None` fields) is equivalent to no filter.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelemetrySubscriberFilter {
+    /// When `Some`, only envelopes whose `originating_session_id`
+    /// matches one of the listed ids are forwarded. The daemon
+    /// still enforces ownership / cross-session policy first —
+    /// this filter is strictly a narrowing hint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_ids: Option<Vec<SessionId>>,
 }
 
 /// Single NDJSON envelope. One line on the wire = one envelope. The
@@ -709,6 +774,105 @@ mod tests {
         assert_eq!(active, "\"active\"");
         let ended = serde_json::to_string(&SessionStatus::Ended).expect("serialise");
         assert_eq!(ended, "\"ended\"");
+    }
+
+    /// MLP2-071 (INTD-015 wire-up): `SubscribeTelemetry` round-trips
+    /// through the wire with the kebab-case discriminator
+    /// `subscribe-telemetry`. The `filter` field is omitted when
+    /// `None` (skip-if-none guard), matching the `operator` /
+    /// `agent_tag` / `lineage` precedents.
+    #[test]
+    fn subscribe_telemetry_round_trips() {
+        let envelope =
+            IpcEnvelope::request("req-sub", IpcCommand::SubscribeTelemetry { filter: None });
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(
+            line.contains("\"subscribe-telemetry\""),
+            "kebab-case discriminator: {line}"
+        );
+        assert!(
+            !line.contains("\"filter\""),
+            "filter omitted when None: {line}"
+        );
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
+    }
+
+    /// MLP2-071: the kebab-case discriminator pin is the contract
+    /// pre-MLP2-071 daemons need to reject; pinning it explicitly
+    /// keeps the rename-rule guard from drifting.
+    #[test]
+    fn subscribe_telemetry_uses_kebab_case_discriminator() {
+        let sub = serde_json::to_string(&IpcCommand::SubscribeTelemetry { filter: None })
+            .expect("serialise");
+        assert!(
+            sub.contains("\"subscribe-telemetry\""),
+            "subscribe-telemetry: got {sub}"
+        );
+        let unsub = serde_json::to_string(&IpcCommand::UnsubscribeTelemetry).expect("serialise");
+        assert!(
+            unsub.contains("\"unsubscribe-telemetry\""),
+            "unsubscribe-telemetry: got {unsub}"
+        );
+    }
+
+    /// MLP2-071: a populated `TelemetrySubscriberFilter` round-trips
+    /// with `session_ids` carried as an array on the wire.
+    #[test]
+    fn subscribe_telemetry_with_session_filter_round_trips() {
+        let envelope = IpcEnvelope::request(
+            "req-sub-filter",
+            IpcCommand::SubscribeTelemetry {
+                filter: Some(TelemetrySubscriberFilter {
+                    session_ids: Some(vec![
+                        SessionId::new("sess_a"),
+                        SessionId::new("sess_b"),
+                    ]),
+                }),
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        let parsed: serde_json::Value = serde_json::from_str(&line).expect("parse");
+        assert_eq!(parsed["filter"]["session_ids"][0], "sess_a");
+        assert_eq!(parsed["filter"]["session_ids"][1], "sess_b");
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
+    }
+
+    /// MLP2-071: `UnsubscribeTelemetry` round-trips with no payload.
+    #[test]
+    fn unsubscribe_telemetry_round_trips() {
+        let envelope = IpcEnvelope::request("req-unsub", IpcCommand::UnsubscribeTelemetry);
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(
+            line.contains("\"unsubscribe-telemetry\""),
+            "kebab-case: {line}"
+        );
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope);
+    }
+
+    /// MLP2-071: an empty filter struct (`{}`) deserialises as
+    /// `Some(TelemetrySubscriberFilter { session_ids: None })`,
+    /// distinct from the omitted-filter case which deserialises as
+    /// `filter: None`. Both shapes are semantically equivalent (no
+    /// further narrowing) and must round-trip cleanly.
+    #[test]
+    fn subscribe_telemetry_empty_filter_object_deserialises() {
+        let wire = r#"{"id": "req-empty", "command": "subscribe-telemetry", "filter": {}}"#;
+        let envelope: IpcEnvelope = serde_json::from_str(wire).expect("deserialise");
+        match envelope.command {
+            IpcCommand::SubscribeTelemetry { filter } => {
+                assert_eq!(
+                    filter,
+                    Some(TelemetrySubscriberFilter { session_ids: None }),
+                    "empty filter object parses as Some(default) — semantically same as None"
+                );
+            }
+            other => panic!("expected SubscribeTelemetry, got {other:?}"),
+        }
     }
 
     /// Pinned contract for INTD-002's NDJSON socket reader: unknown

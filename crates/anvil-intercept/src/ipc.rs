@@ -3019,6 +3019,22 @@ fn dispatch_command<D: SessionDispatcher>(
                     .to_owned(),
             )
         }
+        // MLP2-071 (INTD-015 wire-up): subscribe / unsubscribe are
+        // connection-state mutations, not command-response shapes —
+        // the per-connection handler in `handle_jsonrpc_command`
+        // intercepts them before reaching this dispatcher, because
+        // mutating subscription state requires the per-connection
+        // peer credentials + outbound channel that the generic
+        // command dispatcher does not have. Reaching this arm means
+        // a caller routed a `SubscribeTelemetry` / `UnsubscribeTelemetry`
+        // frame through the legacy NDJSON dispatcher that bypasses
+        // the JSON-RPC path; surface that honestly rather than
+        // silently no-op.
+        IpcCommand::SubscribeTelemetry { .. } | IpcCommand::UnsubscribeTelemetry => Err(
+            "subscribe-telemetry / unsubscribe-telemetry require the JSON-RPC per-connection \
+             handler; the legacy NDJSON dispatcher cannot serve them"
+                .to_owned(),
+        ),
     }
 }
 
