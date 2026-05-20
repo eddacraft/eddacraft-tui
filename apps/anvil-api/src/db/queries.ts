@@ -537,9 +537,14 @@ export async function insertDummyDeviceCode(
  *
  * Returns `user_id` from the device_codes row directly rather than joining
  * to beta_users.email — the consumer asserts the row's user_id matches the
- * caller's authenticated identity. Dummy rows inserted by /start for
- * inactive users carry `user_id IS NULL` and therefore never match an
- * authenticated lookup, preserving the anti-enumeration property.
+ * caller's authenticated identity. Anti-enumeration dummy rows inserted by
+ * /start for inactive users carry `user_id IS NULL`: this query will
+ * **still return them when the user_code matches**, but the consuming
+ * route's `user_id === null || user_id !== authed.sub` check ensures they
+ * cannot be confirmed under any authenticated identity. The check belongs
+ * in the route layer because the same lookup feeds the attempts-counter
+ * increment that bounds brute-force guessing — a dummy-row match should
+ * still cost the attacker an attempt rather than silently disappearing.
  */
 export async function findPendingDeviceCodeWithUserId(
   sql: NeonClient,

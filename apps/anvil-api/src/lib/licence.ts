@@ -49,6 +49,20 @@ export async function verifySigningKey(): Promise<{ ok: true } | { ok: false; er
   }
 }
 
+/**
+ * Probe `LICENSE_PUBLIC_KEY` so a missing or invalid SPKI is caught at boot
+ * / `/health` rather than at the first authenticated `/device/confirm` call.
+ * Mirrors [`verifySigningKey`] for the verification half of the keypair.
+ */
+export async function verifyVerifyingKey(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await loadVerifyingKey();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Test-only: clears the module-level caches so env-var changes take effect.
 // Production callers mutate env vars once at boot — a runtime rotation path
 // would need a proper invalidation strategy, not this.
@@ -59,12 +73,20 @@ export function _resetSigningKeyCacheForTests(): void {
 
 /**
  * Verify an anvil-issued licence JWT and return the parsed claims if the
- * signature, issuer, audience, and exp/iat are all valid. Returns `null` on
- * any verification failure — callers MUST treat a null return as "no
+ * signature, issuer, audience, expiry (`exp`), and not-before (`nbf`, when
+ * present) are all valid per `jwtVerify`'s defaults. Returns `null` on any
+ * verification failure — callers MUST treat a null return as "no
  * authenticated identity" and refuse the request. Never silently downgrade.
  *
- * The verification key (`LICENSE_PUBLIC_KEY`) is required; a missing key
- * surfaces as a thrown error rather than a silent allow.
+ * `iat` is **not** enforced — `jwtVerify` does not validate issued-at by
+ * default and we do not pass a `maxTokenAge` policy. Token expiry is
+ * controlled by `exp` instead (set by [`signLicence`]). If a maximum token
+ * age is needed in the future, add a `maxTokenAge` option here.
+ *
+ * The verification key (`LICENSE_PUBLIC_KEY`) is required. A missing or
+ * invalid key surfaces as a **thrown error** rather than a silent allow —
+ * callers MUST distinguish that configuration failure from a verification
+ * failure (e.g. respond 500 vs 401).
  */
 export async function verifyLicence(jwt: string): Promise<LicenceClaims | null> {
   const key = await loadVerifyingKey();

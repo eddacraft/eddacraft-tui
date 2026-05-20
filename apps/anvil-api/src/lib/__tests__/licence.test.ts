@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { generateKeyPair, importSPKI, jwtVerify } from 'jose';
+import { generateKeyPair, importSPKI, jwtVerify, SignJWT } from 'jose';
 import {
   signLicence,
+  verifyLicence,
   verifySigningKey,
+  verifyVerifyingKey,
   _resetSigningKeyCacheForTests,
   type LicenceClaims,
 } from '../licence.js';
@@ -182,5 +184,143 @@ describe('verifySigningKey', () => {
       process.env['LICENSE_SIGNING_KEY'] = saved;
       _resetSigningKeyCacheForTests();
     }
+  });
+});
+
+describe('verifyVerifyingKey', () => {
+  it('returns ok when LICENSE_PUBLIC_KEY is valid', async () => {
+    const result = await verifyVerifyingKey();
+    expect(result.ok).toBe(true);
+  });
+
+  it('returns error when LICENSE_PUBLIC_KEY is missing', async () => {
+    const saved = process.env['LICENSE_PUBLIC_KEY'];
+    delete process.env['LICENSE_PUBLIC_KEY'];
+    _resetSigningKeyCacheForTests();
+    try {
+      const result = await verifyVerifyingKey();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toMatch(/LICENSE_PUBLIC_KEY/);
+      }
+    } finally {
+      process.env['LICENSE_PUBLIC_KEY'] = saved;
+      _resetSigningKeyCacheForTests();
+    }
+  });
+});
+
+describe('verifyLicence', () => {
+  it('returns the parsed claims for a freshly signed licence', async () => {
+    const jwt = await signLicence(makeClaims({ sub: 'user-42', email: 'a@b.com' }), undefined, 7);
+    const claims = await verifyLicence(jwt);
+    expect(claims).not.toBeNull();
+    expect(claims!.sub).toBe('user-42');
+    expect(claims!.email).toBe('a@b.com');
+    expect(claims!.scopes).toEqual(['beta']);
+  });
+
+  it('returns null for a tampered signature', async () => {
+    const jwt = await signLicence(makeClaims());
+    // Flip a character in the middle of the signature segment — the last
+    // character can be padding-equivalent under base64url and a single-bit
+    // flip there may still round-trip.
+    const parts = jwt.split('.');
+    const sig = parts[2]!;
+    const mid = Math.floor(sig.length / 2);
+    const swap = sig[mid] === 'A' ? 'B' : 'A';
+    parts[2] = sig.slice(0, mid) + swap + sig.slice(mid + 1);
+    const tampered = parts.join('.');
+    const claims = await verifyLicence(tampered);
+    expect(claims).toBeNull();
+  });
+
+  it('returns null for a JWT signed by a different key', async () => {
+    const { privateKey } = await generateKeyPair('ES256', { extractable: true });
+    const otherJwt = await new SignJWT({ email: 'a@b.com', scopes: ['beta'] })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setSubject('user-other')
+      .setIssuedAt()
+      .setIssuer('https://api.eddacraft.ai')
+      .setAudience('anvil-cli')
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+      .sign(privateKey);
+    const claims = await verifyLicence(otherJwt);
+    expect(claims).toBeNull();
+  });
+
+  it('returns null for a JWT with the wrong issuer', async () => {
+    const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+    const jwt = await new SignJWT({ email: 'a@b.com', scopes: ['beta'] })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setSubject('user-1')
+      .setIssuedAt()
+      .setIssuer('https://attacker.example.com')
+      .setAudience('anvil-cli')
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+      .sign(privateKey);
+    const claims = await verifyLicence(jwt);
+    expect(claims).toBeNull();
+  });
+
+  it('returns null for a JWT with the wrong audience', async () => {
+    const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+    const jwt = await new SignJWT({ email: 'a@b.com', scopes: ['beta'] })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setSubject('user-1')
+      .setIssuedAt()
+      .setIssuer('https://api.eddacraft.ai')
+      .setAudience('some-other-audience')
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+      .sign(privateKey);
+    const claims = await verifyLicence(jwt);
+    expect(claims).toBeNull();
+  });
+
+  it('returns null for an expired JWT', async () => {
+    const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+    const jwt = await new SignJWT({ email: 'a@b.com', scopes: ['beta'] })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setSubject('user-1')
+      .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
+      .setIssuer('https://api.eddacraft.ai')
+      .setAudience('anvil-cli')
+      .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
+      .sign(privateKey);
+    const claims = await verifyLicence(jwt);
+    expect(claims).toBeNull();
+  });
+
+  it('returns null for a JWT missing required claims (no scopes)', async () => {
+    const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+    // No `scopes` claim.
+    const jwt = await new SignJWT({ email: 'a@b.com' })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setSubject('user-1')
+      .setIssuedAt()
+      .setIssuer('https://api.eddacraft.ai')
+      .setAudience('anvil-cli')
+      .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+      .sign(privateKey);
+    const claims = await verifyLicence(jwt);
+    expect(claims).toBeNull();
+  });
+
+  it('throws when LICENSE_PUBLIC_KEY is missing — callers must distinguish config errors from verification failures', async () => {
+    const jwt = await signLicence(makeClaims());
+    const saved = process.env['LICENSE_PUBLIC_KEY'];
+    delete process.env['LICENSE_PUBLIC_KEY'];
+    _resetSigningKeyCacheForTests();
+    try {
+      await expect(verifyLicence(jwt)).rejects.toThrow('LICENSE_PUBLIC_KEY');
+    } finally {
+      process.env['LICENSE_PUBLIC_KEY'] = saved;
+      _resetSigningKeyCacheForTests();
+    }
+  });
+
+  it('returns null for a malformed JWT string', async () => {
+    expect(await verifyLicence('not.a.jwt')).toBeNull();
+    expect(await verifyLicence('')).toBeNull();
   });
 });

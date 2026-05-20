@@ -11,16 +11,23 @@ import { waitlist } from './routes/waitlist.js';
 import { cron } from './routes/cron.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
-import { verifySigningKey } from './lib/licence.js';
+import { verifySigningKey, verifyVerifyingKey } from './lib/licence.js';
 
-// Cold-start probe: validate the signing-key PEM parses at boot so
-// misconfiguration surfaces at deploy time rather than on the first device-flow
-// mint. Fire-and-forget — /health reports the result; the result is cached via
-// the module-level signing-key promise in lib/licence.ts, so this does not
-// block request handling.
+// Cold-start probe: validate both the signing-key PEM (for /device/poll and
+// the OTP / GitHub / session paths) and the verifying-key PEM (for the
+// requireAuth middleware on /device/confirm) parse at boot so misconfiguration
+// surfaces at deploy time rather than on the first authenticated call.
+// Fire-and-forget — /health reports the result; the keys are cached via the
+// module-level promises in lib/licence.ts, so this does not block request
+// handling.
 verifySigningKey().then((result) => {
   if (!result.ok) {
     console.error('[boot] licence signing key unavailable:', result.error);
+  }
+});
+verifyVerifyingKey().then((result) => {
+  if (!result.ok) {
+    console.error('[boot] licence verifying key unavailable:', result.error);
   }
 });
 
@@ -68,7 +75,7 @@ app.use(
 app.use('*', rateLimiter());
 
 app.get('/health', async (c) => {
-  const [dbResult, keyResult] = await Promise.all([
+  const [dbResult, signingKeyResult, verifyingKeyResult] = await Promise.all([
     (async () => {
       try {
         const sql = getClient();
@@ -79,17 +86,24 @@ app.get('/health', async (c) => {
       }
     })(),
     verifySigningKey(),
+    verifyVerifyingKey(),
   ]);
 
-  if (dbResult.ok && keyResult.ok) {
-    return c.json({ status: 'ok', db: 'ok', signingKey: 'ok' });
+  if (dbResult.ok && signingKeyResult.ok && verifyingKeyResult.ok) {
+    return c.json({
+      status: 'ok',
+      db: 'ok',
+      signingKey: 'ok',
+      verifyingKey: 'ok',
+    });
   }
 
   return c.json(
     {
       status: 'degraded',
       db: dbResult.ok ? 'ok' : 'unreachable',
-      signingKey: keyResult.ok ? 'ok' : 'unavailable',
+      signingKey: signingKeyResult.ok ? 'ok' : 'unavailable',
+      verifyingKey: verifyingKeyResult.ok ? 'ok' : 'unavailable',
     },
     503
   );

@@ -66,7 +66,7 @@ const pollSchema = z.object({
 const authDevice = new Hono();
 
 /**
- * POST /device/start
+ * POST /auth/device/start
  *
  * Initiates the device code authentication flow.
  * Anti-enumeration: always returns the same response shape regardless of
@@ -74,7 +74,7 @@ const authDevice = new Hono();
  */
 authDevice.post('/start', zValidator('json', startSchema), async (c) => {
   const { email } = c.req.valid('json');
-  debug('POST /device/start', { hasEmail: Boolean(email) });
+  debug('POST /auth/device/start', { hasEmail: Boolean(email) });
 
   const normalised = email.toLowerCase().trim();
   const sql = getClient();
@@ -119,7 +119,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
 });
 
 /**
- * POST /device/confirm
+ * POST /auth/device/confirm
  *
  * Confirms a device code from the browser activation page. Requires the
  * caller to be authenticated as the user the device code was issued for —
@@ -138,7 +138,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
 authDevice.post('/confirm', requireAuth(), zValidator('json', confirmSchema), async (c) => {
   const { userCode } = c.req.valid('json');
   const authed = c.get('authed');
-  debug('POST /device/confirm', { authedSub: authed.sub });
+  debug('POST /auth/device/confirm', { authedSub: authed.sub });
 
   const normalisedCode = userCode.toUpperCase().trim();
   const sql = getClient();
