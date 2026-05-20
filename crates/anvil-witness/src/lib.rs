@@ -43,11 +43,6 @@
 //!   recording rollover events is filed as MLP-002b; the writer
 //!   already returns the archive path on rollover so the manifest
 //!   layer can be added without re-touching the writer.
-//! - **80-writer stress test.** Concurrency safety is exercised at 16
-//!   writers in `tests/concurrency.rs`; CI hardware can comfortably
-//!   handle that without flaking. The 80-writer harness is documented
-//!   in the module test file as a stress benchmark, gated behind
-//!   `--ignored` so developers can run it on demand.
 //!
 //! ## Design notes
 //!
