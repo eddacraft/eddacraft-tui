@@ -256,16 +256,19 @@ fn start_json_emits_state_literal_in_status_verify_shape() {
     let state = json["state"]
         .as_str()
         .expect("state must be present as a string");
-    assert_eq!(
-        state, "needs_action",
-        "fresh repo + empty HOME under read-only --json must land on needs_action, got {state}"
-    );
+    // Truthfulness-specific rejection runs first so a regression that
+    // graduates the diagnostic to a stronger claim fails with the
+    // CLAWP-022-locked message, not the generic equality mismatch.
     for forbidden in ["protecting", "watching", "ready_restart_required"] {
         assert_ne!(
             state, forbidden,
             "fresh repo MUST NOT claim `{forbidden}` on the read-only --json path"
         );
     }
+    assert_eq!(
+        state, "needs_action",
+        "fresh repo + empty HOME under read-only --json must land on needs_action, got {state}"
+    );
     assert!(json["headline"].is_string(), "headline must be a string");
     assert!(json["config"].is_string(), "config must be a string");
 }
