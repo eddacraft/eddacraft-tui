@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 3/64     |
+| CLAWP | @aneki | In Progress | 6/64     |
 
-**Last reviewed:** 2026-05-20 (CLAWP-001 closed via PR #1732 merged at `6c106a4d`. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-20 (six findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -45,7 +45,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 
 **Fix-before-tag (3):**
 - CLAWP-001 — Merged via PR #1732 (closed -001, -029, -030 together at `6c106a4d`)
-- CLAWP-008 — registry-load panic outside `catch_unwind` breaks `release-napi` profile contract; tracked in #1650 (elevated from defer)
+- CLAWP-008 — Merged via PR #1765 (merged at `7c1fcce4`; registry-load panic now caught inside `scan_artifact_json`; release-napi contract restored, fix-before-tag obligation cleared)
 - CLAWP-028 — Merged via PR #1763 (off-by-one fixed in env-gated repro; production `welcome.rs` verified correct and unchanged)
 
 **Ship (9, no action):**
@@ -174,7 +174,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_5f9e6b4709` — Rust library eddacraft-anvil-checks-napi
 - **Severity / Triage / Category:** medium / risk / bug
 - **Confidence:** medium
-- **Status:** In Progress (release-council pass-2 verdict 2026-05-20 elevated this to fix-before-tag for `v0.7.0-beta`; tracked in #1650, branch `fix/clawp-008-napi-catch-unwind`)
+- **Status:** Merged via PR #1765 (merged at `7c1fcce4`; registry load + `get_default_patterns_json` now wrapped in `catch_unwind` → `panic_to_error`; release-council pass-2 fix-before-tag obligation cleared 2026-05-20)
 - **Recommendation:** Move the registry load into the same catch_unwind block as scan_artifact_rust, or wrap the whole scan_artifact_json implementation after JSON argument validation so registry panics are converted through panic_to_error.
 - **Evidence:** `crates/anvil-checks-napi/src/lib.rs:170` (`scan_artifact_json`), `crates/anvil-checks-napi/src/lib.rs:183` (`scan_artifact_json`), `crates/anvil-checks-napi/src/lib.rs:254` (`get_default_patterns_json`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -220,7 +220,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_3cc630c104` — Rust integration test eddacraft-anvil-checks/surfenv_anvil_baseline
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1772 (merged at `8eae1cfe`)
 - **Branch:** `fix/1745-clawp-012-env-hygiene`
 - **Resolution:** Split `ANVIL_ENV_FILES` into
   `ANVIL_COMMITTED_ENV_FILES` (templates that must exist) and
@@ -391,7 +391,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_c4fa96f467` — Rust integration test eddacraft-anvil/start
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1770 (merged at `265f45d9`)
 - **Branch:** `fix/1752-clawp-022-start-json-state`
 - **Resolution:** Replace the "any of six known literals" assertion in
   `start_json_emits_state_literal_in_status_verify_shape` with
