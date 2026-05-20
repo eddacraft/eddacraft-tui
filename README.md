@@ -132,18 +132,9 @@ an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 
 ## Release Status
 
-Latest repository tag: **`v0.6.3-beta`** (2026-05-15). Beta watch UX and
-uninstall hotfix on top of the `v0.6.2-beta` operational substrate (main-first
-branch governance, targeted CI/readiness checks, and deterministic release
-commands).
+Latest repository tag: **`v0.7.0-beta`** (2026-05-20). The daemon-working product slate: protects this project end-to-end through the daemon, hooks, witness chain, baseline, and wrapped agent-launch surfaces, with a signature-verified update path.
 
-Next candidate: **`v0.7.0-beta`** — the daemon-working product slate. The
-tag-time claim is that Anvil protects this project end-to-end through the
-daemon, hooks, witness chain, baseline, and wrapped agent-launch surfaces, with
-a signature-verified update path. The broader “sit on this for a month” claim
-graduates only after post-tag Boring Week evidence. Current cut-line, docs-phase
-closure, and deferrals live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
-[`plans/index.aps.md`](./plans/index.aps.md).
+Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate. The candidate-time expectation is that Anvil provides a unified browser surface for platform engineers and team leads to view last-gate runs, severity-grouped warnings, and historical drift trends, backed by a local-only database. Current cut-line, docs-phase closure, and deferrals live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and [`plans/index.aps.md`](./plans/index.aps.md).
 
 Release cadence and beta support-window expectations are documented in
 [`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
@@ -161,10 +152,9 @@ Release cadence and beta support-window expectations are documented in
 
 eddacraft monorepo. Currently home to **anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
-save, before they reach code review. Active release work is on the `v0.7.0-beta`
-daemon-working slate: protection claims, hook/witness evidence, baseline
-adoption, wrapped agent launch via `anvil-run`, and release/distribution
-hardening.
+save, before they reach code review. Active release work is on the `v0.8.0-beta`
+Team-Lead Surface and platform slate: unified browser dashboard, `anvil export`
+run-state, severity-grouped warning panels, and local database integration.
 
 Coverage is advisory rather than a merge gate. Nightly CI publishes the
 authoritative coverage artefacts; local commands are listed in

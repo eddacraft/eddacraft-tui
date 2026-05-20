@@ -10,7 +10,7 @@ sidebar_position: 4
 
 | Type        | Authority     | Owner                                                                                                                                              | Status | Freshness                                                                |
 | ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
-| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main` for v0.7.0-beta consumer surface |
+| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-20 against `main` for v0.7.0-beta consumer surface |
 
 | Upstream                                                                                                                                            | Downstream                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
