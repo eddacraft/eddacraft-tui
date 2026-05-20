@@ -16,9 +16,11 @@ Guides for upgrading between anvil versions.
 Drop-in upgrade from `0.6.x`. There is no required config migration — existing
 `.anvilrc` files keep working untouched. The release theme is
 **daemon-working**: hooks, the witness chain, baseline adoption, L4 policy, and
-wrapped agent launch operate as a single typed `ProtectionClaim` across
-`anvil status --json`, `anvil doctor --json`, the MCP `validate_write` response,
-and the TypeScript driver-client. Most of the surface delta is additive; the
+wrapped agent launch share a single typed `ProtectionClaim` rendered on
+`anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
+MCP-tool response (when the daemon is reachable; the Windows MCP shim still
+reports `daemonStatus: not-wired` and omits `protection_claim`), and the
+TypeScript driver-client. Most of the surface delta is additive; the
 [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
 is the authoritative operator reference.
 
@@ -50,8 +52,9 @@ After upgrade, confirm the new protection claim renders cleanly:
 anvil status --json | jq '.claim.worktree_state'   # → "full"
 ```
 
-A `"full"` worktree state on every surface (CLI, doctor, MCP shim, TS driver)
-means the daemon-working contract is honoured. See the
+A `"full"` worktree state on each surface that emits one (CLI, doctor,
+daemon-backed MCP shim on Unix, TypeScript driver-client) means the
+daemon-working contract is honoured. See the
 [v0.7.0-beta release runbook §3](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
 for the full cross-surface check.
 
@@ -93,10 +96,14 @@ if any of the following apply:
   [`anvil-run` manpage](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md).
 - **`anvil l4-validate`** — dedicated L4-policy validator (formerly fused with
   `anvil hook pre-push`). Used by CI and GitHub Action consumers.
-- **Protection-claim contract on every surface.** `anvil status --json`,
-  `anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
-  driver-client all emit the same typed `ProtectionClaim` shape. Pre-existing
-  consumers continue to receive a backward-compatible response; the field is
+- **Protection-claim contract across surfaces.** `anvil status --json`,
+  `anvil doctor --json`, the `anvil_validate_write` MCP-tool response, and the
+  TypeScript driver-client all emit the same typed `ProtectionClaim` shape. The
+  MCP response only carries `protection_claim` when the daemon is reachable — on
+  Windows the daemon-validation client is gated `cfg(unix)`, so the envelope
+  reports `daemonStatus: not-wired` and the field is omitted on that surface
+  (status and doctor still render the claim on Windows). Pre-existing consumers
+  continue to receive a backward-compatible response; the field is
   wire-additive.
 - **Witness chain in-tree at `anvil/witness/`.** Hash-chained record of which
   protection layers fired on which commit, intended to be committed.
@@ -113,7 +120,8 @@ if any of the following apply:
 - **`anvil intercept unblock`.** Per-fence operator recovery —
   `--worktree <PATH>` for a single fence, `--all` for every fence, `--dry-run`
   to preview, `--acknowledge-cascade <worktree>` to clear a
-  `degraded:fence-cascade` rate-limited fence (four fences in 60 s).
+  `degraded:fence-cascade` rate-limited fence (the `RateWindow` capacity is 4,
+  so the **fifth** fire within a 60 s window engages cascade).
 - **`anvil baseline --new-identity` / `anvil start --new-identity`.** Fork
   opt-out — mints a fresh `project_uuid` and records the previous one as
   `forked_from`.

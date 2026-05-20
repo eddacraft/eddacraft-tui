@@ -115,12 +115,16 @@ state — one of:
 When the daemon is running and reachable over owner-only IPC, the
 `anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
 scanner is the correctness-equivalent fallback when the daemon is not available.
-In `v0.7.0-beta` the protection-claim contract (`anvil status --json`,
-`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
-driver-client) renders on every supported platform; the Windows MCP correlation
-envelope still reports `daemonStatus: not-wired` (carry-forward from
-`v0.6.0-beta`, tracked under `chore/windows-status`), and the cross-compile
-matrix runs against `main` per the
+In `v0.7.0-beta` the protection-claim contract is defined across
+`anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
+MCP-tool response, and the TypeScript driver-client. The MCP response only
+carries `protection_claim` when the daemon is reachable; on Windows the MCP
+daemon-validation client is still gated `cfg(unix)`, so
+`correlation.daemonStatus` reads `not-wired` and `protection_claim` is omitted
+on that surface (carry-forward from `v0.6.0-beta`, tracked under
+`chore/windows-status`). `anvil status --json` and `anvil doctor --json` still
+render the claim on Windows. The cross-compile matrix runs against `main` per
+the
 [v0.7.0-beta release runbook §10](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md).
 
 To probe state without writing config:
@@ -311,14 +315,17 @@ One warning down. Repeat for the rest at your own pace.
   prior `anvil hook pre-push` reuse.
 - [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
   — `anvil status --json | jq '.claim.worktree_state'` and the same
-  `ProtectionClaim` shape on `anvil doctor --json`, the MCP `validate_write`
-  response, and the TypeScript driver-client.
+  `ProtectionClaim` shape on `anvil doctor --json`, the `anvil_validate_write`
+  MCP-tool response (when the daemon is reachable; omitted on Windows MCP, where
+  the shim still reports `daemonStatus: not-wired`), and the TypeScript
+  driver-client.
 - [`anvil baseline --new-identity` / `anvil start --new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
   — fork opt-out: mint a fresh `project_uuid` and record the previous one as
   `forked_from`.
 - [`anvil intercept unblock --acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
-  — clear a `degraded:fence-cascade` rate-limited fence (four fences in 60 s)
-  after the incident is resolved.
+  — clear a `degraded:fence-cascade` rate-limited fence. The `RateWindow`
+  capacity is 4, so the **fifth** fire within a 60 s window engages cascade; use
+  this flag once the incident is resolved.
 - [Witness chain](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)
   and
   [hook coexistence](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md)

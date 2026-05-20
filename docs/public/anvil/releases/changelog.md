@@ -34,11 +34,13 @@ All notable changes to anvil are documented here.
 ## [0.7.0-beta] — 2026-05-20 — Daemon-Working: End-to-End Verifiable Protection
 
 The release theme is **daemon-working**: the protection claim is now verifiable
-on every supported render surface from code state alone. Hooks, the witness
-chain, baseline adoption, L4 policy, and wrapped agent launch operate as a
-single typed `ProtectionClaim` shape across `anvil status --json`,
-`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
-driver-client. Most of the surface delta is additive; the
+from code state alone. Hooks, the witness chain, baseline adoption, L4 policy,
+and wrapped agent launch share a single typed `ProtectionClaim` shape rendered
+on `anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
+MCP-tool response (when the daemon is reachable; daemon-backed MCP is Unix-only
+this release — the Windows MCP shim still reports `daemonStatus: not-wired` and
+omits `protection_claim`), and the TypeScript driver-client. Most of the surface
+delta is additive; the
 [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
 calls out the few places where operator action or expectation needs to shift.
 
@@ -65,9 +67,11 @@ calls out the few places where operator action or expectation needs to shift.
 - **`anvil doctor` typed protection-claim section.** `anvil doctor` now prints
   the worktree state and per-surface entries, with `--json` emitting the same
   `ProtectionClaim` shape as `anvil status --json`.
-- **MCP server `validate_write` response carries `protection_claim`.** The field
-  is optional; omitted when the daemon is unreachable. Pre-existing drivers
-  round-trip the response unchanged.
+- **MCP server `anvil_validate_write` response carries `protection_claim`.** The
+  field is optional; omitted when the daemon is unreachable (including on
+  Windows, where the MCP daemon-validation client is still gated `cfg(unix)` and
+  reports `daemonStatus: not-wired`). Pre-existing drivers round-trip the
+  response unchanged.
 - **`@anvil/driver-client` ships a `ProtectionClaim` parser.** Mirrors the Rust
   types so editors and agents read protection state in a typed shape; the MCP
   response adapter surfaces the claim when the daemon supplied one. Responses

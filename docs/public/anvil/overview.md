@@ -191,9 +191,11 @@ if you're upgrading.
 ### v0.7.0-beta operator surfaces
 
 `v0.7.0-beta` is the **daemon-working** cut: every protection layer (hooks,
-witness chain, baseline adoption, L4 policy, wrapped agent launch) renders a
-single typed `ProtectionClaim` across `anvil status --json`,
-`anvil doctor --json`, the MCP `validate_write` response, and the TypeScript
+witness chain, baseline adoption, L4 policy, wrapped agent launch) defines a
+single typed `ProtectionClaim` rendered on `anvil status --json`,
+`anvil doctor --json`, the `anvil_validate_write` MCP-tool response (when the
+daemon is reachable; the Windows MCP shim still reports
+`daemonStatus: not-wired` and omits `protection_claim`), and the TypeScript
 driver-client. The runbooks below are the source of truth — public docs
 deep-link rather than duplicate them:
 
