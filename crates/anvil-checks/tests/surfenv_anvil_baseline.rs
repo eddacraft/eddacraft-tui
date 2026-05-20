@@ -224,9 +224,46 @@ fn external_validation_smoke_against_synthetic_repo() {
     // case exercises every rule end-to-end on adversarial input that
     // exercises the rule interactions — the kind of file an external
     // operator is most likely to point at.
+    //
+    // CLAWP-013: SURFENV-001 (secret-in-value) must be exercised by a
+    // *positive* case in the same smoke. The `AKIA…` AWS Access Key
+    // ID pattern is deterministic — entropy is disabled below, and
+    // `AKIAQRSTUVWXYZ012345` matches the literal regex
+    // `AKIA[0-9A-Z]{16}` in `crates/anvil-checks/src/secret/patterns.rs`.
+    // The well-known AWS docs example `AKIAIOSFODNN7EXAMPLE` is NOT
+    // usable here because the default allowlist case-insensitively
+    // strips substrings containing `example` / `test` / `dummy` /
+    // `sample` / `placeholder` / `lorem ipsum`. The committed-template
+    // baseline (`surfenv_001_secret_scan_is_clean_on_anvil`) only
+    // asserts the *negative* case; without a positive trip here the
+    // SURFENV-001 detection path could regress silently.
     let gitignore = "node_modules/\ndist/\n# .env intentionally NOT ignored — bug we're catching\n";
-    let env_local = "DATABASE_URL=postgres://prod-db.acme.io/app\nAPI_KEY=local-dev-key\n";
-    let env_example = "DATABASE_URL=\nAPI_KEY=\nLEGACY_FLAG=\n";
+    let env_local = "DATABASE_URL=postgres://prod-db.acme.io/app\n\
+                     API_KEY=local-dev-key\n\
+                     AWS_ACCESS_KEY_ID=AKIAQRSTUVWXYZ012345\n";
+    let env_example = "DATABASE_URL=\nAPI_KEY=\nAWS_ACCESS_KEY_ID=\nLEGACY_FLAG=\n";
+
+    // SURFENV-001: the AWS Access Key ID must be flagged. Run with
+    // entropy disabled so the assertion turns purely on the
+    // deterministic prefix pattern, not on Shannon entropy heuristics.
+    let secret_findings = scan_env_file(".env.local", env_local, &config_no_entropy());
+    let unsuppressed_secrets: Vec<_> = secret_findings.iter().filter(|f| !f.suppressed).collect();
+    assert!(
+        !unsuppressed_secrets.is_empty(),
+        "synthetic .env.local with an AWS Access Key ID must trip at least one \
+         unsuppressed SURFENV-001 finding (entropy disabled); got: {secret_findings:#?}"
+    );
+    assert!(
+        unsuppressed_secrets
+            .iter()
+            .any(|f| f.key == "AWS_ACCESS_KEY_ID"),
+        "expected the unsuppressed SURFENV-001 finding to name AWS_ACCESS_KEY_ID; \
+         got keys: {:?}",
+        unsuppressed_secrets
+            .iter()
+            .map(|f| &f.key)
+            .collect::<Vec<_>>()
+    );
 
     // SURFENV-002: the .env.local must be flagged.
     let env_files = vec![

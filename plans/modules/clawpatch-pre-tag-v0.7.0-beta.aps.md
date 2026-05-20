@@ -242,10 +242,23 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-013: Synthetic external smoke does not exercise positive SURFENV-001 detection
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-3cc630c104-6_d3e315b8d1`
+- **GH issue:** [#1746](https://github.com/eddacraft/anvil-001/issues/1746)
 - **Feature:** `feat_test-suite_3cc630c104` — Rust integration test eddacraft-anvil-checks/surfenv_anvil_baseline
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1746-clawp-013-surfenv-smoke`
+- **Resolution:** Added an `AWS_ACCESS_KEY_ID=AKIAQRSTUVWXYZ012345`
+  line to the synthetic `.env.local` in
+  `external_validation_smoke_against_synthetic_repo` and a positive
+  SURFENV-001 assertion via `scan_env_file(... config_no_entropy())`.
+  Value chosen to match the deterministic `AKIA[0-9A-Z]{16}` pattern
+  in `crates/anvil-checks/src/secret/patterns.rs` while avoiding the
+  case-insensitive default allowlist (`example` / `test` / `dummy` /
+  `sample` / `placeholder` / `lorem ipsum`) — the well-known AWS docs
+  example `AKIAIOSFODNN7EXAMPLE` is allowlisted via the `example`
+  substring. Pure test addition. Advances to **Merged** on this PR's
+  merge; counter bump in the same step.
 - **Recommendation:** Add an adversarial synthetic env value that deterministically triggers SURFENV-001 with entropy disabled, then assert at least one unsuppressed SURFENV-001 finding from `scan_env_file`.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:87` (`surfenv_001_secret_scan_is_clean_on_anvil`), `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:185` (`external_validation_smoke_against_synthetic_repo`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
