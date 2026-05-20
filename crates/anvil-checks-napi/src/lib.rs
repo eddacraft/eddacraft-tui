@@ -163,27 +163,30 @@ pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -
         None => None,
     };
 
-    // Fail loudly if the registry isn't loadable. Without this, a missing
-    // registry produces an empty catalogue and every scan returns zero
-    // warnings — which looks like a passing scan and silently disables
-    // enforcement. See council review C1 (2026-04-24).
-    let _registry = load_registry_or_err(&LoadRegistryOptions::default())?;
-
     let artifact = Artifact {
         kind,
         reference: input.reference,
         content: input.content,
     };
 
-    // Catch panics so a bug in the scanner (or any of its transitive
-    // dependencies) returns a JS error instead of aborting the host Node
-    // process. Pairs with the `release-napi` cargo profile (`panic =
-    // "unwind"` in workspace Cargo.toml) — `catch_unwind` is a no-op under
-    // `panic = "abort"`, so the profile choice is load-bearing here.
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        scan_artifact_rust(&artifact, options.as_ref())
+    // Catch panics so a bug in the scanner — including the registry
+    // loader called below — returns a JS error instead of aborting the
+    // host Node process. Pairs with the `release-napi` cargo profile
+    // (`panic = "unwind"` in workspace Cargo.toml) — `catch_unwind` is a
+    // no-op under `panic = "abort"`, so the profile choice is
+    // load-bearing here. CLAWP-008 (#1650): the registry load was
+    // previously outside this guard, so a panic in `load_compiled_registry`
+    // would abort Node instead of becoming a JS error.
+    let result = catch_unwind(AssertUnwindSafe(|| -> Result<_> {
+        // Fail loudly if the registry isn't loadable. Without this, a
+        // missing registry produces an empty catalogue and every scan
+        // returns zero warnings — which looks like a passing scan and
+        // silently disables enforcement. See council review C1
+        // (2026-04-24).
+        let _registry = load_registry_or_err(&LoadRegistryOptions::default())?;
+        Ok(scan_artifact_rust(&artifact, options.as_ref()))
     }))
-    .map_err(|payload| panic_to_error("scanner", &payload))?;
+    .map_err(|payload| panic_to_error("scanner", &payload))??;
 
     let output = ScanResultOutput {
         file: &result.file,
