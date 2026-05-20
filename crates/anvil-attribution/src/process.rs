@@ -27,6 +27,7 @@
 //! missing `pid_starttime` to downgrade a session to worktree-level
 //! fence per ADR-038 noise discipline).
 
+#[cfg(target_os = "linux")]
 use std::fs;
 use std::io;
 
@@ -39,6 +40,7 @@ use thiserror::Error;
 /// and on real-time-tuned hosts), so the runtime path queries
 /// `_SC_CLK_TCK` first and only falls back to this constant when the
 /// syscall fails.
+#[cfg(target_os = "linux")]
 const FALLBACK_CLK_TCK: u64 = 100;
 
 #[cfg(target_os = "linux")]
