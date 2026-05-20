@@ -38,6 +38,32 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - risk: 10
 - test-gap: 46
 
+## Council verdict map (release council pass 1 + pass 2, 2026-05-20)
+
+Canonical artefact: `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`.
+Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contract.
+
+**Fix-before-tag (3):**
+- CLAWP-001 — Merged via PR #1732 (closed -001, -029, -030 together at `6c106a4d`)
+- CLAWP-008 — registry-load panic outside `catch_unwind` breaks `release-napi` profile contract; tracked in #1650 (elevated from defer)
+- CLAWP-028 — confirmed off-by-one in capped welcome scan; tracked in #1741
+
+**Ship (9, no action):**
+- CLAWP-002, -003 — pass 1 (kernel-maintainer)
+- CLAWP-016, -018, -020, -026, -036 — pass 2 verdicts; rationale per finding body
+- CLAWP-029, -030 — closed by PR #1732 (docs fixes bundled)
+
+**Defer with individual GH issue (19):**
+- CLAWP-004 → #1736, CLAWP-005 → #1737 (pass 1)
+- CLAWP-006 → #1646, CLAWP-007 → #1648, CLAWP-009 → #1743, CLAWP-010 → #1645
+- CLAWP-011 → #1744, CLAWP-012 → #1745, CLAWP-013 → #1746, CLAWP-014 → #1747, CLAWP-015 → #1748
+- CLAWP-017 → #1749, CLAWP-019 → #1750, CLAWP-021 → #1751, CLAWP-022 → #1752, CLAWP-023 → #1753
+- CLAWP-024 → #1756, CLAWP-025 → #1754, CLAWP-027 → #1755
+- CLAWP-031 → #1642, CLAWP-032 → #1644, CLAWP-033 → #1742, CLAWP-037 → #1643, CLAWP-038 → #1651
+
+**Defer in batch tracker (#1740) — 28 low-severity test-hygiene items:**
+- CLAWP-034, -035, -039, -040, -041, -042, -043, -044, -045, -046, -047, -048, -049, -050, -051, -052, -053, -054, -055, -056, -057, -058, -059, -060, -061, -062, -063, -064
+
 ## Findings
 
 ### CLAWP-001: --check --insecure-skip-verify tests are not exercising the intended update verification behaviour
@@ -73,7 +99,8 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Feature:** `feat_library_cf04c15e28` — Rust library eddacraft-anvil-policy-engine
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** `Engine::eval` has zero external callers (workspace grep returns only in-module test invocations at `crates/anvil-policy-engine/src/lib.rs:136, :163, :169`). All current callers pass single-expression queries. Module doc at `:6` explicitly scopes this as a skeleton; multi-result shape is deferred to POLENG-002..006. The `.first().first()` collapse is consistent with the current contract.
 - **Recommendation:** Either narrow the API contract by validating/rejecting multi-result, multi-expression, or binding queries, or change EvalResult to expose the full query result shape needed by downstream callers.
 - **Evidence:** `crates/anvil-policy-engine/src/lib.rs:81` (`Engine::eval`), `crates/anvil-policy-engine/src/lib.rs:94` (`Engine::eval`), `crates/anvil-policy-engine/src/lib.rs:120` (`tests`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -84,7 +111,8 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 - **Feature:** `feat_library_ea87528a72` — Rust library eddacraft-anvil-intercept-proto
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** The `QueryStatus` variant is reachable on the NDJSON command-envelope path but the daemon returns a deliberate redirect error at `crates/anvil-intercept/src/ipc.rs:3018` ("query_status is a JSON-RPC-only method; use the query_status JSON-RPC frame"). All live traffic uses the documented JSON-RPC `query-status` method (`ipc.rs:2016-2034`, `cli/commands/intercept.rs:511`). The asymmetry is documented at `anvil-intercept-proto/src/lib.rs:117-118` — intentional, not silent.
 - **Recommendation:** Do not expose QueryStatus through the serializable command-envelope enum unless the daemon accepts that wire shape. Either remove/split the variant from the serde wire enum, add a custom serde implementation that rejects command-envelope QueryStatus, or add an explicit supported route and tests for the `query-status` command form.
 - **Evidence:** `crates/anvil-intercept-proto/src/lib.rs:62` (`IpcCommand`), `crates/anvil-intercept-proto/src/lib.rs:115` (`IpcCommand::QueryStatus`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -92,10 +120,12 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 ### CLAWP-004: Named-pipe EOF is surfaced as an OS error despite the documented Ok(0) contract
 
 - **Clawpatch finding:** `fnd_sig-feat-library-f75344b3ff-d56e_ccce569060`
+- **GH issue:** [#1736](https://github.com/eddacraft/anvil-001/issues/1736)
 - **Feature:** `feat_library_f75344b3ff` — Rust library eddacraft-anvil-intercept-win32
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Deferred (release-council verdict 2026-05-20, kernel-maintainer; tracked in #1736)
+- **Verdict rationale:** Bug confirmed at `crates/anvil-intercept-win32/src/lib.rs:235` (unconditional `Err(last_os_error())` on `ReadFile` returning 0). Windows-only; the only current caller reads a single frame and closes, never observing post-payload EOF. ~15 line fix, post-tag.
 - **Recommendation:** Map the expected pipe EOF condition, at least ERROR_BROKEN_PIPE and any other documented named-pipe EOF status used by this handle mode, to Ok(0). Keep other ReadFile failures as io::Error::last_os_error().
 - **Evidence:** `crates/anvil-intercept-win32/src/lib.rs:218` (`OwnerOnlyPipeClient::read`), `crates/anvil-intercept-win32/src/lib.rs:667` (`tests::connect_owner_only_pipe_client_round_trips_against_local_server`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -103,10 +133,12 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 ### CLAWP-005: Shared contract API is trapped inside an integration test target
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-e6f2772c8e-a_8635488109`
+- **GH issue:** [#1737](https://github.com/eddacraft/anvil-001/issues/1737)
 - **Feature:** `feat_test-suite_e6f2772c8e` — Rust integration test eddacraft-anvil-intercept/midedit_contract
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Deferred (release-council verdict 2026-05-20, kernel-maintainer; tracked in #1737)
+- **Verdict rationale:** Bug structurally correct but `anvil-rmcp` (RTAI-006) does not exist yet, so no consumer crate is currently broken. Fix must precede the first RMCP / TS driver integration test. ~400-line move, post-tag.
 - **Recommendation:** Move the reusable request builders, assertions, fixture list, and helper services into a library-visible test-support module or small dev-support crate, then have `tests/midedit_contract.rs` import and exercise that API.
 - **Evidence:** `crates/anvil-intercept/tests/midedit_contract.rs:25`, `crates/anvil-intercept/tests/midedit_contract.rs:88` (`FIXTURE_NAMES`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

@@ -167,6 +167,10 @@ autonomous-state.json
 
 # Local review artefacts
 review/
+# `plans/reviews/` mostly ignored — but release-council artefacts and
+# post-merge review files are durable per the v0.7.0-beta runbook §2.
+# Lint tooling already excludes the whole `plans/` tree via .markdownlintignore
+# and .prettierignore, so nothing tracked here is in scope for format/lint.
 plans/reviews/*
 !plans/reviews/post-merge/
 !plans/reviews/release-council/
