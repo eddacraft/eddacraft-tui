@@ -1,13 +1,19 @@
 //! DISTRIB-001: resolution-chain integration tests.
 //!
-//! End-to-end coverage that `anvil update` resolves through the three
-//! install paths (package manager → sidecar → library fallback) in the
-//! documented priority order, and that signature verification gates the
-//! library-fallback path.
+//! Black-box coverage of the observable `anvil update` CLI contract:
+//! `--help` shape, clap rejection of unknown flags, and the signature
+//! fixture/public-key drift check.
+//!
+//! Parser-level acceptance of the hidden `--insecure-skip-verify` flag
+//! and the loud-stderr warning emitted when signature verification is
+//! skipped are covered by the unit tests inside
+//! `crates/anvil-cli/src/commands/update.rs` (see the
+//! `skip_verify_warning_*` and `*_parses_*` test fns). Those tests do
+//! not invoke the real update probe, so they stay deterministic
+//! regardless of network state or install posture (CLAWP-001).
 //!
 //! The deeper signature unit tests live in
-//! `crates/anvil-cli/src/commands/update/{signature,fetch}.rs`; these
-//! tests assert the observable CLI contract.
+//! `crates/anvil-cli/src/commands/update/{signature,fetch}.rs`.
 
 use std::process::Command;
 
@@ -40,31 +46,6 @@ fn update_help_advertises_insecure_skip_verify_only_implicitly() {
 }
 
 #[test]
-fn update_insecure_skip_verify_flag_is_accepted() {
-    // We don't run the actual update (it would hit the network and a
-    // running anvil binary cannot be self-replaced under cargo test).
-    // We only assert clap accepts the flag without error by parsing
-    // `update --help` after passing the flag to a structurally similar
-    // sub-command. The flag is not visible in --help (hidden), but
-    // clap must still parse it. We use `update --check --insecure-skip-verify`
-    // with ANVIL_DEV=1 — `--check` is read-only and the dev-key path
-    // skips network verification.
-    let out = anvil()
-        .args(["update", "--check", "--insecure-skip-verify"])
-        .env("ANVIL_OFFLINE_UPDATE_CHECK", "1")
-        .output()
-        .unwrap();
-    // Exit status: 0 = up to date, 1 = update available (UpdateAvailable
-    // sentinel), 2 = clap parse error. We must not see a clap parse error.
-    let code = out.status.code().unwrap_or(-1);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        code != 2,
-        "clap rejected --insecure-skip-verify; exit={code} stderr={stderr}"
-    );
-}
-
-#[test]
 fn update_unknown_flag_is_rejected_by_clap() {
     // Sanity-check the clap configuration: an unknown flag must fail.
     let out = anvil()
@@ -91,32 +72,6 @@ fn update_help_documents_check_force_and_version_flags() {
             "{visible_flag} must remain in --help, got:\n{stdout}"
         );
     }
-}
-
-#[test]
-fn update_skipping_verification_on_dev_build_logs_unconditional_warning() {
-    // CRITICAL Council finding: a dev-fallback binary must surface the
-    // missing verification even without --verbose. We invoke `anvil
-    // update --check` (read-only — never touches the binary) and assert
-    // the WARNING line appears on stderr. We do not assert success
-    // because --check exits 1 when an update is available; we only
-    // assert the stderr signal is present when the update flow runs.
-    //
-    // Use --insecure-skip-verify which short-circuits before any
-    // network calls, hitting the same loud-stderr path.
-    let out = anvil()
-        .args(["update", "--check", "--insecure-skip-verify"])
-        .output()
-        .unwrap();
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    // --check never reaches verify_pending_install, so we just confirm
-    // the command exited cleanly with the dev environment.
-    let _ = (stderr, stdout);
-    assert!(
-        out.status.code().is_some(),
-        "anvil update --check must exit with a status code"
-    );
 }
 
 #[test]

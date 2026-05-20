@@ -289,6 +289,40 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
     perform_update(updater, current, global)
 }
 
+/// Loud warning emitted when `--insecure-skip-verify` is passed. ADR-045
+/// requires this deviation to be visible even without `--verbose`.
+fn write_skip_verify_warning<W: std::io::Write>(w: &mut W) -> std::io::Result<()> {
+    writeln!(
+        w,
+        "WARNING: --insecure-skip-verify: skipping signature verification on the update artefact."
+    )?;
+    writeln!(
+        w,
+        "         The downloaded installer will run without proof it came from the Anvil release key."
+    )?;
+    Ok(())
+}
+
+/// Loud warning emitted when the binary was built without
+/// `ANVIL_RELEASE_PUBLIC_KEY` (development build). Council CRITICAL per
+/// ADR-045: must surface even without `--verbose`, otherwise the entire
+/// verification feature can ship as a silent no-op.
+fn write_dev_key_warning<W: std::io::Write>(w: &mut W) -> std::io::Result<()> {
+    writeln!(
+        w,
+        "WARNING: This anvil binary was built without ANVIL_RELEASE_PUBLIC_KEY (development build)."
+    )?;
+    writeln!(
+        w,
+        "         Skipping signature verification — release builds enforce it. See ADR-045."
+    )?;
+    writeln!(
+        w,
+        "         If you got this binary from an official release, please re-install from a trusted source."
+    )?;
+    Ok(())
+}
+
 /// Run the signature-verification preflight for the library-fallback
 /// path. Returns the tempdir that must live for the duration of the
 /// install (dropped tempdirs delete their contents), the verified
@@ -303,29 +337,13 @@ fn verify_pending_install(
     _global: &GlobalArgs,
 ) -> anyhow::Result<Option<(tempfile::TempDir, PathBuf, VerifiedArtefact)>> {
     if args.insecure_skip_verify {
-        eprintln!(
-            "WARNING: --insecure-skip-verify: skipping signature verification on the update artefact."
-        );
-        eprintln!(
-            "         The downloaded installer will run without proof it came from the Anvil release key."
-        );
+        // `eprintln!` semantics: best-effort; ignore writer errors.
+        let _ = write_skip_verify_warning(&mut std::io::stderr().lock());
         return Ok(None);
     }
 
     if signature::is_using_dev_public_key() {
-        // Loud, unconditional — Council CRITICAL: a dev-fallback binary
-        // running `anvil update` must surface the missing protection even
-        // when the user did not pass --verbose. Otherwise the entire
-        // verification feature can ship as a silent no-op (ADR-045).
-        eprintln!(
-            "WARNING: This anvil binary was built without ANVIL_RELEASE_PUBLIC_KEY (development build)."
-        );
-        eprintln!(
-            "         Skipping signature verification — release builds enforce it. See ADR-045."
-        );
-        eprintln!(
-            "         If you got this binary from an official release, please re-install from a trusted source."
-        );
+        let _ = write_dev_key_warning(&mut std::io::stderr().lock());
         return Ok(None);
     }
 
@@ -696,5 +714,117 @@ mod tests {
         let cmd = Command::new("fake-updater");
         let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert!(cmd_args.is_empty());
+    }
+
+    // ── Warning emission on the skip-verify paths (CLAWP-001) ───────
+
+    #[test]
+    fn skip_verify_warning_writes_both_loud_lines() {
+        let mut buf = Vec::new();
+        write_skip_verify_warning(&mut buf).expect("infallible for Vec");
+        let text = std::str::from_utf8(&buf).expect("utf-8");
+
+        assert!(
+            text.contains("WARNING: --insecure-skip-verify"),
+            "header line missing; got:\n{text}"
+        );
+        assert!(
+            text.contains("without proof it came from the Anvil release key"),
+            "rationale line missing; got:\n{text}"
+        );
+        // Operators read this on stderr; a missing trailing newline
+        // merges the warning into the next log line.
+        assert!(text.ends_with('\n'), "must end with newline; got: {text:?}");
+        // Two distinct lines, not one wrapped line.
+        assert_eq!(
+            text.matches('\n').count(),
+            2,
+            "expected 2 lines, got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn dev_key_warning_writes_three_loud_lines_and_cites_adr_045() {
+        let mut buf = Vec::new();
+        write_dev_key_warning(&mut buf).expect("infallible for Vec");
+        let text = std::str::from_utf8(&buf).expect("utf-8");
+
+        assert!(
+            text.contains("ANVIL_RELEASE_PUBLIC_KEY (development build)"),
+            "header line missing; got:\n{text}"
+        );
+        assert!(
+            text.contains("release builds enforce it. See ADR-045"),
+            "ADR-045 citation missing; got:\n{text}"
+        );
+        assert!(
+            text.contains("re-install from a trusted source"),
+            "recovery line missing; got:\n{text}"
+        );
+        assert_eq!(
+            text.matches('\n').count(),
+            3,
+            "expected 3 lines, got:\n{text}"
+        );
+    }
+
+    // ── Clap parsing of the hidden --insecure-skip-verify flag ──────
+
+    /// Tiny wrapper to exercise [`UpdateArgs`] through clap without
+    /// booting the full CLI. `UpdateArgs` is `clap::Args` (a subcommand
+    /// args group); wrapping it in a `clap::Parser` is the documented
+    /// pattern for unit-testing flag parsing.
+    #[derive(clap::Parser, Debug)]
+    #[command(name = "anvil-update-test", no_binary_name = true)]
+    struct UpdateArgsParser {
+        #[command(flatten)]
+        args: UpdateArgs,
+    }
+
+    #[test]
+    fn insecure_skip_verify_parses_even_though_hidden() {
+        use clap::Parser;
+        // `hide = true` only suppresses the flag from --help; clap must
+        // still accept it when typed.
+        let parsed = UpdateArgsParser::try_parse_from(["--check", "--insecure-skip-verify"])
+            .expect("hidden flag must parse");
+
+        assert!(parsed.args.check, "--check should be set");
+        assert!(
+            parsed.args.insecure_skip_verify,
+            "--insecure-skip-verify should be set"
+        );
+        assert!(parsed.args.version.is_none(), "no --version expected");
+        assert!(!parsed.args.force, "no --force expected");
+    }
+
+    #[test]
+    fn unknown_flag_is_rejected_with_unknown_argument_kind() {
+        use clap::Parser;
+        let err = UpdateArgsParser::try_parse_from(["--this-flag-does-not-exist"])
+            .expect_err("unknown flags must error");
+
+        assert!(
+            matches!(err.kind(), clap::error::ErrorKind::UnknownArgument),
+            "expected UnknownArgument, got {:?}",
+            err.kind()
+        );
+    }
+
+    #[test]
+    fn defaults_match_safe_posture() {
+        use clap::Parser;
+        // Defence against an accidental `#[arg(default_value_t = true)]`
+        // on a security-relevant flag.
+        let parsed = UpdateArgsParser::try_parse_from(std::iter::empty::<&str>())
+            .expect("zero-arg form must parse");
+
+        assert!(
+            !parsed.args.insecure_skip_verify,
+            "skip-verify defaults off"
+        );
+        assert!(!parsed.args.force, "force defaults off");
+        assert!(!parsed.args.check, "check defaults off");
+        assert!(parsed.args.version.is_none(), "version defaults to None");
     }
 }
