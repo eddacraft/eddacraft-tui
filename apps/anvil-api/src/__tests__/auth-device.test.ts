@@ -1,8 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { generateKeyPair, exportPKCS8 } from 'jose';
+import { generateKeyPair, exportPKCS8, exportSPKI } from 'jose';
 import { Hono } from 'hono';
 import { authDevice } from '../routes/auth-device.js';
 import { USER_CODE_CONSTRAINT } from '../lib/device-code.js';
+import { signLicence, _resetSigningKeyCacheForTests, type LicenceClaims } from '../lib/licence.js';
 
 vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => vi.fn()),
@@ -13,7 +14,7 @@ vi.mock('../db/queries.js', () => ({
   findUserById: vi.fn(),
   insertDeviceCode: vi.fn(),
   insertDummyDeviceCode: vi.fn(),
-  findPendingDeviceCodeWithEmail: vi.fn(),
+  findPendingDeviceCodeWithUserId: vi.fn(),
   confirmDeviceCode: vi.fn(),
   incrementDeviceCodeAttempts: vi.fn(),
   pollDeviceCode: vi.fn(),
@@ -35,7 +36,7 @@ import {
   confirmDeviceCode,
   consumeDeviceCode,
   deviceCodeExistsByPollToken,
-  findPendingDeviceCodeWithEmail,
+  findPendingDeviceCodeWithUserId,
   findUserByEmail,
   findUserById,
   incrementDeviceCodeAttempts,
@@ -50,17 +51,24 @@ const app = new Hono();
 app.route('/auth/device', authDevice);
 
 let originalSigningKey: string | undefined;
+let originalPublicKey: string | undefined;
 const ORIGINAL_ACTIVATE_URL = process.env['ACTIVATE_URL'];
 
 beforeAll(async () => {
   originalSigningKey = process.env['LICENSE_SIGNING_KEY'];
-  const { privateKey } = await generateKeyPair('ES256', { extractable: true });
+  originalPublicKey = process.env['LICENSE_PUBLIC_KEY'];
+  const { privateKey, publicKey } = await generateKeyPair('ES256', { extractable: true });
   process.env['LICENSE_SIGNING_KEY'] = await exportPKCS8(privateKey);
+  process.env['LICENSE_PUBLIC_KEY'] = await exportSPKI(publicKey);
+  _resetSigningKeyCacheForTests();
 });
 
 afterAll(() => {
   if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];
   else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
+  if (originalPublicKey === undefined) delete process.env['LICENSE_PUBLIC_KEY'];
+  else process.env['LICENSE_PUBLIC_KEY'] = originalPublicKey;
+  _resetSigningKeyCacheForTests();
 });
 
 beforeEach(() => {
@@ -68,7 +76,7 @@ beforeEach(() => {
   // Restore default mock implementations after reset.
   vi.mocked(insertDeviceCode).mockResolvedValue(undefined as never);
   vi.mocked(insertDummyDeviceCode).mockResolvedValue(undefined);
-  vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue(null);
+  vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
   vi.mocked(confirmDeviceCode).mockResolvedValue(true);
   vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(1);
   vi.mocked(pollDeviceCode).mockResolvedValue(null);
@@ -124,12 +132,30 @@ function makeDeviceCodeRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function post(path: string, body: unknown) {
+function post(path: string, body: unknown, extraHeaders: Record<string, string> = {}) {
   return app.request(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   });
+}
+
+function makeClaims(overrides: Partial<LicenceClaims> = {}): LicenceClaims {
+  return {
+    sub: 'user-1',
+    email: 'active@example.com',
+    identity: { provider: 'email', id: null },
+    org: null,
+    tier: 'pro',
+    scopes: ['beta'],
+    seats: 1,
+    ...overrides,
+  };
+}
+
+async function bearerFor(claims: Partial<LicenceClaims> = {}): Promise<string> {
+  const jwt = await signLicence(makeClaims(claims), undefined, 7);
+  return `Bearer ${jwt}`;
 }
 
 describe('POST /auth/device/start', () => {
@@ -247,48 +273,140 @@ describe('POST /auth/device/start', () => {
 describe('POST /auth/device/confirm', () => {
   const INVALID_CODE_ERROR = { error: 'Invalid or expired code' };
 
-  it('returns the anti-enumeration error when the code is unknown', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue(null);
+  describe('authentication gate (issue #1779)', () => {
+    it('returns 401 when Authorization header is missing', async () => {
+      const res = await post('/auth/device/confirm', { userCode: 'ANVIL-AAAAAAAA' });
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
+      expect(res.status).toBe(401);
+      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
+      expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
     });
+
+    it('returns 401 on a malformed Authorization header', async () => {
+      const res = await post(
+        '/auth/device/confirm',
+        { userCode: 'ANVIL-AAAAAAAA' },
+        { Authorization: 'Token abc' }
+      );
+
+      expect(res.status).toBe(401);
+      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 on an invalid licence (bogus JWT)', async () => {
+      const res = await post(
+        '/auth/device/confirm',
+        { userCode: 'ANVIL-AAAAAAAA' },
+        { Authorization: 'Bearer not.a.valid.jwt' }
+      );
+
+      expect(res.status).toBe(401);
+      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
+    });
+
+    it('rejects the body-supplied email vector that was the original CLAWP critical', async () => {
+      // The pre-fix bug: caller passes any active user's email in the body
+      // and the server confirms. The new shape has no `email` field on the
+      // confirm schema, and the bound user is taken from the verified
+      // licence's `sub`. A request carrying `email` is simply ignored.
+      vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
+        id: 'dc-victim',
+        user_id: 'user-victim',
+        attempts: 0,
+      });
+
+      const res = await post(
+        '/auth/device/confirm',
+        // Attacker authenticates as user-attacker but tries to confirm a
+        // code bound to user-victim by name-dropping the victim's email.
+        { userCode: 'ANVIL-VICTIMCD', email: 'victim@example.com' },
+        { Authorization: await bearerFor({ sub: 'user-attacker' }) }
+      );
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual(INVALID_CODE_ERROR);
+      expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
+      // The bug-class signature: attempts on the victim's row are bumped
+      // (anti-enum + brute-force lockout) rather than the confirm landing.
+      expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
+        expect.anything(),
+        'dc-victim',
+        5
+      );
+    });
+  });
+
+  it('returns the anti-enumeration error when the code is unknown', async () => {
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
+
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor() }
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
     expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
   });
 
-  it('returns the same error when the code belongs to a different email', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+  it('returns the same error when the code is bound to a different user_id', async () => {
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-1',
-      user_email: 'someone@else.com',
+      user_id: 'user-someone-else',
       attempts: 0,
     });
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
     expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
   });
 
-  it('increments the per-code attempts counter on an email mismatch', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+  it('returns the same error when the code row is an anti-enum dummy (user_id IS NULL)', async () => {
+    // /start inserts user_id=null rows for inactive/unknown emails. The
+    // authenticated /confirm caller must never see those mature into a
+    // confirmation regardless of who they are.
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
+      id: 'dc-dummy',
+      user_id: null,
+      attempts: 0,
+    });
+
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor() }
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
+    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
+      expect.anything(),
+      'dc-dummy',
+      5
+    );
+    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
+  });
+
+  it('increments the per-code attempts counter on a user_id mismatch', async () => {
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-7',
-      user_email: 'someone@else.com',
+      user_id: 'user-someone-else',
       attempts: 2,
     });
     vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(3);
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
@@ -306,17 +424,18 @@ describe('POST /auth/device/confirm', () => {
     // sees attempts >= max via the `WHERE attempts < ${max}` guard and is
     // a no-op, returning null. The route must still respond with the same
     // anti-enum 400 — the row is already locked.
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-race',
-      user_email: 'someone@else.com',
+      user_id: 'user-someone-else',
       attempts: 4,
     });
     vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(null);
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
@@ -324,28 +443,30 @@ describe('POST /auth/device/confirm', () => {
   });
 
   it('does not increment attempts when the user_code is unknown', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue(null);
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor() }
+    );
 
     expect(res.status).toBe(400);
     expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
   });
 
-  it('rejects even a matching email once attempts is at the cap', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+  it('rejects even a matching user_id once attempts is at the cap', async () => {
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-locked',
-      user_email: 'active@example.com',
+      user_id: 'user-1',
       attempts: 5,
     });
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-AAAAAAAA',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-AAAAAAAA' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
@@ -356,36 +477,38 @@ describe('POST /auth/device/confirm', () => {
   });
 
   it('uppercases and trims the user code before lookup', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-1',
-      user_email: 'active@example.com',
+      user_id: 'user-1',
       attempts: 0,
     });
 
-    const res = await post('/auth/device/confirm', {
-      userCode: '  anvil-deadbeef  ',
-      email: 'Active@Example.COM',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: '  anvil-deadbeef  ' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(200);
-    expect(vi.mocked(findPendingDeviceCodeWithEmail)).toHaveBeenCalledWith(
+    expect(vi.mocked(findPendingDeviceCodeWithUserId)).toHaveBeenCalledWith(
       expect.anything(),
       'ANVIL-DEADBEEF'
     );
     expect(vi.mocked(confirmDeviceCode)).toHaveBeenCalledWith(expect.anything(), 'dc-1');
   });
 
-  it('confirms the device code on a successful match', async () => {
-    vi.mocked(findPendingDeviceCodeWithEmail).mockResolvedValue({
+  it('confirms the device code on a successful authenticated match', async () => {
+    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
       id: 'dc-42',
-      user_email: 'active@example.com',
+      user_id: 'user-1',
       attempts: 0,
     });
 
-    const res = await post('/auth/device/confirm', {
-      userCode: 'ANVIL-DEADBEEF',
-      email: 'active@example.com',
-    });
+    const res = await post(
+      '/auth/device/confirm',
+      { userCode: 'ANVIL-DEADBEEF' },
+      { Authorization: await bearerFor({ sub: 'user-1' }) }
+    );
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ confirmed: true });
@@ -393,9 +516,9 @@ describe('POST /auth/device/confirm', () => {
     expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
   });
 
-  it('rejects missing userCode or email via Zod', async () => {
-    expect((await post('/auth/device/confirm', { email: 'active@example.com' })).status).toBe(400);
-    expect((await post('/auth/device/confirm', { userCode: 'ANVIL-AAAAAAAA' })).status).toBe(400);
+  it('rejects missing userCode via Zod', async () => {
+    const res = await post('/auth/device/confirm', {}, { Authorization: await bearerFor() });
+    expect(res.status).toBe(400);
   });
 });
 

@@ -530,20 +530,25 @@ export async function insertDummyDeviceCode(
 }
 
 /**
- * Find a pending (unconfirmed, unexpired) device code and its owner's email.
- * Used by the /confirm endpoint to verify the code belongs to the right user.
- * `attempts` is returned so the caller can enforce the per-code brute-force
- * lockout (see auth-device.ts MAX_ATTEMPTS).
+ * Find a pending (unconfirmed, unexpired) device code and its bound user_id.
+ * Used by the /confirm endpoint to verify the code belongs to the
+ * authenticated caller. `attempts` is returned so the caller can enforce
+ * the per-code brute-force lockout (see auth-device.ts MAX_ATTEMPTS).
+ *
+ * Returns `user_id` from the device_codes row directly rather than joining
+ * to beta_users.email — the consumer asserts the row's user_id matches the
+ * caller's authenticated identity. Dummy rows inserted by /start for
+ * inactive users carry `user_id IS NULL` and therefore never match an
+ * authenticated lookup, preserving the anti-enumeration property.
  */
-export async function findPendingDeviceCodeWithEmail(
+export async function findPendingDeviceCodeWithUserId(
   sql: NeonClient,
   userCode: string
-): Promise<{ id: string; user_email: string; attempts: number } | null> {
+): Promise<{ id: string; user_id: string | null; attempts: number } | null> {
   const r = rows(
     await sql`
-    SELECT dc.id, dc.attempts, bu.email AS user_email
+    SELECT dc.id, dc.attempts, dc.user_id
     FROM device_codes dc
-    JOIN beta_users bu ON bu.id = dc.user_id
     WHERE dc.user_code = ${userCode}
       AND dc.expires_at > now()
       AND dc.confirmed_at IS NULL
@@ -553,7 +558,7 @@ export async function findPendingDeviceCodeWithEmail(
   if (!r[0]) return null;
   return {
     id: String(r[0].id),
-    user_email: String(r[0].user_email),
+    user_id: r[0].user_id == null ? null : String(r[0].user_id),
     attempts: z.coerce.number().parse(r[0].attempts),
   };
 }

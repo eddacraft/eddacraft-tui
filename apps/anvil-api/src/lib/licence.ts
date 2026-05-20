@@ -1,9 +1,11 @@
-import { SignJWT, importPKCS8, type CryptoKey } from 'jose';
+import { SignJWT, importPKCS8, importSPKI, jwtVerify, type CryptoKey } from 'jose';
 
 const LICENCE_TTL_DAYS = 90;
 const RC_AFTER_DAYS = 7;
 const DEFAULT_KEY_ID = '2026-03';
 const KEY_ID = process.env['LICENSE_PUBLIC_KEY_KID'] ?? DEFAULT_KEY_ID;
+const LICENCE_ISSUER = 'https://api.eddacraft.ai';
+const LICENCE_AUDIENCE = 'anvil-cli';
 
 export interface LicenceClaims {
   sub: string;
@@ -16,6 +18,7 @@ export interface LicenceClaims {
 }
 
 let cachedSigningKey: Promise<CryptoKey> | null = null;
+let cachedVerifyingKey: Promise<CryptoKey> | null = null;
 
 function loadSigningKey(): Promise<CryptoKey> {
   if (cachedSigningKey) return cachedSigningKey;
@@ -27,6 +30,16 @@ function loadSigningKey(): Promise<CryptoKey> {
   return cachedSigningKey;
 }
 
+function loadVerifyingKey(): Promise<CryptoKey> {
+  if (cachedVerifyingKey) return cachedVerifyingKey;
+  const pem = process.env['LICENSE_PUBLIC_KEY'];
+  if (!pem) {
+    return Promise.reject(new Error('LICENSE_PUBLIC_KEY environment variable is required'));
+  }
+  cachedVerifyingKey = importSPKI(pem, 'ES256');
+  return cachedVerifyingKey;
+}
+
 export async function verifySigningKey(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await loadSigningKey();
@@ -36,11 +49,51 @@ export async function verifySigningKey(): Promise<{ ok: true } | { ok: false; er
   }
 }
 
-// Test-only: clears the module-level cache so env-var changes take effect.
+// Test-only: clears the module-level caches so env-var changes take effect.
 // Production callers mutate env vars once at boot — a runtime rotation path
 // would need a proper invalidation strategy, not this.
 export function _resetSigningKeyCacheForTests(): void {
   cachedSigningKey = null;
+  cachedVerifyingKey = null;
+}
+
+/**
+ * Verify an anvil-issued licence JWT and return the parsed claims if the
+ * signature, issuer, audience, and exp/iat are all valid. Returns `null` on
+ * any verification failure — callers MUST treat a null return as "no
+ * authenticated identity" and refuse the request. Never silently downgrade.
+ *
+ * The verification key (`LICENSE_PUBLIC_KEY`) is required; a missing key
+ * surfaces as a thrown error rather than a silent allow.
+ */
+export async function verifyLicence(jwt: string): Promise<LicenceClaims | null> {
+  const key = await loadVerifyingKey();
+  try {
+    const { payload } = await jwtVerify(jwt, key, {
+      issuer: LICENCE_ISSUER,
+      audience: LICENCE_AUDIENCE,
+      algorithms: ['ES256'],
+    });
+    if (
+      typeof payload.sub !== 'string' ||
+      typeof payload['email'] !== 'string' ||
+      !Array.isArray(payload['scopes'])
+    ) {
+      return null;
+    }
+    const identity = payload['identity'] as LicenceClaims['identity'] | undefined;
+    return {
+      sub: payload.sub,
+      email: payload['email'] as string,
+      identity: identity ?? { provider: 'unknown', id: null },
+      org: (payload['org'] as string | null) ?? null,
+      tier: typeof payload['tier'] === 'string' ? (payload['tier'] as string) : 'pro',
+      scopes: payload['scopes'] as string[],
+      seats: typeof payload['seats'] === 'number' ? (payload['seats'] as number) : 1,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function signLicence(
