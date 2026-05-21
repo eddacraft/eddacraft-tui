@@ -527,7 +527,7 @@ pub(crate) fn normalise_response_diagnostics(
     diagnostics: &[Diagnostic],
     _backend: ValidationBackend,
 ) -> Vec<Diagnostic> {
-    diagnostics
+    let normalised: Vec<Diagnostic> = diagnostics
         .iter()
         .cloned()
         .map(|mut diagnostic| {
@@ -549,7 +549,42 @@ pub(crate) fn normalise_response_diagnostics(
             }
             diagnostic
         })
-        .collect()
+        .collect();
+
+    // MLP2-073 / #1799 — dedupe BEFORE the caller builds `summary` so a
+    // single planted finding never reports `summary.total: 2`. Dedupe
+    // is keyed primarily on `id` (the canonical-identity field that
+    // every producer is expected to make unique per finding); the
+    // defensive secondary key `(rule_id, file, line, column)` catches
+    // producers that share rule_id and location but accidentally
+    // assign distinct ids. Order is preserved — the first occurrence
+    // wins so the wire ordering stays deterministic.
+    dedupe_diagnostics(normalised)
+}
+
+fn dedupe_diagnostics(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    let mut seen_ids = std::collections::HashSet::with_capacity(diagnostics.len());
+    let mut seen_locations =
+        std::collections::HashSet::<(String, String, Option<u32>, Option<u32>)>::with_capacity(
+            diagnostics.len(),
+        );
+    let mut out = Vec::with_capacity(diagnostics.len());
+    for diagnostic in diagnostics {
+        if !seen_ids.insert(diagnostic.id.clone()) {
+            continue;
+        }
+        let loc_key = (
+            diagnostic.source.rule_id.clone(),
+            diagnostic.location.file.clone(),
+            diagnostic.location.line,
+            diagnostic.location.column,
+        );
+        if !seen_locations.insert(loc_key) {
+            continue;
+        }
+        out.push(diagnostic);
+    }
+    out
 }
 
 fn redact_secret_id(id: &str, strict: bool) -> String {
@@ -1234,7 +1269,7 @@ mod tests {
     use super::descriptor;
     use super::{
         EnforcementResolver, MAX_PROPOSED_CONTENT_BYTES, call_with_validation_client,
-        redact_secret_id,
+        diagnostic_summary, normalise_response_diagnostics, redact_secret_id,
     };
     use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
@@ -2795,5 +2830,133 @@ mod tests {
             parsed_without.protection_claim.is_none(),
             "absent protection_claim must parse as None, not error",
         );
+    }
+
+    // ── MLP2-073 / #1799: pre-write summary dedupe ────────────────
+
+    fn fixture_diag(id: &str, rule_id: &str, file: &str, line: Option<u32>) -> Diagnostic {
+        Diagnostic::new(
+            id.to_string(),
+            Severity::Error,
+            "fixture".to_string(),
+            Location {
+                file: file.to_string(),
+                line,
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Secret,
+            DiagnosticSource {
+                rule_id: rule_id.to_string(),
+                source_module: "anvil-cli::test".to_string(),
+            },
+            Mode::Unknown("pre-write".to_string()),
+        )
+    }
+
+    #[test]
+    fn normalise_response_dedupes_identical_id() {
+        // The audit (#1799) planted one secret on src/smelly.ts:1 and
+        // got back `summary.total: 2` with two diagnostics sharing the
+        // same id, location, and summary. The wire shape must dedupe.
+        let dup_a = fixture_diag(
+            "diag_secret_pre_write_src_smelly_ts_1_high_entropy_string",
+            "secret-detection-high-entropy",
+            "src/smelly.ts",
+            Some(1),
+        );
+        let dup_b = dup_a.clone();
+        let normalised = normalise_response_diagnostics(
+            &[dup_a, dup_b],
+            crate::mcp::validation::ValidationBackend::Embedded,
+        );
+        assert_eq!(
+            normalised.len(),
+            1,
+            "two diagnostics with the same id must dedupe; got: {normalised:?}"
+        );
+
+        let summary = diagnostic_summary(&normalised);
+        assert_eq!(
+            summary["total"], 1,
+            "summary.total must reflect deduped count (the MLP2-073 contract)"
+        );
+        assert_eq!(summary["bySeverity"]["error"], 1);
+    }
+
+    #[test]
+    fn normalise_response_dedupes_distinct_ids_with_same_rule_and_location() {
+        // Defensive secondary key: producers that share rule_id and
+        // location but accidentally assign distinct ids (e.g. a UUID
+        // suffix per scan invocation) must still dedupe so a single
+        // logical finding never doubles the count.
+        let a = fixture_diag(
+            "diag_run_001_secret",
+            "secret-detection-high-entropy",
+            "src/smelly.ts",
+            Some(1),
+        );
+        let b = fixture_diag(
+            "diag_run_002_secret",
+            "secret-detection-high-entropy",
+            "src/smelly.ts",
+            Some(1),
+        );
+        let normalised = normalise_response_diagnostics(
+            &[a, b],
+            crate::mcp::validation::ValidationBackend::Embedded,
+        );
+        assert_eq!(
+            normalised.len(),
+            1,
+            "same (rule_id, location) must dedupe even when ids differ"
+        );
+    }
+
+    #[test]
+    fn normalise_response_keeps_distinct_diagnostics() {
+        // Two truly-distinct findings (different rule_id OR different
+        // location) must NOT collapse — the dedupe is for accidental
+        // duplication, not for compressing legitimate signal.
+        let a = fixture_diag(
+            "diag_a",
+            "secret-detection-high-entropy",
+            "src/a.ts",
+            Some(1),
+        );
+        let b = fixture_diag("diag_b", "antipattern-AP-008", "src/a.ts", Some(1));
+        let c = fixture_diag(
+            "diag_c",
+            "secret-detection-high-entropy",
+            "src/a.ts",
+            Some(7),
+        );
+        let normalised = normalise_response_diagnostics(
+            &[a, b, c],
+            crate::mcp::validation::ValidationBackend::Embedded,
+        );
+        assert_eq!(
+            normalised.len(),
+            3,
+            "distinct (rule_id, location) tuples must survive dedupe"
+        );
+    }
+
+    #[test]
+    fn dedupe_preserves_first_occurrence_order() {
+        // Order on the wire matters for deterministic snapshots and
+        // for consumers that surface diagnostics top-down. The first
+        // occurrence of each unique id must win.
+        let a1 = fixture_diag("diag_a", "rule-a", "src/x.ts", Some(1));
+        let a2 = fixture_diag("diag_a", "rule-a", "src/x.ts", Some(1));
+        let b = fixture_diag("diag_b", "rule-b", "src/x.ts", Some(2));
+        let normalised = normalise_response_diagnostics(
+            &[a1, b, a2],
+            crate::mcp::validation::ValidationBackend::Embedded,
+        );
+        assert_eq!(normalised.len(), 2);
+        assert_eq!(normalised[0].id, "diag_a");
+        assert_eq!(normalised[1].id, "diag_b");
     }
 }

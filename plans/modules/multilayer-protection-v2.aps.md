@@ -3838,7 +3838,7 @@ experiences.
 
 #### MLP2-073: Pre-write `summary.total` double-counts identical diagnostics
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Tracking:** GH issue [#1799](https://github.com/eddacraft/anvil-001/issues/1799)
 - **Intent:** A single hardcoded secret on one line currently returns
   `summary.total = 2` with two diagnostics that share the same `id`,
