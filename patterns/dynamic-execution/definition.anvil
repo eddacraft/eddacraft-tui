@@ -65,11 +65,17 @@ an `any` flows in, an attacker-controlled string can flow in.
   vectors that justify a follow-on rule when the false-positive
   rate is understood.
 - **Benign (intentionally not flagged):**
-  `eval("1 + 1")` with a literal string, `new Function` referenced
-  inside a comment or string literal, AST-walking libraries that
-  pass `eval` as a token to a parser. The AP-008 detector
-  intentionally requires an identifier as the first character
-  inside `eval(` to skip these.
+  `eval("1 + 1")` / `eval('static')` with a single- or
+  double-quoted literal string. The AP-008 detector skips when the
+  first character inside `eval(` is a quote.
+- **Known false-positive surface:** the antipattern scanner walks
+  raw source lines and does not strip comments or string-literal
+  bodies, so `// eval(x)` in a comment, an `eval(input)` inside a
+  `'...'` string literal, or `eval(x)` mentioned in JSDoc will
+  trigger AP-008. Use the standard suppression directives or the
+  per-file allowlist to silence those rare cases; rewriting the
+  prose is preferable. AST-aware filtering is tracked under the
+  kernel-prereq work (see `lang-ts-audit.aps.md`).
 
 ## The Right Response
 
@@ -106,12 +112,17 @@ remediation is design work.
   often demonstrate the pattern intentionally as a teaching
   surface.
 - **Negative signals (do not fire):** leading single/double quote
-  inside the `eval(` arg (string literal), `// eval` in comments,
-  `evalSomething` (word-boundary). Note: member-access form
-  `window.eval(x)` / `globalThis.eval(x)` **does** fire when paired
-  with an identifier or template-literal arg — those are real
-  `eval` calls aliased through the global object. Only the
-  string-literal argument suppresses the rule.
+  inside the `eval(` arg (string literal), `evalSomething`
+  (word-boundary). Note: member-access form `window.eval(x)` /
+  `globalThis.eval(x)` **does** fire when paired with an identifier
+  or template-literal arg — those are real `eval` calls aliased
+  through the global object. Only the string-literal argument
+  suppresses the rule.
+- **NOT a negative signal:** comments, JSDoc, and string-literal
+  bodies are NOT filtered. The scanner is line-regex based; an
+  `eval(input)` in a `// comment` or inside a `'...'`/`` `...` ``
+  literal will trip AP-008. AST-aware exclusion is tracked under
+  the kernel-prereq work.
 
 ## Example
 
@@ -129,7 +140,6 @@ const compiled = new Function('a', 'b', 'return a + b');
 
 // AP-008 does NOT trip (intentional narrowness):
 const two = eval("1 + 1");                // leading char is a quote
-const code = `eval(${expr})`;             // eval inside a template literal, not the callee
 function evalQueue() { ... }              // word boundary saves us
 obj.eval('a literal');                    // string literal arg — leading char is a quote
 window.eval('static');                    // string literal arg — same reason
@@ -137,4 +147,11 @@ window.eval('static');                    // string literal arg — same reason
 // AP-008 DOES trip (member-access doesn't save you):
 window.eval(userInput);                   // leading char is an identifier
 globalThis.eval(`${expr}`);               // leading char is a backtick
+
+// AP-008 trips on FALSE POSITIVES inside comments / strings
+// (the scanner is line-regex based; not AST-aware):
+// const example = eval(input);           // ← this comment trips AP-008
+const docFragment = `see eval(${arg})`;   // ← this template body trips AP-008
+const sql = "DELETE FROM eval(input)";    // ← this string body trips AP-008
+// Suppress with the standard ignore directive or rewrite the prose.
 ```
