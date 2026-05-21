@@ -91,8 +91,10 @@ export const RevokeResponseSchema = z.object({
   refreshSessionsRevoked: z.number().int().min(0).optional(),
   // SEC-007 / GH #1672: account-level revoke (by email) flips
   // `beta_users.status` from `active` to `suspended` so OAuth / OTP / device
-  // login cannot re-mint a licence. `true` only when the status update
-  // matched; absent on grant-level revoke (by token).
+  // login cannot re-mint a licence. Present on the email (account-level)
+  // path: `true` when the status update matched (the user was `active`),
+  // `false` when no row matched (the user was already suspended/banned).
+  // Absent on the token (grant-level) path and on pre-fix servers.
   accountSuspended: z.boolean().optional(),
 });
 export type RevokeResponse = z.infer<typeof RevokeResponseSchema>;
