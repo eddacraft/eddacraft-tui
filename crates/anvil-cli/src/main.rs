@@ -97,10 +97,10 @@ pub struct GlobalArgs {
     long_about = None,
     after_help = "\
 EXIT CODES:
-  0  Success
+  0  Success (also: auth required on action commands — see stderr)
   1  General error
   2  Gate check failed (one or more checks did not pass)
-  3  Authentication required (missing or expired credentials)
+  3  Authentication required (`whoami` / `auth whoami` only)
   4  Configuration error (invalid config file or options)"
 )]
 struct Cli {
@@ -287,6 +287,57 @@ fn requires_auth(cmd: &Commands) -> bool {
 
 fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
     matches!(cmd, Commands::Status(args) if args.verify)
+}
+
+/// Returns `true` for commands whose entire purpose is to report the
+/// current auth state — the canonical programmatic preflight. For these,
+/// auth-required is the substantive answer the caller is asking for, so
+/// the exit code carries the signal (`EXIT_AUTH_REQUIRED`).
+///
+/// All other gated commands treat auth-required as an *expected state*
+/// (you haven't logged in yet) and exit `0` with an informational
+/// message — see issue #1822.
+fn is_auth_state_probe(cmd: &Commands) -> bool {
+    use commands::auth::AuthCommand;
+    match cmd {
+        Commands::Whoami(_) => true,
+        Commands::Auth(args) => matches!(args.command, AuthCommand::Whoami),
+        _ => false,
+    }
+}
+
+/// Decide the exit code and (optional) JSON envelope for the
+/// pre-dispatch auth-required branch.
+///
+/// Issue #1822: action commands treat auth-required as an *expected
+/// state* (the user hasn't logged in yet) and exit `0`; the stderr
+/// message stays loud so humans see what to do next. Only the dedicated
+/// auth-state probes (`whoami`, `auth whoami`) carry the auth signal in
+/// the exit code so scripts have a stable preflight.
+///
+/// Pure so it can be unit-tested without depending on credential I/O.
+/// Returns `(exit_code, Some(json_envelope))` when `--json` is set, or
+/// `(exit_code, None)` in text mode (stderr message already emitted by
+/// `check_auth`).
+fn auth_required_response(
+    cmd: &Commands,
+    probe_exit_code: u8,
+    json_mode: bool,
+) -> (u8, Option<serde_json::Value>) {
+    let is_probe = is_auth_state_probe(cmd);
+    let exit_code = if is_probe { probe_exit_code } else { EXIT_OK };
+    let envelope = if !json_mode {
+        None
+    } else if is_probe {
+        Some(serde_json::json!({"error": "authentication_required"}))
+    } else {
+        Some(serde_json::json!({
+            "state": "authRequired",
+            "message": "Authentication required. Run `anvil auth login` to authenticate.",
+            "next": "anvil auth login",
+        }))
+    };
+    (exit_code, envelope)
 }
 
 /// Evaluate a credential-load result and return the appropriate exit code.
@@ -728,13 +779,12 @@ fn main() -> ExitCode {
         && let Err(code) = check_auth(&cli.global, allows_interactive_auth_prompt(&cli.command))
     {
         tracing::warn!(target: "anvil_cli", "cli command authentication required");
-        if cli.global.json {
-            eprintln!(
-                "{}",
-                serde_json::json!({"error": "authentication_required"})
-            );
+        let (exit_code, json_envelope) =
+            auth_required_response(&cli.command, code, cli.global.json);
+        if let Some(envelope) = json_envelope {
+            eprintln!("{envelope}");
         }
-        return ExitCode::from(code);
+        return ExitCode::from(exit_code);
     }
 
     // Update --check returns UpdateAvailable error when an update exists (exit 1).
@@ -1095,6 +1145,120 @@ mod tests {
         assert!(!requires_auth(&parse_command(&[
             "admin", "approve", "--batch", "1"
         ])));
+    }
+
+    // ── is_auth_state_probe / auth_required_response (#1822) ────────
+
+    #[test]
+    fn auth_state_probe_matches_whoami_alias() {
+        assert!(is_auth_state_probe(&parse_command(&["whoami"])));
+    }
+
+    #[test]
+    fn auth_state_probe_matches_auth_whoami() {
+        assert!(is_auth_state_probe(&parse_command(&["auth", "whoami"])));
+    }
+
+    #[test]
+    fn auth_state_probe_excludes_other_auth_subcommands() {
+        assert!(!is_auth_state_probe(&parse_command(&["auth", "logout"])));
+        assert!(!is_auth_state_probe(&parse_command(&["auth", "refresh"])));
+    }
+
+    #[test]
+    fn auth_state_probe_excludes_action_commands() {
+        // Regression pin: action commands must not be classified as
+        // probes, or they'd inherit the exit-3 surface.
+        for tokens in [
+            &["welcome"][..],
+            &["status"][..],
+            &["start"][..],
+            &["init"][..],
+            &["gate"][..],
+            &["audit"][..],
+            &["watch"][..],
+            &["check", "--all"][..],
+            &["architecture", "validate"][..],
+            &["drift", "list"][..],
+            &["policy", "list"][..],
+        ] {
+            assert!(
+                !is_auth_state_probe(&parse_command(tokens)),
+                "action command {tokens:?} must not be an auth-state probe"
+            );
+        }
+    }
+
+    #[test]
+    fn auth_required_response_action_command_exits_zero() {
+        // Issue #1822: gated action commands treat auth-required as an
+        // expected state and exit 0 so new users don't see what looks
+        // like a crash.
+        for tokens in [
+            &["welcome"][..],
+            &["status"][..],
+            &["start"][..],
+            &["init"][..],
+            &["gate"][..],
+            &["audit"][..],
+            &["watch"][..],
+        ] {
+            let (code, envelope) =
+                auth_required_response(&parse_command(tokens), EXIT_AUTH_REQUIRED, false);
+            assert_eq!(
+                code, EXIT_OK,
+                "{tokens:?} should exit 0 on auth-required (informational)"
+            );
+            assert!(
+                envelope.is_none(),
+                "text mode must not emit a JSON envelope"
+            );
+        }
+    }
+
+    #[test]
+    fn auth_required_response_probe_keeps_exit_three() {
+        // The canonical preflight: `whoami` / `auth whoami` carry the
+        // auth signal in the exit code so scripts have a stable check.
+        for tokens in [&["whoami"][..], &["auth", "whoami"][..]] {
+            let (code, _) =
+                auth_required_response(&parse_command(tokens), EXIT_AUTH_REQUIRED, false);
+            assert_eq!(
+                code, EXIT_AUTH_REQUIRED,
+                "{tokens:?} is an auth-state probe and must exit 3"
+            );
+        }
+    }
+
+    #[test]
+    fn auth_required_response_action_json_envelope_shape() {
+        let (code, envelope) =
+            auth_required_response(&parse_command(&["start"]), EXIT_AUTH_REQUIRED, true);
+        assert_eq!(code, EXIT_OK);
+        let envelope = envelope.expect("--json mode must emit an envelope");
+        assert_eq!(envelope["state"], "authRequired");
+        assert_eq!(envelope["next"], "anvil auth login");
+        assert!(
+            envelope["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("Authentication required")),
+            "envelope must carry the human-readable message"
+        );
+        // No `error` key on the informational envelope — distinguishes
+        // the informational shape from the probe's error shape so
+        // structured consumers can tell them apart.
+        assert!(envelope.get("error").is_none());
+    }
+
+    #[test]
+    fn auth_required_response_probe_json_envelope_shape() {
+        let (code, envelope) =
+            auth_required_response(&parse_command(&["whoami"]), EXIT_AUTH_REQUIRED, true);
+        assert_eq!(code, EXIT_AUTH_REQUIRED);
+        let envelope = envelope.expect("--json mode must emit an envelope");
+        // Probe keeps the existing error-shaped envelope for backward
+        // compatibility with whoami callers.
+        assert_eq!(envelope["error"], "authentication_required");
     }
 
     // ── evaluate_auth ────────────────────────────────────────────
