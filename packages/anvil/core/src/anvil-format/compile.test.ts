@@ -44,6 +44,7 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     const familyIds = registry.families.map((f) => f.id);
     expect(familyIds).toEqual([
       'deferred-debt',
+      'dynamic-execution',
       'error-visibility',
       'guardrail-suppression',
       'responsibility-laundering',
@@ -53,6 +54,8 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     const ruleIds = registry.patterns.map((p) => p.id);
     expect(ruleIds).toContain('AP-001');
     expect(ruleIds).toContain('AP-007');
+    expect(ruleIds).toContain('AP-008'); // dynamic-execution: eval(<dynamic>) — LANGTS-006
+    expect(ruleIds).toContain('AP-009'); // dynamic-execution: new Function() — LANGTS-006
     expect(ruleIds).toContain('GS-001');
     expect(ruleIds).toContain('DD-001');
     expect(ruleIds).toContain('RL-001');
