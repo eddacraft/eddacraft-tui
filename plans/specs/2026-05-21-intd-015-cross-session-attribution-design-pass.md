@@ -1,7 +1,10 @@
 # INTD-015 Cross-Session Attribution — Design Pass
 
-**Status:** Draft (design pass — supersedes the "design pass pending" gate on
-[MLP2-071](../modules/multilayer-protection-v2.aps.md)).
+**Status:** Accepted (2026-05-21) — design pass that supersedes the
+"design pass pending" gate on
+[MLP2-071](../modules/multilayer-protection-v2.aps.md). The validation
+matrix and the "must / must NOT" lists below are the explicit contract
+the implementation slice PR will be reviewed against.
 **Date:** 2026-05-21.
 **Origin:** Release-council pass 1 defer-with-issue verdict on
 [#1722](https://github.com/eddacraft/anvil-001/issues/1722) (operations-reviewer,
