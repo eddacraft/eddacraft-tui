@@ -530,9 +530,16 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
   in wave 1I and the lib.rs follow-up text was the last surface still
   reading as deferred. APS status was left at Draft at the time —
   caught in the PR #1789 review-feedback pass as a sibling housekeeping
-  item to CLAWP-029. Counter bumped 8/64 → 9/64 in this commit.
+  item to CLAWP-029. Counter bumped 10/64 → 11/64 in this commit.
 - **Recommendation:** Update the `crates/anvil-witness/src/lib.rs` deferred follow-up text to match the current test state, or remove the deferred follow-up entirely if MLP2-015 completed it.
-- **Evidence:** `crates/anvil-witness/src/lib.rs:46`, `crates/anvil-witness/tests/concurrency.rs:16`
+- **Evidence:** Pre-fix `crates/anvil-witness/src/lib.rs:46-50` (the
+  five-line "80-writer stress test" deferred-follow-up bullet, body
+  beginning "Concurrency safety is exercised at 16 writers in
+  `tests/concurrency.rs`…"), removed by commit `9253d9f3` — see
+  `git show 9253d9f3 -- crates/anvil-witness/src/lib.rs` for the
+  exact deletion. `crates/anvil-witness/tests/concurrency.rs:16`
+  remains the concurrency-suite header that MLP2-015's 10/10
+  flake-budget review references.
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
 
 ### CLAWP-031: Shell integration tests source the wrapper path without shell quoting
