@@ -69,34 +69,46 @@
 //! - **Not the rate-limiter or `DoS` budget.** INTD-016 owns `DoS`
 //!   budgets; INTD-015 only filters per-event.
 //!
-//! ## Deployment posture (wave-1 partial)
+//! ## Deployment posture (MLP2-071 Phase 1)
 //!
-//! INTD-015 in this PR ships the **filter, contract, and tests**.
-//! The IPC subscribe surface that actually mints `SubscriberId`
-//! values from `SO_PEERCRED` / `GetNamedPipeClientProcessId` and
-//! routes broadcast envelopes through [`Fanout::route`] does **not
-//! yet exist** — there is no `IpcCommand::SubscribeTelemetry` frame
-//! in `anvil-intercept-proto` today, and no producer in the daemon
-//! currently broadcasts envelopes to network subscribers. The
-//! [`crate::telemetry::TelemetryEmitter`] continues to construct
-//! envelopes; nothing delivers them to a remote subscriber yet.
+//! Phase 1 shipped the daemon-side reachability of the fan-out:
 //!
-//! When the IPC subscribe frame lands (likely INTD-011 status /
-//! diagnostics surface or DRVR-001 driver client), the wiring is:
+//! * `run_foreground` constructs a `Fanout` at startup with the
+//!   operator-configured cross-session policy
+//!   (`enforcement.telemetry.allow_cross_session`) and a fresh
+//!   per-startup HMAC salt
+//!   ([`TelemetryRedactionKey::new_random`]). This closes the
+//!   literal "configured-but-ignored" gap GH issue #1722
+//!   surfaced, AND folds in `v0.6.0-beta-security-note.md` §H2
+//!   on the redaction-hash half.
+//! * [`RegistryOwnershipResolver`] is the production
+//!   [`OwnershipResolver`], backed by the live
+//!   [`crate::registry::SessionRegistry`]. Subscribers register
+//!   via the new `IpcCommand::SubscribeTelemetry` frame; the
+//!   daemon mints the `SubscriberId` from peer credentials and
+//!   binds it on the session via
+//!   [`crate::registry::SessionRegistry::bind_subscriber`].
 //!
-//! 1. The IPC accept loop reads peer credentials from the
-//!    connected socket / pipe and constructs a `SubscriberId` from
-//!    the resulting tuple. Drivers cannot influence the value.
-//! 2. The accept loop calls [`Fanout::register`] with that id.
-//! 3. The producer side (currently
-//!    `delivered_envelope_for_decision`) calls [`Fanout::route`]
-//!    on every envelope it would otherwise broadcast and writes
-//!    only the per-subscriber output the fan-out approves.
+//! What Phase 1 deliberately did **not** ship:
 //!
-//! Until that wiring lands the filter is dead code in production —
-//! but the contract and tests below are the authoritative
-//! specification, and any producer that adds broadcast must go
-//! through `Fanout::route` from day one.
+//! * The IPC accept-loop multiplex that routes the
+//!   `IpcCommand::SubscribeTelemetry` frame from a connected
+//!   peer through to `Fanout::register`. The proto variant
+//!   exists; the dispatcher returns a structured
+//!   "JSON-RPC per-connection handler required" error rather
+//!   than silently no-op.
+//! * The producer-side broadcaster that calls [`Fanout::route`]
+//!   on every notification envelope it would otherwise log
+//!   locally. No in-tree producer broadcasts notification
+//!   envelopes to network subscribers today;
+//!   [`crate::telemetry::TelemetryEmitter::delivered_envelope_for_decision`]
+//!   constructs envelopes that callers consume in-process.
+//!
+//! Both are tracked as MLP2-071 Phase 2 / the production
+//! notification telemetry stream feature. Any producer that adds
+//! remote broadcast MUST go through [`Fanout::route`] from day
+//! one — the contract and tests below are the authoritative
+//! specification.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};

@@ -3639,7 +3639,42 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** Ready
+- **Status:** In Progress (Phase 1 merged; Phase 2 follow-up pending)
+- **Phase 1 (this PR):** Shipped the daemon-side reachability of
+  the fan-out, the keyed redaction primitive that folds in §H2,
+  and the registry binding flow:
+  - `IpcCommand::SubscribeTelemetry` + `UnsubscribeTelemetry`
+    proto variants with round-trip tests
+    (`crates/anvil-intercept-proto/src/lib.rs`).
+  - `TelemetryRedactionKey` per-startup HMAC salt
+    (`crates/anvil-intercept/src/fanout.rs`); replaces unsalted
+    SHA-256 on production callers under the
+    `intd015-path-v1\0` domain separator, closing
+    `v0.6.0-beta-security-note.md` §H2 on the redaction-primitive
+    half.
+  - `Fanout` constructed in `run_foreground` via
+    `DaemonState::new` with
+    `Resolved::cross_session_policy()` and a fresh
+    `TelemetryRedactionKey::new_random()` salt.
+  - `RegistryOwnershipResolver` consults the live
+    `SessionRegistry` via the new `bind_subscriber` /
+    `lookup_subscriber_binding` methods on the registry.
+  - Regression pins added:
+    `daemon_state_constructs_fanout_with_configured_cross_session_policy`
+    (proves the literal #1722 reachability closure) +
+    `registry_ownership_resolver_consults_subscriber_binding`
+    (proves Phase D's binding flow).
+- **Phase 2 (follow-up):** Subscriber surface + production
+  broadcaster. The IPC accept-loop multiplex that routes the
+  `SubscribeTelemetry` frame through to `Fanout::register` and
+  the producer site that calls `Fanout::route` are deferred
+  until the production `NotificationEnvelope` broadcaster
+  feature lands (no in-tree producer broadcasts notification
+  envelopes to network subscribers today; see
+  `crates/anvil-intercept/src/fanout.rs:73-99` for the wave-1
+  doc on the missing producer). Phase 2 unblocks alongside the
+  notification telemetry stream feature itself; tracking
+  continues at #1722.
 - **Design pass:** Complete — see
   [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md).
   The spec decides the `IpcCommand::SubscribeTelemetry` frame

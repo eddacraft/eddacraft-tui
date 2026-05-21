@@ -170,14 +170,23 @@ local-IPC trust boundary documented in
   [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
   §M1 for the operator framing. Tracked in
   [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and MLP2-070.
-- **`telemetry.allow_cross_session` is inert in v0.7.0-beta.** The daemon parses
-  the flag and the cross-session fanout filter is wired, but the end-to-end
-  policy enforcement path documented in INTD-015 is paused pending a design pass
-  on the cross-session-attribution model. Leaving the default (`false`) is the
-  documented safe posture for this tag; the flag may not produce the
-  redacted-delivery behaviour described in `v0.6.0-beta-security-note.md` §H2
-  until the follow-up lands. Tracked in
-  [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071.
+- **`telemetry.allow_cross_session` cross-session redaction reaches Fanout but
+  not yet operators.** Post-MLP2-071 Phase 1 the daemon now constructs the
+  cross-session fanout at startup with the operator-configured policy and a
+  fresh per-startup HMAC salt (closes `v0.6.0-beta-security-note.md` §H2 in the
+  same change). The `RegistryOwnershipResolver` is wired against the live
+  session registry, and a session's subscriber binding can be set via
+  `SessionRegistry::bind_subscriber`. **Still missing for operator-visible
+  behaviour:** the IPC `telemetry.subscribe` surface that lets a driver
+  register as a subscriber, and the production `NotificationEnvelope`
+  producer site that calls `Fanout::route` on every emit. Neither shipped in
+  this tag because no in-tree producer broadcasts notification envelopes to
+  remote subscribers today (see `crates/anvil-intercept/src/fanout.rs:79-82`).
+  The safe default (`false`) keeps the redaction filter on the cold path
+  regardless. Tracked in
+  [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phase
+  1 shipped; Phase 2 — subscriber surface + producer broadcast — opens
+  alongside the production notification telemetry stream feature).
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 

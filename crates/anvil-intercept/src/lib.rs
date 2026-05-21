@@ -321,11 +321,17 @@ impl ForegroundOpts {
     /// * `IpcListener::with_limits` (INTD-016 — reads
     ///   `enforcement.dos.*`).
     ///
-    /// `Fanout` / cross-session telemetry policy (INTD-015) is *not*
-    /// wired here — `run_foreground` does not construct a `Fanout` at
-    /// all today. That is a separate audit gap surfaced by the same
-    /// grep; wiring it requires `run_foreground` to grow a `Fanout`
-    /// call site first.
+    /// MLP2-071 Phase 1: `Fanout` / cross-session telemetry policy
+    /// (INTD-015) is **now** wired here via [`DaemonState::new`] —
+    /// `run_foreground` constructs a `Fanout` with the operator-
+    /// configured policy and a per-startup HMAC salt, closing the
+    /// literal "configured-but-ignored" half of GH issue #1722. The
+    /// `daemon_state_constructs_fanout_with_configured_cross_session_policy`
+    /// regression pin proves the policy flows from
+    /// `Resolved::cross_session_policy()` through to the constructed
+    /// instance. Phase 2 (IPC subscriber surface + production
+    /// broadcaster) is the separate slice that makes the configured
+    /// flag operator-visible end-to-end.
     ///
     /// The post-#1671 audit closed the gap where each of those
     /// builders had its definition + doc-comment claiming the daemon
