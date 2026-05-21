@@ -2917,10 +2917,21 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 /// MLP2-070 / #1674: re-derive the `LineageAnchor` for a
 /// `register-session` request from the connection's authenticated
 /// peer credentials, rejecting any wire body whose `pid` claim does
-/// not match the peer. The `pid_starttime` is always read from
-/// `/proc/<peer_pid>/stat` server-side; the client's value is
-/// ignored even when present (the launcher is registering itself,
-/// so the daemon has direct access to the truth).
+/// not match the peer.
+///
+/// On Linux the `pid_starttime` is also read server-side from
+/// `/proc/<peer_pid>/stat`; the client's value is ignored even when
+/// present. On non-Linux platforms the daemon has no portable
+/// server-side `pid_starttime` reader yet (the APS spec calls for
+/// `proc_pidinfo` on macOS and `GetProcessTimes` on Windows), and
+/// `SessionRegistry::lookup_tag_for_lineage` is already inert on
+/// those platforms because the per-PID `pid_starttime` read returns
+/// `Unsupported`. To avoid turning the existing silent-inertness
+/// into a hard register-time failure, non-Linux platforms still pin
+/// the `pid == peer_pid` trust gate (which is the primary forgery
+/// defence) but forward the client-supplied `pid_starttime` as
+/// advisory. Lineage gains the daemon-derived starttime guarantee
+/// when full cross-platform support lands.
 ///
 /// Returns the verified anchor on success, or a human-readable
 /// rejection string when:
@@ -2931,9 +2942,9 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 /// - the claim's `pid` is not the peer's pid (a same-UID caller
 ///   trying to mint a lineage anchor for someone else's PID, which
 ///   was the trust-boundary defect `DeepSec` flagged as #1674); or
-/// - the daemon cannot read `pid_starttime` for the peer (e.g.
-///   the peer exited between accept and verify — best-effort
-///   fail-closed).
+/// - on Linux only, the daemon cannot read `pid_starttime` for the
+///   peer (e.g. the peer exited between accept and verify —
+///   best-effort fail-closed).
 fn verify_lineage_claim(
     claim: &anvil_intercept_proto::session::LineageAnchor,
     peer_pid: Option<u32>,
@@ -2953,31 +2964,47 @@ fn verify_lineage_claim(
             claim.pid, peer_pid,
         ));
     }
-    let pid_starttime = anvil_attribution::process::pid_starttime(peer_pid).map_err(|err| {
-        format!(
-            "register-session lineage rejected: cannot read pid_starttime for \
-             peer pid={peer_pid}: {err}"
-        )
-    })?;
-    if claim.pid_starttime != pid_starttime {
-        // The client's claim is treated as advisory; the registry is
-        // always seeded with the value the daemon read itself. A
-        // mismatch is logged at debug rather than warn — well-
-        // behaved launchers can disagree benignly (clock-tick
-        // rounding on Linux, different time bases on other
-        // platforms), and operators have no actionable response.
-        tracing::debug!(
-            target: "anvil_intercept::ipc",
-            claim_pid_starttime = claim.pid_starttime,
-            daemon_pid_starttime = pid_starttime,
-            peer_pid,
-            "register-session lineage pid_starttime claim differs from daemon read; trusting daemon",
-        );
+    #[cfg(target_os = "linux")]
+    {
+        let pid_starttime = anvil_attribution::process::pid_starttime(peer_pid).map_err(|err| {
+            format!(
+                "register-session lineage rejected: cannot read pid_starttime for \
+                     peer pid={peer_pid}: {err}"
+            )
+        })?;
+        if claim.pid_starttime != pid_starttime {
+            // The client's claim is treated as advisory; the
+            // registry is always seeded with the value the daemon
+            // read itself. A mismatch is logged at debug rather
+            // than warn — well-behaved launchers can disagree
+            // benignly (clock-tick rounding), and operators have
+            // no actionable response.
+            tracing::debug!(
+                target: "anvil_intercept::ipc",
+                claim_pid_starttime = claim.pid_starttime,
+                daemon_pid_starttime = pid_starttime,
+                peer_pid,
+                "register-session lineage pid_starttime claim differs from daemon read; trusting daemon",
+            );
+        }
+        Ok(anvil_intercept_proto::session::LineageAnchor {
+            pid: peer_pid,
+            pid_starttime,
+        })
     }
-    Ok(anvil_intercept_proto::session::LineageAnchor {
-        pid: peer_pid,
-        pid_starttime,
-    })
+    #[cfg(not(target_os = "linux"))]
+    {
+        // No portable server-side reader on this platform yet (see
+        // function-level rustdoc). Forward the claim's
+        // pid_starttime advisory while preserving the pid trust
+        // gate. The lineage lookup is inert here today, so this
+        // matches the pre-MLP2-070 wire-state without introducing a
+        // new hard failure on macOS/Windows.
+        Ok(anvil_intercept_proto::session::LineageAnchor {
+            pid: peer_pid,
+            pid_starttime: claim.pid_starttime,
+        })
+    }
 }
 
 #[allow(clippy::too_many_arguments)] // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
@@ -3510,8 +3537,10 @@ mod tests {
     /// claims a `pid` other than the authenticated peer pid must be
     /// rejected. Without this gate a same-UID IPC caller could mint a
     /// trusted lineage entry for someone else's PID, defeating the
-    /// MLP2-025 spoof cross-check.
-    #[cfg(target_os = "linux")]
+    /// MLP2-025 spoof cross-check. The pid trust gate is the primary
+    /// forgery defence and applies on every platform — only the
+    /// daemon-side `pid_starttime` re-read is Linux-only.
+    #[cfg(unix)]
     #[test]
     fn dispatch_command_register_lineage_rejects_pid_mismatch() {
         use anvil_intercept_proto::IpcCommand;
@@ -3555,8 +3584,9 @@ mod tests {
     /// anchor over a connection that has no authenticated peer pid
     /// (e.g. the legacy NDJSON wire on line 2910, or a platform where
     /// `SO_PEERCRED` is unavailable) must be rejected — we have no way
-    /// to verify the claim, so fail-closed.
-    #[cfg(target_os = "linux")]
+    /// to verify the claim, so fail-closed. Pure pid-comparison logic;
+    /// platform-agnostic.
+    #[cfg(unix)]
     #[test]
     fn dispatch_command_register_lineage_requires_peer_credentials() {
         use anvil_intercept_proto::IpcCommand;
@@ -3640,6 +3670,52 @@ mod tests {
     /// no lineage on the wire still works regardless of `peer_pid`.
     /// Pin this so the trust-boundary fix doesn't accidentally
     /// regress the legacy MLP2-023 untagged path.
+    /// MLP2-070 / #1674: on platforms where the daemon has no
+    /// portable server-side `pid_starttime` reader yet (macOS,
+    /// Windows), the lineage anchor stored after verification keeps
+    /// the client-supplied `pid_starttime` as advisory. This pins
+    /// the explicit non-Linux trade-off documented in
+    /// `verify_lineage_claim`'s rustdoc: hard-rejecting lineage on
+    /// non-Linux would turn an existing silent-inertness path (the
+    /// lookup already returns `None` on those platforms) into a new
+    /// hard failure, which is a regression we explicitly avoid
+    /// until cross-platform starttime readers land.
+    #[cfg(all(unix, not(target_os = "linux")))]
+    #[test]
+    fn dispatch_command_register_lineage_forwards_advisory_starttime_on_non_linux() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::LineageAnchor;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let advisory_starttime = 1_700_000_000;
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("self-registering-non-linux"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: Some(LineageAnchor {
+                pid: peer_pid,
+                pid_starttime: advisory_starttime,
+            }),
+        };
+        dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("non-Linux dispatch with matching pid must succeed");
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { lineage, .. }] => {
+                lineage.expect("lineage forwarded on non-Linux")
+            }
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert_eq!(forwarded.pid, peer_pid);
+        assert_eq!(
+            forwarded.pid_starttime, advisory_starttime,
+            "non-Linux forwards the claim's advisory starttime verbatim",
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn dispatch_command_register_without_lineage_is_unaffected() {
