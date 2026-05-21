@@ -457,7 +457,7 @@ archive.
 
 ### CIB-012: `anvil check --staged` errors with "`--changed` required"
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Tracking:** GH issue [#1804](https://github.com/eddacraft/anvil-001/issues/1804)
 - **Intent:** `--staged` is the obvious flag a developer reaches for
   first (`git diff --staged` mental model). Today it errors out with

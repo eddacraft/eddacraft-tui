@@ -46,12 +46,12 @@ pub struct CheckArgs {
     #[arg(long, conflicts_with = "all")]
     changed: bool,
 
-    /// With --changed, analyse only staged files.
-    #[arg(long, requires = "changed", conflicts_with = "since")]
+    /// Analyse only staged files (implies --changed).
+    #[arg(long, conflicts_with = "since", conflicts_with = "all")]
     staged: bool,
 
-    /// With --changed, compare against a git ref (e.g. main, HEAD~3).
-    #[arg(long, requires = "changed", conflicts_with = "staged")]
+    /// Compare against a git ref, e.g. main, HEAD~3 (implies --changed).
+    #[arg(long, conflicts_with = "staged", conflicts_with = "all")]
     since: Option<String>,
 
     /// Analyse all source files in the project.
@@ -141,9 +141,11 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let mode = OutputMode::from_global(global);
     let start = Instant::now();
 
-    // Validate mutually exclusive flags.
-    if args.all && args.changed {
-        bail!("Cannot use --all and --changed together. Choose one.");
+    // Validate mutually exclusive flags. `--staged` and `--since` imply
+    // `--changed`, so treat any of them as the change-selection mode.
+    let changed_mode = args.changed || args.staged || args.since.is_some();
+    if args.all && changed_mode {
+        bail!("Cannot use --all with --changed/--staged/--since. Choose one.");
     }
 
     let artifact_kind = parse_artifact_kind(&args.artifact)?;
@@ -448,7 +450,7 @@ fn gather_files(args: &CheckArgs, extensions: &[String]) -> Result<(Vec<String>,
         return Ok((resolved, FileSource::Explicit));
     }
 
-    if args.changed {
+    if args.changed || args.staged || args.since.is_some() {
         let files = get_changed_files(args.staged, args.since.as_deref(), extensions)?;
         return Ok((files, FileSource::Changed));
     }
@@ -1083,19 +1085,26 @@ mod tests {
 
     // ── Argument validation (C-005) ─────────────────────────────
 
+    // `--staged` and `--since` imply `--changed` (CIB-012 / GH #1804).
+    // Prior behaviour rejected them without explicit `--changed`; the
+    // mental model `git diff --staged` makes the bare flag the obvious
+    // entry point, so the runtime now treats either as `--changed`.
+
     #[test]
-    fn clap_rejects_staged_without_changed() {
+    fn clap_accepts_staged_without_changed() {
         use clap::Parser;
-        // Build a full CLI parse to test clap's `requires` constraint.
         let result = crate::Cli::try_parse_from(["anvil", "check", "--staged"]);
-        assert!(result.is_err());
+        assert!(
+            result.is_ok(),
+            "--staged should imply --changed: {result:?}"
+        );
     }
 
     #[test]
-    fn clap_rejects_since_without_changed() {
+    fn clap_accepts_since_without_changed() {
         use clap::Parser;
         let result = crate::Cli::try_parse_from(["anvil", "check", "--since", "main"]);
-        assert!(result.is_err());
+        assert!(result.is_ok(), "--since should imply --changed: {result:?}");
     }
 
     #[test]
@@ -1110,6 +1119,20 @@ mod tests {
         use clap::Parser;
         let result = crate::Cli::try_parse_from(["anvil", "check", "--changed", "--since", "main"]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn clap_rejects_staged_with_all() {
+        use clap::Parser;
+        let result = crate::Cli::try_parse_from(["anvil", "check", "--all", "--staged"]);
+        assert!(result.is_err(), "--all and --staged are mutually exclusive");
+    }
+
+    #[test]
+    fn clap_rejects_since_with_all() {
+        use clap::Parser;
+        let result = crate::Cli::try_parse_from(["anvil", "check", "--all", "--since", "main"]);
+        assert!(result.is_err(), "--all and --since are mutually exclusive");
     }
 
     // ── File source enum ────────────────────────────────────────
