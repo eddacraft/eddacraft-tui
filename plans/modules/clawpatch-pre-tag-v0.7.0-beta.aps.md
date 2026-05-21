@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 8/64     |
+| CLAWP | @aneki | In Progress | 10/64    |
 
-**Last reviewed:** 2026-05-20 (eight findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-21 (ten findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -283,7 +283,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_436ea7fad0` — Rust integration test eddacraft-anvil-kernel/watch_pattern_filter
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1786 (merged at `ab00ee9a`)
 - **Branch:** `fix/1747-clawp-014-runtime-exclude`
 - **Resolution:** Replaced the prior no-import body
   (`export const added = 1;`) with a bare external import of
@@ -496,7 +496,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_105b94af10` — Rust library eddacraft-anvil-config
 - **Severity / Triage / Category:** low / docs-gap / docs-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1789 (merged at `5fc13990`)
 - **Branch:** `fix/clawp-029-config-docs` → PR #1789
 - **Resolution:** PR #1732's docs bundle (commits `47d8b0b0`
   "note hard-pinned validation is shipped", `f444d52d` "correct
