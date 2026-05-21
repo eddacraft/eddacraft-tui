@@ -40,17 +40,18 @@ const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
 #[allow(clippy::struct_excessive_bools)]
 pub struct CheckArgs {
     /// Files to analyse (optional if using --changed, --staged, --since, or --all).
+    /// Explicit file paths take precedence over --changed/--staged/--since.
     files: Vec<String>,
 
-    /// Analyse git-changed files only.
+    /// Analyse git-changed files only (ignored if explicit file paths are given).
     #[arg(long, conflicts_with = "all")]
     changed: bool,
 
-    /// Analyse only staged files (implies --changed).
+    /// Analyse only staged files (implies --changed; ignored if explicit file paths are given).
     #[arg(long, conflicts_with = "since", conflicts_with = "all")]
     staged: bool,
 
-    /// Compare against a git ref, e.g. main, HEAD~3 (implies --changed).
+    /// Compare against a git ref, e.g. main, HEAD~3 (implies --changed; ignored if explicit file paths are given).
     #[arg(long, conflicts_with = "staged", conflicts_with = "all")]
     since: Option<String>,
 
@@ -77,6 +78,14 @@ pub struct CheckArgs {
     /// `--since`, and `--extensions`.
     #[arg(long, default_value = "source")]
     artifact: String,
+}
+
+impl CheckArgs {
+    /// True when any flag selects the git-changed files mode. `--staged` and
+    /// `--since` imply `--changed`, so all three collapse to a single mode.
+    fn changed_mode(&self) -> bool {
+        self.changed || self.staged || self.since.is_some()
+    }
 }
 
 /// Describes how files were selected, for user-facing messages.
@@ -143,8 +152,7 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
 
     // Validate mutually exclusive flags. `--staged` and `--since` imply
     // `--changed`, so treat any of them as the change-selection mode.
-    let changed_mode = args.changed || args.staged || args.since.is_some();
-    if args.all && changed_mode {
+    if args.all && args.changed_mode() {
         bail!("Cannot use --all with --changed/--staged/--since. Choose one.");
     }
 
@@ -282,8 +290,7 @@ fn run_non_source_artifact(
 ) -> Result<()> {
     let mode = OutputMode::from_global(global);
 
-    if args.all || args.changed || args.staged || args.since.is_some() || args.extensions.is_some()
-    {
+    if args.all || args.changed_mode() || args.extensions.is_some() {
         bail!(
             "--artifact {} requires explicit file paths; --all, --changed, --staged, --since, and --extensions apply to source scans only",
             kind.as_str()
@@ -450,7 +457,7 @@ fn gather_files(args: &CheckArgs, extensions: &[String]) -> Result<(Vec<String>,
         return Ok((resolved, FileSource::Explicit));
     }
 
-    if args.changed || args.staged || args.since.is_some() {
+    if args.changed_mode() {
         let files = get_changed_files(args.staged, args.since.as_deref(), extensions)?;
         return Ok((files, FileSource::Changed));
     }
