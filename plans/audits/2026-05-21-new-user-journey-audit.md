@@ -16,10 +16,17 @@ Sandboxed run with `HOME` redirected to a tmp dir so `~/.cursor/mcp.json`
 and `~/.claude.json` mutations stayed isolated:
 
 ```bash
-SANDBOX=$(mktemp -d); export HOME="$SANDBOX/home"
-export XDG_CONFIG_HOME=… XDG_DATA_HOME=… XDG_STATE_HOME=… XDG_CACHE_HOME=…
+SANDBOX=$(mktemp -d /tmp/anvil-newuser-XXXXXX)
+export HOME="$SANDBOX/home"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_CACHE_HOME="$HOME/.cache"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 mkdir -p "$SANDBOX/repo" && cd "$SANDBOX/repo"
-git init -q -b main && git config user.email/name …
+git init -q -b main
+git config user.email "test@example.com"
+git config user.name  "Test User"
 # tiny TS demo: package.json, src/index.ts, src/db.ts
 ```
 
@@ -106,7 +113,9 @@ Each finding has a corresponding GitHub issue cross-referenced below.
 
 ## Linked memories
 
-- [[reference_anvil_validate_write_auth]] already notes the MCP auth-gate
-  behaviour as "gate-unavailable, not a content veto". Finding #2 above
-  is the user-facing side of that same behaviour: real users without an
-  in-memory escape hatch will see their AI editor refuse to write.
+- A personal auto-memory note (`reference_anvil_validate_write_auth`,
+  local to the auditor's workstation, not in this repo) already records
+  the MCP auth-gate behaviour as "gate-unavailable, not a content
+  veto". Finding #2 above is the user-facing side of that same
+  behaviour: real users without an in-memory escape hatch will see
+  their AI editor refuse to write.
