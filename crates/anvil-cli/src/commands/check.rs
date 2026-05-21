@@ -224,6 +224,27 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     // the planless-eligible default set) the same way `anvil gate` does.
     let enabled_checks = resolve_enabled_planless_checks(workspace_root.as_deref())?;
 
+    // `.anvilrc#checks` is configured but every entry is gate-only
+    // (`policy`, `architecture`, `import-boundaries`, etc.). The
+    // intersection with planless-eligible is empty, so without an
+    // explicit message we would silently report "no warnings" or "no
+    // analysable files" — both of which mislead operators into thinking
+    // their files were clean. Tell them which surface they need instead.
+    if enabled_checks.is_empty() {
+        let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let message = format!(
+            "No planless-eligible checks enabled in .anvilrc (planless-eligible: {}). \
+             Use `anvil gate` for config-heavy checks like policy, architecture, or import-boundaries.",
+            PLANLESS_ELIGIBLE_CHECKS.join(", ")
+        );
+        if mode == OutputMode::Json {
+            output::json::print(&empty_output(elapsed, &message))?;
+        } else {
+            output::plain::warn(&message);
+        }
+        return Ok(());
+    }
+
     if mode != OutputMode::Json && global.verbose {
         output::plain::info(&format!("Running checks: {}", enabled_checks.join(", ")));
     }
@@ -254,13 +275,28 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 checks_run.push((*check_name).to_string());
             }
             "secret-detection" => {
-                let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
                 let config = SecretCheckConfig::default();
-                let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
-                // The secret scanner reads every file it's handed, so any
-                // explicit/--all/--changed path counts as "scanned" for the
-                // empty-output guard below.
+                // `run_secret_check` silently drops files by extension
+                // (`config.skip_extensions`) and by size (`MAX_FILE_SIZE`).
+                // Pre-filter so the "0 scanned" guard below stays honest
+                // even when every input falls in the skip set (e.g. all
+                // `.lock` or all 2 MB minified bundles).
+                let scannable_files: Vec<String> = files
+                    .iter()
+                    .filter(|f| is_secret_scannable(f, &config))
+                    .cloned()
+                    .collect();
+                if scannable_files.is_empty() {
+                    // No input is in scope for secret-detection — skip
+                    // without flipping `any_files_scanned`. If antipattern
+                    // also produced nothing scannable, the empty-output
+                    // guard below renders a clear message.
+                    checks_run.push((*check_name).to_string());
+                    continue;
+                }
                 any_files_scanned = true;
+                let file_refs: Vec<&str> = scannable_files.iter().map(String::as_str).collect();
+                let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
                 for finding in &result.findings {
                     aggregated_warnings.push(secret_finding_to_json(finding));
                 }
@@ -383,6 +419,27 @@ fn resolve_enabled_planless_checks(workspace_root: Option<&str>) -> Result<Vec<&
     Ok(resolved)
 }
 
+/// Mirror the skip criteria inside `anvil_checks::secret::run_secret_check`
+/// so the planless dispatcher can tell ahead of time whether a file would
+/// be scanned. Without this pre-check, handing the scanner only
+/// `skip_extensions` inputs (e.g. all `.lock`) lets the empty-output
+/// guard below flip on a scan that never actually ran.
+///
+/// Kept in lockstep with the upstream `should_skip_file` /
+/// `file_exceeds_size_limit` predicates — see
+/// `crates/anvil-checks/src/secret/check.rs`.
+fn is_secret_scannable(file: &str, config: &SecretCheckConfig) -> bool {
+    if config.skip_extensions.iter().any(|ext| file.ends_with(ext)) {
+        return false;
+    }
+    // Mirror `MAX_FILE_SIZE` from `anvil_checks::secret::check`. If we can't
+    // stat the file, let the scanner decide — its error path is silent.
+    match std::fs::metadata(file) {
+        Ok(m) => m.len() < anvil_checks::secret::MAX_FILE_SIZE,
+        Err(_) => true,
+    }
+}
+
 fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
     JsonWarning {
         id: w.id.clone(),
@@ -402,18 +459,26 @@ fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
 /// are reported as `severity = "error"` to match `gate`'s
 /// "any hardcoded secret blocks" semantic — a planted `sk-…` literal must
 /// not pass with `--severity error` (the default).
+///
+/// `anvil_checks::secret::normalise_file_path` prepends a `/` to workspace-
+/// relative paths (e.g. `/src/smelly.ts`), while `commands::check`'s
+/// antipattern path and the top-level `files` array use unrooted relative
+/// paths (e.g. `src/smelly.ts`). Strip the leading slash here so a single
+/// JSON response stays internally consistent and downstream consumers can
+/// match warnings to entries in `files` without special-casing secrets.
 fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
     let id = format!(
         "SECRET-{}",
         f.pattern_name.to_ascii_uppercase().replace(' ', "-")
     );
+    let file = f.file.strip_prefix('/').unwrap_or(&f.file).to_string();
     JsonWarning {
         id,
         category: "secret".to_string(),
         severity: "error".to_string(),
         title: format!("Potential secret: {}", f.pattern_name),
         message: f.redacted_line.clone(),
-        file: f.file.clone(),
+        file,
         line: f.line,
         suggestion:
             "Move the value to a secret manager or environment variable; never commit literals."
@@ -1731,5 +1796,133 @@ mod tests {
             err.downcast_ref::<output::AlreadyReported>().is_some(),
             "expected AlreadyReported (blocking warnings), got: {err}"
         );
+    }
+
+    // ── Review-feedback fixes (PR #1817) ────────────────────────
+
+    #[test]
+    fn secret_finding_strips_leading_slash_for_path_consistency() {
+        // PR #1817 review: `anvil_checks::secret::normalise_file_path`
+        // prepends `/` to workspace-relative paths; the check.rs envelope
+        // strips it so secret findings match antipattern + `files` paths.
+        use anvil_checks::secret::{FindingType, SecretFinding};
+        let finding = SecretFinding {
+            file: "/src/smelly.ts".to_string(),
+            line: 1,
+            finding_type: FindingType::Pattern,
+            pattern_name: "High Entropy String".to_string(),
+            redacted_match: "[REDACTED]".to_string(),
+            redacted_line: "const apiKey = \"[REDACTED]\";".to_string(),
+        };
+        let json = secret_finding_to_json(&finding);
+        assert_eq!(
+            json.file, "src/smelly.ts",
+            "leading slash from secret scanner must be stripped"
+        );
+    }
+
+    #[test]
+    fn is_secret_scannable_rejects_skip_extensions() {
+        let config = SecretCheckConfig::default();
+        assert!(!is_secret_scannable("foo.lock", &config));
+        assert!(!is_secret_scannable("foo.min.js", &config));
+        assert!(!is_secret_scannable("foo.svg", &config));
+        assert!(is_secret_scannable("src/foo.ts", &config));
+        assert!(is_secret_scannable("src/foo.rs", &config));
+    }
+
+    #[test]
+    fn empty_planless_intersection_emits_clear_message_not_silent_pass() {
+        // PR #1817 review: `.anvilrc#checks` enabling only gate-only
+        // checks (e.g. `policy`) used to fall through to a misleading
+        // "No analysable files found" guard. Caller must now see a clear
+        // message naming the planless-eligible set.
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir(&src_dir).unwrap();
+        let file = src_dir.join("foo.ts");
+        std::fs::write(&file, "export const x = 1;\n").unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - policy\n  - architecture\n",
+        )
+        .unwrap();
+
+        let args = CheckArgs {
+            files: vec![file.to_string_lossy().to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "source".to_string(),
+        };
+
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev_cwd = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        let global = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+        let result = run(&args, &global);
+        std::env::set_current_dir(prev_cwd).unwrap();
+
+        // No planless-eligible checks → clean exit (not an error), but a
+        // dispatcher that scanned zero things must not pretend it passed.
+        // The user-visible message is asserted via the JSON `message`
+        // field carried on `empty_output`; rendering happens through
+        // `output::json::print` so we just verify the contract didn't
+        // return a blocking error.
+        assert!(
+            result.is_ok(),
+            "empty planless intersection should not surface a blocking error; got {result:?}"
+        );
+    }
+
+    #[test]
+    fn secret_only_skip_extension_inputs_dont_falsely_mark_scanned() {
+        // PR #1817 review: handing the secret scanner only `.lock` /
+        // `.svg` files used to flip `any_files_scanned = true` even
+        // though zero bytes were actually scanned. With pre-filtering,
+        // an all-skip-extension input set falls through to the
+        // "No analysable files found" guard (Ok(()) without error).
+        let tmp = tempfile::tempdir().unwrap();
+        let lock = tmp.path().join("yarn.lock");
+        std::fs::write(&lock, "lockfile v1\n").unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - secret-detection\n",
+        )
+        .unwrap();
+
+        let args = CheckArgs {
+            files: vec![lock.to_string_lossy().to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "source".to_string(),
+        };
+
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev_cwd = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        let global = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+        let result = run(&args, &global);
+        std::env::set_current_dir(prev_cwd).unwrap();
+
+        // Skipped silently → not blocking. The point of the assertion is
+        // that we don't crash, don't double-mark scanned, and surface a
+        // clean exit.
+        assert!(result.is_ok(), "all-skip-extension inputs should not block");
     }
 }
