@@ -31,8 +31,14 @@ export const revokeSchema = z
     email: z.string().email().max(254).optional(),
     token: z.string().max(200).optional(),
   })
-  .refine((data) => data.email || data.token, {
-    message: 'Either email or token must be provided',
+  // Exactly one of {email, token} must be provided. The two paths carry
+  // different semantics (account-level vs grant-level, see
+  // `POST /admin/revoke` in `routes/admin.ts`); the admin-cli already
+  // refuses to combine them client-side, but the server enforces XOR
+  // independently so operators cannot get an ambiguous "silent take the
+  // email branch" outcome when both are supplied.
+  .refine((data) => Boolean(data.email) !== Boolean(data.token), {
+    message: 'Exactly one of email or token must be provided',
   });
 
 export const migrationSchema = z.object({

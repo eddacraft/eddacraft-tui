@@ -408,6 +408,19 @@ describe('admin endpoints', () => {
       const res = await request('POST', '/admin/revoke', {}, ADMIN_KEY);
       expect(res.status).toBe(400);
     });
+
+    // SEC-007 / Copilot review on #1806: email and token carry different
+    // revocation semantics (account-level vs grant-level). Reject requests
+    // that supply both so the server cannot silently pick a branch.
+    it('returns 400 when both email and token are provided', async () => {
+      const res = await request(
+        'POST',
+        '/admin/revoke',
+        { email: 'alice@example.com', token: 'anvil_beta_' + 'X'.repeat(43) },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('GET /admin/user/:email', () => {
