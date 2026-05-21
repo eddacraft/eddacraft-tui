@@ -20,14 +20,17 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
     // Empty workspace — the curated AI guardrail set runs:
     // secret-detection, import-boundaries, antipattern-scan, policy,
     // command-safety. Under `--profile ai`, strict_config marks the
-    // three config-gap checks (architecture, policy, command-safety)
-    // as `requires_config = true` rather than blocking diagnostics
-    // (CIB-011 / #1803 — the pre-CIB-011 behaviour scored 1/5 = 20%
-    // on a fresh repo, which made Anvil look broken on day one). The
-    // remaining two checks (secret-detection, antipattern-scan)
-    // actually run; both pass on an empty workspace, so the gate
-    // exits 0 and the envelope reports `summary.config_gaps = 3`
-    // alongside an empty diagnostics array.
+    // three config-gap checks (import-boundaries, policy,
+    // command-safety — the canonical names shown in JSON output;
+    // import-boundaries dispatches through the `architecture`
+    // internal check) as `requires_config = true` rather than
+    // blocking diagnostics (CIB-011 / #1803 — the pre-CIB-011
+    // behaviour scored 1/5 = 20% on a fresh repo, which made Anvil
+    // look broken on day one). The remaining two checks
+    // (secret-detection, antipattern-scan) actually run; both pass
+    // on an empty workspace, so the gate exits 0 and the envelope
+    // reports `summary.config_gaps = 3` alongside an empty
+    // diagnostics array.
     let output = Command::new(ANVIL_BIN)
         .arg("gate")
         .arg("--profile")

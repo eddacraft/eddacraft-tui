@@ -150,6 +150,9 @@ struct CheckResult {
     /// gate score denominator and rendered as `CONFIG NEEDED` with a
     /// `next:` hint, rather than as a `FAIL`. Skipped from JSON output
     /// when false so the schema stays additive.
+    // serde idiom: skip the field in JSON when false. Equivalent to
+    // `if !*x` — the `std::ops::Not::not` path lets serde call the
+    // free function without needing a custom `is_false` helper.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     requires_config: bool,
 }
@@ -1875,6 +1878,15 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
 /// exit code so external AI consumers can branch without re-deriving
 /// counts from `diagnostics[]`. Per the diagnostic-envelope spec at
 /// `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`.
+///
+/// **v1 extension policy:** the schema string stays `v1` for
+/// backwards-compatible additive fields (fields skipped from output
+/// when at their default value). CIB-011 added `summary.config_gaps`
+/// under this policy — existing strict consumers on a
+/// fully-configured repo see no shape change, and consumers using
+/// `#[serde(deny_unknown_fields)]` who hit a partial-config repo
+/// will need to update to v1.1+ semantics. Breaking changes (renames,
+/// removals, type changes) require a v2 schema string.
 #[derive(Debug, Serialize)]
 struct AiGateResultEnvelope {
     schema: &'static str,
@@ -3243,6 +3255,28 @@ rules: []
             assert_ne!(hint, generic, "{name} must have a dedicated hint");
             assert!(!hint.is_empty());
         }
+    }
+
+    #[test]
+    fn config_gap_check_keeps_passed_true_for_fail_fast_continuity() {
+        // The fail_fast path in `run_checks` derives `failed =
+        // !result.passed` to decide whether to short-circuit. Config-gap
+        // checks must keep `passed: true` so they do NOT trip fail_fast
+        // (otherwise a config-gap in the first check would silently drop
+        // every subsequent real failure). Pin the invariant at its
+        // source — run_single_check under strict mode for a missing
+        // architecture config.
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = strict_ai_ctx(dir.path());
+        let result = run_single_check("architecture", &ctx);
+        assert!(result.requires_config, "test pre-condition");
+        assert!(
+            result.passed,
+            "config-gap must keep passed=true so fail_fast does not trip on it"
+        );
+        // Confirm the derived `failed` flag matches the expectation.
+        let failed = !result.passed;
+        assert!(!failed, "config-gap must derive failed=false for fail_fast");
     }
 
     // ── run_single_check unknown ─────────────────────────────────────
