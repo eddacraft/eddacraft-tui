@@ -141,8 +141,16 @@ established the original revoke endpoints.
 
 ### SEC-008: Named-pattern secret detection for AWS / GitHub / Slack tokens
 
-**Status:** Draft
+**Status:** Merged
 **Tracking:** GH issue [#1800](https://github.com/eddacraft/anvil-001/issues/1800)
+**Evidence:** Merged via PR [#1815](https://github.com/eddacraft/anvil-001/pull/1815)
+(`fix(checks): flag textbook AWS access keys`). Root cause was post-match
+filtering (`looks_like_code` + keyword allowlist) silently dropping
+already-existing named patterns; fix splits the allowlist into shape vs
+keyword tiers and marks structurally-unambiguous patterns
+high-confidence. Adds `ASIA[0-9A-Z]{16}` (STS), `sk-ant-…` (Anthropic),
+`sk-(?:proj|svcacct|admin)-…` (OpenAI) patterns. Pending release in the
+next `v0.6.x-beta` tag.
 
 **Intent:** Anvil's secret detector currently relies on a high-entropy
 heuristic and consequently misses textbook AWS / GitHub PAT / Slack
