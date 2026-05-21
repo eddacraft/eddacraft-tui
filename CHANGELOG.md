@@ -177,16 +177,15 @@ local-IPC trust boundary documented in
   same change). The `RegistryOwnershipResolver` is wired against the live
   session registry, and a session's subscriber binding can be set via
   `SessionRegistry::bind_subscriber`. **Still missing for operator-visible
-  behaviour:** the IPC `telemetry.subscribe` surface that lets a driver
-  register as a subscriber, and the production `NotificationEnvelope`
-  producer site that calls `Fanout::route` on every emit. Neither shipped in
-  this tag because no in-tree producer broadcasts notification envelopes to
-  remote subscribers today (see `crates/anvil-intercept/src/fanout.rs:79-82`).
-  The safe default (`false`) keeps the redaction filter on the cold path
-  regardless. Tracked in
+  behaviour:** the IPC `telemetry.subscribe` surface that lets a driver register
+  as a subscriber, and the production `NotificationEnvelope` producer site that
+  calls `Fanout::route` on every emit. Neither shipped in this tag because no
+  in-tree producer broadcasts notification envelopes to remote subscribers today
+  (see `crates/anvil-intercept/src/fanout.rs:79-82`). The safe default (`false`)
+  keeps the redaction filter on the cold path regardless. Tracked in
   [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phase
-  1 shipped; Phase 2 — subscriber surface + producer broadcast — opens
-  alongside the production notification telemetry stream feature).
+  1 shipped; Phase 2 — subscriber surface + producer broadcast — opens alongside
+  the production notification telemetry stream feature).
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 
