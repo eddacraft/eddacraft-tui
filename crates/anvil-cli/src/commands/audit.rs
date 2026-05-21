@@ -149,7 +149,7 @@ pub fn run_audit(root: &Path) -> AuditData {
     // canonical secret-detection check from `anvil_checks::secret` over
     // the same candidate set so its summary cannot disagree with gate
     // on hardcoded secrets.
-    scan_for_hardcoded_secrets(&candidates, root, &mut issues);
+    scan_for_hardcoded_secrets(&candidates, &mut issues);
 
     // Deterministic order: severity descending, then file ascending, line
     // ascending, message ascending — without this the rayon collect order
@@ -230,54 +230,40 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
     });
 }
 
-/// File extensions / dotfile prefixes scanned for hardcoded secrets, mirroring
-/// the gate `secret-detection` discovery set so the two surfaces cannot
-/// disagree about which file types are subject to a secret scan.
-const SECRET_SCAN_EXTS: &[&str] = &[
-    "ts",
-    "tsx",
-    "js",
-    "jsx",
-    "rs",
-    "py",
-    "rb",
-    "go",
-    "java",
-    "kt",
-    "swift",
-    "json",
-    "yaml",
-    "yml",
-    "toml",
-    "env",
-    "config",
-    "conf",
-    "ini",
-    "properties",
-];
+/// File extensions scanned for hardcoded secrets — kept in lock-step with the
+/// `matches!` arm in `gate::run_check_secret` (`crates/anvil-cli/src/commands/gate.rs`).
+/// Audit and gate must scan the same file set or they will disagree in the
+/// opposite direction (audit flagging a file gate ignores), reintroducing the
+/// confusion that issue #1798 is fixing. If gate's extension list changes,
+/// update both lists together (or extract a shared helper).
+const SECRET_SCAN_EXTS: &[&str] = &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
 
 /// Map [`anvil_checks::secret`] findings discovered over `candidates` into
 /// `Security`-category `AuditIssue` entries. Each finding becomes its own
 /// `IssueSeverity::High` entry — matching the user-facing severity that
 /// `anvil gate -p ai` shows for the same finding — so audit and gate cannot
-/// disagree about the presence of hardcoded secrets. Paths are reported
-/// relative to `root` for parity with the rest of the audit output.
+/// disagree about the presence of hardcoded secrets.
+///
+/// Paths are reported using audit's own `rel` (the `strip_prefix(root)`
+/// result already collected during file discovery) so that every issue in
+/// `AuditData.issues` shares one path format. Reusing the candidates'
+/// pre-computed `rel` also keeps the leading-slash / separator quirks of
+/// `anvil_checks::secret::normalise_file_path` from leaking into audit
+/// output across the secret/non-secret boundary.
 fn scan_for_hardcoded_secrets(
     candidates: &[(std::path::PathBuf, String)],
-    root: &Path,
     issues: &mut Vec<AuditIssue>,
 ) {
     if candidates.is_empty() {
         return;
     }
 
-    // Restrict the secret scan to file types the gate `secret-detection`
-    // check already covers; binary assets and lockfiles are skipped by
-    // `anvil_checks::secret::run_secret_check`, but keeping the filter here
-    // avoids passing tens of thousands of paths into the scanner on a
-    // node_modules-free tree that still contains generated artefacts the
+    // Restrict the secret scan to file types gate's `secret-detection` check
+    // already covers; binary assets and lockfiles are also skipped by
+    // `anvil_checks::secret::run_secret_check`, but filtering here keeps the
+    // scanner call small on trees that still contain generated artefacts the
     // audit walker did not prune (e.g. SVGs).
-    let scannable: Vec<String> = candidates
+    let scannable: Vec<(String, &str)> = candidates
         .iter()
         .filter(|(path, _)| {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -290,22 +276,33 @@ fn scan_for_hardcoded_secrets(
                 .and_then(|ext| ext.to_str())
                 .is_some_and(|ext| SECRET_SCAN_EXTS.contains(&ext))
         })
-        .map(|(path, _)| path.to_string_lossy().into_owned())
+        .map(|(path, rel)| (path.to_string_lossy().into_owned(), rel.as_str()))
         .collect();
 
     if scannable.is_empty() {
         return;
     }
 
-    let file_refs: Vec<&str> = scannable.iter().map(String::as_str).collect();
+    // Index abs-path → rel so each finding can be mapped back to the same
+    // `rel` audit's other passes use. `run_secret_check` is invoked WITHOUT a
+    // workspace root so `finding.file` comes back as the absolute path we
+    // passed in (no leading `/`, no forced slash conversion).
+    let rel_by_abs: std::collections::HashMap<&str, &str> = scannable
+        .iter()
+        .map(|(abs, rel)| (abs.as_str(), *rel))
+        .collect();
+
+    let file_refs: Vec<&str> = scannable.iter().map(|(abs, _)| abs.as_str()).collect();
     let config = anvil_checks::secret::SecretCheckConfig::default();
-    let root_str = root.to_string_lossy();
-    let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+    let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
 
     for finding in result.findings {
-        // `run_secret_check` already normalises `finding.file` against
-        // `workspace_root` when supplied, so the path is workspace-relative
-        // and ready for direct insertion into the audit issue list.
+        // Fall back to the scanner's own path if the lookup misses (it
+        // shouldn't — every scanned file came from `scannable` — but a
+        // surprise upstream change should not drop a finding silently).
+        let file = rel_by_abs
+            .get(finding.file.as_str())
+            .map_or_else(|| finding.file.clone(), |rel| (*rel).to_string());
         issues.push(AuditIssue {
             severity: IssueSeverity::High,
             category: "Security".to_string(),
@@ -313,7 +310,7 @@ fn scan_for_hardcoded_secrets(
                 "Potential hardcoded secret: {} (run `anvil gate` for the full secret-detection report)",
                 finding.pattern_name,
             ),
-            file: finding.file,
+            file,
             line: finding.line,
             fixable: false,
         });
@@ -942,6 +939,14 @@ mod tests {
             data.issues,
         );
         assert!(matches!(secret_issues[0].severity, IssueSeverity::High));
+        // Secret-finding paths must share audit's existing `rel` format
+        // (no leading `/`, same separator policy as the env/source passes)
+        // so audit's print/sort logic does not mix two path styles.
+        assert!(
+            !secret_issues[0].file.starts_with('/'),
+            "secret finding path must be repo-relative without a leading `/`, got `{}`",
+            secret_issues[0].file,
+        );
         cleanup(&dir);
     }
 
