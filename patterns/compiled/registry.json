@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-05-02T03:42:15.118Z",
+  "compiled_at": "2026-05-21T05:33:48.634Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -198,6 +198,60 @@
       "suggestion": "Every error needs a destination. \"Nowhere\" is not a destination.\n\n1. **Default: re-throw or propagate.** If you don't know what to do\n   with an error, let it bubble up. The caller is in a better\n   position to decide. Use Result types (`{ ok, error }`) for\n   expected failures.\n\n2. **If you must catch:** Use a structured logger, not `console`.\n   Include context — what operation failed, what inputs were\n   involved, what the downstream impact is.\n\n3. **If you genuinely want to swallow:** Add a comment explaining\n   why. \"This analytics call is best-effort and failure is\n   acceptable\" is a valid reason. An empty catch block is not.\n\n4. **Never return falsy values as error substitutes.** `return null`\n   from a catch block hides the error _and_ gives the caller\n   plausible-looking data. Return a Result type or throw.\n\n**Important:** This family has a tension with guardrail-suppression.\nAdding `console.log(error)` to an empty catch block fixes AP-006\nbut may trigger AP-007. The right fix is a structured logger, not\n`console.log`. If you're writing a nudge response for AP-006, don't\nrecommend `console.log` as the fix.",
       "definition_ref": "patterns/error-visibility/definition.anvil",
       "tensions": ["guardrail-suppression"],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
+      "id": "AP-008",
+      "family": "dynamic-execution",
+      "title": "eval() called with a dynamic argument",
+      "version": 1,
+      "severity": "error",
+      "confidence": "high",
+      "spectrum_position": 1,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\beval\\s*\\(\\s*[A-Za-z_$]"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "nudge": "Don't call `eval()` with a dynamic argument. The first character\ninside the parens is an identifier (a variable, function call, or\nproperty access), which means the string being executed is not\nvisible to static analysis and may be attacker-controlled at\nruntime.\n\nReplace with a structured dispatch — a `Record<string, () =>\nResult>` map keyed on the input, a Zod / ArkType schema for data\nvalidation, or a sandboxed isolate (`vm.runInContext` with a fresh\ncontext + timeout, QuickJS-emscripten, a Worker) if you genuinely\nneed to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g.\n`eval(\"1 + 1\")` in a one-off benchmark), the rule is intentionally\nnarrow enough to skip you: the leading character inside the parens\nis a quote, not an identifier. That keeps the false-positive rate\nlow for the rare benign case while still catching the\narbitrary-code-execution shape.",
+      "related": ["AP-009"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Dynamic Execution",
+      "category": "dynamic-execution",
+      "explanation": "- Runtime code execution from a dynamic string is the textbook\n  arbitrary-code-execution antipattern. Any path that lets an\n  attacker influence the input — query params, request bodies,\n  localStorage, hostnames — becomes a remote-code-execution vector.\n  Static analysis cannot prove the input is benign.\n- The dynamically-compiled code runs in the surrounding scope's\n  privileges. In a browser, that includes the user's session\n  cookies, DOM, and IndexedDB; in Node, the filesystem, network,\n  and child-process surface. There is no sandbox.\n- Bundlers, minifiers, and tree-shakers cannot reason about\n  dynamically-evaluated code. References inside the string look\n  unused to the static graph, so production builds can silently\n  strip the only callers and crash at runtime — or worse, leave\n  the eval'd code paths un-minified and traceable.\n- Performance: most JavaScript engines deoptimise enclosing\n  functions when `eval` appears in scope, because the engine can\n  no longer prove that local variable accesses won't be intercepted\n  by the eval'd code. The cost falls on the surrounding hot path,\n  not just the eval call.\n- AI agents reach for `eval(input)` when asked to \"make this\n  string of code execute\" — the answer to a metaprogramming\n  question almost always has a safer constructor (a function map,\n  a JSON parser, a template engine with an escape contract). The\n  rule's job is to surface the catch and route the agent to those\n  alternatives.",
+      "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
+      "definition_ref": "patterns/dynamic-execution/definition.anvil",
+      "tensions": [],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
+      "id": "AP-009",
+      "family": "dynamic-execution",
+      "title": "new Function() compiles a string into executable code",
+      "version": 1,
+      "severity": "error",
+      "confidence": "high",
+      "spectrum_position": 2,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\bnew\\s+Function\\s*\\("
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "nudge": "`new Function(body)` is functionally equivalent to `eval(body)` —\nit compiles the body string and returns a callable that runs the\ncompiled code in the global scope. Anything that can flow into the\nconstructor as a string becomes arbitrary code execution at the\nmoment the returned function is invoked.\n\nThe rule is unconditional: even a literal-string `new Function('return\n1')` should be replaced with a normal function declaration. The\ndynamic-string ergonomics are never worth the audit-cost of\nexplaining \"this one is safe\" to future readers.\n\nReplace with: a static function declaration, a `Record<string, () =>\nResult>` dispatcher for the \"N known operations\" case, or a\nsandboxed isolate (Node `vm`, QuickJS, Worker) when running\noperator-supplied scripting is genuinely part of the product.",
+      "related": ["AP-008"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Dynamic Execution",
+      "category": "dynamic-execution",
+      "explanation": "- Runtime code execution from a dynamic string is the textbook\n  arbitrary-code-execution antipattern. Any path that lets an\n  attacker influence the input — query params, request bodies,\n  localStorage, hostnames — becomes a remote-code-execution vector.\n  Static analysis cannot prove the input is benign.\n- The dynamically-compiled code runs in the surrounding scope's\n  privileges. In a browser, that includes the user's session\n  cookies, DOM, and IndexedDB; in Node, the filesystem, network,\n  and child-process surface. There is no sandbox.\n- Bundlers, minifiers, and tree-shakers cannot reason about\n  dynamically-evaluated code. References inside the string look\n  unused to the static graph, so production builds can silently\n  strip the only callers and crash at runtime — or worse, leave\n  the eval'd code paths un-minified and traceable.\n- Performance: most JavaScript engines deoptimise enclosing\n  functions when `eval` appears in scope, because the engine can\n  no longer prove that local variable accesses won't be intercepted\n  by the eval'd code. The cost falls on the surrounding hot path,\n  not just the eval call.\n- AI agents reach for `eval(input)` when asked to \"make this\n  string of code execute\" — the answer to a metaprogramming\n  question almost always has a safer constructor (a function map,\n  a JSON parser, a template engine with an escape contract). The\n  rule's job is to surface the catch and route the agent to those\n  alternatives.",
+      "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
+      "definition_ref": "patterns/dynamic-execution/definition.anvil",
+      "tensions": [],
       "related_families": ["guardrail-suppression"]
     },
     {
@@ -511,6 +565,15 @@
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "rules": ["DD-001", "DD-002", "DD-003", "DD-004"],
       "related": ["responsibility-laundering"],
+      "tensions": []
+    },
+    {
+      "id": "dynamic-execution",
+      "name": "Dynamic Execution",
+      "category": "dynamic-execution",
+      "definition_ref": "patterns/dynamic-execution/definition.anvil",
+      "rules": ["AP-008", "AP-009"],
+      "related": ["guardrail-suppression"],
       "tensions": []
     },
     {

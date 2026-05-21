@@ -2921,6 +2921,88 @@ rules: []
         assert!(result.message.contains("AP-003"));
     }
 
+    // ── LANGTS-006 / #1801: dynamic-execution rules ──────────────────
+
+    #[test]
+    fn antipattern_check_detects_dynamic_eval() {
+        // AP-008 — eval(<identifier>) must fire under default profile.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("smelly.ts");
+        std::fs::write(
+            &file,
+            "export function unsafe(input: any): unknown {\n    return eval(input);\n}\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(!result.passed, "AP-008 must trip on eval(<identifier>)");
+        assert!(
+            result.message.contains("AP-008"),
+            "expected AP-008 in message, got: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn antipattern_check_detects_new_function() {
+        // AP-009 — `new Function(...)` always fires (the dynamic-string
+        // ergonomics are never worth the audit cost).
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("smelly.ts");
+        std::fs::write(
+            &file,
+            "export const compiled = new Function('a', 'b', 'return a + b');\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(!result.passed, "AP-009 must trip on `new Function(...)`");
+        assert!(
+            result.message.contains("AP-009"),
+            "expected AP-009 in message, got: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn antipattern_check_skips_static_eval() {
+        // AP-008 is intentionally narrow: a literal-string `eval("1+1")`
+        // is rare but benign, and false positives here would erode
+        // trust in the rule. The detector requires an identifier char
+        // (A-Za-z_$) immediately after the opening paren — a quote
+        // skips the rule.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("benign.ts");
+        std::fs::write(
+            &file,
+            "export const two = eval(\"1 + 1\");\nexport function evalQueue() {}\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(
+            result.passed,
+            "AP-008 must not fire on static-string eval or on `evalQueue` word boundary; got: {}",
+            result.message
+        );
+        assert!(!result.message.contains("AP-008"));
+    }
+
     #[test]
     fn antipattern_check_skips_when_no_supported_files_exist() {
         let tmp = tempfile::TempDir::new().unwrap();
