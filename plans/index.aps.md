@@ -114,7 +114,10 @@ works, and `anvil-run` wraps agent processes. Target tag candidate:
 Source of truth for current parallelisation and release dependencies:
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
-**MLP2 audit note (final sweep 2026-05-19):** the module now stands at 60/76.
+**MLP2 audit note (final sweep 2026-05-19):** the module stood at 60/76 as of
+that sweep. Subsequent additions land in the N1b row below — see that row for
+current counts (Group P added 2026-05-20 took the total to 78; Group Q added
+2026-05-21 took it to 80).
 MLP2-068 was reconciled to Merged after implementation commit `d54a5f86`,
 advancing Group O to 1/2; MLP2-069 remains Draft and does not gate
 `v0.7.0-beta`. Earlier 2026-05-17/18 reconciliation closed MLP2-025 umbrella,

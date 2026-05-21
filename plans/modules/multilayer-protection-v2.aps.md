@@ -3775,7 +3775,8 @@ to redesign once GV2-001..-023 land.
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
-| **Total** | **78** | **60/78** |
+| Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 0/2 |
+| **Total** | **80** | **60/80** |
 
 ## Recommended landing order
 

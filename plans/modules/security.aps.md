@@ -72,6 +72,7 @@ security concerns.
 - SEC-005: HTTP security headers configuration
 - SEC-006: SBOM generation for release artifacts
 - SEC-007: Atomic token-revocation hardening (GH #1672)
+- SEC-008: Named-pattern secret detection for AWS / GitHub PAT / Slack tokens (GH #1800)
 
 ### SEC-007: Atomic token-revocation hardening
 
