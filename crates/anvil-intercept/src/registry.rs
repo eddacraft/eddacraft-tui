@@ -918,8 +918,8 @@ impl SessionRegistry {
     /// the registry stores it as a `String` to keep the registry
     /// free of a dependency on `fanout::SubscriberId`.
     ///
-    /// Returns `Ok(true)` if the session existed and the binding was
-    /// set (or updated); `Ok(false)` if the session id is unknown.
+    /// Returns `true` if the session existed and the binding was
+    /// set (or updated); `false` if the session id is unknown.
     /// Re-binding overwrites — a reconnecting subscriber from the
     /// same peer will mint an identical binding, but a session that
     /// changes hands (e.g. reassigned via DRVR-007 capability grant)

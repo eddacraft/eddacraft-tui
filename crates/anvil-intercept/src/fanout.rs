@@ -386,7 +386,7 @@ impl Fanout {
 
     /// MLP2-071 pin accessor: read the cross-session policy this
     /// fan-out was constructed with. Used by
-    /// `daemon_config_wired::run_foreground_constructs_fanout_with_configured_policy`
+    /// `crate::tests::daemon_state_constructs_fanout_with_configured_cross_session_policy`
     /// to prove the operator-configured policy flowed from
     /// `Resolved::cross_session_policy()` through `DaemonState` into
     /// the fan-out instance — the literal closure of #1722's

@@ -152,8 +152,14 @@ struct DaemonState {
     /// `fanout.register` for each `SubscribeTelemetry` connection;
     /// the producer side calls `fanout.route` before each broadcast.
     /// Wired in to close the "configured-but-ignored" gap GH issue
-    /// #1722 surfaced — the regression pin lives in
-    /// `daemon_config_wired::run_foreground_constructs_fanout_with_configured_policy`.
+    /// #1722 surfaced — the regression pin is
+    /// [`tests::daemon_state_constructs_fanout_with_configured_cross_session_policy`]
+    /// in this file (constructs `DaemonState` directly and asserts the
+    /// fanout's `cross_session_policy()` mirrors the resolved
+    /// config). An end-to-end pin that drives through `run_foreground`
+    /// and a real socket waits on Phase 2's IPC subscriber surface
+    /// (#1794); the unit pin proves the literal reachability gap
+    /// today.
     ///
     /// Phase C posture: the field is constructed and held; the IPC
     /// listener + producer wire-up that reads it lands in Phase E.
