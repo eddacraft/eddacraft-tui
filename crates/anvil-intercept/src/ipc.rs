@@ -2914,6 +2914,72 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
     }
 }
 
+/// MLP2-070 / #1674: re-derive the `LineageAnchor` for a
+/// `register-session` request from the connection's authenticated
+/// peer credentials, rejecting any wire body whose `pid` claim does
+/// not match the peer. The `pid_starttime` is always read from
+/// `/proc/<peer_pid>/stat` server-side; the client's value is
+/// ignored even when present (the launcher is registering itself,
+/// so the daemon has direct access to the truth).
+///
+/// Returns the verified anchor on success, or a human-readable
+/// rejection string when:
+/// - `peer_pid` is `None` (no authenticated peer — fail-closed; the
+///   legacy NDJSON wire and any platform without `SO_PEERCRED`-style
+///   peer-credential reads cannot prove the claim, so no lineage is
+///   accepted on those paths);
+/// - the claim's `pid` is not the peer's pid (a same-UID caller
+///   trying to mint a lineage anchor for someone else's PID, which
+///   was the trust-boundary defect `DeepSec` flagged as #1674); or
+/// - the daemon cannot read `pid_starttime` for the peer (e.g.
+///   the peer exited between accept and verify — best-effort
+///   fail-closed).
+fn verify_lineage_claim(
+    claim: &anvil_intercept_proto::session::LineageAnchor,
+    peer_pid: Option<u32>,
+) -> Result<anvil_intercept_proto::session::LineageAnchor, String> {
+    let Some(peer_pid) = peer_pid else {
+        return Err(
+            "register-session lineage rejected: peer credentials unavailable on this \
+             connection — only authenticated launchers may seed the daemon's \
+             lineage index (MLP2-070 / issue #1674)"
+                .to_string(),
+        );
+    };
+    if claim.pid != peer_pid {
+        return Err(format!(
+            "register-session lineage rejected: claim.pid={} does not match \
+             authenticated peer pid={} (MLP2-070 / issue #1674)",
+            claim.pid, peer_pid,
+        ));
+    }
+    let pid_starttime = anvil_attribution::process::pid_starttime(peer_pid).map_err(|err| {
+        format!(
+            "register-session lineage rejected: cannot read pid_starttime for \
+             peer pid={peer_pid}: {err}"
+        )
+    })?;
+    if claim.pid_starttime != pid_starttime {
+        // The client's claim is treated as advisory; the registry is
+        // always seeded with the value the daemon read itself. A
+        // mismatch is logged at debug rather than warn — well-
+        // behaved launchers can disagree benignly (clock-tick
+        // rounding on Linux, different time bases on other
+        // platforms), and operators have no actionable response.
+        tracing::debug!(
+            target: "anvil_intercept::ipc",
+            claim_pid_starttime = claim.pid_starttime,
+            daemon_pid_starttime = pid_starttime,
+            peer_pid,
+            "register-session lineage pid_starttime claim differs from daemon read; trusting daemon",
+        );
+    }
+    Ok(anvil_intercept_proto::session::LineageAnchor {
+        pid: peer_pid,
+        pid_starttime,
+    })
+}
+
 #[allow(clippy::too_many_arguments)] // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
 fn dispatch_command<D: SessionDispatcher>(
     command: &IpcCommand,
@@ -2934,8 +3000,26 @@ fn dispatch_command<D: SessionDispatcher>(
             agent_tag,
             lineage,
         } => {
+            // MLP2-070 / #1674: re-derive the lineage anchor from the
+            // authenticated peer rather than trusting the wire body.
+            // The launcher is registering itself, so the only
+            // legitimate `lineage.pid` is the peer's pid; the
+            // `pid_starttime` is always read by the daemon from
+            // `/proc/<peer_pid>/stat`, never accepted from the
+            // client. Frames that disagree, or that supply lineage
+            // over a connection with no authenticated peer, are
+            // rejected before the registry is touched.
+            let verified_lineage = match lineage.as_ref() {
+                Some(claim) => Some(verify_lineage_claim(claim, peer_pid)?),
+                None => None,
+            };
             dispatcher
-                .register(session_id, worktree, agent_tag.as_ref(), lineage.as_ref())
+                .register(
+                    session_id,
+                    worktree,
+                    agent_tag.as_ref(),
+                    verified_lineage.as_ref(),
+                )
                 .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
@@ -3418,6 +3502,171 @@ mod tests {
         let err =
             dispatch_command(&command, &dispatcher, None, None).expect_err("no ctx must error");
         assert!(err.contains("daemon-backed fence store"), "got: {err}");
+    }
+
+    // ---- MLP2-070 / #1674: lineage anchor daemon-derivation gate ----
+
+    /// MLP2-070 / #1674: a `register-session` frame whose body lineage
+    /// claims a `pid` other than the authenticated peer pid must be
+    /// rejected. Without this gate a same-UID IPC caller could mint a
+    /// trusted lineage entry for someone else's PID, defeating the
+    /// MLP2-025 spoof cross-check.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_register_lineage_rejects_pid_mismatch() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::LineageAnchor;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        // `impl SessionDispatcher for Arc<RecordingDispatcher>`, so
+        // dispatch_command's `&Arc<D>` needs an outer Arc layer.
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        // A PID that is not the peer's. wrapping_add ensures we stay
+        // inside u32 even at the boundary.
+        let victim_pid = peer_pid.wrapping_add(1);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("attacker-session"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: Some(LineageAnchor {
+                pid: victim_pid,
+                pid_starttime: 1_700_000_000,
+            }),
+        };
+        let err = dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect_err("lineage with mismatched pid must be rejected");
+        assert!(
+            err.contains("does not match authenticated peer"),
+            "error must name the mismatch, got: {err}",
+        );
+        // Critically, the underlying dispatcher must never see the
+        // forged anchor — rejection happens before `register` is
+        // called, so no registry state is mutated.
+        assert!(
+            recorder.calls().is_empty(),
+            "dispatcher.register must not be called on lineage mismatch; calls={:?}",
+            recorder.calls(),
+        );
+    }
+
+    /// MLP2-070 / #1674: a `register-session` frame carrying a lineage
+    /// anchor over a connection that has no authenticated peer pid
+    /// (e.g. the legacy NDJSON wire on line 2910, or a platform where
+    /// `SO_PEERCRED` is unavailable) must be rejected — we have no way
+    /// to verify the claim, so fail-closed.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_register_lineage_requires_peer_credentials() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::LineageAnchor;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("legacy-ndjson"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: Some(LineageAnchor {
+                pid: 4242,
+                pid_starttime: 1_700_000_000,
+            }),
+        };
+        let err = dispatch_command(&command, &dispatcher, None, None)
+            .expect_err("lineage without peer_pid must be rejected");
+        assert!(
+            err.contains("peer credentials"),
+            "error must name the missing credential, got: {err}",
+        );
+        assert!(
+            recorder.calls().is_empty(),
+            "dispatcher.register must not be called when peer_pid is absent; calls={:?}",
+            recorder.calls(),
+        );
+    }
+
+    /// MLP2-070 / #1674: a `register-session` frame whose `pid` matches
+    /// the authenticated peer is accepted, but the `pid_starttime`
+    /// passed downstream is the value the daemon reads from
+    /// `/proc/<peer_pid>/stat` — the client-supplied `pid_starttime`
+    /// is replaced even when it is wrong. Pins the "lineage body is
+    /// advisory, not authoritative" contract from the MLP2-070 spec.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_register_lineage_overrides_client_pid_starttime() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::LineageAnchor;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let real_starttime = anvil_attribution::process::pid_starttime(peer_pid)
+            .expect("pid_starttime for self must succeed on Linux");
+        // A clearly-wrong value: 1 second off from the truth. The
+        // daemon must ignore this and use the value it reads itself.
+        let lying_starttime = real_starttime.wrapping_add(1);
+        assert_ne!(lying_starttime, real_starttime, "test fixture sanity");
+
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("self-registering"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: Some(LineageAnchor {
+                pid: peer_pid,
+                pid_starttime: lying_starttime,
+            }),
+        };
+        dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("dispatch must succeed when claim.pid matches peer");
+
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { lineage, .. }] => {
+                lineage.expect("lineage must be forwarded when supplied")
+            }
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert_eq!(forwarded.pid, peer_pid, "pid must be the peer's");
+        assert_eq!(
+            forwarded.pid_starttime, real_starttime,
+            "pid_starttime must be server-derived, not the client's claim",
+        );
+    }
+
+    /// MLP2-070 / #1674: backwards-compat — a `register-session` with
+    /// no lineage on the wire still works regardless of `peer_pid`.
+    /// Pin this so the trust-boundary fix doesn't accidentally
+    /// regress the legacy MLP2-023 untagged path.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_register_without_lineage_is_unaffected() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("legacy-no-lineage"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: None,
+        };
+        // Both with and without peer_pid: the no-lineage path is the
+        // pre-MLP2-025 single-session-per-worktree contract and must
+        // remain reachable from every dispatch caller.
+        dispatch_command(&command, &dispatcher, None, None)
+            .expect("no-lineage dispatch (no peer) must still succeed");
+        dispatch_command(&command, &dispatcher, Some(std::process::id()), None)
+            .expect("no-lineage dispatch (with peer) must still succeed");
+
+        assert_eq!(
+            recorder.calls().len(),
+            2,
+            "both dispatches must reach the registry",
+        );
     }
 
     /// RCLI3-017b: the JSON-RPC method-name → `IpcCommand` parser

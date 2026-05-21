@@ -3573,7 +3573,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-070: Re-derive lineage anchor inside the daemon IPC handler
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `SessionRegistry::register_with_lineage`
   (`crates/anvil-intercept/src/registry.rs:526-553`) admits
   `daemon_issued_tag`, `pid`, and `pid_starttime` from its caller.
