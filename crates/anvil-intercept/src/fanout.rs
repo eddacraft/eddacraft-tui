@@ -99,10 +99,11 @@
 //! through `Fanout::route` from day one.
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use sha2::{Digest, Sha256};
 
+use crate::registry::SessionRegistry;
 use crate::telemetry::{
     NotificationCorrelation, NotificationEnvelope, NotificationGrouping, NotificationTransition,
 };
@@ -168,6 +169,50 @@ pub enum CrossSessionPolicy {
     /// and worktree become `hash_of_path`, and human-readable
     /// messages are replaced with a fixed `[redacted]` marker.
     Redact,
+}
+
+/// MLP2-071 (INTD-015 wire-up): production [`OwnershipResolver`]
+/// backed by the live [`SessionRegistry`].
+///
+/// A subscriber owns an originating session id iff the registry has a
+/// session under that id whose `subscriber_binding` matches the
+/// subscriber's daemon-minted tuple. The binding itself is set at
+/// `RegisterSession` time from the connecting peer's credentials and
+/// never from a wire-supplied value (mirroring the MLP2-070 pattern
+/// for the lineage anchor).
+///
+/// **Phase C posture (this commit):** the registry does not yet
+/// carry a `subscriber_binding` field — Phase D adds it. Until then
+/// the resolver returns `false` for every lookup, which keeps the
+/// fan-out at default-deny: own-session subscribers see nothing
+/// until Phase D wires the binding through. This is the safe
+/// degradation per the trait's `is_authorised` MUST-default-to-deny
+/// invariant on `fanout.rs:145-149`; the cross-session policy still
+/// applies, so a `Redact` policy still produces a redacted envelope
+/// on the cross-session path.
+pub struct RegistryOwnershipResolver {
+    #[allow(dead_code)] // Phase D wires the lookup; Phase C compiles + plumbs.
+    registry: Arc<SessionRegistry>,
+}
+
+impl RegistryOwnershipResolver {
+    #[must_use]
+    pub fn new(registry: Arc<SessionRegistry>) -> Self {
+        Self { registry }
+    }
+}
+
+impl OwnershipResolver for RegistryOwnershipResolver {
+    fn is_authorised(&self, _subscriber: &SubscriberId, _originating_session_id: &str) -> bool {
+        // Phase C: registry has no subscriber_binding yet. Default-deny
+        // is the safe answer until Phase D introduces the binding and
+        // the lookup. The `daemon_config_wired::
+        // run_foreground_constructs_fanout_with_configured_policy`
+        // regression pin proves the wire-up; Phase D's own pin will
+        // assert that authorised subscribers start seeing their
+        // owned sessions.
+        false
+    }
 }
 
 /// Per-startup salt used by the keyed redaction primitive
@@ -316,6 +361,21 @@ impl Fanout {
             resolver,
             redaction_key,
         }
+    }
+
+    /// MLP2-071 pin accessor: read the cross-session policy this
+    /// fan-out was constructed with. Used by
+    /// `daemon_config_wired::run_foreground_constructs_fanout_with_configured_policy`
+    /// to prove the operator-configured policy flowed from
+    /// `Resolved::cross_session_policy()` through `DaemonState` into
+    /// the fan-out instance — the literal closure of #1722's
+    /// "configured-but-ignored" gap.
+    #[must_use]
+    pub fn cross_session_policy(&self) -> CrossSessionPolicy {
+        self.inner
+            .lock()
+            .expect("fanout mutex poisoned")
+            .cross_session
     }
 
     /// MLP2-071: keyed redaction primitive that replaces unsalted

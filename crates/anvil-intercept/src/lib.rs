@@ -146,6 +146,24 @@ struct DaemonState {
     registry: Arc<SessionRegistry>,
     fence_store: Arc<fence::FenceStore>,
     fences: Arc<fence::FenceState>,
+    /// MLP2-071 (INTD-015 wire-up): per-startup fan-out filter,
+    /// constructed once with the resolved cross-session policy and a
+    /// fresh per-startup HMAC salt. The IPC accept loop calls
+    /// `fanout.register` for each `SubscribeTelemetry` connection;
+    /// the producer side calls `fanout.route` before each broadcast.
+    /// Wired in to close the "configured-but-ignored" gap GH issue
+    /// #1722 surfaced — the regression pin lives in
+    /// `daemon_config_wired::run_foreground_constructs_fanout_with_configured_policy`.
+    ///
+    /// Phase C posture: the field is constructed and held; the IPC
+    /// listener + producer wire-up that reads it lands in Phase E.
+    /// The `#[allow(dead_code)]` is intentional and stamped — it
+    /// will be removed in the Phase E commit that adds the first
+    /// reader. Removing it without adding the reader would defeat
+    /// the audit closure rule from #1671 / #1721 (we hold the field
+    /// precisely so a future refactor cannot silently drop it).
+    #[allow(dead_code)]
+    fanout: Arc<fanout::Fanout>,
 }
 
 impl DaemonState {
@@ -153,7 +171,7 @@ impl DaemonState {
         fence_store: fence::FenceStore,
         fences: fence::FenceState,
         enforcement_config: &config::Resolved,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         // MLP2-024: build the registry with the operator-configured
         // per-worktree cap. Pre-fix the cap shipped at the
         // compile-time default regardless of `.anvil.yaml`; the
@@ -163,13 +181,34 @@ impl DaemonState {
         // its only consumer is `RuleSetCache::invalidate`, which
         // requires the cache `run_foreground` does not construct
         // until MLP2-014 lands.
-        let registry = SessionRegistry::new()
-            .with_per_worktree_cap(enforcement_config.session_per_worktree_max);
-        Self {
-            registry: Arc::new(registry),
+        let registry = Arc::new(
+            SessionRegistry::new()
+                .with_per_worktree_cap(enforcement_config.session_per_worktree_max),
+        );
+
+        // MLP2-071 (INTD-015 wire-up): mint a per-startup HMAC salt
+        // (closes v0.6.0-beta-security-note §H2) and construct the
+        // fan-out with the operator-configured cross-session policy.
+        // A getrandom failure here is fatal — there is no acceptable
+        // fallback to a deterministic salt for the §H2 redaction
+        // primitive, so we surface the OS-RNG error instead of
+        // silently degrading.
+        let redaction_key = fanout::TelemetryRedactionKey::new_random().map_err(|err| {
+            anyhow::anyhow!("mint per-startup telemetry redaction salt for INTD-015 fanout: {err}")
+        })?;
+        let resolver = fanout::RegistryOwnershipResolver::new(Arc::clone(&registry));
+        let fanout = Arc::new(fanout::Fanout::with_cross_session_policy_and_key(
+            Box::new(resolver),
+            enforcement_config.cross_session_policy(),
+            redaction_key,
+        ));
+
+        Ok(Self {
+            registry,
             fence_store: Arc::new(fence_store),
             fences: Arc::new(fences),
-        }
+            fanout,
+        })
     }
 
     fn active_fence_count(&self) -> usize {
@@ -856,7 +895,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             format!("failed to load fence state {}", fence_store_path.display())
         })?,
         &opts.enforcement_config,
-    );
+    )?;
     if daemon_state.active_fence_count() > 0 {
         tracing::info!(
             target: "anvil_intercept::fence",
@@ -1012,6 +1051,61 @@ mod tests {
     use tokio::time::{sleep, timeout};
 
     use super::*;
+
+    // MLP2-071: pin that DaemonState::new constructs a Fanout whose
+    // cross-session policy mirrors the operator-configured value. The
+    // gap #1722 surfaced was literal: `Fanout::with_cross_session_policy`
+    // existed with zero production callers, so the documented flag was
+    // configured-but-ignored. This test is the unit-level pin that
+    // proves DaemonState now reads `enforcement.telemetry.allow_cross_session`
+    // through to the fan-out — the end-to-end SubscribeTelemetry path
+    // is pinned separately by the Phase F integration test.
+    #[test]
+    fn daemon_state_constructs_fanout_with_configured_cross_session_policy() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // FenceStore::load enforces "parent must be private to the
+        // current user" — wrap our path in a nested dir we control
+        // so the parent-owner check passes without us having to
+        // chmod the tempdir itself.
+        let nested = tmp.path().join("intercept");
+        std::fs::create_dir(&nested).expect("create nested dir");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&nested, std::fs::Permissions::from_mode(0o700))
+                .expect("chmod private");
+        }
+        let fence_store_path = nested.join("fences.json");
+        let fence_store = fence::FenceStore::at_path(&fence_store_path);
+        let fences = fence::FenceState::default();
+
+        // Default policy: Deny.
+        let default_state = DaemonState::new(
+            fence_store.clone(),
+            fences.clone(),
+            &config::Resolved::default(),
+        )
+        .expect("daemon state construction must succeed");
+        assert_eq!(
+            default_state.fanout.cross_session_policy(),
+            fanout::CrossSessionPolicy::Deny,
+            "default config must produce a deny-by-default fanout",
+        );
+
+        // Opt-in: Redact.
+        let opt_in_config = config::Resolved {
+            telemetry_allow_cross_session: true,
+            ..config::Resolved::default()
+        };
+        let opt_in_state = DaemonState::new(fence_store.clone(), fences.clone(), &opt_in_config)
+            .expect("daemon state construction must succeed");
+        assert_eq!(
+            opt_in_state.fanout.cross_session_policy(),
+            fanout::CrossSessionPolicy::Redact,
+            "telemetry.allow_cross_session: true must flow into a Redact-policy fanout — \
+             this is the literal closure of #1722's configured-but-ignored gap",
+        );
+    }
 
     #[cfg(unix)]
     fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
