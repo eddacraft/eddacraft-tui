@@ -13,7 +13,9 @@
 //! 1 MiB; this client mirrors that cap so a misbehaving peer cannot
 //! exhaust launcher memory.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
+#[cfg(unix)]
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 

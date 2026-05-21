@@ -239,6 +239,32 @@ impl OwnerOnlyPipeClient {
     }
 }
 
+impl std::io::Read for OwnerOnlyPipeClient {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // Delegate to the inherent read so callers that need a generic
+        // `R: Read` (BufReader, anvil_run::ipc::read_one_line, etc.) can
+        // accept this pipe client directly.
+        OwnerOnlyPipeClient::read(self, buf)
+    }
+}
+
+impl std::io::Write for OwnerOnlyPipeClient {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        // The inherent helper is `write_all`; the trait's `write`
+        // contract permits partial writes, but the pipe client refuses
+        // short writes so this either writes the full slice or errors.
+        OwnerOnlyPipeClient::write_all(self, buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        // Win32 named pipes are synchronous and `WriteFile` returns
+        // only after the kernel has accepted the buffer, so there is
+        // no userspace buffer to drain.
+        Ok(())
+    }
+}
+
 impl Drop for OwnerOnlyPipeClient {
     fn drop(&mut self) {
         if self.0 != INVALID_HANDLE_VALUE && !self.0.is_null() {
