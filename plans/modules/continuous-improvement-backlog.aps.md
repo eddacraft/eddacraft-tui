@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 5/7      |
+| CIB | —     | In Progress | 5/12     |
 
 ## Purpose
 
@@ -347,3 +347,132 @@ archive.
 - **Confidence:** medium — option (b) is high-confidence and small;
   option (a) is higher-leverage but its trust-boundary widening needs an
   ADR before code lands. Triage selects between them.
+
+### CIB-008: `anvil check` planless path runs only `architecture`, ignoring `.anvilrc`
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1797](https://github.com/eddacraft/anvil-001/issues/1797)
+- **Intent:** `anvil check` is documented in `--help` as the planless-mode
+  surface, but the dispatcher only wires the `architecture` check. The
+  `.anvilrc` default written by `anvil start` lists `secret-detection`,
+  `import-boundaries`, and `antipattern-scan` — none of those fire under
+  `anvil check`, even though the same checks pass through `anvil gate`
+  and the MCP catch path on the same files.
+- **Expected Outcome:** `anvil check` runs the intersection of
+  `.anvilrc`-enabled and planless-eligible checks (minimum:
+  `secret-detection` + `antipattern-scan`). JSON `checksRun` reflects
+  what actually ran. `--help` is updated to name the planless-eligible
+  set explicitly.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #3. The marquee single-file demo (`anvil check src/smelly.ts`)
+  silently passes a file containing a hardcoded `sk-…` key.
+- **Validation:** Fixture test in the CLI integration suite that writes a
+  `.ts` file containing a literal `sk-…` token, runs `anvil check
+  <file> --json`, and asserts `summary.errors >= 1` with a
+  `secret-detection` rule_id.
+- **Coordinates with:** CIB-009 (audit / gate consistency — same
+  dispatcher gap surfaces there).
+- **Confidence:** high — JSON output shows `checksRun: ["architecture"]`
+  on a fresh repo with the default `.anvilrc`; gate catches the same
+  finding on the same file. Dispatcher-side bug, not a check-side gap.
+
+### CIB-009: `anvil audit` and `anvil gate` disagree on the same repo
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1798](https://github.com/eddacraft/anvil-001/issues/1798)
+- **Intent:** On the same workspace, `anvil audit` reports "0 issues —
+  project looks clean" while `anvil gate` (default profile) reports a
+  failing `secret-detection`. A new user who runs `audit` first sees a
+  clean bill of health for a repo that contains a planted API key.
+- **Expected Outcome:** `anvil audit` runs the same default check set as
+  `anvil gate` (default profile), or its summary line is rewritten to
+  name explicitly which check classes it runs and which it skips.
+  "0 issues" should not silently exclude secret-detection or
+  antipattern-scan output.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #4.
+- **Validation:** A CLI test that fixtures a `.ts` file with a hardcoded
+  `sk-…` literal and asserts `anvil audit` returns non-zero issue
+  count, mirroring the `anvil gate` outcome on the same file.
+- **Coordinates with:** CIB-008 (same dispatcher-vs-checks
+  inconsistency).
+- **Confidence:** high — directly observable on a tiny demo repo.
+
+### CIB-010: `anvil watch` first-scan emits a wall of `public-api-expansion` against existing symbols
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1802](https://github.com/eddacraft/anvil-001/issues/1802)
+- **Intent:** On a never-baselined repo, `anvil watch` reports every
+  existing exported symbol as a "new public symbol" violation (e.g. a
+  one-line `greet()` helper flagged as expanding the API surface). This
+  contradicts the **"new edges only"** principle stated in
+  `.claude/rules/architecture.md` and teaches a brand-new user to
+  ignore Anvil's warnings before they've seen a real one.
+- **Expected Outcome:** First-scan suppresses `public-api-expansion`
+  until the baseline pass completes. Two reasonable shapes:
+  1. Seed the baseline with every existing public symbol on first
+     scan; warn only on net-new symbols added after the watcher starts.
+  2. Emit a single `[baseline] established N nodes` event instead of
+     per-symbol violations on the cold path.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #8.
+- **Validation:** Integration test that runs `anvil watch` for a
+  bounded period against a fresh repo containing two exported
+  functions and asserts no `public-api-expansion` violations fire
+  until a new export is added during the run.
+- **Out of Scope:** Behaviour of `watch` against a *seeded* baseline —
+  this is specifically about the cold-path / never-baselined case.
+- **Coordinates with:** WOUT (Done 6/6 / archived; this item lives in
+  CIB because WOUT is closed).
+- **Confidence:** high — directly observable on a fresh repo.
+
+### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1803](https://github.com/eddacraft/anvil-001/issues/1803)
+- **Intent:** Immediately after `anvil start`, `anvil gate -p ai` reports
+  3/5 checks failing solely because their config files don't yet exist
+  (`.anvil/architecture.yaml`, `.anvil/policies/`, no commands to
+  analyse). The AI profile is the one most explicitly marketed to new
+  users; seeing a 1/5 score with no actionable next-step on first
+  contact sets the expectation that Anvil is broken for their stack.
+- **Expected Outcome:** Either:
+  1. Missing-config under any profile produces an `info`-level
+     notification, not a `FAIL`; overall score is graded against
+     **available** checks.
+  2. `anvil start` writes empty-but-valid `.anvil/architecture.yaml`
+     and `.anvil/policies/` scaffolds with header comments pointing at
+     the relevant docs, so `gate -p ai` has something to evaluate on
+     first run.
+
+  Either way, the failure line carries a `next:` hint with the exact
+  `anvil architecture init` / `anvil policy init` (or equivalent)
+  command.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #9.
+- **Validation:** CLI integration test that runs `anvil start` followed
+  by `anvil gate -p ai --json` on a fresh repo and asserts no FAIL line
+  reports "Skipping" as its reason.
+- **Confidence:** high — directly observable on a fresh repo.
+
+### CIB-012: `anvil check --staged` errors with "`--changed` required"
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1804](https://github.com/eddacraft/anvil-001/issues/1804)
+- **Intent:** `--staged` is the obvious flag a developer reaches for
+  first (`git diff --staged` mental model). Today it errors out with
+  `the following required arguments were not provided: --changed`.
+  The recommended usage line even reads
+  `anvil check --changed --staged --no-tui [FILES]...` — which makes
+  no sense as a public surface.
+- **Expected Outcome:** `--staged` implies `--changed`; same for
+  `--since`. The error path disappears.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #10.
+- **Files:** clap parser for `anvil check` in
+  `crates/anvil-cli/src/commands/check.rs` (drop the
+  `requires = "changed"` constraint on `--staged` and `--since`; set
+  `changed = true` implicitly when either is present).
+- **Validation:** CLI test that invokes `anvil check --staged` (without
+  `--changed`) and asserts non-error exit + correct behaviour.
+- **Confidence:** high — trivial clap change.

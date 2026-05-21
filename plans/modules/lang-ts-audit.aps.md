@@ -5,7 +5,7 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | Ready  | 2/5  |
+| LANGTS | —     | Ready  | 2/6  |
 
 **Last reviewed:** 2026-04-26
 
@@ -155,6 +155,22 @@ LANGTS-003 publication of the checklist artefact).
   surfaced as a rubric in the T3 checklist. Or split into
   LANGTS-prereq-* if scope justifies (audit §7 OQ2). See
   [audit report §5](../specs/2026-04-26-langts-audit-report.md#5-kernel-prereq-gaps-council-165-3-work).
+- LANGTS-006: Ship a TS antipattern rule for dynamic-eval shapes
+  (`eval(<dynamic>)`, `new Function(...)`, `Function.prototype.constructor`
+  string-source invocations). Severity `error` under the default profile;
+  also wired into the `gate -p ai` curated set. *Identified from
+  [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #7 — a planted `export function unsafe(input:any){ return eval(input); }`
+  was not caught by any of `check`, `audit`, `gate`, `watch`, or MCP, even
+  though `antipattern-scan` is wired and PASSes under `gate` on the same
+  file. Tracking: GH issue
+  [#1801](https://github.com/eddacraft/anvil-001/issues/1801).
+  Implementation note: rule ships in `patterns/compiled/registry.json`
+  with a new family entry, mirroring LANGTS-004's Zod-creep approach.
+  Validation: fixture test that asserts the rule fires on `eval(x)` and
+  `new Function(s)()` while not firing on a literal `eval("1+1")` call
+  with a static string argument (the static-eval case is rare but
+  benign, and false positives there would erode trust in the rule).*
 
 ## Risks
 

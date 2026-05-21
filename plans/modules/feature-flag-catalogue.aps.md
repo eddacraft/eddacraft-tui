@@ -5,7 +5,7 @@
 
 | Scope   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Draft  | 2/7      |
+| FLAGCAT | —     | medium   | Draft  | 2/8      |
 
 **Last reviewed:** 2026-05-19 — Feature gating model landed at
 [`plans/specs/2026-05-19-feature-gating-model.md`](../specs/2026-05-19-feature-gating-model.md)
@@ -449,3 +449,45 @@ Change status to **Ready** when:
 - **Confidence:** high — the contract is documented; implementation
   remains intentionally out of scope.
 - **Status:** Complete
+
+### FLAGCAT-008: Revisit `cli.licence-gate` membership — at minimum exempt `welcome`, consider `status` / `check`
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1795](https://github.com/eddacraft/anvil-001/issues/1795)
+- **Intent:** `CLI_GATED_COMMANDS` at
+  `crates/anvil-cli/src/feature_flags.rs:38` lists nineteen commands,
+  including `welcome`, `status`, `check`, `init`, and `start`. A
+  brand-new user (no invite, no edict) consequently cannot see a single
+  screen of product output — every interesting command returns
+  `Authentication required` before any content. This contradicts the
+  product's stated **planless-first** thesis (value before config) and
+  is in direct tension with what `anvil doctor` already proves is
+  possible (full unauthenticated triage with `run:` / `fix:` /
+  `docs:` hints).
+- **Expected Outcome:** At minimum, `welcome` comes off the gate — it
+  is literally the welcome screen and the only obviously
+  discoverable command for a confused new user. Triage decides whether
+  `status` (read-only) and `check` (described in `--help` as
+  "planless mode") also come off, possibly via a `planless` / `full`
+  sub-mode split. Whatever set lands, the exit-code contract is made
+  consistent across gated commands: today `welcome` returns 0 while
+  `init` / `start` return 3 for the same auth condition.
+- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  finding #1.
+- **Evidence pointers:**
+  - `crates/anvil-cli/src/feature_flags.rs:38` (gated-command list).
+  - `crates/anvil-cli/src/main.rs:278` (`requires_auth`).
+  - `crates/anvil-cli/src/main.rs:320, 336` (the two
+    "Authentication required." emit sites and their exit codes).
+- **Coordinates with:** MLP2-072 (MCP gate-shape) — if the CLI's
+  planless posture changes, the MCP server's auth-required response
+  may want to mirror the new contract so editor agents see a coherent
+  story across CLI and MCP surfaces.
+- **Validation:** The existing `requires_auth_*` tests at
+  `crates/anvil-cli/src/main.rs:884-961` are updated to match the new
+  membership. A CLI integration test runs `anvil welcome --no-tui` on
+  a machine with no credentials and asserts the welcome screen prints
+  (not the auth-required message), exit 0.
+- **Confidence:** high — the gating list is a single edit in
+  `CLI_GATED_COMMANDS`; the question is purely which subset is
+  planless-safe. Out-of-scope: redesigning the licence model itself.

@@ -137,3 +137,63 @@ SEC if/when the next licensing-stream review opens the surface.
 
 Coordinates with: archived `beta-auth-streamline` (BAUTH) module, which
 established the original revoke endpoints.
+
+### SEC-008: Named-pattern secret detection for AWS / GitHub / Slack tokens
+
+**Status:** Draft
+**Tracking:** GH issue [#1800](https://github.com/eddacraft/anvil-001/issues/1800)
+
+**Intent:** Anvil's secret detector currently relies on a high-entropy
+heuristic and consequently misses textbook AWS / GitHub PAT / Slack
+token shapes when the literal token happens to fall below the entropy
+threshold (the canonical AWS `EXAMPLE` keys are the loudest case).
+Add named-pattern detection so the most-leaked credential shapes trip
+the gate regardless of entropy.
+
+**Outcome:** The secret detector trips on at least the industry-leaked
+token shapes regardless of whether they cross the current high-entropy
+threshold:
+
+- `AKIA[0-9A-Z]{16}` — AWS access key ID
+- `ASIA[0-9A-Z]{16}` — AWS STS temporary access key
+- AWS secret key (40-char base64-alphabet, often near
+  `aws_secret_access_key` / `secret`)
+- GitHub PATs (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`)
+- Slack tokens (`xox[apb]-…`)
+
+The current high-entropy heuristic continues to run alongside the named
+patterns, not as a replacement; the addition is named patterns layered on
+top so high-recognition / lower-entropy tokens (the EXAMPLE-style AWS keys
+in particular) stop sliding past the gate.
+
+**Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+finding #6. The canonical AWS example pair
+(`AKIAIOSFODNN7EXAMPLE` + `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`) was
+**allowed** by the MCP pre-write gate with 0 diagnostics, while a
+random-base64-looking `sk-…` literal tripped the high-entropy rule on the
+same surface.
+
+**Test fixture (safe to commit):** The AWS example keys above are official
+AWS-published documentation literals and are explicitly safe to commit
+as test data.
+
+**Validation:**
+
+- Unit tests in `crates/anvil-checks/` (secret module) that fixture each
+  named pattern and assert detection.
+- MCP regression test that calls `anvil_validate_write` with each named
+  pattern as `proposedContent` and asserts `decision: block`.
+
+**Coordinates with:** MLP2-072 (MCP gate-shape) — the new named-pattern
+hits need to flow through whichever decision shape MLP2-072 lands on so
+they are not silently swallowed by an auth-gate response.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** minor
+**releaseNote:**
+
+- **audience:** developer
+- **type:** security
+- **text:** Anvil's secret detector now catches AWS, GitHub PAT, and Slack
+  token shapes by named pattern as well as high entropy.

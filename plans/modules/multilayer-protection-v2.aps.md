@@ -2,15 +2,23 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 60/78 |
+| MLP2 | @aneki | In Progress | 60/80 |
 
-**Last reviewed:** 2026-05-21 (MLP2-071 advanced `Blocked` → `Ready`
+**Last reviewed:** 2026-05-21 (Group Q added — MLP2-072 MCP auth-gate
+shape + MLP2-073 pre-write summary dedupe. Both filed against the
+[2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+and tracked at GH [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
+and [#1799](https://github.com/eddacraft/anvil-001/issues/1799); neither
+blocks the `v0.7.0-beta` tag. Module total advances 78 → 80; done-count
+unchanged at 60.)
+
+Earlier 2026-05-21: MLP2-071 advanced `Blocked` → `Ready`
 after the cross-session-attribution design pass landed at
 [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md).
 The spec is the named unblock the prior `Blocked on:` line carried;
 implementation slice contract + validation matrix are now part of the
 MLP2-071 entry. Module total stays at 78; done-count stays at 60 — `Ready`
-is a planning status, not a done-count advance.)
+is a planning status, not a done-count advance.
 
 Earlier 2026-05-20: Group P added — MLP2-070 lineage anchor
 daemon-derivation hardening + MLP2-071 INTD-015 cross-session policy
@@ -3786,6 +3794,66 @@ work:
 Group A, D, and C-1 (MLP2-016) form the daemon-enforcement
 critical path. Group I depends on MLP2-016. Group J closes the
 protection-claim contract.
+
+### Q. New-user journey audit follow-ups (2026-05-21)
+
+Two MCP-surface findings raised by the
+[2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md).
+Neither blocks the `v0.7.0-beta` tag — they document discrepancies between
+the marketed pre-write catch path and what a brand-new install actually
+experiences.
+
+#### MLP2-072: MCP `anvil_validate_write` blocks every write when unauthenticated
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
+- **Intent:** After `anvil start` installs the MCP entries in
+  `~/.cursor/mcp.json` / `~/.claude.json`, the MCP server currently
+  returns `decision: block, code: authentication-required` for every
+  `anvil_validate_write` call until the user runs `anvil auth login`.
+  Agents that honor the server's own published instructions ("Honour
+  `block` decisions; do not bypass them via alternate write tools")
+  then refuse to write any file at all. The marketed save-time
+  governance promise becomes a hard wall on first install.
+- **Expected Outcome:** The pre-write gate distinguishes
+  *gate-unavailable* from *content-veto*. Two reasonable shapes for the
+  fix, either acceptable:
+  1. When auth is missing, return `decision: allow` with a `degraded` /
+     `gateUnavailable` flag that agents can surface as a warning
+     without refusing the write.
+  2. Introduce a `gateUnavailable` decision distinct from `block`, and
+     update the server's `initialize` `instructions` so agents only
+     honor `block` when accompanied by diagnostics.
+- **Evidence pointer:** `crates/anvil-cli/src/commands/mcp.rs:380-415`
+  (the `mcp_tool_auth_ok` gate + the auth-required response payload at
+  `:493`).
+- **Dependencies:** None internal to MLP2. Coordinates with FLAGCAT-008
+  if `welcome` / `status` / `check` come off the licence gate (then the
+  MCP decision shape may want to match the CLI's planless posture).
+- **Validation:** Drive `anvil mcp serve --stdio` from a JSON-RPC harness
+  without credentials and assert the new decision/flag shape; existing
+  tests at `crates/anvil-cli/src/commands/mcp.rs:660-680` should be
+  updated alongside.
+
+#### MLP2-073: Pre-write `summary.total` double-counts identical diagnostics
+
+- **Status:** Draft
+- **Tracking:** GH issue [#1799](https://github.com/eddacraft/anvil-001/issues/1799)
+- **Intent:** A single hardcoded secret on one line currently returns
+  `summary.total = 2` with two diagnostics that share the same `id`,
+  same `location`, and same `summary`. The dispatch path is emitting
+  the same finding twice before summarising.
+- **Expected Outcome:** Diagnostics are deduped by `id` (and
+  defensively by `(rule_id, location)`) before the summary is
+  computed; a single planted `sk-…` literal returns `summary.total = 1`.
+- **Repro:** See the audit harness in
+  [`plans/audits/2026-05-21-new-user-journey-audit.md`](../audits/2026-05-21-new-user-journey-audit.md)
+  — call `anvil_validate_write` with `operation: "update"` against
+  `src/smelly.ts` containing one hardcoded API key.
+- **Validation:** Regression pin in
+  `crates/anvil-cli/src/commands/mcp.rs` tests that fixtures a single
+  secret-detection finding and asserts the JSON-RPC response has
+  `summary.total == 1` and unique-by-`id` diagnostics.
 
 ## Priority and phasing plan
 
