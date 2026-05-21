@@ -89,18 +89,32 @@ API key on line 1 and an `eval(input)` antipattern. A separate
 
 Each finding has a corresponding GitHub issue cross-referenced below.
 
-| # | Severity | Finding | Issue |
-|---|---|---|---|
-| 1 | High | Every interesting command (`welcome`, `status`, `start`, `init`, `check`, `gate`, `audit`, `watch`) returns `Authentication required` before any output. The product thesis is "planless-first / value without config", but the binary is gated end-to-end. `welcome` arguably should never demand auth. | [#1795](https://github.com/eddacraft/anvil-001/issues/1795) |
-| 2 | High | After `anvil start` installs the MCP entries, the MCP server returns `decision: block, code: authentication-required` for **every** `anvil_validate_write` call until the user runs `anvil auth login`. Editors that honor the published instructions ("Honour `block` decisions") would refuse to write any file. | [#1796](https://github.com/eddacraft/anvil-001/issues/1796) |
-| 3 | High | `anvil check src/smelly.ts` (planless) reports **no warnings** on a file with a hardcoded API key and `eval(input)`. JSON shows `checksRun: ["architecture"]` — `secret-detection` and `antipattern-scan` listed in `.anvilrc` do not run under the planless `check` path even though they run fine under `gate` and over MCP. | [#1797](https://github.com/eddacraft/anvil-001/issues/1797) |
-| 4 | Medium | `anvil audit` says "0 issues — project looks clean" on the same repo where `anvil gate` reports the secret as a failure. Audit and gate disagree about the same files. | [#1798](https://github.com/eddacraft/anvil-001/issues/1798) |
-| 5 | Medium | MCP pre-write summary double-counts findings (one secret on one line returns `summary.total = 2` with two identical diagnostics). | [#1799](https://github.com/eddacraft/anvil-001/issues/1799) |
-| 6 | Medium | The textbook AWS access-key pair (`AKIAIOSFODNN7EXAMPLE` + secret-key) is **allowed** by the MCP gate (0 diagnostics). Detector trips on `sk-…` via high-entropy heuristic but misses AWS-prefix patterns. | [#1800](https://github.com/eddacraft/anvil-001/issues/1800) |
-| 7 | Low | `eval(input)` antipattern not caught on TS by any of `check`, `audit`, `gate`, watch, or MCP. | [#1801](https://github.com/eddacraft/anvil-001/issues/1801) |
-| 8 | Low | `anvil watch` flags every existing exported symbol as `public-api-expansion` on a never-baselined repo (e.g. a one-line `greet()` helper). Conflicts with the "new edges only" principle for first scan. | [#1802](https://github.com/eddacraft/anvil-001/issues/1802) |
-| 9 | Low | `anvil gate -p ai` reports 3 failures (`import-boundaries`, `policy`, `command-safety`) solely because their config files don't exist. New user activating with the suggested AI profile sees a 1/5 score with no next-step guidance. | [#1803](https://github.com/eddacraft/anvil-001/issues/1803) |
-| 10 | Low | `anvil check --staged` errors with `required arguments were not provided: --changed`. `--staged` should imply `--changed`. | [#1804](https://github.com/eddacraft/anvil-001/issues/1804) |
+**Status legend:**
+
+- `Open` — GH issue open, no code work merged yet.
+- `In Progress` — branch / PR open against the owning module.
+- `Merged` — fix merged to `main`.
+- `Released` — fix shipped in a tagged release; cross-reference the
+  release record under `plans/releases/`.
+
+The Status column reflects the lifecycle from the new-user-journey
+audit's point of view; the owning APS module's task carries the
+authoritative status for the implementation work.
+
+| # | Severity | Finding | Issue | Module · Task | Status |
+|---|---|---|---|---|---|
+| 1 | High | Every interesting command (`welcome`, `status`, `start`, `init`, `check`, `gate`, `audit`, `watch`) returns `Authentication required` before any output. The product thesis is "planless-first / value without config", but the binary is gated end-to-end. `welcome` arguably should never demand auth. | [#1795](https://github.com/eddacraft/anvil-001/issues/1795) | FLAGCAT · FLAGCAT-008 | Open |
+| 2 | High | After `anvil start` installs the MCP entries, the MCP server returns `decision: block, code: authentication-required` for **every** `anvil_validate_write` call until the user runs `anvil auth login`. Editors that honor the published instructions ("Honour `block` decisions") would refuse to write any file. | [#1796](https://github.com/eddacraft/anvil-001/issues/1796) | MLP2 · MLP2-072 (Group Q) | Open |
+| 3 | High | `anvil check src/smelly.ts` (planless) reports **no warnings** on a file with a hardcoded API key and `eval(input)`. JSON shows `checksRun: ["architecture"]` — `secret-detection` and `antipattern-scan` listed in `.anvilrc` do not run under the planless `check` path even though they run fine under `gate` and over MCP. | [#1797](https://github.com/eddacraft/anvil-001/issues/1797) | CIB · CIB-008 | Open |
+| 4 | Medium | `anvil audit` says "0 issues — project looks clean" on the same repo where `anvil gate` reports the secret as a failure. Audit and gate disagree about the same files. | [#1798](https://github.com/eddacraft/anvil-001/issues/1798) | CIB · CIB-009 | Open |
+| 5 | Medium | MCP pre-write summary double-counts findings (one secret on one line returns `summary.total = 2` with two identical diagnostics). | [#1799](https://github.com/eddacraft/anvil-001/issues/1799) | MLP2 · MLP2-073 (Group Q) | Open |
+| 6 | Medium | The textbook AWS access-key pair (`AKIAIOSFODNN7EXAMPLE` + secret-key) is **allowed** by the MCP gate (0 diagnostics). Detector trips on `sk-…` via high-entropy heuristic but misses AWS-prefix patterns. | [#1800](https://github.com/eddacraft/anvil-001/issues/1800) | SEC · SEC-008 | Open |
+| 7 | Low | `eval(input)` antipattern not caught on TS by any of `check`, `audit`, `gate`, watch, or MCP. | [#1801](https://github.com/eddacraft/anvil-001/issues/1801) | LANGTS · LANGTS-006 | Open |
+| 8 | Low | `anvil watch` flags every existing exported symbol as `public-api-expansion` on a never-baselined repo (e.g. a one-line `greet()` helper). Conflicts with the "new edges only" principle for first scan. | [#1802](https://github.com/eddacraft/anvil-001/issues/1802) | CIB · CIB-010 | Open |
+| 9 | Low | `anvil gate -p ai` reports 3 failures (`import-boundaries`, `policy`, `command-safety`) solely because their config files don't exist. New user activating with the suggested AI profile sees a 1/5 score with no next-step guidance. | [#1803](https://github.com/eddacraft/anvil-001/issues/1803) | CIB · CIB-011 | Open |
+| 10 | Low | `anvil check --staged` errors with `required arguments were not provided: --changed`. `--staged` should imply `--changed`. | [#1804](https://github.com/eddacraft/anvil-001/issues/1804) | CIB · CIB-012 | Open |
+
+**Progress:** 0 Merged · 0 In Progress · 10 Open _(as of 2026-05-21)_.
 
 ## Not-findings (initially flagged, dropped on re-test)
 
