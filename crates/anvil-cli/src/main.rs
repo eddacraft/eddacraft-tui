@@ -97,10 +97,12 @@ pub struct GlobalArgs {
     long_about = None,
     after_help = "\
 EXIT CODES:
-  0  Success (also: auth required on action commands — see stderr)
-  1  General error
+  0  Success (incl. pre-dispatch auth-required on action commands)
+  1  General error (incl. failed `anvil auth login` attempt)
   2  Gate check failed (one or more checks did not pass)
-  3  Authentication required (`whoami` / `auth whoami` only)
+  3  Authentication required:
+       - pre-dispatch on `whoami` / `auth whoami` (state probe)
+       - post-dispatch on any command (server-rejected token mid-call)
   4  Configuration error (invalid config file or options)"
 )]
 struct Cli {
@@ -315,17 +317,32 @@ fn is_auth_state_probe(cmd: &Commands) -> bool {
 /// auth-state probes (`whoami`, `auth whoami`) carry the auth signal in
 /// the exit code so scripts have a stable preflight.
 ///
+/// The exit-code coercion to `0` is gated on the incoming code being
+/// exactly `EXIT_AUTH_REQUIRED`. Any other failure from `check_auth`
+/// (e.g. a failed interactive `anvil auth login` attempt, which now
+/// returns `EXIT_ERROR`) is a real runtime failure and passes through
+/// unchanged — scripts must be able to distinguish "user hasn't logged
+/// in yet" from "user tried to log in and it failed".
+///
 /// Pure so it can be unit-tested without depending on credential I/O.
 /// Returns `(exit_code, Some(json_envelope))` when `--json` is set, or
 /// `(exit_code, None)` in text mode (stderr message already emitted by
 /// `check_auth`).
 fn auth_required_response(
     cmd: &Commands,
-    probe_exit_code: u8,
+    code: u8,
     json_mode: bool,
 ) -> (u8, Option<serde_json::Value>) {
+    // Anything other than EXIT_AUTH_REQUIRED is a real failure that
+    // happened to surface from `check_auth` (today: a failed login
+    // attempt). Pass it through with a generic error envelope under
+    // `--json`; the stderr message is already on the wire.
+    if code != EXIT_AUTH_REQUIRED {
+        let envelope = json_mode.then(|| serde_json::json!({"error": "auth_check_failed"}));
+        return (code, envelope);
+    }
     let is_probe = is_auth_state_probe(cmd);
-    let exit_code = if is_probe { probe_exit_code } else { EXIT_OK };
+    let exit_code = if is_probe { code } else { EXIT_OK };
     let envelope = if !json_mode {
         None
     } else if is_probe {
@@ -691,8 +708,14 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
                     return evaluate_auth(&auth::credentials::load(), global.verbose, !global.json);
                 }
                 Err(err) => {
+                    // Distinct from EXIT_AUTH_REQUIRED: the user
+                    // explicitly opted into the interactive login flow
+                    // and it *failed* (device-flow error, network,
+                    // credential save, etc.). This is a real runtime
+                    // failure, not the "you haven't logged in yet"
+                    // state — issue #1822 / PR #1824 review feedback.
                     eprintln!("Login failed: {err:#}");
-                    return Err(EXIT_AUTH_REQUIRED);
+                    return Err(EXIT_ERROR);
                 }
             },
             Ok(false) => {
@@ -1259,6 +1282,38 @@ mod tests {
         // Probe keeps the existing error-shaped envelope for backward
         // compatibility with whoami callers.
         assert_eq!(envelope["error"], "authentication_required");
+    }
+
+    #[test]
+    fn auth_required_response_passes_through_non_auth_code() {
+        // PR #1824 review feedback: a failed interactive login attempt
+        // returns EXIT_ERROR from check_auth. The dispatcher must not
+        // coerce that to 0 — it's a real runtime failure, distinct from
+        // "user hasn't logged in yet". Pin the pass-through for every
+        // non-EXIT_AUTH_REQUIRED code on both action commands and probes.
+        for cmd_tokens in [&["start"][..], &["whoami"][..]] {
+            for incoming in [EXIT_ERROR, EXIT_GATE_FAIL, EXIT_CONFIG_ERROR] {
+                let (code, envelope) =
+                    auth_required_response(&parse_command(cmd_tokens), incoming, false);
+                assert_eq!(
+                    code, incoming,
+                    "{cmd_tokens:?} with incoming {incoming} must pass through"
+                );
+                assert!(envelope.is_none(), "text mode emits no envelope");
+            }
+        }
+    }
+
+    #[test]
+    fn auth_required_response_non_auth_code_json_envelope_is_generic() {
+        // Under --json the pass-through path emits a distinct error
+        // envelope so structured consumers can tell a check failure
+        // apart from the informational `authRequired` state.
+        let (code, envelope) = auth_required_response(&parse_command(&["start"]), EXIT_ERROR, true);
+        assert_eq!(code, EXIT_ERROR);
+        let envelope = envelope.expect("--json mode must emit an envelope");
+        assert_eq!(envelope["error"], "auth_check_failed");
+        assert!(envelope.get("state").is_none());
     }
 
     // ── evaluate_auth ────────────────────────────────────────────
