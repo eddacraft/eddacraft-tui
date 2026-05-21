@@ -825,10 +825,7 @@ mod tests {
             "req-sub-filter",
             IpcCommand::SubscribeTelemetry {
                 filter: Some(TelemetrySubscriberFilter {
-                    session_ids: Some(vec![
-                        SessionId::new("sess_a"),
-                        SessionId::new("sess_b"),
-                    ]),
+                    session_ids: Some(vec![SessionId::new("sess_a"), SessionId::new("sess_b")]),
                 }),
             },
         );

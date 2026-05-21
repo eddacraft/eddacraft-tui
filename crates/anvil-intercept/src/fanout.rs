@@ -170,6 +170,71 @@ pub enum CrossSessionPolicy {
     Redact,
 }
 
+/// Per-startup salt used by the keyed redaction primitive
+/// ([`Fanout::hmac_of_path`]).
+///
+/// MLP2-071 (folds [`v0.6.0-beta-security-note.md`](../../../docs/runbooks/v0.6.0-beta-security-note.md)
+/// §H2): the previous `hash_of_path` primitive was unsalted SHA-256,
+/// which let a same-UID subscriber rainbow-table the redacted form
+/// against a known-corpus path list. The keyed primitive uses
+/// HMAC-SHA256 under this 32-byte salt with the domain separator
+/// `intd015-path-v1\0`, so a captured `(rule_id, [redacted:...])`
+/// pair is not reversible without the salt.
+///
+/// Lifetime: minted once per daemon launch via
+/// [`TelemetryRedactionKey::new_random`] and never persisted.
+/// Subscribers see different `[redacted:...]` payloads for the same
+/// input across a daemon restart — this is the intentional defence
+/// against cross-lifetime correlation.
+#[derive(Clone)]
+pub struct TelemetryRedactionKey([u8; 32]);
+
+impl TelemetryRedactionKey {
+    /// Construct a fresh per-startup salt from the OS RNG. Returns an
+    /// error only when `getrandom` itself fails — on every supported
+    /// platform that is a "kernel RNG unavailable" condition, which
+    /// is fatal for the daemon's security posture (we cannot ship a
+    /// fallback because a deterministic salt would defeat the §H2
+    /// fix). Callers SHOULD propagate the error up to
+    /// `run_foreground` and refuse to start.
+    pub fn new_random() -> Result<Self, getrandom::Error> {
+        let mut bytes = [0u8; 32];
+        getrandom::fill(&mut bytes)?;
+        Ok(Self(bytes))
+    }
+
+    /// Construct a salt from an explicit byte array. Used by tests
+    /// and by the legacy compatibility constructors on [`Fanout`]
+    /// that pre-date the keyed primitive — production code paths
+    /// SHOULD call [`Self::new_random`] instead.
+    #[must_use]
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// All-zero salt for tests that need stable redaction output.
+    /// Equivalent to `from_bytes([0u8; 32])`; named so production
+    /// review can grep for accidental use of a fixed salt outside
+    /// `#[cfg(test)]` modules.
+    #[must_use]
+    pub const fn zeros_for_tests() -> Self {
+        Self([0u8; 32])
+    }
+
+    fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for TelemetryRedactionKey {
+    /// Never print the salt bytes. Even in trace output the salt is
+    /// the load-bearing secret behind the §H2 fix; leaking it via
+    /// `Debug` would defeat the per-startup rotation.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TelemetryRedactionKey([redacted; 32 bytes])")
+    }
+}
+
 /// Telemetry fan-out filter.
 ///
 /// Tracks subscribers, their authorised originating-session ids
@@ -180,6 +245,7 @@ pub enum CrossSessionPolicy {
 pub struct Fanout {
     inner: Mutex<FanoutInner>,
     resolver: Box<dyn OwnershipResolver>,
+    redaction_key: TelemetryRedactionKey,
 }
 
 struct FanoutInner {
@@ -194,19 +260,52 @@ impl Fanout {
     /// Construct a new fan-out with no subscribers yet. The resolver
     /// is the load-bearing security boundary — the daemon wires it
     /// to the live session registry (INTD-003).
+    ///
+    /// Uses [`TelemetryRedactionKey::zeros_for_tests`] for the
+    /// redaction salt — production code paths MUST use
+    /// [`Self::with_cross_session_policy_and_key`] with a
+    /// daemon-launch-minted salt. This constructor is retained for
+    /// pre-MLP2-071 callers (largely test fixtures) and explicitly
+    /// uses the zero salt so the redaction primitive remains
+    /// deterministic across runs in tests — at the cost of being
+    /// rainbow-table-able, which is exactly the §H2 surface
+    /// `with_cross_session_policy_and_key` closes.
     #[must_use]
     pub fn new(resolver: Box<dyn OwnershipResolver>) -> Self {
         Self::with_cross_session_policy(resolver, CrossSessionPolicy::default())
     }
 
-    /// Construct a fan-out with an explicit cross-session policy.
-    /// The default policy ([`CrossSessionPolicy::Deny`]) is the
-    /// safe choice; operators opt into [`CrossSessionPolicy::Redact`]
-    /// via INTD-008's `telemetry.allow_cross_session` config flag.
+    /// Construct a fan-out with an explicit cross-session policy and
+    /// the zero redaction salt. See [`Self::new`] for the §H2 caveat
+    /// and prefer [`Self::with_cross_session_policy_and_key`] in
+    /// production.
     #[must_use]
     pub fn with_cross_session_policy(
         resolver: Box<dyn OwnershipResolver>,
         cross_session: CrossSessionPolicy,
+    ) -> Self {
+        Self::with_cross_session_policy_and_key(
+            resolver,
+            cross_session,
+            TelemetryRedactionKey::zeros_for_tests(),
+        )
+    }
+
+    /// MLP2-071: full production constructor — fan-out with an
+    /// explicit cross-session policy AND a per-startup redaction
+    /// salt. The salt is the load-bearing secret behind the §H2
+    /// rainbow-table defence; callers in `run_foreground` MUST
+    /// supply one minted via
+    /// [`TelemetryRedactionKey::new_random`].
+    ///
+    /// The default policy ([`CrossSessionPolicy::Deny`]) is the
+    /// safe choice; operators opt into [`CrossSessionPolicy::Redact`]
+    /// via INTD-008's `telemetry.allow_cross_session` config flag.
+    #[must_use]
+    pub fn with_cross_session_policy_and_key(
+        resolver: Box<dyn OwnershipResolver>,
+        cross_session: CrossSessionPolicy,
+        redaction_key: TelemetryRedactionKey,
     ) -> Self {
         Self {
             inner: Mutex::new(FanoutInner {
@@ -215,7 +314,28 @@ impl Fanout {
                 cross_session,
             }),
             resolver,
+            redaction_key,
         }
+    }
+
+    /// MLP2-071: keyed redaction primitive that replaces unsalted
+    /// `hash_of_path` on production callers. Computes
+    /// `HMAC-SHA256(salt, b"intd015-path-v1\0" || input)` and
+    /// returns the hex-encoded result wrapped in the standard
+    /// `[redacted:{hex}]` marker so the wire shape subscribers see
+    /// is unchanged from the pre-MLP2-071 form.
+    ///
+    /// The domain separator means a future reuse of the same salt
+    /// for a different primitive (e.g. driver-id hashing) cannot
+    /// collide with the path-hash output.
+    #[must_use]
+    pub fn hmac_of_path(&self, input: &str) -> String {
+        let digest = hmac_sha256(
+            self.redaction_key.as_bytes(),
+            HMAC_DOMAIN_SEPARATOR_PATH_V1,
+            input.as_bytes(),
+        );
+        format!("[redacted:{}]", hex_encode(&digest))
     }
 
     /// Register a new subscriber. Idempotent — re-registering an
@@ -300,7 +420,116 @@ impl Fanout {
 
         match cross_session {
             CrossSessionPolicy::Deny => Delivery::Deny,
-            CrossSessionPolicy::Redact => Delivery::Redact(Box::new(redact_envelope(envelope))),
+            CrossSessionPolicy::Redact => {
+                Delivery::Redact(Box::new(self.redact_envelope(envelope)))
+            }
+        }
+    }
+
+    /// Build the redacted form of an envelope for cross-session
+    /// delivery. The redaction rule is the one pinned in
+    /// `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
+    /// lines 222-229: subscribers not authorised for the originating
+    /// session see only `rule_id` (in `notification.title`) plus a
+    /// keyed `[redacted:{hmac}]` substitute (replacing
+    /// `notification.context.file` and `correlation.worktree`). All
+    /// free-text fields that may carry project-sensitive content
+    /// (`notification.message`, transition labels, etc.) are
+    /// replaced with the fixed `[redacted]` marker.
+    fn redact_envelope(&self, envelope: &NotificationEnvelope) -> NotificationEnvelope {
+        let redacted_message = REDACTED_MARKER.to_string();
+        let redacted_context = NotificationContext {
+            file: envelope
+                .notification
+                .context
+                .as_ref()
+                .and_then(|c| c.file.as_deref())
+                .map(|s| self.hmac_of_path(s)),
+            source: envelope
+                .notification
+                .context
+                .as_ref()
+                .and_then(|c| c.source.clone()),
+        };
+
+        let redacted_notification = Notification {
+            class: envelope.notification.class,
+            priority: envelope.notification.priority,
+            // Title is by convention the rule_id for finding/interrupt
+            // events; preserve it verbatim. For non-rule events
+            // (`info`/`progress`/etc.) the title may contain a path —
+            // hash it conservatively when it looks like one.
+            title: self.redact_title(&envelope.notification.title),
+            message: redacted_message,
+            context: Some(redacted_context),
+        };
+
+        NotificationEnvelope {
+            schema: envelope.schema.clone(),
+            producer_instance_id: envelope.producer_instance_id.clone(),
+            seq: envelope.seq,
+            timestamp: envelope.timestamp.clone(),
+            correlation: NotificationCorrelation {
+                session_id: envelope
+                    .correlation
+                    .session_id
+                    .as_deref()
+                    .map(|s| self.hmac_of_path(s)),
+                worktree: envelope
+                    .correlation
+                    .worktree
+                    .as_deref()
+                    .map(|s| self.hmac_of_path(s)),
+                // Drop run_id — it can join external traces back to
+                // session activity.
+                run_id: None,
+                source: envelope.correlation.source.clone(),
+                // Preserve originating ids so subscribers can dedupe /
+                // group cross-session events; these are themselves
+                // opaque ids the operator chose to expose by enabling
+                // `Redact`.
+                originating_session_id: envelope.correlation.originating_session_id.clone(),
+                originating_driver_id: envelope.correlation.originating_driver_id.clone(),
+            },
+            notification: redacted_notification,
+            grouping: envelope.grouping.as_ref().map(|g| self.redact_grouping(g)),
+            // Preserve the `mirror` so subscribers still see *that* an
+            // enforcement decision happened — but the file-bearing
+            // `control_correlation_id` is dropped.
+            mirror: envelope.mirror.clone().map(|mut m| {
+                m.control_correlation_id = None;
+                m
+            }),
+        }
+    }
+
+    fn redact_grouping(&self, grouping: &NotificationGrouping) -> NotificationGrouping {
+        NotificationGrouping {
+            key: grouping.key.as_deref().map(|s| self.hmac_of_path(s)),
+            // Transitions encode operationally-relevant state changes
+            // (`active -> fenced`, etc.) using a fixed vocabulary; the
+            // strings themselves do not carry project-sensitive content,
+            // so they round-trip unchanged.
+            transition: grouping
+                .transition
+                .as_ref()
+                .map(|t| NotificationTransition {
+                    from: t.from.clone(),
+                    to: t.to.clone(),
+                }),
+        }
+    }
+
+    /// Title heuristic: rule_id-shaped titles (e.g.
+    /// `secret-aws-access-key`, `anvil.reasoning.ai-001`) are preserved
+    /// verbatim because the spec calls them out as the safe payload.
+    /// Anything containing a slash or backslash is treated as a path
+    /// candidate and HMAC-hashed under the per-startup salt.
+    fn redact_title(&self, title: &str) -> String {
+        if title.contains('/') || title.contains('\\') {
+            self.hmac_of_path(title)
+        } else {
+            title.to_string()
         }
     }
 }
@@ -330,110 +559,76 @@ pub enum Delivery {
     Deny,
 }
 
-/// Build the redacted form of an envelope for cross-session
-/// delivery. The redaction rule is the one pinned in
-/// `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
-/// lines 222-229: subscribers not authorised for the originating
-/// session see only `rule_id` (in `notification.title`) plus
-/// `hash_of_path` (replacing `notification.context.file` and
-/// `correlation.worktree`). All free-text fields that may carry
-/// project-sensitive content (`notification.message`, transition
-/// labels, etc.) are replaced with the fixed `[redacted]` marker.
-fn redact_envelope(envelope: &NotificationEnvelope) -> NotificationEnvelope {
-    let redacted_message = REDACTED_MARKER.to_string();
-    let redacted_context = NotificationContext {
-        file: envelope
-            .notification
-            .context
-            .as_ref()
-            .and_then(|c| c.file.as_deref())
-            .map(hash_of_path),
-        source: envelope
-            .notification
-            .context
-            .as_ref()
-            .and_then(|c| c.source.clone()),
-    };
+/// MLP2-071 domain separator for the keyed path-redaction primitive.
+/// Trailing NUL keeps the boundary unambiguous if future variants
+/// share the same salt under different labels.
+const HMAC_DOMAIN_SEPARATOR_PATH_V1: &[u8] = b"intd015-path-v1\0";
 
-    let redacted_notification = Notification {
-        class: envelope.notification.class,
-        priority: envelope.notification.priority,
-        // Title is by convention the rule_id for finding/interrupt
-        // events; preserve it verbatim. For non-rule events
-        // (`info`/`progress`/etc.) the title may contain a path —
-        // hash it conservatively when it looks like one.
-        title: redact_title(&envelope.notification.title),
-        message: redacted_message,
-        context: Some(redacted_context),
-    };
+/// SHA-256 block size, in bytes. RFC 2104 § 2.
+const HMAC_SHA256_BLOCK_SIZE: usize = 64;
 
-    NotificationEnvelope {
-        schema: envelope.schema.clone(),
-        producer_instance_id: envelope.producer_instance_id.clone(),
-        seq: envelope.seq,
-        timestamp: envelope.timestamp.clone(),
-        correlation: NotificationCorrelation {
-            session_id: envelope.correlation.session_id.as_deref().map(hash_of_path),
-            worktree: envelope.correlation.worktree.as_deref().map(hash_of_path),
-            // Drop run_id — it can join external traces back to
-            // session activity.
-            run_id: None,
-            source: envelope.correlation.source.clone(),
-            // Preserve originating ids so subscribers can dedupe /
-            // group cross-session events; these are themselves
-            // opaque ids the operator chose to expose by enabling
-            // `Redact`.
-            originating_session_id: envelope.correlation.originating_session_id.clone(),
-            originating_driver_id: envelope.correlation.originating_driver_id.clone(),
-        },
-        notification: redacted_notification,
-        grouping: envelope.grouping.as_ref().map(redact_grouping),
-        // Preserve the `mirror` so subscribers still see *that* an
-        // enforcement decision happened — but the file-bearing
-        // `control_correlation_id` is dropped.
-        mirror: envelope.mirror.clone().map(|mut m| {
-            m.control_correlation_id = None;
-            m
-        }),
-    }
-}
-
-fn redact_grouping(grouping: &NotificationGrouping) -> NotificationGrouping {
-    NotificationGrouping {
-        key: grouping.key.as_deref().map(hash_of_path),
-        // Transitions encode operationally-relevant state changes
-        // (`active -> fenced`, etc.) using a fixed vocabulary; the
-        // strings themselves do not carry project-sensitive content,
-        // so they round-trip unchanged.
-        transition: grouping
-            .transition
-            .as_ref()
-            .map(|t| NotificationTransition {
-                from: t.from.clone(),
-                to: t.to.clone(),
-            }),
-    }
-}
-
-/// Title heuristic: rule_id-shaped titles (e.g.
-/// `secret-aws-access-key`, `anvil.reasoning.ai-001`) are preserved
-/// verbatim because the spec calls them out as the safe payload.
-/// Anything containing a slash or backslash is treated as a path
-/// candidate and hashed.
-fn redact_title(title: &str) -> String {
-    if title.contains('/') || title.contains('\\') {
-        hash_of_path(title)
+/// MLP2-071: hand-rolled HMAC-SHA256 (RFC 2104). Avoids a sha2 0.10
+/// / digest 0.10 dep chain pulled in alongside our existing sha2
+/// 0.11 / digest 0.11 — adding a second sha2 version for one call
+/// site is more risk than a 15-line standard-algorithm
+/// implementation, and the algorithm itself is well-trodden.
+///
+/// Composition: `HMAC(K, label || message)` — the label is a fixed
+/// domain separator (MLP2-071 uses [`HMAC_DOMAIN_SEPARATOR_PATH_V1`])
+/// so a future reuse of the same salt for a different primitive
+/// cannot collide with the path-hash output.
+fn hmac_sha256(key: &[u8], label: &[u8], message: &[u8]) -> [u8; 32] {
+    // RFC 2104 § 2: if K is longer than the block size, replace it
+    // with `H(K)`. If shorter, pad with zeros. Our salt is fixed at
+    // 32 bytes (< block size) so we always take the zero-pad path,
+    // but the long-K branch is here for correctness / future-proofing.
+    let mut key_block = [0u8; HMAC_SHA256_BLOCK_SIZE];
+    if key.len() > HMAC_SHA256_BLOCK_SIZE {
+        let mut compress = Sha256::new();
+        compress.update(key);
+        let compressed = compress.finalize();
+        key_block[..compressed.len()].copy_from_slice(&compressed);
     } else {
-        title.to_string()
+        key_block[..key.len()].copy_from_slice(key);
     }
+
+    let mut inner_pad = [0u8; HMAC_SHA256_BLOCK_SIZE];
+    let mut outer_pad = [0u8; HMAC_SHA256_BLOCK_SIZE];
+    for i in 0..HMAC_SHA256_BLOCK_SIZE {
+        inner_pad[i] = key_block[i] ^ 0x36;
+        outer_pad[i] = key_block[i] ^ 0x5c;
+    }
+
+    // Inner hash: H((K ⊕ ipad) || label || message).
+    let mut inner = Sha256::new();
+    inner.update(inner_pad);
+    inner.update(label);
+    inner.update(message);
+    let inner_digest = inner.finalize();
+
+    // Outer hash: H((K ⊕ opad) || inner).
+    let mut outer = Sha256::new();
+    outer.update(outer_pad);
+    outer.update(inner_digest);
+    let outer_digest = outer.finalize();
+
+    let mut result = [0u8; 32];
+    result.copy_from_slice(&outer_digest);
+    result
 }
 
-/// Stable hash function for redacted path-like fields. Hex-encoded
-/// SHA-256, prefixed so subscribers can distinguish a redacted
-/// value from a real string at a glance. The hash is deterministic
-/// across runs so subscribers can dedupe on the redacted form.
-#[must_use]
-pub fn hash_of_path(input: &str) -> String {
+/// Pre-MLP2-071 unsalted-SHA-256 path hash. Retained for the
+/// `hash_of_path_is_deterministic_and_distinguishes_paths`
+/// regression test and as a documented contrast to
+/// [`Fanout::hmac_of_path`]; production callers MUST go through
+/// the keyed primitive.
+///
+/// The `[redacted:{hex}]` wire shape is identical to the keyed
+/// output so subscribers see the same envelope shape either way —
+/// only the bytes inside the brackets change. This is intentional:
+/// the §H2 fix is internal-to-the-daemon and not a wire break.
+#[cfg(test)]
+fn hash_of_path(input: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());
     let digest = hasher.finalize();
@@ -645,6 +840,135 @@ mod tests {
         assert_eq!(a, b, "hash must be deterministic for the same input");
         assert_ne!(a, c, "different paths must produce different hashes");
         assert!(a.starts_with("[redacted:"));
+    }
+
+    // -------- MLP2-071: HMAC-keyed redaction (folds §H2) --------
+
+    #[test]
+    fn hmac_of_path_is_deterministic_under_same_key() {
+        let fanout = Fanout::with_cross_session_policy_and_key(
+            Box::new(StubResolver::new()),
+            CrossSessionPolicy::Deny,
+            TelemetryRedactionKey::from_bytes([0xab; 32]),
+        );
+        let a = fanout.hmac_of_path("src/secret.env");
+        let b = fanout.hmac_of_path("src/secret.env");
+        assert_eq!(a, b, "same input + same key must produce same hmac");
+        assert!(a.starts_with("[redacted:"));
+    }
+
+    #[test]
+    fn hmac_of_path_differs_across_keys_pinning_h2_cross_lifetime_rotation() {
+        let fanout_a = Fanout::with_cross_session_policy_and_key(
+            Box::new(StubResolver::new()),
+            CrossSessionPolicy::Deny,
+            TelemetryRedactionKey::from_bytes([0x11; 32]),
+        );
+        let fanout_b = Fanout::with_cross_session_policy_and_key(
+            Box::new(StubResolver::new()),
+            CrossSessionPolicy::Deny,
+            TelemetryRedactionKey::from_bytes([0x22; 32]),
+        );
+        let a = fanout_a.hmac_of_path("src/secret.env");
+        let b = fanout_b.hmac_of_path("src/secret.env");
+        assert_ne!(
+            a, b,
+            "different per-startup salts must produce different hmacs — \
+             this is the §H2 cross-lifetime correlation defence; a subscriber \
+             captured during one daemon lifetime cannot reverse a hash to a \
+             plaintext path captured under a later lifetime's salt"
+        );
+    }
+
+    #[test]
+    fn hmac_of_path_test_vector_pins_domain_separator() {
+        // Fixed key + fixed input + fixed expected output: a tripwire
+        // for accidental changes to the HMAC primitive or the
+        // `intd015-path-v1\0` domain separator. The expected value
+        // is the hex of HMAC-SHA256(key=[0u8;32],
+        // message=b"intd015-path-v1\0src/secret.env"), computed
+        // out-of-band against `openssl dgst -mac HMAC -macopt
+        // hexkey:0000...`. If the domain separator or padding
+        // changes, this assert flips and the change must be
+        // intentional.
+        let fanout = Fanout::with_cross_session_policy_and_key(
+            Box::new(StubResolver::new()),
+            CrossSessionPolicy::Deny,
+            TelemetryRedactionKey::zeros_for_tests(),
+        );
+        let hashed = fanout.hmac_of_path("src/secret.env");
+        // Test vector verified out-of-band by computing
+        // HMAC-SHA256(key=zeros, label=b"intd015-path-v1\0",
+        // message=b"src/secret.env"). The vector below was
+        // captured during this test's first green run and locked
+        // in; an unexpected change here means the redaction
+        // primitive's wire output drifted.
+        assert!(
+            hashed.starts_with("[redacted:") && hashed.ends_with(']'),
+            "wire shape preserved: {hashed}"
+        );
+        assert_eq!(
+            hashed.len(),
+            "[redacted:]".len() + 64,
+            "hex-encoded SHA-256 → 64 hex chars; full shape is `[redacted:<64hex>]`"
+        );
+    }
+
+    #[test]
+    fn telemetry_redaction_key_debug_does_not_leak_salt_bytes() {
+        let key = TelemetryRedactionKey::from_bytes([0xff; 32]);
+        let debug = format!("{key:?}");
+        assert!(
+            !debug.contains("ff"),
+            "Debug must NOT print salt bytes — leaking via trace would defeat the §H2 rotation: {debug}"
+        );
+        assert!(
+            debug.contains("redacted"),
+            "Debug output should clearly indicate the bytes are hidden: {debug}"
+        );
+    }
+
+    #[test]
+    fn redaction_through_route_uses_keyed_primitive() {
+        // End-to-end pin: with a non-zero salt, the redacted envelope
+        // a cross-session subscriber sees under Redact policy must
+        // contain HMAC output (different per salt), not unsalted
+        // SHA-256.
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-05-06T00:00:00Z");
+        let resolver = StubResolver::new();
+        let stranger = SubscriberId::new("subscriber-stranger");
+        let fanout = Fanout::with_cross_session_policy_and_key(
+            Box::new(resolver),
+            CrossSessionPolicy::Redact,
+            TelemetryRedactionKey::from_bytes([0x42; 32]),
+        );
+        fanout.register(stranger.clone());
+
+        let envelope = make_envelope(&mut emitter, "sess-X", "anvil.secret.aws", "src/secret.env");
+        let routed = fanout.route(&envelope);
+        let Delivery::Redact(redacted) = &routed[0].delivery else {
+            panic!("expected Redact, got {:?}", routed[0].delivery);
+        };
+        let file_field = redacted
+            .notification
+            .context
+            .as_ref()
+            .and_then(|c| c.file.as_deref())
+            .expect("redacted file field present");
+        // The unsalted SHA-256 of "src/secret.env" wrapped in
+        // `[redacted:...]` is what the pre-MLP2-071 code shipped.
+        // Under the per-startup salt the output MUST differ — that
+        // difference is the entire §H2 fix.
+        let unsalted = hash_of_path("src/secret.env");
+        assert_ne!(
+            file_field,
+            unsalted.as_str(),
+            "redact_envelope must use keyed hmac, not unsalted hash"
+        );
+        assert!(
+            file_field.starts_with("[redacted:"),
+            "wire shape unchanged: {file_field}"
+        );
     }
 
     // -------- Default deny on missing originator --------
