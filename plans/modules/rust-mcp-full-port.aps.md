@@ -306,7 +306,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-011: Port fix/suppress/boundary tools
+#### RMCPF-011: Port fix/suppress/boundary tools
 
 - **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
@@ -379,7 +379,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-012: Port or retire MCP prompts
+#### RMCPF-012: Port or retire MCP prompts
 
 - **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be

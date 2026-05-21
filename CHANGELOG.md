@@ -6,7 +6,7 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
-## [Unreleased]
+## [0.7.0-beta] — 2026-05-21 — Daemon-Working End-to-End Protection
 
 ### Added
 
@@ -132,6 +132,20 @@ engineering maintenance are recorded in the
   `expectedWorkspaceRoot` field on the rejection so callers can self-correct and
   retry without an operator round-trip. Pre-existing clients that ignore the
   field continue to receive the same refusal shape.
+- **Action commands now surface `state: "authRequired"` when the session is
+  absent or revoked.** `anvil status`, `anvil start`, and the licence-gated
+  commands listed in `crates/anvil-cli/src/feature_flags.rs:38-58` no longer
+  emit a generic error when the operator's authentication is missing or has been
+  revoked (for example after refresh-token reuse detection). Each command now
+  exits with code 0 and a structured
+  `{"state":"authRequired","next":"anvil auth login"}` payload so scripts and
+  editors can route the operator to the recovery step. Operators upgrading from
+  `v0.6.x` on a machine with a revoked session must run `anvil auth login` once
+  on first invocation. See the
+  [`v0.6.x → v0.7.0-beta` migration runbook](docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  for the recovery flow. Closes PR
+  [#1822](https://github.com/eddacraft/anvil-001/pull/1822) /
+  [#1824](https://github.com/eddacraft/anvil-001/pull/1824).
 
 ### Security
 
@@ -152,6 +166,17 @@ engineering maintenance are recorded in the
   `audit`, hooks, baseline, drift, gate, and `anvil-run`. The canonical list
   lives in the kernel and is re-exported to CLI surfaces so the two cannot
   drift; `.venv` is now included and `__pycache__` reconciled.
+- **Lineage-anchor mint hardened at the daemon IPC boundary.** A new
+  `verify_lineage_claim()` in `crates/anvil-intercept/src/ipc.rs` enforces
+  `peer_pid == claim.pid` against the `SO_PEERCRED` peer-credential and
+  overrides any client-supplied `pid_starttime` with the daemon's own
+  `/proc/<pid>/stat` read before the value reaches
+  `SessionRegistry::register_with_lineage`. Four regression tests pin the
+  contract. This closes the lineage-mint defect originally documented in
+  [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
+  §M1 — the registry still accepts the daemon-re-derived values, but the trust
+  shift now happens at the IPC boundary rather than inside the registry. Closes
+  [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and MLP2-070.
 
 ### Known gaps
 
@@ -160,16 +185,6 @@ These are shipped behaviours an operator should know about before adopting
 local-IPC trust boundary documented in
 [`docs/runbooks/v0.6.0-beta-security-note.md`](docs/runbooks/v0.6.0-beta-security-note.md).
 
-- **Lineage-anchor mint surface accepts caller-supplied values.**
-  `SessionRegistry::register_with_lineage` in
-  `crates/anvil-intercept/src/registry.rs` admits `daemon_issued_tag`, `pid`,
-  and `pid_starttime` from its caller rather than re-deriving them from
-  `SO_PEERCRED` / `/proc/PID/stat` per call. The same-UID manifest allowlist
-  still gates which drivers can reach the IPC surface in the first place; the
-  cross-check against out-of-lineage spoofs is unaffected. See
-  [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
-  §M1 for the operator framing. Tracked in
-  [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and MLP2-070.
 - **`telemetry.allow_cross_session` cross-session redaction reaches Fanout but
   not yet operators.** Post-MLP2-071 Phase 1 the daemon now constructs the
   cross-session fanout at startup with the operator-configured policy and a
@@ -186,6 +201,19 @@ local-IPC trust boundary documented in
   [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phase
   1 shipped; Phase 2 — subscriber surface + producer broadcast — opens alongside
   the production notification telemetry stream feature).
+- **`anvil-run` reports child process metadata to the daemon, but the daemon has
+  no `session.report_process` handler.** The launcher at
+  `crates/anvil-run/src/spawn.rs:102-128` invokes the daemon JSON-RPC method
+  after launching the child to forward `(pid, pid_starttime)` so the daemon's
+  MLP-014 PID-reuse defence can pin its lineage anchor to the agent process. The
+  daemon dispatch table at `crates/anvil-intercept/src/ipc.rs:2431` currently
+  has no handler for this method, returning `-32601 Method not found`.
+  `anvil-run` absorbs the error and proceeds — exit code, fence behaviour, and
+  signal handling are unaffected — but the cross-check against out-of-lineage
+  spoofs (hardened in code by the lineage fix above) covers the wrapping
+  launcher's `pid_starttime` rather than the launched agent's. Operators see a
+  one-line stderr warning on each launch until the handler ships. Tracked in
+  [#1827](https://github.com/eddacraft/anvil-001/issues/1827) + MLP2-074.
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 

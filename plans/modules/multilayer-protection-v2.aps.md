@@ -2,15 +2,23 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 62/80 |
+| MLP2 | @aneki | In Progress | 62/81 |
 
-**Last reviewed:** 2026-05-21 (Group Q added — MLP2-072 MCP auth-gate
+**Last reviewed:** 2026-05-21 (Group R added — MLP2-074 daemon-side
+`session.report_process` IPC handler. Filed against the
+[v0.7.0-beta pre-tag release council](../reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md)
+action A2 and tracked at GH
+[#1827](https://github.com/eddacraft/anvil-001/issues/1827); does not block
+the `v0.7.0-beta` tag (launcher absorbs the gap, ships as Known Gap).
+Module total advances 80 → 81; done-count unchanged at 62.)
+
+Earlier 2026-05-21: Group Q added — MLP2-072 MCP auth-gate
 shape + MLP2-073 pre-write summary dedupe. Both filed against the
 [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
 and tracked at GH [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
 and [#1799](https://github.com/eddacraft/anvil-001/issues/1799); neither
 blocks the `v0.7.0-beta` tag. Module total advances 78 → 80; done-count
-unchanged at 60.)
+unchanged at 60.
 
 Earlier 2026-05-21: MLP2-071 advanced `Blocked` → `Ready`
 after the cross-session-attribution design pass landed at
@@ -3776,7 +3784,8 @@ to redesign once GV2-001..-023 land.
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
-| **Total** | **80** | **62/80** |
+| R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 0/1 |
+| **Total** | **81** | **62/81** |
 
 ## Recommended landing order
 
@@ -3855,6 +3864,34 @@ experiences.
   `crates/anvil-cli/src/commands/mcp.rs` tests that fixtures a single
   secret-detection finding and asserts the JSON-RPC response has
   `summary.total == 1` and unique-by-`id` diagnostics.
+
+#### MLP2-074: Daemon-side `session.report_process` IPC handler
+
+- **Status:** Ready
+- **Tracking:** GH issue [#1827](https://github.com/eddacraft/anvil-001/issues/1827)
+- **Source:** v0.7.0-beta pre-tag release council `council-a1e2648f`
+  (2026-05-21) action A2; council verdict at
+  [`plans/reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md).
+- **Intent:** `anvil-run` invokes the daemon JSON-RPC method
+  `session.report_process` to report the child process's PID and start
+  time after launch. The daemon dispatch table at
+  `crates/anvil-intercept/src/ipc.rs:2431` has no handler; the daemon
+  returns `-32601 Method not found`. `anvil-run` absorbs the error and
+  proceeds (`crates/anvil-run/src/spawn.rs:102-128`), but the child's
+  `pid_starttime` never reaches MLP-014's PID-reuse defence. The
+  daemon's lineage anchor remains the launcher's `pid_starttime`,
+  narrowing the cross-check from agent process to wrapping launcher.
+- **Expected Outcome:** Daemon accepts `{ session_id, pid,
+  pid_starttime }`, verifies peer credentials match the launcher's
+  session, updates the registry's lineage anchor to the child's
+  `(pid, pid_starttime)`, and returns success; on validation failure
+  returns a typed error the launcher can log instead of the generic
+  `Method not found`.
+- **Validation:** Regression test pinning `pid_starttime` propagation
+  through the wire format; `anvil-run --tool claude-code -- true` no
+  longer prints the `Method not found` warning to stderr.
+- **Dependencies:** None — the launcher already sends the right wire
+  shape; only the daemon dispatch is missing.
 
 ## Priority and phasing plan
 

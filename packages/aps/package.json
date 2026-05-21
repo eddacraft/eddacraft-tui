@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-aps",
-  "version": "0.6.2-beta",
+  "version": "0.7.0-beta",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
