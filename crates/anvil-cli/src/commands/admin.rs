@@ -844,6 +844,15 @@ fn print_user(result: &ShowUserResponse) {
 
 fn print_revoke(result: &RevokeResponse, subject: &str) {
     println!("✓ Revoked {} token(s) for {subject}", result.revoked);
+    // SEC-007 / GH #1672: show the refresh-session and account-suspension
+    // counters when the server provides them, so operators see that
+    // revocation closed every credential surface.
+    if let Some(refresh) = result.refresh_sessions_revoked {
+        println!("  refresh sessions revoked: {refresh}");
+    }
+    if result.account_suspended == Some(true) {
+        println!("  account suspended (re-approve to restore access)");
+    }
 }
 
 fn print_audit(result: &AuditResponse) {

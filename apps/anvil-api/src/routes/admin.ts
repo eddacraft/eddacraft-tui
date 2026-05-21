@@ -229,7 +229,23 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
 /**
  * POST /admin/revoke
  *
- * Revoke tokens by email (all tokens) or by specific token.
+ * Revoke tokens by email (account-level) or by specific token (grant-level).
+ *
+ * SEC-007 / GH #1672: revocation must close every credential surface that
+ * could be used to mint or refresh a licence, in a single Postgres
+ * transaction.
+ *
+ * - Account-level (email): atomically revoke all `access_tokens` for the
+ *   user, revoke all `refresh_tokens` for the user, and transition
+ *   `beta_users.status` from `active` to `suspended`. The existing
+ *   `user.status === 'active'` gates in the OAuth, OTP, device, and session
+ *   refresh routes then block re-mint via every login path until an admin
+ *   reapproves the account (`POST /admin/approve` flips status back to
+ *   `active`).
+ * - Grant-level (token): revoke the specific `access_tokens` row by hash
+ *   and revoke all `refresh_tokens` for the owning user so the user cannot
+ *   pivot through `/session/refresh` to mint a new access token. The user
+ *   stays `active` and may re-authenticate to obtain a fresh grant.
  */
 admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
   const { email, token } = c.req.valid('json');
@@ -240,37 +256,68 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
 
   if (email) {
     const normalizedEmail = email.toLowerCase().trim();
-    // Neon batch transaction — statements are interdependent and must be atomic
+    // Neon batch transaction — statements are interdependent and must be atomic.
+    // Order matches the response unpacking below: [access, refresh, suspend, audit].
     const txResult = await sql.transaction([
       sql`UPDATE access_tokens SET revoked_at = now()
           WHERE user_id = (SELECT id FROM beta_users WHERE email = ${normalizedEmail})
             AND revoked_at IS NULL
           RETURNING id`,
+      sql`UPDATE refresh_tokens SET revoked_at = now()
+          WHERE user_id = (SELECT id FROM beta_users WHERE email = ${normalizedEmail})
+            AND revoked_at IS NULL
+          RETURNING id`,
+      sql`UPDATE beta_users SET status = ${'suspended'}
+          WHERE email = ${normalizedEmail}
+            AND status = ${'active'}
+          RETURNING id`,
       sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (${'tokens.revoked'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
+          VALUES (${'tokens.revoked'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, accountLevel: true })}, ${authMethod})
           RETURNING *`,
     ]);
-    const revokedRows = (txResult as unknown[][])[0] ?? [];
+    const accessRows = (txResult as unknown[][])[0] ?? [];
+    const refreshRows = (txResult as unknown[][])[1] ?? [];
+    const suspendRows = (txResult as unknown[][])[2] ?? [];
     removeFromBetaAudience(normalizedEmail).catch((err) => {
       console.error('Failed to remove from audience (non-fatal):', err);
     });
-    return c.json({ revoked: revokedRows.length });
+    return c.json({
+      revoked: accessRows.length,
+      refreshSessionsRevoked: refreshRows.length,
+      accountSuspended: suspendRows.length > 0,
+    });
   }
 
   if (token) {
     const hash = hashToken(token);
-    // Neon batch transaction — statements are interdependent and must be atomic
+    // Neon batch transaction — statements are interdependent and must be atomic.
+    // The refresh-token UPDATE re-derives the owning user_id from the token
+    // hash row; Neon batch statements cannot share a CTE so the subquery
+    // repeats the hash. Both UPDATEs run in the same Postgres transaction.
+    // The refresh sweep deliberately does NOT filter on access_tokens'
+    // `revoked_at IS NULL` so an idempotent double-revoke (admin runs the
+    // command twice) still scrubs any refresh sessions that were left over,
+    // which matters when this PR rolls out against accounts that were
+    // already revoked under the pre-fix code.
     const txResult = await sql.transaction([
       sql`UPDATE access_tokens SET revoked_at = now()
           WHERE token_hash = ${hash}
             AND revoked_at IS NULL
           RETURNING id`,
+      sql`UPDATE refresh_tokens SET revoked_at = now()
+          WHERE user_id = (SELECT user_id FROM access_tokens WHERE token_hash = ${hash})
+            AND revoked_at IS NULL
+          RETURNING id`,
       sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (${'token.revoked'}, ${actor}, ${JSON.stringify({ revoked: true })}, ${authMethod})
+          VALUES (${'token.revoked'}, ${actor}, ${JSON.stringify({ revoked: true, tokenHash: hash })}, ${authMethod})
           RETURNING *`,
     ]);
-    const revokedRows = (txResult as unknown[][])[0] ?? [];
-    return c.json({ revoked: revokedRows.length > 0 ? 1 : 0 });
+    const accessRows = (txResult as unknown[][])[0] ?? [];
+    const refreshRows = (txResult as unknown[][])[1] ?? [];
+    return c.json({
+      revoked: accessRows.length > 0 ? 1 : 0,
+      refreshSessionsRevoked: refreshRows.length,
+    });
   }
 
   return c.json({ error: 'Either email or token must be provided' }, 400);

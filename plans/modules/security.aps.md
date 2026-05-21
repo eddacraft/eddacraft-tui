@@ -9,9 +9,9 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status    |
 | ------ | ----- | --------- |
-| SEC    | —     | Draft |
+| SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-21
 
 ## Purpose
 
@@ -71,3 +71,69 @@ security concerns.
 - SEC-004: Supply chain security policy (lockfile, registry)
 - SEC-005: HTTP security headers configuration
 - SEC-006: SBOM generation for release artifacts
+- SEC-007: Atomic token-revocation hardening (GH #1672)
+
+### SEC-007: Atomic token-revocation hardening
+
+**Status:** In Progress
+**Owner:** Josh Boys
+**Tracking:** GH issue #1672 (DeepSec `20260517012618-52306118d7d9df6a`)
+
+**Outcome:** `POST /admin/revoke` revokes refresh sessions atomically with
+access tokens, and account-level revocation (by email) lifts the user out of
+`active` status so the OAuth / OTP / device login paths cannot re-mint
+licences until an admin reactivates the account.
+
+**Why:** DeepSec found five HIGH `other-token-revocation-bypass` findings in
+`apps/anvil-api/`. Today `revoke {email}` only updates `access_tokens`, so
+the user's `refresh_tokens` rows stay valid and `/session/refresh` mints a
+fresh licence after revocation. Same shape for `revoke {token}` and the
+unused `revokeTokensByEmail` / `revokeTokenByHash` / `revokeAccessTokensByUserId`
+helpers. The fix defines account-level vs grant-level revocation semantics
+and closes both in a single transaction.
+
+**Semantics:**
+
+- **Account-level (`revoke {email}`):** atomically revoke all
+  `access_tokens` for the user, revoke all `refresh_tokens` for the user, and
+  transition `beta_users.status` from `active` to `suspended`. The existing
+  `status === 'active'` gates in `auth-otp.ts`, `auth-device.ts`,
+  `auth-github.ts`, and `auth-session.ts` then block re-mint via every login
+  path. `POST /admin/approve` continues to set status back to `active`, so
+  reactivation works through the existing admin surface.
+- **Grant-level (`revoke {token}`):** atomically revoke the specific
+  `access_tokens` row by hash and revoke all `refresh_tokens` for the owning
+  user, so the user cannot pivot through `/session/refresh` to mint a new
+  access token. The user remains `active` and can re-authenticate to obtain a
+  fresh grant via the normal login flow.
+
+**Validation:**
+
+- `pnpm --filter @eddacraft/anvil-api test` — new regression tests cover
+  admin-revoke-by-email → `/session/refresh` returns 401, admin-revoke-by-token
+  → `/session/refresh` returns 401, and account-level revoke flips status to
+  `suspended`.
+- `pnpm format:check && pnpm lint:check && pnpm typecheck`
+
+**Known follow-up (out of scope for SEC-007):** Existing JWT licences issued
+before revocation remain bearer-valid for up to 7 days because
+`requireAuth()` validates the licence's signature and expiry in-process and
+does not consult `access_tokens` or `beta_users.status`. Mitigating this
+needs either a `jti` deny-list with a DB lookup on hot paths or a much
+shorter licence TTL paired with mandatory `/session/refresh`, both of which
+sit outside the "atomic revocation" remediation. Track separately under
+SEC if/when the next licensing-stream review opens the surface.
+
+**changeType:** fix
+**releaseIntent:** candidate
+**releaseScope:** patch
+**releaseNote:**
+
+- **audience:** operator
+- **type:** security
+- **text:** Admin token revocation now revokes refresh sessions atomically;
+  revoking by email also suspends the account so OAuth/OTP/device login paths
+  cannot re-mint licences until the user is reapproved.
+
+Coordinates with: archived `beta-auth-streamline` (BAUTH) module, which
+established the original revoke endpoints.

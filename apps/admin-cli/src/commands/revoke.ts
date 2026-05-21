@@ -75,4 +75,13 @@ export async function runRevokeCommand(
 
   const subject = hasEmail ? email : 'token';
   stdout(formatSuccess(`Revoked ${result.revoked} token(s) for ${subject}`) + '\n');
+  // SEC-007 / GH #1672: surface the refresh-session and account-suspension
+  // counters when the server provides them, so operators see that revocation
+  // closed every credential surface (not just access tokens).
+  if (typeof result.refreshSessionsRevoked === 'number') {
+    stdout(`  refresh sessions revoked: ${result.refreshSessionsRevoked}\n`);
+  }
+  if (result.accountSuspended === true) {
+    stdout('  account suspended (re-approve to restore access)\n');
+  }
 }

@@ -98,8 +98,18 @@ pub struct ShowToken {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RevokeResponse {
     pub revoked: u32,
+    /// SEC-007 / GH #1672: refresh sessions revoked alongside the access
+    /// tokens. `None` when talking to a pre-fix server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_sessions_revoked: Option<u32>,
+    /// SEC-007 / GH #1672: account-level revoke (by email) flipped the user
+    /// from `active` to `suspended`. `None` on grant-level revoke (by token)
+    /// or pre-fix servers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_suspended: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -994,6 +1004,33 @@ mod tests {
         let client = mock_client(&server.uri(), Some("admin-key"));
         let result = client.revoke_token("raw-token").await.unwrap();
         assert_eq!(result.revoked, 1);
+        // Pre-fix server response: optional SEC-007 fields absent.
+        assert_eq!(result.refresh_sessions_revoked, None);
+        assert_eq!(result.account_suspended, None);
+    }
+
+    // SEC-007 / GH #1672: account-level revoke surfaces refresh-session
+    // and account-suspension counters when the server provides them.
+    #[tokio::test]
+    async fn revoke_email_surfaces_refresh_and_suspended_counters() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/revoke"))
+            .and(body_json(serde_json::json!({"email": "alice@example.com"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "revoked": 2,
+                "refreshSessionsRevoked": 3,
+                "accountSuspended": true
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client.revoke_email("alice@example.com").await.unwrap();
+        assert_eq!(result.revoked, 2);
+        assert_eq!(result.refresh_sessions_revoked, Some(3));
+        assert_eq!(result.account_suspended, Some(true));
     }
 
     #[tokio::test]

@@ -195,41 +195,13 @@ export async function findActiveScopesForUser(sql: NeonClient, userId: string): 
   return parsed.active_token_count > 0 ? parsed.scopes : ['beta'];
 }
 
-export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
-  const r = rows(
-    await sql`
-    UPDATE access_tokens SET revoked_at = now()
-    WHERE user_id = (SELECT id FROM beta_users WHERE email = ${email})
-      AND revoked_at IS NULL
-    RETURNING id
-  `
-  );
-  return r.length;
-}
-
-export async function revokeTokenByHash(sql: NeonClient, tokenHash: string): Promise<boolean> {
-  const r = rows(
-    await sql`
-    UPDATE access_tokens SET revoked_at = now()
-    WHERE token_hash = ${tokenHash}
-      AND revoked_at IS NULL
-    RETURNING id
-  `
-  );
-  return r.length > 0;
-}
-
-export async function revokeAccessTokensByUserId(sql: NeonClient, userId: string): Promise<number> {
-  const r = rows(
-    await sql`
-    UPDATE access_tokens SET revoked_at = now()
-    WHERE user_id = ${userId}
-      AND revoked_at IS NULL
-    RETURNING id
-  `
-  );
-  return r.length;
-}
+// SEC-007 / GH #1672: `revokeTokensByEmail`, `revokeTokenByHash`, and
+// `revokeAccessTokensByUserId` were removed. They only touched
+// `access_tokens`, leaving `refresh_tokens` usable, and had no callers.
+// `POST /admin/revoke` in `routes/admin.ts` now performs the atomic
+// access + refresh + status update in a single Neon batch transaction;
+// `revokeRefreshFamilyAndAccessTokensForUser` (below) still covers the
+// theft-detection path on `/session/refresh`.
 
 export async function findUserWithTokens(
   sql: NeonClient,

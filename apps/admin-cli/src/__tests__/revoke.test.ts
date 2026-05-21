@@ -194,6 +194,41 @@ describe('runRevokeCommand', () => {
     expect(writes.join('')).toBe(JSON.stringify(emailResponse, null, 2) + '\n');
   });
 
+  it('renders refresh-session and account-suspension counters when present (SEC-007 / #1672)', async () => {
+    const writes: string[] = [];
+    const client = makeClient({
+      revoked: 2,
+      refreshSessionsRevoked: 3,
+      accountSuspended: true,
+    } satisfies RevokeResponse);
+    await runRevokeCommand(
+      'alice@example.com',
+      { yes: true },
+      { createClient: () => client, stdout: (s) => writes.push(s) }
+    );
+    const out = writes.join('');
+    expect(out).toContain('Revoked 2 token(s)');
+    expect(out).toContain('refresh sessions revoked: 3');
+    expect(out).toContain('account suspended');
+  });
+
+  it('omits the account-suspended line when the server reports false (grant-level revoke)', async () => {
+    const writes: string[] = [];
+    const client = makeClient({
+      revoked: 1,
+      refreshSessionsRevoked: 0,
+    } satisfies RevokeResponse);
+    await runRevokeCommand(
+      undefined,
+      { token: 'raw-token-abc', yes: true },
+      { createClient: () => client, stdout: (s) => writes.push(s) }
+    );
+    const out = writes.join('');
+    expect(out).toContain('Revoked 1 token(s)');
+    expect(out).toContain('refresh sessions revoked: 0');
+    expect(out).not.toContain('account suspended');
+  });
+
   it('propagates AdminError on 400 from client', async () => {
     const post = vi.fn(async () => {
       throw Object.assign(new Error('Either email or token must be provided'), {

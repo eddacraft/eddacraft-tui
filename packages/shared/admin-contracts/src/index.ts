@@ -84,7 +84,16 @@ export type SkippedEntry = z.infer<typeof SkippedEntrySchema>;
 // ---------------------------------------------------------------------------
 
 export const RevokeResponseSchema = z.object({
+  // Number of `access_tokens` rows newly revoked.
   revoked: z.number().int().min(0),
+  // SEC-007 / GH #1672: `refresh_tokens` rows newly revoked alongside the
+  // access tokens. Optional for forward compatibility with pre-fix servers.
+  refreshSessionsRevoked: z.number().int().min(0).optional(),
+  // SEC-007 / GH #1672: account-level revoke (by email) flips
+  // `beta_users.status` from `active` to `suspended` so OAuth / OTP / device
+  // login cannot re-mint a licence. `true` only when the status update
+  // matched; absent on grant-level revoke (by token).
+  accountSuspended: z.boolean().optional(),
 });
 export type RevokeResponse = z.infer<typeof RevokeResponseSchema>;
 

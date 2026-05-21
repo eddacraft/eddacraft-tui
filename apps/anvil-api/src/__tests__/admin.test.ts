@@ -284,11 +284,19 @@ describe('admin endpoints', () => {
   });
 
   describe('POST /admin/revoke', () => {
-    it('revokes all tokens by email', async () => {
-      // Mock the transaction to return results:
-      // [0] = revoked token rows, [1] = audit log rows
+    // SEC-007: revocation is atomic — access tokens, refresh tokens, and
+    // (for the email path) the user's `active` status all move in a single
+    // batch transaction so that revoked accounts cannot pivot through
+    // `/session/refresh` or re-mint via OAuth/OTP/device login. See
+    // GH #1672 and plans/modules/security.aps.md SEC-007.
+    it('atomically revokes access tokens, refresh tokens, and suspends the user when revoking by email', async () => {
+      // Transaction result order matches admin.ts:
+      // [0] = access_tokens revoked, [1] = refresh_tokens revoked,
+      // [2] = beta_users suspended, [3] = audit log rows
       mockSql.transaction.mockResolvedValue([
         [{ id: 'token-1' }, { id: 'token-2' }],
+        [{ id: 'refresh-1' }, { id: 'refresh-2' }, { id: 'refresh-3' }],
+        [{ id: 'user-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -297,6 +305,103 @@ describe('admin endpoints', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.revoked).toBe(2);
+      expect(body.refreshSessionsRevoked).toBe(3);
+      expect(body.accountSuspended).toBe(true);
+
+      // Single batch transaction with all four statements
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+      const [statements] = mockSql.transaction.mock.calls[0] as [unknown[]];
+      expect(statements).toHaveLength(4);
+    });
+
+    it('reports accountSuspended=false when the user was already inactive', async () => {
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'token-1' }],
+        [{ id: 'refresh-1' }],
+        [], // beta_users update matched no row (user already suspended/banned)
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request('POST', '/admin/revoke', { email: 'alice@example.com' }, ADMIN_KEY);
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.revoked).toBe(1);
+      expect(body.refreshSessionsRevoked).toBe(1);
+      expect(body.accountSuspended).toBe(false);
+    });
+
+    it('atomically revokes the access token and the user’s refresh sessions when revoking by token', async () => {
+      // Transaction result order:
+      // [0] = access_token revoked, [1] = refresh_tokens revoked, [2] = audit
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'token-1' }],
+        [{ id: 'refresh-1' }, { id: 'refresh-2' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/revoke',
+        { token: 'anvil_beta_' + 'X'.repeat(43) },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.revoked).toBe(1);
+      expect(body.refreshSessionsRevoked).toBe(2);
+      expect(body.accountSuspended).toBeUndefined();
+
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+      const [statements] = mockSql.transaction.mock.calls[0] as [unknown[]];
+      expect(statements).toHaveLength(3);
+    });
+
+    it('reports revoked=0 when the access token hash is unknown', async () => {
+      mockSql.transaction.mockResolvedValue([
+        [], // no access_tokens row matched
+        [], // refresh_tokens lookup yielded no user_id
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/revoke',
+        { token: 'anvil_beta_' + 'X'.repeat(43) },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.revoked).toBe(0);
+      expect(body.refreshSessionsRevoked).toBe(0);
+    });
+
+    // SEC-007: idempotent double-revoke. The access_token row was already
+    // revoked under the pre-fix code (so statement [0] matches zero rows),
+    // but the user's refresh_tokens were never swept and remain usable.
+    // Running revoke again must still scrub the leftover refresh sessions,
+    // because statement [1] looks up `user_id` from the access_tokens row
+    // without filtering on `revoked_at IS NULL`.
+    it('sweeps refresh sessions on a double-revoke even when the access token is already revoked', async () => {
+      mockSql.transaction.mockResolvedValue([
+        [], // access_token already revoked — statement [0] matches nothing
+        [{ id: 'refresh-1' }, { id: 'refresh-2' }], // refresh sessions still live
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/revoke',
+        { token: 'anvil_beta_' + 'X'.repeat(43) },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.revoked).toBe(0);
+      expect(body.refreshSessionsRevoked).toBe(2);
     });
 
     it('returns 400 when neither email nor token provided', async () => {
