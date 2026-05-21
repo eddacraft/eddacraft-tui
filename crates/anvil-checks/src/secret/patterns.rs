@@ -580,10 +580,22 @@ mod tests {
         assert!(matcher.is_allowlisted("my-safe-value"));
         assert!(!matcher.is_allowlisted("ghp_abcdefghijklmnopqrstuvwxyz1234567890abc"));
         assert_eq!(DEFAULT_ALLOWLIST.len(), 11);
+
+        // Pin the back-compat contract structurally, not just by length:
+        // `DEFAULT_ALLOWLIST` MUST be the in-order concatenation of the
+        // shape and keyword splits. A length-only assertion lets a
+        // future edit swap entries without anyone noticing, which would
+        // silently flip the meaning of values exported from this module.
+        let expected: Vec<&str> = DEFAULT_SHAPE_ALLOWLIST
+            .iter()
+            .chain(DEFAULT_KEYWORD_ALLOWLIST.iter())
+            .copied()
+            .collect();
+        let actual: Vec<&str> = DEFAULT_ALLOWLIST.to_vec();
         assert_eq!(
-            DEFAULT_ALLOWLIST.len(),
-            DEFAULT_SHAPE_ALLOWLIST.len() + DEFAULT_KEYWORD_ALLOWLIST.len(),
-            "DEFAULT_ALLOWLIST must be the concat of the shape + keyword splits"
+            actual, expected,
+            "DEFAULT_ALLOWLIST must be the in-order concat of the \
+             shape + keyword splits"
         );
     }
 
