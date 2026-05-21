@@ -19,12 +19,15 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
 
     // Empty workspace — the curated AI guardrail set runs:
     // secret-detection, import-boundaries, antipattern-scan, policy,
-    // command-safety. Under `--profile ai`, strict_config converts the
-    // "no project config" skip on policy and command-safety (no plan
-    // supplied) into blocking diagnostics; import-boundaries fails
-    // because the workspace has no `anvil.config.json` declaring
-    // boundaries. OPA-not-installed is a host tooling gap and is
-    // intentionally not elevated to a block under strict mode.
+    // command-safety. Under `--profile ai`, strict_config marks the
+    // three config-gap checks (architecture, policy, command-safety)
+    // as `requires_config = true` rather than blocking diagnostics
+    // (CIB-011 / #1803 — the pre-CIB-011 behaviour scored 1/5 = 20%
+    // on a fresh repo, which made Anvil look broken on day one). The
+    // remaining two checks (secret-detection, antipattern-scan)
+    // actually run; both pass on an empty workspace, so the gate
+    // exits 0 and the envelope reports `summary.config_gaps = 3`
+    // alongside an empty diagnostics array.
     let output = Command::new(ANVIL_BIN)
         .arg("gate")
         .arg("--profile")
@@ -41,17 +44,13 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
         panic!("expected JSON envelope on stdout under --profile ai, got: {stdout}\nerror: {err}")
     });
 
-    // CLAWP-011: the curated AI guardrail run under strict-config must
-    // BLOCK on an empty workspace — strict_config elevates the
-    // missing-config skips into blocking diagnostics, so the process
-    // MUST exit non-zero and the in-band `exit_code` MUST match the
-    // process status. Without this, the envelope-shape assertions
-    // below could pass while a regression silently turned the block
-    // into a pass (e.g. strict-config short-circuited, or `exit_code`
-    // drifted away from the process status).
+    // CIB-011 / #1803 — empty workspace under strict-mode must PASS
+    // (config gaps are not failures). CLAWP-011 still applies in
+    // spirit: the in-band `exit_code` MUST match the process status
+    // so a regression that drifts one without the other is caught.
     assert!(
-        !output.status.success(),
-        "ai-profile gate on empty workspace must block (non-zero exit); got status={:?}, stdout={stdout}",
+        output.status.success(),
+        "ai-profile gate on empty workspace must succeed under CIB-011 (config gaps are not failures); got status={:?}, stdout={stdout}",
         output.status
     );
     let process_code = output
@@ -75,42 +74,61 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
     assert!(parsed["summary"].is_object());
     assert!(parsed["diagnostics"].is_array());
 
-    // Strict-config default elevates the missing-config skip into a
-    // blocking diagnostic; verify both that at least one fires and that
-    // the routing categories survive the conversion (a regression here
-    // would silently drop signal from `summary.by_category`).
+    // CIB-011 contract: no diagnostics whose summary contains
+    // "Skipping" as its reason on a fresh repo. The pre-CIB-011
+    // behaviour produced three such diagnostics ("Strict mode
+    // (profile=ai): X requires configuration. No X config found ...
+    // Skipping.").
     let diagnostics = parsed["diagnostics"].as_array().unwrap();
-    assert!(
-        !diagnostics.is_empty(),
-        "expected at least one diagnostic under strict-config: {parsed}"
-    );
-    let first = &diagnostics[0];
-    assert_eq!(first["schema_version"], "anvil.diagnostic.v1");
-    assert_eq!(first["mode"], "gate");
-    assert!(first["id"].is_string());
-    assert!(first["severity"].is_string());
-    assert!(first["summary"].is_string());
-    assert!(first["category"].is_string());
-    assert!(first["source"]["rule_id"].is_string());
-    assert!(first["source"]["source_module"].is_string());
-    assert!(first["location"]["file"].is_string());
+    for diag in diagnostics {
+        let summary = diag["summary"].as_str().unwrap_or("");
+        let remediation = diag["remediation_hint"].as_str().unwrap_or("");
+        assert!(
+            !summary.contains("Skipping") && !remediation.contains("Skipping"),
+            "CIB-011: no FAIL diagnostic should carry `Skipping` as its reason; got: {diag}"
+        );
+    }
 
-    // Every AI-guardrail check must route to a dedicated Category — a
-    // diagnostic landing in `other` means `summary.by_category` lost
-    // signal (the routing match has no arm for that check name). This
-    // is the regression guard for the AI envelope contract.
-    let categories: Vec<String> = diagnostics
-        .iter()
-        .filter_map(|d| d["category"].as_str().map(str::to_string))
-        .collect();
-    assert!(
-        categories.iter().any(|c| c == "command-safety"),
-        "expected a command-safety-category diagnostic (no plan = config gap), saw: {categories:?}"
+    // The strict-mode skips are surfaced via `summary.config_gaps`
+    // rather than via `diagnostics[]`. On an empty workspace we expect
+    // 3 gaps (architecture, policy, command-safety).
+    let summary = &parsed["summary"];
+    let config_gaps = summary["config_gaps"].as_u64().unwrap_or(0);
+    assert_eq!(
+        config_gaps, 3,
+        "expected 3 config gaps (architecture, policy, command-safety) on empty workspace; summary: {summary}"
     );
-    assert!(
-        !categories.iter().any(|c| c == "other"),
-        "no AI-guardrail diagnostic should route to `other`; saw: {categories:?}"
-    );
+
+    // overall_passed mirrors the process exit; the gate is vacuously
+    // green when only config-gap checks would have failed.
+    assert_eq!(summary["overall_passed"], true);
+
+    // If any diagnostic DOES surface (e.g. the empty-workspace
+    // antipattern scan produces one in a future regression), the
+    // envelope shape must still be valid.
+    if let Some(first) = diagnostics.first() {
+        assert_eq!(first["schema_version"], "anvil.diagnostic.v1");
+        assert_eq!(first["mode"], "gate");
+        assert!(first["id"].is_string());
+        assert!(first["severity"].is_string());
+        assert!(first["summary"].is_string());
+        assert!(first["category"].is_string());
+        assert!(first["source"]["rule_id"].is_string());
+        assert!(first["source"]["source_module"].is_string());
+        assert!(first["location"]["file"].is_string());
+
+        // Every AI-guardrail diagnostic must route to a dedicated
+        // Category — a diagnostic landing in `other` means
+        // `summary.by_category` lost signal.
+        let categories: Vec<String> = diagnostics
+            .iter()
+            .filter_map(|d| d["category"].as_str().map(str::to_string))
+            .collect();
+        assert!(
+            !categories.iter().any(|c| c == "other"),
+            "no AI-guardrail diagnostic should route to `other`; saw: {categories:?}"
+        );
+    }
 }
 
 #[test]

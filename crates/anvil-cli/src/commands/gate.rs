@@ -139,12 +139,81 @@ struct GateResult {
     duration_ms: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 struct CheckResult {
     name: String,
     passed: bool,
     score: f64,
     message: String,
+    /// CIB-011 / #1803 — true when the check is unavailable on this
+    /// repo because its configuration is missing. Excluded from the
+    /// gate score denominator and rendered as `CONFIG NEEDED` with a
+    /// `next:` hint, rather than as a `FAIL`. Skipped from JSON output
+    /// when false so the schema stays additive.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    requires_config: bool,
+}
+
+/// CIB-011 / #1803 — aggregation result for the gate render + envelope.
+///
+/// Config-gap checks (where the check could not run because its config
+/// is absent under `--profile ai` strict mode) are excluded from the
+/// score denominator: a fresh repo with three missing configs and no
+/// actual failures must read as `2/2 available passed (100%)`, not
+/// `1/5 passed (20%)`. The pre-CIB-011 grading was the most-cited
+/// reason new users believed Anvil was broken on first contact.
+#[derive(Debug, Clone, Copy)]
+struct GateAggregate {
+    passed_count: usize,
+    available_total: usize,
+    config_gaps: usize,
+    overall: bool,
+    score: f64,
+}
+
+fn aggregate_gate_outcome(checks: &[CheckResult]) -> GateAggregate {
+    let available: Vec<&CheckResult> = checks.iter().filter(|c| !c.requires_config).collect();
+    let available_total = available.len();
+    let passed_count = available.iter().filter(|c| c.passed).count();
+    let config_gaps = checks.len() - available_total;
+    let overall = available.iter().all(|c| c.passed);
+    #[allow(clippy::cast_precision_loss)]
+    let score = if available_total > 0 {
+        (passed_count as f64 / available_total as f64) * 100.0
+    } else {
+        // No real checks ran — there is nothing to fail, so the gate
+        // is vacuously green. The render layer surfaces the config
+        // gaps alongside this so the user is not misled into thinking
+        // a fully-passing 100% means "everything is checked".
+        100.0
+    };
+    GateAggregate {
+        passed_count,
+        available_total,
+        config_gaps,
+        overall,
+        score,
+    }
+}
+
+/// CIB-011 / #1803 — actionable next-step hint shown beneath a
+/// config-gap check. Names match the internal dispatch keys in
+/// `run_single_check`; the hints point at the canonical onboarding
+/// docs so the user can move from "Anvil is broken" to a working
+/// configuration without guessing.
+fn config_gap_next_hint(name: &str) -> &'static str {
+    match name {
+        "architecture" => {
+            "Create .anvil/architecture.yaml — see docs/public/anvil/tutorials/architecture.md"
+        }
+        "policy" => {
+            "Create a .rego rule under .anvil/policies/ — see docs/public/anvil/tutorials/policies.md"
+        }
+        "command-safety" => {
+            "Pass --plan <path/to/plan.aps.md> to anvil gate so command-safety has commands to analyse"
+        }
+        _ => "See `anvil gate --help` and the public docs for setup steps",
+    }
 }
 
 fn notifications_for_gate_result(checks: &[CheckResult], overall: bool) -> Vec<Notification> {
@@ -156,17 +225,25 @@ fn notifications_for_gate_result(checks: &[CheckResult], overall: bool) -> Vec<N
     let mut notifications: Vec<Notification> = checks
         .iter()
         .map(|check| {
+            // CIB-011 / #1803 — config-gap checks emit a Normal-priority
+            // info notification carrying the `next:` hint rather than a
+            // high-priority Failure (the check could not run, but the
+            // user is not in a failing state until they configure).
+            let class = if check.requires_config || check.passed {
+                NotificationClass::Info
+            } else {
+                NotificationClass::Failure
+            };
+            let priority = if check.requires_config {
+                NotificationPriority::Normal
+            } else if check.passed {
+                NotificationPriority::Low
+            } else {
+                NotificationPriority::High
+            };
             Notification::new(
-                if check.passed {
-                    NotificationClass::Info
-                } else {
-                    NotificationClass::Failure
-                },
-                if check.passed {
-                    NotificationPriority::Low
-                } else {
-                    NotificationPriority::High
-                },
+                class,
+                priority,
                 format!("Gate check: {}", check.name),
                 if check.message.is_empty() {
                     if check.passed {
@@ -302,6 +379,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
             passed: true,
             score: 100.0,
             message: "No lint errors".to_string(),
+            requires_config: false,
         },
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout);
@@ -311,6 +389,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Lint errors found\n{stdout}\n{stderr}"),
+                requires_config: false,
             }
         }
         Err(e) => CheckResult {
@@ -318,6 +397,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
             passed: false,
             score: 0.0,
             message: format!("Failed to run lint: {e}"),
+            requires_config: false,
         },
     }
 }
@@ -333,6 +413,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
             passed: true,
             score: 100.0,
             message: "All tests passed".to_string(),
+            requires_config: false,
         },
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout);
@@ -342,6 +423,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Tests failed\n{stdout}\n{stderr}"),
+                requires_config: false,
             }
         }
         Err(e) => CheckResult {
@@ -349,6 +431,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
             passed: false,
             score: 0.0,
             message: format!("Failed to run tests: {e}"),
+            requires_config: false,
         },
     }
 }
@@ -465,6 +548,7 @@ fn run_check_secret(
             passed: true,
             score: 100.0,
             message: format!("No hardcoded secrets found{pattern_errors_suffix}"),
+            requires_config: false,
         }
     } else {
         let locations: Vec<String> = result
@@ -481,6 +565,7 @@ fn run_check_secret(
                 result.findings.len(),
                 locations.join("\n")
             ),
+            requires_config: false,
         }
     }
 }
@@ -524,6 +609,7 @@ fn run_check_antipattern(
             passed: true,
             score: 100.0,
             message: "No analysable files found for anti-pattern scan. Skipping.".to_string(),
+            requires_config: false,
         };
     }
 
@@ -533,6 +619,7 @@ fn run_check_antipattern(
             passed: true,
             score: f64::from(result.score),
             message: result.message,
+            requires_config: false,
         }
     } else {
         let locations: Vec<String> = result
@@ -552,6 +639,7 @@ fn run_check_antipattern(
             passed: false,
             score: f64::from(result.score),
             message: details,
+            requires_config: false,
         }
     }
 }
@@ -584,6 +672,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                         passed: true,
                         score: 100.0,
                         message: "Coverage report empty (no lines tracked). Skipping.".to_string(),
+                        requires_config: false,
                     };
                 }
                 #[allow(clippy::cast_precision_loss)]
@@ -594,6 +683,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                     passed,
                     score: pct,
                     message: format!("Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"),
+                    requires_config: false,
                 }
             }
             Err(e) => CheckResult {
@@ -601,6 +691,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Failed to read lcov.info: {e}"),
+                requires_config: false,
             },
         }
     } else if cobertura_path.exists() {
@@ -623,6 +714,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                             message: format!(
                                 "Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"
                             ),
+                            requires_config: false,
                         }
                     }
                     None => CheckResult {
@@ -630,6 +722,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                         passed: false,
                         score: 0.0,
                         message: "Failed to parse line-rate from cobertura.xml".to_string(),
+                        requires_config: false,
                     },
                 }
             }
@@ -638,6 +731,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Failed to read cobertura.xml: {e}"),
+                requires_config: false,
             },
         }
     } else {
@@ -648,6 +742,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
             message:
                 "No coverage report found (coverage/lcov.info or coverage/cobertura.xml). Skipping."
                     .to_string(),
+            requires_config: false,
         }
     }
 }
@@ -674,6 +769,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             passed: true,
             score: 100.0,
             message: "No lockfile found (package-lock.json or Cargo.lock). Skipping.".to_string(),
+            requires_config: false,
         };
     }
 
@@ -695,6 +791,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
                     passed: false,
                     score: 0.0,
                     message: format!("Failed to read {}: {e}", npm_lock.display()),
+                    requires_config: false,
                 };
             }
         }
@@ -708,6 +805,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             passed: true,
             score: 100.0,
             message: "No blocked dependencies found".to_string(),
+            requires_config: false,
         }
     } else {
         CheckResult {
@@ -715,6 +813,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             passed: false,
             score: 0.0,
             message: format!("Blocked dependencies found: {}", blocked_found.join(", ")),
+            requires_config: false,
         }
     }
 }
@@ -877,6 +976,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
             score: 100.0,
             message: "No architecture config found (.anvil/architecture.yaml). Skipping."
                 .to_string(),
+            requires_config: false,
         };
     }
 
@@ -888,6 +988,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Architecture validation failed: {e}"),
+                requires_config: false,
             };
         }
     };
@@ -906,6 +1007,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
             passed: true,
             score: 100.0,
             message: "Architecture config is valid".to_string(),
+            requires_config: false,
         }
     } else {
         let msgs: Vec<String> = result
@@ -929,6 +1031,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
                 result.violations.len(),
                 msgs.join("\n")
             ),
+            requires_config: false,
         }
     }
 }
@@ -1039,6 +1142,7 @@ fn run_check_policy(
             passed: true,
             score: 100.0,
             message: "No policy bundle found (.anvil/policies/). Skipping.".to_string(),
+            requires_config: false,
         };
     }
 
@@ -1053,6 +1157,7 @@ fn run_check_policy(
                     passed: true,
                     score: 100.0,
                     message: format!("{} policies evaluated, no violations", result.checks_run),
+                    requires_config: false,
                 }
             } else {
                 let msgs: Vec<String> = result
@@ -1069,6 +1174,7 @@ fn run_check_policy(
                         result.violations.len(),
                         msgs.join("\n")
                     ),
+                    requires_config: false,
                 }
             }
         }
@@ -1077,6 +1183,7 @@ fn run_check_policy(
             passed: true,
             score: 100.0,
             message: "OPA not installed. Skipping policy evaluation.".to_string(),
+            requires_config: false,
         },
         Err(anvil_policy::evaluator::EvalError::UnexpectedShape { pointer, .. }) => CheckResult {
             // UnexpectedShape comes through as a structured variant rather
@@ -1093,12 +1200,14 @@ fn run_check_policy(
                  Verify your OPA version with `anvil doctor` and confirm it matches \
                  the version pinned in docs/guides/opa-policy-testing.md."
             ),
+            requires_config: false,
         },
         Err(e) => CheckResult {
             name: "policy".to_string(),
             passed: false,
             score: 0.0,
             message: format!("Policy evaluation failed: {e}"),
+            requires_config: false,
         },
     }
 }
@@ -1131,6 +1240,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
                     def.canonical_name,
                     def.file_shape_globs.join(", "),
                 ),
+                requires_config: false,
             };
         }
     }
@@ -1161,6 +1271,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             passed: false,
             score: 0.0,
             message: format!("Unknown check: {name}"),
+            requires_config: false,
         },
     };
 
@@ -1181,19 +1292,20 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         }
     }
 
-    // AI guardrail strict-config: missing/invalid config is a blocking
-    // diagnostic rather than a soft skip. Detect the "no config, skipping"
-    // pattern by message and flip to failure when `strict_config` is on.
-    // Architecture and policy checks return passed=true with a "Skipping"
-    // message when their config files are absent — that's the precise
-    // signal we elevate.
+    // AI guardrail strict-config (CIB-011 / #1803): missing/invalid
+    // config marks the check as a config-gap with an actionable
+    // `next:` hint, rather than flipping the soft skip into a hard
+    // FAIL. Score is graded against **available** checks — a fresh
+    // repo with no project config and no actual violations reads as
+    // a green run with three config-needed notifications, not a 20%
+    // score that screams "Anvil is broken".
+    //
+    // Architecture and policy checks return passed=true with a
+    // "Skipping" message when their config files are absent — that's
+    // the precise signal we mark as config-gap.
     if ctx.strict_config && result.passed && is_skipped_for_missing_config(name, &result.message) {
-        result.passed = false;
-        result.score = 0.0;
-        result.message = format!(
-            "Strict mode (profile=ai): {name} requires configuration. {}",
-            result.message
-        );
+        result.requires_config = true;
+        result.message = format!("{}\n  next: {}", result.message, config_gap_next_hint(name));
     }
 
     result.name = gate_canonical_name_from_internal(name);
@@ -1264,6 +1376,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
                         passed: false,
                         score: 0.0,
                         message: format!("failed to read plan file '{}': {e}", path.display()),
+                        requires_config: false,
                     };
                 }
             }
@@ -1285,6 +1398,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             passed: true,
             score: 100.0,
             message: "Command-safety check disabled. Skipping.".to_string(),
+            requires_config: false,
         };
     }
 
@@ -1299,6 +1413,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             passed: true,
             score: f64::from(result.score),
             message,
+            requires_config: false,
         }
     } else {
         let mut details: Vec<String> = result
@@ -1339,6 +1454,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             passed: false,
             score: f64::from(result.score),
             message,
+            requires_config: false,
         }
     }
 }
@@ -1775,6 +1891,21 @@ struct AiGateResultSummary {
     by_category: std::collections::BTreeMap<String, usize>,
     overall_passed: bool,
     score: f64,
+    /// CIB-011 / #1803 — number of checks the gate could not run
+    /// because their project config is missing under strict mode
+    /// (e.g. no `.anvil/architecture.yaml`). These do not count
+    /// toward `total` (they are not failures), but consumers may
+    /// want to surface them to the user as "configure these next".
+    /// Skipped from JSON output when zero so the schema stays
+    /// additive — existing v1 consumers reading the envelope on a
+    /// fully-configured repo see no shape change.
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
+    config_gaps: usize,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero_usize(n: &usize) -> bool {
+    *n == 0
 }
 
 #[derive(Debug, Serialize)]
@@ -1785,12 +1916,18 @@ struct AiGateBySeverity {
 }
 
 fn build_ai_gate_result_envelope(result: &GateResult) -> AiGateResultEnvelope {
+    // CIB-011 / #1803 — diagnostics are real failures only. Config-gap
+    // checks stay passed=true so they are filtered out here as well as
+    // by the `!c.passed` clause; surfacing them via `summary.config_gaps`
+    // lets consumers count them without re-deriving from `result.checks`.
     let diagnostics: Vec<Diagnostic> = result
         .checks
         .iter()
-        .filter(|c| !c.passed)
+        .filter(|c| !c.passed && !c.requires_config)
         .map(check_result_to_diagnostic)
         .collect();
+
+    let config_gaps = result.checks.iter().filter(|c| c.requires_config).count();
 
     let mut by_category: std::collections::BTreeMap<String, usize> =
         std::collections::BTreeMap::new();
@@ -1819,6 +1956,7 @@ fn build_ai_gate_result_envelope(result: &GateResult) -> AiGateResultEnvelope {
             by_category,
             overall_passed: result.overall,
             score: result.score,
+            config_gaps,
         },
         diagnostics,
         duration_ms: result.duration_ms,
@@ -1897,17 +2035,15 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     let start = std::time::Instant::now();
     let checks = run_checks(args)?;
 
-    let passed_count = checks.iter().filter(|c| c.passed).count();
-    let total = checks.len();
-    let overall = checks.iter().all(|c| c.passed);
-    let score = if total > 0 {
-        #[allow(clippy::cast_precision_loss)]
-        {
-            (passed_count as f64 / total as f64) * 100.0
-        }
-    } else {
-        100.0
-    };
+    // CIB-011 / #1803 — score and overall computed against available
+    // checks only; config-gap checks (set under strict mode when a
+    // required project config is missing) surface as info, not FAIL,
+    // and do not bring the score down.
+    let aggregate = aggregate_gate_outcome(&checks);
+    let passed_count = aggregate.passed_count;
+    let total = aggregate.available_total;
+    let overall = aggregate.overall;
+    let score = aggregate.score;
 
     let elapsed = start.elapsed().as_millis();
     let notifications = notifications_for_gate_result(&checks, overall);
@@ -1935,12 +2071,17 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
             plain::header("Gate Results");
             plain::section("Checks");
             for check in &result.checks {
-                if check.passed {
+                if check.requires_config {
+                    // CIB-011 — render config-gaps as INFO with their
+                    // full message (which carries the `next:` hint).
+                    plain::info(&format!("{:<20} CONFIG NEEDED", check.name));
+                } else if check.passed {
                     plain::success(&format!("{:<20} PASS", check.name));
                 } else {
                     plain::error(&format!("{:<20} FAIL", check.name));
                 }
-                if !check.message.is_empty() && (global.verbose || !check.passed) {
+                let show_message = global.verbose || !check.passed || check.requires_config;
+                if !check.message.is_empty() && show_message {
                     for line in check.message.lines() {
                         plain::dim(&format!("  {line}"));
                     }
@@ -1948,10 +2089,17 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
             }
             plain::blank();
             if overall {
-                plain::success(&format!(
-                    "All quality gates passed! (score: {:.0}%)",
-                    result.score,
-                ));
+                if aggregate.config_gaps > 0 {
+                    plain::success(&format!(
+                        "All available gates passed! ({passed_count}/{total} available, {} config-needed, score: {:.0}%)",
+                        aggregate.config_gaps, result.score,
+                    ));
+                } else {
+                    plain::success(&format!(
+                        "All quality gates passed! (score: {:.0}%)",
+                        result.score,
+                    ));
+                }
             } else {
                 plain::error(&format!(
                     "Quality gates failed ({passed_count}/{total} passed, score: {:.0}%)",
@@ -2142,6 +2290,7 @@ mod tests {
             passed: false,
             score: 0.0,
             message: "Potential secret on src/leak.ts:12".to_string(),
+            requires_config: false,
         };
         let diag = check_result_to_diagnostic(&check);
         assert_eq!(diag.schema_version, "anvil.diagnostic.v1");
@@ -2159,12 +2308,14 @@ mod tests {
                 passed: false,
                 score: 0.0,
                 message: "leak".to_string(),
+                requires_config: false,
             },
             CheckResult {
                 name: "policy".to_string(),
                 passed: true,
                 score: 100.0,
                 message: "ok".to_string(),
+                requires_config: false,
             },
         ];
         let notifications = notifications_for_gate_result(&checks, false);
@@ -2817,6 +2968,7 @@ rules: []
             passed: true,
             score: 100.0,
             message: "clean".to_string(),
+            requires_config: false,
         }];
         let notifications = notifications_for_gate_result(&checks, overall);
         let result = GateResult {
@@ -2848,6 +3000,249 @@ rules: []
         assert_eq!(overall_notif["title"], "Gate result");
         assert_eq!(overall_notif["message"], "All quality gates passed");
         assert_eq!(overall_notif["context"]["source"], "gate");
+    }
+
+    // ── CIB-011 / #1803: strict-config produces config-gap, not FAIL ──
+
+    fn strict_ai_ctx(root: &Path) -> GateContext {
+        GateContext {
+            workspace_root: root.to_path_buf(),
+            profile: Some(AiGuardrailProfile::NAME.to_string()),
+            plan_files: std::collections::HashSet::new(),
+            plan_path: None,
+            walked_files: Vec::new(),
+            strict_config: true,
+        }
+    }
+
+    #[test]
+    fn strict_config_missing_arch_becomes_config_gap_not_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = strict_ai_ctx(dir.path());
+        let result = run_single_check("architecture", &ctx);
+        assert!(
+            result.passed,
+            "missing-config must NOT flip to fail under strict mode; got message: {}",
+            result.message
+        );
+        assert!(
+            result.requires_config,
+            "missing-config must set requires_config=true; got: passed={}, message={}",
+            result.passed, result.message
+        );
+        assert!(
+            result.message.contains("next:"),
+            "config-gap message must carry an actionable `next:` hint; got: {}",
+            result.message
+        );
+        assert!(
+            !result.message.starts_with("Strict mode"),
+            "pre-CIB-011 FAIL prefix must be removed; got: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn strict_config_missing_policy_becomes_config_gap_not_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = strict_ai_ctx(dir.path());
+        let result = run_single_check("policy", &ctx);
+        assert!(
+            result.passed,
+            "missing policy bundle must not fail under strict mode"
+        );
+        assert!(result.requires_config);
+        assert!(result.message.contains("next:"));
+        assert!(result.message.contains(".anvil/policies"));
+    }
+
+    #[test]
+    fn strict_config_missing_command_safety_becomes_config_gap_not_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = strict_ai_ctx(dir.path());
+        let result = run_single_check("command-safety", &ctx);
+        assert!(
+            result.passed,
+            "no plan supplied must not fail under strict mode"
+        );
+        assert!(result.requires_config);
+        assert!(result.message.contains("next:"));
+        assert!(result.message.contains("--plan"));
+    }
+
+    #[test]
+    fn non_strict_skip_does_not_set_requires_config() {
+        // Outside strict mode, the same architecture-missing scenario
+        // returns a soft skip with no config-gap marker. Regression
+        // pin against accidentally treating every soft skip as a
+        // config-gap.
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = GateContext {
+            workspace_root: dir.path().to_path_buf(),
+            profile: None,
+            plan_files: std::collections::HashSet::new(),
+            plan_path: None,
+            walked_files: Vec::new(),
+            strict_config: false,
+        };
+        let result = run_single_check("architecture", &ctx);
+        assert!(result.passed);
+        assert!(
+            !result.requires_config,
+            "non-strict skip must not mark config-gap"
+        );
+        assert!(
+            !result.message.contains("next:"),
+            "non-strict path stays clean"
+        );
+    }
+
+    #[test]
+    fn aggregate_excludes_config_gap_from_score_denominator() {
+        let checks = vec![
+            CheckResult {
+                name: "antipattern-scan".into(),
+                passed: true,
+                score: 100.0,
+                message: "clean".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "secret-detection".into(),
+                passed: false,
+                score: 0.0,
+                message: "secret found".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "import-boundaries".into(),
+                passed: true,
+                score: 100.0,
+                message: "...Skipping. next: ...".into(),
+                requires_config: true,
+            },
+            CheckResult {
+                name: "policy".into(),
+                passed: true,
+                score: 100.0,
+                message: "...Skipping. next: ...".into(),
+                requires_config: true,
+            },
+            CheckResult {
+                name: "command-safety".into(),
+                passed: true,
+                score: 100.0,
+                message: "...No commands... next: ...".into(),
+                requires_config: true,
+            },
+        ];
+        let agg = aggregate_gate_outcome(&checks);
+        assert_eq!(agg.available_total, 2, "3 config-gap checks excluded");
+        assert_eq!(agg.passed_count, 1);
+        assert_eq!(agg.config_gaps, 3);
+        assert!((agg.score - 50.0).abs() < f64::EPSILON, "1/2 = 50%");
+        assert!(!agg.overall);
+    }
+
+    #[test]
+    fn aggregate_overall_true_when_all_available_pass() {
+        let checks = vec![
+            CheckResult {
+                name: "antipattern-scan".into(),
+                passed: true,
+                score: 100.0,
+                message: "clean".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "secret-detection".into(),
+                passed: true,
+                score: 100.0,
+                message: "clean".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "import-boundaries".into(),
+                passed: true,
+                score: 100.0,
+                message: "...next: ...".into(),
+                requires_config: true,
+            },
+        ];
+        let agg = aggregate_gate_outcome(&checks);
+        assert!(agg.overall);
+        assert!((agg.score - 100.0).abs() < f64::EPSILON);
+        assert_eq!(agg.available_total, 2);
+        assert_eq!(agg.config_gaps, 1);
+    }
+
+    #[test]
+    fn aggregate_score_100_when_only_config_gaps() {
+        // Edge case: every check is a config-gap. Nothing actually ran,
+        // so nothing failed; the gate is vacuously green and the
+        // render layer surfaces the config gaps so the user is not
+        // misled into thinking "100%" means "fully covered".
+        let checks = vec![CheckResult {
+            name: "import-boundaries".into(),
+            passed: true,
+            score: 100.0,
+            message: "...next: ...".into(),
+            requires_config: true,
+        }];
+        let agg = aggregate_gate_outcome(&checks);
+        assert!(agg.overall);
+        assert!((agg.score - 100.0).abs() < f64::EPSILON);
+        assert_eq!(agg.available_total, 0);
+        assert_eq!(agg.config_gaps, 1);
+    }
+
+    #[test]
+    fn ai_envelope_excludes_config_gaps_from_diagnostics_and_counts_them() {
+        let checks = vec![
+            CheckResult {
+                name: "secret-detection".into(),
+                passed: false,
+                score: 0.0,
+                message: "secret found".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "import-boundaries".into(),
+                passed: true,
+                score: 100.0,
+                message: "...next: ...".into(),
+                requires_config: true,
+            },
+        ];
+        let result = GateResult {
+            overall: false,
+            score: 0.0,
+            checks,
+            notifications: vec![],
+            duration_ms: 1,
+        };
+        let envelope = build_ai_gate_result_envelope(&result);
+        assert_eq!(
+            envelope.summary.total, 1,
+            "only the real failure surfaces as a diagnostic"
+        );
+        assert_eq!(
+            envelope.summary.config_gaps, 1,
+            "config-gap is counted separately"
+        );
+        assert_eq!(envelope.diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn config_gap_next_hint_covers_strict_mode_check_names() {
+        // All three checks that the strict-mode flip touches must have
+        // a real hint (not the generic fallback).
+        let generic = config_gap_next_hint("__no_such_check__");
+        for name in ["architecture", "policy", "command-safety"] {
+            let hint = config_gap_next_hint(name);
+            assert_ne!(hint, generic, "{name} must have a dedicated hint");
+            assert!(!hint.is_empty());
+        }
     }
 
     // ── run_single_check unknown ─────────────────────────────────────

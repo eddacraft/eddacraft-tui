@@ -428,7 +428,7 @@ archive.
 
 ### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Tracking:** GH issue [#1803](https://github.com/eddacraft/anvil-001/issues/1803)
 - **Intent:** Immediately after `anvil start`, `anvil gate -p ai` reports
   3/5 checks failing solely because their config files don't yet exist
