@@ -91,7 +91,7 @@ Each finding has a corresponding GitHub issue cross-referenced below.
 
 **Status legend:**
 
-- `Open` — GH issue open, no code work merged yet.
+- `Open` — GitHub issue open, no code work merged yet.
 - `In Progress` — branch / PR open against the owning module.
 - `Merged` — fix merged to `main`.
 - `Released` — fix shipped in a tagged release; cross-reference the
@@ -114,7 +114,7 @@ authoritative status for the implementation work.
 | 9 | Low | `anvil gate -p ai` reports 3 failures (`import-boundaries`, `policy`, `command-safety`) solely because their config files don't exist. New user activating with the suggested AI profile sees a 1/5 score with no next-step guidance. | [#1803](https://github.com/eddacraft/anvil-001/issues/1803) | CIB · CIB-011 | Open |
 | 10 | Low | `anvil check --staged` errors with `required arguments were not provided: --changed`. `--staged` should imply `--changed`. | [#1804](https://github.com/eddacraft/anvil-001/issues/1804) | CIB · CIB-012 | Open |
 
-**Progress:** 0 Merged · 0 In Progress · 10 Open _(as of 2026-05-21)_.
+**Progress:** 0 Released · 0 Merged · 0 In Progress · 10 Open _(as of 2026-05-21)_.
 
 ## Not-findings (initially flagged, dropped on re-test)
 
