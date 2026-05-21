@@ -15,10 +15,27 @@ use anvil_checks::antipattern::{
     AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningSeverity,
     WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
 };
+use anvil_checks::secret::{SecretCheckConfig, SecretFinding, run_secret_check};
 
 use crate::GlobalArgs;
+use crate::commands::check_catalog::canonical_check_name;
+use crate::commands::gate::read_anvilrc_checks;
 use crate::output::{self, OutputMode};
 use crate::util::is_ignored_dir_name;
+
+/// Canonical names of checks the planless `anvil check` path can run.
+///
+/// Planless-eligible means: the check operates on the supplied file list and
+/// needs no profile, policy bundle, or project-level config beyond the source
+/// itself. `secret-detection` and `antipattern-scan` qualify; `architecture`,
+/// `policy`, `command-safety`, `import-boundaries`, `lint`, `test`,
+/// `coverage`, and `dependency` do not — they require config files,
+/// language-toolchain context, or a profile, and live under `anvil gate`.
+///
+/// Issue #1797: `gate` and `anvil_validate_write` catch hardcoded secrets but
+/// planless `check` silently dropped `.anvilrc#checks`; this list closes that
+/// gap by routing the planless dispatcher through the same `.anvilrc` reader.
+const PLANLESS_ELIGIBLE_CHECKS: &[&str] = &["secret-detection", "antipattern-scan"];
 
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
@@ -146,6 +163,7 @@ struct JsonWarning {
 
 // ── Entry point ─────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_lines)] // Linear phase pipeline (parse → gather → dispatch → render).
 pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let mode = OutputMode::from_global(global);
     let start = Instant::now();
@@ -188,35 +206,84 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         output::plain::info(&format!("Analysing {} file(s)...", files.len()));
     }
 
-    // Run antipattern check.
-    let config = AntipatternCheckConfig {
-        patterns: Vec::new(),
-        include_opt_in: args.include_opt_in,
-        extensions,
-        severity_threshold,
-    };
+    // Workspace root is needed both for `.anvilrc` discovery and for path
+    // relativisation in output. Falls back to the current directory when
+    // git is unavailable so non-git callers still get sane paths.
+    let workspace_root = git_toplevel()
+        .ok()
+        .map(|p| p.to_string_lossy().to_string())
+        .or_else(|| {
+            std::env::current_dir()
+                .and_then(std::fs::canonicalize)
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+        });
 
-    let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
-    // For git-based modes and --all, use git toplevel as workspace root so
-    // path normalisation matches how files were resolved. Fall back to cwd.
-    let workspace_root = if matches!(source, FileSource::Changed | FileSource::All) {
-        git_toplevel().ok().map(|p| p.to_string_lossy().to_string())
-    } else {
-        None
+    // Issue #1797: resolve which planless-eligible checks to run. The
+    // planless dispatcher must honour `.anvilrc#checks` (or fall back to
+    // the planless-eligible default set) the same way `anvil gate` does.
+    let enabled_checks = resolve_enabled_planless_checks(workspace_root.as_deref())?;
+
+    if mode != OutputMode::Json && global.verbose {
+        output::plain::info(&format!("Running checks: {}", enabled_checks.join(", ")));
     }
-    .or_else(|| {
-        std::env::current_dir()
-            .and_then(std::fs::canonicalize)
-            .ok()
-            .map(|p| p.to_string_lossy().to_string())
-    });
-    let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
+
+    let mut aggregated_warnings: Vec<JsonWarning> = Vec::new();
+    let mut aggregated_patterns: BTreeSet<String> = BTreeSet::new();
+    let mut checks_run: Vec<String> = Vec::new();
+    let mut any_files_scanned = false;
+
+    for check_name in &enabled_checks {
+        match *check_name {
+            "antipattern-scan" => {
+                let config = AntipatternCheckConfig {
+                    patterns: Vec::new(),
+                    include_opt_in: args.include_opt_in,
+                    extensions: extensions.clone(),
+                    severity_threshold,
+                };
+                let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+                let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
+                if result.files_scanned > 0 {
+                    any_files_scanned = true;
+                }
+                for w in &result.warnings.warnings {
+                    aggregated_warnings.push(antipattern_warning_to_json(w));
+                }
+                aggregated_patterns.extend(result.patterns_checked);
+                checks_run.push((*check_name).to_string());
+            }
+            "secret-detection" => {
+                let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+                let config = SecretCheckConfig::default();
+                let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
+                // The secret scanner reads every file it's handed, so any
+                // explicit/--all/--changed path counts as "scanned" for the
+                // empty-output guard below.
+                any_files_scanned = true;
+                for finding in &result.findings {
+                    aggregated_warnings.push(secret_finding_to_json(finding));
+                }
+                checks_run.push((*check_name).to_string());
+            }
+            // PLANLESS_ELIGIBLE_CHECKS is exhaustive against this match —
+            // any future addition to the constant must also extend the
+            // arms above.
+            other => {
+                debug_assert!(
+                    false,
+                    "planless-eligible check '{other}' has no dispatch arm in commands::check"
+                );
+            }
+        }
+    }
 
     let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
 
     // Guard: if no files were actually scanned (e.g. extension mismatch or
-    // unreadable paths), report clearly rather than a misleading "no warnings".
-    if result.files_scanned == 0 {
+    // unreadable paths) and no check accepted the inputs, report clearly
+    // rather than a misleading "no warnings".
+    if !any_files_scanned {
         if mode == OutputMode::Json {
             output::json::print(&empty_output(elapsed, "No analysable files found"))?;
         } else {
@@ -227,21 +294,26 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         return Ok(());
     }
 
-    let has_blocking = !result.passed;
+    let summary = summarise_json_warnings(&aggregated_warnings);
+    let has_blocking = aggregated_warnings
+        .iter()
+        .any(|w| json_severity_meets_threshold(&w.severity, severity_threshold));
 
     // Relativise file paths for output.
     let relative_files: Vec<String> = files
         .iter()
         .map(|f| relativise(f, workspace_root.as_deref()))
         .collect();
+    let patterns_checked: Vec<String> = aggregated_patterns.into_iter().collect();
 
     match mode {
         OutputMode::Json => {
             let json_output = build_json_output(
                 &relative_files,
-                &result.warnings.warnings,
-                &result.warnings.summary,
-                &result.patterns_checked,
+                aggregated_warnings,
+                &checks_run,
+                &summary,
+                &patterns_checked,
                 has_blocking,
                 elapsed,
             );
@@ -249,8 +321,8 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         }
         OutputMode::Plain | OutputMode::Tui => {
             print_human(
-                &result.warnings.warnings,
-                &result.warnings.summary,
+                &aggregated_warnings_for_print(&aggregated_warnings),
+                &summary,
                 &relative_files,
                 global.verbose,
                 elapsed,
@@ -269,6 +341,159 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+// ── Planless dispatch helpers (issue #1797) ─────────────────────────
+
+/// Decide which planless-eligible checks to run for this invocation.
+///
+/// Reads `.anvil.<ext>` / `.anvilrc#checks` via the same path `gate` uses
+/// so the two surfaces never disagree about what's enabled. When no
+/// config file is present (or `checks` is empty), falls back to the
+/// planless-eligible default set so a fresh project still catches
+/// secrets and antipatterns on `anvil check <file>`.
+///
+/// Unknown / non-planless entries in `.anvilrc` are silently ignored
+/// here — `gate` already prints a warning when those names appear, and
+/// repeating it on every `check` invocation would be noise.
+fn resolve_enabled_planless_checks(workspace_root: Option<&str>) -> Result<Vec<&'static str>> {
+    let configured = workspace_root
+        .map(Path::new)
+        .map(read_anvilrc_checks)
+        .transpose()?
+        .flatten();
+
+    let enabled: std::collections::HashSet<String> = match configured {
+        Some(rc) => rc
+            .into_iter()
+            .filter_map(|name| canonical_check_name(&name).map(str::to_string))
+            .collect(),
+        None => PLANLESS_ELIGIBLE_CHECKS
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect(),
+    };
+
+    let resolved: Vec<&'static str> = PLANLESS_ELIGIBLE_CHECKS
+        .iter()
+        .copied()
+        .filter(|name| enabled.contains(*name))
+        .collect();
+
+    Ok(resolved)
+}
+
+fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
+    JsonWarning {
+        id: w.id.clone(),
+        category: category_str(w.category).to_string(),
+        severity: severity_str(w.severity).to_string(),
+        title: w.title.clone(),
+        message: w.message.clone(),
+        file: w.location.file.clone(),
+        line: w.location.line,
+        suggestion: w.suggestion.clone(),
+        nudge: w.nudge.clone(),
+    }
+}
+
+/// Convert a secret-scanner finding into the unified `JsonWarning` shape so
+/// it flows through the same output path as antipattern warnings. Findings
+/// are reported as `severity = "error"` to match `gate`'s
+/// "any hardcoded secret blocks" semantic — a planted `sk-…` literal must
+/// not pass with `--severity error` (the default).
+fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
+    let id = format!(
+        "SECRET-{}",
+        f.pattern_name.to_ascii_uppercase().replace(' ', "-")
+    );
+    JsonWarning {
+        id,
+        category: "secret".to_string(),
+        severity: "error".to_string(),
+        title: format!("Potential secret: {}", f.pattern_name),
+        message: f.redacted_line.clone(),
+        file: f.file.clone(),
+        line: f.line,
+        suggestion:
+            "Move the value to a secret manager or environment variable; never commit literals."
+                .to_string(),
+        nudge: None,
+    }
+}
+
+fn summarise_json_warnings(warnings: &[JsonWarning]) -> WarningSummary {
+    let mut summary = WarningSummary {
+        total: warnings.len(),
+        ..WarningSummary::default()
+    };
+    for w in warnings {
+        match w.severity.as_str() {
+            "error" => summary.errors += 1,
+            "warning" => summary.warnings += 1,
+            "info" => summary.info += 1,
+            _ => {}
+        }
+    }
+    summary
+}
+
+fn json_severity_meets_threshold(severity: &str, threshold: WarningSeverity) -> bool {
+    let actual = match severity {
+        "error" => WarningSeverity::Error,
+        "warning" => WarningSeverity::Warning,
+        "info" => WarningSeverity::Info,
+        _ => return false,
+    };
+    severity_at_least(actual, threshold)
+}
+
+/// Adapt unified `JsonWarning`s back into the shape `print_human` expects.
+/// `print_human` was built around `anvil_checks::antipattern::Warning`; this
+/// keeps the human output path stable while the planless dispatcher feeds
+/// it both antipattern and secret findings.
+fn aggregated_warnings_for_print(warnings: &[JsonWarning]) -> Vec<Warning> {
+    use anvil_checks::antipattern::{Confidence, Location, WarningCategory};
+
+    warnings
+        .iter()
+        .map(|w| Warning {
+            id: w.id.clone(),
+            fingerprint: None,
+            category: match w.category.as_str() {
+                "boundary" => WarningCategory::Boundary,
+                "architecture" => WarningCategory::Architecture,
+                // Secrets, anti-patterns, and anything else collapse to
+                // AntiPattern for human-printer purposes — the category
+                // string is preserved verbatim in the JSON envelope, which
+                // is the contract callers consume.
+                _ => WarningCategory::AntiPattern,
+            },
+            severity: match w.severity.as_str() {
+                "error" => WarningSeverity::Error,
+                "info" => WarningSeverity::Info,
+                _ => WarningSeverity::Warning,
+            },
+            confidence: Confidence::High,
+            title: w.title.clone(),
+            message: w.message.clone(),
+            explanation: String::new(),
+            suggestion: w.suggestion.clone(),
+            nudge: w.nudge.clone(),
+            location: Location {
+                file: w.file.clone(),
+                line: w.line,
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            pattern: None,
+            suppressed: None,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+        })
+        .collect()
 }
 
 // ── Non-source artifacts (pr-description / commit-message / agent-output) ─
@@ -389,9 +614,15 @@ fn run_non_source_artifact(
 
     match mode {
         OutputMode::Json => {
+            let json_warnings: Vec<JsonWarning> = warning_result
+                .warnings
+                .iter()
+                .map(antipattern_warning_to_json)
+                .collect();
             let json_output = build_json_output(
                 &reference_files,
-                &warning_result.warnings,
+                json_warnings,
+                &["antipattern-scan".to_string()],
                 &warning_result.summary,
                 &pattern_ids,
                 has_blocking,
@@ -731,47 +962,26 @@ fn category_str(c: anvil_checks::antipattern::WarningCategory) -> &'static str {
     }
 }
 
-fn notification_priority_for_warning(severity: WarningSeverity) -> NotificationPriority {
-    match severity {
-        WarningSeverity::Error => NotificationPriority::High,
-        WarningSeverity::Warning => NotificationPriority::Normal,
-        WarningSeverity::Info => NotificationPriority::Low,
-    }
-}
-
 fn build_json_output(
     files: &[String],
-    warnings: &[Warning],
+    warnings: Vec<JsonWarning>,
+    checks_run: &[String],
     summary: &WarningSummary,
     _patterns_checked: &[String],
     has_blocking: bool,
     elapsed: u64,
 ) -> CheckOutput {
-    let json_warnings: Vec<JsonWarning> = warnings
-        .iter()
-        .map(|w| JsonWarning {
-            id: w.id.clone(),
-            category: category_str(w.category).to_string(),
-            severity: severity_str(w.severity).to_string(),
-            title: w.title.clone(),
-            message: w.message.clone(),
-            file: w.location.file.clone(),
-            line: w.location.line,
-            suggestion: w.suggestion.clone(),
-            nudge: w.nudge.clone(),
-        })
-        .collect();
     let notifications: Vec<Notification> = warnings
         .iter()
         .map(|w| {
             Notification::new(
                 NotificationClass::Finding,
-                notification_priority_for_warning(w.severity),
+                notification_priority_for_json_warning(&w.severity),
                 format!("[{}] {}", w.id, w.title),
                 w.message.clone(),
             )
             .with_context(NotificationContext {
-                file: Some(w.location.file.clone()),
+                file: Some(w.file.clone()),
                 source: Some("check".to_string()),
             })
         })
@@ -792,15 +1002,25 @@ fn build_json_output(
         files: files.to_vec(),
         has_blocking_warnings: has_blocking,
         execution_time_ms: elapsed,
-        // checksRun lists executed check categories (matching Node.js schema),
-        // not individual antipattern rule IDs.
-        checks_run: vec!["architecture".to_string()],
+        // `checksRun` reports the canonical names of checks that actually
+        // executed for this invocation — issue #1797: planless `check`
+        // previously hard-coded `["architecture"]` while actually running
+        // only the antipattern scanner.
+        checks_run: checks_run.to_vec(),
         provenance_id: None, // TODO(RCLI2): wire up Kindling provenance when available
         message: None,
         notifications,
-        warnings: json_warnings,
+        warnings,
         summary: summary.clone(),
         diagnostics,
+    }
+}
+
+fn notification_priority_for_json_warning(severity: &str) -> NotificationPriority {
+    match severity {
+        "error" => NotificationPriority::High,
+        "info" => NotificationPriority::Low,
+        _ => NotificationPriority::Normal,
     }
 }
 
@@ -1003,7 +1223,7 @@ mod tests {
     fn build_json_output_maps_warnings_correctly() {
         use anvil_checks::antipattern::{Confidence, Location, WarningCategory};
 
-        let warnings = vec![Warning {
+        let warnings = [Warning {
             id: "AP-003".to_string(),
             fingerprint: None,
             category: WarningCategory::AntiPattern,
@@ -1035,9 +1255,12 @@ mod tests {
             suppressed: 0,
         };
 
+        let json_warnings: Vec<JsonWarning> =
+            warnings.iter().map(antipattern_warning_to_json).collect();
         let out = build_json_output(
             &["src/foo.ts".to_string()],
-            &warnings,
+            json_warnings,
+            &["antipattern-scan".to_string()],
             &summary,
             &["AP-003".to_string()],
             false,
@@ -1054,6 +1277,7 @@ mod tests {
         assert_eq!(out.execution_time_ms, 42);
         assert!(!out.has_blocking_warnings);
         assert!(out.provenance_id.is_none());
+        assert_eq!(out.checks_run, vec!["antipattern-scan".to_string()]);
         assert_eq!(out.notifications.len(), 1);
         assert_eq!(out.notifications[0].class, NotificationClass::Finding);
         assert_eq!(out.notifications[0].priority, NotificationPriority::Normal);
@@ -1375,5 +1599,137 @@ mod tests {
             run_non_source_artifact(&args, &global, ArtifactKind::PrDescription, Instant::now())
                 .unwrap_err();
         assert!(err.downcast_ref::<output::AlreadyReported>().is_some());
+    }
+
+    // ── Planless dispatch (issue #1797) ─────────────────────────
+
+    #[test]
+    fn secret_finding_maps_to_blocking_error_json_warning() {
+        use anvil_checks::secret::{FindingType, SecretFinding};
+
+        let finding = SecretFinding {
+            file: "src/smelly.ts".to_string(),
+            line: 1,
+            finding_type: FindingType::Pattern,
+            pattern_name: "High Entropy String".to_string(),
+            redacted_match: "sk-***".to_string(),
+            redacted_line: "const apiKey = \"sk-***\";".to_string(),
+        };
+        let json = secret_finding_to_json(&finding);
+        assert_eq!(json.category, "secret");
+        // Issue #1797 hinges on `--severity error` (the default) treating
+        // a hardcoded secret as blocking — same semantic as `anvil gate`.
+        assert_eq!(json.severity, "error");
+        assert_eq!(json.file, "src/smelly.ts");
+        assert_eq!(json.line, 1);
+        assert!(json.id.starts_with("SECRET-"));
+        assert!(json_severity_meets_threshold(
+            &json.severity,
+            WarningSeverity::Error
+        ));
+    }
+
+    #[test]
+    fn resolve_enabled_planless_checks_defaults_when_no_anvilrc() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        let resolved = resolve_enabled_planless_checks(Some(&root)).unwrap();
+        // Default planless set must include both — this is the safety
+        // net for fresh projects that haven't written `.anvilrc` yet.
+        assert!(resolved.contains(&"secret-detection"));
+        assert!(resolved.contains(&"antipattern-scan"));
+    }
+
+    #[test]
+    fn resolve_enabled_planless_checks_honours_anvilrc_subset() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - secret-detection\n",
+        )
+        .unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        let resolved = resolve_enabled_planless_checks(Some(&root)).unwrap();
+        assert_eq!(resolved, vec!["secret-detection"]);
+    }
+
+    #[test]
+    fn resolve_enabled_planless_checks_drops_non_planless_entries() {
+        // `.anvilrc` enables `policy` (gate-only) — planless dispatch must
+        // silently ignore it, not surface it as something `check` runs.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - antipattern-scan\n  - policy\n",
+        )
+        .unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        let resolved = resolve_enabled_planless_checks(Some(&root)).unwrap();
+        assert_eq!(resolved, vec!["antipattern-scan"]);
+    }
+
+    /// Mutex shared by tests that mutate `current_dir`. Two tests entering
+    /// `set_current_dir` concurrently corrupt each other's relative-path
+    /// resolution; serialise them via this guard.
+    static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn planless_check_detects_sk_literal_in_typescript_file() {
+        // Fixture witness for issue #1797: a TS file with a planted
+        // `sk-…` literal must trigger secret-detection under the planless
+        // `anvil check` path. `anvil gate` and MCP already do this; the
+        // regression that made `check` silently pass was the open issue.
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir(&src_dir).unwrap();
+        let smelly = src_dir.join("smelly.ts");
+        std::fs::write(
+            &smelly,
+            "const apiKey = \"sk-1234567890abcdefghijklmnopqrstuv\";\n\
+             export function unsafe(input: any): any {\n  return eval(input);\n}\n",
+        )
+        .unwrap();
+        // No `.anvilrc` — default planless set must include
+        // secret-detection.
+
+        let args = CheckArgs {
+            files: vec![smelly.to_string_lossy().to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            // `error` is the user-facing default in the issue repro; we
+            // assert the secret finding is blocking at that threshold.
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "source".to_string(),
+        };
+
+        // `run()` needs `git_toplevel` to resolve workspace root; the tmp
+        // dir is not a git repo, so the function falls back to cwd. Move
+        // cwd into the tmp dir for the duration of the test so relative
+        // paths resolve. The module-level `CWD_LOCK` serialises tests that
+        // mutate the process-wide cwd.
+        let _guard = CWD_LOCK.lock().unwrap();
+        let prev_cwd = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        // Force JSON mode so the print path doesn't write to stderr/stdout
+        // for the test runner.
+        let global = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+
+        let result = run(&args, &global);
+
+        std::env::set_current_dir(prev_cwd).unwrap();
+
+        let err = result.expect_err("planted sk- literal must be a blocking finding");
+        assert!(
+            err.downcast_ref::<output::AlreadyReported>().is_some(),
+            "expected AlreadyReported (blocking warnings), got: {err}"
+        );
     }
 }

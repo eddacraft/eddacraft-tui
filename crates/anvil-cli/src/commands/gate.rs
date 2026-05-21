@@ -1424,7 +1424,12 @@ fn ai_guardrail_only_set() -> Result<std::collections::HashSet<&'static str>> {
 /// Returns `Ok(None)` when no config file is found, no `checks` field is
 /// present, or the list is empty. Parsing or shape errors are surfaced so
 /// gate can fail clearly instead of silently acting on a malformed filter.
-fn read_anvilrc_checks(workspace_root: &Path) -> Result<Option<std::collections::HashSet<String>>> {
+///
+/// `pub(crate)` so the planless `anvil check` dispatcher in `commands/check.rs`
+/// can share the same discovery + parsing path as gate (issue #1797).
+pub(crate) fn read_anvilrc_checks(
+    workspace_root: &Path,
+) -> Result<Option<std::collections::HashSet<String>>> {
     // MLP2-040 — prefer `.anvil.<ext>` via MLP-011's `discover` precedence
     // (yaml → yml → json → toml). When discover finds nothing, we fall
     // back to the legacy `.anvilrc` reader below.

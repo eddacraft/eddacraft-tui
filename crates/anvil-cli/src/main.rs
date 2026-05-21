@@ -120,7 +120,13 @@ enum Commands {
     /// overrides, force-push manipulation). Nightly via the
     /// `anvil-audit` workflow template; on-demand from the CLI.
     AuditChain(commands::audit_chain::AuditChainArgs),
-    /// Analyse files for architecture violations and anti-patterns (planless mode).
+    /// Scan files for anti-patterns and hardcoded secrets (planless mode).
+    ///
+    /// Honours `.anvilrc#checks` (and `.anvil.<ext>`) for the
+    /// planless-eligible subset: `antipattern-scan` and `secret-detection`.
+    /// Profile-based or config-heavy checks (`architecture`, `policy`,
+    /// `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`,
+    /// `dependency`) live under `anvil gate`.
     Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
