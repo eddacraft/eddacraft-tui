@@ -15,7 +15,7 @@ allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**', '**/explain/**']
 
 detection:
   type: regex
-  pattern: '\beval\s*\(\s*[A-Za-z_$]'
+  pattern: '\beval\s*\(\s*[A-Za-z_$`]'
 
 related: [AP-009]
 enabled: true
@@ -35,8 +35,11 @@ context + timeout, QuickJS-emscripten, a Worker) if you genuinely
 need to run untrusted code.
 
 If the argument is a string literal you control end-to-end (e.g.
-`eval("1 + 1")` in a one-off benchmark), the rule is intentionally
-narrow enough to skip you: the leading character inside the parens
-is a quote, not an identifier. That keeps the false-positive rate
-low for the rare benign case while still catching the
-arbitrary-code-execution shape.
+`eval("1 + 1")` in a one-off benchmark), the rule skips you when
+the literal uses single or double quotes — the leading character
+inside the parens is a quote, not an identifier. Template-literal
+arguments (`` eval(`...`) ``) **are** caught: the most ergonomic
+way to build a dynamic string in modern TS is a tagged-or-untagged
+template, and the static-template case (`` eval(`1 + 1`) ``) is
+rare enough that catching it alongside the dynamic-template case
+is an acceptable tradeoff.

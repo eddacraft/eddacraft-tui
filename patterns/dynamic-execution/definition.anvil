@@ -105,9 +105,13 @@ remediation is design work.
   `__tests__/`) and the explain/ doc fixtures opt out — they
   often demonstrate the pattern intentionally as a teaching
   surface.
-- **Negative signals (do not fire):** leading quote inside the
-  `eval(` arg (string literal), `// eval` in comments, `eval` as
-  a member access (`.eval`), `evalSomething` (word-boundary).
+- **Negative signals (do not fire):** leading single/double quote
+  inside the `eval(` arg (string literal), `// eval` in comments,
+  `evalSomething` (word-boundary). Note: member-access form
+  `window.eval(x)` / `globalThis.eval(x)` **does** fire when paired
+  with an identifier or template-literal arg — those are real
+  `eval` calls aliased through the global object. Only the
+  string-literal argument suppresses the rule.
 
 ## Example
 
@@ -125,7 +129,12 @@ const compiled = new Function('a', 'b', 'return a + b');
 
 // AP-008 does NOT trip (intentional narrowness):
 const two = eval("1 + 1");                // leading char is a quote
-const code = `eval(${expr})`;             // eval inside a template literal
+const code = `eval(${expr})`;             // eval inside a template literal, not the callee
 function evalQueue() { ... }              // word boundary saves us
-obj.eval('script');                       // .eval is a member access
+obj.eval('a literal');                    // string literal arg — leading char is a quote
+window.eval('static');                    // string literal arg — same reason
+
+// AP-008 DOES trip (member-access doesn't save you):
+window.eval(userInput);                   // leading char is an identifier
+globalThis.eval(`${expr}`);               // leading char is a backtick
 ```

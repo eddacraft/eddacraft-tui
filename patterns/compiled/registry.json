@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-05-21T05:33:48.634Z",
+  "compiled_at": "2026-05-21T05:43:57.927Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -211,11 +211,11 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": "\\beval\\s*\\(\\s*[A-Za-z_$]"
+        "pattern": "\\beval\\s*\\(\\s*[A-Za-z_$`]"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
       "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
-      "nudge": "Don't call `eval()` with a dynamic argument. The first character\ninside the parens is an identifier (a variable, function call, or\nproperty access), which means the string being executed is not\nvisible to static analysis and may be attacker-controlled at\nruntime.\n\nReplace with a structured dispatch — a `Record<string, () =>\nResult>` map keyed on the input, a Zod / ArkType schema for data\nvalidation, or a sandboxed isolate (`vm.runInContext` with a fresh\ncontext + timeout, QuickJS-emscripten, a Worker) if you genuinely\nneed to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g.\n`eval(\"1 + 1\")` in a one-off benchmark), the rule is intentionally\nnarrow enough to skip you: the leading character inside the parens\nis a quote, not an identifier. That keeps the false-positive rate\nlow for the rare benign case while still catching the\narbitrary-code-execution shape.",
+      "nudge": "Don't call `eval()` with a dynamic argument. The first character\ninside the parens is an identifier (a variable, function call, or\nproperty access), which means the string being executed is not\nvisible to static analysis and may be attacker-controlled at\nruntime.\n\nReplace with a structured dispatch — a `Record<string, () =>\nResult>` map keyed on the input, a Zod / ArkType schema for data\nvalidation, or a sandboxed isolate (`vm.runInContext` with a fresh\ncontext + timeout, QuickJS-emscripten, a Worker) if you genuinely\nneed to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g.\n`eval(\"1 + 1\")` in a one-off benchmark), the rule skips you when\nthe literal uses single or double quotes — the leading character\ninside the parens is a quote, not an identifier. Template-literal\narguments (`` eval(`...`) ``) **are** caught: the most ergonomic\nway to build a dynamic string in modern TS is a tagged-or-untagged\ntemplate, and the static-template case (`` eval(`1 + 1`) ``) is\nrare enough that catching it alongside the dynamic-template case\nis an acceptable tradeoff.",
       "related": ["AP-009"],
       "enabled": true,
       "opt_in": false,
@@ -242,7 +242,7 @@
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
       "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
-      "nudge": "`new Function(body)` is functionally equivalent to `eval(body)` —\nit compiles the body string and returns a callable that runs the\ncompiled code in the global scope. Anything that can flow into the\nconstructor as a string becomes arbitrary code execution at the\nmoment the returned function is invoked.\n\nThe rule is unconditional: even a literal-string `new Function('return\n1')` should be replaced with a normal function declaration. The\ndynamic-string ergonomics are never worth the audit-cost of\nexplaining \"this one is safe\" to future readers.\n\nReplace with: a static function declaration, a `Record<string, () =>\nResult>` dispatcher for the \"N known operations\" case, or a\nsandboxed isolate (Node `vm`, QuickJS, Worker) when running\noperator-supplied scripting is genuinely part of the product.",
+      "nudge": "`new Function(body)` is functionally equivalent to `eval(body)` —\nit compiles the body string and returns a callable that runs the\ncompiled code in the global scope. Anything that can flow into the\nconstructor as a string becomes arbitrary code execution at the\nmoment the returned function is invoked.\n\nThe rule is unconditional: even a literal-string\n`new Function('return 1')` should be replaced with a normal\nfunction declaration. The dynamic-string ergonomics are never\nworth the audit-cost of explaining \"this one is safe\" to future\nreaders.\n\nReplace with: a static function declaration, a `Record<string, () =>\nResult>` dispatcher for the \"N known operations\" case, or a\nsandboxed isolate (Node `vm`, QuickJS, Worker) when running\noperator-supplied scripting is genuinely part of the product.",
       "related": ["AP-008"],
       "enabled": true,
       "opt_in": false,

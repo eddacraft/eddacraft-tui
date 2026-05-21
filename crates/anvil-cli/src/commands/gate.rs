@@ -2975,6 +2975,34 @@ rules: []
     }
 
     #[test]
+    fn antipattern_check_detects_template_literal_eval() {
+        // Council follow-up: `eval(`${userInput}`)` is the most ergonomic
+        // way to build a dynamic-string eval call in modern TS; the
+        // regex extends to backtick so the template-literal shape
+        // does not slip through.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("smelly.ts");
+        std::fs::write(
+            &file,
+            "export function unsafe(input: string): unknown {\n    return eval(`run(${input})`);\n}\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(
+            !result.passed,
+            "AP-008 must trip on eval(`...`) template-literal arg; got: {}",
+            result.message
+        );
+        assert!(result.message.contains("AP-008"));
+    }
+
+    #[test]
     fn antipattern_check_skips_static_eval() {
         // AP-008 is intentionally narrow: a literal-string `eval("1+1")`
         // is rare but benign, and false positives here would erode
