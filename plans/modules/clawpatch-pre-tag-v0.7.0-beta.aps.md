@@ -205,10 +205,23 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-011: AI profile integration test does not verify the process exit status
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-07da3568bc-e_54227fecf1`
+- **GH issue:** [#1744](https://github.com/eddacraft/anvil-001/issues/1744)
 - **Feature:** `feat_test-suite_07da3568bc` — Rust integration test eddacraft-anvil/ai_guardrail_profile
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
+- **Branch:** `fix/1744-clawp-011-ai-exit`
+- **Resolution:** Added two assertions to
+  `ai_profile_emits_diagnostic_envelope_in_json_mode`: (1)
+  `!output.status.success()` because the curated AI guardrail run
+  under strict-config MUST block on an empty workspace; (2) the
+  envelope's `exit_code` value equals `output.status.code()` via a
+  checked `i32::try_from` (clippy refuses the bare cast). Without
+  these, a regression that silently turned the block into a pass — or
+  drifted `exit_code` away from the process status — would have left
+  every other envelope-shape assertion still green. Pure test
+  addition; no production change. Advances to **Merged** on this PR's
+  merge; counter bump in the same step.
 - **Recommendation:** Assert the expected blocking exit behaviour explicitly, for example by checking `!output.status.success()` and comparing `parsed["exit_code"]` to `output.status.code()` when available.
 - **Evidence:** `crates/anvil-cli/tests/ai_guardrail_profile.rs:28` (`ai_profile_emits_diagnostic_envelope_in_json_mode`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).

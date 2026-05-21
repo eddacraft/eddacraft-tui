@@ -41,10 +41,37 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
         panic!("expected JSON envelope on stdout under --profile ai, got: {stdout}\nerror: {err}")
     });
 
+    // CLAWP-011: the curated AI guardrail run under strict-config must
+    // BLOCK on an empty workspace — strict_config elevates the
+    // missing-config skips into blocking diagnostics, so the process
+    // MUST exit non-zero and the in-band `exit_code` MUST match the
+    // process status. Without this, the envelope-shape assertions
+    // below could pass while a regression silently turned the block
+    // into a pass (e.g. strict-config short-circuited, or `exit_code`
+    // drifted away from the process status).
+    assert!(
+        !output.status.success(),
+        "ai-profile gate on empty workspace must block (non-zero exit); got status={:?}, stdout={stdout}",
+        output.status
+    );
+    let process_code = output
+        .status
+        .code()
+        .expect("ai-profile gate process exited via signal, not a normal exit code");
+
     // Outer envelope identifies as `anvil.gate-result.v1` per the
     // diagnostic-envelope coordination spec.
     assert_eq!(parsed["schema"], "anvil.gate-result.v1");
-    assert!(parsed["exit_code"].is_u64());
+    let envelope_code = parsed["exit_code"]
+        .as_u64()
+        .expect("envelope `exit_code` must be a u64");
+    let envelope_code_i32 = i32::try_from(envelope_code)
+        .unwrap_or_else(|_| panic!("envelope `exit_code` ({envelope_code}) does not fit in i32"));
+    assert_eq!(
+        envelope_code_i32, process_code,
+        "in-band envelope exit_code ({envelope_code}) must match the process status code ({process_code}); \
+         stdout={stdout}"
+    );
     assert!(parsed["summary"].is_object());
     assert!(parsed["diagnostics"].is_array());
 
