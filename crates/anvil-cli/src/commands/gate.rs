@@ -1317,25 +1317,30 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
 
 /// Detect the canonical "no project config found, skipping" signal
 /// emitted by architecture, policy, and command-safety checks. Used by
-/// the AI guardrail's strict-config flag to convert the soft skip into
-/// a blocking diagnostic.
+/// the AI guardrail's strict-config flag (CIB-011 / #1803) to mark
+/// the check as a **config-gap** (rendered as `CONFIG NEEDED` with a
+/// `next:` hint, excluded from the score denominator) rather than to
+/// flip the soft skip into a hard FAIL. The pre-CIB-011 behaviour was
+/// to elevate to a blocking diagnostic; that produced a "1/5 passed,
+/// score: 20%" UX on fresh repos and is no longer the contract.
 ///
 /// This intentionally distinguishes **missing project config** (which
-/// strict mode should block on) from **missing host tooling** like a
-/// missing OPA binary (which is an environment problem, not a project
-/// posture problem). The two were previously conflated via a substring
-/// match on "Skipping", with the result that any developer or CI runner
-/// without OPA in PATH would get a blocked AI-guardrail run.
+/// strict mode marks as a config-gap) from **missing host tooling**
+/// like a missing OPA binary (which is an environment problem, not a
+/// project posture problem — left as a normal soft skip). The two
+/// were previously conflated via a substring match on "Skipping",
+/// with the result that any developer or CI runner without OPA in
+/// PATH would get a blocked AI-guardrail run.
 fn is_skipped_for_missing_config(name: &str, message: &str) -> bool {
     match name {
         "architecture" => message.contains("Skipping"),
         "policy" => {
             // OPA-not-installed is host tooling, not project config — do
-            // not elevate it to a blocking diagnostic under strict mode.
+            // not mark it as a config-gap under strict mode.
             message.contains("Skipping") && !message.contains("OPA not installed")
         }
         "command-safety" => {
-            // Two project-config gaps map to a strict-mode block:
+            // Two project-config gaps map to a strict-mode config-gap:
             //   * "Skipping" — the check is disabled via config.
             //   * "No commands to analyse" — the gate ran without a plan
             //     file at all, so the command-safety guarantee is empty.
