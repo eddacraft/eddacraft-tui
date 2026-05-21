@@ -186,7 +186,7 @@ archive.
 
 ### CIB-005: Pre-write validator patch-mode support
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
   merged 2026-05-18 as `3a647d4b`. Advances to `Released/Shipped` when
   the next hotfix tag records release evidence.
@@ -276,7 +276,7 @@ archive.
 
 ### CIB-007: Untrusted-workspace-root preflight gate is unrecoverable for legitimate callers
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
   merged 2026-05-18 as `3a647d4b` (option **(b)** — recoverable error
   payload). Advances to `Released/Shipped` when the next hotfix tag

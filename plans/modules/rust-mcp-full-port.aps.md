@@ -308,7 +308,7 @@ retirement decisions:
 
 #### RMCPF-011: Port fix/suppress/boundary tools
 
-- **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
   validation and redaction boundaries.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_fix`,
@@ -381,7 +381,7 @@ retirement decisions:
 
 #### RMCPF-012: Port or retire MCP prompts
 
-- **Status:** Merged (PR #1558 merged 2026-05-14, commit `56d5fd89`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be
   retired in favour of docs and tool descriptions.
 - **Expected Outcome:** Prompt parity exists where still useful; retired prompts

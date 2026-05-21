@@ -696,7 +696,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-011: DAG-aware merge verification
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Merge commits carry `parent_commits[]` +
   `prev_line_hashes[]`; the verifier currently walks the chain
   linearly. Replace with a graph walk that joins on merge
@@ -747,7 +747,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-013: Witness genesis-line emission (`GENESIS-BASELINED`)
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `anvil baseline` emits the first witness line with
   `GENESIS-BASELINED` plus the `cutoff_commit` value, so
   later L4 verifications can distinguish baselined vs
@@ -770,7 +770,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-014: Witness writer call-site wiring at the hook
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `WitnessLine.rules_sha` exists from MLP-002 but no
   call site populates it. The hook resolves the active rule
   set + computes `rules_sha`; this task threads that into the
@@ -815,7 +815,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-016: `validate_at_l4` server-side rule-engine execution
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Pre-push's `NeedsL4Validation` decisions currently
   emit `InternalError { TimedOut }` because the L4 engine isn't
   wired. This task swaps in the real rule-engine call.
@@ -1191,7 +1191,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025: Registry-side spoof rejection cross-check
 
-- **Status:** Merged (Phase 1 primitives — PR #1597, merged 2026-05-15. Phase 2 daemon control-lane wire-up shipped as MLP2-025b (PR #1603, 2026-05-16); Phase 3 launcher-side population shipped as MLP2-025c (PR #1608, 2026-05-16 at `1ea23349`). End-to-end spoof cross-check is live in production.)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Env-supplied `AgentTag` must match the tag the
   daemon issued for this PID lineage at INTL-003
   registration. Mismatches treated as missing, not honoured.
@@ -1317,7 +1317,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025b: Daemon control-lane wire-up for spoof cross-check
 
-- **Status:** Merged (PR #1603, 2026-05-16)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Contract spec:** `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md` (Accepted via PR #1599). All four blockers and six open questions resolved in the spec; implementation follows §3–§9 verbatim.
 - **Intent:** Wire the MLP2-025 Phase 1 primitives into the
   daemon's live write-time decision path so the spoof
@@ -1411,7 +1411,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-025c: Launcher-side population of `lineage` + `env_agent_tag`
 
-- **Status:** Merged (PR #1608, 2026-05-16 at `1ea23349`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Closure (2026-05-17, PR #1608 at `1ea23349`):** the launcher
   migration shipped per the locked spec. `session_register_params`
   (`crates/anvil-run/src/ipc.rs`) now emits nested `agent_tag`
@@ -1527,7 +1527,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-026: `degraded:fence-cascade` mode at 5 fences in 60s
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Closure (2026-05-17, PR #1624 at `5e3798da`):** seven impl
   commits (F1–F7) on `feat/mlp2-026-fence-cascade` shipped the
   spec verbatim: `CascadeRecord` + wire-additive
@@ -2563,7 +2563,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-048: `anvil status --json` render path
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `crates/anvil-cli/src/commands/status.rs`
   emits `ProtectionClaim` from a daemon-snapshot input.
   Closes the HARD-GATE rendering surface.
@@ -2736,7 +2736,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051a: `anvil doctor` typed protection claim section
 
-- **Status:** Merged (PR #1655, 2026-05-16 — `feat/mlp2-051a-doctor-claim`
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   rebase-merged at `5c762f3d`). Awaiting `v0.7.0-beta` release evidence to
   advance to Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/commands/doctor.rs` gains a
@@ -2775,7 +2775,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051b: MCP shim emits typed protection claim in `validate_write` response
 
-- **Status:** Merged (PR #1668, 2026-05-17 — `feat/mlp2-051b-mcp-protection-claim`
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   rebase-merged at `7ff0e123`). Awaiting `v0.7.0-beta` release evidence to
   advance to Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/mcp/validation.rs` extends the
@@ -2814,7 +2814,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051c: TS driver-client `ProtectionClaim` mirror + MCP response adapter
 
-- **Status:** Merged (PR #1675, 2026-05-17 — `feat/mlp2-051c-ts-driver-protection-claim`
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   rebase-merged at `d4970b19`). Awaiting `v0.7.0-beta` release evidence to
   advance to Released/Shipped → Complete.
 - **Intent:** Add `packages/anvil-driver-client/src/protection_claim/`
@@ -2879,7 +2879,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051e: Cross-surface protection-claim parity test
 
-- **Status:** Merged (PR #1679, 2026-05-17 — `feat/mlp2-051e-cross-surface-parity`
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   rebase-merged at `d6df62f2`; deps MLP2-051a/b/c all Merged via PRs
   #1655/#1668/#1675). Awaiting `v0.7.0-beta` release evidence to advance to
   Released/Shipped → Complete.
@@ -3249,7 +3249,7 @@ remaining v2 integration surface.
 
 #### MLP2-061: Post-rollover append-head recovery
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Hook-side witness appends derive the next `(seq,
   prev_line_hash)` from the full archive + active chain, not only
   `active.ndjson`, so a rollover cannot cause a fresh genesis to be
@@ -3275,7 +3275,7 @@ remaining v2 integration surface.
 
 #### MLP2-062: `anvil l4-validate` verifies witness-chain integrity before trusting witnessed SHAs
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** The dedicated L4 CLI surface must reject or block on a
   broken witness chain before treating any `commit_sha` as L3 evidence.
 - **Expected Outcome:**
@@ -3655,7 +3655,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** In Progress (Phase 1 merged; Phase 2 follow-up pending)
+- **Status:** In Progress (Phase 1 landed; Phase 2 follow-up pending)
 - **Phase 1 (this PR):** Shipped the daemon-side reachability of
   the fan-out, the keyed redaction primitive that folds in §H2,
   and the registry binding flow:

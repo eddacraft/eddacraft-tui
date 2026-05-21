@@ -6,6 +6,8 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [Unreleased]
+
 ## [0.7.0-beta] — 2026-05-21 — Daemon-Working End-to-End Protection
 
 ### Added
@@ -214,6 +216,20 @@ local-IPC trust boundary documented in
   launcher's `pid_starttime` rather than the launched agent's. Operators see a
   one-line stderr warning on each launch until the handler ships. Tracked in
   [#1827](https://github.com/eddacraft/anvil-001/issues/1827) + MLP2-074.
+
+### Upgrade
+
+- Homebrew: `brew upgrade eddacraft/tap/anvil`.
+- curl installer: rerun the installer at <https://anvil.dev/install>.
+- WinGet: `winget upgrade --id eddacraft.anvil`.
+- Scoop: `scoop update anvil`.
+- Direct download: pick up the new release from
+  [the v0.7.0-beta release page](https://github.com/eddacraft/anvil/releases/tag/v0.7.0-beta).
+- Migration questions: see the
+  [v0.6.x → v0.7.0-beta migration note](docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md).
+  v0.6.x users with revoked sessions will hit `state: "authRequired"` on first
+  invocation — see the migration note's "Action commands require an
+  authenticated session" section for the one-step recovery.
 
 ## [0.6.3-beta] — 2026-05-15 — Beta Watch UX + Uninstall Hotfix
 

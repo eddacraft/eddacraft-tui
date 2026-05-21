@@ -99,7 +99,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
     each host manager; verify hooks fire in expected order; verify
     uninstall restores byte-identical state (deferred to CLI-wiring
     follow-up)
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Shipped:** 2026-05-15 (primitive + CLI wiring merged to main;
   runbook filed at `docs/runbooks/anvil-hook-coexistence.md`)
 - **changeType:** feature
@@ -133,7 +133,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
     pinned ceiling, pass/fail axes, JSON shape and round-trip)
   - `cargo bench -p anvil-bench --bench watch_resource_budget`
   - CI: `resource-budget` workflow green on the candidate SHA
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Completed:** 2026-05-16 on `feat/adopt-002-resource-budget`; added
   Linux `/proc` sampler, `watch_resource_budget` bench, and CI workflow.
 - **changeType:** internal
@@ -179,7 +179,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - `cargo clippy --workspace --all-targets -- -D warnings` clean
   - Integration: fixture environments with each tool installed
     (deferred — manual Boring Week validation)
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Picked up:** 2026-05-14 (primitive merged via PR #1543;
   CLI wiring + `anvil-run` half on
   `feat/adopt-003-cli-wiring` 2026-05-18)
@@ -233,7 +233,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - `cargo test -p eddacraft-anvil util::tests::cli_helper_matches_kernel_canonical`
   - Existing per-surface tests in `audit.rs`, `check.rs`, `baseline.rs`,
     `watcher/filter.rs` continue to pass against the unified set
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Evidence:** Merged via PR #1658 (`feat(kernel): unify local-noise
   ignore policy across surfaces`) on 2026-05-16, rebase-merged as
   `34671da7`. Canonical const now lives at
@@ -316,7 +316,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
 - **Validation:**
   - CI: `editor-coexistence` workflow green on candidate SHA
   - Manual: each combination spot-checked in Boring Week
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Picked up:** 2026-05-17 (urgent-authorised by @aneki via `/goal`;
   promoted from Draft → In Progress per `plans/aps-rules.md` status rule 1.)
 - **Evidence:** Merged via PR #1682 (`feat(adopt-006): editor coexistence

@@ -99,7 +99,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil --test update_resolution_chain`
   - Integration: fixture install for each path; tampered-artefact refusal
     test; CI runs both on macOS and Linux runners
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Merged:** 2026-05-14 via PR #1562 (commits `ceadb1c5`, `44c5df3e`,
   `ae36e615`). Cleanup agent will advance to Released/Shipped once
   v0.7.0-beta ships with the production minisign key embedded; see the
@@ -132,7 +132,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil commands::version::tests::check_surfaces_advisory`
   - `cargo test -p eddacraft-anvil-tui watch::tests::update_hint_rate_limited`
   - Integration: fixture releases feed with advisory metadata
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Merged:** 2026-05-15 via PR #1569 (commits `194fd4a7`, `33103c39`,
   `aa896d19`, `35d43a04`, `b2879f76`). Cleanup agent will advance to
   Released/Shipped once v0.7.0-beta ships with a real advisory in the
@@ -164,7 +164,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
 - **Validation:**
   - CI dry-run on candidate SHA produces a valid formula file
   - Integration: install from the tap on macOS arm64 and x64 runners
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Picked up:** 2026-05-17 on `feat/distrib-003-homebrew-formula`.
 - **Merged:** 2026-05-17 via PR #1652 (commits `657ca39e`, `53a022eb`,
   `b36988a2`). Cleanup agent will advance to Released/Shipped once the
@@ -199,7 +199,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - Manual link/source/status reconciliation against `plans/index.aps.md`,
     `RELEASE-PLAN.md`, README, CONTRIBUTING, and documentation governance.
   - Quick Council pass.
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Picked up:** 2026-05-16 on `docs/distrib-release-cadence`.
 - **Done:** 2026-05-16 (policy doc + README/CONTRIBUTING cross-links).
 - **changeType:** docs

@@ -116,7 +116,7 @@ consistent launch semantics across tools.
   `--tool <name> -- <command...>` and resolves cwd, repo root, and worktree
   root; added to root workspace
 - **Validation:** `cargo build -p eddacraft-anvil-run && anvil-run --help`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-002: Daemon Connectivity and Fence Check
 
@@ -126,7 +126,7 @@ consistent launch semantics across tools.
   status; if daemon unreachable or worktree fenced, launch is refused with a
   clear error message
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib preflight`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-003: Session Registration Flow
 
@@ -138,7 +138,7 @@ consistent launch semantics across tools.
   acknowledgement, then proceeds to spawn. Registration keys the session as
   `(WorktreeKey, AgentTag)` to align with MLP-014.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib register`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-004: Process-Group Child Launch
 
@@ -154,7 +154,7 @@ consistent launch semantics across tools.
   chain works through descendants; absence of those vars triggers the
   process-tree walk fallback at daemon side.
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib spawn`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-005: Session Cleanup on Exit
 
@@ -164,7 +164,7 @@ consistent launch semantics across tools.
   (via drop guard), session unregistration sent to daemon; daemon marks session
   ended
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib cleanup`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-006: Shell Integration Functions
 
@@ -174,7 +174,7 @@ consistent launch semantics across tools.
   common tools (e.g. `claude`, `codex`) that delegate to `anvil-run --tool
   <name> -- "$@"`; works in zsh and bash
 - **Validation:** Manual: source script, verify function wraps command
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-007: Hook Side-Channel Registration
 
@@ -188,7 +188,7 @@ consistent launch semantics across tools.
   than a controlled wrapper PGID -- the daemon enforces this at registration
   time
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib hook`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-008: Blocked Launch UX
 
@@ -198,7 +198,7 @@ consistent launch semantics across tools.
   path, and the command needed to unblock; exit code distinguishes fence
   refusal from daemon-unavailable refusal
 - **Validation:** Manual: attempt launch in fenced worktree, verify output
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 
 ### INTL-009: Session Heartbeat
 
@@ -208,4 +208,4 @@ consistent launch semantics across tools.
   the child process is running; heartbeat interval is well within the daemon's
   30s TTL window
 - **Validation:** `cargo test -p eddacraft-anvil-run --lib heartbeat`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)

@@ -81,7 +81,7 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::insights::tests::weekly_summary_matches_fixture`
   - `cargo test -p eddacraft-anvil commands::insights::tests::derives_from_witness_chain`
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Done:** 2026-05-17 — `anvil insights` and `--json` emit the pinned
   `anvil.insights.v1` weekly summary from the witness chain. The v1 schema
   reports `witness_events_observed` separately so hook/commit evidence is not

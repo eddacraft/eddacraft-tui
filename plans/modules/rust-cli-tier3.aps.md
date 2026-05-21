@@ -143,7 +143,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-001: edda list command
 
-- **Status:** Merged (2026-05-17 — PR #1664, merge commit
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   `b47360d0`. Ported the historical Node.js `anvil edda list` to Rust
   in `crates/anvil-cli/src/commands/edda.rs` with `--type`/`--status`/
   `--confidence`/`--since`/`--limit`/`--json` filters, matching the
@@ -538,7 +538,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-017b: intercept unblock CLI surface
 
-- **Status:** Merged (2026-05-17 — PR #1657, merge commit
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
   `cb642908`. Landed the per-fence unblock IPC verb wrapping
   `FenceStore::unblock_worktree`, the `--worktree` / `--all` /
   `--dry-run` CLI surface, and proto `IpcCommand::UnblockWorktree`.
