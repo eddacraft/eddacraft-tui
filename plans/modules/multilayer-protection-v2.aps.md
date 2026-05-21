@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 60/80 |
+| MLP2 | @aneki | In Progress | 62/80 |
 
 **Last reviewed:** 2026-05-21 (Group Q added — MLP2-072 MCP auth-gate
 shape + MLP2-073 pre-write summary dedupe. Both filed against the
@@ -3775,8 +3775,8 @@ to redesign once GV2-001..-023 land.
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
-| Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 0/2 |
-| **Total** | **80** | **60/80** |
+| Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
+| **Total** | **80** | **62/80** |
 
 ## Recommended landing order
 
@@ -3806,7 +3806,7 @@ experiences.
 
 #### MLP2-072: MCP `anvil_validate_write` blocks every write when unauthenticated
 
-- **Status:** In Progress
+- **Status:** Merged via PR [#1819](https://github.com/eddacraft/anvil-001/pull/1819) (merged 2026-05-21 at `18c899bb`)
 - **Tracking:** GH issue [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
 - **Intent:** After `anvil start` installs the MCP entries in
   `~/.cursor/mcp.json` / `~/.claude.json`, the MCP server currently
@@ -3838,7 +3838,7 @@ experiences.
 
 #### MLP2-073: Pre-write `summary.total` double-counts identical diagnostics
 
-- **Status:** In Progress
+- **Status:** Merged via PR [#1821](https://github.com/eddacraft/anvil-001/pull/1821) (merged 2026-05-21 at `15a397bd`)
 - **Tracking:** GH issue [#1799](https://github.com/eddacraft/anvil-001/issues/1799)
 - **Intent:** A single hardcoded secret on one line currently returns
   `summary.total = 2` with two diagnostics that share the same `id`,

@@ -5,7 +5,7 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | Ready  | 2/6  |
+| LANGTS | —     | Ready  | 3/6  |
 
 **Last reviewed:** 2026-04-26
 
@@ -158,7 +158,13 @@ LANGTS-003 publication of the checklist artefact).
 - LANGTS-006: Ship a TS antipattern rule for dynamic-eval shapes
   (`eval(<dynamic>)`, `new Function(...)`, `Function.prototype.constructor`
   string-source invocations). Severity `error` under the default profile;
-  also wired into the `gate -p ai` curated set. *Identified from
+  also wired into the `gate -p ai` curated set. **Merged 2026-05-21 via
+  PR [#1820](https://github.com/eddacraft/anvil-001/pull/1820) at
+  `bcb96175` — shipped AP-008 (eval dynamic + template-literal arg) and
+  AP-009 (unconditional `new Function`) in the new `dynamic-execution`
+  family; `Function.prototype.constructor` deferred to follow-up to
+  avoid false positives on legitimate `.constructor` access without an
+  AST-aware filter.** *Identified from
   [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
   finding #7 — a planted `export function unsafe(input:any){ return eval(input); }`
   was not caught by any of `check`, `audit`, `gate`, `watch`, or MCP, even

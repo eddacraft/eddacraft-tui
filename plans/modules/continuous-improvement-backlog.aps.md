@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 5/12     |
+| CIB | —     | In Progress | 7/12     |
 
 ## Purpose
 
@@ -428,7 +428,7 @@ archive.
 
 ### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
 
-- **Status:** In Progress
+- **Status:** Merged via PR [#1818](https://github.com/eddacraft/anvil-001/pull/1818) (merged 2026-05-21 at `acc4db6f`)
 - **Tracking:** GH issue [#1803](https://github.com/eddacraft/anvil-001/issues/1803)
 - **Intent:** Immediately after `anvil start`, `anvil gate -p ai` reports
   3/5 checks failing solely because their config files don't yet exist
@@ -457,7 +457,7 @@ archive.
 
 ### CIB-012: `anvil check --staged` errors with "`--changed` required"
 
-- **Status:** In Progress
+- **Status:** Merged via PR [#1813](https://github.com/eddacraft/anvil-001/pull/1813) (merged 2026-05-21 at `ce0bd32b`)
 - **Tracking:** GH issue [#1804](https://github.com/eddacraft/anvil-001/issues/1804)
 - **Intent:** `--staged` is the obvious flag a developer reaches for
   first (`git diff --staged` mental model). Today it errors out with
