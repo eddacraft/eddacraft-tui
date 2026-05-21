@@ -151,7 +151,9 @@ fn json_mode_auth_failure_emits_only_json_error() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    assert!(!output.status.success());
+    // Issue #1822 / PR #1824: action commands treat auth-required as
+    // an *expected state* and exit 0 with the informational envelope.
+    assert!(output.status.success());
     assert!(
         output.stdout.is_empty(),
         "auth failure should not write stdout in JSON mode: {}",
@@ -161,18 +163,28 @@ fn json_mode_auth_failure_emits_only_json_error() {
     let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
         .unwrap_or_else(|err| panic!("stderr must be one JSON object, got {stderr:?}: {err}"));
     assert_eq!(
-        parsed.get("error").and_then(|value| value.as_str()),
-        Some("authentication_required")
+        parsed.get("state").and_then(|value| value.as_str()),
+        Some("authRequired"),
+        "action-command auth-required envelope must use the informational shape: {stderr}",
+    );
+    assert_eq!(
+        parsed.get("next").and_then(|value| value.as_str()),
+        Some("anvil auth login"),
+    );
+    assert!(
+        parsed.get("error").is_none(),
+        "informational envelope must not carry an `error` key (reserved for the probe shape): {stderr}",
     );
     assert_eq!(
         stderr.trim().lines().count(),
         1,
         "stderr should contain only the JSON auth envelope: {stderr}",
     );
-    assert!(
-        !stderr.contains("Run `anvil auth login`") && !stderr.contains("Authentication required"),
-        "stderr should not include human auth guidance in JSON mode: {stderr}",
-    );
+    // No need to grep for human-language strings: a single-line stderr
+    // that parses cleanly as one JSON object proves nothing else leaked.
+    // The phrase "Authentication required" / "Run `anvil auth login`"
+    // now lives *inside* the envelope's `message` / `next` fields by
+    // design, so a substring check would self-trip.
 }
 
 #[test]
@@ -195,21 +207,33 @@ fn json_verbose_edict_auth_failure_emits_only_json_error() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    assert!(!output.status.success());
+    // Issue #1822 / PR #1824: edict refresh failure on an action
+    // command treats auth-required as an *expected state* and exits 0
+    // with the informational envelope (same shape as missing creds).
+    assert!(output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
         .unwrap_or_else(|err| panic!("stderr must be one JSON object, got {stderr:?}: {err}"));
     assert_eq!(
-        parsed.get("error").and_then(|value| value.as_str()),
-        Some("authentication_required")
+        parsed.get("state").and_then(|value| value.as_str()),
+        Some("authRequired"),
+        "action-command auth-required envelope must use the informational shape: {stderr}",
+    );
+    assert!(
+        parsed.get("error").is_none(),
+        "informational envelope must not carry an `error` key: {stderr}",
     );
     assert_eq!(
         stderr.trim().lines().count(),
         1,
         "stderr should contain only the JSON auth envelope: {stderr}",
     );
+    // `[auth]` is a verbose-only human diagnostic and must never leak
+    // under --json. The other former check (`Run `anvil auth login``)
+    // is now part of the envelope's `next` field by design — a single
+    // parseable JSON line is the stronger guarantee.
     assert!(
-        !stderr.contains("[auth]") && !stderr.contains("Run `anvil auth login`"),
-        "stderr should not include human auth diagnostics in JSON mode: {stderr}",
+        !stderr.contains("[auth]"),
+        "verbose `[auth]` diagnostics must not leak under --json: {stderr}",
     );
 }
