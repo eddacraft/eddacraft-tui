@@ -131,6 +131,16 @@ fn should_skip_pattern_match(
 ) -> bool {
     let matched_value = &line[match_start..match_end];
 
+    if pattern.high_confidence {
+        // The pattern is itself the credential shape — fuzzy keyword
+        // suppression (`example`, `test`, `dummy`) and the all-caps
+        // `looks_like_code` heuristic both defeat textbook credentials
+        // like the canonical AWS `AKIAIOSFODNN7EXAMPLE` access key
+        // (issue #1800). Only shape-anchored allowlist entries and
+        // user-supplied `custom_allowlist` opt-outs apply here.
+        return matcher.is_shape_or_custom_allowlisted(matched_value);
+    }
+
     matcher.is_allowlisted(matched_value)
         || matcher.looks_like_code(matched_value)
         || (pattern.name == "Generic Secret" && is_generic_secret_false_positive(matched_value))
@@ -380,6 +390,137 @@ mod tests {
         scan_content_with_pattern_errors_and_stats, scan_content_with_stats,
     };
     use crate::secret::types::{FindingType, SecretCheckConfig};
+
+    // Issue #1800 — textbook AWS access keys (`AKIA…`) used to be
+    // suppressed by both `looks_like_code` (`^[A-Z][A-Z0-9_]+$`) and the
+    // keyword allowlist (`example` substring inside `AKIAIOSFODNN7EXAMPLE`).
+    // High-confidence patterns now bypass both filters.
+
+    #[test]
+    fn flags_textbook_aws_access_key_id_from_aws_docs() {
+        let config = SecretCheckConfig::default();
+        // Canonical AWS-documentation literal — flag despite the `EXAMPLE`
+        // suffix in the matched value.
+        let content = "const k = \"AKIAIOSFODNN7EXAMPLE\";";
+        let findings = scan_content(content, "src/aws.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "AKIAIOSFODNN7EXAMPLE must flag as AWS Key, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flags_textbook_aws_pair_in_typescript_module() {
+        // Reproduces the fixture from issue #1800: the canonical AWS
+        // documentation key pair embedded in an ES module.
+        let config = SecretCheckConfig::default();
+        let content = "\
+const k = \"AKIAIOSFODNN7EXAMPLE\";
+const s = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\";
+export function go(){return [k,s];}";
+        let findings = scan_content(content, "src/aws.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "AWS access key id must flag, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flags_aws_sts_temporary_access_key() {
+        // STS temporary access keys share the AKIA-style shape but with
+        // the `ASIA` prefix — they're still real AWS credentials.
+        let config = SecretCheckConfig::default();
+        let content = "AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE";
+        let findings = scan_content(content, ".env", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "AWS STS Key"),
+            "ASIA… key must flag as AWS STS Key, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flags_stripe_test_key_despite_test_keyword() {
+        // The keyword allowlist used to suppress `sk_test_…` matches
+        // because the substring "test" hits the allowlist. Stripe test
+        // keys are still real Stripe API credentials and must surface.
+        let config = SecretCheckConfig::default();
+        let stripe_test = format!("sk_test_{}", "1234567890abcdefghijABCD");
+        let content = format!("const key = '{stripe_test}';");
+        let findings = scan_content(&content, "src/stripe.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Stripe Test Key"),
+            "sk_test_… must flag as Stripe Test Key, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flags_anthropic_api_key() {
+        let config = SecretCheckConfig::default();
+        let key = format!("sk-ant-{}", "abcdefghijklmnopqrstuvwxyz012345");
+        let content = format!("export const ANTHROPIC_KEY = '{key}';");
+        let findings = scan_content(&content, "src/claude.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "Anthropic API Key"),
+            "sk-ant-… key must flag, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flags_openai_project_api_key() {
+        let config = SecretCheckConfig::default();
+        let key = format!("sk-proj-{}", "abcdefghijklmnopqrst");
+        let content = format!("export const OPENAI_KEY = '{key}';");
+        let findings = scan_content(&content, "src/openai.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "OpenAI API Key"),
+            "sk-proj-… key must flag, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn custom_allowlist_still_suppresses_high_confidence_pattern() {
+        // The operator escape hatch: `custom_allowlist` opt-out must
+        // continue to suppress findings even after the high-confidence
+        // bypass — otherwise legitimate documentation/test fixtures
+        // can't be excluded.
+        let config = SecretCheckConfig {
+            custom_allowlist: vec!["AKIAIOSFODNN7EXAMPLE".to_string()],
+            ..SecretCheckConfig::default()
+        };
+        let content = "const k = \"AKIAIOSFODNN7EXAMPLE\";";
+        let findings = scan_content(content, "src/aws_docs.ts", &config);
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "custom_allowlist must still suppress, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn keyword_allowlist_still_suppresses_low_confidence_pattern() {
+        // Regression guard: the keyword allowlist must continue to
+        // suppress fuzzy patterns like `API Key` that catch generic
+        // documentation values.
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = "apiKey: 'placeholder-api-key-for-testing'";
+        let findings = scan_content(content, "src/config.ts", &config);
+        assert!(
+            findings.is_empty(),
+            "placeholder API key must still be suppressed, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
 
     #[test]
     fn scans_patterns_and_entropy_together() {

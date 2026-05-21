@@ -47,8 +47,12 @@ fn temp_dir(label: &str) -> std::path::PathBuf {
 
 #[test]
 fn detects_aws_secret_key_in_config_module() {
-    // The AWS Key pattern (AKIA...) is filtered by `looks_like_code` because
-    // it is all-uppercase. The AWS Secret Key pattern matches assignments.
+    // Before #1800, the bare `AKIA…` pattern was suppressed by the
+    // `looks_like_code` filter and by the `example` keyword allowlist
+    // — only the assignment-anchored AWS Secret Key path survived. The
+    // bare `AKIA…` shape is now high-confidence and surfaces on its
+    // own; this test still asserts the secret-access-key shape because
+    // that's what the production-snippet fixture contains.
     let content = r"
 import { S3Client } from '@aws-sdk/client-s3';
 
@@ -115,9 +119,9 @@ export async function createPaymentIntent(amount: number) {{
 
 #[test]
 fn detects_generic_password_in_config() {
-    // The Database URL pattern's matched value looks like a URL (protocol://),
-    // which triggers the looks_like_code filter. Use the generic secret
-    // pattern instead — it matches password assignments reliably.
+    // Exercises the Generic Secret pattern. The keyword-driven Generic
+    // Secret rule remains low-confidence (#1800) so the existing FP
+    // filters keep guarding it.
     let content = "password='super-s3cret-value!'\n";
 
     let findings = scan_content(content, "config/db.ts", &default_config());
@@ -144,9 +148,9 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWe\n\
 
 #[test]
 fn detects_sendgrid_api_key() {
-    // JWTs are filtered by looks_like_code (lowercase.lowercase pattern).
-    // SendGrid keys have a distinctive SG.xxx.yyy format that is not
-    // caught by the code-like filter.
+    // SendGrid keys have a distinctive SG.xxx.yyy format. As a
+    // high-confidence shape (#1800) they bypass the `looks_like_code`
+    // filter, the same as the AWS / GitHub / Stripe shapes.
     let content =
         "const key = 'SG.1234567890123456789012.1234567890123456789012345678901234567890123';\n";
 
@@ -254,7 +258,9 @@ fn entropy_scales_with_character_variety() {
 
 #[test]
 fn mixed_file_finds_both_pattern_and_entropy_findings() {
-    // Use a Stripe live key (not test — "test" is in the default allowlist)
+    // Use a Stripe live key for the production-config narrative.
+    // (Stripe test keys are now also high-confidence per #1800 — the
+    // "test" keyword no longer suppresses them.)
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content = format!(
         r"
@@ -282,7 +288,9 @@ export const APP_NAME = 'Anvil';
 
 #[test]
 fn entropy_findings_are_suppressed_on_lines_already_matched_by_pattern() {
-    // Use a Stripe live key (not test — "test" is in the default allowlist)
+    // Use a Stripe live key for the production-config narrative.
+    // (Stripe test keys are now also high-confidence per #1800 — the
+    // "test" keyword no longer suppresses them.)
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content = format!("const key = '{stripe_key}';\n");
 
@@ -331,8 +339,10 @@ fn run_secret_check_on_clean_files_passes() {
 fn run_secret_check_scores_degrade_with_findings() {
     let dir = temp_dir("score-degrade");
     let f = dir.join("leaked.ts");
-    // Use an aws_secret_access_key assignment (not a bare AKIA... token which
-    // is filtered by `looks_like_code` due to all-uppercase) plus a Stripe key.
+    // Use an aws_secret_access_key assignment plus a Stripe key.
+    // (The bare AKIA shape is high-confidence post-#1800 and would
+    // also fire on its own; this fixture exercises the assignment
+    // path because that's how secret leaks usually appear in code.)
     let aws_secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content =

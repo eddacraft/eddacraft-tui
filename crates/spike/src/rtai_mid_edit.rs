@@ -39,10 +39,13 @@ const ITERATIONS: usize = 1024;
 
 /// Fixture buffer that mimics what a Cursor / VS Code user is editing
 /// when AI assistance suggests a leaked credential. The `api_key='…'`
-/// shape matches the default `API Key` rule and survives the scanner's
-/// `looks_like_code` filter (which would drop a bare `AKIA…` token).
-/// Two unrelated lines on either side put the finding off the first
-/// scanned line so the scanner's per-line skip path is exercised.
+/// shape matches the default `API Key` rule — a low-confidence pattern
+/// that requires an `api_key=` keyword anchor, picked here because the
+/// shape is the most common one in the wild. (Bare `AKIA…` tokens used
+/// to be silently dropped by the scanner's `looks_like_code` filter;
+/// issue #1800 fixed that, so they would also fire now.) Two unrelated
+/// lines on either side put the finding off the first scanned line so
+/// the scanner's per-line skip path is exercised.
 const FIXTURE_BUFFER: &str = "import { sdk } from \"./client\";\n\
 const config = { api_key: 'abcdEFGH1234567890' };\n\
 sdk.connect(config);\n";

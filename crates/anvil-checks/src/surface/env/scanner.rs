@@ -97,7 +97,19 @@ pub fn scan_env_file(
                 continue;
             };
             let matched_value = matched_range.as_str();
-            if matcher.is_allowlisted(matched_value) {
+            // High-confidence shape patterns (AWS, GitHub, Slack, …)
+            // bypass the keyword allowlist — the textbook AWS docs key
+            // `AKIAIOSFODNN7EXAMPLE` is still a real-shape credential
+            // even with `EXAMPLE` in the value (issue #1800). Shape-
+            // anchored allowlist entries (hex hashes, `0x…`, data URIs)
+            // and user `custom_allowlist` opt-outs still apply for both
+            // paths.
+            let allowlisted = if pattern.high_confidence {
+                matcher.is_shape_or_custom_allowlisted(matched_value)
+            } else {
+                matcher.is_allowlisted(matched_value)
+            };
+            if allowlisted {
                 continue;
             }
             // The standalone secret scanner runs `looks_like_code` to drop
