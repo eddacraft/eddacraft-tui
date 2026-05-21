@@ -242,7 +242,7 @@ fn excluded_runtime_change_does_not_emit_violation() {
     let touched = touched_files_in_violations(&events);
     assert!(
         !touched.iter().any(|f| f.contains("vendor")),
-        "vendor file should not produce events; touched files: {touched:?}"
+        "vendor file should not produce violation events; touched files: {touched:?}"
     );
 }
 
@@ -279,7 +279,14 @@ fn unfiltered_runtime_change_does_emit_violation() {
     let events = collect_events(&rx, Duration::from_millis(600));
     handle.stop().unwrap();
 
-    let touched = touched_files_in_violations(&events);
+    // `touched_files_in_violations` carries the file path as produced by
+    // `Path::to_string_lossy()` inside the watcher, which uses platform
+    // separators (`\` on Windows). Normalise to `/` before matching so
+    // the substring assertion is portable.
+    let touched: Vec<String> = touched_files_in_violations(&events)
+        .into_iter()
+        .map(|f| f.replace('\\', "/"))
+        .collect();
     assert!(
         touched.iter().any(|f| f.contains("vendor/lib/added")),
         "without exclude_patterns the runtime vendor write must produce \
