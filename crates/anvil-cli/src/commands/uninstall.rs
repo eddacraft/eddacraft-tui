@@ -736,25 +736,30 @@ fn is_homebrew_path(p: &str) -> bool {
 }
 
 /// Detect the Scoop install layout. Scoop drops binaries under
-/// `<scoop_root>/apps/<pkg>/<version>/` with a shim under
-/// `<scoop_root>/shims/`; `<scoop_root>` defaults to `~/scoop` but can
-/// be relocated via `$SCOOP`, so we match on the trailing layout rather
-/// than the root. Path comes back from `current_exe()` with backslashes
-/// on Windows, so we normalise to forward-slash + lowercase first
-/// (Windows paths are case-insensitive).
+/// `<scoop_root>/apps/anvil/<version>/` with a shim at
+/// `<scoop_root>/shims/anvil.exe`; `<scoop_root>` defaults to `~/scoop`
+/// but can be relocated via `$SCOOP`, so we match on the trailing
+/// layout rather than the root. Path comes back from `current_exe()`
+/// with backslashes on Windows, so we normalise to forward-slash +
+/// lowercase first (Windows paths are case-insensitive). The `apps`
+/// arm is anchored with a trailing slash and the `shims` arm with the
+/// exact filename so neighbour shims like `anvil-helper.exe` don't
+/// false-match.
 fn is_scoop_path(p: &str) -> bool {
     let n = p.replace('\\', "/").to_ascii_lowercase();
-    n.contains("/scoop/apps/anvil/") || n.contains("/scoop/shims/anvil")
+    n.contains("/scoop/apps/anvil/") || n.contains("/scoop/shims/anvil.exe")
 }
 
 /// Detect the `WinGet` portable install layout. `WinGet` portable
 /// packages land in `%LOCALAPPDATA%\Microsoft\WinGet\Packages\<id>_<source>\`
 /// with a shim under `%LOCALAPPDATA%\Microsoft\WinGet\Links\`. We match
 /// either, since `current_exe()` may resolve to the real binary or to
-/// the alias depending on how the user launched it.
+/// the alias depending on how the user launched it. Both arms are
+/// anchored to filename/separator boundaries so a hypothetical
+/// `eddacraft.anvil-extra` or `Links\anvil-foo.exe` doesn't false-match.
 fn is_winget_path(p: &str) -> bool {
     let n = p.replace('\\', "/").to_ascii_lowercase();
-    n.contains("/winget/packages/eddacraft.anvil") || n.contains("/winget/links/anvil")
+    n.contains("/winget/packages/eddacraft.anvil_") || n.contains("/winget/links/anvil.exe")
 }
 
 #[cfg(test)]
@@ -1128,6 +1133,12 @@ mod tests {
         assert!(!is_scoop_path(
             r"C:\Users\alice\scoop\apps\ripgrep\current\rg.exe"
         ));
+        // Neighbour shims that start with "anvil" must not match —
+        // shim arm is anchored to the exact filename `anvil.exe`.
+        assert!(!is_scoop_path(
+            r"C:\Users\alice\scoop\shims\anvil-helper.exe"
+        ));
+        assert!(!is_scoop_path(r"C:\Users\alice\scoop\shims\anvil2.exe"));
     }
 
     #[test]
@@ -1153,6 +1164,17 @@ mod tests {
         // A different WinGet package must not match.
         assert!(!is_winget_path(
             r"C:\Users\alice\AppData\Local\Microsoft\WinGet\Packages\other.tool_x\other.exe"
+        ));
+        // Hypothetical sibling package whose id is a prefix of ours
+        // must not match — packages arm is anchored on the `_` source
+        // separator.
+        assert!(!is_winget_path(
+            r"C:\Users\alice\AppData\Local\Microsoft\WinGet\Packages\eddacraft.anvil-extra_x\x.exe"
+        ));
+        // Neighbour link with a name starting with "anvil" must not
+        // match — links arm is anchored to the exact filename.
+        assert!(!is_winget_path(
+            r"C:\Users\alice\AppData\Local\Microsoft\WinGet\Links\anvil-helper.exe"
         ));
     }
 }
