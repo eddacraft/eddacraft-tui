@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 6/64     |
+| CLAWP | @aneki | In Progress | 8/64     |
 
-**Last reviewed:** 2026-05-20 (six findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-20 (eight findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -246,7 +246,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_3cc630c104` — Rust integration test eddacraft-anvil-checks/surfenv_anvil_baseline
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1788 (merged at `af78867f`)
 - **Branch:** `fix/1746-clawp-013-surfenv-smoke`
 - **Resolution:** Added an `AWS_ACCESS_KEY_ID=AKIAQRSTUVWXYZ012345`
   line to the synthetic `.env.local` in
@@ -295,7 +295,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_5361f7c11c` — Rust integration test eddacraft-anvil/watch_json_output
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1783 (merged at `0e63b52e`)
 - **Branch:** `fix/1748-clawp-015-bare-exclude-json`
 - **Resolution:** Added a snapshot-envelope assertion after `parse_envelopes`
   in `watch_json_stdout_carries_only_ndjson_when_bare_exclude_warning_present`
