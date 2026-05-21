@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 11/64    |
+| CLAWP | @aneki | In Progress | 12/64    |
 
-**Last reviewed:** 2026-05-21 (eleven findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-21 (twelve findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -209,7 +209,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_07da3568bc` — Rust integration test eddacraft-anvil/ai_guardrail_profile
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged via PR #1791 (merged 2026-05-21 at `be927818`)
 - **Branch:** `fix/1744-clawp-011-ai-exit`
 - **Resolution:** Added two assertions to
   `ai_profile_emits_diagnostic_envelope_in_json_mode`: (1)
@@ -220,8 +220,8 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
   these, a regression that silently turned the block into a pass — or
   drifted `exit_code` away from the process status — would have left
   every other envelope-shape assertion still green. Pure test
-  addition; no production change. Advances to **Merged** on this PR's
-  merge; counter bump in the same step.
+  addition; no production change. Counter bumped 11/64 → 12/64 in
+  this commit.
 - **Recommendation:** Assert the expected blocking exit behaviour explicitly, for example by checking `!output.status.success()` and comparing `parsed["exit_code"]` to `output.status.code()` when available.
 - **Evidence:** `crates/anvil-cli/tests/ai_guardrail_profile.rs:28` (`ai_profile_emits_diagnostic_envelope_in_json_mode`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
