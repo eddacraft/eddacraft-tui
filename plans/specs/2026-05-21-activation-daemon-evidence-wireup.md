@@ -1,14 +1,28 @@
 # Activation Surface — Daemon Evidence Wire-Up
 
+## 1. Identifiers and status
+
 | Field | Value |
-|-------|-------|
+| ----- | ----- |
+| Spec id | `2026-05-21-activation-daemon-evidence-wireup` |
 | Status | Draft — planning council complete (session `plan-f4668683`, 4 COUNTER / 1 CONSENSUS); revisions pending |
 | Date | 2026-05-21 |
-| Author | @aneki + Claude (Opus 4.7, 1M ctx) |
+| Owners | @aneki |
+| Work item | MLP2-051f (proposed — see §Council Verdicts → APS placement) |
+| Supersedes | — |
+| Council tier | full (spec review; impl review tier set when MLP2-051f filed) |
 | Drives | GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831) — `ready_restart_required` stuck after MCP install |
 | Coordinates with | MLP2 ([Group D / 051a–051e](../modules/multilayer-protection-v2.aps.md)), LAUNCH-009 / -009.5 (archived), ADR-015, INTD-001..-014 (Complete) |
 | Affected crates | `anvil-cli` (`activation/`), `anvil-intercept` (read-only consumer) |
 | Risk | Medium — touches the protection-state vocabulary surface |
+
+> Template note: this draft adopts §1 from `plans/specs/INTEGRATION-SPEC-TEMPLATE.md`
+> so the spec is discoverable and cross-referencable. The remaining template
+> sections (§3 Data shapes, §4 Message flow, etc.) will be applied in the
+> §"Revisions to apply before implementation starts" rewrite that precedes the
+> implementation PR — the current content already covers the substance under
+> non-template headings (TL;DR, Problem, Goals, Proposed change, Failure modes,
+> Implementation slice, Council Verdicts).
 
 ## TL;DR
 
@@ -371,9 +385,15 @@ prod" bug this spec is fixing**.
      what the fix is supposed to eliminate.
    - **Decision:** activation MUST canonicalise its `worktree` argument
      before the IPC call, using the same `std::fs::canonicalize` +
-     warn-on-failure pattern as `fetch_protection_claim_for_cwd`. Reuse
-     the existing routine in `auth.rs::validate_workspace_roots`
-     (lines ~412-452) — do not invent a parallel canonicalisation.
+     warn-on-failure pattern as
+     `crates/anvil-cli/src/commands/protection_claim_section.rs::fetch_protection_claim_for_cwd`
+     (line 72). The daemon canonicalises at register-time inside the
+     intercept crate via `DriverManifest::validate_workspace_roots`
+     (`crates/anvil-intercept/src/auth.rs` — see the doc-comment at
+     line 15 for the register-time contract); the activation-side
+     canonicalisation must produce a path that compares equal to
+     whatever the daemon stored. Do not invent a parallel
+     canonicalisation routine in `activation/`.
    - **Regression test:** register at canonical path, query via symlink,
      assert `Unprotected` (NOT promoted). Register at canonical A, query
      at canonical B that bind-mounts to the same inode but differs in
@@ -395,10 +415,18 @@ prod" bug this spec is fixing**.
      framing from the spec until parity lands.
 
 4. **Test strategy must include a real end-to-end against a daemon
-   socket, not just mocks.** Adversarial flagged this as critical and
-   directly cited the project memory note `feedback_validate_prod_wireup_not_spec_match.md`.
-   Synth tests that pre-insert `McpTier::LiveValidation` pass whether
-   the wire-up fires or not — that's the bug class being fixed.
+   socket, not just mocks.** Adversarial flagged this as critical, by
+   reference to the canonical example: MLP2-025b (PR
+   [#1671](https://github.com/eddacraft/anvil-001/pull/1671)) shipped
+   `with_cross_check_context` to spec but with zero production
+   callers, so the cross-check stayed inert in prod while every unit
+   test passed. The activation surface is currently the same shape of
+   bug — `LiveValidation` is defined and tested via synth diagnostics
+   that pre-insert the variant, but no production path ever sets it.
+   Adding a "daemon snapshot mock" inside the unit suite reproduces
+   exactly that pattern: the mock satisfies the assertion regardless
+   of whether the real IPC call is wired. The fix needs at least one
+   test that goes through the real call site.
    - **Decision:** mandatory integration test in
      `crates/anvil-cli/tests/protection_claim_cross_surface.rs` (or a
      new `activation_daemon_evidence.rs`) that: spawns a real daemon
@@ -540,7 +568,12 @@ the rule implementable today and stricter than mass-promotion.
 5. Worktree canonicalisation contract documented and tested.
 6. `WorktreeClaimState` promotion predicate enumerated explicitly.
 
-Done-count: 81 → 82 on filing; advances to 63 on merge.
+Counters (MLP2 header is currently `62/81`):
+
+- **On filing:** module total advances `81 → 82` (denominator); done-count stays `62` (numerator unchanged — filing is not closure).
+- **On merge:** done-count advances `62 → 63`; total stays `82`.
+
+Filing MLP2-051g and -051h would each bump the total again under the same rule.
 
 `--verbose` / `--why` flag → **MLP2-051g** (sibling, lands after 051f).
 `generated_at_unix` wire-add → either precursor inside 051f or **MLP2-051h**
@@ -557,7 +590,12 @@ so the steps file references concrete actions):
       `last_heartbeat_unix` (max across worktree sessions) against
       `SystemTime::now()`; window 45s, not "TBD".
 - [ ] §"Concrete edits" — add path canonicalisation step before the
-      IPC call, reusing `auth.rs::validate_workspace_roots` pattern.
+      IPC call, reusing the `fetch_protection_claim_for_cwd` helper
+      (`crates/anvil-cli/src/commands/protection_claim_section.rs:72`)
+      pattern; ensure the canonical form matches what
+      `DriverManifest::validate_workspace_roots` stored at register
+      time on the daemon side
+      (`crates/anvil-intercept/src/auth.rs`).
 - [ ] §"Concrete edits" — enumerate `WorktreeClaimState` promotion
       predicate explicitly (PreWriteDaemon, DegradedProtection cases).
 - [ ] §"Concrete edits" — add structured tracing pattern matching
