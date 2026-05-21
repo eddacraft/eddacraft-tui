@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft — pending planning council |
+| Status | Draft — planning council complete (session `plan-f4668683`, 4 COUNTER / 1 CONSENSUS); revisions pending |
 | Date | 2026-05-21 |
 | Author | @aneki + Claude (Opus 4.7, 1M ctx) |
 | Drives | GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831) — `ready_restart_required` stuck after MCP install |
@@ -321,3 +321,273 @@ live daemon attestation for *this* worktree.
   graduation path behind it.
 - INTD-015 cross-session attribution policy (already speced
   separately, 2026-05-21).
+
+---
+
+## Council Verdicts (session `plan-f4668683`, 2026-05-21)
+
+5 personas: architect, pragmatic-lead, adversarial-reviewer,
+security-analyst, operations-reviewer. Signals: **4 COUNTER, 1
+CONSENSUS** (pragmatic-lead). The COUNTERs are not on the wire-path
+shape — that's settled — but on **implementation gaps that, left
+unaddressed, will reproduce the exact "spec implemented, no callers in
+prod" bug this spec is fixing**.
+
+### Convergent verdicts (apply to spec as-is)
+
+1. **Heartbeat freshness window — per-session, not snapshot-level.**
+   All five personas independently flagged: `DaemonStatusV1` has **no**
+   daemon-level wall-clock timestamp. `HealthStateV1.uptime_seconds`
+   is monotonic-since-start, not a freshness signal. The only usable
+   anchor is `SessionRecord.last_heartbeat_unix` per-session
+   (`crates/anvil-intercept-proto/src/lib.rs:277`).
+   - **Decision:** freshness check operates on `max(last_heartbeat_unix)`
+     across the worktree's registered sessions, compared against
+     `SystemTime::now()`.
+   - **Window:** **45 seconds**. Calibrated against the producer cadence:
+     `HEARTBEAT_INTERVAL=10s` (`anvil-run/src/heartbeat.rs:22`) +
+     `DEFAULT_HEARTBEAT_TTL=30s` registry eviction (`registry.rs:72`) +
+     ~5s slack for clock skew / paused-then-resumed laptops. Tighter
+     than 30s is unreachable (registry would evict the session first);
+     looser than 120s permits a stale-snapshot exploitation window.
+   - **Not operator-configurable upward** — security veto (downgrade
+     attack surface). May be tightened by config, never loosened.
+   - **Side decision:** propose a wire-add of `generated_at_unix: u64`
+     to `DaemonStatusV1` (additive, byte-compat with existing
+     `#[serde(default)]` shape) as a second consistency check. Filed
+     as a precursor sub-task; see §APS placement.
+
+2. **Worktree path canonicalisation is mandatory (was missing).**
+   Three personas (architect, adversarial, security) flagged this as
+   **critical**. `build_protection_claim_from_wire(snapshot, worktree)`
+   does **byte-equality** comparison against `WorktreeStatus.worktree`
+   (`crates/anvil-intercept/src/status.rs:667`). The daemon canonicalises
+   at registry register-time (`registry.rs:1149`); the activation
+   diagnostic does **not**. Symptoms:
+   - Caller passes `.` / relative path / symlink → byte-mismatch → claim
+     reads `Unprotected` → promotion silently no-ops → user sees
+     `ready_restart_required` with no diagnostic. **This is the exact
+     failure mode of #1831 reproduced on a different path** — exactly
+     what the fix is supposed to eliminate.
+   - **Decision:** activation MUST canonicalise its `worktree` argument
+     before the IPC call, using the same `std::fs::canonicalize` +
+     warn-on-failure pattern as `fetch_protection_claim_for_cwd`. Reuse
+     the existing routine in `auth.rs::validate_workspace_roots`
+     (lines ~412-452) — do not invent a parallel canonicalisation.
+   - **Regression test:** register at canonical path, query via symlink,
+     assert `Unprotected` (NOT promoted). Register at canonical A, query
+     at canonical B that bind-mounts to the same inode but differs in
+     path bytes, assert `Unprotected` (paths must literally match;
+     inode-equality is **not** protection-equality).
+
+3. **Windows IPC parity is a BLOCKER, not a follow-up.**
+   Three personas flagged independently. `crates/anvil-cli/src/mcp/validation.rs`
+   lines 190-202 documents that `query_protection_claim` returns `None`
+   on Windows because `query_daemon_status_at(&Path)` is Unix-only for
+   named pipes. **Both #1831 reporters are Windows + Scoop users.** A
+   Unix-only fix does not close the bug.
+   - **Decision:** either (a) lift the Windows `_at(&Path)` form (recent
+     `feat: impl io::Read/Write for Win32 OwnerOnlyPipeClient` —
+     d7873161 — gives us the primitive), (b) extract Windows-capable
+     status query as an explicit precursor sub-task, or (c) downscope
+     the spec title and re-open #1831 as Windows-blocked.
+   - **Pragmatic position:** (a) or (b). Drop the platform-agnostic
+     framing from the spec until parity lands.
+
+4. **Test strategy must include a real end-to-end against a daemon
+   socket, not just mocks.** Adversarial flagged this as critical and
+   directly cited the project memory note `feedback_validate_prod_wireup_not_spec_match.md`.
+   Synth tests that pre-insert `McpTier::LiveValidation` pass whether
+   the wire-up fires or not — that's the bug class being fixed.
+   - **Decision:** mandatory integration test in
+     `crates/anvil-cli/tests/protection_claim_cross_surface.rs` (or a
+     new `activation_daemon_evidence.rs`) that: spawns a real daemon
+     (or uses the INTD integration test stub), calls `verify()`
+     end-to-end with no mock, asserts `protection_state() == Protecting`.
+     If the wire-up is absent, this test fails.
+
+5. **IPC timeout — replace aspirational "≤ 200ms" with a real constant.**
+   Three personas flagged. Existing `REQUEST_TIMEOUT=2s` on Unix +
+   Windows (`intercept.rs:286, :384`); the spec's 200ms bound exists
+   nowhere in code. Verify would inherit the 2s budget — 2-4s added
+   latency on every interactive `--verify`.
+   - **Decision:** new named constant `ACTIVATION_DAEMON_QUERY_TIMEOUT =
+     500ms`, dedicated activation-side query function, mandatory unit
+     test asserting a hung-daemon stub does not extend verify beyond
+     `timeout + 100ms`.
+
+6. **WorktreeClaimState promotion predicate must be enumerated.**
+   Architect + ops flagged. `claim_attests_live_enforcement` in the
+   spec is hand-waved as "enforced state per WorktreeClaimState" but
+   the vocabulary has four non-`Unprotected` values with different
+   honesty implications:
+   - `PreWriteDaemon` → **promote**.
+   - `DegradedProtection` with ≥1 `Participating` surface → **promote**
+     (the protection works for non-quarantined sessions).
+   - `DegradedProtection` with all surfaces `Quarantined` → **do NOT
+     promote** — every session is fenced; surface a dedicated
+     "daemon fenced — recover via `anvil intercept recover`" hint.
+   - `Warming` → **do NOT promote** (transient state, daemon is
+     leaving/joining, not enforcing pre-write).
+   - `Unprotected` → **do NOT promote** (already maps to
+     `ready_restart_required`).
+
+7. **Structured tracing on every promotion / skip path** is mandatory.
+   Security + ops flagged. Without it, false-positive `protecting`
+   claims are undiagnosable in support. Mirror the existing pattern in
+   `promote_restart_required_after_handshake` (`diagnostic.rs:507-520`):
+   - On success: `tracing::info!(worktree, worktree_claim_state, clients_promoted, "activation: promoted to LiveValidation via daemon attestation")`
+   - On skip: `tracing::debug!(reason = "daemon_unreachable"|"worktree_unenforced"|"stale_heartbeat"|"platform_gap", "activation: daemon attestation skipped")`
+
+8. **Drop the archived-module sweep.** Architect + pragmatic-lead
+   converged. Editing `plans/archive/modules/launch-flow-readiness.aps.md`
+   to backfill 2026-05-21 status notes turns the archive into a journal
+   and undermines the "archive is settled" convention. The load-bearing
+   stale comment is at `mcp_client.rs:307` (live code); update that
+   *with an explicit pointer to the new function name and module*, not
+   a vague "see the diagnostic-side promotion path" — adversarial
+   flagged that vague pointers re-create the MLP2-025b zero-callers
+   pattern.
+
+9. **Cut `--verbose` / `--why` flag from this PR.** Pragmatic-lead
+   recommended; ops + security flagged operational/safety concerns
+   on the verbose output that warrant their own design slice. File as
+   **MLP2-051g** (separate work item, ships after #1831 closes).
+   - When it lands, name choice: **`--why`** (architect + ops). Mirrors
+     `cargo --explain`. `--verbose` collides with log-verbosity
+     convention.
+   - Verbose output goes to **stderr**, not stdout (scripted consumers
+     of `anvil start --verify` parse stdout — see #1831 reporters who
+     are clearly running in a scripted shell).
+
+10. **Failure-mode matrix expansion.** Add rows:
+    - Windows, daemon running → promotion does not fire (v1 gap, until
+      Windows IPC parity lands).
+    - Daemon mid-restart (connection accepted then closed) →
+      `RestartHandshakeVerified` → `ready_restart_required` (safe). Use
+      `.ok()` on the IPC `Result`, never propagate the error.
+    - Daemon running, no sessions registered yet (MCP handshake
+      verified, daemon was just started) → `ready_restart_required`
+      with hint "Daemon running but has not yet observed your editor's
+      MCP child; re-run in a few seconds."
+    - `DegradedProtection` all-Quarantined → dedicated render hint
+      pointing at `anvil intercept recover`.
+
+### Divergent verdicts (council split — recorded, not yet resolved)
+
+**Client attribution policy.** Two positions:
+
+- **Pragmatic / ops / security:** promote every `RestartHandshakeVerified`
+  client when the daemon attests the worktree. Honest enough because the
+  daemon attests the worktree, not the client; mass-promotion matches
+  the per-worktree predicate already trusted by `validate_write` and
+  `anvil status`.
+- **Architect (with adversarial support):** gate promotion on `≥1
+  Participating` `SurfaceClaim` for the worktree. Without that gate, a
+  scenario where Cursor is handshake-verified locally but the daemon's
+  only registered session is from Claude Code in another shell will
+  falsely promote Cursor.
+
+**Recommended resolution (not yet ratified):** adopt architect's tighter
+rule. The cost is one `.surfaces.iter().any(|s| matches!(s.state,
+SurfaceClaim::Participating))` check; the benefit is preserving the
+distinction `LiveValidation` is documented to enforce ("observed from
+this client inside this repo"). Mass-promotion violates the documented
+invariant even if it's operationally convenient.
+
+**Counter-counter:** the per-client identity isn't actually resolvable
+today (daemon's `agent_tag` is not aligned with `McpClientId` labels —
+see ARCH-001 follow-up). So the architect's rule is cardinality-based,
+not identity-based: ≥1 Participating surface anywhere in the worktree
+is the gate, not "this client has a Participating surface." That keeps
+the rule implementable today and stricter than mass-promotion.
+
+**To negotiate before implementation starts.** Marked open question
+(a-revised) for the steps file.
+
+### New objections deferred to follow-up issues
+
+- **`generated_at_unix` wire-add** (security, adversarial). Propose as
+  a one-field additive change to `DaemonStatusV1` with a parity test.
+  Either folded into MLP2-051f's precursor checklist or split as
+  MLP2-051h. File before the activation wire-up so the consumer can
+  rely on it.
+- **`PreWriteDaemon` with empty surfaces** (adversarial ADV-005). The
+  local-only fallback path in `derive_local_worktree_state`
+  (`protection_claim_section.rs:57`) maps `Protecting` to
+  `PreWriteDaemon` with empty `surfaces`. After this fix, that mapping
+  is reachable from daemon-attested promotion. Audit every caller and
+  ensure the daemon-snapshot path is used when available.
+- **Witness-chain audit trail** for activation-side promotion (security
+  SEC-007). Trace event suffices for v1; track a follow-up to fold
+  activation promotions into the witness chain proper.
+- **Rollback plan** must enumerate JSON-schema-consuming fixtures
+  (adversarial ADV-008). CI fixtures, tutorial snapshots, status.v1
+  conformance tests. Not just "remove the function" — add an explicit
+  fixture revert list to the steps file.
+
+### APS placement (verdict converged)
+
+**MLP2-051f under Group D**, with the following hard-gates:
+
+1. Windows IPC parity must land before or with `051f` (else 051f does
+   not close #1831).
+2. `ACTIVATION_DAEMON_QUERY_TIMEOUT=500ms` named constant + dedicated
+   query function — not inheriting the 2s `REQUEST_TIMEOUT`.
+3. End-to-end integration test against a real daemon socket
+   (no mocks); test must fail if the wire-up regresses.
+4. Structured tracing on every promotion / skip path.
+5. Worktree canonicalisation contract documented and tested.
+6. `WorktreeClaimState` promotion predicate enumerated explicitly.
+
+Done-count: 81 → 82 on filing; advances to 63 on merge.
+
+`--verbose` / `--why` flag → **MLP2-051g** (sibling, lands after 051f).
+`generated_at_unix` wire-add → either precursor inside 051f or **MLP2-051h**
+(separate, lands before or with 051f).
+
+---
+
+## Revisions to apply before implementation starts
+
+Translating the verdicts above into spec edits (kept here as a checklist
+so the steps file references concrete actions):
+
+- [ ] §"Concrete edits" — rewrite #1 to use per-session
+      `last_heartbeat_unix` (max across worktree sessions) against
+      `SystemTime::now()`; window 45s, not "TBD".
+- [ ] §"Concrete edits" — add path canonicalisation step before the
+      IPC call, reusing `auth.rs::validate_workspace_roots` pattern.
+- [ ] §"Concrete edits" — enumerate `WorktreeClaimState` promotion
+      predicate explicitly (PreWriteDaemon, DegradedProtection cases).
+- [ ] §"Concrete edits" — add structured tracing pattern matching
+      `promote_restart_required_after_handshake`.
+- [ ] §"Concrete edits" — replace the `LiveValidation` comment
+      replacement at `mcp_client.rs:307` with a grep-able pointer to
+      `promote_to_live_validation_when_daemon_attests` (full module
+      path, not vague reference).
+- [ ] §"Concrete edits" — **delete** the archived-module sweep (item
+      #5). Keep the live-code comment update only.
+- [ ] §"Concrete edits" — **delete** the `--verbose` flag (item #4);
+      refile as MLP2-051g.
+- [ ] §"Failure modes" — add Windows row, daemon-mid-restart row,
+      daemon-no-sessions-yet row, DegradedProtection-all-Quarantined
+      row.
+- [ ] §"Implementation slice" — add `ACTIVATION_DAEMON_QUERY_TIMEOUT`
+      constant + dedicated query function + hung-daemon stub test.
+- [ ] §"Implementation slice" — promote integration test from
+      validation-checklist item to **mandatory hard-gate** with
+      explicit "spawns real daemon, calls verify() end-to-end" wording.
+- [ ] §"Open questions for council" — mark (a), (b)-recommend-arch,
+      (c), (d) as closed; revise (b) into the open client-attribution
+      question to negotiate before implementation; remove the
+      `Attached` vs `LiveValidation` question (closed: keep
+      `LiveValidation`); reframe (e) into the new-objections-deferred
+      list above.
+- [ ] §"Risk + rollback" — add explicit fixture revert list (CI
+      snapshots, tutorial fixtures, status.v1 conformance fixtures).
+
+These revisions are recorded but **not** applied in this commit — the
+implementation PR will pull from the revised steps file. Spec stays
+in `Draft` until the revisions land.
+
