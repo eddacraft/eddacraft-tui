@@ -563,23 +563,50 @@ pub(crate) fn normalise_response_diagnostics(
 }
 
 fn dedupe_diagnostics(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
-    let mut seen_ids = std::collections::HashSet::with_capacity(diagnostics.len());
-    let mut seen_locations =
+    // Key shapes (both must be NEW for a diagnostic to survive):
+    //   * `(id, file, line, column)` — primary; the audit case at
+    //     #1799 sees this whole tuple identical across the duplicated
+    //     emissions. Keying on `(id, location)` rather than `id` alone
+    //     avoids suppressing two *distinct* findings that share a
+    //     hashed id after secret redaction
+    //     (`diag_mcp_secret_redacted_<hex6>` prefix collisions are
+    //     rare at 2^48 buckets but real for a security surface —
+    //     losing a finding is worse than rendering the same hash twice
+    //     for distinct locations).
+    //   * `(rule_id, file, line, column)` — defensive secondary;
+    //     catches producers that share rule+location but accidentally
+    //     drift their `id` per scan invocation (e.g. a UUID suffix).
+    //     For whole-file rules `line: None` matches every other
+    //     `line: None` entry from the same `(rule_id, file)` — that
+    //     is intentional: a single missing-license-header rule firing
+    //     on a file is one logical finding regardless of how many
+    //     times the producer emits it.
+    let mut seen_id_loc =
+        std::collections::HashSet::<(String, String, Option<u32>, Option<u32>)>::with_capacity(
+            diagnostics.len(),
+        );
+    let mut seen_rule_loc =
         std::collections::HashSet::<(String, String, Option<u32>, Option<u32>)>::with_capacity(
             diagnostics.len(),
         );
     let mut out = Vec::with_capacity(diagnostics.len());
     for diagnostic in diagnostics {
-        if !seen_ids.insert(diagnostic.id.clone()) {
+        let id_loc = (
+            diagnostic.id.clone(),
+            diagnostic.location.file.clone(),
+            diagnostic.location.line,
+            diagnostic.location.column,
+        );
+        if !seen_id_loc.insert(id_loc) {
             continue;
         }
-        let loc_key = (
+        let rule_loc = (
             diagnostic.source.rule_id.clone(),
             diagnostic.location.file.clone(),
             diagnostic.location.line,
             diagnostic.location.column,
         );
-        if !seen_locations.insert(loc_key) {
+        if !seen_rule_loc.insert(rule_loc) {
             continue;
         }
         out.push(diagnostic);
@@ -2940,6 +2967,39 @@ mod tests {
             normalised.len(),
             3,
             "distinct (rule_id, location) tuples must survive dedupe"
+        );
+    }
+
+    #[test]
+    fn dedupe_does_not_suppress_distinct_location_when_ids_collide() {
+        // Council follow-up on MLP2-073: secret-redaction shrinks the
+        // id namespace to a 6-byte hash prefix (`diag_mcp_secret_redacted_<hex6>`).
+        // Collisions are rare (2^48 buckets) but real. Two genuinely
+        // distinct findings — different files / lines — that hash to
+        // the same redacted id must NOT collapse: losing a finding on
+        // a security surface is worse than rendering the same hash
+        // twice for distinct locations. Keying on (id, location)
+        // rather than id alone is what makes this safe.
+        let a = fixture_diag(
+            "diag_mcp_secret_redacted_aabbcc",
+            "secret-detection-high-entropy",
+            "src/leak_a.ts",
+            Some(1),
+        );
+        let b = fixture_diag(
+            "diag_mcp_secret_redacted_aabbcc", // collision: same hash prefix
+            "secret-detection-high-entropy",
+            "src/leak_b.ts", // but different file
+            Some(7),
+        );
+        let normalised = normalise_response_diagnostics(
+            &[a, b],
+            crate::mcp::validation::ValidationBackend::Embedded,
+        );
+        assert_eq!(
+            normalised.len(),
+            2,
+            "id collision at distinct locations must NOT collapse — both findings survive"
         );
     }
 
