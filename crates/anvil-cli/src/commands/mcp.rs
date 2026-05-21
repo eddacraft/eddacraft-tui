@@ -14,7 +14,7 @@ use crate::feature_flags;
 use crate::mcp::tools::{registry, validate_write};
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
-const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` carries a `diagnostics` array and is authoritative — do not write, do not bypass via alternate tools. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
+const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` is authoritative — do not write, do not bypass via alternate tools (the response carries either a `diagnostics` array of findings or an `error` describing why the gate refused). `warn` means findings were detected but the workspace enforcement mode lets the write proceed — surface the diagnostics and continue. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing or backend offline); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
 // payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
 // JSON string escaping can grow that almost 2x in the worst case (every byte
@@ -391,7 +391,8 @@ fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Va
                     "tool": tool.name,
                     "correlation": {
                         "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str(),
-                        "enforcementMode": "gateUnavailable"
+                        "enforcementMode": "block",
+                        "gateState": "unavailable"
                     }
                 })).expect("auth-required payload serialises")
             }
@@ -517,7 +518,8 @@ fn mcp_auth_required_result(arguments: &Value) -> Value {
             "backend": "embedded",
             "daemonStatus": "not-wired",
             "path": path,
-            "enforcementMode": "gateUnavailable"
+            "enforcementMode": "block",
+            "gateState": "unavailable"
         }
     });
     let text = serde_json::to_string(&payload).expect("auth-required payload serialises");
@@ -694,7 +696,14 @@ mod tests {
                 );
                 assert_eq!(payload["error"]["code"], "authentication-required");
                 assert_eq!(payload["safeDefault"], "allow-with-warning");
-                assert_eq!(payload["correlation"]["enforcementMode"], "gateUnavailable");
+                assert_eq!(
+                    payload["correlation"]["enforcementMode"], "block",
+                    "v1 contract: enforcementMode stays in the closed set {{block|warn|off}}"
+                );
+                assert_eq!(
+                    payload["correlation"]["gateState"], "unavailable",
+                    "gate-unavailable signal lives in `gateState`, not `enforcementMode`"
+                );
                 assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
             },
         );
@@ -741,7 +750,14 @@ mod tests {
                     payload["safeDefault"], "allow-with-warning",
                     "MLP2-072 follow-up: apply_patch path must carry safeDefault (Council finding)"
                 );
-                assert_eq!(payload["correlation"]["enforcementMode"], "gateUnavailable");
+                assert_eq!(
+                    payload["correlation"]["enforcementMode"], "block",
+                    "v1 contract: enforcementMode stays in the closed set {{block|warn|off}}"
+                );
+                assert_eq!(
+                    payload["correlation"]["gateState"], "unavailable",
+                    "gate-unavailable signal lives in `gateState`, not `enforcementMode`"
+                );
                 assert_eq!(payload["schemaVersion"], "anvil.mcp.auth-required.v1");
                 assert_eq!(payload["tool"], "anvil_apply_patch");
             },
