@@ -141,6 +141,16 @@ pub fn run_audit(root: &Path) -> AuditData {
         .collect();
 
     let mut issues: Vec<AuditIssue> = per_file.into_iter().flatten().collect();
+
+    // Issue #1798: `anvil audit` previously ran only its architecture-pass
+    // (env files + quality/documentation) and reported "0 issues" on a
+    // repo whose source files held hardcoded secrets, while `anvil gate`
+    // failed `secret-detection` over the same tree. Audit now runs the
+    // canonical secret-detection check from `anvil_checks::secret` over
+    // the same candidate set so its summary cannot disagree with gate
+    // on hardcoded secrets.
+    scan_for_hardcoded_secrets(&candidates, root, &mut issues);
+
     // Deterministic order: severity descending, then file ascending, line
     // ascending, message ascending — without this the rayon collect order
     // would leak thread scheduling into the user-facing audit output.
@@ -218,6 +228,96 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
         line: 0,
         fixable: false,
     });
+}
+
+/// File extensions / dotfile prefixes scanned for hardcoded secrets, mirroring
+/// the gate `secret-detection` discovery set so the two surfaces cannot
+/// disagree about which file types are subject to a secret scan.
+const SECRET_SCAN_EXTS: &[&str] = &[
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "rs",
+    "py",
+    "rb",
+    "go",
+    "java",
+    "kt",
+    "swift",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "env",
+    "config",
+    "conf",
+    "ini",
+    "properties",
+];
+
+/// Map [`anvil_checks::secret`] findings discovered over `candidates` into
+/// `Security`-category `AuditIssue` entries. Each finding becomes its own
+/// `IssueSeverity::High` entry — matching the user-facing severity that
+/// `anvil gate -p ai` shows for the same finding — so audit and gate cannot
+/// disagree about the presence of hardcoded secrets. Paths are reported
+/// relative to `root` for parity with the rest of the audit output.
+fn scan_for_hardcoded_secrets(
+    candidates: &[(std::path::PathBuf, String)],
+    root: &Path,
+    issues: &mut Vec<AuditIssue>,
+) {
+    if candidates.is_empty() {
+        return;
+    }
+
+    // Restrict the secret scan to file types the gate `secret-detection`
+    // check already covers; binary assets and lockfiles are skipped by
+    // `anvil_checks::secret::run_secret_check`, but keeping the filter here
+    // avoids passing tens of thousands of paths into the scanner on a
+    // node_modules-free tree that still contains generated artefacts the
+    // audit walker did not prune (e.g. SVGs).
+    let scannable: Vec<String> = candidates
+        .iter()
+        .filter(|(path, _)| {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            // Dotfile-prefixed env files (`.env`, `.env.local`, …) match
+            // by filename, source files match by extension.
+            if name.starts_with(".env") {
+                return true;
+            }
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| SECRET_SCAN_EXTS.contains(&ext))
+        })
+        .map(|(path, _)| path.to_string_lossy().into_owned())
+        .collect();
+
+    if scannable.is_empty() {
+        return;
+    }
+
+    let file_refs: Vec<&str> = scannable.iter().map(String::as_str).collect();
+    let config = anvil_checks::secret::SecretCheckConfig::default();
+    let root_str = root.to_string_lossy();
+    let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+    for finding in result.findings {
+        // `run_secret_check` already normalises `finding.file` against
+        // `workspace_root` when supplied, so the path is workspace-relative
+        // and ready for direct insertion into the audit issue list.
+        issues.push(AuditIssue {
+            severity: IssueSeverity::High,
+            category: "Security".to_string(),
+            message: format!(
+                "Potential hardcoded secret: {} (run `anvil gate` for the full secret-detection report)",
+                finding.pattern_name,
+            ),
+            file: finding.file,
+            line: finding.line,
+            fixable: false,
+        });
+    }
 }
 
 /// Scan a single source file for quality and documentation issues.
@@ -806,6 +906,42 @@ mod tests {
         // .env should be flagged, .env.example should not.
         assert_eq!(env_issues.len(), 1);
         assert!(matches!(env_issues[0].severity, IssueSeverity::High));
+        cleanup(&dir);
+    }
+
+    /// Issue #1798 — `anvil audit` previously reported "0 issues" on a
+    /// repo whose source file held a hardcoded GitHub token, while
+    /// `anvil gate` flagged the same file via `secret-detection`. Audit
+    /// must surface hardcoded secrets in source files so its summary
+    /// cannot disagree with gate on the canonical secret patterns.
+    #[test]
+    fn detects_hardcoded_secret_in_source_file() {
+        let dir = make_temp_dir();
+        let src = dir.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        // `ghp_…{40}` GitHub personal access token — matches the built-in
+        // GitHub Token pattern and contains no allowlist tokens
+        // (`example` / `test` / `sample`) that would otherwise be
+        // filtered by the secret scanner.
+        let token = format!("ghp_{}", "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0");
+        std::fs::write(
+            src.join("smelly.ts"),
+            format!("export const GH_TOKEN = \"{token}\";\n"),
+        )
+        .unwrap();
+
+        let data = run_audit(&dir);
+        let secret_issues: Vec<_> = data
+            .issues
+            .iter()
+            .filter(|i| i.category == "Security" && i.file.ends_with("smelly.ts"))
+            .collect();
+        assert!(
+            !secret_issues.is_empty(),
+            "audit must surface hardcoded secrets in source files (got: {:?})",
+            data.issues,
+        );
+        assert!(matches!(secret_issues[0].severity, IssueSeverity::High));
         cleanup(&dir);
     }
 
