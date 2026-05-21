@@ -14,7 +14,7 @@ use crate::feature_flags;
 use crate::mcp::tools::{registry, validate_write};
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
-const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect a `block` decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Treat `block` decisions from either tool as authoritative; do not bypass them via alternate write tools.";
+const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` carries diagnostics[] and is authoritative — do not write, do not bypass via alternate tools. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
 // payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
 // JSON string escaping can grow that almost 2x in the worst case (every byte
@@ -374,14 +374,18 @@ fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Va
         return mcp_auth_required_result(arguments);
     }
 
+    // MLP2-072 / #1796 — non-write tools also surface auth-required as
+    // `gateUnavailable` rather than `block`. The wire shape is now
+    // consistent with the write-validation path; clients that branch on
+    // the decision string see the same vocabulary regardless of tool.
     json!({
         "content": [
             {
                 "type": "text",
                 "text": serde_json::to_string(&json!({
                     "schemaVersion": "anvil.mcp.auth-required.v1",
-                    "decision": "block",
-                    "reason": "Anvil MCP credentials are required for this tool.",
+                    "decision": "gateUnavailable",
+                    "reason": "Anvil MCP credentials are required for this tool. Run `anvil auth login` or `anvil auth login --edict`.",
                     "tool": tool.name,
                     "correlation": {
                         "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str()
@@ -482,19 +486,27 @@ fn verify_mcp_edict_auth(creds: &credentials::Credentials) -> bool {
 }
 
 fn mcp_auth_required_result(arguments: &Value) -> Value {
+    // MLP2-072 / #1796 — the pre-write gate distinguishes
+    // *gate-unavailable* (auth missing; the gate could not run) from
+    // *content-veto* (the gate ran and the content failed). A
+    // well-behaved agent following SERVER_INSTRUCTIONS honours `block`
+    // for content-vetoes and proceeds-with-warning on `gateUnavailable`.
+    // Pre-MLP2-072 this path returned `block` and `isError: true`,
+    // which made agents refuse to write any file pre-login — including
+    // the bootstrap files needed to onboard.
     let path = arguments
         .get("path")
         .and_then(Value::as_str)
         .unwrap_or("<unknown>");
     let payload = json!({
         "schema": "anvil.mcp.validate-write.v1",
-        "decision": "block",
+        "decision": "gateUnavailable",
         "error": {
             "code": "authentication-required",
-            "message": "Authentication required. Run `anvil auth login` or `anvil auth login --edict`.",
+            "message": "Pre-write gate unavailable: authentication required. Run `anvil auth login` or `anvil auth login --edict`. The write may proceed; the gate could not validate it.",
             "retriable": true
         },
-        "safeDefault": "do-not-write",
+        "safeDefault": "allow-with-warning",
         "correlation": {
             "id": "corr_mcp_auth_required",
             "surface": "mcp",
@@ -502,13 +514,16 @@ fn mcp_auth_required_result(arguments: &Value) -> Value {
             "backend": "embedded",
             "daemonStatus": "not-wired",
             "path": path,
-            "enforcementMode": "block"
+            "enforcementMode": "gate-unavailable"
         }
     });
     let text = serde_json::to_string(&payload).expect("auth-required payload serialises");
     json!({
         "content": [{"type": "text", "text": text}],
-        "isError": true
+        // MLP2-072 — `isError: false` because the tool itself succeeded;
+        // the gate just could not run. Setting this `true` is what
+        // caused agents to abort writes pre-login.
+        "isError": false
     })
 }
 
@@ -631,7 +646,14 @@ mod tests {
     }
 
     #[test]
-    fn validate_write_tool_call_requires_auth_without_credentials() {
+    fn validate_write_tool_call_returns_gate_unavailable_without_credentials() {
+        // MLP2-072 / #1796 — when auth is missing, the pre-write gate
+        // must distinguish *gate-unavailable* from *content-veto*. The
+        // wire shape carries `decision: "gateUnavailable"` (NOT
+        // `block`), `isError: false` (the tool itself succeeded), and
+        // `safeDefault: "allow-with-warning"` so a well-behaved agent
+        // surfaces the warning and proceeds with the write rather than
+        // refusing to onboard.
         temp_env::with_vars(
             [
                 ("ANVIL_DEV", None),
@@ -655,14 +677,67 @@ mod tests {
                 .expect("request should produce a response");
 
                 let result = &response["result"];
-                assert_eq!(result["isError"], true);
+                assert_eq!(
+                    result["isError"], false,
+                    "MLP2-072: gate-unavailable is not a tool error; isError must be false so agents do not abort writes pre-login"
+                );
                 let text = result["content"][0]["text"]
                     .as_str()
                     .expect("tool content text");
                 let payload: serde_json::Value = serde_json::from_str(text).unwrap();
-                assert_eq!(payload["decision"], "block");
+                assert_eq!(
+                    payload["decision"], "gateUnavailable",
+                    "MLP2-072: auth-missing must NOT return `block` (which agents treat as authoritative)"
+                );
                 assert_eq!(payload["error"]["code"], "authentication-required");
+                assert_eq!(payload["safeDefault"], "allow-with-warning");
+                assert_eq!(
+                    payload["correlation"]["enforcementMode"],
+                    "gate-unavailable"
+                );
+                assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
             },
+        );
+    }
+
+    #[test]
+    fn auth_required_payload_schema_stays_v1() {
+        // The decision-vocabulary change is additive — schema string
+        // stays `anvil.mcp.validate-write.v1`. Existing v1 consumers
+        // that branch on `decision` will see a previously-unknown
+        // value (`gateUnavailable`); per SERVER_INSTRUCTIONS this is
+        // documented as proceed-with-warning.
+        let payload = super::mcp_auth_required_result(&json!({"path": "src/x.ts"}));
+        let text = payload["content"][0]["text"].as_str().expect("text");
+        let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["schema"], "anvil.mcp.validate-write.v1");
+        assert_eq!(parsed["decision"], "gateUnavailable");
+        assert_eq!(parsed["error"]["code"], "authentication-required");
+        // path threading preserved
+        assert_eq!(parsed["correlation"]["path"], "src/x.ts");
+    }
+
+    #[test]
+    fn server_instructions_document_gate_unavailable_vocabulary() {
+        // The published `initialize.instructions` text is what
+        // well-behaved agents read to decide how to handle each
+        // decision value. Pin the contract: `block` MUST be called out
+        // as authoritative with diagnostics, `gateUnavailable` MUST be
+        // called out as informational so agents do not honour it as a
+        // hard stop.
+        let s = super::SERVER_INSTRUCTIONS;
+        assert!(s.contains("`block`"), "instructions must name `block`");
+        assert!(
+            s.contains("`gateUnavailable`"),
+            "instructions must name the new `gateUnavailable` decision"
+        );
+        assert!(
+            s.contains("informational"),
+            "instructions must mark gateUnavailable as informational, not authoritative"
+        );
+        assert!(
+            s.contains("diagnostics"),
+            "instructions must tell agents `block` is paired with diagnostics"
         );
     }
 }

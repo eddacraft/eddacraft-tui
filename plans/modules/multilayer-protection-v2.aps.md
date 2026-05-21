@@ -3806,7 +3806,7 @@ experiences.
 
 #### MLP2-072: MCP `anvil_validate_write` blocks every write when unauthenticated
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Tracking:** GH issue [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
 - **Intent:** After `anvil start` installs the MCP entries in
   `~/.cursor/mcp.json` / `~/.claude.json`, the MCP server currently
