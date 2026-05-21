@@ -798,6 +798,86 @@ mod tests {
         );
     }
 
+    /// Regression test for #1802: on a never-baselined repo, the audit's
+    /// `anvil watch --no-tui` reproduction flagged every pre-existing public
+    /// symbol as `public-api-expansion`. The bug was the old `evaluate_baseline`
+    /// path that ran `engine.evaluate` on the initial graph with an empty
+    /// `previously_public` set. After WATCHUX-001, the initial graph is the
+    /// baseline; only post-scan modifications go through the policy engine.
+    ///
+    /// Mirrors the audit's multi-file shape (`src/index.ts`, `src/db.ts`,
+    /// `src/smelly.ts`, each with at least one public symbol) so a future
+    /// refactor that resurrects per-symbol evaluation on the initial graph
+    /// is caught by every variant of the audited surface, not just one file.
+    #[test]
+    fn audit_1802_multi_file_initial_scan_emits_no_public_api_violations() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("index.ts"), "export function greet() {}").unwrap();
+        fs::write(
+            src.join("db.ts"),
+            "export function userRow() {}\nexport function dbExec() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            src.join("smelly.ts"),
+            "export function unsafe(input: string) {}\n",
+        )
+        .unwrap();
+
+        let (event_tx, event_rx) = mpsc::channel();
+        let config = WatchConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            watcher: WatcherConfig {
+                root: tmp.path().to_path_buf(),
+                ..Default::default()
+            },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
+            warmup_paths: Vec::new(),
+        };
+
+        let handle = run_watch(&config, event_tx).unwrap();
+        let mut events = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut saw_snapshot = false;
+        while std::time::Instant::now() < deadline {
+            match event_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(event) => {
+                    saw_snapshot |= event.event_type == anvil_kernel_types::EventType::Snapshot;
+                    events.push(event);
+                    if saw_snapshot {
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        handle.stop().unwrap();
+        events.extend(event_rx.try_iter());
+
+        assert!(saw_snapshot, "initial scan should still emit a snapshot");
+        let public_api_violations: Vec<_> = events
+            .iter()
+            .filter(|e| e.event_type == anvil_kernel_types::EventType::Violation)
+            .filter(|e| {
+                matches!(
+                    &e.payload,
+                    anvil_kernel_types::EventPayload::Violation { policy_id, .. }
+                        if policy_id == "public-api-expansion"
+                )
+            })
+            .collect();
+        assert!(
+            public_api_violations.is_empty(),
+            "audit #1802: initial scan must not flag pre-existing public symbols as \
+             new exports; got {public_api_violations:?}"
+        );
+    }
+
     #[test]
     fn initial_scan_uses_validated_warmup_paths_as_seed() {
         let tmp = TempDir::new().unwrap();

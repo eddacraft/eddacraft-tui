@@ -110,11 +110,11 @@ authoritative status for the implementation work.
 | 5 | Medium | MCP pre-write summary double-counts findings (one secret on one line returns `summary.total = 2` with two identical diagnostics). | [#1799](https://github.com/eddacraft/anvil-001/issues/1799) | MLP2 · MLP2-073 (Group Q) | Open |
 | 6 | Medium | The textbook AWS access-key pair (`AKIAIOSFODNN7EXAMPLE` + secret-key) is **allowed** by the MCP gate (0 diagnostics). Detector trips on `sk-…` via high-entropy heuristic but misses AWS-prefix patterns. | [#1800](https://github.com/eddacraft/anvil-001/issues/1800) | SEC · SEC-008 | Open |
 | 7 | Low | `eval(input)` antipattern not caught on TS by any of `check`, `audit`, `gate`, watch, or MCP. | [#1801](https://github.com/eddacraft/anvil-001/issues/1801) | LANGTS · LANGTS-006 | Open |
-| 8 | Low | `anvil watch` flags every existing exported symbol as `public-api-expansion` on a never-baselined repo (e.g. a one-line `greet()` helper). Conflicts with the "new edges only" principle for first scan. | [#1802](https://github.com/eddacraft/anvil-001/issues/1802) | CIB · CIB-010 | Open |
+| 8 | Low | `anvil watch` flags every existing exported symbol as `public-api-expansion` on a never-baselined repo (e.g. a one-line `greet()` helper). Conflicts with the "new edges only" principle for first scan. **Already fixed post-`v0.6.2-beta` by WATCHUX-001 (`8242affb`/`2929847c`) — the old `evaluate_baseline` path was removed so the initial graph is treated as baseline. Audit ran against the shipped Homebrew binary which still carried the bug. First release that ships the fix: `v0.6.3-beta`.** | [#1802](https://github.com/eddacraft/anvil-001/issues/1802) | CIB · CIB-010 | Released |
 | 9 | Low | `anvil gate -p ai` reports 3 failures (`import-boundaries`, `policy`, `command-safety`) solely because their config files don't exist. New user activating with the suggested AI profile sees a 1/5 score with no next-step guidance. | [#1803](https://github.com/eddacraft/anvil-001/issues/1803) | CIB · CIB-011 | Open |
 | 10 | Low | `anvil check --staged` errors with `required arguments were not provided: --changed`. `--staged` should imply `--changed`. | [#1804](https://github.com/eddacraft/anvil-001/issues/1804) | CIB · CIB-012 | Open |
 
-**Progress:** 0 Released · 0 Merged · 1 In Progress · 9 Open _(as of 2026-05-21)_.
+**Progress:** 1 Released · 0 Merged · 1 In Progress · 8 Open _(as of 2026-05-21)_.
 
 ## Not-findings (initially flagged, dropped on re-test)
 
