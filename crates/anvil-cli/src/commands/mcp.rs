@@ -14,7 +14,7 @@ use crate::feature_flags;
 use crate::mcp::tools::{registry, validate_write};
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
-const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` carries diagnostics[] and is authoritative — do not write, do not bypass via alternate tools. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
+const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` carries a `diagnostics` array and is authoritative — do not write, do not bypass via alternate tools. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
 // payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
 // JSON string escaping can grow that almost 2x in the worst case (every byte
@@ -376,8 +376,9 @@ fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Va
 
     // MLP2-072 / #1796 — non-write tools also surface auth-required as
     // `gateUnavailable` rather than `block`. The wire shape is now
-    // consistent with the write-validation path; clients that branch on
-    // the decision string see the same vocabulary regardless of tool.
+    // consistent with the write-validation path (same `decision` and
+    // `safeDefault` fields), so clients that branch on either field
+    // see the same vocabulary regardless of tool.
     json!({
         "content": [
             {
@@ -385,10 +386,12 @@ fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Va
                 "text": serde_json::to_string(&json!({
                     "schemaVersion": "anvil.mcp.auth-required.v1",
                     "decision": "gateUnavailable",
+                    "safeDefault": "allow-with-warning",
                     "reason": "Anvil MCP credentials are required for this tool. Run `anvil auth login` or `anvil auth login --edict`.",
                     "tool": tool.name,
                     "correlation": {
-                        "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str()
+                        "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str(),
+                        "enforcementMode": "gateUnavailable"
                     }
                 })).expect("auth-required payload serialises")
             }
@@ -514,7 +517,7 @@ fn mcp_auth_required_result(arguments: &Value) -> Value {
             "backend": "embedded",
             "daemonStatus": "not-wired",
             "path": path,
-            "enforcementMode": "gate-unavailable"
+            "enforcementMode": "gateUnavailable"
         }
     });
     let text = serde_json::to_string(&payload).expect("auth-required payload serialises");
@@ -691,11 +694,56 @@ mod tests {
                 );
                 assert_eq!(payload["error"]["code"], "authentication-required");
                 assert_eq!(payload["safeDefault"], "allow-with-warning");
-                assert_eq!(
-                    payload["correlation"]["enforcementMode"],
-                    "gate-unavailable"
-                );
+                assert_eq!(payload["correlation"]["enforcementMode"], "gateUnavailable");
                 assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
+            },
+        );
+    }
+
+    #[test]
+    fn apply_patch_tool_call_returns_gate_unavailable_without_credentials() {
+        // MLP2-072 / #1796 — sibling test to validate_write. The
+        // non-validate_write branch of `mcp_tool_auth_required_result`
+        // must carry the same gate-unavailable vocabulary so agents
+        // see one consistent decision shape across both write tools.
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
+            || {
+                let response = handle_message(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "anvil_apply_patch",
+                        "arguments": {
+                            "path": "src/example.ts",
+                            "unifiedDiff": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -0,0 +1 @@\n+export const value = 1;\n"
+                        }
+                    }
+                }))
+                .expect("request should produce a response");
+
+                let result = &response["result"];
+                assert_eq!(
+                    result["isError"], false,
+                    "MLP2-072: apply_patch gate-unavailable must not be a tool error"
+                );
+                let text = result["content"][0]["text"]
+                    .as_str()
+                    .expect("tool content text");
+                let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+                assert_eq!(payload["decision"], "gateUnavailable");
+                assert_eq!(
+                    payload["safeDefault"], "allow-with-warning",
+                    "MLP2-072 follow-up: apply_patch path must carry safeDefault (Council finding)"
+                );
+                assert_eq!(payload["correlation"]["enforcementMode"], "gateUnavailable");
+                assert_eq!(payload["schemaVersion"], "anvil.mcp.auth-required.v1");
+                assert_eq!(payload["tool"], "anvil_apply_patch");
             },
         );
     }
