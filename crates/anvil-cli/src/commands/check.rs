@@ -39,7 +39,7 @@ const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct CheckArgs {
-    /// Files to analyse (optional if using --changed or --all).
+    /// Files to analyse (optional if using --changed, --staged, --since, or --all).
     files: Vec<String>,
 
     /// Analyse git-changed files only.
