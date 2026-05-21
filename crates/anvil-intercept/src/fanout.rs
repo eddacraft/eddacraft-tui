@@ -181,17 +181,25 @@ pub enum CrossSessionPolicy {
 /// never from a wire-supplied value (mirroring the MLP2-070 pattern
 /// for the lineage anchor).
 ///
-/// **Phase C posture (this commit):** the registry does not yet
-/// carry a `subscriber_binding` field — Phase D adds it. Until then
-/// the resolver returns `false` for every lookup, which keeps the
-/// fan-out at default-deny: own-session subscribers see nothing
-/// until Phase D wires the binding through. This is the safe
-/// degradation per the trait's `is_authorised` MUST-default-to-deny
-/// invariant on `fanout.rs:145-149`; the cross-session policy still
-/// applies, so a `Redact` policy still produces a redacted envelope
-/// on the cross-session path.
+/// The resolver compares the subscriber's daemon-minted opaque
+/// string (built from `SO_PEERCRED` / `GetNamedPipeClientProcessId`,
+/// the peer's `pid_starttime`, and an HMAC of its binary path,
+/// computed at subscribe time) against the binding the registry
+/// stored at `RegisterSession` time. A reconnecting subscriber from
+/// the same peer mints an identical string and re-binds
+/// transparently; a different same-UID peer cannot impersonate
+/// another driver because the binding components include the
+/// process-start time and the binary-path HMAC.
+///
+/// Sessions registered through code paths that do not (yet) carry
+/// peer credentials — embedded mode, the legacy register path, tests
+/// that drive `SessionRegistry::register` directly — have no
+/// binding, and the resolver default-denies for them. This is the
+/// safe answer per the `is_authorised` MUST-default-to-deny
+/// invariant; the cross-session policy still applies, so a `Redact`
+/// policy still produces a redacted envelope on the cross-session
+/// path.
 pub struct RegistryOwnershipResolver {
-    #[allow(dead_code)] // Phase D wires the lookup; Phase C compiles + plumbs.
     registry: Arc<SessionRegistry>,
 }
 
@@ -203,15 +211,16 @@ impl RegistryOwnershipResolver {
 }
 
 impl OwnershipResolver for RegistryOwnershipResolver {
-    fn is_authorised(&self, _subscriber: &SubscriberId, _originating_session_id: &str) -> bool {
-        // Phase C: registry has no subscriber_binding yet. Default-deny
-        // is the safe answer until Phase D introduces the binding and
-        // the lookup. The `daemon_config_wired::
-        // run_foreground_constructs_fanout_with_configured_policy`
-        // regression pin proves the wire-up; Phase D's own pin will
-        // assert that authorised subscribers start seeing their
-        // owned sessions.
-        false
+    fn is_authorised(&self, subscriber: &SubscriberId, originating_session_id: &str) -> bool {
+        // MLP2-071: a subscriber owns a session id iff the registry
+        // has a binding for that session id AND the binding equals
+        // the subscriber's opaque post-mint string. The registry
+        // returns `None` for unknown session ids and for sessions
+        // registered without peer credentials; both cases collapse
+        // to default-deny per the trait invariant.
+        self.registry
+            .lookup_subscriber_binding(originating_session_id)
+            .is_some_and(|binding| binding == subscriber.as_str())
     }
 }
 

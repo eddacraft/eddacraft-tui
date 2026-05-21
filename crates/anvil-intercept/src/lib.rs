@@ -1107,6 +1107,76 @@ mod tests {
         );
     }
 
+    // MLP2-071 Phase D: pin that `RegistryOwnershipResolver` consults
+    // the registry's `subscriber_binding` for the authorisation check.
+    // Without the binding (or with a mismatched one), the resolver
+    // default-denies even for sessions that are otherwise registered.
+    // With the matching binding, the resolver authorises and the
+    // fan-out delivers `Allow`. This is the unit-level pin for D3 +
+    // D4 of the design pass; Phase E covers the IPC-side credential
+    // minting that wires the binding in production.
+    #[test]
+    fn registry_ownership_resolver_consults_subscriber_binding() {
+        use crate::fanout::OwnershipResolver;
+        use anvil_intercept_proto::SessionId;
+        use anvil_intercept_proto::session::AgentTag;
+        use std::sync::Arc;
+        use std::time::Instant;
+
+        let registry = Arc::new(SessionRegistry::new());
+        let session_id = SessionId::new("sess-bind-A");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let worktree = tmp.path().join("worktree");
+        std::fs::create_dir(&worktree).expect("create worktree dir");
+        let agent_tag = AgentTag {
+            driver_id: "test-driver".into(),
+            claimed_agent_id: "claude-D".into(),
+            pid_starttime: 1_700_000_000,
+        };
+        registry
+            .register(&session_id, &worktree, Some(&agent_tag), Instant::now())
+            .expect("register session");
+
+        let resolver = fanout::RegistryOwnershipResolver::new(Arc::clone(&registry));
+        let owner = fanout::SubscriberId::new("peer:uid=1000:pid=4242:start=42:bin=hash");
+        let stranger = fanout::SubscriberId::new("peer:uid=1000:pid=9999:start=99:bin=other");
+
+        // No binding yet → default-deny for everyone, including the
+        // would-be owner.
+        assert!(
+            !resolver.is_authorised(&owner, session_id.as_str()),
+            "without a binding, even the prospective owner must be denied — the \
+             registry has no peer-credential proof yet"
+        );
+
+        // Bind the owner.
+        let bound = registry.bind_subscriber(&session_id, owner.as_str().to_string());
+        assert!(
+            bound,
+            "bind_subscriber must succeed for a registered session"
+        );
+
+        // Owner authorised; stranger denied.
+        assert!(
+            resolver.is_authorised(&owner, session_id.as_str()),
+            "owner with matching binding must be authorised"
+        );
+        assert!(
+            !resolver.is_authorised(&stranger, session_id.as_str()),
+            "stranger with non-matching binding must be denied — this is the \
+             defence against a hostile same-UID peer trying to subscribe to \
+             another session's telemetry"
+        );
+
+        // Binding an unknown session is a no-op (returns false).
+        let unknown = SessionId::new("sess-unknown");
+        assert!(
+            !registry.bind_subscriber(&unknown, "anything".into()),
+            "binding an unregistered session must return false, not silently \
+             create a binding for a ghost session id"
+        );
+    }
+
     #[cfg(unix)]
     fn test_opts(pid_file: impl Into<PathBuf>) -> ForegroundOpts {
         let pid_file = pid_file.into();

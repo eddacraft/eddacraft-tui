@@ -351,6 +351,17 @@ struct RegistryEntry {
     /// `last_heartbeat_unix` (wall-clock, can jump backwards on
     /// NTP step) it is safe for liveness checks.
     last_heartbeat: Instant,
+    /// MLP2-071 (INTD-015 wire-up): opaque post-mint `SubscriberId`
+    /// string for the peer that owns this session's telemetry. Set by
+    /// the IPC accept-loop at `RegisterSession` time using the
+    /// connecting peer's credentials (`SO_PEERCRED` / equivalent);
+    /// NEVER set from a wire-supplied field, mirroring the MLP2-070
+    /// lineage-anchor pattern. `None` for sessions registered through
+    /// code paths that do not (yet) carry peer credentials —
+    /// embedded mode, the legacy register path, tests that drive
+    /// `SessionRegistry::register` directly. Phase E wires the IPC
+    /// accept-loop call; Phase D adds the field + accessors.
+    subscriber_binding: Option<String>,
 }
 
 impl SessionRegistry {
@@ -504,6 +515,7 @@ impl SessionRegistry {
             RegistryEntry {
                 record: record.clone(),
                 last_heartbeat: now,
+                subscriber_binding: None,
             },
         );
         inner.by_composite.insert(composite_key, id.clone());
@@ -897,6 +909,45 @@ impl SessionRegistry {
     /// session owns is removed from the composite index — sibling
     /// sessions with different tags on the same worktree stay
     /// registered.
+    /// MLP2-071 (INTD-015 wire-up): bind a subscriber identity to an
+    /// already-registered session. The daemon's IPC accept-loop calls
+    /// this on `RegisterSession` once it has minted a `SubscriberId`
+    /// from the connecting peer's credentials (`SO_PEERCRED` /
+    /// equivalent + `pid_starttime` + binary-path HMAC). The opaque
+    /// `binding` is exactly the `SubscriberId`'s post-mint string;
+    /// the registry stores it as a `String` to keep the registry
+    /// free of a dependency on `fanout::SubscriberId`.
+    ///
+    /// Returns `Ok(true)` if the session existed and the binding was
+    /// set (or updated); `Ok(false)` if the session id is unknown.
+    /// Re-binding overwrites — a reconnecting subscriber from the
+    /// same peer will mint an identical binding, but a session that
+    /// changes hands (e.g. reassigned via DRVR-007 capability grant)
+    /// can be re-bound.
+    pub fn bind_subscriber(&self, id: &SessionId, binding: String) -> bool {
+        let mut inner = self.lock();
+        inner.sessions.get_mut(id).is_some_and(|entry| {
+            entry.subscriber_binding = Some(binding);
+            true
+        })
+    }
+
+    /// MLP2-071 (INTD-015 wire-up): read the subscriber binding for a
+    /// session id, if any. The fan-out's
+    /// [`crate::fanout::RegistryOwnershipResolver`] calls this to
+    /// answer `is_authorised(subscriber, originating_session_id)` —
+    /// the subscriber is authorised iff the binding matches the
+    /// subscriber's daemon-minted id.
+    #[must_use]
+    pub fn lookup_subscriber_binding(&self, originating_session_id: &str) -> Option<String> {
+        let inner = self.lock();
+        let id = SessionId::new(originating_session_id);
+        inner
+            .sessions
+            .get(&id)
+            .and_then(|entry| entry.subscriber_binding.clone())
+    }
+
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
         let worktree = {
             let mut inner = self.lock();
