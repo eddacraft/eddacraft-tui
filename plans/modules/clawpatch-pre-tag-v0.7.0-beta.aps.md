@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 10/64    |
+| CLAWP | @aneki | In Progress | 11/64    |
 
-**Last reviewed:** 2026-05-21 (ten findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-21 (eleven findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -516,11 +516,21 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-030: Top-level rustdoc incorrectly says the 80-writer stress test is ignored
 
 - **Clawpatch finding:** `fnd_sig-feat-library-549f398eb4-24d9_9940f5b408`
-- **GH issue:** [#1649](https://github.com/eddacraft/anvil-001/issues/1649)
+- **GH issue:** [#1649](https://github.com/eddacraft/anvil-001/issues/1649) (auto-closed by commit `9253d9f3`)
 - **Feature:** `feat_library_549f398eb4` — Rust library eddacraft-anvil-witness
 - **Severity / Triage / Category:** low / docs-gap / docs-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged
+- **Resolution:** Commit `9253d9f3` "docs(anvil-witness): drop
+  80-writer deferred follow-up" removed the stale deferred-entry text
+  from `crates/anvil-witness/src/lib.rs` (lines 43-47 of the previous
+  rustdoc block). The fix landed in PR #1732's docs bundle on
+  2026-05-20 alongside the CLAWP-001 / CLAWP-029 framing fixes;
+  MLP2-015 had promoted the 80-writer stress test out of `#[ignore]`
+  in wave 1I and the lib.rs follow-up text was the last surface still
+  reading as deferred. APS status was left at Draft at the time —
+  caught in the PR #1789 review-feedback pass as a sibling housekeeping
+  item to CLAWP-029. Counter bumped 8/64 → 9/64 in this commit.
 - **Recommendation:** Update the `crates/anvil-witness/src/lib.rs` deferred follow-up text to match the current test state, or remove the deferred follow-up entirely if MLP2-015 completed it.
 - **Evidence:** `crates/anvil-witness/src/lib.rs:46`, `crates/anvil-witness/tests/concurrency.rs:16`
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
