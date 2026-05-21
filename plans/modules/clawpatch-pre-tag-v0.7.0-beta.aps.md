@@ -51,7 +51,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 **Ship (9, no action):**
 - CLAWP-002, -003 — pass 1 (kernel-maintainer)
 - CLAWP-016, -018, -020, -026, -036 — pass 2 verdicts; rationale per finding body
-- CLAWP-029, -030 — closed by PR #1732 (docs fixes bundled)
+- CLAWP-029 — initial framing fix bundled in PR #1732 (commits `47d8b0b0`, `f444d52d`, `6c106a4d`); caller-side validation guidance refined in PR #1789. CLAWP-030 — closed by PR #1732 (commit `9253d9f3`).
 
 **Defer with individual GH issue (24):**
 - CLAWP-004 → #1736, CLAWP-005 → #1737 (pass 1)
@@ -484,6 +484,18 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Severity / Triage / Category:** low / docs-gap / docs-gap
 - **Confidence:** high
 - **Status:** In Progress
+- **Branch:** `fix/clawp-029-config-docs` → PR #1789
+- **Resolution:** PR #1732's docs bundle (commits `47d8b0b0`
+  "note hard-pinned validation is shipped", `f444d52d` "correct
+  hard-pinned validation framing", `6c106a4d` copilot follow-up)
+  reframed the scope/out-of-scope section so hard-pinned validation
+  no longer reads as deferred. PR #1789 refines the remaining
+  caller-side gap named in the recommendation: it makes the
+  `parse_str`/`parse_file` body docs explicitly direct operator-config
+  callers to invoke `validate_hard_pinned_classes` after parsing,
+  matching the contract the integration tests already exercise.
+  Advances to **Merged** on this PR's merge; counter bump in the same
+  step.
 - **Recommendation:** Update the `lib.rs` scope/out-of-scope section to reflect that hard-pinned validation is now part of the crate, and explicitly state that `parse_str`/`parse_file` parse only while callers that load operator config should call `validate_hard_pinned_classes` after parsing.
 - **Evidence:** `crates/anvil-config/src/lib.rs:21`, `crates/anvil-config/src/lib.rs:46`, `crates/anvil-config/tests/hard_pinned_integration.rs:1`
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
