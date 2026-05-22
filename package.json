@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-source",
-  "version": "0.7.0-beta",
+  "version": "0.7.1-beta",
   "engines": {
     "node": ">=22.13.0",
     "pnpm": ">=10.20.0",

@@ -8,6 +8,121 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+## [0.7.1-beta] — 2026-05-22 — Activation Diagnostic Honesty (Boring Week Patch 1)
+
+`v0.7.1-beta` is the first Boring-Week patch tag on the `v0.7.0-beta`
+daemon-working slate. The headline change is GH
+[#1831](https://github.com/eddacraft/anvil-001/issues/1831): two early Windows +
+Scoop + PowerShell users hit `ready_restart_required` after `anvil start`
+installed the MCP server, with no path to `protecting` even when the intercept
+daemon was running and enforcing the worktree. `v0.7.1-beta` closes that loop —
+`anvil start --verify` and `anvil status --verify` now consume the daemon's
+`ProtectionClaim` snapshot and promote handshake-verified MCP clients to live
+validation when the daemon attests the canonical worktree, with concrete repair
+hints when something blocks promotion.
+
+### Fixed
+
+- **`anvil start --verify` reaches `protecting` when the intercept daemon
+  attests the worktree.** Previously the diagnostic capped at
+  `ready_restart_required` forever — even after the user restarted their editor
+  — because the activation surface had no consumer for the daemon's
+  `ProtectionClaim` snapshot. The new wire-up consumes
+  `anvil_intercept::status::build_protection_claim_from_wire` and promotes
+  handshake-verified MCP clients to `LiveValidation` when the worktree is in
+  `PreWriteDaemon` (or `DegradedProtection` with at least one `Participating`
+  surface). Closes GH
+  [#1831](https://github.com/eddacraft/anvil-001/issues/1831).
+- **Windows MCP `validate_write` response carries the `protection_claim`
+  field.** Prior to this release the field was always `None` on Windows because
+  the IPC client only spoke Unix sockets. The new named-pipe client provides
+  parity with the Unix path so Windows + Scoop + PowerShell users see the same
+  typed claim in MCP responses as Unix users.
+- **`ready_restart_required` repair hint distinguishes daemon-state failures.**
+  When the diagnostic stalls because the intercept daemon is unreachable,
+  unenforced for the worktree, stale, or all-quarantined, the hint now directs
+  the user at `anvil intercept start --foreground` (or `anvil intercept status`
+  to inspect the registered worktree set) instead of always saying "restart your
+  editor".
+- **L4 engine distinguishes IO outages from missing engines.** A new
+  `EngineUnavailableReason::IoError` variant separates a transient filesystem
+  hiccup from a permanently absent engine, so the `engine-missing` operator hint
+  no longer fires for retryable IO.
+- **`anvil uninstall` detects Scoop and WinGet install paths.** The cleanup now
+  matches the canonical Scoop and WinGet install directories and tightens the
+  boundary check so removal cannot stray outside the install root.
+
+### Added
+
+- **Activation tracing surfaces operator-actionable failures at `warn` level.**
+  A user running `anvil start --verify` and asking "why isn't this working?" now
+  sees the missing piece (daemon unreachable, worktree unenforced, stale
+  snapshot, all-surfaces quarantined) at the default `ANVIL_LOG=warn` filter,
+  instead of needing to set `ANVIL_LOG=debug` to find it. Transient states
+  (warming, no-participating-surface) stay at `info`; the genuine pre-restart
+  case stays at `debug`.
+- **`DaemonStatusV1.generated_at_unix` wire field.** A daemon-level wall-clock
+  anchor, distinct from per-session heartbeats, used as a second consistency
+  check on snapshot freshness. Wire-additive via `#[serde(default)]`: a
+  pre-`v0.7.1-beta` daemon talking to a post-`v0.7.1-beta` consumer deserialises
+  with the field at `0`, which the consumer treats as "no anchor available —
+  fall back to per-session freshness only". No driver-side change required.
+- **`anvil-run` manpage documents the SIGTERM transient-fence behaviour.** A
+  launcher killed by SIGTERM may briefly cause the daemon to fence the worktree;
+  the next launcher invocation clears the fence as part of session registration.
+  The new DIAGNOSTICS section names the symptom and the recovery.
+- **`docgov` validates as-built source paths in DOCGOV closeouts.** A closeout
+  that names a non-existent source file now fails the governance check at PR
+  time instead of silently shipping a broken cross-reference.
+
+### Changed
+
+- **`activation::diagnostic::ActivationDiagnostic` carries a
+  `daemon_attestation` field.** Renderers read this to distinguish pre-restart
+  from daemon-down / unenforced when generating the `ready_restart_required`
+  repair hint. Wire-additive via `#[serde(default)]`.
+- **Unix `query_daemon_status_at` enforces a single wall-clock deadline.**
+  Previously `set_read_timeout` capped each individual read syscall; a daemon
+  writing one byte every (timeout − 1 ms) could keep the read loop alive for
+  ~524 s before bail. The new implementation refreshes
+  `set_read_timeout(deadline − now)` against a single `Instant`-based deadline
+  so the activation 500 ms IPC budget is enforced end-to-end. Brings Unix parity
+  with the Windows single-deadline path.
+- **Activation freshness check rejects far-future timestamps.** A new
+  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound on future-timestamp tolerance
+  closes a downgrade-attack path where a daemon stamping `u64::MAX` (broken RTC,
+  snapshot replay, malicious snapshot output) would otherwise permanently pass
+  the freshness gate. NTP step adjustments and VM-clock drift between the daemon
+  and the workstation remain tolerated.
+
+### Known gaps (carried from v0.7.0-beta)
+
+- **Daemon-side `session.report_process` IPC handler unimplemented**
+  ([#1827](https://github.com/eddacraft/anvil-001/issues/1827), MLP2-074) —
+  launcher absorbs gracefully; ships as a known gap pending the IPC handler
+  implementation.
+- **`anvil intercept restart` and `anvil intercept recover` subcommands do not
+  exist.** The `ready_restart_required` repair hints in this release route
+  through `anvil intercept start --foreground` (cross-platform restart) and
+  `anvil intercept unblock --worktree <PATH>` (Linux only; Windows bails with
+  "not yet supported"). MLP2-028 will add Windows peer-credential support so
+  `unblock` works on both platforms.
+- **`anvil intercept unblock --worktree` is not supported on Windows yet.**
+  Windows users hitting `DegradedProtection` with every surface quarantined must
+  stop the daemon (Ctrl-C or kill the process) and start it again — the repair
+  hint reflects this.
+- **MCP `query_protection_claim` path still uses a 2 s IPC timeout on both Unix
+  and Windows.** The activation surface enforces the intended 500 ms budget;
+  MLP2-051i tightens the MCP path to match.
+
+### Distribution
+
+- **Scoop / Homebrew / WinGet:** `anvil update` (or `scoop update anvil` /
+  `brew upgrade anvil`) pulls the new binary. Signature verification path
+  unchanged from `v0.7.0-beta` (DISTRIB-001).
+- **GitHub Release:** binaries published with the same matrix as `v0.7.0-beta`
+  (Linux x86_64 / ARM64, macOS x86_64 / ARM64, Windows x86_64).
+
 ## [0.7.0-beta] — 2026-05-21 — Daemon-Working End-to-End Protection
 
 ### Added
