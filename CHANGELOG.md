@@ -89,13 +89,13 @@ hints when something blocks promotion.
   so the activation 500 ms IPC budget is enforced end-to-end. Brings Unix parity
   with the Windows single-deadline path.
 - **Activation freshness check bounds future-timestamp tolerance.** A new
-  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound on future timestamps **bounds at 90
-  seconds of clock skew** the downgrade-attack path where a daemon stamping
-  `u64::MAX` (broken RTC, snapshot replay, malicious snapshot output) would
-  otherwise permanently pass the freshness gate. NTP step adjustments and
-  VM-clock drift between the daemon and the workstation remain tolerated.
-  Workstations whose system clock is itself attacker-controlled remain outside
-  Anvil's threat model.
+  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound on future timestamps bounds the
+  downgrade-attack path to 90 seconds of clock skew — a daemon stamping
+  `u64::MAX` (broken RTC, snapshot replay, malicious snapshot output) is
+  rejected by the freshness gate instead of permanently passing it. NTP step
+  adjustments and VM-clock drift between the daemon and the workstation remain
+  tolerated. Workstations whose system clock is itself attacker-controlled
+  remain outside Anvil's threat model.
 
 ### Security
 
@@ -124,9 +124,9 @@ hints when something blocks promotion.
   `kill`) and start it again — the repair hint reflects this.
 - **`anvil intercept stop` subcommand does not exist.** To stop the daemon on
   Windows, close the terminal that's running it or end the process via Task
-  Manager. On Unix, `Ctrl-C` the foreground terminal or `kill <PID>`. The
-  missing CLI surface is tracked alongside the existing `intercept restart` /
-  `intercept recover` subcommand gaps.
+  Manager (or `kill <PID>` from another shell). On Unix, `Ctrl-C` the foreground
+  terminal or `kill <PID>`. The missing CLI surface is tracked alongside the
+  existing `intercept restart` / `intercept recover` subcommand gaps.
 - **MCP `query_protection_claim` path still uses a 2 s IPC timeout on both Unix
   and Windows.** The activation surface enforces the intended 500 ms budget;
   MLP2-051i tightens the MCP path to match.
