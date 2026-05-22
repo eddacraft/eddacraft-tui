@@ -51,8 +51,10 @@ clean.
 ## Caveats
 
 - One model run is noisy; use `--runs 3+` for anything load-bearing.
-- The structured HTML adds `data-aps-id` only to headings that already match
-  `^[A-Z]+-\d+:`; it is a thin enrichment, not a full APS schema.
+- The structured HTML adds `data-aps-id` only to headings whose text starts with
+  an APS-style identifier — work items `^[A-Z][A-Z0-9]+-\d{3,}:` (e.g.
+  `TUIDASH-003:`) and decisions `^D-[A-Z][A-Z0-9]+-\d{3,}:` (e.g.
+  `D-TUIR-001:`). It is a thin enrichment, not a full APS schema.
 - The hand-rolled markdown → HTML converter handles the APS subset only
   (headers, GFM tables, blockquotes, bullets with one nesting level, task
   checkboxes, inline code/bold/italic/links, horizontal rules). It is not a

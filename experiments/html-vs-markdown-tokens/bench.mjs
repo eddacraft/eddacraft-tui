@@ -23,7 +23,12 @@ const getArg = (flag, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const MODEL = getArg('--model', 'claude-sonnet-4-6');
-const RUNS = Number(getArg('--runs', '1'));
+const RUNS_RAW = getArg('--runs', '1');
+const RUNS = Number(RUNS_RAW);
+if (!Number.isInteger(RUNS) || RUNS < 1) {
+  console.error(`--runs must be a positive integer (got ${JSON.stringify(RUNS_RAW)}).`);
+  process.exit(1);
+}
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!API_KEY) {
