@@ -7,7 +7,7 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-22
 
 ## Purpose
 
@@ -46,9 +46,10 @@ exercises:
 and independently testable — that any of the EddaCraft / arkahna
 repositories can adopt with one config file (manifest list + project
 metadata) instead of editing the bash. As a side-effect, anvil itself
-upgrades from "single Rust block" to "Rust + bundled-binaries" coverage
-and removes the `accepted`-list duplication once `deny.toml` is part of
-the same source of truth.
+upgrades from "single Rust block" to "Rust + Node devtools" coverage,
+unlocks Go and Python attribution for downstream consumers, and removes
+the `accepted`-list duplication once `deny.toml` is part of the same
+source of truth.
 
 ## In Scope
 
@@ -71,24 +72,38 @@ the same source of truth.
 
 **v3.2 — Multi-language support**
 
-- Add a per-ecosystem ingest stage. Each ecosystem emits a normalised
-  intermediate (CycloneDX SBOM JSON preferred where the tooling
-  supports it; otherwise a plain TOML inventory of
-  `{ name, version, licence_spdx, source_url }`).
-- A single render stage consumes the merged intermediate and emits the
-  marker-spliced markdown block.
-- Initial ecosystems anvil cares about today: **Rust** (via
-  `cargo about` or `cargo cyclonedx`); **bundled native binaries** (via
-  a hand-maintained `tools/bundled-binaries.toml` that lists each
-  third-party binary anvil ships, with version + source URL + SPDX
-  expression). Future ecosystems opt in by adding an ingest plugin —
-  Gradle (`licensee` / `cyclonedx-gradle-plugin`), Node
-  (`license-checker` / `cyclonedx-npm`), Python (`pip-licenses` /
-  `cyclonedx-python`).
-- Each ecosystem renders into its own `<!-- BEGIN AUTO-GENERATED rust -->`
-  / `<!-- BEGIN AUTO-GENERATED binaries -->` etc. block so a partial
-  failure (e.g. one tool unavailable in a contributor's local env)
-  does not clobber unrelated content.
+- Generator gains a `[[blocks]]` array in `attribution.toml`. Each block
+  names an ecosystem and the manifest to walk; the generator dispatches
+  per-block to an ecosystem driver under
+  `tools/starters/acknowledgements/drivers/`. Flat `[rust]` top-level
+  schema auto-promotes to a single unnamed block for back-compat with
+  existing consumers (Anvil today, eddacraft-tui, future little-termi port).
+- Initial ecosystem drivers — the four that cover ~80% of downstream
+  shipping artefacts:
+  - **Rust** (`cargo-about`) — extracted from the current single-driver
+    body; no behaviour change.
+  - **Node** (`license-checker`) — first new driver; pnpm-workspace
+    friendly via the "one block per shipping `package.json`" pattern.
+  - **Go** (`go-licenses`) — Google's official tool; binary-import-path
+    scoped, same shipping-artefact pattern as Rust.
+  - **Python** (`pip-licenses`) — runs against a consumer-supplied
+    pre-built venv to avoid the kit shipping `uv` / `poetry` / `pdm`
+    opinions.
+- Each driver ships its own preflight (tool installed, state populated),
+  strict-license check (parity with `cargo about --fail`), and
+  deterministic-render contract (sorted output for idempotency under
+  `--check`).
+- Each block renders into its own
+  `<!-- BEGIN AUTO-GENERATED <name> -->` /
+  `<!-- END AUTO-GENERATED <name> -->` pair so a partial failure
+  (e.g. one tool unavailable in a contributor's local env, or one
+  ecosystem's strict-license check tripping) does not clobber unrelated
+  content. Per-block marker-count gate; per-block atomic write.
+- `tools/bundled-binaries.toml` (ATTRIB-004) remains a separate ingest
+  stream for binaries that aren't a package manager's deps.
+- CycloneDX SBOM JSON stays a queued option as an alternative `tool=`
+  selection per ecosystem (e.g. `tool = "cyclonedx-npm"` instead of
+  `tool = "license-checker"`); not on the v3.2 critical path.
 
 **v3.3 — Remove manual duplications**
 
@@ -128,6 +143,12 @@ the same source of truth.
   ABIs) get one merged inventory across targets, not per-target
   files. cargo-about already supports the `targets = [...]` list for
   this; v3 inherits that behaviour.
+- **Java/Kotlin, Ruby, and Swift ecosystem drivers.** `licensee` /
+  `license_finder` / `licenseplist` are well-known tools and the
+  driver-dispatch shape would accommodate them, but no current
+  downstream consumer ships these ecosystems. Reserved for re-decision
+  if a real consumer surfaces a need; the design doc's
+  ecosystem-tooling list at line 85 records the candidate tools.
 
 ## Interfaces
 
@@ -183,6 +204,11 @@ Recorded on transition to Ready (2026-04-25).
 | First downstream consumer | `little-termi` (existing hand-port; primary validation target for ATTRIB-009). Plus `eddacraft-tui` (public Rust CLI; first consumer of the ATTRIB-011 public mirror) and the owner's future public projects as anticipated consumers — these drive the ATTRIB-011 public-extract milestone. | — |
 | Owner | `joshuaboys` | — |
 | Discrepancy notes accuracy | Confirmed accurate (verified 2026-04-25) | All claims in `plans/specs/2026-04-23-rustnx-completion-design.md`'s shipped-implementation note still hold: file path (`ACKNOWLEDGEMENTS.md`), generator (`tools/generate-acknowledgements.sh` wrapping `cargo about generate` scoped to `crates/anvil-cli/Cargo.toml`), CLI surface (`anvil licenses` via `include_str!`), CI gate (`acknowledgements-diff`), and release-pipeline publish (`.github/workflows/release.yml` mirrors the file to `eddacraft/anvil`). |
+| Driver runtime (added 2026-05-22) | Bash, per-ecosystem scripts under `tools/starters/acknowledgements/drivers/` | Keeps the kit drop-in portable for subtree consumers. A Rust rewrite (`anvil licenses generate`) was considered and reserved as a future re-decision if a single driver outgrows shell; the eddacraft-tui / future-public-consumer story depends on copy-or-subtree adoption, which a compiled binary would break. |
+| Node tool (added 2026-05-22) | `license-checker` | Mature, deterministic, simple to drive from shell. `cyclonedx-npm` is the design-doc-preferred SBOM path and stays available as a future `tool=` option per block; not on the v3.2 critical path. `pnpm licenses list` rejected as pnpm-only. |
+| Go tool (added 2026-05-22) | `go-licenses` (Google) | Strict-license-check parity with cargo-about's `--fail` via `go-licenses check`. Native `go.mod` `replace` directive support means monorepo internal-module handling is free. |
+| Python tool (added 2026-05-22) | `pip-licenses` against a consumer-supplied pre-built venv | Python licence tools walk an installed venv rather than a lockfile. Requiring a pre-built venv keeps the kit free of `uv` / `poetry` / `pdm` opinions; consumers wire up their preferred installer in CI. Driver fails with an actionable error if the venv is missing rather than producing an empty block. |
+| Deferred ecosystems (added 2026-05-22) | Java/Kotlin, Ruby, Swift | No current downstream consumer ships these. Re-open as a fresh task if a real consumer surfaces a need; the driver-dispatch shape accommodates them without further architecture work. |
 
 Two open questions remain — neither blocks Ready and both are expected to
 resolve naturally during their respective tasks:
@@ -270,12 +296,19 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 - **Validation:** Test crate without a `license` field triggers the lint locally and in CI.
 - **Shipped:** 2026-05-14 via PR #1546 (merged at `139606ec`). `cargo about generate --fail` is now passed by `tools/starters/acknowledgements/generate-acknowledgements.sh`; `tools/starters/acknowledgements/tests/strict-license-field.sh` pins the contract; the Acknowledgements freshness CI job runs the fixture test alongside the existing freshness check; downstream consumers pick up the same coverage via the kit's `ci-freshness.yml.snippet`. Anvil's real workspace `--check` still exits 0 (every crate complies per RUSTNX-009).
 
-### ATTRIB-008: Multi-block marker support
+### ATTRIB-008: Multi-block dispatcher + driver-per-ecosystem architecture
 
 - **Status:** Pending
-- **Intent:** Allow `<!-- BEGIN AUTO-GENERATED rust -->`, `<!-- BEGIN AUTO-GENERATED binaries -->`, `<!-- BEGIN AUTO-GENERATED node -->` etc. to coexist in one file, each independently splice-able so a partial failure can't clobber unrelated content.
-- **Expected Outcome:** Generator accepts a block name; splices only the named block; preserves all other blocks verbatim. Marker count gate validates per-block (one BEGIN, one END each).
-- **Validation:** Two-block fixture round-trips through partial regeneration without touching the other block.
+- **Intent:** Refactor the generator from "one cargo-about call, one block" into a dispatcher that reads a `[[blocks]]` array from `attribution.toml` and routes each block to an ecosystem-specific driver script.
+- **Expected Outcome:**
+  - `attribution.toml` schema gains a `[[blocks]]` array. Each block declares `name`, `ecosystem`, and ecosystem-specific keys (manifest path, template path, tool-specific options).
+  - Flat `[rust]` top-level schema auto-promotes to a single unnamed block. Existing consumers (Anvil, eddacraft-tui via mirror) do not need to migrate.
+  - Generator main script becomes a dispatcher: parse config → loop blocks → invoke `drivers/<ecosystem>.sh` → splice each block independently.
+  - Rust driver extracted from the current generator body into `drivers/rust.sh` with no behaviour change.
+  - Markers carry per-block names: `<!-- BEGIN AUTO-GENERATED <name> -->` / `<!-- END AUTO-GENERATED <name> -->`. Per-block marker-count gate; per-block atomic write. A failure in one block leaves all other blocks untouched.
+  - README documents the dispatcher contract, the block schema, and the driver-author contract (preflight + render + strict-license + deterministic-output expectations).
+- **Validation:** Two-block fixture (Rust + a stub ecosystem) round-trips through partial regeneration without touching the other block. Anvil's existing single-block flow continues to pass `--check` clean post-refactor. Mirror to `eddacraft/acknowledgements-starter` builds cleanly; `eddacraft-tui` consumer regenerates byte-identically.
+- **Dependencies:** None (keystone for ATTRIB-012/013/014/015).
 
 ### ATTRIB-009: Port the kit back into `little-termi`
 
@@ -300,6 +333,57 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 - **Execution plan:** `plans/execution/ATTRIB-011.steps.md` (kicked off 2026-05-17 on `feat/attrib-011-public-mirror`).
 - **Shipped:** 2026-05-18. Validation passed end-to-end: public mirror live at <https://github.com/eddacraft/acknowledgements-starter>, force-pushed by `.github/workflows/mirror-acknowledgements-starter.yml` on every change to `tools/starters/acknowledgements/`; latest mirror run succeeded at <https://github.com/eddacraft/anvil-001/actions/runs/26019193982>; `eddacraft-tui` consumes the mirror via subtree at `tools/starters/acknowledgements/` (eddacraft/eddacraft-tui#33, merged 2026-05-18). Final design + doc fixes landed via PRs #1677 (scaffold), #1686 (PAT auth fix for CURLE_URL_MALFORMAT), #1689 (kit README mirror pointer + Action 6 retarget to eddacraft-tui), #1691 (per-kit-prefix doc discipline; wrap design rejected).
 
+### ATTRIB-012: Node ecosystem driver
+
+- **Status:** Pending
+- **Intent:** Add a Node/JS driver so consumers can attribute pnpm / npm dependencies via the same `[[blocks]]` dispatcher.
+- **Expected Outcome:**
+  - `drivers/node.sh` shells `license-checker` against a single `package.json`, emits deterministic markdown sorted by package name.
+  - `[[blocks]]` entry with `ecosystem = "node"` carries `manifest_path` (which `package.json` to walk), `prod_only` (default `true`), optional `exclude` globs for internal `@workspace/*` deps that pnpm hoists into the graph.
+  - Preflight verifies `license-checker` is installed and `node_modules` is populated; missing state fails with an actionable error rather than producing an empty block.
+  - Strict-license enforcement via `license-checker --failOn` matched against the canonical `licences.toml` allow-list (extends ATTRIB-006's expander to emit a Node-shaped fragment).
+  - README gains a monorepo guidance section with worked pnpm-workspace examples covering the "one block per shipping `package.json`" pattern and the workspace-wide escape hatch.
+- **Validation:** Two-package pnpm fixture under `tests/` round-trips through the driver. `--check` reports drift when a fixture dependency's licence changes. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
+- **Dependencies:** ATTRIB-008 (dispatcher must exist first); ATTRIB-006 (allow-list expander must emit a Node-shaped fragment).
+
+### ATTRIB-013: Go ecosystem driver
+
+- **Status:** Pending
+- **Intent:** Add a Go driver so consumers can attribute Go module dependencies via the same dispatcher.
+- **Expected Outcome:**
+  - `drivers/go.sh` shells `go-licenses report` against a binary import path, emits deterministic markdown using a Go template under `templates/go-licenses.tmpl`.
+  - `[[blocks]]` entry with `ecosystem = "go"` carries `module_path` (binary import path to walk, e.g. `./cmd/anvil`), `template_path`.
+  - Preflight verifies `go-licenses` is installed and the module cache is populated (consumer ran `go mod download`); missing state fails with an actionable error.
+  - Strict-license enforcement via `go-licenses check` ahead of `report`, matched against the canonical `licences.toml` allow-list (extends ATTRIB-006's expander to emit a Go-shaped fragment).
+  - `go.mod` `replace` directives honoured natively — no special handling needed for monorepo internal modules.
+- **Validation:** Go fixture binary with one external dep round-trips through the driver. `--check` reports drift when a fixture dependency's licence changes. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
+- **Dependencies:** ATTRIB-008; ATTRIB-006 expander emits Go-shaped fragment.
+
+### ATTRIB-014: Python ecosystem driver
+
+- **Status:** Pending
+- **Intent:** Add a Python driver so consumers can attribute Python dependencies via the same dispatcher.
+- **Expected Outcome:**
+  - `drivers/python.sh` shells `pip-licenses` against a consumer-supplied pre-built virtualenv, emits deterministic markdown sorted by package name.
+  - `[[blocks]]` entry with `ecosystem = "python"` carries `venv_path` (required, points at the consumer's `uv sync` / `poetry install` / `pdm sync` output), optional template overrides.
+  - Preflight verifies the venv exists and contains `pip-licenses`; missing or empty venv fails with the actionable error "no installed dependencies at `<path>`; run `<consumer's installer>` first" rather than producing an empty block.
+  - Strict-license enforcement via `pip-licenses --fail-on` matched against the canonical `licences.toml` allow-list (extends ATTRIB-006's expander to emit a Python-shaped fragment).
+  - Kit ships no `uv` / `poetry` / `pdm` opinions — consumer wires their preferred installer in CI per their existing Python toolchain.
+- **Validation:** Python fixture with a pre-built venv and one external dep round-trips through the driver. Missing-venv case produces the actionable error rather than an empty block. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
+- **Dependencies:** ATTRIB-008; ATTRIB-006 expander emits Python-shaped fragment.
+
+### ATTRIB-015: Anvil adopts a Node devtools attribution block
+
+- **Status:** Pending
+- **Intent:** Exercise the Node driver in Anvil's own `ACKNOWLEDGEMENTS.md` to attribute the JS/TS dev tooling the repo continues to depend on (linters, formatters, Nx, kindling integration, build scripts).
+- **Expected Outcome:**
+  - `attribution.toml` grows a `[[blocks]] node-devtools` entry pointed at a dev-tooling `package.json` (root `package.json` or a curated devtools manifest — decide during implementation based on what gives the cleanest attribution).
+  - `ACKNOWLEDGEMENTS.md` gains a `<!-- BEGIN AUTO-GENERATED node-devtools -->` block with the rendered dev-tool attributions, sitting alongside the existing Rust block.
+  - CI freshness check enforces drift across both blocks; the `acknowledgements-diff` job's command surface stays the same.
+  - Release runbook (ATTRIB-010) reflects the second block in its pre-release `--check` callout.
+- **Validation:** `tools/starters/acknowledgements/generate-acknowledgements.sh --check` exits 0 against both blocks in a clean working tree. Introducing a new dev dep triggers drift; removing one triggers drift; both resolve cleanly via a single re-run of the generator.
+- **Dependencies:** ATTRIB-012 (Node driver must exist).
+
 ## Risks
 
 | Risk | Impact | Mitigation |
@@ -310,6 +394,9 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 | Public consumers (`eddacraft-tui`, future public projects) can't `git subtree` from a private repo | Medium | ATTRIB-011 mirrors the kit to a public sibling repo; design history stays in this private module |
 | Manual `## Thanks` section still rots over time | Low | CI requires the section exists with at least one entry per ecosystem represented in the auto-generated block; contents stay manual by design |
 | `licences.toml` drift gate produces false-positive churn during adds | Low | Drift gate runs `--check` mode; surfaces an actionable diff rather than blocking the commit silently |
+| Bash multi-driver framework outgrows shell (added 2026-05-22) | Medium | Each driver is a self-contained shell script with isolated preflight, render, and strict-license logic; tested via per-driver fixtures. If a single driver gets gnarly enough that bash becomes the bottleneck, promote the generator to a Rust binary (`anvil licenses generate`) as a separate decision — the dispatcher contract stays the same. |
+| Driver preflight requirements diverge across CI environments (added 2026-05-22) | Medium | Each driver fails fast with an actionable error naming the missing tool or state (`license-checker` not installed, `node_modules` not populated, venv path empty, module cache missing); `ci-freshness.yml.snippet` documents per-eco setup steps and is updated alongside each new driver. |
+| ATTRIB-006 allow-list expander has to grow Node/Go/Python output shapes (added 2026-05-22) | Low | The expander already emits two consumer shapes (`about.toml.accepted`, `deny.toml.[licenses].allow`) via marker-spliced fragments; adding three more is mechanical. Per-driver fixtures pin the expected fragment format so drift fails closed. |
 
 ## Open Questions
 
