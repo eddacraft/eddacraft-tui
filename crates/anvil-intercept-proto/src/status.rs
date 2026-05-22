@@ -66,6 +66,33 @@ pub struct DaemonStatusV1 {
     /// consumer — additive-optional, byte-compat for older shapes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_invalidations_rate_limited: Option<u64>,
+    /// MLP2-051h: Unix seconds at which the daemon assembled this
+    /// snapshot. A daemon-level wall-clock anchor distinct from
+    /// `HealthStateV1::uptime_seconds` (monotonic-since-start, no
+    /// freshness signal) and from per-session `last_heartbeat_unix`
+    /// (per-session, not snapshot-level).
+    ///
+    /// The activation-side freshness check uses this as a second
+    /// consistency anchor: a snapshot whose `generated_at_unix` is
+    /// further than the staleness window from `SystemTime::now()` is
+    /// treated as unsafe to promote against even if per-session
+    /// heartbeats are fresh, defending against a daemon whose clock
+    /// has stopped but whose sessions keep refreshing.
+    ///
+    /// Wire-additive via `#[serde(default)]`: a pre-MLP2-051h daemon
+    /// (no key on the wire) deserialises with the field at the `u64`
+    /// default of `0`, which post-MLP2-051h consumers treat as "no
+    /// snapshot anchor available — fall back to per-session heartbeat
+    /// freshness only" (the posture before MLP2-051h existed). Unlike
+    /// the MLP2-058/-059 additive-optional counters, the field is a
+    /// plain `u64` (not `Option<u64>`) because every snapshot a
+    /// post-MLP2-051h daemon emits MUST carry the anchor; absence on
+    /// the wire is only ever a sign of an older producer. Pinned by
+    /// the `pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero`,
+    /// `generated_at_unix_round_trips_when_present`, and
+    /// `generated_at_unix_serialises_always_when_zero` tests.
+    #[serde(default)]
+    pub generated_at_unix: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -159,6 +186,7 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            generated_at_unix: 0,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -181,6 +209,7 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            generated_at_unix: 0,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         // mid_edit must be either absent or null — never zero.
@@ -302,6 +331,7 @@ mod tests {
             cache_invalidations_total: Some(42),
             in_flight_evaluations: Some(3),
             cache_invalidations_rate_limited: Some(5),
+            generated_at_unix: 0,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -335,6 +365,7 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            generated_at_unix: 0,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         assert!(
@@ -343,5 +374,100 @@ mod tests {
         );
         assert!(json.get("cache_invalidations_total").is_none());
         assert!(json.get("in_flight_evaluations").is_none());
+    }
+
+    /// MLP2-051h: a pre-MLP2-051h daemon (no `generated_at_unix` key on
+    /// the wire) round-trips into the post-MLP2-051h `DaemonStatusV1`
+    /// with the new field collapsed to `0`. Unlike the MLP2-058/-059
+    /// additive-optional fields, `generated_at_unix` is required-but-
+    /// defaulted (`#[serde(default)]`) — a `u64` rather than an
+    /// `Option<u64>` — because every snapshot a post-MLP2-051h daemon
+    /// emits MUST carry the anchor. Consumers treat `0` as "no
+    /// snapshot anchor available" (a pre-MLP2-051h daemon spoke first)
+    /// and fall back to per-session heartbeat freshness, which is the
+    /// posture today.
+    #[test]
+    fn pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero() {
+        let json = serde_json::json!({
+            "sessions": [],
+            "worktrees": [],
+            "fences": [],
+            "health": {
+                "uptime_seconds": 12,
+                "version": "0.6.0",
+                "ipc_state": "serving",
+            },
+            "latency": { "mid_edit": null },
+        });
+        let parsed: DaemonStatusV1 = serde_json::from_value(json).expect("deserialise");
+        assert_eq!(
+            parsed.generated_at_unix, 0,
+            "pre-MLP2-051h daemon must surface the new field as the u64 default",
+        );
+    }
+
+    /// MLP2-051h: when the new field is present on the wire it arrives
+    /// as its typed value and round-trips byte-equivalently. Pins the
+    /// on-wire shape so an activation-side consumer reading
+    /// `generated_at_unix` against `SystemTime::now()` sees the value
+    /// the daemon stamped, not a default or a re-derivation.
+    #[test]
+    fn generated_at_unix_round_trips_when_present() {
+        let status = DaemonStatusV1 {
+            sessions: vec![],
+            worktrees: vec![],
+            fences: vec![],
+            health: HealthStateV1 {
+                uptime_seconds: 1,
+                version: "0.7.0-beta".to_owned(),
+                ipc_state: IpcStateV1::Serving,
+            },
+            latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
+            generated_at_unix: 1_716_336_000,
+        };
+        let line = serde_json::to_string(&status).expect("serialise");
+        let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, status);
+
+        let json: serde_json::Value = serde_json::to_value(&status).expect("to_value");
+        assert_eq!(json["generated_at_unix"], 1_716_336_000_u64);
+    }
+
+    /// MLP2-051h: the field MUST always be present on the wire, even
+    /// when its value is `0` — distinct from MLP2-058/-059's
+    /// `Option`-typed fields which use `skip_serializing_if`. The
+    /// freshness rationale rests on the consumer being able to tell
+    /// "snapshot is from a 051h+ daemon and was stamped at unix=N"
+    /// apart from "snapshot is from a pre-051h daemon and carried no
+    /// anchor". The producer side of that distinction is "always emit
+    /// the field"; the consumer side defaults the missing key to `0`.
+    #[test]
+    fn generated_at_unix_serialises_always_when_zero() {
+        let status = DaemonStatusV1 {
+            sessions: vec![],
+            worktrees: vec![],
+            fences: vec![],
+            health: HealthStateV1 {
+                uptime_seconds: 0,
+                version: "0.7.0-beta".to_owned(),
+                ipc_state: IpcStateV1::Serving,
+            },
+            latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
+            generated_at_unix: 0,
+        };
+        let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
+        assert!(
+            json.get("generated_at_unix").is_some(),
+            "generated_at_unix must always be present on the wire (even at 0): {json}",
+        );
+        assert_eq!(json["generated_at_unix"], 0_u64);
     }
 }

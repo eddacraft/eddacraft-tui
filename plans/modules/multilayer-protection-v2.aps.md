@@ -2,9 +2,18 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 62/81 |
+| MLP2 | @aneki | In Progress | 62/82 |
 
-**Last reviewed:** 2026-05-21 (Group R added — MLP2-074 daemon-side
+**Last reviewed:** 2026-05-22 (MLP2-051h filed under Group J —
+`DaemonStatusV1::generated_at_unix` wire-add precursor to the
+MLP2-051f activation diagnostic. Filed ahead of MLP2-051f per the
+activation-daemon-evidence wire-up spec §"APS placement" so the
+field exists on the wire before the first consumer arrives; does
+not block the `v0.7.0-beta` tag (activation diagnostic does not
+exist yet). Module total advances 81 → 82; done-count unchanged at
+62.)
+
+Earlier 2026-05-21 (Group R added — MLP2-074 daemon-side
 `session.report_process` IPC handler. Filed against the
 [v0.7.0-beta pre-tag release council](../reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md)
 action A2 and tracked at GH
@@ -2905,6 +2914,78 @@ task's `Source:` line cites the Council finding IDs.
 - **Dependencies:** MLP2-051a + MLP2-051b + MLP2-051c (all
   three render surfaces produce a claim).
 - **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051h: `DaemonStatusV1::generated_at_unix` wire-add
+
+- **Status:** In Progress
+- **Intent:** Precursor to the MLP2-051f activation wire-up.
+  `DaemonStatusV1` carries no daemon-level wall-clock anchor today —
+  `HealthStateV1.uptime_seconds` is monotonic-since-start and the only
+  Unix-clock signals are per-session `last_heartbeat_unix` /
+  `started_at_unix`. The MLP2-051f freshness check needs a second
+  consistency anchor at the snapshot level so the activation-side
+  consumer can sanity-check the snapshot itself, not just the latest
+  session inside it (defence in depth against a daemon that stops
+  refreshing its own clock but keeps sessions registered).
+- **Expected Outcome:**
+  - Additive `generated_at_unix: u64` field on
+    `anvil_intercept_proto::status::DaemonStatusV1`, stamped at
+    snapshot-build time with `SystemTime::now()` Unix seconds.
+  - Wire-additive via `#[serde(default)]`: a pre-MLP2-051h daemon
+    talking to a post-MLP2-051h consumer deserialises to
+    `generated_at_unix: 0`, which the consumer treats as "no snapshot
+    anchor available" (falls back to per-session heartbeat freshness
+    only — same posture as today).
+  - Daemon-side construction path (`anvil_intercept::status::build_status`)
+    takes the Unix-seconds value as an explicit argument so the call
+    is deterministic and testable; the IPC provider
+    (`DaemonStatusProvider::query_status`) captures
+    `SystemTime::now()` at the same boundary it already captures
+    `Instant::now()` for the latency snapshot.
+- **Files:**
+  - `crates/anvil-intercept-proto/src/status.rs` — field + serde
+    attribute + module doc note.
+  - `crates/anvil-intercept/src/status.rs` — `DaemonStatus` field,
+    `build_status` arg, `to_wire` mapping,
+    `DaemonStatusProvider::query_status` capture site.
+  - `crates/anvil-cli/src/commands/intercept.rs` +
+    `crates/anvil-cli/src/commands/status.rs` +
+    `crates/anvil-cli/tests/protection_claim_cross_surface.rs` +
+    `crates/anvil-run/src/preflight.rs` — update test fixtures /
+    struct-literal construction sites.
+- **Validation:**
+  - **Parity test (mandatory):** pre-MLP2-051h wire shape (JSON
+    without the field) deserialises into the new type with
+    `generated_at_unix == 0`; new shape round-trips with the value
+    intact; new shape serialised back is byte-identical to a
+    canonically-emitted snapshot. Pinned in
+    `crates/anvil-intercept-proto/src/status.rs` tests.
+  - `cargo test --workspace` green; `cargo clippy --workspace
+    --all-targets -- -D warnings` green; `cargo fmt --all --check`
+    green.
+  - No consumer change required — every existing reader either uses
+    `#[serde(default)]` semantics (older `Deserialize` derive) or
+    will simply ignore the new field until MLP2-051f wires the
+    activation-side freshness check against it.
+- **Confidence:** high — one field, one parity test, all consumers
+  are additive-tolerant by the project's `additive-optional-fields`
+  rule (MLP2-052) and the existing `DaemonStatusV1` precedent
+  (`cache_entries`, `cache_invalidations_total`,
+  `in_flight_evaluations`, `cache_invalidations_rate_limited` all
+  follow the same shape).
+- **Priority:** High (gates MLP2-051f activation wire-up; non-blocking
+  for the `v0.7.0-beta` tag because activation diagnostic does not
+  exist yet, but lands ahead of it to keep the wire-add and the
+  consumer in separate PRs).
+- **Dependencies:** none (additive precursor; deliberately filed
+  ahead of MLP2-051f so the field exists on the wire before the
+  first consumer arrives).
+- **Source:** Activation-daemon-evidence wire-up spec
+  (`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`)
+  §"New objections deferred to follow-up issues" — adversarial /
+  security objection that `DaemonStatusV1` has no daemon-level
+  wall-clock anchor; spec §"APS placement" calls out filing as
+  MLP2-051h ahead of MLP2-051f.
 
 #### MLP2-052: Additive-optional-fields forward-compat test
 

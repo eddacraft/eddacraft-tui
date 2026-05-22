@@ -130,6 +130,10 @@ impl StatusProvider for NoopStatusProvider {
             crate::status::IpcState::Serving,
             None,
             None,
+            // MLP2-051h: noop provider has no live wall clock to
+            // stamp; consumers already treat `0` as "no anchor —
+            // fall back to per-session heartbeat freshness".
+            0,
         )
     }
 }

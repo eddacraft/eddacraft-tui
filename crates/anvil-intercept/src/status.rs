@@ -45,7 +45,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anvil_intercept_proto::SessionRecord;
 use anvil_intercept_proto::status::{
@@ -101,6 +101,15 @@ pub struct DaemonStatus {
     /// `MAX_CONCURRENT_SCAN_BUFFERS` is 8 today so the clamp is
     /// unreachable in practice but kept honest for safety).
     pub in_flight_evaluations: Option<usize>,
+    /// MLP2-051h: Unix seconds at which the daemon assembled this
+    /// snapshot. Mirrors [`DaemonStatusV1::generated_at_unix`] — the
+    /// daemon-level wall-clock anchor used by the MLP2-051f activation
+    /// freshness check as a second consistency signal alongside
+    /// per-session `last_heartbeat_unix`. Captured at the IPC boundary
+    /// by [`DaemonStatusProvider::query_status`] via
+    /// `SystemTime::now()` so `build_status` itself stays deterministic
+    /// and testable.
+    pub generated_at_unix: u64,
 }
 
 /// MLP2-058: paired cache counters carried inside [`DaemonStatus`].
@@ -212,6 +221,7 @@ impl DaemonStatus {
                 .in_flight_evaluations
                 .map(|n| u8::try_from(n).unwrap_or(u8::MAX)),
             cache_invalidations_rate_limited: self.cache.map(|c| c.invalidations_rate_limited),
+            generated_at_unix: self.generated_at_unix,
         }
     }
 }
@@ -233,6 +243,12 @@ fn rollup_to_wire(r: LatencyRollup) -> anvil_intercept_proto::status::LatencyRol
 /// startup; uptime is `now - started_at` clamped to monotonic time.
 /// The version string is the daemon binary's `CARGO_PKG_VERSION` —
 /// callers pass it explicitly so the embedded path can override.
+///
+/// MLP2-051h: `generated_at_unix` is the snapshot-level Unix-seconds
+/// anchor (`SystemTime::now()` seconds-since-epoch). Captured at the
+/// IPC boundary by [`DaemonStatusProvider::query_status`] so this
+/// function stays clock-deterministic for tests; callers that don't
+/// need the anchor (in-process unit tests) can pass `0`.
 #[allow(clippy::too_many_arguments)]
 pub fn build_status(
     sessions: Vec<SessionRecord>,
@@ -245,6 +261,7 @@ pub fn build_status(
     ipc_state: IpcState,
     cache: Option<CacheStats>,
     in_flight_evaluations: Option<usize>,
+    generated_at_unix: u64,
 ) -> DaemonStatus {
     let mut fenced_set: std::collections::HashSet<std::path::PathBuf> =
         fence_records.iter().map(|f| f.worktree.clone()).collect();
@@ -305,6 +322,7 @@ pub fn build_status(
         },
         cache,
         in_flight_evaluations,
+        generated_at_unix,
     }
 }
 
@@ -438,6 +456,15 @@ impl StatusProvider for DaemonStatusProvider {
             invalidations_rate_limited: c.rate_limited_invalidations(),
         });
         let in_flight = self.scan_buffer.as_ref().map(ScanBufferService::in_flight);
+        // MLP2-051h: stamp the snapshot-level wall-clock anchor at the
+        // IPC boundary so `build_status` stays deterministic for in-
+        // process unit tests. A clock that pre-dates `UNIX_EPOCH` (only
+        // possible if the host clock has been manually rewound) yields
+        // `0`, which post-MLP2-051h consumers already treat as "no
+        // anchor — fall back to per-session heartbeat freshness".
+        let generated_at_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
         build_status(
             sessions,
             &fence_records,
@@ -449,6 +476,7 @@ impl StatusProvider for DaemonStatusProvider {
             IpcState::Serving,
             cache,
             in_flight,
+            generated_at_unix,
         )
     }
 }
@@ -792,6 +820,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         assert!(status.latency.mid_edit.is_none());
         assert_eq!(status.health.uptime_seconds, 5);
@@ -824,6 +853,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         assert_eq!(status.worktrees.len(), 1);
         assert!(
@@ -876,6 +906,7 @@ mod tests {
                 invalidations_rate_limited: 0,
             }),
             Some(2),
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -917,6 +948,7 @@ mod tests {
                 invalidations_rate_limited: 99,
             }),
             Some(2),
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -942,6 +974,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -966,6 +999,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -1011,6 +1045,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -1048,6 +1083,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -1082,6 +1118,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -1113,6 +1150,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -1146,6 +1184,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let rendered = render_status(&status);
         assert!(
@@ -1174,6 +1213,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         assert!(status.cache.is_none());
         assert!(status.in_flight_evaluations.is_none());
@@ -1209,6 +1249,7 @@ mod tests {
                 invalidations_rate_limited: 5,
             }),
             Some(3),
+            0,
         );
         let wire = status.to_wire();
         assert_eq!(wire.cache_entries, Some(17));
@@ -1237,6 +1278,7 @@ mod tests {
             IpcState::Serving,
             None, // no cache wired -> field absent on wire
             None,
+            0,
         );
         let json = serde_json::to_value(status.to_wire()).expect("serialise");
         assert!(
@@ -1364,6 +1406,7 @@ mod tests {
                 invalidations_rate_limited: u64::MAX,
             }),
             Some(usize::MAX),
+            0,
         );
         let wire = status.to_wire();
         assert_eq!(wire.cache_entries, Some(u32::MAX));
@@ -1386,6 +1429,7 @@ mod tests {
             IpcState::Serving,
             None,
             None,
+            0,
         );
         let wire = status.to_wire();
         let json = serde_json::to_value(&wire).expect("serialise");
@@ -1416,6 +1460,7 @@ mod tests {
             ipc_state,
             None,
             None,
+            0,
         )
     }
 
