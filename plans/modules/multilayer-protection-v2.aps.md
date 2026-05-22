@@ -2940,12 +2940,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051f: Activation diagnostic consumes daemon `ProtectionClaim`
 
-- **Status:** Merged 2026-05-22 via PR
-  [#1840](https://github.com/eddacraft/anvil-001/pull/1840) at
-  `e1cc066a`. Closes GH
-  [#1831](https://github.com/eddacraft/anvil-001/issues/1831).
-  Awaiting `v0.7.0-beta` release evidence to advance Merged →
-  Released/Shipped → Complete.
+- **Status:** Merged 2026-05-22 via PR [#1840](https://github.com/eddacraft/anvil-001/pull/1840) at `e1cc066a`. Closes GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831). Awaiting `v0.7.0-beta` release evidence to advance Merged → Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/activation/diagnostic.rs` consumes
   `anvil_intercept::status::query_daemon_snapshot` +
   `build_protection_claim_from_wire` and, when the daemon attests
