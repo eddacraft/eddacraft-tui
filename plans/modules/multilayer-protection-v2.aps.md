@@ -2,9 +2,23 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 64/83 |
+| MLP2 | @aneki | In Progress | 64/86 |
 
-**Last reviewed:** 2026-05-22 (MLP2-051h advanced `In Progress` →
+**Last reviewed:** 2026-05-22 (Group J extended — MLP2-051g, -051i,
+-051j filed as `Draft` hardening follow-ups to MLP2-051f. MLP2-051g
+adds an `anvil start --verify --why` verbose tier-evidence flag
+(closes acceptance criterion #3 of GH
+[#1831](https://github.com/eddacraft/anvil-001/issues/1831)).
+MLP2-051i tightens the MCP `query_protection_claim` IPC timeout to
+match the 500 ms activation budget. MLP2-051j adds client-side
+peer-owner SID validation on Windows named-pipe connections, mirror-
+ing the Unix `SO_PEERCRED` UID check (defence-in-depth gap exposed
+by the activation surface but pre-existing pre-MLP2-051f). Filed
+against the full Council review on the MLP2-051f/g/h + MLP2-075
+work-set (2026-05-22); none of the three blocks `v0.7.0-beta`.
+Module total advances 83 → 86; done-count unchanged at 64.)
+
+Earlier 2026-05-22 (MLP2-051h advanced `In Progress` →
 `Merged` via PR
 [#1837](https://github.com/eddacraft/anvil-001/pull/1837) rebase-
 merged at `4ec9c5a4`. `DaemonStatusV1::generated_at_unix` wire-add
@@ -3195,6 +3209,175 @@ task's `Source:` line cites the Council finding IDs.
   security objection that `DaemonStatusV1` has no daemon-level
   wall-clock anchor; spec §"APS placement" calls out filing as
   MLP2-051h ahead of MLP2-051f.
+
+#### MLP2-051g: `anvil start --verify --why` verbose tier-evidence flag
+
+- **Status:** Draft
+- **Intent:** When `anvil start --verify` (or `anvil status --verify`)
+  stalls at `ready_restart_required`, the user has no way to see what
+  the activation surface actually found at each tier. Add a `--why`
+  flag that, when set, prints each tier's evidence string to stderr
+  alongside the normal verdict on stdout. Closes acceptance criterion
+  #3 from GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831).
+- **Expected Outcome:**
+  - Flag named per the council verdict in the activation-daemon-
+    evidence spec (`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
+    §"Council Verdicts" item 9). Mirrors `cargo --explain`. NOT
+    `--verbose` (collides with the log-verbosity convention).
+  - Verbose tier output goes to **stderr**, not stdout. Scripted
+    consumers of `anvil start --verify` parse stdout; the verbose
+    copy must not leak into their parsing surface.
+  - Per-tier evidence format (from the spec):
+
+    ```text
+    ACTIVATION (verbose)
+      state: ready_restart_required
+      mcp claude_code:
+        config:   ~/.claude.json (present, anvil entry matches fresh)
+        command:  C:\Users\…\anvil.exe
+        handshake: ok (≤ 1s)
+        daemon:   not running   ← THIS is the missing piece
+      watch: not requested
+      baseline: 0 antipattern, 0 secret
+    ```
+
+  - The verbose renderer derives entirely from existing
+    `ActivationDiagnostic` fields plus the new `DaemonAttestation`
+    from MLP2-051f. No new fields on the struct.
+  - **Info-leak guard (security):** verbose output must not surface
+    raw `SessionRecord` fields (`pid`, `pgid`, full `agent_tag`
+    lineage) or arbitrary filesystem paths beyond the workspace
+    root. Stderr is terminal-visible; shoulder-surfing is the
+    threat. A separate `--debug` (not in scope here) can carry the
+    unfiltered payload.
+  - The `SkipReason` vocabulary used by the daemon-evidence tracing
+    is presented in operator-friendly copy (not the raw enum
+    tokens) so support engineers can map "daemon attestation
+    skipped" → remediation without consulting the source.
+- **Files:**
+  - `crates/anvil-cli/src/commands/start.rs` — flag parse +
+    propagate.
+  - `crates/anvil-cli/src/commands/status.rs` — flag parse +
+    propagate.
+  - `crates/anvil-cli/src/activation/render.rs` — new
+    `render_human_verbose` function.
+- **Validation:**
+  - Plain-vs-verbose render parity: same diagnostic input → stdout
+    block unchanged when `--why` is added; stderr carries the
+    verbose block only.
+  - Snapshot tests for each `ProtectionState × DaemonAttestation`
+    cell.
+  - Security regression test: verbose output never contains the
+    raw session PID / PGID / unfiltered agent_tag string.
+- **Confidence:** medium — design is locked by the parent spec; the
+  surface is small but the security guard surface needs careful
+  test coverage.
+- **Priority:** Medium — closes acceptance criterion #3 of GH
+  #1831; does not gate `v0.7.0-beta` (the user-visible #1831 fix
+  shipped via MLP2-051f).
+- **Dependencies:** MLP2-051f (consumes the `DaemonAttestation`
+  field on `ActivationDiagnostic`).
+- **releaseNote:**
+  - audience: user
+  - type: added
+  - text: "`anvil start --verify --why` prints per-tier activation
+    evidence to stderr alongside the normal verdict on stdout,
+    naming the missing piece (config, command, handshake, daemon)
+    when the diagnostic stalls at `ready_restart_required`."
+- **Source:** Activation-daemon-evidence wire-up spec
+  (`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`)
+  §"Council Verdicts" item 9; MLP2-051f post-merge plan §"MLP2-051g
+  (`--why` / `--verbose` flag)"; full Council review on the
+  MLP2-051f/g/h + MLP2-075 work-set (2026-05-22).
+
+#### MLP2-051i: `query_protection_claim` timeout parity with activation budget
+
+- **Status:** Draft
+- **Intent:** Both `SocketDaemonValidationClient::query_protection_claim`
+  (Unix) and `WindowsPipeDaemonValidationClient::query_protection_claim`
+  (Windows, MLP2-075) call `query_daemon_status_at` /
+  `query_daemon_status_windows_at`, which use the 2-second default
+  timeout. The MCP shim's `validate_write` hot path can stall up to 2s
+  when the daemon pipe is hung — observable by editors as MCP
+  tool-call timeouts. The activation surface fixed this for itself
+  via `ACTIVATION_DAEMON_QUERY_TIMEOUT = 500ms` (MLP2-051f). The MCP
+  path should inherit the same posture.
+- **Expected Outcome:**
+  - New `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` constant colocated with
+    the validation client; recommended 500 ms (matches activation;
+    faster than the 2 s pre-write `validate_pre_write` default which
+    is a separate budget).
+  - Both Unix and Windows `query_protection_claim` paths call
+    `query_daemon_status_at_with_timeout` /
+    `query_daemon_status_windows_at_with_timeout` with the new
+    constant.
+  - The MCP `validate_write` response carries
+    `protection_claim: None` when the timeout fires (existing
+    no-over-claim posture preserved).
+- **Files:**
+  - `crates/anvil-cli/src/mcp/validation.rs` — both
+    `query_protection_claim` impls.
+- **Validation:**
+  - Hung-daemon stub test pinning the budget (mirrors
+    `activation_query_aborts_within_budget_against_hung_daemon`).
+  - Existing MCP shim tests stay green; the no-over-claim posture
+    is unchanged.
+- **Confidence:** high — additive, two-line change per platform
+  using existing infrastructure.
+- **Priority:** Medium — observable defect (MCP tool-call stalls)
+  but pre-existing on Unix; does not gate `v0.7.0-beta`.
+- **Dependencies:** MLP2-051f (the `_with_timeout` variants),
+  MLP2-075 (Windows pipe parity).
+- **Source:** Full Council review on the MLP2-051f/g/h + MLP2-075
+  work-set (2026-05-22), architect finding "MCP path inherited 2s
+  timeout".
+
+#### MLP2-051j: Windows named-pipe client-side peer-owner validation
+
+- **Status:** Draft
+- **Intent:** On Unix, `validate_connected_peer_for_client` does a
+  UID-equality check via `SO_PEERCRED` after `connect()` so the
+  client confirms it is talking to its own UID's daemon. On Windows,
+  `connect_owner_only_pipe_client` (in `anvil-intercept-win32`)
+  trusts the named-pipe DACL exclusively — no equivalent post-connect
+  owner check. If the real daemon is not running, an unprivileged
+  process on the same machine that knows the canonical per-user pipe
+  name can bind a counterfeit pipe and return a crafted
+  `DaemonStatusV1` (claiming `PreWriteDaemon` + fresh timestamps),
+  triggering activation promotion to `LiveValidation`. Defence-in-
+  depth gap.
+- **Expected Outcome:**
+  - Post-connect call to `GetSecurityInfo(OWNER_SECURITY_INFORMATION)`
+    on the pipe handle.
+  - `EqualSid` comparison between pipe owner SID and current token's
+    SID.
+  - On mismatch: close the handle and return an
+    `IpcError::PeerRejected`-equivalent on Windows (define the
+    variant if it doesn't exist) so callers can surface the same
+    operator message as Unix.
+- **Files:**
+  - `crates/anvil-intercept-win32/src/lib.rs` —
+    `connect_owner_only_pipe_client` body.
+  - `crates/anvil-intercept/src/ipc.rs` —
+    `validate_connected_peer_for_client` Windows arm + error type.
+- **Validation:**
+  - Unit test: bind a pipe as the current user, connect — assert
+    success.
+  - Unit test: bind a pipe via a fixture that simulates a different
+    owner SID (or skip with `#[ignore]` if simulating cross-user
+    requires admin privileges on the test runner); assert connect
+    rejects with `PeerRejected`.
+  - Existing Windows MLP2-075 tests stay green.
+- **Confidence:** medium — Windows SID APIs are well-documented but
+  the cross-user simulation is not always available in CI. Worst
+  case the rejection path is unit-tested via a mock; the live
+  cross-user path is human-validated.
+- **Priority:** Medium — defence-in-depth, not a known live exploit.
+  Pre-existing pre-MLP2-051f gap exposed by activation surface.
+- **Dependencies:** MLP2-075 (Windows IPC parity).
+- **Source:** Full Council review on the MLP2-051f/g/h + MLP2-075
+  work-set (2026-05-22), adversarial finding "Windows client does
+  no peer-owner validation".
 
 #### MLP2-052: Additive-optional-fields forward-compat test
 
