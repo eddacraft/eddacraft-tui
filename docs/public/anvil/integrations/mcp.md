@@ -56,8 +56,8 @@ anvil start --verify   # probe state, no writes
 If you only need to re-run the install in isolation, use `anvil mcp install`
 directly (next section). For workspace-scoped paths against Cursor or Claude
 Code, use `anvil mcp-config` further down. Windsurf and VS Code are not
-currently `mcp-config` targets in v0.6.0-beta — see the manual configuration
-section.
+currently `mcp-config` targets in the `v0.7.x-beta` line — see the manual
+configuration section.
 
 ## One-Step Install with `anvil mcp install`
 

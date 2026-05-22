@@ -158,10 +158,10 @@ anvil intercept unblock --worktree /absolute/path/to/repo
 ```
 
 Windows does not support worktree-scoped unblock yet. If every Windows surface
-is quarantined, stop and restart the foreground daemon:
+is quarantined, stop the foreground daemon, then restart it:
 
 ```bash
-# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
+# Stop the foreground daemon with Ctrl-C in its terminal, or SIGTERM by PID.
 anvil intercept start --foreground
 ```
 

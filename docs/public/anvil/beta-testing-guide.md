@@ -531,7 +531,8 @@ One sentence describing what happened.
   restarting; that clears all fence state for the user.
 - **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
   the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recovery
-  is the same daemon-stop + fence-directory removal as above.
+  is the same Unix `anvil intercept unblock --worktree <PATH>` path as above;
+  reserve fence-directory removal for full reset or corrupt daemon state.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change.
 - **Primary language coverage is TypeScript and JavaScript.** SQL and Markdown
