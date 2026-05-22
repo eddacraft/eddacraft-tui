@@ -38,8 +38,86 @@ describe('parseDocGovernance', () => {
       'AGENTS.md',
       'future docs-workflow skill',
     ]);
+    expect(result.freshness).toEqual({
+      reviewedOn: '2026-05-11',
+      anchors: ['plans/modules/documentation-governance.aps.md'],
+    });
+    expect(result.sourceReferences).toEqual([
+      {
+        path: 'plans/modules/documentation-governance.aps.md',
+        context: 'freshness',
+        line: undefined,
+      },
+      {
+        path: 'plans/modules/documentation-governance.aps.md',
+        context: 'upstream',
+        line: undefined,
+      },
+      { path: 'AGENTS.md', context: 'upstream', line: undefined },
+      { path: 'plans/aps-rules.md', context: 'upstream', line: undefined },
+      { path: 'docs/README.md', context: 'downstream', line: undefined },
+      { path: 'docs/guides/README.md', context: 'downstream', line: undefined },
+      { path: 'AGENTS.md', context: 'downstream', line: undefined },
+    ]);
     expect(result.sourcePath).toBe('docs/guides/documentation-governance.md');
     expect(result.sourceLineNumber).toBe(1);
+  });
+
+  it('extracts body source references for as-built docs', () => {
+    const content = `# Component — As-Built
+
+| Type     | Authority | Owner  | Status | Freshness                                |
+| -------- | --------- | ------ | ------ | ---------------------------------------- |
+| As-built | Derived   | DOCGOV | Live   | Last reviewed 2026-05-22 against \`abc1234\` |
+
+| Upstream             | Downstream        |
+| -------------------- | ----------------- |
+| \`crates/foo/src\` | \`docs/runbooks/foo.md\` |
+
+## Source references
+
+- \`crates/foo/src/lib.rs\` — entry point
+- \`package.json\` — script surface
+`;
+
+    const result = parseDocGovernance(content);
+
+    expect(result.freshness).toEqual({ reviewedOn: '2026-05-22', anchors: [] });
+    expect(result.sourceReferences).toEqual([
+      { path: 'crates/foo/src', context: 'upstream' },
+      { path: 'docs/runbooks/foo.md', context: 'downstream' },
+      { path: 'crates/foo/src', context: 'body', line: 9 },
+      { path: 'docs/runbooks/foo.md', context: 'body', line: 9 },
+      { path: 'crates/foo/src/lib.rs', context: 'body', line: 13 },
+      { path: 'package.json', context: 'body', line: 14 },
+    ]);
+  });
+
+  it('extracts root-level source files and strips table-field suffixes', () => {
+    const content = `# Release Runbook
+
+| Type    | Authority     | Owner  | Status | Freshness                             |
+| ------- | ------------- | ------ | ------ | ------------------------------------- |
+| Runbook | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-22 against \`ACKNOWLEDGEMENTS.md\` |
+
+| Upstream                         | Downstream |
+| -------------------------------- | ---------- |
+| \`licences.toml\`, \`deny.toml.[licenses].allow\` | operators  |
+
+The check also reads \`about.toml.accepted\`.
+`;
+
+    const result = parseDocGovernance(content);
+
+    expect(result.sourceReferences).toEqual([
+      { path: 'ACKNOWLEDGEMENTS.md', context: 'freshness', line: undefined },
+      { path: 'licences.toml', context: 'upstream', line: undefined },
+      { path: 'deny.toml', context: 'upstream', line: undefined },
+      { path: 'ACKNOWLEDGEMENTS.md', context: 'body', line: 5 },
+      { path: 'licences.toml', context: 'body', line: 9 },
+      { path: 'deny.toml', context: 'body', line: 9 },
+      { path: 'about.toml.accepted', context: 'body', line: 11 },
+    ]);
   });
 
   it('throws ParseError when the H1 is missing', () => {

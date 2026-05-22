@@ -1,5 +1,13 @@
 # Authoring `.anvil` Rules
 
+| Type  | Authority     | Owner | Status | Freshness                                                                   |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------- |
+| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-05-22 against `patterns/` and `crates/anvil-checks/src/` |
+
+| Upstream                                                                               | Downstream                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `patterns/`, `patterns/compiled/registry.json`, `crates/anvil-checks/src/antipattern/` | Rule authors, release reviewers, DOCGOV-006 |
+
 This guide walks through adding a new anti-pattern to Anvil's detection
 catalogue. All rules live as `.anvil` files under `patterns/` and are compiled
 into `patterns/compiled/registry.json` by `scripts/compile-patterns`.
@@ -248,6 +256,23 @@ Treat the env var accordingly:
   be swapped by another process (e.g. a shared `/tmp`), that same write surface
   owns the scanner catalogue for the process's lifetime. Use absolute paths
   inside the repo or a trusted config root.
+
+### ReDoS and Untrusted Artifact Targets
+
+Rules targeting `pr-description`, `commit-message`, or `agent-output` scan text
+that may be supplied by untrusted contributors or automation. Treat those inputs
+like untrusted user input even though the Rust scanner uses the non-backtracking
+`regex` crate today.
+
+- Keep patterns linear and bounded; avoid broad nested alternations that make
+  reviews and future engine ports hard to reason about.
+- Prefer explicit phrase families over catch-all `.*` bridges across large text
+  blocks.
+- Add positive and negative fixtures for PR-body and commit-message examples
+  when a rule targets those artifact kinds.
+- Keep the `max_line_bytes` style guards in scanner code when adding new
+  artifact readers; never let a single PR body or commit message become an
+  unbounded scan unit.
 
 ## Checklist before merge
 

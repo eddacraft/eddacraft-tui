@@ -116,13 +116,27 @@ live document depends on them.
 
 - **As-built docs:** cite a tag or SHA and source paths reviewed.
 - **Runbooks:** cite the last successful dry-run, release, incident, or command
-  review.
+  review, plus executable source paths where the procedure depends on scripts or
+  command surfaces.
 - **Guides:** cite the upstream rule, APS item, ADR, or source path reviewed.
 - **Public docs:** cite the release or product version they describe.
 - **Archives:** cite the superseding document or archive date.
 
 When freshness cannot be established, mark the document `Status: Deprecated` or
 track the gap in APS instead of leaving it ambiguous.
+
+### Source-Reference Validation
+
+`pnpm docs:check` validates source references for governed `As-built` and
+`Runbook` documents through the `asbuilt-paths` surface. The validator reads the
+metadata table, requires a `YYYY-MM-DD` freshness date, extracts
+backtick-wrapped repository paths from freshness/upstream/downstream/body
+references, and checks that each path resolves in the repository. Markdown
+anchors are allowed and are resolved to the owning file; placeholder paths using
+angle brackets are treated as examples and ignored.
+
+Use `docs/architecture/_as-built-template.md` for implementation maps and
+`docs/guides/runbook-template.md` for operational procedures.
 
 ## Docs Workflow Skill Shape
 

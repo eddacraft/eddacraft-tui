@@ -47,8 +47,8 @@ if grep -qE "^  (pass|FAIL) asbuilt-paths$" <<<"${out}"; then
   pass "all seven surfaces present in summary"
 fi
 
-# Case 2: stubs always pass and print pending-task note.
-echo "case 2: stubs no-op cleanly"
+# Case 2: remaining stub and asbuilt-paths real surface both run cleanly.
+echo "case 2: remaining stub and asbuilt-paths surface run cleanly"
 out="$(node "${script_dir}/check-index-freshness.mjs" 2>&1)"
 if echo "${out}" | grep -q "pending DOCGOV-007"; then
   pass "index-freshness stub prints DOCGOV-007 pending note"
@@ -56,10 +56,10 @@ else
   fail "index-freshness stub note missing; got: ${out}"
 fi
 out="$(node "${script_dir}/check-asbuilt-paths.mjs" 2>&1)"
-if echo "${out}" | grep -q "pending DOCGOV-006"; then
-  pass "asbuilt-paths stub prints DOCGOV-006 pending note"
+if echo "${out}" | grep -qE "^\[asbuilt-paths\] summary: [0-9]+ errors, [0-9]+ warnings, [0-9]+ files checked$"; then
+  pass "asbuilt-paths real surface prints summary"
 else
-  fail "asbuilt-paths stub note missing; got: ${out}"
+  fail "asbuilt-paths summary missing; got: ${out}"
 fi
 
 # Case 3: baseline absorbs current errors so the live repo passes.

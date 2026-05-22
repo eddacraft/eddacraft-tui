@@ -112,6 +112,13 @@ bash scripts/release/preflight.sh --base <previous-tag>
 This must pass before release prep starts. It owns formatting, linting,
 typechecking, tests, and release-tool pin checks.
 
+For scanner/runtime releases, treat `pnpm test:scanner-parity` as a named
+preflight gate when the script exists in the checked-out SHA. It proves the
+current Rust scanner and any retained transition-window parity fixtures agree on
+the rule catalogue before a tag is cut. If the script is absent, record that the
+TypeScript scanner parity harness has been archived and rely on the Rust scanner
+tests in the normal preflight bundle.
+
 #### 3. Prepare Release State
 
 ```bash

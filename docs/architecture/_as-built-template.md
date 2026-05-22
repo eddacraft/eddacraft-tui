@@ -1,8 +1,8 @@
 # {Component Name} — As-Built
 
-| Type     | Authority | Owner                                     | Status                                                         | Freshness                                                                                                                                                               |
-| -------- | --------- | ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | `{one of: Draft, Proposed, Ready, Live, Deprecated, Archived}` | Last reviewed YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` / `<short-sha>` and implementation state `{one of: Live beta, Live RC, Live GA, Pre-implementation, Deprecated}` |
+| Type     | Authority | Owner                                     | Status | Freshness                                                                                                                                 |
+| -------- | --------- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | Draft  | Last reviewed YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` / `<short-sha>` and source paths listed in [Source references](#source-references) |
 
 | Upstream                                    | Downstream                                                                 |
 | ------------------------------------------- | -------------------------------------------------------------------------- |
@@ -119,11 +119,14 @@ handful of files.
    you're writing a spec, not an as-built.
 2. **Date it against a specific tag or SHA.** Code drifts. The doc has to say
    what it was true at, so the next reader knows whether to trust it.
-3. **Gaps section is mandatory.** Every component has gaps. Hidden gaps are the
+3. **List source paths in backticks.** `pnpm docs:check` validates code-wrapped
+   source paths in governed as-built documents, so keep real repository paths in
+   the Source references section and avoid placeholder paths outside examples.
+4. **Gaps section is mandatory.** Every component has gaps. Hidden gaps are the
    most expensive kind. Naming them is the deliverable.
-4. **Keep the architecture diagram minimal.** Boxes and arrows that match the
+5. **Keep the architecture diagram minimal.** Boxes and arrows that match the
    lifecycle section, not a re-draw of the whole product.
-5. **Empty sections stay.** If a section is genuinely empty, write
+6. **Empty sections stay.** If a section is genuinely empty, write
    `None at time of review.` rather than deleting it — absence is signal.
 
 **Reference implementation:** [`auth-as-built.md`](./auth-as-built.md) is the

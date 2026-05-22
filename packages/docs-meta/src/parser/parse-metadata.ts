@@ -20,6 +20,8 @@ import {
   type DocGovernance,
   type DocMetadata,
   type DocRelations,
+  type DocFreshness,
+  type DocSourceReference,
 } from '../types/index.js';
 
 const METADATA_HEADERS = ['type', 'authority', 'owner', 'status', 'freshness'] as const;
@@ -70,11 +72,15 @@ export function parseDocGovernance(content: string, sourcePath?: string): DocGov
 
   const metadata = parseMetadataTable(tablesAfterH1[0], sourcePath);
   const relations = parseRelationsTable(tablesAfterH1[1], sourcePath);
+  const freshness = parseFreshness(metadata.freshness);
+  const sourceReferences = collectSourceReferences(ast, metadata, relations, freshness);
 
   const result: DocGovernance = {
     title,
     metadata,
     relations,
+    freshness,
+    sourceReferences,
     sourcePath,
     sourceLineNumber: h1.position?.start.line,
   };
@@ -254,6 +260,109 @@ function splitRefs(value: string): string[] {
     .split(',')
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
+}
+
+function parseFreshness(value: string): DocFreshness {
+  const reviewedOn = value.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];
+  return {
+    reviewedOn,
+    anchors: extractPathLikeRefs(value),
+  };
+}
+
+function collectSourceReferences(
+  ast: Root,
+  metadata: DocMetadata,
+  relations: DocRelations,
+  freshness: DocFreshness
+): DocSourceReference[] {
+  const refs: DocSourceReference[] = [];
+  const seen = new Set<string>();
+
+  function add(path: string, context: DocSourceReference['context'], line?: number) {
+    const key = `${context}:${path}:${line ?? ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    refs.push({ path, context, line });
+  }
+
+  for (const path of freshness.anchors) add(path, 'freshness');
+  for (const ref of relations.upstream) {
+    for (const path of extractPathLikeRefs(ref)) add(path, 'upstream');
+  }
+  for (const ref of relations.downstream) {
+    for (const path of extractPathLikeRefs(ref)) add(path, 'downstream');
+  }
+
+  // Source references for non-derived guides can include commands and examples;
+  // keep body extraction scoped to the document classes that DOCGOV-006 validates.
+  if (metadata.type !== 'As-built' && metadata.type !== 'Runbook') return refs;
+
+  visit(ast, (node) => {
+    if (node.type !== 'inlineCode') return CONTINUE;
+    for (const path of extractPathLikeRefs(node.value)) {
+      add(path, 'body', node.position?.start.line);
+    }
+    return CONTINUE;
+  });
+
+  return refs;
+}
+
+function extractPathLikeRefs(value: string): string[] {
+  const refs = new Set<string>();
+  const candidates = value.match(/`?[^`\s,;:)]+`?/g) ?? [];
+  for (const raw of candidates) {
+    const candidate = raw
+      .replace(/^`|`$/g, '')
+      .replace(/\.\[.*$/, '')
+      .replace(/[.)]+$/g, '')
+      .trim();
+    if (isPathLike(candidate)) refs.add(candidate);
+  }
+  return [...refs];
+}
+
+function isPathLike(value: string): boolean {
+  if (!value || value.startsWith('http://') || value.startsWith('https://')) return false;
+  if (value.includes('://') || value.startsWith('#')) return false;
+  if (/^v\d+\.\d+\.\d+/.test(value)) return false;
+  if (/^[A-Z]+-\d{3}/.test(value)) return false;
+
+  const rootedPrefixes = [
+    '.github/',
+    '.husky/',
+    'apps/',
+    'archive/',
+    'crates/',
+    'docs/',
+    'packages/',
+    'patterns/',
+    'plans/',
+    'policies/',
+    'scripts/',
+    'tools/',
+  ];
+  if (rootedPrefixes.some((prefix) => value.startsWith(prefix))) return true;
+
+  const rootFiles = new Set([
+    'AGENTS.md',
+    'ACKNOWLEDGEMENTS.md',
+    'CHANGELOG.md',
+    'CLAUDE.md',
+    'CONTRIBUTING.md',
+    'Cargo.toml',
+    'README.md',
+    'RELEASE-PLAN.md',
+    'about.toml',
+    'package.json',
+    'pnpm-lock.yaml',
+    'pnpm-workspace.yaml',
+    'tsconfig.base.json',
+  ]);
+  if (rootFiles.has(value)) return true;
+
+  return /^[A-Za-z0-9._-]+\.(?:json|lock|md|toml|yaml|yml|accepted)$/.test(value);
 }
 
 function formatEnumError(field: string, offending: string, fallbackMessage: string): string {

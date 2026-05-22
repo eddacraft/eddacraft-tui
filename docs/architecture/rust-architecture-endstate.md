@@ -1,5 +1,13 @@
 # Anvil Rust Architecture — End State Specification
 
+| Type | Authority | Owner | Status | Freshness                                                                  |
+| ---- | --------- | ----- | ------ | -------------------------------------------------------------------------- |
+| Spec | Derived   | KERN  | Live   | Last reviewed 2026-05-22 against `crates/anvil-checks/src/` and DOCGOV-006 |
+
+| Upstream                                | Downstream                                  |
+| --------------------------------------- | ------------------------------------------- |
+| `crates/anvil-checks/src/`, APS modules | Architecture readers, release documentation |
+
 > **Date:** 2026-04-03 **Status:** Reference — synthesised from KERN, RENG,
 > RATS, PORT, RSTLAN modules and architecture specifications
 >
@@ -406,6 +414,13 @@ semantic graph. They operate on file content directly.
 >
 > [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
 > [ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
+
+Runtime thread usage follows Rayon defaults unless the process environment sets
+`RAYON_NUM_THREADS` before the scanner is first used. The scanner does not
+create a per-check thread pool; `run_antipattern_check` and `run_secret_check`
+consume the process-global Rayon pool through `par_iter`. Operators who need a
+local CPU cap for CI or constrained laptops can set `RAYON_NUM_THREADS=<n>` at
+process start, but changing it after the global pool initialises has no effect.
 
 ### Additional Items
 

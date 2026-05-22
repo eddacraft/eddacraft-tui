@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 5/10     |
+| DOCGOV | —     | In Progress | 6/10     |
 
 ## Purpose
 
@@ -230,7 +230,10 @@ use the minimal validation baseline in
 
 ### DOCGOV-006: Standardise runbook and as-built freshness
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator authorised execution on 2026-05-22 via "start
+  executing what remains of DOCGOV" while the item was Proposed; dependencies
+  DOCGOV-002 and DOCGOV-005 were already complete.
 - **Intent:** Give runbooks and as-built docs a freshness contract — owner,
   scope, verification date, source path/tag references, and stale-state
   signals — and convert the `asbuilt-paths` stub shipped by DOCGOV-005 into a
@@ -248,6 +251,7 @@ use the minimal validation baseline in
 - **Validation:** `pnpm docs:check && pnpm test:docs-check && pnpm format:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-005
 - **Files:** `docs/architecture/_as-built-template.md`,
+  `plans/execution/DOCGOV-006.steps.md`,
   `docs/guides/runbook-template.md` (new),
   `docs/guides/documentation-governance.md`,
   `docs/guides/release-runbook.md`,
@@ -279,6 +283,15 @@ use the minimal validation baseline in
     - *(ex-DOCSYNC-020)* Add ReDoS-risk framing for RL-* rule authors
       (untrusted PR body / commit-message inputs) in
       `docs/guides/anvil-rule-authoring.md`
+- **Closeout:** Validation passed with
+  `pnpm docs:check && pnpm test:docs-check && pnpm format:check` after
+  regenerating `docs/governance/docs-check.baseline.json`; parser coverage also
+  passed with `pnpm -F @eddacraft/anvil-docs-meta test`. The metadata parser now
+  exposes parsed freshness anchors and source references; `check-asbuilt-paths.mjs`
+  validates governed as-built/runbook source paths and participates in baseline
+  regeneration. Added `docs/guides/runbook-template.md`, refreshed the as-built
+  template, and closed the absorbed DOCSYNC-015/-017/-018/-019/-020 notes in the
+  touched docs.
 - **Confidence:** medium
 
 ### DOCGOV-007: Generate or reconcile documentation indexes

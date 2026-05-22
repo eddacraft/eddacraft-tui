@@ -40,7 +40,7 @@ const SURFACES = [
     script: 'scripts/docs/check-index-freshness.mjs',
     baselineable: false,
   },
-  { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: false },
+  { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
 ];
 
 const args = new Set(process.argv.slice(2));

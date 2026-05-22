@@ -76,6 +76,19 @@ export const DocRelationsSchema = z.object({
 });
 export type DocRelations = z.infer<typeof DocRelationsSchema>;
 
+export const DocFreshnessSchema = z.object({
+  reviewedOn: z.string().optional(),
+  anchors: z.array(z.string()),
+});
+export type DocFreshness = z.infer<typeof DocFreshnessSchema>;
+
+export const DocSourceReferenceSchema = z.object({
+  path: z.string().min(1),
+  line: z.number().optional(),
+  context: z.enum(['freshness', 'upstream', 'downstream', 'body']),
+});
+export type DocSourceReference = z.infer<typeof DocSourceReferenceSchema>;
+
 /**
  * Full parsed governance result for a single document.
  */
@@ -83,6 +96,8 @@ export const DocGovernanceSchema = z.object({
   title: z.string().min(1),
   metadata: DocMetadataSchema,
   relations: DocRelationsSchema,
+  freshness: DocFreshnessSchema,
+  sourceReferences: z.array(DocSourceReferenceSchema),
   sourcePath: z.string().optional(),
   sourceLineNumber: z.number().optional(),
 });

@@ -1,5 +1,13 @@
 # Release Documentation Checklist
 
+| Type  | Authority | Owner  | Status | Freshness                                                          |
+| ----- | --------- | ------ | ------ | ------------------------------------------------------------------ |
+| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-22 against DOCGOV-006 release-doc sync scope |
+
+| Upstream                                                                          | Downstream                                     |
+| --------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `plans/modules/documentation-governance.aps.md`, `docs/guides/release-runbook.md` | Release operators, PR authors, `release` skill |
+
 Companion to the [release runbook](./release-runbook.md). Use this checklist to
 ensure all documentation is updated before and after every release.
 
@@ -134,6 +142,8 @@ Only update packages that changed in this release.
 - [ ] `docs/architecture/rust-kernel-spec.md` — kernel spec changes
 - [ ] `docs/guides/cli-output-streams.md` — output format changes
 - [ ] `docs/guides/anvil-rule-authoring.md` — rule-format and authoring changes
+- [ ] `docs/public/anvil/integrations/vscode.md` — editor integration changes
+- [ ] `docs/public/anvil/integrations/mcp.md` — MCP integration changes
 - [ ] `docs/guides/eddacraft-autonomy-constitution.md` — autonomy model changes
 - [ ] `docs/architecture/kernel-benchmarking-spec.md` — benchmark methodology
       changes

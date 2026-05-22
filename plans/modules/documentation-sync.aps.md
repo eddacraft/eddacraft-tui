@@ -95,7 +95,7 @@ architecture / runbook freshness now live under DOCGOV.
 
 - DOCSYNC-014 (Docs contribution guide) → superseded by DOCGOV-001
   (`docs/guides/documentation-governance.md` already covers this)
-- DOCSYNC-015, -017, -018, -019, -020 → absorbed into DOCGOV-006
+- DOCSYNC-015, -017, -018, -019, -020 → absorbed and closed in DOCGOV-006
   (targets internal runbook/architecture docs, not the public docs-site)
 
 ## Stats
@@ -133,8 +133,8 @@ architecture / runbook freshness now live under DOCGOV.
 | ID          | Disposition                                                                          |
 | ----------- | ------------------------------------------------------------------------------------ |
 | DOCSYNC-014 | Superseded by DOCGOV-001 (`docs/guides/documentation-governance.md` already covers it) |
-| DOCSYNC-015 | Absorbed into DOCGOV-006 (gate-runner runbook freshness)                             |
-| DOCSYNC-017 | Absorbed into DOCGOV-006 (`docs/guides/release-runbook.md` freshness)                |
-| DOCSYNC-018 | Absorbed into DOCGOV-006 (`rust-architecture-endstate.md` as-built freshness)        |
-| DOCSYNC-019 | Absorbed into DOCGOV-006 (`docs/guides/release-doc-checklist.md` freshness)          |
-| DOCSYNC-020 | Absorbed into DOCGOV-006 (`docs/guides/anvil-rule-authoring.md` ReDoS framing)       |
+| DOCSYNC-015 | Closed by DOCGOV-006 (gate-runner runbook freshness)                                 |
+| DOCSYNC-017 | Closed by DOCGOV-006 (`docs/guides/release-runbook.md` freshness)                    |
+| DOCSYNC-018 | Closed by DOCGOV-006 (`rust-architecture-endstate.md` as-built freshness)            |
+| DOCSYNC-019 | Closed by DOCGOV-006 (`docs/guides/release-doc-checklist.md` freshness)              |
+| DOCSYNC-020 | Closed by DOCGOV-006 (`docs/guides/anvil-rule-authoring.md` ReDoS framing)           |
