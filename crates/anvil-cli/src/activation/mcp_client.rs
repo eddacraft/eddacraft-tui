@@ -304,7 +304,12 @@ pub trait McpClient: Send + Sync {
     ///   the installed entry and observes a clean MCP handshake.
     ///   (Implemented by the diagnostic probe, not here, because the
     ///   spawn probe is shared across impls.)
-    /// - `LiveValidation`: out-of-scope for v1. INTD-only.
+    /// - `RestartHandshakeVerified → LiveValidation`: promoted by
+    ///   `crate::activation::daemon_evidence::promote_to_live_validation_when_daemon_attests`
+    ///   when the intercept daemon attests live enforcement for the
+    ///   current worktree (MLP2-051f). The daemon is the canonical
+    ///   evidence source; without it the activation diagnostic caps
+    ///   at `RestartHandshakeVerified`.
     ///
     /// This method returns the tier based on the on-disk evidence
     /// (config absent / present / matches fresh entry). The promotion

@@ -1835,6 +1835,7 @@ mod tests {
             last_error: None,
             all_languages_unsupported: false,
             language_profile: activation::language_profile::RepoLanguageProfile::default(),
+            daemon_attestation: activation::daemon_evidence::DaemonAttestation::NotProbed,
         };
         let data = StatusData {
             hooks: Vec::new(),

@@ -354,11 +354,43 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
 /// `None` means the surface should not append a "next" line — usually
 /// because no actionable hint applies (e.g. already protecting).
 fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'static str> {
+    use super::daemon_evidence::DaemonAttestation;
+
     match state {
         ProtectionState::Protecting => None,
-        ProtectionState::ReadyRestartRequired => Some(
-            "restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`.",
-        ),
+        ProtectionState::ReadyRestartRequired => Some(match d.daemon_attestation {
+            // MLP2-051f: when the orchestrator handshake-pass left at
+            // least one client at `RestartHandshakeVerified`, the user
+            // has already restarted their editor — the missing piece
+            // is the intercept daemon, not another restart. Each
+            // attestation branch points at its concrete remediation.
+            DaemonAttestation::Unreachable => {
+                "start the intercept daemon with `anvil intercept start --foreground` so pre-write validation can attach; otherwise restart your editor again and re-run `anvil start --verify`."
+            }
+            DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
+                "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
+            }
+            DaemonAttestation::StaleHeartbeat => {
+                "the intercept daemon's last attestation is stale; restart it with `anvil intercept restart` (or `anvil intercept start --foreground` if it has stopped) and re-run `anvil start --verify`."
+            }
+            DaemonAttestation::AllSurfacesQuarantined => {
+                "the intercept daemon has fenced every session for this worktree; clear the fence with `anvil intercept recover` once you understand the cause, then re-run `anvil start --verify`."
+            }
+            DaemonAttestation::Warming => {
+                "the intercept daemon is transitioning (warming / draining); re-run `anvil start --verify` in a few seconds."
+            }
+            // `NotProbed` is the genuine pre-restart case — the
+            // diagnostic never reached the daemon probe because no
+            // client was at `RestartHandshakeVerified` yet.
+            // `Promoted` is logically unreachable at this branch
+            // (`protection_state()` returns `Protecting` instead of
+            // `ReadyRestartRequired` when any client is at
+            // `LiveValidation`); keep the original copy as a
+            // belt-and-braces fallback rather than panic.
+            DaemonAttestation::NotProbed | DaemonAttestation::Promoted => {
+                "restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`."
+            }
+        }),
         ProtectionState::Watching => {
             // Council remediation: the next step depends on whether
             // any MCP tier is already past `ConfigPresent`. If the
@@ -441,6 +473,7 @@ mod tests {
             last_error: None,
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
+            daemon_attestation: super::super::daemon_evidence::DaemonAttestation::NotProbed,
         }
     }
 
@@ -609,6 +642,142 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn handshake_verified_diag(
+        attestation: super::super::daemon_evidence::DaemonAttestation,
+    ) -> ActivationDiagnostic {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(
+            McpClientId::ClaudeCode,
+            McpTier::RestartHandshakeVerified.into(),
+        );
+        d.daemon_attestation = attestation;
+        d
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon unreachable: the user has
+    /// restarted, the handshake passed, but the intercept daemon is
+    /// not running. The hint must point at `anvil intercept start`,
+    /// not "restart your editor again".
+    #[test]
+    fn ready_restart_required_with_daemon_unreachable_points_at_intercept_start() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil intercept start"),
+            "Unreachable hint must name `anvil intercept start`: {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon running but the worktree
+    /// has no participating surfaces. The hint must NOT tell the user
+    /// to start the daemon (it's already running). Points the operator
+    /// at `anvil intercept status` for the registered worktree set.
+    #[test]
+    fn ready_restart_required_with_unenforced_points_at_intercept_status() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unenforced);
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil intercept status"),
+            "Unenforced hint must name `anvil intercept status`: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept start"),
+            "Unenforced hint must not say `anvil intercept start` (daemon is already running): {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon `DegradedProtection` with
+    /// every surface `Quarantined`. Recovery routes through
+    /// `anvil intercept recover`, not editor restart.
+    #[test]
+    fn ready_restart_required_with_all_quarantined_points_at_intercept_recover() {
+        let d = handshake_verified_diag(
+            super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil intercept recover"),
+            "AllSurfacesQuarantined hint must name `anvil intercept recover`: {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon `Warming` (transient
+    /// daemon state — leaving / joining, not yet enforcing). The
+    /// remediation is to wait + re-run, not to start anything.
+    #[test]
+    fn ready_restart_required_with_warming_says_wait_and_re_run() {
+        let d = handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Warming);
+        let h = render_human(&d);
+        assert!(
+            h.contains("re-run") && h.contains("seconds"),
+            "Warming hint must say re-run in a few seconds: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept start"),
+            "Warming hint must not say `anvil intercept start` (daemon is already running): {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon reachable + worktree
+    /// promotable, but cardinality gate (≥ 1 Participating surface)
+    /// fails. Reuses the `Unenforced` operator-facing message — the
+    /// remediation is the same: check `anvil intercept status` for
+    /// the registered set.
+    #[test]
+    fn ready_restart_required_with_no_participating_surface_points_at_intercept_status() {
+        let d = handshake_verified_diag(
+            super::super::daemon_evidence::DaemonAttestation::NoParticipatingSurface,
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil intercept status"),
+            "NoParticipatingSurface hint must name `anvil intercept status`: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept start"),
+            "NoParticipatingSurface hint must not say `anvil intercept start` (daemon is already running): {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — daemon snapshot heartbeat stale.
+    /// The remediation is to restart the daemon, not the editor.
+    #[test]
+    fn ready_restart_required_with_stale_heartbeat_points_at_daemon_restart() {
+        let d = handshake_verified_diag(
+            super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("anvil intercept restart") || h.contains("anvil intercept start"),
+            "StaleHeartbeat hint must name an `anvil intercept` restart/start command: {h}"
+        );
+    }
+
+    /// MLP2-051f §"Failure modes" — genuine pre-restart case
+    /// (`NotProbed` because no client is at `RestartHandshakeVerified`
+    /// yet). The original "restart your editor or agent" copy is the
+    /// right answer.
+    #[test]
+    fn ready_restart_required_with_not_probed_keeps_original_restart_copy() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::NotProbed;
+        let h = render_human(&d);
+        assert!(
+            h.contains("restart your editor"),
+            "NotProbed hint must keep the editor-restart copy: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept"),
+            "NotProbed hint must NOT mention `anvil intercept` (the user has not even restarted yet): {h}"
+        );
     }
 
     #[test]

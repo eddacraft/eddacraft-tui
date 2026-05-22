@@ -201,6 +201,14 @@ pub struct ActivationDiagnostic {
     /// (LAUNCH-015). Empty for synthetic diagnostics built by tests.
     #[serde(default)]
     pub language_profile: super::language_profile::RepoLanguageProfile,
+    /// MLP2-051f: outcome of the daemon-attestation probe. The
+    /// renderer reads this to refine the
+    /// [`ProtectionState::ReadyRestartRequired`] repair hint so
+    /// "daemon not running" and "pre-restart" surface different
+    /// remediation steps. Default for synthetic test fixtures is
+    /// [`super::daemon_evidence::DaemonAttestation::NotProbed`].
+    #[serde(default)]
+    pub daemon_attestation: super::daemon_evidence::DaemonAttestation,
 }
 
 impl ActivationDiagnostic {
@@ -339,15 +347,32 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     // path is in the orchestrator. The fresh entry uses
     // `current_exe()` as the canonical command path so tier
     // classification compares against what we'd actually install.
-    let (mcp, mcp_last_error): (
+    let (mcp, mcp_last_error, daemon_attestation): (
         BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
         Option<String>,
+        super::daemon_evidence::DaemonAttestation,
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
             let mut probe_results = super::mcp_client::probe_all(root, home, &fresh);
             promote_restart_required_after_handshake(root, home, &mut probe_results, &fresh);
-            (probe_results, None)
+            // MLP2-051f: layer the daemon-attested LiveValidation
+            // promotion on top of the orchestrator's handshake pass.
+            // The function is best-effort and silently no-ops when the
+            // daemon is unreachable, the worktree is unenforced, or
+            // the snapshot is stale — see
+            // `super::daemon_evidence::promote_to_live_validation_when_daemon_attests`
+            // for the full predicate ladder. The returned attestation
+            // is carried on the diagnostic so the renderer can
+            // distinguish "pre-restart" from "daemon not running" /
+            // "daemon unenforced" when emitting the
+            // `ReadyRestartRequired` repair hint.
+            let attestation =
+                super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
+                    &mut probe_results,
+                    root,
+                );
+            (probe_results, None, attestation)
         }
         Err(e) => {
             // Couldn't resolve current_exe (rare — typically only fails
@@ -364,6 +389,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
                 Some(format!(
                     "could not resolve current_exe; MCP probe skipped ({e})"
                 )),
+                super::daemon_evidence::DaemonAttestation::NotProbed,
             )
         }
     };
@@ -427,6 +453,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         last_error,
         all_languages_unsupported,
         language_profile,
+        daemon_attestation,
     }
 }
 
@@ -666,6 +693,7 @@ mod tests {
             last_error: None,
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
+            daemon_attestation: super::super::daemon_evidence::DaemonAttestation::NotProbed,
         }
     }
 

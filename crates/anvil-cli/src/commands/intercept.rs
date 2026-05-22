@@ -271,19 +271,57 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
     query_daemon_status_at(&socket_path)
 }
 
+/// MLP2-051f: like [`query_daemon_status`] but with a caller-chosen
+/// wall-clock budget. The activation diagnostic uses this with a
+/// 500 ms cap so interactive `anvil start --verify` does not inherit
+/// the 2 s `query_daemon_status` default when the daemon is hung or
+/// the per-user socket is wedged.
+pub(crate) fn query_daemon_status_with_timeout(
+    timeout: std::time::Duration,
+) -> Result<DaemonStatusV1> {
+    #[cfg(unix)]
+    {
+        use anvil_intercept::ipc;
+
+        let socket_path =
+            ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+        query_daemon_status_at_with_timeout(&socket_path, timeout)
+    }
+    #[cfg(windows)]
+    {
+        let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
+            .context("failed to resolve intercept daemon pipe name")?;
+        query_daemon_status_windows_at_with_timeout(&pipe_name, timeout)
+    }
+    #[cfg(all(not(unix), not(windows)))]
+    {
+        let _ = timeout;
+        anyhow::bail!("intercept daemon IPC is not supported on this platform")
+    }
+}
+
 /// Issue a `query_status` JSON-RPC request against an already-resolved
 /// daemon socket. Factored from [`query_daemon_status`] so MLP2-051b's
 /// MCP shim can reuse the same wire path against its existing
 /// per-client socket without re-resolving the per-user default.
 #[cfg(unix)]
 pub(crate) fn query_daemon_status_at(socket_path: &std::path::Path) -> Result<DaemonStatusV1> {
+    query_daemon_status_at_with_timeout(socket_path, std::time::Duration::from_secs(2))
+}
+
+/// MLP2-051f: timeout-parameterised body of [`query_daemon_status_at`].
+/// Existing callers use the 2 s wrapper; the activation diagnostic
+/// (`activation::daemon_evidence`) overrides to 500 ms via
+/// [`query_daemon_status_with_timeout`].
+#[cfg(unix)]
+pub(crate) fn query_daemon_status_at_with_timeout(
+    socket_path: &std::path::Path,
+    request_timeout: std::time::Duration,
+) -> Result<DaemonStatusV1> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
-    use std::time::Duration;
 
     use anvil_intercept::ipc;
-
-    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
     if let Err(err) = ipc::validate_socket_path_for_client(socket_path) {
         // Same NotFound / ENOENT as the MCP path means the daemon
@@ -311,10 +349,10 @@ pub(crate) fn query_daemon_status_at(socket_path: &std::path::Path) -> Result<Da
     ipc::validate_connected_peer_for_client(&stream)
         .map_err(|err| anyhow::anyhow!("daemon peer credentials rejected: {err}"))?;
     stream
-        .set_read_timeout(Some(REQUEST_TIMEOUT))
+        .set_read_timeout(Some(request_timeout))
         .context("failed to configure read timeout")?;
     stream
-        .set_write_timeout(Some(REQUEST_TIMEOUT))
+        .set_write_timeout(Some(request_timeout))
         .context("failed to configure write timeout")?;
 
     // Unix path keeps the legacy `query_status` method name to avoid
@@ -368,23 +406,32 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
 /// per-user pipe a real daemon would own on the same Windows runner.
 #[cfg(windows)]
 pub(crate) fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
+    query_daemon_status_windows_at_with_timeout(pipe_name, std::time::Duration::from_secs(2))
+}
+
+/// MLP2-051f: timeout-parameterised body of
+/// [`query_daemon_status_windows_at`]. Existing callers use the 2 s
+/// wrapper; the activation diagnostic overrides to 500 ms.
+#[cfg(windows)]
+pub(crate) fn query_daemon_status_windows_at_with_timeout(
+    pipe_name: &str,
+    timeout: std::time::Duration,
+) -> Result<DaemonStatusV1> {
     use std::sync::mpsc;
     use std::thread;
-    use std::time::Duration;
 
     use anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY;
 
-    // Mirror the Unix path's 2 s wall clock on the request. Synchronous
-    // Win32 `ReadFile` on a named pipe has no native timeout setter
-    // (`SetCommTimeouts` does not apply), so the CLI runs the IO on a
-    // worker thread and gives up after `REQUEST_TIMEOUT`. A daemon that
+    // The single `timeout` budget is reused for both the connect side
+    // (`WaitNamedPipe` can block when every server instance is busy)
+    // and the request side (synchronous Win32 `ReadFile` on a named
+    // pipe has no native timeout setter; the CLI runs the IO on a
+    // worker thread and gives up after the budget). A daemon that
     // accepts the connection but never writes leaves the worker
     // blocked, but the CLI is a single-shot process about to exit, so
     // a leaked blocked thread is bounded by process lifetime.
-    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
-    // Catch on the connect side too: `WaitNamedPipe` blocks if all
-    // server instances are busy.
-    const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+    let request_timeout = timeout;
+    let connect_timeout = timeout;
 
     let pipe_name_owned = pipe_name.to_owned();
     let (connect_tx, connect_rx) = mpsc::sync_channel::<std::io::Result<_>>(1);
@@ -393,7 +440,7 @@ pub(crate) fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonSt
             &pipe_name_owned,
         ));
     });
-    let connect_outcome = match connect_rx.recv_timeout(CONNECT_TIMEOUT) {
+    let connect_outcome = match connect_rx.recv_timeout(connect_timeout) {
         Ok(outcome) => outcome,
         Err(mpsc::RecvTimeoutError::Timeout) => {
             anyhow::bail!(
@@ -485,7 +532,7 @@ pub(crate) fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonSt
         let _ = read_tx.send(outcome);
     });
 
-    let buf = match read_rx.recv_timeout(REQUEST_TIMEOUT) {
+    let buf = match read_rx.recv_timeout(request_timeout) {
         Ok(outcome) => outcome?,
         Err(mpsc::RecvTimeoutError::Timeout) => {
             anyhow::bail!(

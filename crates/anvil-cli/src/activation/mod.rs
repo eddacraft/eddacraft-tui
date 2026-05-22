@@ -16,6 +16,7 @@
 //! single literal vocabulary word users see.
 
 pub mod baseline;
+pub(crate) mod daemon_evidence;
 pub mod detect_agents;
 pub mod diagnostic;
 pub mod identity;
