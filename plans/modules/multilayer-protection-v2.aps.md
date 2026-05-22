@@ -2,7 +2,11 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 64/86 |
+| MLP2 | @aneki | In Progress | 65/86 |
+
+**Current work:** MLP2-069 promoted `Draft` → `In Progress` → `Done` on
+2026-05-22 by operator request to land the small observability-hygiene follow-up
+ahead of the next hotfix. Done-count advances 64 → 65; total stays 86.
 
 **Last reviewed:** 2026-05-22 (Group J extended — MLP2-051g, -051i,
 -051j filed as `Draft` hardening follow-ups to MLP2-051f. MLP2-051g
@@ -4017,7 +4021,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-069: `EngineUnavailableReason::IoError` variant
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** `anvil_l4::EngineUnavailableReason` closes over
   `{ NotImplemented, BinaryMissing, Timeout }`. MLP2-016 maps
   several distinct I/O outages (`tempfile::TempDir::new()`
@@ -4048,8 +4052,11 @@ to redesign once GV2-001..-023 land.
 - **Files:** `crates/anvil-l4/src/validate.rs` (new variant),
   `crates/anvil-cli/src/l4_engine.rs` (re-mapping at I/O sites),
   any sibling consumers found exhaustive-matching the enum.
-- **Validation:** Cargo test continues green; new
-  `tempdir_failure_reports_io_error` test pins the re-mapping.
+- **Validation:** Passed 2026-05-22: `cargo fmt --check`,
+  `cargo test -p eddacraft-anvil-l4 -p eddacraft-anvil`,
+  `cargo clippy -p eddacraft-anvil-l4 -p eddacraft-anvil --all-targets -- -D warnings`,
+  and `git diff --check`. New `tempdir_failure_reports_io_error` test pins
+  the re-mapping.
 - **Confidence:** high — additive enum variant with a small re-
   mapping surface.
 - **Priority:** Low — observability hygiene, not correctness.

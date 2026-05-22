@@ -114,6 +114,12 @@ pub enum EngineUnavailableReason {
     /// real-engine integration; surfaces as
     /// `InternalError { TimedOut }` upstream.
     Timeout,
+    /// The engine could not read or materialise required data because
+    /// local I/O failed (temporary directory allocation, git object
+    /// reads, disk-full writes, or permission errors). Distinct from
+    /// missing tooling so observability does not misclassify an
+    /// infrastructure outage as an install problem.
+    IoError,
 }
 
 /// MLP2-016: per-rule diagnostic carried by [`ValidationVerdict::Block`].
@@ -353,6 +359,10 @@ mod tests {
         assert_ne!(
             EngineUnavailableReason::NotImplemented,
             EngineUnavailableReason::Timeout,
+        );
+        assert_ne!(
+            EngineUnavailableReason::IoError,
+            EngineUnavailableReason::BinaryMissing,
         );
     }
 }

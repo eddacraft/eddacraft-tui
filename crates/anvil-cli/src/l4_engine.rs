@@ -105,13 +105,24 @@ pub fn default_engine() -> Box<dyn ValidationEngine> {
 /// Core validation pipeline, factored out so tests can drive it
 /// without constructing a [`ValidationRequest`].
 fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
+    validate_commit_with_tempdir(repo_root, commit_sha, tempfile::TempDir::new)
+}
+
+fn validate_commit_with_tempdir<F>(
+    repo_root: &Path,
+    commit_sha: &str,
+    make_tempdir: F,
+) -> ValidationVerdict
+where
+    F: FnOnce() -> std::io::Result<tempfile::TempDir>,
+{
     // Council #C-016C CRITICAL: a zero SHA passes `is_hex_sha` but is
     // never a real commit. Refusing here keeps `git diff-tree` from
     // being asked to resolve an impossible object and prevents
     // `l4-validate --range 000...0` from reaching the engine.
     if is_zero_sha(commit_sha) {
         return ValidationVerdict::EngineUnavailable {
-            reason: EngineUnavailableReason::BinaryMissing,
+            reason: EngineUnavailableReason::IoError,
         };
     }
     // Council #C-016B CRITICAL: refuse to run with an empty rule
@@ -128,14 +139,14 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
             reason: EngineUnavailableReason::BinaryMissing,
         };
     }
-    let Some(paths) = list_commit_files(repo_root, commit_sha) else {
-        // git was unavailable or the SHA didn't resolve — surface as
-        // engine-unavailable rather than silently admitting. The
-        // pre-push hook collapses this to the legacy
-        // `InternalError { TimedOut }` line per ADR-038 §D-6.
-        return ValidationVerdict::EngineUnavailable {
-            reason: EngineUnavailableReason::BinaryMissing,
-        };
+    let paths = match list_commit_files(repo_root, commit_sha) {
+        Ok(paths) => paths,
+        Err(reason) => {
+            // git binary resolution or repository/object access failed.
+            // Preserve the specific reason so missing tooling remains
+            // distinct from local I/O outages.
+            return ValidationVerdict::EngineUnavailable { reason };
+        }
     };
     if paths.is_empty() {
         return ValidationVerdict::Allow;
@@ -151,15 +162,12 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
     if scannable.is_empty() {
         return ValidationVerdict::Allow;
     }
-    let Ok(tmp) = tempfile::TempDir::new() else {
+    let Ok(tmp) = make_tempdir() else {
         // Council #C-016D MAJOR: a `/tmp` allocation failure is an
-        // infrastructure outage, not a time-budget overrun. Mapping
-        // it to `Timeout` would mislead observability tooling.
-        // `BinaryMissing` is the catch-all infrastructure-unavailable
-        // signal until the trait crate gains a dedicated `IoError`
-        // variant.
+        // infrastructure outage, not missing tooling or a time-budget
+        // overrun. MLP2-069 gives observability a dedicated reason.
         return ValidationVerdict::EngineUnavailable {
-            reason: EngineUnavailableReason::BinaryMissing,
+            reason: EngineUnavailableReason::IoError,
         };
     };
     let workspace_root = tmp.path().to_path_buf();
@@ -168,19 +176,28 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
     // --batch` invocation so a 200-file commit pays one git spawn,
     // not 200.
     let path_refs: Vec<&str> = scannable.iter().map(|s| s.as_str()).collect();
-    let blobs = read_commit_blobs_batch(repo_root, commit_sha, &path_refs);
+    let blobs = match read_commit_blobs_batch(repo_root, commit_sha, &path_refs) {
+        Ok(blobs) => blobs,
+        Err(reason) => return ValidationVerdict::EngineUnavailable { reason },
+    };
     for (path, blob_opt) in scannable.iter().zip(blobs) {
         let Some(blob) = blob_opt else {
-            continue;
+            return ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::IoError,
+            };
         };
         let target = workspace_root.join(path);
         if let Some(parent) = target.parent()
             && std::fs::create_dir_all(parent).is_err()
         {
-            continue;
+            return ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::IoError,
+            };
         }
         if std::fs::write(&target, blob).is_err() {
-            continue;
+            return ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::IoError,
+            };
         }
         materialised.push(target.to_string_lossy().into_owned());
     }
@@ -191,7 +208,7 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
         // operator sees a `ValidationPending` line rather than a
         // silent admit. Council #C-016E.
         return ValidationVerdict::EngineUnavailable {
-            reason: EngineUnavailableReason::BinaryMissing,
+            reason: EngineUnavailableReason::IoError,
         };
     }
     let path_refs: Vec<&str> = materialised.iter().map(String::as_str).collect();
@@ -231,9 +248,9 @@ fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
 ///   `continue` on `git show <sha>:<deleted-path>` failure would let
 ///   any delete-only commit collapse to `materialised.is_empty()`
 ///   without surfacing why (Council #C-016F).
-fn list_commit_files(repo_root: &Path, sha: &str) -> Option<Vec<String>> {
+fn list_commit_files(repo_root: &Path, sha: &str) -> Result<Vec<String>, EngineUnavailableReason> {
     if !is_hex_sha(sha) || is_zero_sha(sha) {
-        return None;
+        return Err(EngineUnavailableReason::IoError);
     }
     let mut stderr_buf = Vec::new();
     let output = Command::new("git")
@@ -251,20 +268,23 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Option<Vec<String>> {
         ])
         .stderr(Stdio::piped())
         .output()
-        .ok()
-        .inspect(|o| stderr_buf.extend_from_slice(&o.stderr))?;
+        .map_err(|err| match err.kind() {
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => {
+                EngineUnavailableReason::BinaryMissing
+            }
+            _ => EngineUnavailableReason::IoError,
+        })?;
+    stderr_buf.extend_from_slice(&output.stderr);
     if !output.status.success() {
         log_git_failure("diff-tree", sha, &stderr_buf);
-        return None;
+        return Err(EngineUnavailableReason::IoError);
     }
-    Some(
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned)
-            .collect(),
-    )
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect())
 }
 
 /// MLP2-068: batched blob fetch. Spawns `git cat-file --batch` once,
@@ -288,12 +308,16 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Option<Vec<String>> {
 /// git stderr is forwarded to `tracing::debug!` on invocation failure
 /// so production incident debugging can still distinguish "git not on
 /// PATH" from "object missing from pack" (MLP2-016 surface intact).
-fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<Option<Vec<u8>>> {
+fn read_commit_blobs_batch(
+    repo_root: &Path,
+    sha: &str,
+    paths: &[&str],
+) -> Result<Vec<Option<Vec<u8>>>, EngineUnavailableReason> {
     if paths.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     if !is_hex_sha(sha) || is_zero_sha(sha) {
-        return vec![None; paths.len()];
+        return Err(EngineUnavailableReason::IoError);
     }
 
     // Build the per-input query list. Paths containing `:` are
@@ -316,10 +340,10 @@ fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<O
 
     let mut results: Vec<Option<Vec<u8>>> = vec![None; paths.len()];
     if queries.is_empty() {
-        return results;
+        return Ok(results);
     }
 
-    let Ok(mut child) = Command::new("git")
+    let mut child = match Command::new("git")
         .arg("-C")
         .arg(repo_root)
         .args(["cat-file", "--batch"])
@@ -327,8 +351,16 @@ fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<O
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-    else {
-        return results;
+    {
+        Ok(child) => child,
+        Err(err) => {
+            return Err(match err.kind() {
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => {
+                    EngineUnavailableReason::BinaryMissing
+                }
+                _ => EngineUnavailableReason::IoError,
+            });
+        }
     };
 
     // Stream stdin from a worker thread so a full stdout pipe (large
@@ -350,17 +382,17 @@ fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<O
 
     let Ok(output) = child.wait_with_output() else {
         let _ = writer.join();
-        return results;
+        return Err(EngineUnavailableReason::IoError);
     };
     let _ = writer.join();
     if !output.status.success() {
         log_git_failure("cat-file --batch", sha, &output.stderr);
-        return results;
+        return Err(EngineUnavailableReason::IoError);
     }
 
     let Some(parsed) = parse_batch_stdout(&output.stdout, query_count) else {
         log_git_failure("cat-file --batch (parse)", sha, &output.stderr);
-        return results;
+        return Err(EngineUnavailableReason::IoError);
     };
 
     // `parsed` carries one entry per query in the same order they were
@@ -374,7 +406,7 @@ fn read_commit_blobs_batch(repo_root: &Path, sha: &str, paths: &[&str]) -> Vec<O
             *slot = parsed_iter.next().flatten();
         }
     }
-    results
+    Ok(results)
 }
 
 /// Parse the streaming `git cat-file --batch` stdout into a vec of
@@ -557,8 +589,8 @@ mod tests {
     #[test]
     fn list_commit_files_refuses_non_hex_sha() {
         let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
-        assert!(list_commit_files(&root, "HEAD").is_none());
-        assert!(list_commit_files(&root, "--all").is_none());
+        assert!(list_commit_files(&root, "HEAD").is_err());
+        assert!(list_commit_files(&root, "--all").is_err());
     }
 
     /// Council #C-016C: zero SHA is hex-shaped but never a real
@@ -566,7 +598,7 @@ mod tests {
     #[test]
     fn list_commit_files_refuses_zero_sha() {
         let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
-        assert!(list_commit_files(&root, &"0".repeat(40)).is_none());
+        assert!(list_commit_files(&root, &"0".repeat(40)).is_err());
     }
 
     /// Council #C-016G: filenames containing a colon would mis-parse
@@ -576,7 +608,7 @@ mod tests {
     #[test]
     fn read_commit_blobs_batch_returns_none_for_colon_path() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, &sha, &["weird:path.ts", "f.txt"]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &["weird:path.ts", "f.txt"]).unwrap();
         assert_eq!(bodies.len(), 2);
         assert!(bodies[0].is_none(), "colon path must be refused");
         assert_eq!(bodies[1].as_deref(), Some(b"body\n".as_ref()));
@@ -587,7 +619,7 @@ mod tests {
     #[test]
     fn read_commit_blobs_batch_returns_file_bytes() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt"]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt"]).unwrap();
         assert_eq!(bodies.len(), 1);
         assert_eq!(bodies[0].as_deref(), Some(b"body\n".as_ref()));
     }
@@ -622,7 +654,7 @@ mod tests {
             .unwrap()
             .trim()
             .to_string();
-        let bodies = read_commit_blobs_batch(&root, &sha, &["c.ts", "a.ts", "b.ts"]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &["c.ts", "a.ts", "b.ts"]).unwrap();
         assert_eq!(bodies.len(), 3);
         assert_eq!(bodies[0].as_deref(), Some(b"charlie\n".as_ref()));
         assert_eq!(bodies[1].as_deref(), Some(b"alpha\n".as_ref()));
@@ -635,7 +667,7 @@ mod tests {
     #[test]
     fn read_commit_blobs_batch_returns_none_for_missing_path() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt", "missing.ts"]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &["f.txt", "missing.ts"]).unwrap();
         assert_eq!(bodies.len(), 2);
         assert_eq!(bodies[0].as_deref(), Some(b"body\n".as_ref()));
         assert!(bodies[1].is_none());
@@ -647,16 +679,17 @@ mod tests {
     #[test]
     fn read_commit_blobs_batch_refuses_zero_sha() {
         let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, &"0".repeat(40), &["f.txt", "g.txt"]);
-        assert_eq!(bodies, vec![None, None]);
+        let err = read_commit_blobs_batch(&root, &"0".repeat(40), &["f.txt", "g.txt"])
+            .expect_err("zero sha refused");
+        assert_eq!(err, EngineUnavailableReason::IoError);
     }
 
     /// MLP2-068: non-hex SHA is refused before invoking git.
     #[test]
     fn read_commit_blobs_batch_refuses_non_hex_sha() {
         let (_tmp, root, _sha) = commit_with_file("x", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, "HEAD", &["f.txt"]);
-        assert_eq!(bodies, vec![None]);
+        let err = read_commit_blobs_batch(&root, "HEAD", &["f.txt"]).expect_err("HEAD refused");
+        assert_eq!(err, EngineUnavailableReason::IoError);
     }
 
     /// MLP2-068: blob bodies are returned as raw bytes — binary
@@ -693,7 +726,7 @@ mod tests {
             .unwrap()
             .trim()
             .to_string();
-        let bodies = read_commit_blobs_batch(&root, &sha, &["bin.dat", "plain.txt"]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &["bin.dat", "plain.txt"]).unwrap();
         assert_eq!(bodies.len(), 2);
         assert_eq!(bodies[0].as_deref(), Some(binary));
         assert_eq!(bodies[1].as_deref(), Some(no_newline));
@@ -737,7 +770,7 @@ mod tests {
     #[test]
     fn read_commit_blobs_batch_empty_input_returns_empty_vec() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
-        let bodies = read_commit_blobs_batch(&root, &sha, &[]);
+        let bodies = read_commit_blobs_batch(&root, &sha, &[]).unwrap();
         assert!(bodies.is_empty());
     }
 
@@ -752,8 +785,8 @@ mod tests {
         assert_eq!(verdict, ValidationVerdict::Allow);
     }
 
-    /// MLP2-016 reopened: an unscannable repo path collapses to
-    /// `EngineUnavailable { BinaryMissing }`. Pre-push routes that to
+    /// MLP2-069: an unscannable repo path collapses to
+    /// `EngineUnavailable { IoError }`. Pre-push routes that to
     /// the legacy `InternalError { TimedOut }` line + admit-push
     /// surface per ADR-038 §D-6.
     #[test]
@@ -764,7 +797,66 @@ mod tests {
         assert_eq!(
             verdict,
             ValidationVerdict::EngineUnavailable {
-                reason: EngineUnavailableReason::BinaryMissing,
+                reason: EngineUnavailableReason::IoError,
+            }
+        );
+    }
+
+    /// MLP2-069: tempdir allocation failure is an infrastructure I/O
+    /// outage, not missing tooling. Pin the injected failure so
+    /// production observability can distinguish disk/tmp exhaustion
+    /// from "git not on PATH".
+    #[test]
+    fn tempdir_failure_reports_io_error() {
+        let (_tmp, root, sha) = commit_with_file("export const x = 1;\n", "src/foo.ts");
+        let verdict = validate_commit_with_tempdir(&root, &sha, || {
+            Err(std::io::Error::other("tempdir allocation failed"))
+        });
+        assert_eq!(
+            verdict,
+            ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::IoError,
+            }
+        );
+    }
+
+    /// MLP2-069: a partial scannable-file materialisation failure is
+    /// fail-safe. Scanning only the files that happened to materialise
+    /// could return `Allow` while skipping the file that contains the
+    /// offending code.
+    #[test]
+    fn partial_materialisation_failure_reports_io_error() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/good.ts"), "export const x = 1;\n").unwrap();
+        std::fs::write(root.join("src/bad:name.ts"), "export const y = 2;\n").unwrap();
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "colon path"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+
+        let verdict = validate_commit(&root, &sha);
+        assert_eq!(
+            verdict,
+            ValidationVerdict::EngineUnavailable {
+                reason: EngineUnavailableReason::IoError,
             }
         );
     }
@@ -778,7 +870,7 @@ mod tests {
         assert_eq!(
             verdict,
             ValidationVerdict::EngineUnavailable {
-                reason: EngineUnavailableReason::BinaryMissing,
+                reason: EngineUnavailableReason::IoError,
             }
         );
     }
