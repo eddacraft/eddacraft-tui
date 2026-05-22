@@ -97,6 +97,8 @@ use the minimal validation baseline in
 - **Coordinates with:** Closed for DOCGOV-001. Follow-up coordination with
   DOCSYNC, MDGOV, ADR process, as-built documentation, release runbooks, and
   package/crate README maintenance is captured in DOCGOV-002..DOCGOV-008.
+- **Closeout:** Validation passed with `pnpm format:check`; manual metadata,
+  index, and APS reconciliation review performed ahead of merge.
 - **Confidence:** high
 
 ### DOCGOV-002: Canonicalise documentation taxonomy and metadata
@@ -130,7 +132,9 @@ use the minimal validation baseline in
 - **Files:** `plans/aps-rules.md`, `packages/aps/README.md`,
   `packages/aps/AGENTS.md`, `plans/modules/documentation-governance.aps.md`,
   `plans/index.aps.md`
-- **Closeout:** `plans/aps-rules.md` now distinguishes the five schema status
+- **Closeout:** Validation passed with
+  `pnpm -F @eddacraft/anvil-aps test && pnpm format:check` ahead of merge.
+  `plans/aps-rules.md` now distinguishes the five schema status
   values (`Proposed`/`Ready`/`In Progress`/`Done`/`Blocked`) from the lifecycle
   narrative vocabulary used in index commentary, names the parser's
   `Draft → Proposed` / `Complete → Done` normalisations, marks the release
@@ -160,7 +164,9 @@ use the minimal validation baseline in
   `docs/guides/adr-process.md`, `scripts/docs/adr-integrity.sh`,
   `scripts/docs/adr-integrity.test.sh`, `package.json`,
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
-- **Closeout:** ADR-026 duplicate resolved by renaming the in-house nx-rust
+- **Closeout:** Validation passed with
+  `pnpm test:adr-integrity && pnpm adr:check && pnpm format:check` ahead of
+  merge. ADR-026 duplicate resolved by renaming the in-house nx-rust
   plugin ADR to ADR-021 (fills the previously empty 021 slot); cross-references
   in the two archived nx-rust modules updated with a renumber note.
   `DECISION-LOG.md` rebuilt with all 42 ADR files indexed (added previously
@@ -196,7 +202,9 @@ use the minimal validation baseline in
   `pnpm-workspace.yaml`, `tsconfig.base.json`,
   `plans/decisions/DECISION-LOG.md`,
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
-- **Closeout:** A planning council (session `plan-0b3290b4`) settled the
+- **Closeout:** Validation passed with
+  `pnpm docs:check && pnpm test:docs-check && pnpm format:check && pnpm lint:check`
+  ahead of merge. A planning council (session `plan-0b3290b4`) settled the
   design across nine decisions before any code landed; the outcome is
   recorded in [ADR-042](../decisions/042-closeout-enforcement-exit-codes.md)
   (closeout-enforcement carve-out from ADR-002) and the 24-step action plan
