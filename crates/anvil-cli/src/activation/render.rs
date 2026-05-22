@@ -371,10 +371,10 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
             }
             DaemonAttestation::StaleHeartbeat => {
-                "the intercept daemon's last attestation is stale; restart it with `anvil intercept restart` (or `anvil intercept start --foreground` if it has stopped) and re-run `anvil start --verify`."
+                "the intercept daemon's last attestation is stale; stop it (Ctrl-C or kill the process) and start it again with `anvil intercept start --foreground`, then re-run `anvil start --verify`."
             }
             DaemonAttestation::AllSurfacesQuarantined => {
-                "the intercept daemon has fenced every session for this worktree; clear the fence with `anvil intercept recover` once you understand the cause, then re-run `anvil start --verify`."
+                "the intercept daemon has fenced every session for this worktree; clear the fence with `anvil intercept unblock --worktree $(pwd)` once you understand the cause, then re-run `anvil start --verify`."
             }
             DaemonAttestation::Warming => {
                 "the intercept daemon is transitioning (warming / draining); re-run `anvil start --verify` in a few seconds."
@@ -693,16 +693,23 @@ mod tests {
 
     /// MLP2-051f §"Failure modes" — daemon `DegradedProtection` with
     /// every surface `Quarantined`. Recovery routes through
-    /// `anvil intercept recover`, not editor restart.
+    /// `anvil intercept unblock`, not editor restart.
+    /// Post-ship hardening (council 2026-05-22): the previous hint
+    /// pointed at `anvil intercept recover` which doesn't exist;
+    /// `unblock --worktree <PATH>` is the real subcommand.
     #[test]
-    fn ready_restart_required_with_all_quarantined_points_at_intercept_recover() {
+    fn ready_restart_required_with_all_quarantined_points_at_intercept_unblock() {
         let d = handshake_verified_diag(
             super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
         );
         let h = render_human(&d);
         assert!(
-            h.contains("anvil intercept recover"),
-            "AllSurfacesQuarantined hint must name `anvil intercept recover`: {h}"
+            h.contains("anvil intercept unblock"),
+            "AllSurfacesQuarantined hint must name `anvil intercept unblock`: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept recover"),
+            "AllSurfacesQuarantined hint must NOT mention the non-existent `recover` subcommand: {h}"
         );
     }
 
@@ -745,16 +752,23 @@ mod tests {
     }
 
     /// MLP2-051f §"Failure modes" — daemon snapshot heartbeat stale.
-    /// The remediation is to restart the daemon, not the editor.
+    /// The remediation is to stop and restart the daemon, not the
+    /// editor. Post-ship hardening (council 2026-05-22): the previous
+    /// hint pointed at `anvil intercept restart` which doesn't exist;
+    /// the real path is stop + `anvil intercept start --foreground`.
     #[test]
-    fn ready_restart_required_with_stale_heartbeat_points_at_daemon_restart() {
+    fn ready_restart_required_with_stale_heartbeat_points_at_daemon_start() {
         let d = handshake_verified_diag(
             super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
         );
         let h = render_human(&d);
         assert!(
-            h.contains("anvil intercept restart") || h.contains("anvil intercept start"),
-            "StaleHeartbeat hint must name an `anvil intercept` restart/start command: {h}"
+            h.contains("anvil intercept start --foreground"),
+            "StaleHeartbeat hint must name the real `anvil intercept start --foreground` command: {h}"
+        );
+        assert!(
+            !h.contains("anvil intercept restart"),
+            "StaleHeartbeat hint must NOT mention the non-existent `restart` subcommand: {h}"
         );
     }
 

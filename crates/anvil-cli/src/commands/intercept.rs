@@ -318,8 +318,9 @@ pub(crate) fn query_daemon_status_at_with_timeout(
     socket_path: &std::path::Path,
     request_timeout: std::time::Duration,
 ) -> Result<DaemonStatusV1> {
-    use std::io::{BufRead, BufReader, Read, Write};
+    use std::io::{Read, Write};
     use std::os::unix::net::UnixStream;
+    use std::time::Instant;
 
     use anvil_intercept::ipc;
 
@@ -349,9 +350,6 @@ pub(crate) fn query_daemon_status_at_with_timeout(
     ipc::validate_connected_peer_for_client(&stream)
         .map_err(|err| anyhow::anyhow!("daemon peer credentials rejected: {err}"))?;
     stream
-        .set_read_timeout(Some(request_timeout))
-        .context("failed to configure read timeout")?;
-    stream
         .set_write_timeout(Some(request_timeout))
         .context("failed to configure write timeout")?;
 
@@ -367,13 +365,63 @@ pub(crate) fn query_daemon_status_at_with_timeout(
         .flush()
         .context("failed to flush query_status frame")?;
 
-    let mut reader = BufReader::new(stream);
-    let mut buf = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_BYTES + 1)
-        .read_until(b'\n', &mut buf)
-        .context("failed to read query_status response")?;
+    // MLP2-051f post-ship hardening (council 2026-05-22): enforce a
+    // single wall-clock deadline across the read loop. `SO_RCVTIMEO`
+    // is a per-syscall timeout — a daemon that drip-feeds one byte
+    // every (timeout − 1ms) keeps `read_until(b'\n')` alive for
+    // `RESPONSE_LINE_BYTES * request_timeout` (~524 s at 500 ms /
+    // 1 MiB cap) before the previous implementation gave up. The new
+    // loop samples `deadline = Instant::now() + request_timeout` once,
+    // then refreshes `set_read_timeout(remaining)` before each read
+    // so the total wall-clock spent on reads cannot exceed the
+    // budget — independent of how the daemon paces its writes.
+    let deadline = Instant::now() + request_timeout;
+    let mut buf: Vec<u8> = Vec::with_capacity(4096);
+    let mut chunk = [0_u8; 4096];
+    loop {
+        let now = Instant::now();
+        let remaining = deadline
+            .checked_duration_since(now)
+            .filter(|d| !d.is_zero());
+        let Some(remaining) = remaining else {
+            anyhow::bail!(
+                "timed out waiting for daemon response on socket {} (deadline exhausted across read iterations)",
+                socket_path.display(),
+            );
+        };
+        stream
+            .set_read_timeout(Some(remaining))
+            .context("failed to refresh read timeout")?;
+        let n = match stream.read(&mut chunk) {
+            Ok(n) => n,
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                anyhow::bail!(
+                    "timed out waiting for daemon response on socket {} (no bytes within wall-clock budget)",
+                    socket_path.display(),
+                );
+            }
+            Err(err) => {
+                return Err(anyhow::Error::new(err).context("failed to read query_status response"));
+            }
+        };
+        if n == 0 {
+            anyhow::bail!("daemon closed the connection before responding");
+        }
+        buf.extend_from_slice(&chunk[..n]);
+        if let Some(newline_idx) = buf.iter().position(|b| *b == b'\n') {
+            buf.truncate(newline_idx + 1);
+            break;
+        }
+        if (buf.len() as u64) > RESPONSE_LINE_BYTES {
+            anyhow::bail!("query_status response exceeded {RESPONSE_LINE_BYTES} byte cap");
+        }
+    }
+    let read = buf.len();
     parse_query_status_response_bytes(&buf, read)
 }
 

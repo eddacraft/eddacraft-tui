@@ -133,6 +133,21 @@ pub(super) const ACTIVATION_DAEMON_QUERY_TIMEOUT: Duration = Duration::from_mill
 /// upward — downgrade attack surface (security veto).
 pub(super) const HEARTBEAT_FRESHNESS_WINDOW: Duration = Duration::from_secs(45);
 
+/// MLP2-051f post-ship hardening (council 2026-05-22): upper bound on
+/// how far a daemon's clock may be ahead of the workstation clock
+/// before we reject the timestamp as broken.
+///
+/// `within_window` previously accepted `unix_seconds >= now_unix`
+/// unconditionally (any future timestamp passed). A daemon with a
+/// broken RTC stamping `u64::MAX` would permanently pass freshness;
+/// combined with a stripped `generated_at_unix` (the "no anchor"
+/// sentinel), an attacker controlling snapshot output could defeat
+/// both freshness gates simultaneously. The cap is `2 ×
+/// HEARTBEAT_FRESHNESS_WINDOW = 90 s` — enough to tolerate NTP
+/// resync jitter and daylight-savings transitions, but small enough
+/// that a stuck-in-2038 daemon is rejected immediately.
+pub(super) const MAX_FUTURE_CLOCK_SKEW: Duration = Duration::from_secs(90);
+
 /// Reason a daemon-attestation promotion skipped — emitted on the
 /// `tracing::debug!` event when the activation surface decides not
 /// to advance an MCP client to `LiveValidation`. Mirrors the
@@ -182,6 +197,51 @@ impl SkipReason {
     }
 }
 
+/// Emit the standard "activation: daemon attestation skipped" tracing
+/// event with the right level for `reason`. Post-ship hardening
+/// (council 2026-05-22): the default CLI tracing filter is `warn`, so
+/// `tracing::debug!` skip events were invisible to operators running
+/// `anvil start --verify` without `ANVIL_LOG=debug`. The success path
+/// emits `tracing::info!` (visible at `info`); the asymmetric silence
+/// on the failure paths produced the exact UX defect MLP2-051f was
+/// built to fix. Operator-actionable failures (daemon unreachable /
+/// worktree unenforced / stale heartbeat / all-surfaces quarantined)
+/// now emit at `warn`; transient states (`Warming`,
+/// `NoParticipatingSurface`) at `info`;
+/// `NoHandshakeVerifiedClient` (the genuine pre-restart case where
+/// the diagnostic just hasn't reached the daemon probe yet) stays at
+/// `debug` because the headline already communicates it.
+fn emit_skip_event(reason: SkipReason, worktree_claim_state: Option<&'static str>) {
+    let reason_str = reason.as_str();
+    let claim = worktree_claim_state.unwrap_or("");
+    match reason {
+        SkipReason::DaemonUnreachable
+        | SkipReason::WorktreeUnenforced
+        | SkipReason::StaleHeartbeat
+        | SkipReason::AllSurfacesQuarantined => {
+            tracing::warn!(
+                reason = reason_str,
+                worktree_claim_state = claim,
+                "activation: daemon attestation skipped"
+            );
+        }
+        SkipReason::Warming | SkipReason::NoParticipatingSurface => {
+            tracing::info!(
+                reason = reason_str,
+                worktree_claim_state = claim,
+                "activation: daemon attestation skipped"
+            );
+        }
+        SkipReason::NoHandshakeVerifiedClient => {
+            tracing::debug!(
+                reason = reason_str,
+                worktree_claim_state = claim,
+                "activation: daemon attestation skipped"
+            );
+        }
+    }
+}
+
 /// Entry point invoked from [`crate::activation::diagnostic::verify_with_home`]
 /// after the orchestrator's handshake-pass has resolved each MCP client's
 /// tier. The function is best-effort: any failure mode (daemon down, IPC
@@ -206,20 +266,14 @@ pub(super) fn promote_to_live_validation_when_daemon_attests(
         .values()
         .any(|r| r.tier == McpTier::RestartHandshakeVerified)
     {
-        tracing::debug!(
-            reason = SkipReason::NoHandshakeVerifiedClient.as_str(),
-            "activation: daemon attestation skipped"
-        );
+        emit_skip_event(SkipReason::NoHandshakeVerifiedClient, None);
         return DaemonAttestation::NotProbed;
     }
 
     let canonical = canonicalise_for_activation(worktree);
 
     let Some(snapshot) = query_daemon_for_activation() else {
-        tracing::debug!(
-            reason = SkipReason::DaemonUnreachable.as_str(),
-            "activation: daemon attestation skipped"
-        );
+        emit_skip_event(SkipReason::DaemonUnreachable, None);
         return DaemonAttestation::Unreachable;
     };
 
@@ -285,11 +339,7 @@ pub(super) fn evaluate_and_promote(
     // Predicate #1: claim attests live enforcement.
     let verdict = classify_claim(&claim);
     if let ClaimVerdict::Skip(reason) = verdict {
-        tracing::debug!(
-            reason = reason.as_str(),
-            worktree_claim_state = claim.worktree_state.as_str(),
-            "activation: daemon attestation skipped"
-        );
+        emit_skip_event(reason, Some(claim.worktree_state.as_str()));
         return skip_reason_to_attestation(reason);
     }
 
@@ -304,10 +354,9 @@ pub(super) fn evaluate_and_promote(
         .iter()
         .any(|s| s.state == SurfaceClaimState::Participating)
     {
-        tracing::debug!(
-            reason = SkipReason::NoParticipatingSurface.as_str(),
-            worktree_claim_state = claim.worktree_state.as_str(),
-            "activation: daemon attestation skipped"
+        emit_skip_event(
+            SkipReason::NoParticipatingSurface,
+            Some(claim.worktree_state.as_str()),
         );
         return DaemonAttestation::NoParticipatingSurface;
     }
@@ -317,10 +366,7 @@ pub(super) fn evaluate_and_promote(
     // must be within the window. `now` is supplied by the caller so
     // tests can pin a deterministic clock.
     if !heartbeat_within_freshness_window(snapshot, worktree, now) {
-        tracing::debug!(
-            reason = SkipReason::StaleHeartbeat.as_str(),
-            "activation: daemon attestation skipped"
-        );
+        emit_skip_event(SkipReason::StaleHeartbeat, None);
         return DaemonAttestation::StaleHeartbeat;
     }
 
@@ -491,8 +537,14 @@ fn within_window(unix_seconds: u64, now: SystemTime) -> bool {
         Err(_) => return false,
     };
     if unix_seconds >= now_unix {
-        // Future or equal — accept (clock skew tolerance).
-        return true;
+        // Future timestamp: accepted only within `MAX_FUTURE_CLOCK_SKEW`
+        // of `now`. Without the bound, a daemon stamping `u64::MAX`
+        // (broken RTC, snapshot replay, malicious downgrade combined
+        // with a stripped `generated_at_unix`) would permanently pass
+        // freshness — exactly the failure mode MLP2-051f's
+        // post-ship hardening exists to close.
+        let skew = unix_seconds.saturating_sub(now_unix);
+        return skew <= MAX_FUTURE_CLOCK_SKEW.as_secs();
     }
     let age = now_unix.saturating_sub(unix_seconds);
     age <= HEARTBEAT_FRESHNESS_WINDOW.as_secs()
@@ -817,10 +869,11 @@ mod tests {
     #[test]
     fn future_heartbeat_is_treated_as_fresh() {
         // Daemon-side clock skew (faster than workstation) must not
-        // mark a healthy daemon stale. Accept future heartbeats.
+        // mark a healthy daemon stale. Accept future heartbeats up to
+        // `MAX_FUTURE_CLOCK_SKEW` (90 s).
         let worktree = PathBuf::from("/tmp/wt-051f-future-hb");
         let now = epoch_plus(1_716_336_000);
-        let heartbeat = 1_716_336_060; // 60s in the future per our clock
+        let heartbeat = 1_716_336_060; // 60s in the future per our clock — within skew bound
         let snapshot = make_snapshot(
             &worktree,
             vec![make_session("sess-1", &worktree, heartbeat)],
@@ -833,6 +886,76 @@ mod tests {
         evaluate_and_promote(&mut map, &snapshot, &worktree, now);
 
         assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
+    }
+
+    /// MLP2-051f post-ship hardening (council 2026-05-22): an unbounded
+    /// future timestamp must NOT pass freshness. A daemon stamping
+    /// `u64::MAX` (broken RTC, snapshot replay, downgrade attack
+    /// combined with a stripped `generated_at_unix`) previously
+    /// permanently passed freshness; the `MAX_FUTURE_CLOCK_SKEW` cap
+    /// (90 s) closes that gap.
+    #[test]
+    fn far_future_heartbeat_is_rejected_as_stale() {
+        let worktree = PathBuf::from("/tmp/wt-051f-far-future-hb");
+        let now = epoch_plus(1_716_336_000);
+        // 1 hour in the future — well beyond MAX_FUTURE_CLOCK_SKEW (90s).
+        let heartbeat = 1_716_336_000 + 3600;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session("sess-1", &worktree, heartbeat)],
+            vec![make_worktree_status("sess-1", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = handshake_verified_pair();
+        evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+            "1-hour-future heartbeat must fail freshness, not promote",
+        );
+    }
+
+    /// Boundary case: exactly at the `MAX_FUTURE_CLOCK_SKEW` (90 s)
+    /// cap should still pass. One second past the cap should fail.
+    /// Pins the inclusive bound so a future tightening must update
+    /// this test.
+    #[test]
+    fn max_future_clock_skew_boundary() {
+        let worktree = PathBuf::from("/tmp/wt-051f-skew-boundary");
+        let now = epoch_plus(1_716_336_000);
+
+        // At the cap: passes.
+        let at_cap = 1_716_336_000 + MAX_FUTURE_CLOCK_SKEW.as_secs();
+        let snapshot_at = make_snapshot(
+            &worktree,
+            vec![make_session("sess-1", &worktree, at_cap)],
+            vec![make_worktree_status("sess-1", &worktree, false)],
+            IpcStateV1::Serving,
+            at_cap,
+        );
+        let mut map = handshake_verified_pair();
+        evaluate_and_promote(&mut map, &snapshot_at, &worktree, now);
+        assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
+
+        // 1 s past the cap: fails.
+        let over = 1_716_336_000 + MAX_FUTURE_CLOCK_SKEW.as_secs() + 1;
+        let snapshot_over = make_snapshot(
+            &worktree,
+            vec![make_session("sess-1", &worktree, over)],
+            vec![make_worktree_status("sess-1", &worktree, false)],
+            IpcStateV1::Serving,
+            over,
+        );
+        let mut map = handshake_verified_pair();
+        evaluate_and_promote(&mut map, &snapshot_over, &worktree, now);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+            "one second past MAX_FUTURE_CLOCK_SKEW must fail freshness",
+        );
     }
 
     /// Council adversarial gate (architect resolution): promotion
@@ -1154,6 +1277,74 @@ mod tests {
 
         // Release the held server stream so the listener thread can
         // exit cleanly.
+        let _ = stop_tx.send(());
+        let _ = handle.join();
+    }
+
+    /// MLP2-051f post-ship hardening (council 2026-05-22): a daemon
+    /// that drip-feeds the response one byte at a time at an interval
+    /// approaching `request_timeout` must NOT defeat the wall-clock
+    /// budget. The previous Unix implementation used
+    /// `BufReader::read_until(b'\n')` with `set_read_timeout` as a
+    /// per-syscall cap; a malicious / broken daemon could keep the
+    /// read loop alive for up to `RESPONSE_LINE_BYTES × timeout`
+    /// (~524 s at 500 ms / 1 MiB). The new loop refreshes the
+    /// per-iter timeout against a single `Instant`-based deadline so
+    /// total wall-clock cannot exceed the budget.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn slow_drip_response_does_not_exceed_wall_clock_budget() {
+        use std::io::Write as _;
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::net::UnixListener;
+        use std::sync::mpsc;
+        use std::time::Instant;
+
+        let runtime_dir = tempfile::tempdir().expect("runtime tempdir");
+        std::fs::set_permissions(runtime_dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("runtime dir perms");
+        let socket = runtime_dir.path().join("intercept.sock");
+        let listener = UnixListener::bind(&socket).expect("slow-drip listener binds");
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
+            .expect("socket perms");
+
+        let (stop_tx, stop_rx) = mpsc::channel::<()>();
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("slow-drip accepts");
+            // Read and discard the client's request frame so the
+            // socket is in the expected post-write state.
+            let mut throwaway = [0_u8; 1024];
+            let _ = std::io::Read::read(&mut stream, &mut throwaway);
+            // Drip one byte per ~150 ms forever. With a 500 ms
+            // budget the client should bail after ~3 reads, well
+            // before the JSON-RPC framing newline is delivered.
+            let drip = b"{";
+            loop {
+                if stop_rx.try_recv().is_ok() {
+                    break;
+                }
+                if stream.write_all(drip).is_err() {
+                    break;
+                }
+                let _ = stream.flush();
+                std::thread::sleep(Duration::from_millis(150));
+            }
+        });
+
+        let started = Instant::now();
+        let err = crate::commands::intercept::query_daemon_status_at_with_timeout(
+            &socket,
+            ACTIVATION_DAEMON_QUERY_TIMEOUT,
+        )
+        .expect_err("slow-drip daemon must time out, not succeed");
+        let elapsed = started.elapsed();
+
+        let slack = Duration::from_millis(300);
+        assert!(
+            elapsed <= ACTIVATION_DAEMON_QUERY_TIMEOUT + slack,
+            "slow-drip query exceeded budget: elapsed = {elapsed:?}, budget = {ACTIVATION_DAEMON_QUERY_TIMEOUT:?}",
+        );
+        let _ = err;
         let _ = stop_tx.send(());
         let _ = handle.join();
     }
