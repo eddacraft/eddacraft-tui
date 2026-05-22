@@ -111,11 +111,41 @@ pub struct NoopDispatcher;
 /// listener answers with the empty snapshot rather than
 /// `Method not found`, so test fixtures and embedded callers can
 /// exercise the wire shape without a full daemon mock.
+///
+/// MLP2-051h contract: `query_status` MUST surface
+/// `generated_at_unix == 0` so consumers can distinguish a synthetic
+/// noop snapshot from a real [`crate::status::DaemonStatusProvider`]
+/// snapshot. The production `run_foreground` path always swaps this
+/// default out via [`IpcListener::with_status_provider`] /
+/// [`IpcServer::with_status_provider`] before serving real clients —
+/// see `anvil_intercept::lib::run_foreground` where the Unix and
+/// Windows listener-bind branches both wire the real provider. If
+/// this provider ever serves a real production request, the `debug`
+/// trace below is the operator's diagnostic; pinned by
+/// `crate::status::tests::generated_at_unix_zero_is_the_no_anchor_sentinel`.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopStatusProvider;
 
 impl StatusProvider for NoopStatusProvider {
     fn query_status(&self) -> DaemonStatus {
+        // MLP2-051h: emit a debug trace every time the noop provider
+        // is exercised. In production this listener default is always
+        // swapped for a real `DaemonStatusProvider` before the
+        // listener serves clients — see the `with_status_provider`
+        // calls in `run_foreground`. A live `debug` event from
+        // production therefore signals a wiring regression, distinct
+        // from any test-side traffic. Pinned at `debug` (not `warn`)
+        // because the in-tree test suite exercises this path tens of
+        // times per run; a warn-level event would drown out real
+        // signals in CI logs.
+        tracing::debug!(
+            target: "anvil_intercept::status",
+            "NoopStatusProvider::query_status invoked — emitting empty \
+             snapshot with generated_at_unix=0 (no-anchor sentinel). \
+             Production callers MUST swap to DaemonStatusProvider via \
+             with_status_provider; a live trace here from a production \
+             binary is a wiring regression."
+        );
         crate::status::build_status(
             Vec::new(),
             &[],
@@ -131,8 +161,8 @@ impl StatusProvider for NoopStatusProvider {
             None,
             None,
             // MLP2-051h: noop provider has no live wall clock to
-            // stamp; consumers already treat `0` as "no anchor —
-            // fall back to per-session heartbeat freshness".
+            // stamp; consumers already treat `0` as the no-anchor
+            // sentinel — fall back to per-session heartbeat freshness.
             0,
         )
     }

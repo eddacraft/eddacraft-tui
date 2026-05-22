@@ -2954,12 +2954,32 @@ task's `Source:` line cites the Council finding IDs.
     `crates/anvil-run/src/preflight.rs` — update test fixtures /
     struct-literal construction sites.
 - **Validation:**
-  - **Parity test (mandatory):** pre-MLP2-051h wire shape (JSON
+  - **Parity tests (mandatory):** pre-MLP2-051h wire shape (JSON
     without the field) deserialises into the new type with
     `generated_at_unix == 0`; new shape round-trips with the value
-    intact; new shape serialised back is byte-identical to a
-    canonically-emitted snapshot. Pinned in
-    `crates/anvil-intercept-proto/src/status.rs` tests.
+    intact; new shape serialised back always includes the key (even
+    when `0`) so a downstream consumer can byte-equivalence two
+    snapshots from the same producer. Pinned in
+    `crates/anvil-intercept-proto/src/status.rs` tests
+    (`pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero`,
+    `generated_at_unix_round_trips_when_present`,
+    `generated_at_unix_serialises_always_when_zero`).
+  - **Live-stamp test (mandatory):** the production
+    `DaemonStatusProvider::query_status` path actually stamps a
+    non-zero `generated_at_unix` at the IPC boundary. Pinned in
+    `crates/anvil-intercept/src/status.rs::tests::provider_stamps_non_zero_generated_at_unix`
+    so a future caller of `build_status` (or a refactor of
+    `DaemonStatusProvider::query_status`) silently passing `0` fails
+    the test, not the downstream consumer.
+  - **Sentinel-equality test (mandatory):** `generated_at_unix == 0`
+    is pinned as the documented "no anchor available — fall back to
+    per-session heartbeat freshness" sentinel. Pinned in
+    `crates/anvil-intercept/src/status.rs::tests::generated_at_unix_zero_is_the_no_anchor_sentinel`
+    so a future MLP2-051f consumer cannot drift the contract to a
+    `> threshold` check (which would treat a `NoopStatusProvider`
+    snapshot as "anchor present, just very old" and pass the
+    freshness gate — the failure mode the MLP2-051h precursor exists
+    to prevent).
   - `cargo test --workspace` green; `cargo clippy --workspace
     --all-targets -- -D warnings` green; `cargo fmt --all --check`
     green.
@@ -2967,6 +2987,12 @@ task's `Source:` line cites the Council finding IDs.
     `#[serde(default)]` semantics (older `Deserialize` derive) or
     will simply ignore the new field until MLP2-051f wires the
     activation-side freshness check against it.
+  - `NoopStatusProvider::query_status` emits a `tracing::debug!`
+    event on every invocation so a live trace in a production binary
+    (where `run_foreground` always swaps the noop default for a real
+    `DaemonStatusProvider` via `with_status_provider` on both the
+    Unix and Windows listener-bind branches) is a diagnosable wiring
+    regression rather than a silent fallback to the no-anchor posture.
 - **Confidence:** high — one field, one parity test, all consumers
   are additive-tolerant by the project's `additive-optional-fields`
   rule (MLP2-052) and the existing `DaemonStatusV1` precedent

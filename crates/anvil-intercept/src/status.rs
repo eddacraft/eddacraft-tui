@@ -1384,6 +1384,97 @@ mod tests {
         assert_eq!(wire.cache_invalidations_total, Some(1));
     }
 
+    /// MLP2-051h: the production `DaemonStatusProvider` path actually
+    /// stamps a non-zero `generated_at_unix` at the IPC boundary.
+    /// Guards the next-most-likely failure mode in this slice: a
+    /// future caller of `build_status` (or a refactor of
+    /// `DaemonStatusProvider::query_status`) silently passing `0` and
+    /// degrading every consumer to the no-anchor fallback posture
+    /// with no test failure.
+    #[test]
+    fn provider_stamps_non_zero_generated_at_unix() {
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let fence_path = dir.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::new(SessionRegistry::new()),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.7.0-beta",
+        );
+
+        let snapshot = provider.query_status();
+        assert!(
+            snapshot.generated_at_unix > 0,
+            "production DaemonStatusProvider::query_status must stamp \
+             a live Unix-seconds anchor; got {anchor} (the no-anchor \
+             sentinel is reserved for NoopStatusProvider and legacy \
+             producers)",
+            anchor = snapshot.generated_at_unix,
+        );
+
+        // Sanity-check the value is plausibly current: post-2020 epoch
+        // seconds are well above 1_500_000_000. A clock that rolled
+        // back to pre-2020 either means the host has a wildly broken
+        // clock or the boundary capture regressed to `Instant::now()`.
+        assert!(
+            snapshot.generated_at_unix >= 1_500_000_000,
+            "generated_at_unix must be plausibly current Unix-seconds; \
+             got {anchor} which would imply a pre-2017 host clock",
+            anchor = snapshot.generated_at_unix,
+        );
+
+        // Wire round-trip preserves the stamp byte-equivalently.
+        let wire = snapshot.to_wire();
+        assert_eq!(
+            wire.generated_at_unix, snapshot.generated_at_unix,
+            "to_wire must forward the anchor verbatim",
+        );
+    }
+
+    /// MLP2-051h sentinel contract pin. `generated_at_unix == 0` is
+    /// the documented "no anchor available — fall back to per-session
+    /// heartbeat freshness only" sentinel. The producer side of the
+    /// contract is:
+    ///
+    /// - A post-MLP2-051h `DaemonStatusProvider` always stamps a
+    ///   live, non-zero value (pinned above by
+    ///   `provider_stamps_non_zero_generated_at_unix`).
+    /// - A pre-MLP2-051h daemon emits no key, which `#[serde(default)]`
+    ///   defaults to `0` on parse (pinned in the proto crate by
+    ///   `pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero`).
+    /// - `NoopStatusProvider` (a synthetic listener default that
+    ///   production swaps out via `with_status_provider`) explicitly
+    ///   emits `0` so it cannot be mistaken for a real anchor by
+    ///   downstream consumers.
+    ///
+    /// The consumer side (MLP2-051f) MUST branch on `== 0`, not
+    /// `< some_threshold`. A `> 0` check would treat a live
+    /// `NoopStatusProvider` snapshot as having an anchor (just a very
+    /// old one) and pass the freshness gate, which is the failure mode
+    /// the MLP2-051h precursor exists to prevent. This test pins the
+    /// equality semantics so a future MLP2-051f implementation cannot
+    /// drift the contract without an explicit test failure here.
+    #[test]
+    fn generated_at_unix_zero_is_the_no_anchor_sentinel() {
+        use crate::ipc::NoopStatusProvider;
+
+        let noop = NoopStatusProvider;
+        let snapshot = noop.query_status();
+        assert_eq!(
+            snapshot.generated_at_unix, 0,
+            "NoopStatusProvider must surface 0 (no-anchor sentinel)",
+        );
+        let wire = snapshot.to_wire();
+        assert_eq!(
+            wire.generated_at_unix, 0,
+            "to_wire preserves the no-anchor sentinel byte-equivalently",
+        );
+    }
+
     /// A `usize` cache size above `u32::MAX` clamps to `u32::MAX`
     /// rather than panicking or wrapping. The daemon's session cap
     /// keeps the live count well below `u32::MAX`; this is
