@@ -45,12 +45,31 @@
 
 ## DOCGOV
 
-| Document                                                                  | Path                                      | Type   | Authority     | Owner  | Status |
-| ------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ------ | ------ |
-| [Development Guides](../../docs/guides/README.md)                         | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md) | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCGOV | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)   | `docs/governance/tags-catalogue.md`       | Guide  | Authoritative | DOCGOV | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
+| Document                                                                      | Path                                      | Type   | Authority     | Owner  | Status |
+| ----------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ------ | ------ |
+| [Development Guides](../../docs/guides/README.md)                             | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)     | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCGOV | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`       | Guide  | Authoritative | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                    | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md`    | Guide  | Advisory      | DOCGOV | Live   |
+
+## KERN
+
+| Document                                                                                                   | Path                                              | Type | Authority | Owner | Status |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---- | --------- | ----- | ------ |
+| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec | Derived   | KERN  | Live   |
+
+## MODULE-CODE
+
+| Document                                                  | Path                              | Type    | Authority     | Owner       | Status |
+| --------------------------------------------------------- | --------------------------------- | ------- | ------------- | ----------- | ------ |
+| [Runbook Template](../../docs/guides/runbook-template.md) | `docs/guides/runbook-template.md` | Runbook | Authoritative | MODULE-CODE | Draft  |
+
+## MODULE-CODE (link to plans/modules/...)
+
+| Document                                                                     | Path                                      | Type     | Authority | Owner                                   | Status |
+| ---------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
+| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
 ## RELORCH
 
@@ -70,6 +89,12 @@
 | --------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | --------------- | ------ |
 | [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)    | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
 | [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md) | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
+
+## SCAN
+
+| Document                                                            | Path                                  | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md) | `docs/guides/anvil-rule-authoring.md` | Guide | Authoritative | SCAN  | Live   |
 
 ## WOUT (plans/modules/watch-output-contract.aps.md)
 

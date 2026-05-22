@@ -12,19 +12,22 @@
 
 ## As-built
 
-| Document                                                                                        | Path                                         | Type     | Authority | Owner  | Status |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------- | -------- | --------- | ------ | ------ |
-| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md` | As-built | Derived   | @aneki | Live   |
+| Document                                                                                        | Path                                         | Type     | Authority | Owner                                   | Status |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
+| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md` | As-built | Derived   | @aneki                                  | Live   |
+| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                    | `docs/architecture/_as-built-template.md`    | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
 ## Guide
 
-| Document                                                                     | Path                                      | Type  | Authority     | Owner                                                  | Status |
-| ---------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)    | `docs/guides/documentation-governance.md` | Guide | Authoritative | DOCGOV                                                 | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)      | `docs/governance/tags-catalogue.md`       | Guide | Authoritative | DOCGOV                                                 | Live   |
-| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md)      | `docs/policies/editor-coexistence.md`     | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
-| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md) | `docs/policies/release-cadence.md`        | Guide | Authoritative | DISTRIB (plans/modules/distribution-and-update.aps.md) | Live   |
-| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md)      | `docs/policies/resource-budget.md`        | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
+| Document                                                                      | Path                                      | Type  | Authority     | Owner                                                  | Status |
+| ----------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
+| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)           | `docs/guides/anvil-rule-authoring.md`     | Guide | Authoritative | SCAN                                                   | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)     | `docs/guides/documentation-governance.md` | Guide | Authoritative | DOCGOV                                                 | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`       | Guide | Authoritative | DOCGOV                                                 | Live   |
+| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md)       | `docs/policies/editor-coexistence.md`     | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
+| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md)  | `docs/policies/release-cadence.md`        | Guide | Authoritative | DISTRIB (plans/modules/distribution-and-update.aps.md) | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md`    | Guide | Advisory      | DOCGOV                                                 | Live   |
+| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md)       | `docs/policies/resource-budget.md`        | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
 
 ## Public docs
 
@@ -51,6 +54,7 @@
 | [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)      | `docs/runbooks/anvil-hook-coexistence.md`          | Runbook | Authoritative | @aneki          | Live   |
 | [Migration: v0.6.x → v0.7.0-beta](../../docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md) | `docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md` | Runbook | Authoritative | @aneki          | Live   |
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)              | `docs/runbooks/release-signing.md`                 | Runbook | Authoritative | @aneki          | Live   |
+| [Runbook Template](../../docs/guides/runbook-template.md)                                 | `docs/guides/runbook-template.md`                  | Runbook | Authoritative | MODULE-CODE     | Draft  |
 | [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)            | `docs/runbooks/anvil-witness-chain.md`             | Runbook | Authoritative | @aneki          | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                          | `docs/runbooks/anvil-run.md`                       | Runbook | Authoritative | @aneki          | Live   |
 | [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)      | `docs/runbooks/v0.7.0-beta-release-runbook.md`     | Runbook | Authoritative | Release council | Live   |
@@ -58,7 +62,8 @@
 
 ## Spec
 
-| Document                                                                                  | Path                                        | Type | Authority     | Owner                                             | Status |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------- | ---- | ------------- | ------------------------------------------------- | ------ |
-| [Rust MCP Server Parity Spec](../../docs/architecture/rust-mcp-server-spec.md)            | `docs/architecture/rust-mcp-server-spec.md` | Spec | Authoritative | RMCPF-002                                         | Ready  |
-| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md`       | Spec | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Draft  |
+| Document                                                                                                   | Path                                              | Type | Authority     | Owner                                             | Status |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---- | ------------- | ------------------------------------------------- | ------ |
+| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec | Derived       | KERN                                              | Live   |
+| [Rust MCP Server Parity Spec](../../docs/architecture/rust-mcp-server-spec.md)                             | `docs/architecture/rust-mcp-server-spec.md`       | Spec | Authoritative | RMCPF-002                                         | Ready  |
+| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md)                  | `docs/specs/watch-output-contract.md`             | Spec | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Draft  |
