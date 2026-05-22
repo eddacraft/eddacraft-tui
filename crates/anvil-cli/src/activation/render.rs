@@ -374,7 +374,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 "the intercept daemon's last attestation is stale; stop it (Ctrl-C or kill the process) and start it again with `anvil intercept start --foreground`, then re-run `anvil start --verify`."
             }
             DaemonAttestation::AllSurfacesQuarantined => {
-                "the intercept daemon has fenced every session for this worktree; clear the fence with `anvil intercept unblock --worktree $(pwd)` once you understand the cause, then re-run `anvil start --verify`."
+                "the intercept daemon has fenced every session for this worktree; stop the daemon (Ctrl-C or kill the process) and start it again with `anvil intercept start --foreground` to clear fence state, then re-run `anvil start --verify`."
             }
             DaemonAttestation::Warming => {
                 "the intercept daemon is transitioning (warming / draining); re-run `anvil start --verify` in a few seconds."
@@ -692,24 +692,31 @@ mod tests {
     }
 
     /// MLP2-051f §"Failure modes" — daemon `DegradedProtection` with
-    /// every surface `Quarantined`. Recovery routes through
-    /// `anvil intercept unblock`, not editor restart.
-    /// Post-ship hardening (council 2026-05-22): the previous hint
-    /// pointed at `anvil intercept recover` which doesn't exist;
-    /// `unblock --worktree <PATH>` is the real subcommand.
+    /// every surface `Quarantined`. Recovery routes through a daemon
+    /// restart (cross-platform), NOT `anvil intercept unblock` which
+    /// is Linux-only today (Windows bails with "not yet supported").
+    /// Post-ship hardening (council 2026-05-22 + Copilot review on
+    /// PR #1848): the previous hint pointed at `anvil intercept
+    /// recover` which doesn't exist; an interim draft pointed at
+    /// `anvil intercept unblock --worktree $(pwd)` which uses
+    /// bash-only `$(pwd)` AND fails on Windows.
     #[test]
-    fn ready_restart_required_with_all_quarantined_points_at_intercept_unblock() {
+    fn ready_restart_required_with_all_quarantined_points_at_daemon_restart() {
         let d = handshake_verified_diag(
             super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
         );
         let h = render_human(&d);
         assert!(
-            h.contains("anvil intercept unblock"),
-            "AllSurfacesQuarantined hint must name `anvil intercept unblock`: {h}"
+            h.contains("anvil intercept start --foreground"),
+            "AllSurfacesQuarantined hint must name the cross-platform restart path: {h}"
         );
         assert!(
             !h.contains("anvil intercept recover"),
             "AllSurfacesQuarantined hint must NOT mention the non-existent `recover` subcommand: {h}"
+        );
+        assert!(
+            !h.contains("$(pwd)"),
+            "AllSurfacesQuarantined hint must NOT use bash-only `$(pwd)`: {h}"
         );
     }
 

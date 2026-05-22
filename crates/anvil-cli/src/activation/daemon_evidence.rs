@@ -144,8 +144,10 @@ pub(super) const HEARTBEAT_FRESHNESS_WINDOW: Duration = Duration::from_secs(45);
 /// sentinel), an attacker controlling snapshot output could defeat
 /// both freshness gates simultaneously. The cap is `2 ×
 /// HEARTBEAT_FRESHNESS_WINDOW = 90 s` — enough to tolerate NTP
-/// resync jitter and daylight-savings transitions, but small enough
-/// that a stuck-in-2038 daemon is rejected immediately.
+/// step adjustments and VM-clock drift between the daemon and the
+/// workstation, but small enough that a stuck-in-2038 daemon is
+/// rejected immediately. Unix epoch seconds are timezone-agnostic
+/// so DST transitions do NOT contribute to the skew budget.
 pub(super) const MAX_FUTURE_CLOCK_SKEW: Duration = Duration::from_secs(90);
 
 /// Reason a daemon-attestation promotion skipped — emitted on the

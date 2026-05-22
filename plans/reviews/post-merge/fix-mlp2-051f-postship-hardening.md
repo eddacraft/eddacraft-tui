@@ -9,12 +9,12 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] CI green on the four new tests:
-  - `far_future_heartbeat_is_rejected_as_stale`
-  - `max_future_clock_skew_boundary`
-  - `slow_drip_response_does_not_exceed_wall_clock_budget`
-  - `ready_restart_required_with_all_quarantined_points_at_intercept_unblock`
-  - `ready_restart_required_with_stale_heartbeat_points_at_daemon_start`
+- [ ] CI green on the five new / updated tests:
+  - `far_future_heartbeat_is_rejected_as_stale` (new)
+  - `max_future_clock_skew_boundary` (new)
+  - `slow_drip_response_does_not_exceed_wall_clock_budget` (new, Linux)
+  - `ready_restart_required_with_all_quarantined_points_at_daemon_restart` (updated)
+  - `ready_restart_required_with_stale_heartbeat_points_at_daemon_start` (updated)
 - [ ] Smoke check on a daemon-attached Linux host: stop the
   intercept daemon mid-session, run `anvil start --verify`, confirm
   the trace output shows `warn`-level "activation: daemon attestation
@@ -81,7 +81,7 @@ reviewer, operations-reviewer, pragmatic-lead). Output: 0 CRITICAL,
 personas. This PR addresses MAJOR findings 1-4 (the four convergent
 pre-release blockers). Findings 5-11 are post-release follow-ups.
 
-Pragmatic-lead defense recorded for the record:
+Pragmatic-lead defence recorded for the record:
 - Test/code ratio for MLP2-051f was **proportionate**, not over-
   engineered, given the MLP2-025b "zero-callers" constraint.
 - The two Copilot rounds on MLP2-051f were **genuinely orthogonal**

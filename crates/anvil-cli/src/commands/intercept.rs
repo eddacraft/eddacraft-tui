@@ -378,6 +378,13 @@ pub(crate) fn query_daemon_status_at_with_timeout(
     let deadline = Instant::now() + request_timeout;
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
     let mut chunk = [0_u8; 4096];
+    // Track the index from which to search for the framing newline.
+    // Without this cursor, each iteration would `buf.iter().position`
+    // over the entire accumulated buffer — O(n²) work near the 1 MiB
+    // cap (Copilot review #1848). The newline can only land in
+    // bytes read this iteration; scan only those, then advance the
+    // cursor in lock-step with `buf.len()`.
+    let mut scan_from = 0_usize;
     loop {
         let now = Instant::now();
         let remaining = deadline
@@ -413,10 +420,12 @@ pub(crate) fn query_daemon_status_at_with_timeout(
             anyhow::bail!("daemon closed the connection before responding");
         }
         buf.extend_from_slice(&chunk[..n]);
-        if let Some(newline_idx) = buf.iter().position(|b| *b == b'\n') {
+        if let Some(rel_idx) = buf[scan_from..].iter().position(|b| *b == b'\n') {
+            let newline_idx = scan_from + rel_idx;
             buf.truncate(newline_idx + 1);
             break;
         }
+        scan_from = buf.len();
         if (buf.len() as u64) > RESPONSE_LINE_BYTES {
             anyhow::bail!("query_status response exceeded {RESPONSE_LINE_BYTES} byte cap");
         }
