@@ -106,6 +106,15 @@ if node -e "JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8'))"
 else
   fail "metadata --json failed JSON.parse"
 fi
+# asbuilt-paths is baselineable, so --update-baseline depends on its --json contract.
+asbuilt_script="${script_dir}/check-asbuilt-paths.mjs"
+asbuilt_json_tmp="${tmp_root}/asbuilt-paths.json"
+(cd "${repo_root}" && node "${asbuilt_script}" --no-baseline --json) >"${asbuilt_json_tmp}" 2>/dev/null || true
+if node -e "JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8'))" "${asbuilt_json_tmp}" 2>/dev/null; then
+  pass "asbuilt-paths --json parses cleanly"
+else
+  fail "asbuilt-paths --json failed JSON.parse"
+fi
 
 # Case 7: summary line includes counts.
 echo "case 7: surface summary lines include counts"

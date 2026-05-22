@@ -84,8 +84,8 @@ describe('parseDocGovernance', () => {
 
     expect(result.freshness).toEqual({ reviewedOn: '2026-05-22', anchors: [] });
     expect(result.sourceReferences).toEqual([
-      { path: 'crates/foo/src', context: 'upstream' },
-      { path: 'docs/runbooks/foo.md', context: 'downstream' },
+      { path: 'crates/foo/src', context: 'upstream', line: undefined },
+      { path: 'docs/runbooks/foo.md', context: 'downstream', line: undefined },
       { path: 'crates/foo/src', context: 'body', line: 9 },
       { path: 'docs/runbooks/foo.md', context: 'body', line: 9 },
       { path: 'crates/foo/src/lib.rs', context: 'body', line: 13 },

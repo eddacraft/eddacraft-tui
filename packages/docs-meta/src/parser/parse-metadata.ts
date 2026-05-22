@@ -27,6 +27,39 @@ import {
 const METADATA_HEADERS = ['type', 'authority', 'owner', 'status', 'freshness'] as const;
 const RELATIONS_HEADERS = ['upstream', 'downstream'] as const;
 
+const PATH_LIKE_ROOTED_PREFIXES = [
+  '.github/',
+  '.husky/',
+  'apps/',
+  'archive/',
+  'crates/',
+  'docs/',
+  'packages/',
+  'patterns/',
+  'plans/',
+  'policies/',
+  'scripts/',
+  'tools/',
+] as const;
+
+const PATH_LIKE_ROOT_FILES = new Set([
+  'AGENTS.md',
+  'ACKNOWLEDGEMENTS.md',
+  'CHANGELOG.md',
+  'CLAUDE.md',
+  'CONTRIBUTING.md',
+  'Cargo.toml',
+  'README.md',
+  'RELEASE-PLAN.md',
+  'about.toml',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'tsconfig.base.json',
+]);
+
+const PATH_LIKE_EXTENSION_RE = /^[A-Za-z0-9._-]+\.(?:json|lock|md|toml|yaml|yml|accepted)$/;
+
 /**
  * Parse documentation governance metadata from a Markdown source.
  *
@@ -329,40 +362,10 @@ function isPathLike(value: string): boolean {
   if (/^v\d+\.\d+\.\d+/.test(value)) return false;
   if (/^[A-Z]+-\d{3}/.test(value)) return false;
 
-  const rootedPrefixes = [
-    '.github/',
-    '.husky/',
-    'apps/',
-    'archive/',
-    'crates/',
-    'docs/',
-    'packages/',
-    'patterns/',
-    'plans/',
-    'policies/',
-    'scripts/',
-    'tools/',
-  ];
-  if (rootedPrefixes.some((prefix) => value.startsWith(prefix))) return true;
+  if (PATH_LIKE_ROOTED_PREFIXES.some((prefix) => value.startsWith(prefix))) return true;
+  if (PATH_LIKE_ROOT_FILES.has(value)) return true;
 
-  const rootFiles = new Set([
-    'AGENTS.md',
-    'ACKNOWLEDGEMENTS.md',
-    'CHANGELOG.md',
-    'CLAUDE.md',
-    'CONTRIBUTING.md',
-    'Cargo.toml',
-    'README.md',
-    'RELEASE-PLAN.md',
-    'about.toml',
-    'package.json',
-    'pnpm-lock.yaml',
-    'pnpm-workspace.yaml',
-    'tsconfig.base.json',
-  ]);
-  if (rootFiles.has(value)) return true;
-
-  return /^[A-Za-z0-9._-]+\.(?:json|lock|md|toml|yaml|yml|accepted)$/.test(value);
+  return PATH_LIKE_EXTENSION_RE.test(value);
 }
 
 function formatEnumError(field: string, offending: string, fallbackMessage: string): string {
