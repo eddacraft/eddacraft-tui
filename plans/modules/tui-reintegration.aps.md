@@ -3,15 +3,19 @@
 
 # TUI Reintegration
 
-| ID   | Owner      | Status   | Progress |
-| ---- | ---------- | -------- | -------- |
-| TUIR | joshuaboys | Proposed | 0/8      |
+| ID   | Owner      | Status | Progress |
+| ---- | ---------- | ------ | -------- |
+| TUIR | joshuaboys | Ready  | 0/8      |
 
 **Last reviewed:** 2026-05-22
 
-> **Execution gate:** Implements ADR-047. Tasks may not be promoted from
-> `Proposed` to `Ready` until ADR-047 is accepted and the Ready Checklist
-> below is satisfied. Until then this is planning context only.
+> **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
+> moves Proposed → Ready: TUIR-001 (baseline capture) is promoted to
+> `Ready` and is the next executable task. Subsequent tasks
+> (TUIR-002..TUIR-008) remain `open` and become Ready as their own
+> prerequisites land (mirror PAT for TUIR-004, crates.io token for
+> TUIR-005, runbook drafts for TUIR-007 / TUIR-008, etc. — see Ready
+> Checklist).
 >
 > **Supersedes:** [`eddacraft-tui-canonical-source`](./eddacraft-tui-canonical-source.aps.md)
 > (TUIMIRROR, 0/8, Proposed). TUIR carries the same intent at a higher
@@ -479,7 +483,7 @@ trust surface and crates.io contract.
 
 ### TUIR-001: Lock the import baseline
 
-**Status:** open
+**Status:** Ready
 
 **Intent:** Record the exact public source, version, tags, release
 workflow, and crates.io state that will be imported into Anvil so the
@@ -758,10 +762,12 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
 
 ## Ready Checklist
 
-- [ ] ADR-047 accepted (moves from Proposed → Accepted in
-      `DECISION-LOG.md`).
-- [ ] TUIMIRROR superseded note added to
-      `eddacraft-tui-canonical-source.aps.md` and to the index row.
+- [x] ADR-047 accepted (moves from Proposed → Accepted in
+      `DECISION-LOG.md`). ✓ Accepted 2026-05-22 via PRs #1846 and the
+      direct status update on main.
+- [x] TUIMIRROR superseded note added to
+      `eddacraft-tui-canonical-source.aps.md` and to the index row. ✓
+      Landed in the original TUIR module PR.
 - [ ] Current `eddacraft-tui` source SHA, latest crates.io version, and
       tag list recorded in the baseline spec (TUIR-001 deliverable).
 - [ ] First post-migration crate version pinned (`0.2.3` per D-TUIR-005)
