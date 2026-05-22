@@ -7,7 +7,7 @@
 | ---- | ---------- | -------- | -------- |
 | TUIR | joshuaboys | Proposed | 0/8      |
 
-**Last reviewed:** 2026-05-20
+**Last reviewed:** 2026-05-22
 
 > **Execution gate:** Implements ADR-047. Tasks may not be promoted from
 > `Proposed` to `Ready` until ADR-047 is accepted and the Ready Checklist
@@ -53,12 +53,23 @@ trust surface and crates.io contract.
 ## Out of Scope
 
 - Redesigning `eddacraft-tui` widgets, themes, or Anvil TUI surfaces.
-- Changing the published public API except where relocation forces it.
+- Changing the published public API. Migration is byte-equivalent at
+  the API surface; if relocation appears to force a public API change,
+  halt and surface as a separate decision.
 - Changing `anvil-plan-spec` or `kindling` source-topology policy.
 - Accepting direct source PRs into the public mirror after migration.
 - Releasing a new Anvil product version solely because this migration
   lands.
 - Re-vendoring `eddacraft-tui` privately or sunsetting the public crate.
+- CLI fallback helpers, terminal lifecycle ownership migration, or any
+  new feature work on `eddacraft-tui` that isn't required for the
+  migration itself. These are forward-looking design questions, not
+  source-of-truth questions, and pre-empting them inside this module
+  expands blast radius for no migration benefit.
+- Adding `clap` (or any argument-parser) as a dependency of
+  `eddacraft-tui` core. If a future helper needs argument parsing it
+  must live behind an opt-in feature flag or in a separate crate; this
+  module does not authorise the dependency.
 
 ## Interfaces
 
@@ -80,10 +91,17 @@ trust surface and crates.io contract.
 
 **Exposes:**
 
-- `crates/eddacraft-tui/` — canonical workspace crate location.
+- `crates/eddacraft-tui/` — canonical workspace crate location, including
+  preserved `LICENSE` (Apache-2.0) and `NOTICE` from the public source.
+- `crates/eddacraft-tui/MIRROR-README.md` — mirror banner header,
+  prepended onto `README.md` by the mirror workflow before push
+  (ATTRIB-011 pattern; the banner file itself is removed from the
+  mirrored tree post-prepend).
 - `.github/workflows/mirror-eddacraft-tui.yml` — mirror automation
   (mirrors `crates/eddacraft-tui/` subtree to
   `eddacraft/eddacraft-tui:main`).
+- `.github/workflows/publish-eddacraft-tui.yml` — crates.io publish
+  automation, triggered by `eddacraft-tui-v*` tags on `anvil-001`.
 - Documented external consumption contract (crates.io tag, not git
   `main`).
 - Documented crate release runbook
@@ -129,10 +147,25 @@ trust surface and crates.io contract.
 - **Resolution:** A GitHub Actions workflow (`mirror-eddacraft-tui.yml`)
   in `anvil-001` watches `crates/eddacraft-tui/**` on `main` and
   force-pushes the subtree to `eddacraft/eddacraft-tui:main` on every
-  change. Auth uses a fine-scoped PAT via `http.extraheader` Basic
-  auth, scoped to `eddacraft/eddacraft-tui` only (matching the
-  ATTRIB-011 `.github/workflows/mirror-acknowledgements-starter.yml`
-  pattern). Manual `workflow_dispatch` is supported for catch-up.
+  change. Subtree extraction uses `git subtree split
+  --prefix=crates/eddacraft-tui -b _mirror_split` followed by force-push
+  of `_mirror_split:main`, matching the ATTRIB-011
+  `.github/workflows/mirror-acknowledgements-starter.yml` pattern. The
+  mirror is **flat-rooted** — the crate's files sit at the public repo's
+  top level, not wrapped under `crates/eddacraft-tui/`. Auth uses a
+  fine-scoped PAT via `http.extraheader` Basic auth (NOT URL-embedded
+  `x-access-token:${TOKEN}@github.com`, which is brittle to stray bytes
+  in the secret and fails as `CURLE_URL_MALFORMAT`), scoped to
+  `eddacraft/eddacraft-tui` only, stored as the repo secret
+  `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`. Manual `workflow_dispatch` is
+  supported for catch-up; the workflow guards against dispatch from any
+  ref other than `refs/heads/main`.
+  **Runner constraint:** `git subtree split --prefix=` with a
+  multi-segment prefix is broken under uutils coreutils 0.2.2's
+  `dirname` (returns `a/b` for `a/b/c/.` instead of `a/b/c`). GitHub
+  Actions `ubuntu-latest` ships GNU coreutils and is unaffected. Local
+  reproduction on uutils boxes requires the `/tmp/gnu-shim/dirname`
+  PATH shim; the runbook (TUIR-005 deliverable) documents this.
 - **Status:** Proposed.
 
 **D-TUIR-005:** crates.io publish source
@@ -144,6 +177,18 @@ trust surface and crates.io contract.
   the tag to `eddacraft/eddacraft-tui` as an append-only tag (no
   rewrite). The public mirror's `main` will track the same tree but
   publishing never originates from the mirror.
+  **First post-migration version:** the next published version is
+  `0.2.3` (continues the existing crates.io series; no version reset and
+  no semver bump from the migration alone — D-TUIR-006 forbids
+  migration-driven version bumps).
+  **crates.io token transfer:** a new least-privilege token scoped to
+  the `eddacraft-tui` crate (publish-only) is generated by the current
+  crate owner and stored as repo secret
+  `CRATES_IO_EDDACRAFT_TUI_TOKEN` in `anvil-001`. The previous token
+  used by any publish workflow on the public mirror is revoked after
+  the first successful publish from canonical source (TUIR-008
+  verifies). Crate ownership on crates.io is unchanged — only the
+  publish surface moves.
 - **Status:** Proposed.
 
 **D-TUIR-006:** Versioning and changelog ownership
@@ -160,18 +205,33 @@ trust surface and crates.io contract.
 **D-TUIR-007:** CI gate split
 
 - **Resolution:**
-  - **Anvil side (`anvil-001`):** `cargo test -p eddacraft-tui
-    --all-features` and `cargo test --workspace` are the load-bearing
-    gates. Workspace clippy must run as `cargo clippy --workspace
-    --all-targets -- -D warnings` (per-crate `-p` invocations miss
-    doc-markdown errors in sibling crates) and `cargo fmt --all
-    --check` must run alongside it (workspace clippy with `-D
-    warnings` does NOT run rustfmt, so tests + clippy can be green
-    while CI's Format check fails).
+  - **Anvil side (`anvil-001`)** — authoritative gates on PRs touching
+    `crates/eddacraft-tui/**`:
+    - `cargo fmt --all --check` (workspace clippy with `-D warnings`
+      does NOT run rustfmt, so tests + clippy can be green while CI's
+      Format check fails).
+    - `cargo clippy --workspace --all-targets -- -D warnings`
+      (per-crate `-p` invocations miss doc-markdown errors in sibling
+      crates).
+    - `cargo test -p eddacraft-tui --all-features` and `cargo test -p
+      eddacraft-tui --no-default-features` (catch feature-flag
+      regressions in both directions).
+    - `cargo test --workspace` (consumer-side regression catch).
+    - `cargo doc --no-deps -p eddacraft-tui` (docs.rs build proxy).
+    - `cargo deny check` (re-uses workspace `deny.toml`).
+    - `cargo publish --dry-run --allow-dirty -p eddacraft-tui` as a
+      tarball gate on tag pushes and on Ready-for-publish PRs.
+    - `cargo package --list -p eddacraft-tui` diff against the baseline
+      captured in TUIR-001 — fails CI if the published file set drifts
+      unexpectedly (catches "we shipped an Anvil-only file" and "we
+      stopped shipping a README" in one check).
+    - Snapshot tests: `INSTA_UPDATE=no` enforced in CI; updates land
+      via `cargo insta review` in PR.
   - **Public mirror side:** retain only `cargo test` and `cargo publish
     --dry-run --all-features` as a smoke gate against a fresh checkout
-    of the mirrored tree. The mirror does not re-run the full Anvil
-    matrix; that would be theatre.
+    of the mirrored tree, plus the mirror-drift check from D-TUIR-018.
+    The mirror does not re-run the full Anvil matrix; that would be
+    theatre.
 - **Status:** Proposed.
 
 **D-TUIR-008:** Consumption contract
@@ -205,12 +265,149 @@ trust surface and crates.io contract.
     and the conflicting tag is either renamed or yanked from crates.io.
 - **Status:** Proposed.
 
+**D-TUIR-010:** Existing public history at cutover
+
+- **Resolution:** Accept the history rewrite. The first mirror push
+  after canonical import force-replaces `eddacraft/eddacraft-tui:main`
+  with the `git subtree split` output of `crates/eddacraft-tui/`. The
+  pre-cutover public history is preserved as a one-off archive branch
+  `pre-canonical-archive` on the public mirror, pushed once during
+  TUIR-008 and never updated. No attempt is made to graft, replay, or
+  `--rejoin` the old history onto the new subtree-split history; the
+  archive branch is the durable record. This matches the ATTRIB-011
+  precedent and preserves auditability without paying ongoing
+  complexity cost.
+- **Status:** Proposed.
+
+**D-TUIR-011:** Existing public tag handling
+
+- **Resolution:** Existing unprefixed `v0.x.y` tags on
+  `eddacraft/eddacraft-tui` (e.g. `v0.2.2`) are left in place on the
+  mirror, untouched. They continue to point at the pre-cutover commits
+  reachable via `pre-canonical-archive` (D-TUIR-010). All NEW tags from
+  cutover onwards use the prefixed `eddacraft-tui-vX.Y.Z` form
+  (D-TUIR-002), pushed by the publish workflow. The mirror workflow
+  refuses to delete or move existing tags. crates.io versions are
+  unaffected — the old tags' commits are still the source for already-
+  published `0.x.y` artifacts.
+- **Status:** Proposed.
+
+**D-TUIR-012:** Mirror README banner mechanism
+
+- **Resolution:** `crates/eddacraft-tui/MIRROR-README.md` contains a
+  banner that explains the mirror model, points at `anvil-001` as
+  canonical, and directs contributions to the Anvil issue queue.
+  Before force-push, the mirror workflow concatenates
+  `MIRROR-README.md` and `README.md` (in that order) into the new
+  `README.md`, then removes `MIRROR-README.md` from the staged tree.
+  This matches the ATTRIB-011 prepend pattern verbatim. The canonical
+  `README.md` inside `anvil-001` stays focused on the crate; the
+  public framing is owned entirely by the banner file.
+- **Status:** Proposed.
+
+**D-TUIR-013:** Crate `Cargo.toml` metadata fields
+
+- **Resolution:** `crates/eddacraft-tui/Cargo.toml` keeps
+  `repository = "https://github.com/eddacraft/eddacraft-tui"` so
+  crates.io click-through lands on the public visible source, not on
+  private `anvil-001`. `homepage` matches. `documentation` continues
+  to point at docs.rs. The `description`, `license`, and `keywords`
+  fields are preserved verbatim from the pre-migration crate.
+  `package.metadata.docs.rs` (if present in the standalone crate) is
+  preserved verbatim so docs.rs build configuration carries over. No
+  metadata fields are mutated by the migration itself.
+- **Status:** Proposed.
+
+**D-TUIR-014:** Dependency boundaries
+
+- **Resolution:** `eddacraft-tui` has zero dependencies on
+  Anvil-internal crates (`anvil-*`, `eddacraft-anvil-*`,
+  `anvil-plan-spec`, `kindling`, etc.). It may depend only on
+  external crates already in the standalone crate's `Cargo.toml`,
+  plus tightly justified additions that would also make sense for an
+  external consumer building from crates.io. A CI guard runs
+  `cargo tree -p eddacraft-tui --prefix=none --no-default-features
+  --edges normal | grep -E '^(anvil-|eddacraft-anvil-|kindling)'`
+  and fails if any match. This guard runs in the Anvil-side gates per
+  D-TUIR-007.
+- **Status:** Proposed.
+
+**D-TUIR-015:** MSRV
+
+- **Resolution:** Preserve `eddacraft-tui`'s declared `rust-version`
+  verbatim from the standalone crate. Do NOT inherit Anvil's
+  workspace MSRV (if/when one is declared). The crate's MSRV is its
+  contract with crates.io consumers; migrating canonical location is
+  not a license to raise it silently. Any future MSRV bump for the
+  crate lands in its own PR with a CHANGELOG entry and explicit
+  approval; an Anvil-side toolchain bump never implies a crate MSRV
+  bump.
+- **Status:** Proposed.
+
+**D-TUIR-016:** Workspace lint inheritance
+
+- **Resolution:** `crates/eddacraft-tui/Cargo.toml` does NOT use
+  `lints.workspace = true`. The crate carries its own `[lints]` block
+  verbatim from the standalone repo (or an empty block if the
+  standalone crate has none). Reason: Anvil's workspace lints
+  (`unsafe_code = "forbid"`, `clippy::pedantic = warn`, etc.) are
+  Anvil-shape, and `cargo publish` inlines workspace-inherited values
+  into the published `Cargo.toml` — letting Anvil's lint posture
+  silently change the published crate's build behavior. Crate
+  develops against its own lints; sibling Anvil crates keep
+  inheriting the workspace lints. The workspace clippy job still
+  covers the crate via `--workspace`, but the crate's `[lints]` block
+  is what governs lint-driven build failures.
+- **Status:** Proposed.
+
+**D-TUIR-017:** Snapshot tests (insta)
+
+- **Resolution:** `crates/eddacraft-tui/tests/snapshots/` and any
+  `*.snap.new` policy from the standalone repo carry over verbatim.
+  CI runs with `INSTA_UPDATE=no` so unreviewed snapshot drift fails
+  the build. Snapshot updates land via `cargo insta review` in PR,
+  not via blind regeneration. The Ratatui version pin in
+  `eddacraft-tui` Cargo.toml is the load-bearing input for snapshot
+  stability; bumping Ratatui requires a snapshot review pass
+  documented in the PR description.
+- **Status:** Proposed.
+
+**D-TUIR-018:** Mirror drift verification
+
+- **Resolution:** A scheduled GitHub Actions job
+  (`mirror-drift-check.yml`) runs daily and on workflow_dispatch.
+  It clones both `anvil-001` and `eddacraft/eddacraft-tui`, runs
+  `git subtree split --prefix=crates/eddacraft-tui` on the Anvil
+  side, applies the same banner swap as the mirror workflow
+  (D-TUIR-012), and diffs the resulting tree against the mirror's
+  `main`. Any non-empty diff fails the job and opens (or refreshes)
+  a tracked issue. This catches: a mirror force-push collision
+  (D-TUIR-009), a missed `paths:` trigger on the mirror workflow,
+  and silent banner-swap-step regressions.
+- **Status:** Proposed.
+
 ## Risks
 
 - **Public git consumers of `main` see rewritten history.** Mitigation:
   document crates.io as the supported external consumption path; protect
   release tags so they are never rewritten; add a public README banner
   naming `main` as mirror-managed.
+- **Cutover force-push destroys existing public history.** Distinct
+  from ongoing rewrites (above) because this is a one-shot event that
+  drops years of pre-existing public commits from `main`'s reachable
+  graph. Mitigation: D-TUIR-010 preserves the pre-cutover graph as a
+  durable `pre-canonical-archive` branch and D-TUIR-011 leaves the
+  old `v0.x.y` tags pointing at it; pre-cutover release commits remain
+  reachable via tag or branch even after `main` is rewritten. Announce
+  the cutover on the mirror's README banner before the first mirror
+  push.
+- **`git subtree split` breaks under uutils coreutils on
+  multi-segment prefixes.** Affects any local reproduction of the
+  mirror workflow on uutils boxes (uutils 0.2.2 `dirname` returns
+  `a/b` for `a/b/c/.`). Mitigation: D-TUIR-004 pins the workflow to
+  GitHub Actions `ubuntu-latest` (GNU coreutils); the runbook lists
+  the `/tmp/gnu-shim/dirname` PATH shim for local reruns. CI is the
+  source of truth — local reruns are debug-only.
 - **Crate release accidentally couples to Anvil product release.**
   Mitigation: D-TUIR-006 keeps independent versioning; publish workflow
   is gated on an explicit `eddacraft-tui-vX.Y.Z` tag, not on Anvil
@@ -229,6 +426,34 @@ trust surface and crates.io contract.
 - **Issue traffic on the mirror is ignored.** Mitigation: issues remain
   open on the mirror; a triage rotation forwards relevant items to
   `anvil-001` issues. PRs are auto-closed with redirect.
+- **Workspace lint posture silently mutates published build
+  behavior.** If `lints.workspace = true` slips into
+  `crates/eddacraft-tui/Cargo.toml`, `cargo publish` inlines Anvil's
+  forbid-unsafe + pedantic-warn config into the published crate.
+  Mitigation: D-TUIR-016 forbids the inheritance; a CI grep
+  (`grep -Fq 'lints.workspace' crates/eddacraft-tui/Cargo.toml` must
+  exit 1) backs it up.
+- **MSRV drift between Anvil and the crate.** Mitigation: D-TUIR-015
+  preserves the crate's `rust-version` independently; CI matrix runs
+  `cargo check -p eddacraft-tui` on the crate's declared MSRV
+  toolchain, not Anvil's current pin.
+- **Anvil-internal crate accidentally added as `eddacraft-tui` dep.**
+  Migration brings the crate alongside dozens of Anvil-shape crates;
+  natural to reach for `anvil-l4` types. Mitigation: D-TUIR-014 CI
+  guard plus reviewer awareness — the crate's `Cargo.toml` is a
+  red-flag file in code review.
+- **Downstream consumer breakage missed at cutover.** Mitigation:
+  TUIR-008 validation includes a `cargo check` against documented
+  external consumers (e.g. `eddacraft-skills`) pulling the dry-run
+  candidate before the first publish from canonical source.
+- **Migration blocks a release that needs to ship.** Mitigation: the
+  rollback path (Ready Checklist) is the standalone repo and the
+  previous publish workflow. Until TUIR-008 closes, the standalone
+  repo is retained but frozen — emergency rollback un-freezes it,
+  reverts Anvil consumers to `eddacraft-tui = "0.2.2"` on crates.io,
+  and resumes standalone publishing. Public mirror force-push
+  reversal is impossible (history is gone), but `pre-canonical-archive`
+  (D-TUIR-010) keeps the pre-cutover graph reachable for forensics.
 
 ## Work Items
 
@@ -241,13 +466,27 @@ workflow, and crates.io state that will be imported into Anvil so the
 relocation has a recorded provenance.
 
 **Outcome:** A baseline document at
-`plans/specs/2026-05-20-tui-reintegration-baseline.md` capturing current
-`eddacraft-tui` source SHA, latest crates.io version, tag list, public
-CI surface, and identified deltas to fold into the in-repo crate.
+`plans/specs/2026-05-20-tui-reintegration-baseline.md` capturing:
+- Current `eddacraft-tui` source SHA and branch.
+- Latest crates.io version (currently `0.2.2`) and full tag list.
+- Public CI surface (workflow names + gates).
+- Declared `rust-version` (MSRV) of the standalone crate.
+- Full list of feature flags with brief descriptions (e.g. `image`,
+  `big-text`, `test-utils`) — used to drive D-TUIR-007 per-feature
+  validation.
+- `cargo package --list -p eddacraft-tui` output captured byte-for-byte
+  as the published-tarball baseline (used by the D-TUIR-007 drift gate).
+- Documented downstream consumers known to depend on the crate
+  (Anvil's first-party consumers plus any documented external ones
+  such as `eddacraft-skills`).
+- Standalone repo's `[lints]` block content (for verbatim carry per
+  D-TUIR-016).
+- Identified deltas to fold into the in-repo crate.
 
 **Validation:** `cargo test` against the standalone repo at the recorded
 SHA; `cargo publish --dry-run --all-features` succeeds against the same
-tree.
+tree; `cargo package --list -p eddacraft-tui` output stored under
+`plans/specs/2026-05-20-tui-reintegration-baseline/package-list.txt`.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -261,12 +500,43 @@ tree.
 behaviour or API change.
 
 **Outcome:** `crates/eddacraft-tui/` contains the imported crate with
-package metadata, docs, tests, examples, feature flags, and CHANGELOG
-preserved. Workspace `Cargo.toml` lists it as a member.
+package metadata, docs, tests, examples, feature flags (`image`,
+`big-text`, `test-utils` — full list from TUIR-001 baseline), insta
+snapshot files under `tests/snapshots/`, and CHANGELOG preserved.
+`LICENSE` (Apache-2.0) and `NOTICE` are copied verbatim from the
+public source (do not regenerate). `Cargo.toml` keeps `repository`,
+`homepage`, `documentation`, `description`, `license`, `keywords`,
+`rust-version`, `edition`, and `package.metadata.docs.rs` fields
+verbatim per D-TUIR-013 / D-TUIR-015. In particular,
+`repository = "https://github.com/eddacraft/eddacraft-tui"` is
+unchanged. The crate carries its own `[lints]` block per D-TUIR-016
+(NOT `lints.workspace = true`). `MIRROR-README.md` is added at the
+crate root with the mirror banner content (D-TUIR-012). Workspace
+`Cargo.toml` lists the crate as a member but does NOT add it to a
+workspace `default-members` list that would pull it into
+`cargo run`-style implicit builds.
 
-**Validation:** `cargo test -p eddacraft-tui --all-features`; `cargo
-test --workspace`; `cargo fmt --all --check`; `cargo clippy --workspace
---all-targets -- -D warnings`.
+**Validation:**
+- `cargo test -p eddacraft-tui --all-features`;
+- `cargo test -p eddacraft-tui --no-default-features`;
+- per-feature spot checks: `cargo test -p eddacraft-tui --features
+  image`, `cargo test -p eddacraft-tui --features big-text`, `cargo
+  test -p eddacraft-tui --features test-utils`;
+- `cargo test --workspace`;
+- `cargo fmt --all --check`;
+- `cargo clippy --workspace --all-targets -- -D warnings`;
+- `cargo doc --no-deps -p eddacraft-tui`;
+- `cargo deny check`;
+- `cargo publish --dry-run --allow-dirty -p eddacraft-tui` against
+  the in-workspace crate;
+- `diff <(cargo package --list -p eddacraft-tui) <(cat plans/specs/2026-05-20-tui-reintegration-baseline/package-list.txt)`
+  shows no unexpected additions or omissions;
+- `grep -Fq 'lints.workspace' crates/eddacraft-tui/Cargo.toml` exits 1;
+- `cargo tree -p eddacraft-tui --prefix=none --edges normal | grep
+  -E '^(anvil-|eddacraft-anvil-|kindling)'` returns no matches
+  (D-TUIR-014 guard);
+- `ls crates/eddacraft-tui/LICENSE crates/eddacraft-tui/MIRROR-README.md`
+  returns both files.
 
 **changeType:** internal
 **releaseIntent:** hold
@@ -281,13 +551,23 @@ workspace crate) and TUIR-004 (mirror automation) are merged.
 **Intent:** Replace the crates.io dependency on `eddacraft-tui` with the
 in-workspace path crate inside Anvil.
 
-**Outcome:** `crates/anvil-tui/` and any other Anvil crates that consume
-`eddacraft-tui` resolve it via workspace `path =` inheritance. The
-crates.io `eddacraft-tui` entry no longer appears in the workspace
-`Cargo.lock` as an external dependency for first-party crates.
+**Outcome:** `crates/anvil-tui/` (package `eddacraft-anvil-tui`),
+`crates/anvil-cli/`, and any other Anvil crates that consume
+`eddacraft-tui` resolve it via workspace `path =` inheritance. Root
+`Cargo.toml`'s workspace dependency for `eddacraft-tui` is rewritten
+from a crates.io version pin to a path dependency.
+`crates/workspace-hack/Cargo.toml` is regenerated with `cargo hakari
+generate` so the workspace-hack reference resolves to the path crate
+(the pre-migration `version = "0.2"` reference becomes a path
+reference). The crates.io `eddacraft-tui` entry no longer appears in
+the workspace `Cargo.lock` as an external dependency for first-party
+crates.
 
 **Validation:** `cargo tree -p eddacraft-anvil-tui -i eddacraft-tui`
-shows the path crate; `cargo test --workspace`.
+shows the path crate; `cargo tree -p anvil-cli -i eddacraft-tui` shows
+the path crate; `cargo hakari verify`; `cargo test --workspace`;
+`grep -F 'eddacraft-tui = "' Cargo.toml crates/*/Cargo.toml` returns
+zero hits (no version pins remain on first-party crates).
 
 **changeType:** internal
 **releaseIntent:** candidate
@@ -302,14 +582,25 @@ on `mirror-acknowledgements-starter.yml`, mirroring the subtree to
 `eddacraft/eddacraft-tui:main` on every change, with tag protection
 honoured.
 
-**Outcome:** A workflow_dispatch + path-filtered push trigger that
-publishes the subtree, uses fine-scoped PAT via `http.extraheader`
-Basic auth, refuses to overwrite existing tags, and emits a run summary
-linking the mirrored SHA.
+**Outcome:** A `workflow_dispatch` + path-filtered push trigger that
+extracts the subtree via `git subtree split
+--prefix=crates/eddacraft-tui -b _mirror_split`, prepends
+`MIRROR-README.md` onto `README.md` and removes the banner file on a
+throwaway commit before the split, force-pushes `_mirror_split:main`
+to `eddacraft/eddacraft-tui` using fine-scoped PAT via
+`http.extraheader` Basic auth (secret name
+`EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`), refuses to overwrite existing
+tags, guards against dispatch from any ref other than
+`refs/heads/main`, and emits a run summary linking the mirrored SHA.
+Workflow runs on `ubuntu-latest` (GNU coreutils — required by `git
+subtree split` per D-TUIR-004 runner constraint).
 
 **Validation:** Manual `workflow_dispatch` against `main` succeeds;
-public mirror tree byte-matches `crates/eddacraft-tui/`; existing
-release tag remains intact across the run.
+public mirror tree byte-matches `crates/eddacraft-tui/` modulo the
+`README.md` banner swap and the absence of `MIRROR-README.md`;
+existing `v0.x.y` release tags remain intact across the run; the
+`pre-canonical-archive` branch (D-TUIR-010) is present on the mirror
+and is not modified by the run.
 
 **changeType:** internal
 **releaseIntent:** never
@@ -366,13 +657,18 @@ surface only the gate that should run there.
 read-only mirror, redirect contributions, and document the backport /
 conflict policy.
 
-**Outcome:** Public `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` on
-`eddacraft/eddacraft-tui` (mirrored from `crates/eddacraft-tui/`)
-explain the mirror model, crates.io consumption path, issue policy, and
-where source contributions actually land. A PR-redirect template
-auto-closes drive-by source PRs against the mirror.
+**Outcome:** `crates/eddacraft-tui/MIRROR-README.md` carries the mirror
+notice; the mirror workflow prepends it onto `README.md` at push time
+(D-TUIR-012), so the public repo's `README.md` opens with the mirror
+banner followed by the canonical crate README. `CONTRIBUTING.md` and
+`SECURITY.md` under `crates/eddacraft-tui/` are updated in-place with
+mirror-aware language (canonical source path, where issues / PRs
+actually land) and mirror out verbatim — no separate public copies.
+A GitHub Actions-driven PR-redirect template on
+`eddacraft/eddacraft-tui` auto-closes drive-by source PRs against the
+mirror with a link to the contribution guide.
 `docs/policies/eddacraft-tui-mirror.md` (in Anvil) is the canonical
-copy of the backport / conflict policy.
+copy of the backport / conflict policy and is linked from the banner.
 
 **Validation:** Public mirror docs contain the mirror notice after a
 successful sync; `pnpm docs:check`; `pnpm adr:check`; targeted search
@@ -391,15 +687,32 @@ zero hits.
 path, and policy docs work as one operating model, and archive the
 superseded TUIMIRROR module.
 
-**Outcome:** A full dry-run cuts a candidate `eddacraft-tui-vX.Y.Z` tag
-in Anvil, the mirror propagates, `cargo publish --dry-run` succeeds, no
-Anvil product release is implied, and the public mirror reflects the
-canonical tree. TUIMIRROR is `git mv`'d to `plans/archive/modules/`
-with a redirect note pointing at TUIR.
+**Outcome:** A full dry-run cuts a candidate `eddacraft-tui-v0.2.3`
+tag in Anvil, the mirror propagates with the `pre-canonical-archive`
+branch (D-TUIR-010) preserved, `cargo publish --dry-run` succeeds, no
+Anvil product release is implied, the public mirror reflects the
+canonical tree (banner-swapped), and existing unprefixed `v0.x.y`
+tags remain untouched (D-TUIR-011). The previous crates.io publish
+token used by the standalone repo is identified and revoked after the
+first real publish. The standalone repo is set to read-only with a
+notice pointing at the canonical source, but not deleted (preserves
+emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
+`plans/archive/modules/` with a redirect note pointing at TUIR.
 
-**Validation:** `cargo test --workspace`; `pnpm adr:check`; `pnpm
-docs:check`; mirror tree byte-comparison; crate `cargo publish
---dry-run --all-features`; index.aps.md reflects archive.
+**Validation:**
+- `cargo test --workspace`;
+- `pnpm adr:check`;
+- `pnpm docs:check`;
+- mirror drift check (D-TUIR-018) reports a clean tree;
+- `gh api repos/eddacraft/eddacraft-tui/branches/pre-canonical-archive
+  --jq .name` returns `pre-canonical-archive`;
+- existing tag preservation: `gh api repos/eddacraft/eddacraft-tui/tags
+  --jq '.[].name' | grep -E '^v0\.'` returns the historical tags;
+- crate `cargo publish --dry-run --all-features`;
+- downstream consumer check: `cargo check` against any documented
+  external consumer (`eddacraft-skills` etc.) pulling the candidate
+  via `[patch.crates-io]` succeeds;
+- index.aps.md reflects archive.
 
 **changeType:** internal
 **releaseIntent:** candidate
@@ -413,11 +726,50 @@ docs:check`; mirror tree byte-comparison; crate `cargo publish
       `eddacraft-tui-canonical-source.aps.md` and to the index row.
 - [ ] Current `eddacraft-tui` source SHA, latest crates.io version, and
       tag list recorded in the baseline spec (TUIR-001 deliverable).
-- [ ] Mirror PAT scope agreed and stored in `anvil-001` repo secrets
-      under a named secret (e.g. `EDDACRAFT_TUI_MIRROR_PAT`).
-- [ ] crates.io token ownership confirmed for the new publish workflow.
-- [ ] Rollback path documented for the Anvil dependency switch (how to
-      revert `crates/anvil-tui/Cargo.toml` to the crates.io dep without
-      losing in-flight Anvil work).
+- [ ] First post-migration crate version pinned (`0.2.3` per D-TUIR-005)
+      and recorded in the baseline spec.
+- [ ] Mirror PAT scope agreed (fine-grained, `eddacraft/eddacraft-tui`
+      only, `Contents: Read and write`) and stored in `anvil-001` repo
+      secrets as `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`.
+- [ ] crates.io publish token (least-privilege, scoped to
+      `eddacraft-tui` crate) generated by current crate owner and
+      stored in `anvil-001` repo secrets as
+      `CRATES_IO_EDDACRAFT_TUI_TOKEN`. Previous token usage on the
+      public mirror identified for revocation in TUIR-008.
+- [ ] History-rewrite acknowledged: cutover force-push to
+      `eddacraft/eddacraft-tui:main` is one-shot and irreversible;
+      `pre-canonical-archive` preservation step (D-TUIR-010) drafted
+      in the TUIR-008 runbook before cutover.
+- [ ] Existing public tag policy confirmed (D-TUIR-011) — old
+      unprefixed `v0.x.y` tags remain on mirror untouched, new tags
+      use `eddacraft-tui-v*` prefix.
+- [ ] `crates/eddacraft-tui/MIRROR-README.md` draft reviewed before
+      TUIR-007 implementation begins.
+- [ ] `LICENSE` and `NOTICE` files identified in the public source for
+      verbatim copy during TUIR-002.
+- [ ] Standalone crate's `rust-version` (MSRV), `edition`, and
+      `[lints]` block content recorded in the TUIR-001 baseline for
+      verbatim carry (D-TUIR-015 / D-TUIR-016).
+- [ ] Feature flag inventory captured in the baseline (`image`,
+      `big-text`, `test-utils`, plus any others) for D-TUIR-007
+      per-feature gates.
+- [ ] `package-list.txt` baseline captured via `cargo package --list
+      -p eddacraft-tui` against the standalone repo (D-TUIR-007 drift
+      gate input).
+- [ ] Documented external downstream consumers (`eddacraft-skills`
+      etc.) listed in the baseline for TUIR-008 validation.
+- [ ] `cargo hakari` invocation confirmed in the workspace-hack
+      regeneration step of TUIR-003.
+- [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
+      against `eddacraft-tui`'s dependency graph.
+- [ ] Rollback path documented at two layers:
+      (a) **dependency rollback** — how to revert
+      `crates/anvil-tui/Cargo.toml` to the crates.io dep without
+      losing in-flight Anvil work;
+      (b) **full-migration rollback** — un-freeze the standalone
+      repo, revert Anvil consumers to `eddacraft-tui = "0.2.2"`,
+      resume standalone publishing, document that public mirror
+      history rewrite is not reversible (forensics via
+      `pre-canonical-archive`).
 - [ ] `docs/policies/eddacraft-tui-mirror.md` draft reviewed before
       TUIR-007 implementation begins.
