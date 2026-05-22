@@ -146,6 +146,18 @@ pub struct SocketDaemonValidationClient {
     socket_path: PathBuf,
 }
 
+/// MLP2-075 Windows analogue of [`SocketDaemonValidationClient`].
+///
+/// Carries a per-instance named-pipe name so tests can bind a unique
+/// pipe (per-PID) and avoid colliding with the canonical per-user
+/// pipe a real daemon would own on the same Windows runner —
+/// mirroring the rationale documented on
+/// [`crate::commands::intercept::query_daemon_status_windows_at`].
+#[cfg(windows)]
+pub struct WindowsPipeDaemonValidationClient {
+    pipe_name: String,
+}
+
 impl LocalDaemonValidationClient {
     #[cfg(unix)]
     #[cfg_attr(not(test), allow(dead_code))]
@@ -153,6 +165,19 @@ impl LocalDaemonValidationClient {
     pub fn with_socket_path(socket_path: impl Into<PathBuf>) -> SocketDaemonValidationClient {
         SocketDaemonValidationClient {
             socket_path: socket_path.into(),
+        }
+    }
+
+    /// MLP2-075: Windows equivalent of [`Self::with_socket_path`].
+    /// Lets tests construct a validation client bound to a custom
+    /// pipe name so the fixture daemon and the production daemon
+    /// never collide on the same Windows runner.
+    #[cfg(windows)]
+    #[cfg_attr(not(test), allow(dead_code))]
+    #[must_use]
+    pub fn with_pipe_name(pipe_name: impl Into<String>) -> WindowsPipeDaemonValidationClient {
+        WindowsPipeDaemonValidationClient {
+            pipe_name: pipe_name.into(),
         }
     }
 }
@@ -187,19 +212,64 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
             let socket_path = ipc::resolve_socket_path().ok()?;
             SocketDaemonValidationClient { socket_path }.query_protection_claim(workspace_root)
         }
-        // The Windows path has a working `query_daemon_status` over
-        // named pipes (see `commands::intercept::query_daemon_status`)
-        // but no `_at(&Path)` form yet, so the MCP shim cannot reuse
-        // it without an extraction. Returning `None` here is the
-        // documented v1 gap — drivers running on Windows simply never
-        // see `protection_claim` on the MCP response. Lifting the
-        // gap is tracked alongside the rest of the Windows MCP-shim
-        // catch-up under MLP2-028 / the Windows section of MLP2-051d.
+        // MLP2-075: resolve the canonical per-user pipe and delegate
+        // to the Windows pipe client. Mirrors the Unix branch's
+        // resolve-then-delegate shape. Pipe-resolution failure is
+        // silent (warn + None) — same no-over-claim posture as a
+        // Unix `resolve_socket_path` failure: omit the field rather
+        // than synthesise a misleading "unprotected" state.
         #[cfg(not(unix))]
         {
-            let _ = workspace_root;
-            None
+            let pipe_name = match anvil_intercept_win32::pipe_name_for_current_user() {
+                Ok(name) => name,
+                Err(err) => {
+                    eprintln!(
+                        "anvil-mcp: protection_claim pipe resolution failed (omitting field): {err}",
+                    );
+                    return None;
+                }
+            };
+            // Route through the canonical constructor so production and
+            // test paths share the same shape — if `with_pipe_name`
+            // ever gains validation logic, production picks it up
+            // automatically.
+            Self::with_pipe_name(pipe_name).query_protection_claim(workspace_root)
         }
+    }
+}
+
+#[cfg(windows)]
+impl DaemonValidationClient for WindowsPipeDaemonValidationClient {
+    fn validate_pre_write(
+        &self,
+        request: &PreWriteValidationRequest<'_>,
+    ) -> DaemonValidationOutcome {
+        // MLP2-075 only lifts `query_protection_claim` parity. Pre-write
+        // IPC over Windows named pipes is a separate scope (the MCP
+        // shim's Windows pre-write story is tracked elsewhere). Match
+        // the no-non-Unix-validation posture of
+        // `LocalDaemonValidationClient::validate_pre_write` and return
+        // `Unavailable` so the MCP shim falls back to local-only
+        // validation.
+        let _ = request;
+        DaemonValidationOutcome::Unavailable
+    }
+
+    fn query_protection_claim(&self, workspace_root: &Path) -> Option<ProtectionClaim> {
+        // Parity with the Unix `SocketDaemonValidationClient` body —
+        // the claim is advisory metadata; never block on a fetch
+        // failure. A stale / missing snapshot maps to `None`, which
+        // causes the MCP shim to omit the field instead of
+        // synthesising a misleading "unprotected" claim.
+        let snapshot = crate::commands::intercept::query_daemon_status_windows_at(&self.pipe_name)
+            .map_err(|err| {
+                eprintln!(
+                    "anvil-mcp: protection_claim query_status failed (omitting field): {err}",
+                );
+                err
+            })
+            .ok()?;
+        Some(build_protection_claim_from_wire(&snapshot, workspace_root))
     }
 }
 
@@ -754,5 +824,148 @@ mod tests {
             relative_path: "src/secret.ts",
             content: "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
         }
+    }
+
+    /// MLP2-075: end-to-end proof that the Windows path returns
+    /// `Some(claim)` when the daemon is reachable and attests the
+    /// queried worktree. Mirrors `windows_query_daemon_status_round_trips_against_local_pipe`
+    /// in `commands::intercept` but exercises the
+    /// `query_protection_claim` surface so the wire-up at
+    /// `LocalDaemonValidationClient::query_protection_claim` Windows
+    /// branch cannot regress to the pre-MLP2-075 `None` short-circuit.
+    ///
+    /// The pipe name is per-PID (rather than the canonical
+    /// `pipe_name_for_current_user()` value) so the test never
+    /// collides with a real daemon that might be bound on the same
+    /// Windows runner.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_query_protection_claim_returns_some_when_daemon_attests_worktree() {
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+
+        use anvil_intercept::Shutdown;
+        use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
+        // Local import of `DaemonStatus` shadows the `tests` module's
+        // `use super::DaemonStatus` (the local reporting enum at
+        // validation.rs:83) so the `StatusProvider::query_status`
+        // return type resolves correctly. Mirrors the pattern in
+        // intercept.rs:1247.
+        use anvil_intercept::status::{DaemonStatus, IpcState, StatusProvider, build_status};
+        use anvil_kernel_types::protection_claim::WorktreeClaimState;
+
+        use super::{DaemonValidationClient as _, LocalDaemonValidationClient};
+
+        let worktree = std::path::PathBuf::from(r"C:\tmp\mlp2-075-test-wt");
+
+        struct Fixture {
+            worktree: std::path::PathBuf,
+        }
+        impl StatusProvider for Fixture {
+            fn query_status(&self) -> DaemonStatus {
+                let session = anvil_intercept_proto::SessionRecord {
+                    id: anvil_intercept_proto::SessionId::new("sess-mlp2-075"),
+                    worktree: self.worktree.clone(),
+                    pid: Some(4242),
+                    pgid: Some(4242),
+                    started_at_unix: 1_700_000_000,
+                    last_heartbeat_unix: 1_700_000_010,
+                    status: anvil_intercept_proto::SessionStatus::Active,
+                    agent_tag: None,
+                    daemon_issued_tag: None,
+                };
+                let started = Instant::now();
+                build_status(
+                    vec![session],
+                    &[],
+                    &[],
+                    None,
+                    started,
+                    started + Duration::from_secs(1),
+                    "0.0.0-windows-test",
+                    IpcState::Serving,
+                    None,
+                    None,
+                )
+            }
+        }
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-validation-protection-claim-test-{}",
+            std::process::id(),
+        );
+
+        // Multi-thread runtime: a single worker drives the server task
+        // while the main thread runs the synchronous client. A
+        // current_thread runtime would never poll the spawned server
+        // because the only thread that could is blocked on the client
+        // call below — same rationale as
+        // `windows_query_daemon_status_round_trips_against_local_pipe`.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        let _runtime_guard = runtime.enter();
+        let listener = IpcListener::bind(&pipe_name, NoopDispatcher)
+            .expect("daemon pipe binds")
+            .with_status_provider(Arc::new(Fixture {
+                worktree: worktree.clone(),
+            }));
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        let client = LocalDaemonValidationClient::with_pipe_name(pipe_name);
+        let claim = client
+            .query_protection_claim(&worktree)
+            .expect("MLP2-075: daemon-attested worktree must produce Some(claim)");
+        assert_eq!(
+            claim.worktree_state,
+            WorktreeClaimState::PreWriteDaemon,
+            "single active unfenced session on Serving daemon must map to PreWriteDaemon",
+        );
+        assert_eq!(
+            claim.surfaces.len(),
+            1,
+            "exactly one surface (the registered session) must be reported",
+        );
+
+        shutdown.trigger();
+        runtime.block_on(async {
+            server
+                .await
+                .expect("daemon task joins")
+                .expect("daemon exits cleanly");
+        });
+    }
+
+    /// MLP2-075: with no daemon bound on the pipe name, the Windows
+    /// path returns `None` — honest fallback matching the Unix
+    /// `resolve_socket_path` failure / unreachable-daemon path. The
+    /// MCP shim then omits the `protection_claim` field rather than
+    /// synthesising a misleading "unprotected" claim.
+    ///
+    /// Coverage gap (intentional, MLP2-075 scope): the
+    /// `anvil_intercept_win32::pipe_name_for_current_user()` failure
+    /// branch inside `LocalDaemonValidationClient::query_protection_claim`'s
+    /// `cfg(not(unix))` arm is not exercised here (would require
+    /// mocking the win32 helper). The branch follows the same
+    /// no-over-claim posture: warn + return `None`.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_query_protection_claim_returns_none_when_pipe_absent() {
+        use super::{DaemonValidationClient as _, LocalDaemonValidationClient};
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-validation-protection-claim-missing-{}",
+            std::process::id(),
+        );
+        let workspace_root = std::path::Path::new(r"C:\tmp\does-not-matter");
+        let client = LocalDaemonValidationClient::with_pipe_name(pipe_name);
+        let result = client.query_protection_claim(workspace_root);
+        assert!(
+            result.is_none(),
+            "MLP2-075: no daemon bound must produce None (honest fallback), got {result:?}",
+        );
     }
 }

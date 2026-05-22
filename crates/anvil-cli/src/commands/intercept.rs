@@ -367,7 +367,7 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
 /// a per-process pipe name and avoid colliding with the canonical
 /// per-user pipe a real daemon would own on the same Windows runner.
 #[cfg(windows)]
-fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
+pub(crate) fn query_daemon_status_windows_at(pipe_name: &str) -> Result<DaemonStatusV1> {
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
@@ -1252,11 +1252,14 @@ mod tests {
                 anvil_intercept::status::build_status(
                     Vec::new(),
                     &[],
+                    &[],
                     None,
                     std::time::Instant::now(),
                     std::time::Instant::now(),
                     "0.0.0-windows-test",
                     anvil_intercept::status::IpcState::Serving,
+                    None,
+                    None,
                 )
             }
         }
