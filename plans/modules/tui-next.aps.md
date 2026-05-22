@@ -207,7 +207,7 @@ surface.
 
 ### TUIN-001: Author ADR-050 — parser/CLI policy and mode-detection helpers
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Lock D-TUIN-001 and D-TUIN-002 into a numbered ADR before
 any helper code lands. The ADR is the load-bearing artefact for "no
@@ -230,7 +230,7 @@ taken, re-allocate and update this work item).
 
 ### TUIN-002: Survey downstream consumers for lifecycle and CLI expectations
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Before D-TUIN-003 lands code, capture what each known
 downstream consumer (`eddacraft-skills` plus any documented external
@@ -255,7 +255,7 @@ survey.
 
 ### TUIN-003: Implement CLI mode-detection helpers in core
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Land TTY / alt-screen capability / colour-depth / terminfo
 probes in `eddacraft-tui` core per D-TUIN-002, with zero new
@@ -280,7 +280,7 @@ still pass.
 
 ### TUIN-004: Implement lifecycle helpers behind opt-in feature flag
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Land the `lifecycle` feature flag in `eddacraft-tui` with
 alt-screen enter/exit, raw mode set/clear, panic-restore handler, and
@@ -305,7 +305,7 @@ under `crates/eddacraft-tui/tests/lifecycle_panic.rs` (or similar).
 
 ### TUIN-005: Ship widget examples; forbid `[[bin]]`
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Cover each major widget family with a runnable example per
 D-TUIN-004, deliberately keeping the crate `[[bin]]`-free.
@@ -326,7 +326,7 @@ via `cargo package` extract + diff).
 
 ### TUIN-006: Mark widget / theme extension surface stability
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Annotate stable vs unstable items on the widget trait
 surface and theme override hook per D-TUIN-005. Establish a docs
@@ -351,7 +351,7 @@ grep runs as a non-blocking check; CHANGELOG entry merged.
 
 ### TUIN-007: Post-migration API stability checkpoint
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Capture the post-TUIR API state, downstream feedback from
 three shipped releases, and recommend (or reject) a `0.3.0`
@@ -375,7 +375,7 @@ under a "Pending follow-ups" section.
 
 ### TUIN-008: Retrospective and follow-up backlog
 
-**Status:** open
+- **Status:** open
 
 **Intent:** After TUIN-001..TUIN-007 land, capture what worked, what
 didn't, what should be standing guidance, and what the next post-

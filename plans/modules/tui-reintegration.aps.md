@@ -3,16 +3,19 @@
 
 # TUI Reintegration
 
-| ID   | Owner      | Status | Progress |
-| ---- | ---------- | ------ | -------- |
-| TUIR | joshuaboys | Ready  | 0/8      |
+| ID   | Owner      | Status      | Progress |
+| ---- | ---------- | ----------- | -------- |
+| TUIR | joshuaboys | In Progress | 1/8      |
 
 **Last reviewed:** 2026-05-22
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
-> moves Proposed → Ready. TUIR-001 (baseline capture) is the next
-> executable task and the prerequisite for most of the module-level
-> Ready Checklist items. Subsequent tasks (TUIR-002..TUIR-008) become
+> is In Progress. TUIR-001 (baseline capture) is `completed` — baseline
+> spec landed at
+> [`plans/specs/2026-05-22-tui-reintegration-baseline.md`](../specs/2026-05-22-tui-reintegration-baseline.md)
+> with the byte-exact published-tarball file list at
+> [`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`](../specs/2026-05-22-tui-reintegration-baseline/package-list.txt).
+> Subsequent tasks (TUIR-002..TUIR-008) keep `Status: open` and become
 > executable as their own prerequisites land (mirror PAT for TUIR-004,
 > crates.io token for TUIR-005, MIRROR-README + docs/policies drafts
 > for TUIR-007, runbook + pre-canonical-archive plan for TUIR-008 — see
@@ -487,14 +490,14 @@ trust surface and crates.io contract.
 
 ### TUIR-001: Lock the import baseline
 
-- **Status:** open
+- **Status:** completed
 
 **Intent:** Record the exact public source, version, tags, release
 workflow, and crates.io state that will be imported into Anvil so the
 relocation has a recorded provenance.
 
 **Outcome:** A baseline document at
-`plans/specs/2026-05-20-tui-reintegration-baseline.md` capturing:
+`plans/specs/2026-05-22-tui-reintegration-baseline.md` capturing:
 - Current `eddacraft-tui` source SHA and branch.
 - Latest crates.io version (currently `0.2.2`) and full tag list.
 - Public CI surface (workflow names + gates).
@@ -518,7 +521,7 @@ relocation has a recorded provenance.
 **Validation:** `cargo test` against the standalone repo at the recorded
 SHA; `cargo publish --dry-run --all-features` succeeds against the same
 tree; `cargo package --list -p eddacraft-tui` output stored under
-`plans/specs/2026-05-20-tui-reintegration-baseline/package-list.txt`.
+`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -526,7 +529,7 @@ tree; `cargo package --list -p eddacraft-tui` output stored under
 
 ### TUIR-002: Import `eddacraft-tui` into `crates/eddacraft-tui/`
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Move the canonical source into the workspace without
 behaviour or API change.
@@ -570,7 +573,7 @@ workspace `default-members` list that would pull it into
 - `cargo deny check`;
 - `cargo publish --dry-run --allow-dirty -p eddacraft-tui` against
   the in-workspace crate;
-- `diff <(cargo package --list -p eddacraft-tui) <(cat plans/specs/2026-05-20-tui-reintegration-baseline/package-list.txt)`
+- `diff <(cargo package --list -p eddacraft-tui) <(cat plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt)`
   shows no unexpected additions or omissions;
 - `grep -Fq 'lints.workspace' crates/eddacraft-tui/Cargo.toml` exits 1;
 - `cargo tree -p eddacraft-tui --prefix=none --no-default-features
@@ -587,7 +590,7 @@ workspace crate) and TUIR-004 (mirror automation) are merged.
 
 ### TUIR-003: Switch Anvil consumers to the workspace path crate
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Replace the crates.io dependency on `eddacraft-tui` with the
 in-workspace path crate inside Anvil.
@@ -616,7 +619,7 @@ zero hits (no version pins remain on first-party crates).
 
 ### TUIR-004: Mirror `crates/eddacraft-tui/` to the public repo
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Ship `.github/workflows/mirror-eddacraft-tui.yml` modelled
 on `mirror-acknowledgements-starter.yml`, mirroring the subtree to
@@ -649,7 +652,7 @@ and is not modified by the run.
 
 ### TUIR-005: Wire the crates.io publish workflow from canonical source
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Add a publish workflow that releases `eddacraft-tui` to
 crates.io from `anvil-001` canonical source, independent of Anvil
@@ -670,7 +673,7 @@ walkthrough captured on PR.
 
 ### TUIR-006: Split CI gates between Anvil and mirror
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Pin which gates run where so the mirror does not duplicate
 Anvil's full matrix and Anvil retains authoritative validation.
@@ -692,7 +695,7 @@ surface only the gate that should run there.
 
 ### TUIR-007: Document mirror policy and update public surfaces
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Make the public repo accurately describe itself as a
 read-only mirror, redirect contributions, and document the backport /
@@ -722,7 +725,7 @@ zero hits.
 
 ### TUIR-008: End-to-end verification and TUIMIRROR retirement
 
-**Status:** open
+- **Status:** open
 
 **Intent:** Prove the in-repo crate, Anvil consumers, mirror, publish
 path, and policy docs work as one operating model, and archive the
@@ -772,10 +775,12 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
 - [x] TUIMIRROR superseded note added to
       `eddacraft-tui-canonical-source.aps.md` and to the index row. ✓
       Landed in the original TUIR module PR.
-- [ ] Current `eddacraft-tui` source SHA, latest crates.io version, and
-      tag list recorded in the baseline spec (TUIR-001 deliverable).
-- [ ] First post-migration crate version pinned (`0.2.3` per D-TUIR-005)
-      and recorded in the baseline spec.
+- [x] Current `eddacraft-tui` source SHA, latest crates.io version, and
+      tag list recorded in the baseline spec (TUIR-001 deliverable). ✓
+      Captured 2026-05-22 — v0.2.2 at commit `7ca0c420`, all 5 tags with
+      dates and SHAs.
+- [x] First post-migration crate version pinned (`0.2.3` per D-TUIR-005)
+      and recorded in the baseline spec. ✓
 - [ ] Mirror PAT scope agreed (fine-grained, `eddacraft/eddacraft-tui`
       only, `Contents: Read and write`) and stored in `anvil-001` repo
       secrets as `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`.
@@ -788,29 +793,33 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       `eddacraft/eddacraft-tui:main` is one-shot and irreversible;
       `pre-canonical-archive` preservation step (D-TUIR-010) drafted
       in the TUIR-008 runbook before cutover.
-- [ ] Existing public tag policy confirmed (D-TUIR-011) — old
+- [x] Existing public tag policy confirmed (D-TUIR-011) — old
       unprefixed `v0.x.y` tags remain on mirror untouched, new tags
-      use `eddacraft-tui-v*` prefix.
+      use `eddacraft-tui-v*` prefix. ✓ Tags + SHAs captured in baseline.
 - [ ] `crates/eddacraft-tui/MIRROR-README.md` draft reviewed before
       TUIR-007 implementation begins.
-- [ ] `LICENSE` file identified in the public source for verbatim copy
-      during TUIR-002. (Standalone repo has no `NOTICE` file as of
-      2026-05-22 — do not regenerate one absent an attribution need.)
-- [ ] Standalone crate's `rust-version` (MSRV), `edition`, and
+- [x] `LICENSE` file identified in the public source for verbatim copy
+      during TUIR-002. ✓ Apache-2.0, 11.2K, confirmed verbatim-copyable.
+      (Standalone repo has no `NOTICE` file as of 2026-05-22 — do not
+      regenerate one absent an attribution need.)
+- [x] Standalone crate's `rust-version` (MSRV), `edition`, and
       `[lints]` block content recorded in the TUIR-001 baseline for
-      verbatim carry (D-TUIR-015 / D-TUIR-016).
-- [ ] Feature flag inventory captured in the baseline (`image`,
+      verbatim carry (D-TUIR-015 / D-TUIR-016). ✓ MSRV `1.88`, edition
+      `2024`, `[lints]` block captured verbatim.
+- [x] Feature flag inventory captured in the baseline (`image`,
       `big-text`, `test-utils`, plus any others) for D-TUIR-007
-      per-feature gates.
-- [ ] `package-list.txt` baseline captured via `cargo package --list
+      per-feature gates. ✓ Three flags total, all captured with
+      transitive-cost notes.
+- [x] `package-list.txt` baseline captured via `cargo package --list
       -p eddacraft-tui` against the standalone repo (D-TUIR-007 drift
-      gate input).
-- [ ] Internal downstream consumers (in separate repos from
+      gate input). ✓ 60 files captured byte-for-byte at
+      `plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`.
+- [x] Internal downstream consumers (in separate repos from
       `anvil-001`, notably `eddacraft/eddacraft-skills`) enumerated in
-      the baseline for TUIR-008 operator-driven validation. Capture
-      each consumer's repo URL, current `eddacraft-tui` version pin,
-      and the maintainer responsible for running the `[patch.crates-io]`
-      check.
+      the baseline for TUIR-008 operator-driven validation. ✓ Anvil
+      first-party consumers (`anvil-cli`, `anvil-tui`, `workspace-hack`)
+      with exact manifest lines + `eddacraft-skills` recorded with the
+      operator-driven check note.
 - [ ] `cargo hakari` invocation confirmed in the workspace-hack
       regeneration step of TUIR-003.
 - [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
