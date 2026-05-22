@@ -81,16 +81,35 @@ pub struct DaemonStatusV1 {
     ///
     /// Wire-additive via `#[serde(default)]`: a pre-MLP2-051h daemon
     /// (no key on the wire) deserialises with the field at the `u64`
-    /// default of `0`, which post-MLP2-051h consumers treat as "no
-    /// snapshot anchor available — fall back to per-session heartbeat
-    /// freshness only" (the posture before MLP2-051h existed). Unlike
-    /// the MLP2-058/-059 additive-optional counters, the field is a
-    /// plain `u64` (not `Option<u64>`) because every snapshot a
-    /// post-MLP2-051h daemon emits MUST carry the anchor; absence on
-    /// the wire is only ever a sign of an older producer. Pinned by
-    /// the `pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero`,
+    /// default of `0`. **`0` is the consumer-side "no snapshot anchor
+    /// available" sentinel** — fall back to per-session heartbeat
+    /// freshness only (the posture before MLP2-051h existed). The
+    /// consumer cannot distinguish "old daemon, omitted the key" from
+    /// "new daemon, explicitly stamped 0" once the value reaches this
+    /// type — both produce `generated_at_unix == 0`. That collision is
+    /// intentional: a post-MLP2-051h `DaemonStatusProvider` always
+    /// stamps a live, non-zero value (pinned by
+    /// `crates/anvil-intercept/src/status.rs::tests::provider_stamps_non_zero_generated_at_unix`),
+    /// so a `0` from any real daemon path means the snapshot has no
+    /// trustworthy wall-clock anchor regardless of cause. Consumers
+    /// MUST treat `== 0` as the no-anchor sentinel and MUST NOT
+    /// implement a `> threshold` freshness check (which would treat a
+    /// `NoopStatusProvider` snapshot — emitted with explicit `0` — as
+    /// "anchor present, just very old" and pass the gate; that is the
+    /// failure mode the MLP2-051h precursor exists to prevent).
+    ///
+    /// Unlike the MLP2-058/-059 additive-optional counters, the field
+    /// is a plain `u64` (not `Option<u64>`) because the consumer's
+    /// sentinel-equality contract already collapses both pre-/post-
+    /// MLP2-051h producers and the noop producer to the same fallback
+    /// branch — wrapping `0` in `Option::None` would encode a
+    /// distinction the consumer is contractually forbidden from acting
+    /// on. Pinned by the
+    /// `pre_mlp2_051h_payload_round_trips_with_generated_at_unix_default_zero`,
     /// `generated_at_unix_round_trips_when_present`, and
-    /// `generated_at_unix_serialises_always_when_zero` tests.
+    /// `generated_at_unix_serialises_always_when_zero` tests in this
+    /// crate plus the `generated_at_unix_zero_is_the_no_anchor_sentinel`
+    /// contract test in `anvil-intercept`.
     #[serde(default)]
     pub generated_at_unix: u64,
 }

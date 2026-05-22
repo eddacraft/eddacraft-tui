@@ -1261,6 +1261,9 @@ mod tests {
                     anvil_intercept::status::IpcState::Serving,
                     None,
                     None,
+                    // MLP2-051h: synthetic Windows test fixture has
+                    // no live wall clock; 0 is the no-anchor sentinel.
+                    0,
                 )
             }
         }
