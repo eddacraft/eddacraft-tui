@@ -2,16 +2,27 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 62/82 |
+| MLP2 | @aneki | In Progress | 62/83 |
 
-**Last reviewed:** 2026-05-22 (MLP2-051h filed under Group J —
+**Last reviewed:** 2026-05-22 (MLP2-051f filed under Group J —
+activation diagnostic consumes the daemon `ProtectionClaim` snapshot
+so `anvil start --verify` can reach `protecting` when the intercept
+daemon attests the current worktree. Implementation slice for the
+activation-daemon-evidence wire-up spec
+(`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`).
+Hard-gate precursors all merged: MLP2-075 (Windows IPC parity, PR
+#1836) and MLP2-051h (`DaemonStatusV1::generated_at_unix` wire-add,
+on main at `4ec9c5a4`). Module total advances 82 → 83; done-count
+unchanged at 62. Status: In Progress.)
+
+Earlier 2026-05-22: MLP2-051h filed under Group J —
 `DaemonStatusV1::generated_at_unix` wire-add precursor to the
 MLP2-051f activation diagnostic. Filed ahead of MLP2-051f per the
 activation-daemon-evidence wire-up spec §"APS placement" so the
 field exists on the wire before the first consumer arrives; does
 not block the `v0.7.0-beta` tag (activation diagnostic does not
 exist yet). Module total advances 81 → 82; done-count unchanged at
-62.)
+62.
 
 Earlier 2026-05-21 (Group R added — MLP2-074 daemon-side
 `session.report_process` IPC handler. Filed against the
@@ -2914,6 +2925,144 @@ task's `Source:` line cites the Council finding IDs.
 - **Dependencies:** MLP2-051a + MLP2-051b + MLP2-051c (all
   three render surfaces produce a claim).
 - **Source:** MLP2-051 re-spec, 2026-05-17.
+
+#### MLP2-051f: Activation diagnostic consumes daemon `ProtectionClaim`
+
+- **Status:** In Progress
+- **Intent:** `crates/anvil-cli/src/activation/diagnostic.rs` consumes
+  `anvil_intercept::status::query_daemon_snapshot` +
+  `build_protection_claim_from_wire` and, when the daemon attests
+  live enforcement for the current worktree, promotes
+  handshake-verified MCP clients to `McpTier::LiveValidation`. With
+  the promotion, `protection_state()` reaches `Protecting` for the
+  `anvil start --verify` + `anvil status --verify` paths, closing
+  GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831). The
+  spec lives at
+  `plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`;
+  council verdicts (`plan-f4668683`, 4 COUNTER / 1 CONSENSUS) attached
+  the hard gates enumerated below.
+- **Expected Outcome:**
+  - `anvil start --verify` returns `protecting` when the daemon is
+    running, the worktree is registered + canonicalised-matched on
+    the daemon side, and at least one MCP client has reached
+    `RestartHandshakeVerified`.
+  - Honest fallbacks: daemon unreachable, IPC timeout, stale
+    snapshot heartbeat (>45s), `WorktreeClaimState::Warming`, or
+    `DegradedProtection`-all-`Quarantined` leave the diagnostic at
+    `ready_restart_required` and surface a state-appropriate repair
+    hint via `activation/render.rs`.
+  - Diagnostic transparency via `tracing::info!` on every promotion
+    and `tracing::debug!` on every skip path (mirrors
+    `promote_restart_required_after_handshake` in
+    `diagnostic.rs:507-520`).
+  - Stale comment at `crates/anvil-cli/src/activation/mcp_client.rs:307`
+    is replaced with a grep-able pointer to the new
+    `promote_to_live_validation_when_daemon_attests` function
+    (full module path), eliminating the MLP2-025b
+    zero-callers shape this fix exists to fix.
+- **Files:**
+  - `crates/anvil-cli/src/activation/diagnostic.rs` — new
+    `promote_to_live_validation_when_daemon_attests` + call site in
+    `verify()` after `promote_restart_required_after_handshake`.
+  - `crates/anvil-cli/src/activation/mcp_client.rs` — comment update
+    at line 307 with the new function reference.
+  - `crates/anvil-cli/src/activation/render.rs` — state-dependent
+    repair-hint branching for `ReadyRestartRequired`.
+  - New constant `ACTIVATION_DAEMON_QUERY_TIMEOUT = 500ms` colocated
+    with the diagnostic-side query function; dedicated wrapper
+    around `query_daemon_snapshot` that enforces the bound
+    independently of the daemon-side `REQUEST_TIMEOUT = 2s`.
+  - `crates/anvil-cli/tests/protection_claim_cross_surface.rs` or
+    new `crates/anvil-cli/tests/activation_daemon_evidence.rs` —
+    end-to-end integration test against a real daemon socket (no
+    mocks for the IPC boundary).
+- **Validation (hard gates from council, all required):**
+  1. **Worktree canonicalisation contract.** Activation MUST
+     canonicalise its `worktree` argument before the IPC call,
+     using the same `std::fs::canonicalize` + warn-on-failure
+     pattern as
+     `crates/anvil-cli/src/commands/protection_claim_section.rs::fetch_protection_claim_for_cwd`
+     (line 72). Daemon-side path is canonicalised at register-time
+     via `DriverManifest::validate_workspace_roots`; the activation
+     side must produce a path comparing byte-equal to the
+     registered form. Regression test: register at canonical path,
+     query via symlink, assert `Unprotected` (NOT promoted).
+  2. **Heartbeat freshness window.** 45 seconds, computed as
+     `max(SessionRecord.last_heartbeat_unix)` across the worktree's
+     registered sessions compared against `SystemTime::now()`.
+     Calibrated against the producer cadence (`HEARTBEAT_INTERVAL=10s`
+     + `DEFAULT_HEARTBEAT_TTL=30s` + ~5s skew slack). Not
+     operator-configurable upward (security veto on downgrade
+     surface). Tighter via config permitted, never looser.
+     Second consistency anchor: `DaemonStatusV1.generated_at_unix`
+     vs `SystemTime::now()` — same 45s bound. Sentinel `0` means
+     "no anchor; fall back to per-session freshness" (pinned by
+     MLP2-051h tests).
+  3. **`WorktreeClaimState` promotion predicate, enumerated.**
+     - `PreWriteDaemon` → promote.
+     - `DegradedProtection` with ≥1 `SurfaceClaim::Participating`
+       → promote.
+     - `DegradedProtection` all `Quarantined` → do NOT promote;
+       render-hint points at `anvil intercept recover`.
+     - `Warming` → do NOT promote (transient).
+     - `Unprotected` → do NOT promote.
+  4. **`ACTIVATION_DAEMON_QUERY_TIMEOUT = 500ms`** named constant
+     with a hung-daemon stub test asserting verify latency does
+     not extend beyond `timeout + 100ms`. Inheriting the 2s
+     `REQUEST_TIMEOUT` is rejected — verify is interactive.
+  5. **End-to-end integration test against a real daemon socket**
+     (or the INTD integration test stub) — no mocks for the IPC
+     boundary. The test must spawn a daemon, call `verify()`
+     end-to-end, and assert `protection_state() == Protecting`.
+     If the wire-up is absent, this test fails. Eliminates the
+     MLP2-025b shape where a synth-mocked unit suite passes
+     against a missing production call site.
+  6. **Structured tracing on every promotion / skip path.**
+     `tracing::info!` on success carrying `worktree`,
+     `worktree_claim_state`, `clients_promoted`. `tracing::debug!`
+     on skip carrying `reason` ∈ `{daemon_unreachable,
+     worktree_unenforced, stale_heartbeat, platform_gap,
+     warming, all_surfaces_quarantined}`.
+  7. **Render-hint regression tests** for each
+     `protection_state` × daemon-state combination in the §"Failure
+     modes & their states" matrix from the spec (including
+     Windows-row, daemon-mid-restart, daemon-no-sessions-yet,
+     `DegradedProtection`-all-`Quarantined`).
+  8. **Client attribution predicate (council split, recommended
+     resolution).** Promotion requires ≥1
+     `SurfaceClaim::Participating` for the worktree (any client) —
+     cardinality-based, not identity-based, because daemon
+     `agent_tag` ↔ `McpClientId` alignment is not yet resolved
+     (ARCH-001 follow-up). Strictly tighter than mass-promotion
+     of every handshake-verified client.
+  9. Existing CI gates green: `cargo test --workspace`,
+     `cargo fmt --all --check`, `cargo clippy --workspace
+     --all-targets -- -D warnings`,
+     `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`.
+- **Confidence:** medium (medium-touch surface; the hard gates
+  exist precisely because the easy version of this fix would
+  reproduce MLP2-025b's zero-callers shape).
+- **Priority:** Critical — closes GH #1831
+  (`ready_restart_required` stuck after MCP install on Windows +
+  Scoop + PowerShell). Two Windows users surfaced the same defect
+  on `v0.7.0-beta`; the bug is platform-agnostic but Windows-skewed
+  by selection bias.
+- **Dependencies:**
+  - MLP2-075 (Windows IPC parity, PR #1836, merged) — hard gate.
+  - MLP2-051h (`DaemonStatusV1::generated_at_unix` wire-add,
+    merged on `main` at `4ec9c5a4`) — hard gate.
+- **releaseNote:**
+  - audience: user
+  - type: fixed
+  - text: "`anvil start --verify` and `anvil status --verify` now
+    report `protecting` when the intercept daemon is running and
+    attests live enforcement for the current worktree, instead of
+    staying stuck at `ready_restart_required` after the MCP
+    handshake. Closes GH #1831."
+- **Source:** Activation-daemon-evidence wire-up spec
+  (`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`)
+  §"APS placement"; council session `plan-f4668683` (5 personas,
+  4 COUNTER / 1 CONSENSUS).
 
 #### MLP2-051h: `DaemonStatusV1::generated_at_unix` wire-add
 

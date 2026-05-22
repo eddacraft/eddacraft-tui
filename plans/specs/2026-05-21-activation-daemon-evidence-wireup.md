@@ -5,12 +5,12 @@
 | Field | Value |
 | ----- | ----- |
 | Spec id | `2026-05-21-activation-daemon-evidence-wireup` |
-| Status | Draft — planning council complete (session `plan-f4668683`, 4 COUNTER / 1 CONSENSUS); revisions pending |
-| Date | 2026-05-21 |
+| Status | In Implementation — MLP2-051f filed under MLP2 Group J 2026-05-22; council verdicts applied in code at MLP2-051f branch |
+| Date | 2026-05-21 (updated 2026-05-22 with MLP2-051f filing) |
 | Owners | @aneki |
-| Work item | MLP2-051f (proposed — see §Council Verdicts → APS placement) |
+| Work item | MLP2-051f (filed 2026-05-22 — see `plans/modules/multilayer-protection-v2.aps.md` Group J) |
 | Supersedes | — |
-| Council tier | full (spec review; impl review tier set when MLP2-051f filed) |
+| Council tier | full (spec review converged `plan-f4668683`); impl review = mini per the dev-workflow risk-tier table (cross-boundary IPC + new claim-evaluation surface, but no new wire types) |
 | Drives | GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831) — `ready_restart_required` stuck after MCP install |
 | Coordinates with | MLP2 ([Group D / 051a–051e](../modules/multilayer-protection-v2.aps.md)), LAUNCH-009 / -009.5 (archived), ADR-015, INTD-001..-014 (Complete) |
 | Affected crates | `anvil-cli` (`activation/`), `anvil-intercept` (read-only consumer) |
@@ -581,51 +581,75 @@ Filing MLP2-051g and -051h would each bump the total again under the same rule.
 
 ---
 
-## Revisions to apply before implementation starts
+## Revisions applied (2026-05-22, MLP2-051f implementation)
 
-Translating the verdicts above into spec edits (kept here as a checklist
-so the steps file references concrete actions):
+Translating the verdicts above into spec edits and code. All council
+hard gates land in the implementation PR; this checklist records what
+was applied where so a future reviewer can trace each council verdict
+to a concrete artefact.
 
-- [ ] §"Concrete edits" — rewrite #1 to use per-session
-      `last_heartbeat_unix` (max across worktree sessions) against
-      `SystemTime::now()`; window 45s, not "TBD".
-- [ ] §"Concrete edits" — add path canonicalisation step before the
-      IPC call, reusing the `fetch_protection_claim_for_cwd` helper
-      (`crates/anvil-cli/src/commands/protection_claim_section.rs:72`)
-      pattern; ensure the canonical form matches what
-      `DriverManifest::validate_workspace_roots` stored at register
-      time on the daemon side
-      (`crates/anvil-intercept/src/auth.rs`).
-- [ ] §"Concrete edits" — enumerate `WorktreeClaimState` promotion
-      predicate explicitly (PreWriteDaemon, DegradedProtection cases).
-- [ ] §"Concrete edits" — add structured tracing pattern matching
-      `promote_restart_required_after_handshake`.
-- [ ] §"Concrete edits" — replace the `LiveValidation` comment
-      replacement at `mcp_client.rs:307` with a grep-able pointer to
-      `promote_to_live_validation_when_daemon_attests` (full module
-      path, not vague reference).
-- [ ] §"Concrete edits" — **delete** the archived-module sweep (item
-      #5). Keep the live-code comment update only.
-- [ ] §"Concrete edits" — **delete** the `--verbose` flag (item #4);
-      refile as MLP2-051g.
-- [ ] §"Failure modes" — add Windows row, daemon-mid-restart row,
-      daemon-no-sessions-yet row, DegradedProtection-all-Quarantined
-      row.
-- [ ] §"Implementation slice" — add `ACTIVATION_DAEMON_QUERY_TIMEOUT`
-      constant + dedicated query function + hung-daemon stub test.
-- [ ] §"Implementation slice" — promote integration test from
-      validation-checklist item to **mandatory hard-gate** with
-      explicit "spawns real daemon, calls verify() end-to-end" wording.
-- [ ] §"Open questions for council" — mark (a), (b)-recommend-arch,
-      (c), (d) as closed; revise (b) into the open client-attribution
-      question to negotiate before implementation; remove the
-      `Attached` vs `LiveValidation` question (closed: keep
-      `LiveValidation`); reframe (e) into the new-objections-deferred
-      list above.
-- [ ] §"Risk + rollback" — add explicit fixture revert list (CI
-      snapshots, tutorial fixtures, status.v1 conformance fixtures).
+- [x] §"Concrete edits" #1 — per-session `last_heartbeat_unix` (max
+      across worktree sessions) + 45 s window: implemented in
+      `crates/anvil-cli/src/activation/daemon_evidence.rs::heartbeat_within_freshness_window`
+      with constant `HEARTBEAT_FRESHNESS_WINDOW = 45 s`.
+- [x] §"Concrete edits" — path canonicalisation via
+      `canonicalise_for_activation` (same `std::fs::canonicalize` +
+      warn-on-failure shape as
+      `protection_claim_section::fetch_protection_claim_for_cwd`).
+      Pinned by `non_canonical_worktree_does_not_promote`,
+      `canonicalise_for_activation_collapses_curdir_components`, and
+      `evaluate_and_promote_against_canonicalised_tempdir_path`.
+- [x] §"Concrete edits" — `WorktreeClaimState` promotion predicate
+      enumerated explicitly in `classify_claim`. `PreWriteDaemon` →
+      promote; `DegradedProtection` with ≥ 1 Participating → promote;
+      `DegradedProtection` all `Quarantined` → skip (operator-facing
+      `anvil intercept recover` hint); `Warming` / `Unprotected` /
+      every other variant → skip.
+- [x] §"Concrete edits" — structured tracing pattern matching
+      `promote_restart_required_after_handshake`: `tracing::info!` on
+      every promotion (`worktree`, `worktree_claim_state`,
+      `clients_promoted`) and `tracing::debug!` on every skip path
+      with `reason` ∈ documented `SkipReason` vocabulary.
+- [x] §"Concrete edits" — `mcp_client.rs:307` comment replaced with
+      a grep-able pointer to
+      `crate::activation::daemon_evidence::promote_to_live_validation_when_daemon_attests`
+      (full module path).
+- [x] §"Concrete edits" — archived-module sweep dropped. Only
+      live-code comment update applied.
+- [x] §"Concrete edits" — `--verbose` / `--why` flag deferred to
+      MLP2-051g (sibling APS task; not filed yet — opened when the
+      flag is genuinely scoped).
+- [x] §"Failure modes" — Windows / daemon-mid-restart /
+      daemon-no-sessions-yet / DegradedProtection-all-Quarantined
+      rows covered by `DaemonAttestation` variants and the
+      `repair_hint` branching in
+      `crates/anvil-cli/src/activation/render.rs`.
+- [x] §"Implementation slice" — `ACTIVATION_DAEMON_QUERY_TIMEOUT =
+      500 ms` named constant + dedicated query function
+      (`query_daemon_status_with_timeout` /
+      `query_daemon_status_at_with_timeout`) +
+      `activation_query_aborts_within_budget_against_hung_daemon`
+      stub test pinning the budget.
+- [x] §"Implementation slice" — integration test
+      `end_to_end_against_real_unix_socket_promotes_to_live_validation`
+      spawns a real `IpcListener` + `StatusProvider` fixture, fetches
+      the snapshot via the production wire path, and asserts
+      `DaemonAttestation::Promoted` + `LiveValidation`. Linux-only
+      (Windows path is exercised by MLP2-075's pipe-bind tests under
+      `crates/anvil-cli/src/mcp/validation.rs`).
+- [x] §"Open questions for council" — (a) heartbeat window: closed at
+      45 s. (b) client attribution: closed at cardinality ≥ 1
+      Participating (architect resolution). (c) verbose flag: closed,
+      deferred to MLP2-051g. (d) `Attached` vs `LiveValidation`:
+      closed at `LiveValidation`. (e) APS placement: closed at
+      MLP2-051f under Group J (filed 2026-05-22).
+- [x] §"Risk + rollback" — single-call rollback (delete the
+      `super::daemon_evidence::promote_to_live_validation_when_daemon_attests`
+      invocation in `diagnostic::verify_with_home`); no JSON-schema
+      fixtures changed (the activation surface does not emit new
+      wire shapes — it consumes existing `DaemonStatusV1`).
 
-These revisions are recorded but **not** applied in this commit — the
-implementation PR will pull from the revised steps file. Spec stays
-in `Draft` until the revisions land.
+Spec status advanced **Draft → In Implementation** on 2026-05-22 when
+MLP2-051f was filed and these revisions applied in the implementation
+PR. Will advance to **Implemented** when the PR merges.
 
