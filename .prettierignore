@@ -35,3 +35,10 @@ crates/workspace-hack/Cargo.toml
 # checked by the harness itself — they each carry their own prettier /
 # eslint / ruff configs.
 tools/test-harness/editor-coexistence/fixtures/
+# Token-cost experiment artifacts must stay byte-exact: source.md is a
+# frozen snapshot of plans/modules/tui-dashboard-render.aps.md and the two
+# HTML files are the comparison output of convert.mjs. Formatting them
+# would invalidate the comparison.
+experiments/html-vs-markdown-tokens/source.md
+experiments/html-vs-markdown-tokens/source.minimal.html
+experiments/html-vs-markdown-tokens/source.structured.html

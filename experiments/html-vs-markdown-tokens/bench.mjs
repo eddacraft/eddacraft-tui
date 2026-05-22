@@ -11,9 +11,9 @@
 // Output: a table with byte size, count_tokens result, and round-trip
 // input/output tokens + latency per variant.
 
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -22,19 +22,19 @@ const getArg = (flag, fallback) => {
   const i = args.indexOf(flag);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-const MODEL = getArg("--model", "claude-sonnet-4-6");
-const RUNS = Number(getArg("--runs", "1"));
+const MODEL = getArg('--model', 'claude-sonnet-4-6');
+const RUNS = Number(getArg('--runs', '1'));
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!API_KEY) {
-  console.error("ANTHROPIC_API_KEY is not set. Aborting.");
+  console.error('ANTHROPIC_API_KEY is not set. Aborting.');
   process.exit(1);
 }
 
 const VARIANTS = [
-  { name: "markdown", file: "source.md" },
-  { name: "html-minimal", file: "source.minimal.html" },
-  { name: "html-structured", file: "source.structured.html" },
+  { name: 'markdown', file: 'source.md' },
+  { name: 'html-minimal', file: 'source.minimal.html' },
+  { name: 'html-structured', file: 'source.structured.html' },
 ];
 
 // A realistic processing task that forces the model to read the whole plan,
@@ -54,18 +54,18 @@ Document:
 ---`;
 
 const HEADERS = {
-  "x-api-key": API_KEY,
-  "anthropic-version": "2023-06-01",
-  "content-type": "application/json",
+  'x-api-key': API_KEY,
+  'anthropic-version': '2023-06-01',
+  'content-type': 'application/json',
 };
 
 async function countTokens(body) {
-  const res = await fetch("https://api.anthropic.com/v1/messages/count_tokens", {
-    method: "POST",
+  const res = await fetch('https://api.anthropic.com/v1/messages/count_tokens', {
+    method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
       model: MODEL,
-      messages: [{ role: "user", content: body }],
+      messages: [{ role: 'user', content: body }],
     }),
   });
   if (!res.ok) throw new Error(`count_tokens ${res.status}: ${await res.text()}`);
@@ -73,15 +73,15 @@ async function countTokens(body) {
 }
 
 async function runPrompt(body) {
-  const prompt = PROCESSING_PROMPT.replace("{{BODY}}", body);
+  const prompt = PROCESSING_PROMPT.replace('{{BODY}}', body);
   const t0 = Date.now();
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: 'user', content: prompt }],
     }),
   });
   const latencyMs = Date.now() - t0;
@@ -96,8 +96,8 @@ function avg(nums) {
 
 const rows = [];
 for (const v of VARIANTS) {
-  const body = readFileSync(join(here, v.file), "utf8");
-  const bytes = Buffer.byteLength(body, "utf8");
+  const body = readFileSync(join(here, v.file), 'utf8');
+  const bytes = Buffer.byteLength(body, 'utf8');
   process.stderr.write(`[${v.name}] count_tokens...`);
   const { input_tokens: rawTokens } = await countTokens(body);
   process.stderr.write(` ${rawTokens} tokens\n`);
@@ -107,7 +107,7 @@ for (const v of VARIANTS) {
     process.stderr.write(`[${v.name}] processing run ${i + 1}/${RUNS}...`);
     const r = await runPrompt(body);
     process.stderr.write(
-      ` in=${r.usage.input_tokens} out=${r.usage.output_tokens} ${r.latencyMs}ms\n`,
+      ` in=${r.usage.input_tokens} out=${r.usage.output_tokens} ${r.latencyMs}ms\n`
     );
     runs.push(r);
   }
@@ -122,18 +122,18 @@ for (const v of VARIANTS) {
   });
 }
 
-const base = rows.find((r) => r.variant === "markdown");
+const base = rows.find((r) => r.variant === 'markdown');
 console.log(`\nModel: ${MODEL}  Runs: ${RUNS}\n`);
 console.log(
-  "variant           bytes   count_tokens   prompt_in   prompt_out   latency_ms   tokens_vs_md",
+  'variant           bytes   count_tokens   prompt_in   prompt_out   latency_ms   tokens_vs_md'
 );
 console.log(
-  "----------------  ------  ------------   ---------   ----------   ----------   ------------",
+  '----------------  ------  ------------   ---------   ----------   ----------   ------------'
 );
 for (const r of rows) {
   const delta =
-    r.variant === "markdown"
-      ? "  (baseline)"
+    r.variant === 'markdown'
+      ? '  (baseline)'
       : `${((r.rawTokens / base.rawTokens - 1) * 100).toFixed(1).padStart(6)}%`;
   console.log(
     [
@@ -144,6 +144,6 @@ for (const r of rows) {
       String(r.promptOutTokens).padStart(10),
       String(r.latencyMs).padStart(10),
       delta.padStart(12),
-    ].join("  "),
+    ].join('  ')
   );
 }
