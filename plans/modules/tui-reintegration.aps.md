@@ -353,7 +353,7 @@ trust surface and crates.io contract.
   (`unsafe_code = "forbid"`, `clippy::pedantic = warn`, etc.) are
   Anvil-shape, and `cargo publish` inlines workspace-inherited values
   into the published `Cargo.toml` — letting Anvil's lint posture
-  silently change the published crate's build behavior. Crate
+  silently change the published crate's build behaviour. Crate
   develops against its own lints; sibling Anvil crates keep
   inheriting the workspace lints. The workspace clippy job still
   covers the crate via `--workspace`, but the crate's `[lints]` block
@@ -427,7 +427,7 @@ trust surface and crates.io contract.
   open on the mirror; a triage rotation forwards relevant items to
   `anvil-001` issues. PRs are auto-closed with redirect.
 - **Workspace lint posture silently mutates published build
-  behavior.** If `lints.workspace = true` slips into
+  behaviour.** If `lints.workspace = true` slips into
   `crates/eddacraft-tui/Cargo.toml`, `cargo publish` inlines Anvil's
   forbid-unsafe + pedantic-warn config into the published crate.
   Mitigation: D-TUIR-016 forbids the inheritance; a CI grep
@@ -532,9 +532,9 @@ workspace `default-members` list that would pull it into
 - `diff <(cargo package --list -p eddacraft-tui) <(cat plans/specs/2026-05-20-tui-reintegration-baseline/package-list.txt)`
   shows no unexpected additions or omissions;
 - `grep -Fq 'lints.workspace' crates/eddacraft-tui/Cargo.toml` exits 1;
-- `cargo tree -p eddacraft-tui --prefix=none --edges normal | grep
-  -E '^(anvil-|eddacraft-anvil-|kindling)'` returns no matches
-  (D-TUIR-014 guard);
+- `cargo tree -p eddacraft-tui --prefix=none --no-default-features
+  --edges normal | grep -E '^(anvil-|eddacraft-anvil-|kindling)'`
+  returns no matches (D-TUIR-014 guard);
 - `ls crates/eddacraft-tui/LICENSE crates/eddacraft-tui/MIRROR-README.md`
   returns both files.
 
