@@ -11,4 +11,4 @@ expression: "crate::test_utils::snapshot::buffer_to_string(&buf)"
   │[fg:#CC5500] t[fg:#EBEBEB]h[fg:#EBEBEB]e[fg:#EBEBEB] [fg:#EBEBEB]r[fg:#EBEBEB]u[fg:#EBEBEB]l[fg:#EBEBEB]e[fg:#EBEBEB]s[fg:#EBEBEB]    │[fg:#CC5500]  
   │[fg:#CC5500] t[fg:#EBEBEB]h[fg:#EBEBEB]a[fg:#EBEBEB]t[fg:#EBEBEB] [fg:#EBEBEB]A[fg:#EBEBEB]n[fg:#EBEBEB]v[fg:#EBEBEB]i[fg:#EBEBEB]l[fg:#EBEBEB]   │[fg:#CC5500]  
   └[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]─[fg:#CC5500]┘[fg:#CC5500]  
-[[fg:#85858A]‡[fg:#85858A]][fg:#85858A] [fg:#85858A]a[fg:#85858A] [fg:#85858A]n[fg:#85858A] [fg:#85858A]v[fg:#85858A] [fg:#85858A]i[fg:#85858A] [fg:#85858A]l[fg:#85858A] [fg:#85858A] [fg:#85858A]v[fg:#85858A]0[fg:#85858A].[fg:#85858A]6[fg:#85858A].[fg:#85858A]
+[[fg:#85858A]‡[fg:#85858A]][fg:#85858A] [fg:#85858A]a[fg:#85858A] [fg:#85858A]n[fg:#85858A] [fg:#85858A]v[fg:#85858A] [fg:#85858A]i[fg:#85858A] [fg:#85858A]l[fg:#85858A] [fg:#85858A] [fg:#85858A]v[fg:#85858A]0[fg:#85858A].[fg:#85858A]7[fg:#85858A].[fg:#85858A]
