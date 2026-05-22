@@ -219,11 +219,19 @@ trust surface and crates.io contract.
       eddacraft-tui --no-default-features` (catch feature-flag
       regressions in both directions).
     - `cargo test --workspace` (consumer-side regression catch).
-    - `cargo check -p eddacraft-tui --release` (catches code that
-      compiles in debug but breaks in release — items referenced
-      inside `debug_assert!` whose definitions are accidentally
-      cfg-gated on `debug_assertions`; standalone repo's CI already
-      runs this and caught issue #29).
+    - `cargo check -p eddacraft-tui --release` (catches release-only
+      compile failures: items defined behind
+      `#[cfg(debug_assertions)]` that are referenced from
+      `debug_assert!` expansions break release builds because
+      `debug_assert!` skips _evaluation_ in release but name
+      resolution still runs unconditionally — so the dead branch
+      type-checks against an item that no longer exists. The
+      standalone repo's `ci.yml` enforces this after
+      [eddacraft/eddacraft-tui#29](https://github.com/eddacraft/eddacraft-tui/issues/29)
+      hit 0.2.0 / 0.2.1 — a cfg-gated `ids_are_unique` helper was
+      called inside `debug_assert!`, producing
+      `error[E0425]: cannot find function` for every release
+      consumer).
     - `cargo doc --no-deps -p eddacraft-tui` (docs.rs build proxy).
     - `cargo deny check` (re-uses workspace `deny.toml`).
     - `cargo publish --dry-run --allow-dirty -p eddacraft-tui` as a
