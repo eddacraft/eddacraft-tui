@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 11/22 (Rust-migration phase 9/10; Future 2/6; Scanner / Two-Engine 0/6 Draft) |
+| DOCSYNC | —     | In Progress | 11/16    |
 
 ## Purpose
 
@@ -23,16 +23,15 @@ The Rust CLI replaces the Node.js package entirely, the dashboard adds a new
 surface, and policy governance changes the governance model — all need
 documentation updates that aren't tracked.
 
-## In Scope
+DOCSYNC scope is **public-facing Docusaurus content** sourced from
+`docs/public/anvil/`. Internal docs under `docs/guides/`, `plans/**`, and
+architecture / runbook freshness now live under DOCGOV.
 
 - **Rust migration docs:** Install, CI, troubleshooting updated for native binary
-- **Docs-site sync:** Keep docs in sync with feature releases
-- **ADR maintenance:** Ensure new decisions get ADRs, superseded ones are marked
-- **Architecture diagrams:** Keep mermaid diagrams current with code changes
+- **Docs-site sync:** Keep public docs in sync with feature releases
 - **API reference:** Auto-generate from OpenAPI spec (feeds into API governance)
 - **Tutorial updates:** Keep tutorials current as surfaces change (Ink → Ratatui)
 - **Multi-version docs:** Support docs for current + previous release
-- **Docs contribution guide:** How to update docs when making code changes
 
 ## Out of Scope
 
@@ -79,51 +78,57 @@ documentation updates that aren't tracked.
 - DOCSYNC-011: Dashboard feature documentation
 - DOCSYNC-012: Policy governance documentation updates
 - DOCSYNC-013: Multi-language support documentation
-- DOCSYNC-014: Docs contribution guide
 - DOCSYNC-021: Refresh docs for 0.3.2-beta/0.3.3-beta and current repo topology
 - DOCSYNC-022: Refresh current public docs for final release scope and 0.4.0-beta watch filtering
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
-- DOCSYNC-015: Gate-runner runbook section (CPU/latency envelope, registry.json resolution failure recovery)
 - DOCSYNC-016: VSCode vs CI warning-divergence troubleshooting entry in `docs/public/anvil/operations/troubleshooting.md`
-- DOCSYNC-017: Name `pnpm test:scanner-parity` as a named preflight gate in `docs/guides/release-runbook.md`
-- DOCSYNC-018: Document rayon pool scope / `RAYON_NUM_THREADS` behaviour for `anvil-checks` in `rust-architecture-endstate.md`
-- DOCSYNC-019: Extend `docs/guides/release-doc-checklist.md` to include `anvil-rule-authoring.md`, `integrations/vscode.md`, `integrations/mcp.md` for release doc sync
-- DOCSYNC-020: Add ReDoS-risk framing for RL-* rule authors (untrusted PR body / commit-message inputs) in `anvil-rule-authoring.md`
+
+### Reassigned
+
+- DOCSYNC-014 (Docs contribution guide) → superseded by DOCGOV-001
+  (`docs/guides/documentation-governance.md` already covers this)
+- DOCSYNC-015, -017, -018, -019, -020 → absorbed into DOCGOV-006
+  (targets internal runbook/architecture docs, not the public docs-site)
 
 ## Stats
 
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     6 |    2 |           0 |     4 |
-| Scanner / Two-Engine State      |     6 |    0 |           0 |     6 |
-| **Total**                       |    22 |   11 |           0 |    11 |
+| Future                          |     5 |    2 |           0 |     3 |
+| Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
+| **Total**                       |    16 |   11 |           0 |     5 |
 
 ### Item Detail
 
 | ID          | Status | Notes                                         |
 | ----------- | ------ | --------------------------------------------- |
-| DOCSYNC-001 | Done   | docs/guides/release-doc-checklist.md (180-line checklist) |
-| DOCSYNC-002 | Done   | plans/decisions/adr-template.md + docs/guides/adr-process.md |
-| DOCSYNC-003 | Done   | docs/guides/architecture-diagrams.md          |
+| DOCSYNC-001 | Done   | `docs/guides/release-doc-checklist.md` (authority now under DOCGOV per scope sharpening 2026-05-22) |
+| DOCSYNC-002 | Done   | `plans/decisions/adr-template.md` + `docs/guides/adr-process.md` (authority now under DOCGOV-004) |
+| DOCSYNC-003 | Done   | `docs/guides/architecture-diagrams.md` (authority now under DOCGOV) |
 | DOCSYNC-004 | Done   | TUI references updated in beta guide, quickstart |
 | DOCSYNC-005 | Draft  |                                               |
 | DOCSYNC-006 | Done   | Crate READMEs + rust-rewrite.md               |
 | DOCSYNC-007 | Done   | Install, CI, troubleshooting updated across all public docs |
-| DOCSYNC-008 | Done   | docs/public/anvil/releases/rust-rewrite.md    |
+| DOCSYNC-008 | Done   | `docs/public/anvil/releases/rust-rewrite.md`  |
 | DOCSYNC-009 | Done   | All `pnpm anvil`/`npx anvil` refs replaced in public docs |
 | DOCSYNC-010 | Done   | Beta guide updated for 0.3.0-beta, Node.js dep removed |
 | DOCSYNC-011 | Draft  |                                               |
 | DOCSYNC-012 | Draft  |                                               |
 | DOCSYNC-013 | Draft  |                                               |
-| DOCSYNC-014 | Draft  |                                               |
+| DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
 | DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
 | DOCSYNC-022 | Done   | Final release-scope pass: current install/upgrade docs + 0.4.0-beta watch-filter docs refreshed |
-| DOCSYNC-015 | Draft  | Origin: operations-reviewer OPS-001 (RSCAN-008 council) |
-| DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
-| DOCSYNC-017 | Draft  | Origin: operations-reviewer OPS-003 (RSCAN-008 council) |
-| DOCSYNC-018 | Draft  | Origin: operations-reviewer OPS-004 (RSCAN-008 council) |
-| DOCSYNC-019 | Draft  | Origin: operations-reviewer OPS-005 (RSCAN-008 council) |
-| DOCSYNC-020 | Draft  | Origin: security-analyst NIT #2 (RSCAN-008 council)    |
+
+### Reassigned items (out of DOCSYNC totals)
+
+| ID          | Disposition                                                                          |
+| ----------- | ------------------------------------------------------------------------------------ |
+| DOCSYNC-014 | Superseded by DOCGOV-001 (`docs/guides/documentation-governance.md` already covers it) |
+| DOCSYNC-015 | Absorbed into DOCGOV-006 (gate-runner runbook freshness)                             |
+| DOCSYNC-017 | Absorbed into DOCGOV-006 (`docs/guides/release-runbook.md` freshness)                |
+| DOCSYNC-018 | Absorbed into DOCGOV-006 (`rust-architecture-endstate.md` as-built freshness)        |
+| DOCSYNC-019 | Absorbed into DOCGOV-006 (`docs/guides/release-doc-checklist.md` freshness)          |
+| DOCSYNC-020 | Absorbed into DOCGOV-006 (`docs/guides/anvil-rule-authoring.md` ReDoS framing)       |

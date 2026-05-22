@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 5/8      |
+| DOCGOV | —     | In Progress | 5/10     |
 
 ## Purpose
 
@@ -26,6 +26,9 @@ engineering without turning documentation into compliance theatre.
   and as-built source references
 - Migration path from today's mixed documentation styles to a smaller governed
   model
+- Backfilling the DOCGOV-002 metadata format onto pre-existing live documents
+- Reorganising live documents under the canonical taxonomy once the metadata
+  and validation baseline are in place
 
 ## Cross-Cutting Convention
 
@@ -39,7 +42,6 @@ archive.
 
 - Replacing APS as execution authority
 - Rewriting all existing documentation in one pass
-- Moving folders before validation rules exist
 - Creating process-only documents that cannot be enforced or checked
 
 ## Interfaces
@@ -221,38 +223,164 @@ use the minimal validation baseline in
 ### DOCGOV-006: Standardise runbook and as-built freshness
 
 - **Status:** Proposed
-- **Intent:** Ensure operational docs expose owner, scope, verification date,
-  source references, and stale-state signals.
-- **Expected Outcome:** Runbook and as-built templates define required freshness
-  metadata, and representative docs are migrated as examples.
-- **Validation:** `pnpm format:check`
+- **Intent:** Give runbooks and as-built docs a freshness contract — owner,
+  scope, verification date, source path/tag references, and stale-state
+  signals — and convert the `asbuilt-paths` stub shipped by DOCGOV-005 into a
+  real validator that checks every cited source path resolves at the
+  document's stated tag/SHA.
+- **Expected Outcome:** `docs/architecture/_as-built-template.md` and a sibling
+  runbook template define the freshness metadata block; the
+  `@eddacraft/anvil-docs-meta` schema accepts the new fields without breaking
+  existing docs; `scripts/docs/check-asbuilt-paths.mjs` resolves source
+  references (file existence at the cited revision, surfacing missing or moved
+  paths as new-edges-only findings against
+  `docs/governance/docs-check.baseline.json`); representative as-built and
+  runbook docs are migrated as worked examples. Stub log line in
+  `check-asbuilt-paths.mjs` is removed.
+- **Validation:** `pnpm docs:check && pnpm test:docs-check && pnpm format:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-005
+- **Files:** `docs/architecture/_as-built-template.md`,
+  `docs/guides/runbook-template.md` (new),
+  `docs/guides/documentation-governance.md`,
+  `docs/guides/release-runbook.md`,
+  `docs/guides/release-doc-checklist.md`,
+  `docs/guides/anvil-rule-authoring.md`,
+  `docs/architecture/rust-architecture-endstate.md`,
+  `packages/docs-meta/**`,
+  `scripts/docs/check-asbuilt-paths.mjs`,
+  `scripts/docs/docs-check.test.sh`,
+  `docs/governance/docs-check.baseline.json`,
+  `plans/modules/documentation-governance.aps.md`,
+  `plans/modules/documentation-sync.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-009 (backfill applies the new runbook /
+  as-built freshness fields onto legacy live docs), DOCGOV-005 (replaces the
+  asbuilt-paths surface stub)
+- **Absorbed from DOCSYNC** (2026-05-22 scope sharpening — these were filed
+  against DOCSYNC but target internal runbook/architecture docs, not the
+  public docs-site, and so naturally land under DOCGOV-006's freshness
+  contract). The specific cleanup items must pass before DOCGOV-006 closes:
+    - *(ex-DOCSYNC-015)* Gate-runner runbook section — CPU/latency envelope
+      and `registry.json` resolution failure recovery
+    - *(ex-DOCSYNC-017)* Name `pnpm test:scanner-parity` as a named preflight
+      gate in `docs/guides/release-runbook.md`
+    - *(ex-DOCSYNC-018)* Document rayon pool scope / `RAYON_NUM_THREADS`
+      behaviour for `anvil-checks` in `rust-architecture-endstate.md`
+    - *(ex-DOCSYNC-019)* Extend `docs/guides/release-doc-checklist.md` to
+      include `anvil-rule-authoring.md`, `integrations/vscode.md`, and
+      `integrations/mcp.md` for release doc sync
+    - *(ex-DOCSYNC-020)* Add ReDoS-risk framing for RL-* rule authors
+      (untrusted PR body / commit-message inputs) in
+      `docs/guides/anvil-rule-authoring.md`
 - **Confidence:** medium
 
 ### DOCGOV-007: Generate or reconcile documentation indexes
 
 - **Status:** Proposed
 - **Intent:** Replace hand-maintained documentation discovery with generated
-  indexes.
+  indexes driven by document metadata, and turn the `index-freshness` stub
+  shipped by DOCGOV-005 into a real validator.
 - **Expected Outcome:** `pnpm docs:index` generates indexes by type, authority,
-  owner, status, and tag from document metadata; `pnpm docs:index:check` fails CI
-  when generated indexes are stale. New tags are added through the approved tag
-  catalogue, not by manually editing indexes. Until this ships, generated-index
-  requirements remain planned and must not be treated as current closeout
-  commands.
-- **Validation:** `pnpm format:check && pnpm lint:check`
+  owner, status, and tag from document metadata into a known set of generated
+  files (header marker identifies them as generated); `pnpm docs:index:check`
+  fails when those generated indexes are stale relative to current metadata,
+  and `scripts/docs/check-index-freshness.mjs` invokes the same logic so a
+  single `pnpm docs:check` run catches drift. New tags are added through the
+  approved tag catalogue (`docs/governance/tags-catalogue.md`), not by
+  manually editing indexes. Stub log line in `check-index-freshness.mjs` is
+  removed. Until this ships, generated-index requirements remain planned and
+  must not be treated as current closeout commands.
+- **Validation:** `pnpm docs:index:check && pnpm docs:check && pnpm test:docs-check && pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-005
+- **Files:** `scripts/docs/docs-index.mjs` (new),
+  `scripts/docs/check-index-freshness.mjs`,
+  `scripts/docs/docs-check.test.sh`,
+  `packages/docs-meta/**`,
+  `docs/governance/tags-catalogue.md`,
+  `docs/**` (generated index files under `docs/indexes/` or equivalent),
+  `package.json`, `.github/workflows/ci.yml`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-009 (metadata backfill is the input
+  generated indexes read from — generation quality depends on backfill
+  coverage), DOCGOV-010 (reorg changes paths the generator must traverse),
+  DOCGOV-005 (replaces the index-freshness surface stub)
 - **Confidence:** medium
 
 ### DOCGOV-008: Migrate stale entrypoints and archive dead docs
 
 - **Status:** Proposed
-- **Intent:** Reduce ambiguity by fixing stale onboarding links and moving dead
-  operational docs out of active paths.
-- **Expected Outcome:** Contributor entrypoints route through current indexes,
-  stale specs are marked or archived, the `docs/guides/release-runbook.md`
-  migration exception is resolved, and public/internal docs platform claims are
-  reconciled.
-- **Validation:** `pnpm format:check`
+- **Intent:** Reduce ambiguity by fixing stale onboarding links, archiving
+  dead operational docs out of active paths, and resolving the long-standing
+  release-runbook migration exception — done before the live-doc backfill /
+  reorg work so DOCGOV-009 and DOCGOV-010 don't waste effort on docs that
+  are about to leave.
+- **Expected Outcome:** Contributor entrypoints (`README.md`, `AGENTS.md`,
+  `CLAUDE.md`, `docs/README.md`, package READMEs) route through current /
+  generated indexes; clearly-dead specs and guides are archived via
+  `git mv` to `docs/archive/**` (or `plans/archive/**` where APS-linked) with
+  redirect stubs only where inbound links exist outside the repo; the
+  `docs/guides/release-runbook.md` migration exception is closed (either by
+  finishing the migration or by archiving the legacy file with a pointer to
+  the canonical runbook); public-vs-internal docs platform claims in
+  `docs/README.md` and `docs/guides/documentation-governance.md` are
+  reconciled against current reality.
+- **Validation:** `pnpm docs:check && pnpm format:check`
 - **Dependencies:** DOCGOV-005, DOCGOV-007
+- **Files:** `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/README.md`,
+  `docs/guides/release-runbook.md`,
+  `docs/guides/documentation-governance.md`, `docs/archive/**` (new),
+  package and crate README cross-references,
+  `docs/governance/docs-check.baseline.json`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-009 (run archive first so backfill skips
+  dead docs), DOCGOV-010 (archive moves complete before live reorg so the
+  same doc isn't shuffled twice)
+- **Confidence:** medium
+
+### DOCGOV-009: Backfill metadata on existing live documentation
+
+- **Status:** Proposed
+- **Intent:** Apply the DOCGOV-002 taxonomy and metadata convention to live
+  documents that predate it, so the entire active doc set declares type,
+  authority, owner, status, freshness, and upstream/downstream references on
+  the same contract.
+- **Expected Outcome:** Live docs under `docs/**` (and any other governed
+  paths) carry the canonical metadata block; the
+  `docs/governance/docs-check.baseline.json` baseline shrinks as backfills
+  land; tags resolve against the approved catalogue rather than ad-hoc usage.
+  Dead docs identified during backfill are routed to DOCGOV-008 rather than
+  rewritten in place.
+- **Validation:** `pnpm docs:check && pnpm format:check`
+- **Dependencies:** DOCGOV-002, DOCGOV-005
+- **Files:** `docs/**`, `docs/governance/docs-check.baseline.json`,
+  `docs/governance/tags-catalogue.md`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-008 (route dead docs to archive instead of
+  backfilling), DOCGOV-010 (provides the authority/type tags that drive
+  reorganisation placement)
+- **Confidence:** medium
+
+### DOCGOV-010: Reorganise live documentation under canonical taxonomy
+
+- **Status:** Proposed
+- **Intent:** Move existing live documents into a coherent folder structure
+  driven by the DOCGOV-002 taxonomy (type, authority, owner) rather than
+  today's mixed historical layout, now that the validation baseline and
+  metadata backfill make placement decisions mechanical instead of judgement
+  calls.
+- **Expected Outcome:** Live docs sit under taxonomy-aligned paths; inbound
+  links from `AGENTS.md`, `CLAUDE.md`, package READMEs, indexes, and ADRs are
+  updated in the same PR (or via redirect stubs) so `pnpm docs:check` link
+  validation stays green; the reorganised layout is documented in
+  `docs/guides/documentation-governance.md` so future docs land in the right
+  place by default.
+- **Validation:** `pnpm docs:check && pnpm format:check`
+- **Dependencies:** DOCGOV-005, DOCGOV-008, DOCGOV-009
+- **Files:** `docs/**`, `docs/guides/documentation-governance.md`,
+  `docs/governance/docs-check.baseline.json`, `AGENTS.md`, `CLAUDE.md`,
+  package and crate README cross-references,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-007 (generated indexes consume the new
+  layout), DOCGOV-008 (archive moves run before live reorg to avoid
+  shuffling docs that are about to leave), DOCGOV-009 (metadata backfill
+  provides the authority/type tags placement depends on)
 - **Confidence:** medium
