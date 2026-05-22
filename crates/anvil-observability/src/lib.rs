@@ -36,7 +36,7 @@ pub mod traceparent;
 pub use traceparent::{TraceContext, TraceContextError};
 
 use std::fs::{File, OpenOptions};
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -235,7 +235,7 @@ fn validate_existing_trace_file(
 ) -> Result<Option<std::fs::Metadata>, InitTracingError> {
     let metadata = match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(err) => {
             return Err(InitTracingError::TraceSink(format!(
                 "file={}: {err}",

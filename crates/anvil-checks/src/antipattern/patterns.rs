@@ -6,8 +6,10 @@
 //! (`patterns/compiled/registry.json`) as the single source of truth, and this
 //! module now exposes it to the scanner via a `LazyLock<Vec<AntiPattern>>`.
 //!
-//! Retired AP-008..AP-013 (HTML + CSS rules) are no longer part of the
-//! registry, so they no longer appear in the scanner catalogue.
+//! Retired HTML + CSS rules are no longer part of the registry, so no
+//! catalogue entries should target HTML/CSS extensions or categories.
+//! AP-008 and AP-009 are now dynamic-execution rules, so the test below
+//! guards the semantic retirement instead of treating those IDs as reserved.
 
 use std::sync::LazyLock;
 
@@ -107,10 +109,36 @@ mod tests {
 
     #[test]
     fn retired_html_css_patterns_are_absent() {
-        for id in ["AP-008", "AP-009", "AP-010", "AP-011", "AP-012", "AP-013"] {
+        use crate::antipattern::types::AntiPatternCategory;
+
+        for id in ["AP-010", "AP-011", "AP-012", "AP-013"] {
             assert!(
                 get_pattern(id).is_none(),
                 "retired HTML/CSS pattern {id} must not appear in catalogue"
+            );
+        }
+
+        for pattern in all_patterns() {
+            assert!(
+                !matches!(
+                    pattern.category,
+                    AntiPatternCategory::Html | AntiPatternCategory::Css
+                ),
+                "retired HTML/CSS pattern category must not appear in catalogue: {}",
+                pattern.id
+            );
+
+            let targets_html_or_css = pattern
+                .file_extensions
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .any(|ext| matches!(ext.as_str(), ".html" | ".htm" | ".css" | ".scss" | ".less"));
+
+            assert!(
+                !targets_html_or_css,
+                "retired HTML/CSS file targets must not appear in catalogue: {}",
+                pattern.id
             );
         }
     }
