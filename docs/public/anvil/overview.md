@@ -109,7 +109,7 @@ emitted, what passed, what failed, and when.
 | Feature                      | Description                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------ |
 | **`anvil start` Activation** | Wires Cursor / Claude Code MCP entries, baselines, and prints one literal protection state |
-| **Daemon-backed MCP**        | `anvil_validate_write` runs pre-write through the local daemon (Unix); embedded fallback   |
+| **Daemon-backed MCP**        | `anvil_validate_write` runs pre-write through the local daemon; embedded fallback          |
 | **Architecture Safety**      | Detects dependency violations using import analysis                                        |
 | **Anti-Pattern Library**     | 18 registry-driven rules (15 default, 3 opt-in)                                            |
 | **Parallel Scan Engine**     | Rust scanner runs tens of artifacts concurrently                                           |
@@ -183,20 +183,21 @@ For the full explanation of checks, findings, and gates, see
 
 **Ready to start?** [Go to the quickstart →](/anvil/quickstart)
 
-anvil is currently in beta — the latest tagged release is `v0.7.0-beta`. See the
-[beta testing guide](/anvil/beta-testing-guide) for what to expect, and the
+anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. See the
+[beta testing guide](/anvil/beta-testing-guide) for what to expect. If you're
+upgrading from `0.6.x`, read the
 [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
-if you're upgrading.
+first, then apply the `0.7.1-beta` patch notes.
 
-### v0.7.0-beta operator surfaces
+### v0.7.x-beta operator surfaces
 
-`v0.7.0-beta` is the **daemon-working** cut: every protection layer (hooks,
-witness chain, baseline adoption, L4 policy, wrapped agent launch) defines a
-single typed `ProtectionClaim` rendered on `anvil status --json`,
-`anvil doctor --json`, the `anvil_validate_write` MCP-tool response (when the
-daemon is reachable; the Windows MCP shim still reports
-`daemonStatus: not-wired` and omits `protection_claim`), and the TypeScript
-driver-client. The runbooks below are the source of truth — public docs
+`v0.7.0-beta` is the **daemon-working** cut; `v0.7.1-beta` is the activation
+honesty patch on top. Every protection layer (hooks, witness chain, baseline
+adoption, L4 policy, wrapped agent launch) defines a single typed
+`ProtectionClaim` rendered on `anvil status --json`, `anvil doctor --json`, the
+`anvil_validate_write` MCP-tool response when the daemon is reachable, and the
+TypeScript driver-client. Windows MCP protection-claim parity landed in
+`v0.7.1-beta`. The runbooks below are the source of truth — public docs
 deep-link rather than duplicate them:
 
 - [`anvil-run`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)

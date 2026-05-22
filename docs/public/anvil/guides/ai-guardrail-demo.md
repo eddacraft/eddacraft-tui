@@ -88,8 +88,8 @@ print the resolved config path and the entry that was written. Common fixes:
 - **Config file isn't valid JSON.** JSON5 / commented configs fail the verify;
   remove comments and rerun.
 
-For Windsurf, VS Code, or HTTP transport, use `anvil mcp-config --target …`
-instead — see [MCP Integration](/anvil/integrations/mcp).
+For Windsurf or VS Code, use the manual configuration path instead — see
+[MCP Integration](/anvil/integrations/mcp).
 
 ## 3. Watch the daemon
 
@@ -196,14 +196,17 @@ a partial AI edit needs cleaning up:
 ```bash
 git checkout -- .
 git clean -fd
-# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
-rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
+
+# Unix: clear just this repo's fence state.
+anvil intercept unblock --worktree "$PWD"
+
+# Windows or corrupt daemon state: stop the foreground daemon
+# (Ctrl-C in its terminal, or SIGTERM by PID), then restart it.
 anvil intercept start --foreground
 ```
 
-The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are not
-wired in v1; stop the foreground daemon directly and remove the fence directory
-to release fences.
+Use data-directory removal only for a full reset or corrupt local state; it
+clears all fence state for the user.
 
 To wipe everything and start over:
 

@@ -15,9 +15,10 @@ As of `v0.6.0-beta`, the Rust CLI's `anvil mcp serve --stdio` shim is the
 primary MCP surface, backed by the local Anvil daemon over owner-only IPC for
 validation. It exposes `anvil_validate_write` for pre-write validation and
 `anvil_status` for read-only workspace health — see
-[Available Tools](#available-tools) below. The daemon-backed validation path is
-Unix-first in this release; the embedded scanner is the correctness-equivalent
-fallback when the daemon is not reachable.
+[Available Tools](#available-tools) below. The daemon-backed validation path
+uses Unix sockets on Linux/macOS and owner-only named pipes on Windows as of
+`v0.7.1-beta`; the embedded scanner is the correctness-equivalent fallback when
+the daemon is not reachable.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
 `0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,
@@ -32,7 +33,7 @@ MCP is a protocol for providing context to AI models. anvil's MCP server
 exposes:
 
 - Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed on
-  Unix; embedded fallback otherwise)
+  every supported OS when the daemon is reachable; embedded fallback otherwise)
 - Workspace health summaries via `anvil_status` (Rust shim, local read-only
   status with explicit no-daemon provenance)
 - Broader tools, resources, and prompts after RMCPF ports or explicitly retires
@@ -53,10 +54,10 @@ anvil start --verify   # probe state, no writes
 ```
 
 If you only need to re-run the install in isolation, use `anvil mcp install`
-directly (next section). For HTTP transport or workspace-scoped paths against
-Cursor or Claude Code, use `anvil mcp-config` further down. Windsurf and VS Code
-are not currently `mcp-config` targets in v0.6.0-beta — see the manual
-configuration section.
+directly (next section). For workspace-scoped paths against Cursor or Claude
+Code, use `anvil mcp-config` further down. Windsurf and VS Code are not
+currently `mcp-config` targets in v0.6.0-beta — see the manual configuration
+section.
 
 ## One-Step Install with `anvil mcp install`
 
@@ -76,8 +77,8 @@ anvil mcp install --client cursor --verify
 ```
 
 The installer is restricted to Cursor and Claude Code. `anvil mcp-config` below
-covers the same two clients with extra knobs (HTTP transport, workspace-scoped
-paths). For Windsurf or VS Code, hand-write the configuration using the
+covers the same two clients with workspace-scoped path overrides. For Windsurf
+or VS Code, hand-write the configuration using the
 [Manual Configuration](#manual-configuration) section — the previous
 `mcp-config` Windsurf and VS Code targets were removed in LAUNCH-009.5 (Windsurf
 was never protocol-verified; the VS Code emitter wrote to the pre-1.99 file
@@ -85,9 +86,8 @@ shape and silently no-op'd on current builds).
 
 ## Generate Configuration with `anvil mcp-config`
 
-`anvil mcp-config` generates the right configuration shape for each editor,
-supports stdio and HTTP transports, and can write or verify the on-disk file
-directly.
+`anvil mcp-config` generates the right stdio configuration shape for each
+editor, and can write or verify the on-disk file directly.
 
 ```bash
 # Print the generated config for inspection
@@ -106,9 +106,6 @@ Supported targets:
 | ----------- | ------------- | ----------------- |
 | Claude Code | `claude-code` | stdio             |
 | Cursor      | `cursor`      | stdio             |
-
-Pass `--transport http` to switch a client to HTTP transport when the editor
-supports it; stdio remains the default.
 
 Use `--workspace <path>` to override the project root that anvil records in the
 generated config. If `--write` would overwrite an existing config, anvil prompts
@@ -174,18 +171,18 @@ write before the agent applies it; the response carries a `decision` (`allow` or
 The response includes a `correlation` envelope. The `correlation.daemonStatus`
 field reports whether the daemon-backed validation path is live:
 
-| Value         | Meaning                                                           |
-| ------------- | ----------------------------------------------------------------- |
-| `available`   | Daemon reachable; tool ran via the daemon-backed path             |
-| `unavailable` | Daemon-backed client probed but not reachable; embedded fallback  |
-| `not-wired`   | Daemon validation client not compiled in (Windows in v0.6.0-beta) |
+| Value         | Meaning                                                          |
+| ------------- | ---------------------------------------------------------------- |
+| `available`   | Daemon reachable; tool ran via the daemon-backed path            |
+| `unavailable` | Daemon-backed client probed but not reachable; embedded fallback |
+| `not-wired`   | Daemon validation client not compiled in for this runtime        |
 
-:::caution Windows daemon-backed path
+:::info Windows daemon-backed path
 
-In `v0.6.0-beta`, `correlation.daemonStatus` is always `not-wired` on Windows
-because the validation client is `cfg(unix)`-gated. The embedded fallback runs
-the same checks; the daemon-backed correlation envelope is part of the follow-up
-Windows named-pipe work.
+In `v0.7.1-beta`, Windows MCP validation reaches the daemon through owner-only
+named pipes and can return the same `protection_claim` as Unix. If
+`correlation.daemonStatus` is `unavailable`, the embedded fallback still runs
+the same checks; use `anvil intercept status` to inspect daemon health directly.
 
 :::
 

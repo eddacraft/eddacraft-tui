@@ -76,6 +76,9 @@ installed with:
 | Winget         | `winget uninstall eddacraft.anvil`   |
 | Scoop          | `scoop uninstall anvil`              |
 
+As of `v0.7.1-beta`, uninstall recognises Scoop and WinGet install roots when it
+plans cleanup on Windows and keeps removal bounded to the detected install root.
+
 Run `anvil uninstall --global` first so any running daemon is stopped before you
 remove the binary.
 

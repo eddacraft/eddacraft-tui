@@ -89,8 +89,30 @@ If the updater still cannot see the release:
 ## Daemon and MCP Activation
 
 For the full operator-facing detail, see the
-[v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md).
+[v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md).
 The most common pitfalls are summarised below.
+
+### `ready_restart_required` after `anvil start --verify`
+
+In `v0.7.1-beta`, `ready_restart_required` is no longer a generic "restart your
+editor" dead end. If the daemon attests live enforcement for the current
+worktree, `anvil start --verify` and `anvil status --verify` promote to
+`protecting`.
+
+If the state remains `ready_restart_required`, follow the repair hint:
+
+- **Editor not restarted yet:** restart Cursor or Claude Code so it picks up the
+  MCP config entry.
+- **Daemon unreachable:** run `anvil intercept start --foreground` in another
+  terminal, then re-run `anvil start --verify`.
+- **Worktree unenforced or stale:** run `anvil intercept status` and confirm the
+  daemon knows about the repository path you are probing.
+- **All surfaces quarantined:** clear the fence where supported with
+  `anvil intercept unblock --worktree <PATH>`, or stop and restart the daemon on
+  Windows.
+
+Run with `ANVIL_LOG=warn` if you need the daemon-state reason in logs;
+actionable activation failures now surface at that level.
 
 ### Daemon must run in foreground in v1
 
@@ -119,33 +141,34 @@ the named pipe on Windows (via `connect_owner_only_pipe_client`), printing
 uptime / sessions / fences / latency on either OS. `--json` returns the same
 `DaemonStatusV1` shape on Unix and Windows.
 
-The remaining Windows gap is in the MCP correlation envelope only:
-`correlation.daemonStatus` returned by `anvil_validate_write` is always
-`not-wired` on Windows because the MCP daemon validation client is gated
-`#[cfg(unix)]` in this cut. An MCP client inspecting that field on Windows sees
-`not-wired` even when the daemon is healthy and the CLI confirms it; fetch the
-full rollup directly from `anvil intercept status` instead. Tracked under
-`chore/windows-status`.
+As of `v0.7.1-beta`, the MCP validation path also reaches the daemon on Windows
+through owner-only named pipes. If an MCP client reports
+`correlation.daemonStatus: unavailable`, use `anvil intercept status` to
+distinguish daemon-down, stale, and unenforced-worktree states.
 
 ### Fences survive daemon restart
 
 A fenced worktree stays fenced across daemon stop/start, daemon crashes, and
 machine reboots. **Restart does not release fences** — that's by design.
 
-The `anvil intercept unblock` CLI subcommand is not wired in v1; the
-`FenceStore::unblock_worktree` daemon-side data path ships, but the CLI
-front-end is a planned follow-up INTD task. Recovery in this release is:
+On Unix, clear a fenced worktree directly:
+
+```bash
+anvil intercept unblock --worktree /absolute/path/to/repo
+```
+
+Windows does not support worktree-scoped unblock yet. If every Windows surface
+is quarantined, stop and restart the foreground daemon:
 
 ```bash
 # Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
-rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
 anvil intercept start --foreground
 ```
 
-This destroys all fence state for the user — there is no worktree-scoped CLI
-recovery in v1. See the
-[release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
-§3 for the canonical sequence.
+If the daemon state is corrupted or a killed daemon leaves stale local state,
+remove `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` before restarting. That
+destroys all fence state for the user, so prefer `unblock --worktree` where it
+is supported.
 
 ### macOS interrupt ladder fences instead of signalling
 

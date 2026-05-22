@@ -9,7 +9,78 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.7.0-beta
+## Current Version: 0.7.1-beta
+
+## Upgrading to 0.7.1-beta
+
+Drop-in patch upgrade from `0.7.0-beta`. There is no config migration and no
+protection-claim vocabulary change. The patch fixes activation honesty: if the
+intercept daemon is running and attests the current worktree,
+`anvil start --verify` and `anvil status --verify` can now promote from
+`ready_restart_required` to `protecting` instead of asking for another editor
+restart forever.
+
+```bash
+# Upgrade via the installer (Homebrew-aware)
+sh <(curl -fsSL https://anvil.dev/install)
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+After upgrade, verify activation from the repository root:
+
+```bash
+anvil start --verify
+anvil status --verify
+```
+
+`protecting` means the daemon has attested the canonical worktree. If activation
+still reports `ready_restart_required`, read the repair hint literally: it now
+distinguishes editor restart from daemon unreachable, unenforced, stale, and
+all-quarantined states.
+
+### What's new in 0.7.1-beta
+
+- **Activation diagnostic consumes daemon evidence** — fixes GH
+  [#1831](https://github.com/eddacraft/anvil-001/issues/1831) by promoting
+  handshake-verified MCP clients when the daemon reports live enforcement for
+  the same worktree.
+- **Windows MCP protection-claim parity** — `anvil_validate_write` now reaches
+  the daemon through owner-only named pipes on Windows and can return the same
+  `protection_claim` field as Unix.
+- **Actionable `ready_restart_required` hints** — daemon-down, unenforced,
+  stale-snapshot, and all-quarantined states point to daemon inspection or
+  restart instead of always telling the user to restart Cursor or Claude Code.
+- **L4 IO-outage distinction** — transient filesystem errors no longer surface
+  as missing-engine hints.
+- **Scoop / WinGet uninstall-root detection** — `anvil uninstall` recognises the
+  Windows package-manager install roots and tightens its removal boundary.
+- **`anvil-run` SIGTERM diagnostic note** — the runbook names the transient
+  fence symptom after launcher termination and the recovery path.
+
+### Known gaps carried from 0.7.0-beta
+
+- Daemon-side `session.report_process` is still unimplemented; launcher sessions
+  absorb the gap gracefully.
+- `anvil intercept unblock --worktree` is still Unix-only. On Windows, stop the
+  daemon and start it again if every surface is quarantined.
+- MCP `query_protection_claim` still uses the older 2 second IPC timeout. The
+  activation path itself uses the 500 ms budget.
 
 ## Upgrading to 0.7.0-beta
 
@@ -143,8 +214,8 @@ if any of the following apply:
 ### Carry-forward from `v0.6.0-beta`
 
 The foreground-only daemon launch mode, macOS fence-first interrupt ladder, and
-Windows CI scope (cross-compile matrix on `main`, MCP correlation envelope still
-reports `daemonStatus: not-wired` on Windows) are unchanged. See the
+Windows CI scope (cross-compile matrix on `main`) are unchanged. The Windows MCP
+correlation gap in this `0.7.0-beta` section was closed by `0.7.1-beta`. See the
 [v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
 for the original operational realities — the
 [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)

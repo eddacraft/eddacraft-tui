@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.6.3-beta
+**Current version:** 0.7.1-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -21,7 +21,7 @@ designed to catch issues before the AI's write lands -- in front of an MCP
 client like Cursor or Claude Code -- and to fall back to save-time signal when
 pre-write attachment is not available.
 
-## What's New in 0.6.0-beta to Focus Testing On
+## What's New in 0.7.1-beta to Focus Testing On
 
 These are the highest-leverage flows for this cut. If you only have a short
 session, these are the right places to spend it.
@@ -32,8 +32,8 @@ session, these are the right places to spend it.
   `ready_restart_required`, `watching`, `needs_action`, `unsupported`, or
   `error`). The state is the contract -- trust it.
 - **Daemon-backed MCP validation in Cursor and Claude Code.** The
-  `anvil_validate_write` MCP tool is now backed by the local daemon over
-  owner-only IPC on Unix, with the embedded path as a correctness-equivalent
+  `anvil_validate_write` MCP tool is backed by the local daemon over owner-only
+  IPC on Unix and Windows, with the embedded path as a correctness-equivalent
   fallback. Restart the editor after `anvil start` and verify `anvil` shows in
   the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
   refuse it.
@@ -42,12 +42,10 @@ session, these are the right places to spend it.
   unsupported). Language-specific antipattern checks honour the profile;
   cross-language checks (e.g. secrets) still run on every file.
 - **Foreground daemon ops.** The daemon runs in foreground only in v1
-  (`anvil intercept start --foreground`). Fences survive restart; recovery is to
-  stop the daemon (Ctrl-C, or SIGTERM by PID) and remove the fence directory at
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` -- the `anvil intercept stop` /
-  `unblock` CLI subcommands are not wired in v1. `anvil intercept status` is
-  available on every supported target this release; the only Windows gap is the
-  MCP correlation envelope.
+  (`anvil intercept start --foreground`). Fences survive restart;
+  `anvil intercept unblock --worktree <PATH>` clears a fenced worktree on Unix,
+  while Windows users should stop and restart the daemon if every surface is
+  quarantined. `anvil intercept status` is available on every supported target.
 - **`anvil version` install-method awareness.** Reports current and latest
   version and prints the upgrade command for your install method (Homebrew,
   Scoop, WinGet, installer, dev build).
@@ -518,21 +516,19 @@ One sentence describing what happened.
   path speaks the UDS IPC; the Windows path drives the same wire shape over the
   named pipe via `connect_owner_only_pipe_client`. `--json` returns the same
   `DaemonStatusV1` on either OS.
-- **MCP daemon-status correlation is Unix-only today.** On Windows the
-  `anvil_validate_write` MCP tool's `correlation.daemonStatus` is always
-  `not-wired` because the MCP daemon validation client is gated `cfg(unix)`. The
-  embedded fallback handles validation correctness; the daemon-status signal in
-  MCP responses cannot distinguish daemon-up from daemon-down on Windows in this
-  cut. Tracked under `chore/windows-status`.
+- **Windows MCP daemon-status correlation requires `v0.7.1-beta` or newer.** In
+  `v0.7.0-beta`, Windows MCP responses reported `daemonStatus: not-wired`; the
+  `v0.7.1-beta` patch adds owner-only named-pipe parity so
+  `anvil_validate_write` can return `available`, `unavailable`, and
+  `protection_claim` on Windows too.
 - **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
   -- backgrounded launches are not a v1 surface.
-- **Fences survive daemon restart, and the `stop` / `unblock` CLI surface is not
-  in v1.** `anvil intercept` declares only `start` and `status` in this release;
-  the `FenceStore::unblock_worktree` data path ships, but the CLI front-end is a
-  follow-up INTD task. Recovery is: stop the foreground daemon (Ctrl-C, or
-  SIGTERM by PID) and remove the fence directory at
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. There is no worktree-scoped CLI
-  recovery in v1.
+- **Fences survive daemon restart.** On Unix, use
+  `anvil intercept unblock --worktree <PATH>` for worktree-scoped recovery. On
+  Windows, worktree-scoped unblock is not supported yet; stop and restart the
+  foreground daemon if every surface is quarantined. If daemon state is
+  corrupted, remove `${XDG_DATA_HOME:-$HOME/.local/share}/anvil` before
+  restarting; that clears all fence state for the user.
 - **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
   the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recovery
   is the same daemon-stop + fence-directory removal as above.

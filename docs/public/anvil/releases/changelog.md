@@ -31,6 +31,77 @@ All notable changes to anvil are documented here.
   to the structured `payload` object. The pre-WOUT shape was not guaranteed and
   is no longer produced.
 
+## [0.7.1-beta] — 2026-05-22 — Activation Diagnostic Honesty
+
+`v0.7.1-beta` is the first Boring Week patch on the `v0.7.0-beta` daemon-working
+slate. It closes GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831):
+early Windows + Scoop + PowerShell users could stay stuck at
+`ready_restart_required` after `anvil start` even when the daemon was already
+running and enforcing the worktree.
+
+### Fixed
+
+- **`anvil start --verify` reaches `protecting` from live daemon evidence.** The
+  activation diagnostic now consumes the daemon's `ProtectionClaim` snapshot and
+  promotes handshake-verified MCP clients to live validation when the daemon
+  attests the canonical worktree.
+- **Windows MCP responses now carry `protection_claim`.** The
+  `anvil_validate_write` path now has Windows named-pipe parity with Unix, so
+  Windows users no longer see the MCP daemon path reported as permanently
+  `not-wired` when the daemon is healthy.
+- **`ready_restart_required` repair hints distinguish daemon-state failures.**
+  If activation stalls because the daemon is unreachable, unenforced for the
+  worktree, stale, or all-quarantined, the hint now points at daemon inspection
+  or restart instead of always saying to restart the editor.
+- **L4 engine IO outages no longer look like missing engines.** A new
+  `EngineUnavailableReason::IoError` separates retryable filesystem hiccups from
+  permanently absent engines.
+- **`anvil uninstall` detects Scoop and WinGet install roots.** Cleanup now
+  recognises those Windows package-manager paths and keeps removal bounded to
+  the install root.
+
+### Added
+
+- **Activation tracing surfaces actionable failures at `warn`.** Operators
+  asking why activation did not promote now see daemon unreachable, unenforced,
+  stale, or all-quarantined states without enabling debug logs.
+- **`DaemonStatusV1.generated_at_unix`.** The daemon status wire shape includes
+  a wall-clock snapshot anchor used as a second freshness check; older daemons
+  deserialize as `0` and fall back to per-session freshness.
+- **`anvil-run` SIGTERM diagnostics.** The manpage now names the transient fence
+  that can appear after the launcher is killed and the recovery path: run the
+  launcher again so session registration clears the fence.
+
+### Changed
+
+- **Activation freshness rejects far-future daemon timestamps.** A 90 second
+  future-skew cap prevents broken clocks or replayed snapshots from permanently
+  passing freshness checks.
+- **Unix daemon-status reads enforce one wall-clock deadline.** A slow-drip
+  daemon response can no longer stretch the activation IPC budget by resetting
+  the timeout for every byte.
+
+### Known gaps
+
+- **Daemon-side `session.report_process` is still not implemented.** The
+  launcher absorbs this gracefully; the daemon IPC handler remains tracked
+  separately.
+- **`anvil intercept restart` and `anvil intercept recover` do not exist yet.**
+  Recovery still uses `anvil intercept start --foreground` and, where supported,
+  `anvil intercept unblock --worktree <PATH>`.
+- **`anvil intercept unblock --worktree` is still Unix-only.** Windows users
+  with every surface quarantined should stop the daemon and start it again.
+- **MCP `query_protection_claim` still uses the older 2 second IPC timeout.**
+  The activation surface enforces the intended 500 ms budget; MCP timeout parity
+  is a follow-up.
+
+### Upgrade
+
+- Homebrew: `brew upgrade eddacraft/tap/anvil`.
+- Built-in updater: `anvil update`.
+- WinGet: `winget upgrade --id eddacraft.anvil`.
+- Scoop: `scoop update anvil`.
+
 ## [0.7.0-beta] — 2026-05-20 — Daemon-Working: End-to-End Verifiable Protection
 
 The release theme is **daemon-working**: the protection claim is now verifiable

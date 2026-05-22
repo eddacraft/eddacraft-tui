@@ -34,8 +34,9 @@ After `anvil start` you land on exactly one of six literal states:
 - **`protecting`** — pre-write MCP validation has been observed live in this
   repo. AI writes are being checked before they hit disk.
 - **`ready_restart_required`** — MCP config was written safely and the server
-  starts, but the editor or agent has to restart so the MCP entry attaches. This
-  is **not** protection yet — restart is still required.
+  starts, but the editor or agent has to restart so the MCP entry attaches, or a
+  daemon-state repair hint needs attention. This is **not** protection yet — the
+  printed next step matters.
 - **`watching`** — pre-write MCP attachment is not in evidence; the kernel
   watcher is running as a save-time fallback. Weaker than `protecting`, and the
   surface says so.
@@ -54,7 +55,7 @@ allowed vocabulary.
 
 ## Prerequisites
 
-- A current anvil install (see [Install](/anvil/quickstart#step-1----install)).
+- A current anvil install (see [Install](../quickstart.md#install)).
 - **Cursor** or **Claude Code** installed — one is enough. v1 ships MCP install
   for Cursor and Claude Code only; nothing else is wired.
 - A real TypeScript or JavaScript project. SQL and Markdown get partial
@@ -104,10 +105,10 @@ ACTIVATION
 ```
 
 The headline claim — "pre-write validation is live in this repo" — only fires
-when anvil has actually observed an `anvil_validate_write` call land. Until that
-evidence arrives, the diagnostic stops at `ready_restart_required`. This is by
-design: a `protecting` claim that hasn't been earned would be the worst-case lie
-for a governance tool.
+when anvil has live evidence from the daemon or an observed
+`anvil_validate_write` call. Until that evidence arrives, the diagnostic stops
+at `ready_restart_required`. This is by design: a `protecting` claim that hasn't
+been earned would be the worst-case lie for a governance tool.
 
 ### Outcome B — `ready_restart_required`
 
@@ -131,9 +132,9 @@ ACTIVATION
 
 This is the most common first-run outcome. anvil wrote `~/.cursor/mcp.json` and
 `~/.claude.json`, the server starts cleanly, but the editor is holding the old
-MCP server list. Restart it once. The next `anvil start --verify` should move
-you to `ready_restart_required` → `protecting` once a write actually flows
-through `anvil_validate_write`.
+MCP server list. Restart it once. On `v0.7.1-beta` and newer, the next
+`anvil start --verify` can move `ready_restart_required` → `protecting` when the
+daemon attests the current worktree; if it cannot, read the printed repair hint.
 
 ### Outcome C — `watching`
 
@@ -277,7 +278,7 @@ generate noise without findings:
 
 If you want save-time signal anyway in a state where `--watch` has skipped, the
 unconditional path is `anvil watch --source` (covered in
-[Beta Quickstart §6](/anvil/quickstart#step-6----watch-fallback)).
+[Beta Quickstart: Turn On Watch Mode](../quickstart.md#turn-on-watch-mode-fallback)).
 
 ## The protection states, plainly
 
@@ -286,7 +287,7 @@ The six allowed literals, what each means, and the next user action:
 | `state:`                 | Meaning                                                                                        | Next action                                                                   |
 | ------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `protecting`             | Pre-write validation has been observed live. AI writes hit `anvil_validate_write` before disk. | None — try the [AI Guardrail Demo](./ai-guardrail-demo).                      |
-| `ready_restart_required` | MCP config written and server starts, but editor / agent has not restarted.                    | Restart Cursor or Claude Code; re-run `anvil start --verify`.                 |
+| `ready_restart_required` | MCP config written, but editor restart or daemon-state repair is still required.               | Follow the printed repair hint; re-run `anvil start --verify`.                |
 | `watching`               | Pre-write MCP attachment not in evidence; save-time watcher running (weaker).                  | Install Cursor or Claude Code if you want pre-write; or accept the fallback.  |
 | `needs_action`           | No literal protection claim possible; concrete next step exists.                               | Read the `next:` line below the diagnostic.                                   |
 | `unsupported`            | Repo languages are out of scope for this release.                                              | Wait for the language pack to ship, or scope anvil to a TS / JS subdirectory. |
@@ -308,11 +309,11 @@ The wow-start gets you to `protecting` (or the honest reason you are not there).
 The guardrail demo is what protection actually looks like when an AI agent
 collides with it.
 
-## What is honest in v0.6.0-beta
+## What is honest in v0.7.x-beta
 
 The wow-start is a real product surface, not a recording-only setup, but several
 things you might expect from the brainstorm phase are explicitly **not
-shipping** in `v0.6.0-beta`. Calling these out so the demo doesn't carry
+shipping** in `v0.7.x-beta`. Calling these out so the demo doesn't carry
 implicit claims it can't back:
 
 What `anvil start` does **not** do today:
@@ -331,30 +332,24 @@ What `anvil start` does **not** do today:
   wired itself — the entries in `~/.cursor/mcp.json` and `~/.claude.json` it
   just wrote.
 
-Operator caveats for `v0.6.0-beta` (see the
-[v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
-for the full list):
+Operator caveats carried forward from `v0.6.0-beta` (see the
+[v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+for the current operator surface):
 
 - **Foreground daemon only.** `anvil intercept start --foreground` is the only
   validated launch mode for v1. Operators running under systemd / launchd should
   run foreground under the manager's supervision.
 - **`anvil intercept status` works on every supported target.** The Windows
-  named-pipe client ships in `v0.6.0-beta`. The remaining Windows gap is in the
-  MCP `correlation.daemonStatus` envelope, which still reports `not-wired` on
-  Windows because the MCP validation client is `cfg(unix)`-gated; that routes
-  through the same `chore/windows-status` workstream.
-- **Windows MCP correlation reports `not-wired`.** The
-  `correlation.daemonStatus` field returned by `anvil_validate_write` is always
-  `not-wired` on Windows in this release because the daemon validation client is
-  gated `#[cfg(unix)]`. The MCP path itself still works; the daemon-reachability
-  signal does not.
-- **macOS interrupt ladder is fence-first.** Recovery in `v0.6.0-beta` is to
-  stop the foreground daemon and remove the fence directory
-  (`rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"`); a daemon restart
-  alone does not release fences. The `anvil intercept unblock` CLI front-end is
-  a planned follow-up (V060F-003) — until it lands, the directory removal is the
-  only supported recovery.
-- **Fences survive daemon restart.** Same recovery path as above.
+  named-pipe client ships in `v0.6.0-beta`. `v0.7.1-beta` adds Windows MCP
+  named-pipe parity too, so `anvil_validate_write` can report daemon status and
+  `protection_claim` on Windows when the daemon is reachable.
+- **macOS interrupt ladder is fence-first.** A daemon restart alone does not
+  release fences. On Unix, use `anvil intercept unblock --worktree <PATH>` for
+  worktree-scoped recovery; on Windows, stop and restart the daemon if every
+  surface is quarantined. Remove `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`
+  only for a full reset or corrupt local state.
+- **Fences survive daemon restart.** Use the same Unix unblock / Windows restart
+  split as above.
 
 The discipline holds across all of these: `anvil start` will not print
 `protecting` unless pre-write validation has actually been observed. Every
@@ -368,11 +363,11 @@ the AI Guardrail Demo runbook. Run from inside the demo repo:
 
 ```bash
 # Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID).
-# `anvil intercept stop` and `anvil intercept unblock` are not v1 CLI
-# subcommands — the daemon is `start` + `status` only in v0.6.0-beta.
+# If you only need to clear a Unix fence, prefer:
+# anvil intercept unblock --worktree "$PWD"
 
-# Wipe runtime / data dirs for an absolutely-fresh run. The data-dir
-# removal is the only supported way to clear fence state in v1.
+# Wipe runtime / data dirs for an absolutely-fresh run or corrupt local state.
+# The data-dir removal clears all fence state for the user.
 rm -rf "${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"
 
@@ -402,7 +397,6 @@ For finer-grained per-scenario resets (between AI Guardrail Demo scenarios A / B
   try and how to send feedback.
 - [MCP Integration](/anvil/integrations/mcp) — the underlying transport, the
   `anvil_validate_write` tool shape, and the supported client list.
-- [v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.0-beta-release-runbook.md)
-  — operator-facing detail on every caveat above (foreground daemon, MCP
-  correlation `daemonStatus: not-wired` on Windows, macOS fence-first,
-  dev-branch CI scope, no `intercept stop` / `unblock` CLI subcommands in v1).
+- [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
+  — operator-facing detail on the daemon-working surface and the caveats that
+  still matter after the `v0.7.1-beta` activation-honesty patch.

@@ -19,13 +19,13 @@ minutes.
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.7.0-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
 gaps, and the
 [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
-if you're upgrading an existing install.
+if you're upgrading an existing `0.6.x` install.
 
 :::
 
@@ -105,7 +105,8 @@ state — one of:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick
-  it up
+  it up, or follow the daemon repair hint if the daemon is unreachable,
+  unenforced, stale, or all-quarantined
 - `watching` — save-time watch fallback active (MCP could not attach)
 - `needs_action` — repair hint provided
 - `unsupported` — repo language profile is out of scope (e.g. Python or Rust in
@@ -115,17 +116,12 @@ state — one of:
 When the daemon is running and reachable over owner-only IPC, the
 `anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
 scanner is the correctness-equivalent fallback when the daemon is not available.
-In `v0.7.0-beta` the protection-claim contract is defined across
+In `v0.7.x-beta` the protection-claim contract is defined across
 `anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
 MCP-tool response, and the TypeScript driver-client. The MCP response only
-carries `protection_claim` when the daemon is reachable; on Windows the MCP
-daemon-validation client is still gated `cfg(unix)`, so
-`correlation.daemonStatus` reads `not-wired` and `protection_claim` is omitted
-on that surface (carry-forward from `v0.6.0-beta`, tracked under
-`chore/windows-status`). `anvil status --json` and `anvil doctor --json` still
-render the claim on Windows. The cross-compile matrix runs against `main` per
-the
-[v0.7.0-beta release runbook §10](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md).
+carries `protection_claim` when the daemon is reachable. As of `v0.7.1-beta`,
+Windows reaches the daemon through the named-pipe client too, so
+`correlation.daemonStatus` and `protection_claim` are no longer Unix-only.
 
 To probe state without writing config:
 
@@ -304,7 +300,7 @@ One warning down. Repeat for the rest at your own pace.
   architectural drift
 - [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
 
-**v0.7.0-beta operator surfaces** (runbooks are the source of truth):
+**v0.7.x-beta operator surfaces** (runbooks are the source of truth):
 
 - [`anvil-run` — wrapped-launch ingress](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
   — route `claude`, `codex`, `aider`, and similar agents through a
@@ -316,9 +312,8 @@ One warning down. Repeat for the rest at your own pace.
 - [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
   — `anvil status --json | jq '.claim.worktree_state'` and the same
   `ProtectionClaim` shape on `anvil doctor --json`, the `anvil_validate_write`
-  MCP-tool response (when the daemon is reachable; omitted on Windows MCP, where
-  the shim still reports `daemonStatus: not-wired`), and the TypeScript
-  driver-client.
+  MCP-tool response when the daemon is reachable, and the TypeScript
+  driver-client. Windows MCP protection-claim parity landed in `v0.7.1-beta`.
 - [`anvil baseline --new-identity` / `anvil start --new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
   — fork opt-out: mint a fresh `project_uuid` and record the previous one as
   `forked_from`.
