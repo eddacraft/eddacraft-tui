@@ -210,7 +210,7 @@ Until dedicated tooling exists, use the smallest relevant check set:
 | Package README | `pnpm format:check` plus link/source path check                |
 | Runbook        | `pnpm format:check` plus command review                        |
 
-DOCGOV will replace these manual checks with explicit validators over time.
+DOCGOV is replacing these manual checks with explicit validators over time.
 
 ## Automated Indexing Requirement
 
@@ -218,21 +218,21 @@ Documentation indexes must be generated, not manually maintained. The only
 manual indexing input should be document-local metadata and, when needed, adding
 a new approved tag to the tag catalogue.
 
-Target flow:
+Current generated-index flow:
 
 ```text
-document metadata -> scanner -> generated indexes -> CI freshness check
+document metadata -> docs:index -> docs/indexes/ -> docs:check freshness check
 ```
 
-The generator should:
+The generator:
 
-- scan documentation sources and package/crate READMEs
-- parse document-local metadata
+- scans governed documentation sources
+- parses document-local metadata
 - infer safe fields such as title and path
-- generate indexes by type, authority, owner, status, and tag
-- reject unknown tags unless they exist in the approved tag catalogue
-- fail CI when required metadata is missing
-- fail CI when generated indexes are stale
+- generates `docs/indexes/` by type, authority, owner, status, and tag
+- rejects unknown tags unless they exist in the approved tag catalogue
+- relies on `pnpm docs:check` metadata validation for required metadata
+- fails CI when generated indexes are stale
 
 Required commands:
 

@@ -13,7 +13,7 @@
 //   links             — scripts/docs/check-links.mjs (real)
 //   aps               — scripts/docs/check-aps.mjs (delegates to pnpm aps:drift)
 //   adr               — scripts/docs/check-adr.mjs (delegates to pnpm adr:check)
-//   index-freshness   — scripts/docs/check-index-freshness.mjs (stub, DOCGOV-007)
+//   index-freshness   — scripts/docs/check-index-freshness.mjs (real)
 //   asbuilt-paths     — scripts/docs/check-asbuilt-paths.mjs (stub, DOCGOV-006)
 //
 // Baseline: each real-surface script reads the same

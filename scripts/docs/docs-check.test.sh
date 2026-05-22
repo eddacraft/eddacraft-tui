@@ -26,6 +26,8 @@ orchestrator="${script_dir}/docs-check.mjs"
 metadata_script="${script_dir}/check-metadata.mjs"
 tags_script="${script_dir}/check-tags.mjs"
 links_script="${script_dir}/check-links.mjs"
+index_script="${script_dir}/check-index-freshness.mjs"
+index_generator="${script_dir}/docs-index.mjs"
 
 tmp_root=$(mktemp -d)
 trap 'rm -rf "${tmp_root}"' EXIT
@@ -47,13 +49,22 @@ if grep -qE "^  (pass|FAIL) asbuilt-paths$" <<<"${out}"; then
   pass "all seven surfaces present in summary"
 fi
 
-# Case 2: remaining stub and asbuilt-paths real surface both run cleanly.
-echo "case 2: remaining stub and asbuilt-paths surface run cleanly"
-out="$(node "${script_dir}/check-index-freshness.mjs" 2>&1)"
-if echo "${out}" | grep -q "pending DOCGOV-007"; then
-  pass "index-freshness stub prints DOCGOV-007 pending note"
+# Case 2: index-freshness and asbuilt-paths real surfaces both run cleanly.
+echo "case 2: index-freshness and asbuilt-paths surfaces run cleanly"
+out="$(cd "${repo_root}" && node "${index_script}" 2>&1 || true)"
+if echo "${out}" | grep -qE "^\[index-freshness\] summary: [0-9]+ errors, [0-9]+ warnings, [0-9]+ files checked$"; then
+  pass "index-freshness real surface prints summary"
 else
-  fail "index-freshness stub note missing; got: ${out}"
+  fail "index-freshness summary missing; got: ${out}"
+fi
+set +e
+(cd "${repo_root}" && node "${index_script}" >/dev/null 2>&1)
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]]; then
+  pass "index-freshness exits 0 when live indexes are fresh"
+else
+  fail "index-freshness should exit 0 for fresh live indexes; got ${status}"
 fi
 out="$(node "${script_dir}/check-asbuilt-paths.mjs" 2>&1)"
 if echo "${out}" | grep -qE "^\[asbuilt-paths\] summary: [0-9]+ errors, [0-9]+ warnings, [0-9]+ files checked$"; then
@@ -114,6 +125,95 @@ if node -e "JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8'))"
   pass "asbuilt-paths --json parses cleanly"
 else
   fail "asbuilt-paths --json failed JSON.parse"
+fi
+json_tmp="${tmp_root}/index-freshness.json"
+(cd "${repo_root}" && node "${index_script}" --json) >"${json_tmp}" 2>/dev/null || true
+if node -e "JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8'))" "${json_tmp}" 2>/dev/null; then
+  pass "index-freshness --json parses cleanly"
+else
+  fail "index-freshness --json failed JSON.parse"
+fi
+
+# Case 6b: generated-index checker detects missing and stale files in a fixture root.
+echo "case 6b: docs:index detects missing, fresh, and stale generated indexes"
+fixture_root="${tmp_root}/index-fixture"
+mkdir -p "${fixture_root}/docs/governance"
+cat >"${fixture_root}/docs/README.md" <<'EOF'
+# Fixture README
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| README | Authoritative | Fixtures | Live | Test fixture |
+
+| Upstream | Downstream |
+| --- | --- |
+| scripts/docs/docs-index.mjs | docs/indexes/README.md |
+EOF
+cat >"${fixture_root}/docs/example.md" <<'EOF'
+# Fixture Guide
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Fixtures | Live | Test fixture |
+
+| Upstream | Downstream |
+| --- | --- |
+| scripts/docs/docs-index.mjs | docs/indexes/by-tag.md |
+
+**Tags:** agent
+EOF
+cat >"${fixture_root}/docs/governance/tags-catalogue.md" <<'EOF'
+# Fixture Tags Catalogue
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Fixtures | Live | Test fixture |
+
+| Upstream | Downstream |
+| --- | --- |
+| scripts/docs/docs-index.mjs | docs/indexes/by-tag.md |
+
+## Catalogue
+
+| Tag | Meaning |
+| --- | --- |
+| `agent` | Fixture tag. |
+
+`not-approved-example`
+EOF
+set +e
+node "${index_generator}" --root "${fixture_root}" --check >/dev/null 2>&1
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]]; then
+  pass "docs:index:check fixture fails before indexes exist"
+else
+  fail "docs:index:check fixture should fail before indexes exist"
+fi
+node "${index_generator}" --root "${fixture_root}" >/dev/null 2>&1
+set +e
+node "${index_generator}" --root "${fixture_root}" --check >/dev/null 2>&1
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]]; then
+  pass "docs:index:check fixture passes after generation"
+else
+  fail "docs:index:check fixture should pass after generation; got ${status}"
+fi
+if grep -q "Fixture README" "${fixture_root}/docs/indexes/by-type.md" && grep -q "## agent" "${fixture_root}/docs/indexes/by-tag.md"; then
+  pass "docs:index fixture includes README metadata and approved tag grouping"
+else
+  fail "docs:index fixture omitted README metadata or approved tag grouping"
+fi
+printf '\nmanual edit\n' >>"${fixture_root}/docs/indexes/by-type.md"
+set +e
+node "${index_generator}" --root "${fixture_root}" --check >/dev/null 2>&1
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]]; then
+  pass "docs:index:check fixture fails on stale generated index"
+else
+  fail "docs:index:check fixture should fail on stale generated index"
 fi
 
 # Case 7: summary line includes counts.

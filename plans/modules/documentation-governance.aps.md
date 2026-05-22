@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 6/10     |
+| DOCGOV | —     | In Progress | 7/10     |
 
 ## Purpose
 
@@ -73,11 +73,9 @@ state semantics, or agent execution taxonomy. When documentation governance need
 those concepts, it links to the operating-model and agentic-execution specs
 instead of redefining them.
 
-Current planned validation commands such as `pnpm docs:check`,
-`pnpm docs:index`, and `pnpm docs:index:check` are target commands until
-DOCGOV-005 and DOCGOV-007 implement them. Before those items land, docs changes
-use the minimal validation baseline in
-`docs/guides/documentation-governance.md`.
+Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
+`pnpm docs:index:check`. DOCGOV-006 and DOCGOV-007 have replaced the planned
+`asbuilt-paths` and `index-freshness` stubs with real validators.
 
 ## Tasks
 
@@ -296,7 +294,11 @@ use the minimal validation baseline in
 
 ### DOCGOV-007: Generate or reconcile documentation indexes
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Authorisation:** Operator authorised execution on 2026-05-22 via "open PR
+  and move onto next" while the item was Proposed; dependency DOCGOV-005 is
+  complete. Work originally started from `main` to keep generated-index work
+  isolated, then rebased after DOCGOV-006 landed.
 - **Intent:** Replace hand-maintained documentation discovery with generated
   indexes driven by document metadata, and turn the `index-freshness` stub
   shipped by DOCGOV-005 into a real validator.
@@ -308,11 +310,11 @@ use the minimal validation baseline in
   single `pnpm docs:check` run catches drift. New tags are added through the
   approved tag catalogue (`docs/governance/tags-catalogue.md`), not by
   manually editing indexes. Stub log line in `check-index-freshness.mjs` is
-  removed. Until this ships, generated-index requirements remain planned and
-  must not be treated as current closeout commands.
+  removed.
 - **Validation:** `pnpm docs:index:check && pnpm docs:check && pnpm test:docs-check && pnpm format:check && pnpm lint:check`
 - **Dependencies:** DOCGOV-005
 - **Files:** `scripts/docs/docs-index.mjs` (new),
+  `plans/execution/DOCGOV-007.steps.md`,
   `scripts/docs/check-index-freshness.mjs`,
   `scripts/docs/docs-check.test.sh`,
   `packages/docs-meta/**`,
@@ -324,6 +326,15 @@ use the minimal validation baseline in
   generated indexes read from — generation quality depends on backfill
   coverage), DOCGOV-010 (reorg changes paths the generator must traverse),
   DOCGOV-005 (replaces the index-freshness surface stub)
+- **Closeout:** Validation passed with
+  `pnpm docs:index:check && pnpm docs:check && pnpm test:docs-check && pnpm format:check && pnpm lint:check`
+  on branch `docs/docgov-indexes`. `scripts/docs/docs-index.mjs` now scans
+  governed Markdown metadata, writes formatter-stable generated indexes under
+  `docs/indexes/`, and supports `--check` / `--json` for CI and
+  `docs:check` integration. Generated indexes cover type, authority, owner,
+  status, and approved tag usage where available. `check-index-freshness.mjs`
+  delegates to the generator in check mode, removing the DOCGOV-007 stub while
+  preserving DOCGOV-006's real `asbuilt-paths` validator after rebase.
 - **Confidence:** medium
 
 ### DOCGOV-008: Migrate stale entrypoints and archive dead docs
