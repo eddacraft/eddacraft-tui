@@ -2,9 +2,21 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 62/83 |
+| MLP2 | @aneki | In Progress | 63/83 |
 
-**Last reviewed:** 2026-05-22 (MLP2-051f filed under Group J —
+**Last reviewed:** 2026-05-22 (MLP2-051f advanced In Progress →
+Merged via PR
+[#1840](https://github.com/eddacraft/anvil-001/pull/1840) at
+`e1cc066a` — activation diagnostic consumes the daemon
+`ProtectionClaim` snapshot via
+`promote_to_live_validation_when_daemon_attests` so
+`anvil start --verify` and `anvil status --verify` reach
+`protecting` when the intercept daemon attests the canonical
+worktree. Closes GH
+[#1831](https://github.com/eddacraft/anvil-001/issues/1831).
+Done-count advances 62 → 63; total stays 83.)
+
+Earlier 2026-05-22 (MLP2-051f filed under Group J —
 activation diagnostic consumes the daemon `ProtectionClaim` snapshot
 so `anvil start --verify` can reach `protecting` when the intercept
 daemon attests the current worktree. Implementation slice for the
@@ -2928,7 +2940,12 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051f: Activation diagnostic consumes daemon `ProtectionClaim`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-22 via PR
+  [#1840](https://github.com/eddacraft/anvil-001/pull/1840) at
+  `e1cc066a`. Closes GH
+  [#1831](https://github.com/eddacraft/anvil-001/issues/1831).
+  Awaiting `v0.7.0-beta` release evidence to advance Merged →
+  Released/Shipped → Complete.
 - **Intent:** `crates/anvil-cli/src/activation/diagnostic.rs` consumes
   `anvil_intercept::status::query_daemon_snapshot` +
   `build_protection_claim_from_wire` and, when the daemon attests
