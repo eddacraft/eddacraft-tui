@@ -99,6 +99,7 @@ async function collectDocs(repoRoot) {
       const content = await readFile(resolve(repoRoot, relPath), 'utf8');
       try {
         const governance = parseDocGovernance(content, relPath);
+        const { tags, tagLines } = extractTags(content, relPath);
         parsed.push({
           path: relPath,
           title: governance.title,
@@ -107,10 +108,19 @@ async function collectDocs(repoRoot) {
           owner: governance.metadata.owner,
           status: governance.metadata.status,
           freshness: governance.metadata.freshness,
-          tags: extractTags(content, relPath),
+          tags,
+          tagLines,
         });
       } catch (err) {
         if (!(err instanceof ParseError)) throw err;
+        if (looksGoverned(content)) {
+          findings.push({
+            severity: 'ERROR',
+            file: relPath,
+            line: err.lineNumber ?? 1,
+            message: err.message,
+          });
+        }
       }
     })
   );
@@ -151,25 +161,41 @@ async function collectApprovedTags(repoRoot) {
 }
 
 function extractTags(content, relPath) {
-  const tags = new Set();
+  const tags = new Map();
   for (const match of content.matchAll(TAG_LINE_RE)) {
+    const line = lineNumberForIndex(content, match.index ?? 0);
     for (const raw of match[1].split(',')) {
       const tag = stripInlineCode(raw.trim());
       if (!tag) continue;
-      tags.add(tag);
+      if (!tags.has(tag)) tags.set(tag, line);
     }
   }
-  return [...tags].sort().map((tag) => {
+  const sortedTags = [...tags.keys()].sort().map((tag) => {
     if (tag && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(tag)) {
       findings.push({
         severity: 'ERROR',
         file: relPath,
-        line: 1,
+        line: tags.get(tag) ?? 1,
         message: `malformed tag "${tag}" in governed document`,
       });
     }
     return tag;
   });
+  return { tags: sortedTags, tagLines: Object.fromEntries(tags) };
+}
+
+function looksGoverned(content) {
+  return /^\|\s*Type\s*\|\s*Authority\s*\|\s*Owner\s*\|\s*Status\s*\|\s*Freshness\s*\|/im.test(
+    content
+  );
+}
+
+function lineNumberForIndex(content, index) {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (content.charCodeAt(i) === 10) line += 1;
+  }
+  return line;
 }
 
 function stripInlineCode(value) {
@@ -244,7 +270,7 @@ function renderTagPage(items, approvedTags) {
         findings.push({
           severity: 'ERROR',
           file: item.path,
-          line: 1,
+          line: item.tagLines?.[tag] ?? 1,
           message: `unknown tag "${tag}"; add it to docs/governance/tags-catalogue.md or remove it`,
         });
       }

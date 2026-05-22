@@ -228,7 +228,7 @@ The generator:
 
 - scans governed documentation sources
 - parses document-local metadata
-- infer safe fields such as title and path
+- infers safe fields such as title and path
 - generates `docs/indexes/` by type, authority, owner, status, and tag
 - rejects unknown tags unless they exist in the approved tag catalogue
 - relies on `pnpm docs:check` metadata validation for required metadata

@@ -215,6 +215,24 @@ if [[ "${status}" -ne 0 ]]; then
 else
   fail "docs:index:check fixture should fail on stale generated index"
 fi
+parse_error_root="${tmp_root}/index-parse-error-fixture"
+mkdir -p "${parse_error_root}/docs"
+cat >"${parse_error_root}/docs/bad.md" <<'EOF'
+# Bad Governed Doc
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Fixtures | Live | Test fixture |
+EOF
+set +e
+node "${index_generator}" --root "${parse_error_root}" --check >/dev/null 2>&1
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]]; then
+  pass "docs:index:check fixture fails on governed parse errors"
+else
+  fail "docs:index:check fixture should fail on governed parse errors"
+fi
 
 # Case 7: summary line includes counts.
 echo "case 7: surface summary lines include counts"
