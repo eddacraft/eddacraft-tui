@@ -15,13 +15,16 @@ See: plans/aps-rules.md
 
 Keep the docs-site (Docusaurus, sourced from `docs/public/anvil/`) in sync with
 feature development: Rust CLI migration, web dashboard rollout, policy
-governance, and new language support. Also covers ADR maintenance, architecture
-diagram updates, and API reference generation.
+governance, and new language support. API reference generation (from the
+OpenAPI spec) is also in scope. Internal-doc governance — ADR process,
+architecture diagrams, runbook/as-built freshness — is owned by DOCGOV.
 
 **Problem:** Documentation was polished for 0.1.0 but has no forward plan.
 The Rust CLI replaces the Node.js package entirely, the dashboard adds a new
 surface, and policy governance changes the governance model — all need
 documentation updates that aren't tracked.
+
+## In Scope
 
 DOCSYNC scope is **public-facing Docusaurus content** sourced from
 `docs/public/anvil/`. Internal docs under `docs/guides/`, `plans/**`, and
@@ -38,6 +41,8 @@ architecture / runbook freshness now live under DOCGOV.
 - Marketing content (covered by website module)
 - Blog posts (separate concern)
 - APS specification docs (external repo)
+- ADR template/process and architecture diagrams (now owned by DOCGOV)
+- Internal runbook and as-built freshness (now owned by DOCGOV-006)
 
 ## Interfaces
 
@@ -47,12 +52,13 @@ architecture / runbook freshness now live under DOCGOV.
 - `apps/docs-site` — Docusaurus instance (reads from `docs/public/anvil/`)
 - Feature modules — source of documentation truth
 - API governance — OpenAPI spec for API reference
+- DOCGOV-002 — metadata convention every new public doc must carry
+- DOCGOV-005 — `pnpm docs:check` validates DOCSYNC output
 
 **Exposes:**
 
-- Documentation sync checklist
-- ADR template and process
-- Architecture diagram update process
+- Public docs-site refresh cadence aligned with feature releases
+- Tutorial / quickstart / install-guide surface for the Rust CLI
 
 ## Estimated Scope
 
