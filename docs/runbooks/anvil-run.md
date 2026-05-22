@@ -251,7 +251,7 @@ TTL expires. The default TTL is about 30 seconds; during that window,
 `anvil intercept status` can still show the old session and a fresh launch in
 the same worktree can observe a transient `Fenced` state. This is the expected
 safety behaviour. If the fence blocks operator recovery, clear it with
-`anvil intercept unblock --worktree <PATH>` after confirming the prior launch is
+`anvil intercept unblock --worktree <path>` after confirming the prior launch is
 gone.
 
 **`anvil-run: spawn failed: command not found (exit 73)`** : The wrapped command
