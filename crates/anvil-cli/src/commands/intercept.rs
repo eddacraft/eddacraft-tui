@@ -419,18 +419,27 @@ pub(crate) fn query_daemon_status_windows_at_with_timeout(
 ) -> Result<DaemonStatusV1> {
     use std::sync::mpsc;
     use std::thread;
+    use std::time::Instant;
 
     use anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY;
 
-    // The single `timeout` budget is reused for both the connect side
+    // The `timeout` budget is a SINGLE wall-clock cap for the whole
+    // operation: connect + write + read. The connect side
     // (`WaitNamedPipe` can block when every server instance is busy)
-    // and the request side (synchronous Win32 `ReadFile` on a named
-    // pipe has no native timeout setter; the CLI runs the IO on a
-    // worker thread and gives up after the budget). A daemon that
-    // accepts the connection but never writes leaves the worker
-    // blocked, but the CLI is a single-shot process about to exit, so
-    // a leaked blocked thread is bounded by process lifetime.
-    let request_timeout = timeout;
+    // gets the full budget up front; the request side then gets
+    // `timeout - elapsed_since_start`. Without that split, a daemon
+    // that accepts the connection slowly *and* writes slowly could
+    // burn ~2× the budget (one full timeout each on connect and read)
+    // — Copilot review #1840 caught that and the activation
+    // interactive verify (500 ms) needs the single-deadline contract.
+    //
+    // Synchronous Win32 `ReadFile` on a named pipe has no native
+    // timeout setter; the CLI runs the IO on a worker thread and
+    // gives up after the remaining budget. A daemon that accepts the
+    // connection but never writes leaves the worker blocked, but the
+    // CLI is a single-shot process about to exit, so a leaked
+    // blocked thread is bounded by process lifetime.
+    let deadline_started = Instant::now();
     let connect_timeout = timeout;
 
     let pipe_name_owned = pipe_name.to_owned();
@@ -532,6 +541,12 @@ pub(crate) fn query_daemon_status_windows_at_with_timeout(
         let _ = read_tx.send(outcome);
     });
 
+    // MLP2-051f (Copilot review #1840 follow-up): enforce a single
+    // wall-clock cap across connect + read by subtracting the
+    // already-spent budget. `saturating_sub` makes a zero-remaining
+    // case fall straight through `recv_timeout` with a `Timeout` —
+    // the same surface error we'd emit explicitly.
+    let request_timeout = timeout.saturating_sub(deadline_started.elapsed());
     let buf = match read_rx.recv_timeout(request_timeout) {
         Ok(outcome) => outcome?,
         Err(mpsc::RecvTimeoutError::Timeout) => {

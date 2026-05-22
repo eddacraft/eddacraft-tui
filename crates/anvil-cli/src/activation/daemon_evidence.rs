@@ -37,10 +37,12 @@
 //!    in the `#[cfg(test)]` block at the bottom of this module. The
 //!    canonicalisation → IPC fetch chain inside
 //!    `promote_to_live_validation_when_daemon_attests` is tested in
-//!    isolation rather than as a single chain because the crate
-//!    forbids `unsafe_code`, and overriding `$XDG_RUNTIME_DIR` to
-//!    redirect `resolve_socket_path()` would require an unsafe
-//!    `std::env::set_var`.
+//!    isolation rather than as a single chain through the production
+//!    entry point because that would require overriding
+//!    `$XDG_RUNTIME_DIR` to redirect `resolve_socket_path()` — a
+//!    process-global env mutation that races with other cargo test
+//!    workers inside the same binary and is unstable across
+//!    workspace reruns without pulling in `serial_test`.
 //! 6. Structured tracing on every promotion / skip path — mirrors
 //!    `promote_restart_required_after_handshake` in
 //!    `activation::diagnostic`.

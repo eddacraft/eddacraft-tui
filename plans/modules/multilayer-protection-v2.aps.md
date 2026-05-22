@@ -15,14 +15,14 @@ Hard-gate precursors all merged: MLP2-075 (Windows IPC parity, PR
 on main at `4ec9c5a4`). Module total advances 82 → 83; done-count
 unchanged at 62. Status: In Progress.)
 
-Earlier 2026-05-22: MLP2-051h filed under Group J —
+Earlier 2026-05-22 (MLP2-051h filed under Group J —
 `DaemonStatusV1::generated_at_unix` wire-add precursor to the
 MLP2-051f activation diagnostic. Filed ahead of MLP2-051f per the
 activation-daemon-evidence wire-up spec §"APS placement" so the
 field exists on the wire before the first consumer arrives; does
 not block the `v0.7.0-beta` tag (activation diagnostic does not
 exist yet). Module total advances 81 → 82; done-count unchanged at
-62.
+62.)
 
 Earlier 2026-05-21 (Group R added — MLP2-074 daemon-side
 `session.report_process` IPC handler. Filed against the
