@@ -290,8 +290,8 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Result<Vec<String>, EngineU
 /// MLP2-068: batched blob fetch. Spawns `git cat-file --batch` once,
 /// pipes `<sha>:<path>` revspecs for every entry in `paths` over
 /// stdin, and returns a vec aligned with `paths` carrying the blob
-/// bytes (or `None` for paths that failed validation, were missing in
-/// the tree, or hit a git invocation failure).
+/// bytes. Returns `None` for per-path refusals or tree misses, and
+/// `Err` for batch-level I/O/tooling failures.
 ///
 /// Pre-MLP2-068, the engine spawned one `git show` per scannable file
 /// — a 200-file commit paid ~1–3 s on process startup alone, most of
@@ -843,16 +843,20 @@ mod tests {
         run(&["config", "user.name", "Test"]);
         run(&["config", "commit.gpgsign", "false"]);
         std::fs::create_dir_all(root.join("src")).unwrap();
-        std::fs::write(root.join("src/good.ts"), "export const x = 1;\n").unwrap();
-        std::fs::write(root.join("src/bad:name.ts"), "export const y = 2;\n").unwrap();
+        std::fs::write(root.join("good.ts"), "export const x = 1;\n").unwrap();
+        std::fs::write(root.join("src/bad.ts"), "export const y = 2;\n").unwrap();
         run(&["add", "."]);
-        run(&["commit", "-q", "-m", "colon path"]);
+        run(&["commit", "-q", "-m", "materialisation failure"]);
         let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
             .unwrap()
             .trim()
             .to_string();
 
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit_with_tempdir(&root, &sha, || {
+            let workspace = TempDir::new()?;
+            std::fs::write(workspace.path().join("src"), "not a directory")?;
+            Ok(workspace)
+        });
         assert_eq!(
             verdict,
             ValidationVerdict::EngineUnavailable {
