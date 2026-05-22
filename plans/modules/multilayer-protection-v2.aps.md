@@ -11,12 +11,13 @@ adds an `anvil start --verify --why` verbose tier-evidence flag
 [#1831](https://github.com/eddacraft/anvil-001/issues/1831)).
 MLP2-051i tightens the MCP `query_protection_claim` IPC timeout to
 match the 500 ms activation budget. MLP2-051j adds client-side
-peer-owner SID validation on Windows named-pipe connections, mirror-
-ing the Unix `SO_PEERCRED` UID check (defence-in-depth gap exposed
-by the activation surface but pre-existing pre-MLP2-051f). Filed
-against the full Council review on the MLP2-051f/g/h + MLP2-075
-work-set (2026-05-22); none of the three blocks `v0.7.0-beta`.
-Module total advances 83 → 86; done-count unchanged at 64.)
+peer-owner SID validation on Windows named-pipe connections,
+mirroring the Unix `SO_PEERCRED` UID check (defence-in-depth gap
+exposed by the activation surface but pre-existing pre-MLP2-051f).
+Filed against the full Council review on the MLP2-051f/g/h +
+MLP2-075 work-set (2026-05-22); none of the three blocks
+`v0.7.0-beta`. Module total advances 83 → 86; done-count unchanged
+at 64.)
 
 Earlier 2026-05-22 (MLP2-051h advanced `In Progress` →
 `Merged` via PR
