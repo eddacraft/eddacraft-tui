@@ -128,12 +128,20 @@ mod tests {
                 pattern.id
             );
 
+            // Match the scanner's case-insensitive extension comparison
+            // (`scanner.rs::matches_file_extension` uses `eq_ignore_ascii_case`)
+            // so the retirement guard catches `.HTML` / `.CSS` and any other
+            // casing — not just the lowercase form.
             let targets_html_or_css = pattern
                 .file_extensions
                 .as_deref()
                 .unwrap_or_default()
                 .iter()
-                .any(|ext| matches!(ext.as_str(), ".html" | ".htm" | ".css" | ".scss" | ".less"));
+                .any(|ext| {
+                    [".html", ".htm", ".css", ".scss", ".less"]
+                        .iter()
+                        .any(|retired| ext.eq_ignore_ascii_case(retired))
+                });
 
             assert!(
                 !targets_html_or_css,
