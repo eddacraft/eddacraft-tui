@@ -12,7 +12,8 @@ use std::time::Duration;
 use anvil_intercept::enforcement::{EnforcementPipeline, ProposedChange};
 #[cfg(unix)]
 use anvil_intercept::ipc;
-#[cfg(unix)]
+// MLP2-075: also consumed by the Windows pipe client below.
+#[cfg(any(unix, windows))]
 use anvil_intercept::status::build_protection_claim_from_wire;
 use anvil_intercept_rules::ChangeKind;
 use anvil_kernel_types::protection_claim::ProtectionClaim;
@@ -214,11 +215,13 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
         }
         // MLP2-075: resolve the canonical per-user pipe and delegate
         // to the Windows pipe client. Mirrors the Unix branch's
-        // resolve-then-delegate shape. Pipe-resolution failure is
-        // silent (warn + None) — same no-over-claim posture as a
-        // Unix `resolve_socket_path` failure: omit the field rather
-        // than synthesise a misleading "unprotected" state.
-        #[cfg(not(unix))]
+        // resolve-then-delegate shape. Pipe-resolution failure emits
+        // a warn line and returns `None` — preserves the no-over-claim
+        // posture (omit the field rather than synthesise a misleading
+        // "unprotected" state). Slightly more verbose than the Unix
+        // branch's silent `.ok()?` because pipe-resolution failures
+        // are rarer and warrant operator-visible context.
+        #[cfg(windows)]
         {
             let pipe_name = match anvil_intercept_win32::pipe_name_for_current_user() {
                 Ok(name) => name,
@@ -234,6 +237,14 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
             // ever gains validation logic, production picks it up
             // automatically.
             Self::with_pipe_name(pipe_name).query_protection_claim(workspace_root)
+        }
+        // Non-Unix, non-Windows targets (e.g. wasm): no daemon
+        // attestation surface available. Match the existing
+        // no-over-claim posture by omitting the field.
+        #[cfg(all(not(unix), not(windows)))]
+        {
+            let _ = workspace_root;
+            None
         }
     }
 }
