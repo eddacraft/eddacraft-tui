@@ -91,8 +91,10 @@ trust surface and crates.io contract.
 
 **Exposes:**
 
-- `crates/eddacraft-tui/` — canonical workspace crate location, including
-  preserved `LICENSE` (Apache-2.0) and `NOTICE` from the public source.
+- `crates/eddacraft-tui/` — canonical workspace crate location,
+  including preserved `LICENSE` (Apache-2.0) from the public source.
+  Standalone repo does not currently ship a `NOTICE`; none is created
+  by the migration.
 - `crates/eddacraft-tui/MIRROR-README.md` — mirror banner header,
   prepended onto `README.md` by the mirror workflow before push
   (ATTRIB-011 pattern; the banner file itself is removed from the
@@ -217,6 +219,11 @@ trust surface and crates.io contract.
       eddacraft-tui --no-default-features` (catch feature-flag
       regressions in both directions).
     - `cargo test --workspace` (consumer-side regression catch).
+    - `cargo check -p eddacraft-tui --release` (catches code that
+      compiles in debug but breaks in release — items referenced
+      inside `debug_assert!` whose definitions are accidentally
+      cfg-gated on `debug_assertions`; standalone repo's CI already
+      runs this and caught issue #29).
     - `cargo doc --no-deps -p eddacraft-tui` (docs.rs build proxy).
     - `cargo deny check` (re-uses workspace `deny.toml`).
     - `cargo publish --dry-run --allow-dirty -p eddacraft-tui` as a
@@ -362,14 +369,15 @@ trust surface and crates.io contract.
 
 **D-TUIR-017:** Snapshot tests (insta)
 
-- **Resolution:** `crates/eddacraft-tui/tests/snapshots/` and any
-  `*.snap.new` policy from the standalone repo carry over verbatim.
-  CI runs with `INSTA_UPDATE=no` so unreviewed snapshot drift fails
-  the build. Snapshot updates land via `cargo insta review` in PR,
-  not via blind regeneration. The Ratatui version pin in
-  `eddacraft-tui` Cargo.toml is the load-bearing input for snapshot
-  stability; bumping Ratatui requires a snapshot review pass
-  documented in the PR description.
+- **Resolution:** `crates/eddacraft-tui/src/snapshots/` (insta's
+  default colocation, matching the standalone repo's layout) and any
+  `*.snap.new` policy carry over verbatim. CI runs with
+  `INSTA_UPDATE=no` so unreviewed snapshot drift fails the build.
+  Snapshot updates land via `cargo insta review` in PR, not via
+  blind regeneration. The Ratatui version pin in `eddacraft-tui`
+  Cargo.toml is the load-bearing input for snapshot stability;
+  bumping Ratatui requires a snapshot review pass documented in the
+  PR description.
 - **Status:** Proposed.
 
 **D-TUIR-018:** Mirror drift verification
@@ -443,9 +451,13 @@ trust surface and crates.io contract.
   guard plus reviewer awareness — the crate's `Cargo.toml` is a
   red-flag file in code review.
 - **Downstream consumer breakage missed at cutover.** Mitigation:
-  TUIR-008 validation includes a `cargo check` against documented
-  external consumers (e.g. `eddacraft-skills`) pulling the dry-run
-  candidate before the first publish from canonical source.
+  TUIR-008 validation includes an operator-driven `cargo check`
+  against internal eddacraft consumers that live in separate repos
+  from `anvil-001` (notably `eddacraft/eddacraft-skills`, private),
+  pulling the dry-run candidate via `[patch.crates-io]` before the
+  first publish from canonical source. The validation is not in
+  `anvil-001` CI because the consumer repos are not workspace
+  members; the operator records the result on the TUIR-008 PR.
 - **Migration blocks a release that needs to ship.** Mitigation: the
   rollback path (Ready Checklist) is the standalone repo and the
   previous publish workflow. Until TUIR-008 closes, the standalone
@@ -476,9 +488,13 @@ relocation has a recorded provenance.
   validation.
 - `cargo package --list -p eddacraft-tui` output captured byte-for-byte
   as the published-tarball baseline (used by the D-TUIR-007 drift gate).
-- Documented downstream consumers known to depend on the crate
-  (Anvil's first-party consumers plus any documented external ones
-  such as `eddacraft-skills`).
+- Documented downstream consumers known to depend on the crate:
+  (a) Anvil's first-party consumers (`anvil-cli`, `anvil-tui`,
+  `workspace-hack`); (b) internal eddacraft consumers in separate
+  repos from `anvil-001` (notably `eddacraft/eddacraft-skills`,
+  private), with repo URL, current `eddacraft-tui` version pin, and
+  responsible maintainer recorded for TUIR-008 operator-driven
+  validation.
 - Standalone repo's `[lints]` block content (for verbatim carry per
   D-TUIR-016).
 - Identified deltas to fold into the in-repo crate.
@@ -500,14 +516,23 @@ tree; `cargo package --list -p eddacraft-tui` output stored under
 behaviour or API change.
 
 **Outcome:** `crates/eddacraft-tui/` contains the imported crate with
-package metadata, docs, tests, examples, feature flags (`image`,
-`big-text`, `test-utils` — full list from TUIR-001 baseline), insta
-snapshot files under `tests/snapshots/`, and CHANGELOG preserved.
-`LICENSE` (Apache-2.0) and `NOTICE` are copied verbatim from the
-public source (do not regenerate). `Cargo.toml` keeps `repository`,
-`homepage`, `documentation`, `description`, `license`, `keywords`,
-`rust-version`, `edition`, and `package.metadata.docs.rs` fields
-verbatim per D-TUIR-013 / D-TUIR-015. In particular,
+package metadata, docs, tests, feature flags (`image`, `big-text`,
+`test-utils` — full list from TUIR-001 baseline), insta snapshot
+files under `src/snapshots/` (insta-default colocation, matching the
+standalone repo's layout), and CHANGELOG preserved. `LICENSE`
+(Apache-2.0) is copied verbatim from the public source (do not
+regenerate). The standalone repo does not currently ship a `NOTICE`;
+do not create one absent an attribution need.
+Repo-management directories at the standalone repo's root that are
+NOT part of the published crate — `bin/`, `lib/`, `plans/`,
+`aps-planning/`, `tools/`, `docs/` (planning, scaffold shell scripts,
+ATTRIB-011 starter relocation, repo-level APS planning) — are NOT
+carried into `crates/eddacraft-tui/`. The Anvil monorepo provides
+its own equivalents at canonical paths. Only crate files migrate.
+`Cargo.toml` keeps `repository`, `homepage`, `documentation`,
+`description`, `license`, `keywords`, `rust-version`, `edition`, and
+`package.metadata.docs.rs` fields verbatim per D-TUIR-013 /
+D-TUIR-015. In particular,
 `repository = "https://github.com/eddacraft/eddacraft-tui"` is
 unchanged. The crate carries its own `[lints]` block per D-TUIR-016
 (NOT `lints.workspace = true`). `MIRROR-README.md` is added at the
@@ -709,9 +734,14 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
 - existing tag preservation: `gh api repos/eddacraft/eddacraft-tui/tags
   --jq '.[].name' | grep -E '^v0\.'` returns the historical tags;
 - crate `cargo publish --dry-run --all-features`;
-- downstream consumer check: `cargo check` against any documented
-  external consumer (`eddacraft-skills` etc.) pulling the candidate
-  via `[patch.crates-io]` succeeds;
+- downstream consumer check: the operator runs `cargo check` against
+  internal eddacraft consumers that are separate repos from
+  `anvil-001` (notably `eddacraft/eddacraft-skills`, a private
+  internal repo in the eddacraft org — not a workspace member here),
+  pulling the candidate via `[patch.crates-io]`. The check is
+  operator-driven (not in `anvil-001` CI, since those consumer repos
+  are not accessible from this workspace's CI) and the outcome is
+  recorded in the TUIR-008 PR description;
 - index.aps.md reflects archive.
 
 **changeType:** internal
@@ -745,8 +775,9 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       use `eddacraft-tui-v*` prefix.
 - [ ] `crates/eddacraft-tui/MIRROR-README.md` draft reviewed before
       TUIR-007 implementation begins.
-- [ ] `LICENSE` and `NOTICE` files identified in the public source for
-      verbatim copy during TUIR-002.
+- [ ] `LICENSE` file identified in the public source for verbatim copy
+      during TUIR-002. (Standalone repo has no `NOTICE` file as of
+      2026-05-22 — do not regenerate one absent an attribution need.)
 - [ ] Standalone crate's `rust-version` (MSRV), `edition`, and
       `[lints]` block content recorded in the TUIR-001 baseline for
       verbatim carry (D-TUIR-015 / D-TUIR-016).
@@ -756,8 +787,12 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
 - [ ] `package-list.txt` baseline captured via `cargo package --list
       -p eddacraft-tui` against the standalone repo (D-TUIR-007 drift
       gate input).
-- [ ] Documented external downstream consumers (`eddacraft-skills`
-      etc.) listed in the baseline for TUIR-008 validation.
+- [ ] Internal downstream consumers (in separate repos from
+      `anvil-001`, notably `eddacraft/eddacraft-skills`) enumerated in
+      the baseline for TUIR-008 operator-driven validation. Capture
+      each consumer's repo URL, current `eddacraft-tui` version pin,
+      and the maintainer responsible for running the `[patch.crates-io]`
+      check.
 - [ ] `cargo hakari` invocation confirmed in the workspace-hack
       regeneration step of TUIR-003.
 - [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
