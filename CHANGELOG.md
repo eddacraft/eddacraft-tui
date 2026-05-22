@@ -88,12 +88,23 @@ hints when something blocks promotion.
   `set_read_timeout(deadline − now)` against a single `Instant`-based deadline
   so the activation 500 ms IPC budget is enforced end-to-end. Brings Unix parity
   with the Windows single-deadline path.
-- **Activation freshness check rejects far-future timestamps.** A new
-  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound on future-timestamp tolerance
-  closes a downgrade-attack path where a daemon stamping `u64::MAX` (broken RTC,
-  snapshot replay, malicious snapshot output) would otherwise permanently pass
-  the freshness gate. NTP step adjustments and VM-clock drift between the daemon
-  and the workstation remain tolerated.
+- **Activation freshness check bounds future-timestamp tolerance.** A new
+  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound on future timestamps **bounds at 90
+  seconds of clock skew** the downgrade-attack path where a daemon stamping
+  `u64::MAX` (broken RTC, snapshot replay, malicious snapshot output) would
+  otherwise permanently pass the freshness gate. NTP step adjustments and
+  VM-clock drift between the daemon and the workstation remain tolerated.
+  Workstations whose system clock is itself attacker-controlled remain outside
+  Anvil's threat model.
+
+### Security
+
+- **Windows IPC trust on `v0.7.1-beta` relies on the named-pipe DACL set at pipe
+  creation.** Client-side SID validation (defence-in-depth parity with the Unix
+  `SO_PEERCRED` check) is tracked as MLP2-051j Draft and will land in a
+  follow-up patch. Same-SID processes are inside the v1 trust boundary the same
+  way same-UID processes are on Unix — operators should not infer full parity
+  with the Unix hardening from the activation diagnostic's Windows wire-up.
 
 ### Known gaps (carried from v0.7.0-beta)
 
@@ -109,8 +120,13 @@ hints when something blocks promotion.
   `unblock` works on both platforms.
 - **`anvil intercept unblock --worktree` is not supported on Windows yet.**
   Windows users hitting `DegradedProtection` with every surface quarantined must
-  stop the daemon (Ctrl-C or kill the process) and start it again — the repair
-  hint reflects this.
+  stop the daemon (close its terminal, or end the process via Task Manager /
+  `kill`) and start it again — the repair hint reflects this.
+- **`anvil intercept stop` subcommand does not exist.** To stop the daemon on
+  Windows, close the terminal that's running it or end the process via Task
+  Manager. On Unix, `Ctrl-C` the foreground terminal or `kill <PID>`. The
+  missing CLI surface is tracked alongside the existing `intercept restart` /
+  `intercept recover` subcommand gaps.
 - **MCP `query_protection_claim` path still uses a 2 s IPC timeout on both Unix
   and Windows.** The activation surface enforces the intended 500 ms budget;
   MLP2-051i tightens the MCP path to match.

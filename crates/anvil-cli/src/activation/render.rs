@@ -371,10 +371,10 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
             }
             DaemonAttestation::StaleHeartbeat => {
-                "the intercept daemon's last attestation is stale; stop it (Ctrl-C or kill the process) and start it again with `anvil intercept start --foreground`, then re-run `anvil start --verify`."
+                "the intercept daemon's last attestation is stale; stop it (close its terminal, or end the process via Task Manager / `kill`) and start it again with `anvil intercept start --foreground`, then re-run `anvil start --verify`."
             }
             DaemonAttestation::AllSurfacesQuarantined => {
-                "the intercept daemon has fenced every session for this worktree; stop the daemon (Ctrl-C or kill the process) and start it again with `anvil intercept start --foreground` to clear fence state, then re-run `anvil start --verify`."
+                "the intercept daemon has fenced every session for this worktree; stop the daemon (close its terminal, or end the process via Task Manager / `kill`) and start it again with `anvil intercept start --foreground` to clear fence state, then re-run `anvil start --verify`."
             }
             DaemonAttestation::Warming => {
                 "the intercept daemon is transitioning (warming / draining); re-run `anvil start --verify` in a few seconds."
