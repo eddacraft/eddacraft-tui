@@ -10,12 +10,16 @@
 **Last reviewed:** 2026-05-22
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
-> moves Proposed → Ready: TUIR-001 (baseline capture) is promoted to
-> `Ready` and is the next executable task. Subsequent tasks
-> (TUIR-002..TUIR-008) remain `open` and become Ready as their own
-> prerequisites land (mirror PAT for TUIR-004, crates.io token for
-> TUIR-005, runbook drafts for TUIR-007 / TUIR-008, etc. — see Ready
-> Checklist).
+> moves Proposed → Ready. TUIR-001 (baseline capture) is the next
+> executable task and the prerequisite for most of the module-level
+> Ready Checklist items. Subsequent tasks (TUIR-002..TUIR-008) become
+> executable as their own prerequisites land (mirror PAT for TUIR-004,
+> crates.io token for TUIR-005, MIRROR-README + docs/policies drafts
+> for TUIR-007, runbook + pre-canonical-archive plan for TUIR-008 — see
+> Ready Checklist). Per `plans/aps-rules.md`, task `Status:` lines stay
+> in the canonical execution-token vocabulary (`open` / `locked` /
+> `completed` / `cancelled`) — the planning vocabulary
+> (Proposed/Ready/In Progress/Done) is for the module header only.
 >
 > **Supersedes:** [`eddacraft-tui-canonical-source`](./eddacraft-tui-canonical-source.aps.md)
 > (TUIMIRROR, 0/8, Proposed). TUIR carries the same intent at a higher
@@ -483,7 +487,7 @@ trust surface and crates.io contract.
 
 ### TUIR-001: Lock the import baseline
 
-**Status:** Ready
+- **Status:** open
 
 **Intent:** Record the exact public source, version, tags, release
 workflow, and crates.io state that will be imported into Anvil so the
