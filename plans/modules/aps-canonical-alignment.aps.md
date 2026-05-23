@@ -43,8 +43,8 @@ lifecycle semantics.
 
 **Depends on:**
 
-- `/home/aneki/Projects/src/anvil-plan-spec` — local canonical APS repository,
-  currently reviewed at `v0.3.0`.
+- [`anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) — canonical
+  APS repository, currently reviewed at `v0.3.0`.
 - `plans/aps-rules.md` — current Anvil APS authoring and execution guidance.
 - `plans/index.aps.md` and `plans/modules/*.aps.md` — active plan authority.
 - `packages/aps/**` — Anvil's local APS parser, validator, state, and template
