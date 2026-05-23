@@ -7,7 +7,7 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-05-23
+**Last reviewed:** 2026-05-24
 
 ## Purpose
 
@@ -301,7 +301,8 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-008: Multi-block dispatcher + driver-per-ecosystem architecture
 
-- **Status:** Pending
+- **Status:** In Progress
+- **Execution plan:** `plans/execution/ATTRIB-008.steps.md` (kicked off 2026-05-24 on `feat/attrib-008-dispatcher-drivers`).
 - **Intent:** Refactor the generator from "one cargo-about call, one block" into a dispatcher that reads a `[[blocks]]` array from `attribution.toml` and routes each block to an ecosystem-specific driver script.
 - **Expected Outcome:**
   - `attribution.toml` schema gains a `[[blocks]]` array. Each block declares `name`, `ecosystem`, and ecosystem-specific keys (manifest path, template path, tool-specific options).
