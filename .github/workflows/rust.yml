@@ -283,8 +283,8 @@ jobs:
       # release row caught it. TUIR-006 / D-TUIR-007 require this as
       # an authoritative Anvil-side gate. Runs on both PR and push
       # for the same reason as the all-features step above.
-      - name: Run eddacraft-tui release check
-        run: cargo check -p eddacraft-tui --release
+      - name: Run eddacraft-tui release check (all features)
+        run: cargo check -p eddacraft-tui --all-features --release
 
   clippy:
     name: Clippy
