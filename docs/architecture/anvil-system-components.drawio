@@ -53,7 +53,7 @@
     <mxCell id="e2e" value="&lt;b&gt;e2e&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Integration&lt;br&gt;test harness&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
       <mxGeometry x="620" y="40" width="110" height="70" as="geometry"/>
     </mxCell>
-    <mxCell id="dash_future" value="&lt;b&gt;Dashboard views&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;DASH (0/33)&lt;br&gt;4 modules Ready&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="apps_lane">
+    <mxCell id="dash_future" value="&lt;b&gt;Dashboard views&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;DASH modules&lt;br&gt;planned / ready&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="apps_lane">
       <mxGeometry x="750" y="40" width="130" height="70" as="geometry"/>
     </mxCell>
 
@@ -115,7 +115,7 @@
     <mxCell id="rust_lane" value="Rust Kernel" style="swimlane;startSize=28;fillColor=#2a1a00;strokeColor=#daa520;fontColor=#daa520;fontStyle=1;fontSize=13;rounded=1;swimlaneLine=0;" vertex="1" parent="1">
       <mxGeometry x="30" y="520" width="620" height="140" as="geometry"/>
     </mxCell>
-    <mxCell id="kernel" value="&lt;b&gt;anvil-kernel&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#cca'&gt;tree-sitter parser&lt;br&gt;File watcher (notify)&lt;br&gt;Semantic graph&lt;br&gt;KERN 4/25&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#6b4c00;strokeColor=#daa520;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
+    <mxCell id="kernel" value="&lt;b&gt;anvil-kernel&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;tree-sitter parser&lt;br&gt;File watcher (notify)&lt;br&gt;Semantic graph&lt;br&gt;KERN complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
       <mxGeometry x="20" y="38" width="150" height="90" as="geometry"/>
     </mxCell>
     <mxCell id="tui" value="&lt;b&gt;anvil-tui&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Ratatui surfaces&lt;br&gt;watch, gate, wizard&lt;br&gt;RATS complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
@@ -161,7 +161,7 @@
     <mxCell id="archcfg" value="&lt;b&gt;ARCHCFG&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;Arch Config&lt;br&gt;Validation 0/5&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="470" y="38" width="120" height="90" as="geometry"/>
     </mxCell>
-    <mxCell id="aiguard" value="&lt;b&gt;AIGUARD&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;AI Guardrail&lt;br&gt;Profile 0/4&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
+    <mxCell id="aiguard" value="&lt;b&gt;AIGUARD&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;AI Guardrail&lt;br&gt;Profile complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="future_lane">
       <mxGeometry x="20" y="148" width="120" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="orghier" value="&lt;b&gt;Policy Domain&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;ORGHIER, POLLC&lt;br&gt;COMPLY, POLFED&lt;br&gt;All unsized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">

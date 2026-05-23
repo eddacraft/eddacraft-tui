@@ -83,8 +83,8 @@ became authoritative). Stale docs are kept because the framing is still useful,
 but trust the source first.
 
 - [overview.md](overview.md) — top-level architecture overview, package
-  layering, quality model, surface architecture (stale, last reviewed 2026-02-27
-  — pre-Rust-kernel-cutover, pre-A1, pre-A2)
+  layering, quality model, surface architecture, and live Rust-first component
+  diagrams (current, last reviewed 2026-05-23)
 - [anvil-full-architecture.md](anvil-full-architecture.md) — current vs proposed
   end-state synthesis with `[CURRENT]` / `[PROPOSED]` / `[PARTIAL]` markers
   (stale, last reviewed 2026-03-13 — pre-cutover; the current-vs-proposed
