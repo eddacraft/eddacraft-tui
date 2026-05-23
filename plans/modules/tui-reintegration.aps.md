@@ -5,9 +5,9 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 3/8      |
+| TUIR | joshuaboys | In Progress | 4/8      |
 
-**Last reviewed:** 2026-05-23 (TUIR-003)
+**Last reviewed:** 2026-05-23 (TUIR-006)
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -765,7 +765,7 @@ walkthrough captured on PR.
 
 ### TUIR-006: Split CI gates between Anvil and mirror
 
-- **Status:** open
+- **Status:** Merged 2026-05-23 via PR #1885
 
 **Intent:** Pin which gates run where so the mirror does not duplicate
 Anvil's full matrix and Anvil retains authoritative validation.

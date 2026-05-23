@@ -255,6 +255,37 @@ jobs:
         if: github.event_name != 'pull_request'
         run: cargo test --doc --workspace
 
+      # eddacraft-tui has optional features (`image`, `big-text`,
+      # `test-utils`) that the workspace test gate skips because
+      # `cargo test --workspace` runs default features per crate
+      # and the nx PR path runs `nx affected -t test` which also
+      # uses default features. TUIR-006 /
+      # `docs/policies/eddacraft-tui-mirror.md` pin this as an
+      # authoritative Anvil-side gate; matches the standalone repo's
+      # `Check (all-features)` coverage that the canonical source
+      # inherited at TUIR-002 import. Runs on both PR and push
+      # contexts so PRs touching `crates/eddacraft-tui/**` see the
+      # gate; PRs that don't touch the crate compile and run quickly
+      # with a warm cache (uncached or evicted-cache PRs pay full
+      # compile cost, which the repo's "run always, trust caching"
+      # pattern accepts).
+      - name: Run eddacraft-tui all-features tests
+        run: cargo test -p eddacraft-tui --all-features
+
+      # Release-build gate. The default `cargo check --workspace`
+      # path uses the dev profile; release builds can fail even when
+      # dev passes if a `#[cfg(debug_assertions)]`-gated item is
+      # named from a `debug_assert!` (name resolution runs even when
+      # `debug_assert!` skips evaluation in release — the dead branch
+      # type-checks against an item that no longer exists). The
+      # standalone repo's [issue #29](https://github.com/eddacraft/eddacraft-tui/issues/29)
+      # hit this in v0.2.0 / v0.2.1; v0.2.2's `Check (all-features)`
+      # release row caught it. TUIR-006 / D-TUIR-007 require this as
+      # an authoritative Anvil-side gate. Runs on both PR and push
+      # for the same reason as the all-features step above.
+      - name: Run eddacraft-tui release check
+        run: cargo check -p eddacraft-tui --release
+
   clippy:
     name: Clippy
     runs-on:
