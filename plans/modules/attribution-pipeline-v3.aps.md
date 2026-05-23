@@ -7,7 +7,7 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-05-22
+**Last reviewed:** 2026-05-23
 
 ## Purpose
 
@@ -284,11 +284,12 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-006: Single-source-of-truth licence allow-list
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1549 (`b68f33d6` · 2026-05-14)
 - **Intent:** Eliminate the `about.toml.accepted` ↔ `deny.toml.[licenses].allow` drift smell.
 - **Expected Outcome:** Canonical `licences.toml` at repo root; expander script produces both `about.toml`-shaped and `deny.toml`-shaped fragments at run time. CI lints for drift.
 - **Validation:** Contributor adds a licence to `licences.toml`; both consumers reflect it without further edits. Removing from one without `licences.toml` triggers CI failure.
 - **Implementation:** `licences.toml` is the canonical source — each `[[licences]]` entry tags itself with `about = true|false` and `deny = true|false` so consumer-specific entries (defensive `OpenSSL` for cargo-about's ring workaround, `LicenseRef-Proprietary` for cargo-deny's allowance of internal crates) live alongside the shared majority. `tools/starters/acknowledgements/expand-licences.sh` rebuilds the two consumer arrays between BEGIN/END marker comments and supports `--check` for drift detection. CI runs both the drift check against the real `licences.toml` and a three-scenario fixture self-test (`tests/licences-drift.sh`) that pins the matcher.
+- **Shipped:** PR #1549 merged 2026-05-14 at commit `b68f33d6`. Repo state verified 2026-05-23: `licences.toml` present with the documented `[[licences]]` schema; `tools/starters/acknowledgements/expand-licences.sh --check` exits 0 against current consumers; the fixture test (`tests/licences-drift.sh`) covers all three scenarios (clean expand → check passes; new licence in source → drift detected; hand-edit in consumer → drift detected); CI runs both at `.github/workflows/rust.yml:397-402`. Not yet in a published release record (release-narrative status remains `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-007: Workspace-crate `license` field lint
 
