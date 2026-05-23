@@ -4,9 +4,19 @@
 | ---- | ------ | ----------- | ---------- |
 | MLP2 | @aneki | In Progress | 65/86 |
 
-**Current work:** MLP2-069 promoted `Draft` → `In Progress` → `Done` on
-2026-05-22 by operator request to land the small observability-hygiene follow-up
-ahead of the next hotfix. Done-count advances 64 → 65; total stays 86.
+**Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
+2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
+`Merged` (or `Done`) to `Released/Shipped via v0.7.1-beta`
+(published 2026-05-23T04:00:06Z). Done-count unchanged at 65;
+release-shipped count is now 3 within MLP2 for the patch tag. See
+[release record](../releases/v0.7.1-beta.md) and tracking issue
+[#1867](https://github.com/eddacraft/anvil-001/issues/1867) for
+the full set of artefacts.
+
+Earlier 2026-05-22: MLP2-069 promoted `Draft` → `In Progress` →
+`Done` by operator request to land the small observability-
+hygiene follow-up ahead of the next hotfix. Done-count advances
+64 → 65; total stays 86.
 
 **Last reviewed:** 2026-05-22 (Group J extended — MLP2-051g, -051i,
 -051j filed as `Draft` hardening follow-ups to MLP2-051f. MLP2-051g
@@ -2970,7 +2980,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051f: Activation diagnostic consumes daemon `ProtectionClaim`
 
-- **Status:** Merged 2026-05-22 via PR [#1840](https://github.com/eddacraft/anvil-001/pull/1840) at `e1cc066a`. Closes GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831). Awaiting `v0.7.0-beta` release evidence to advance Merged → Released/Shipped → Complete.
+- **Status:** Released/Shipped via `v0.7.1-beta` (published 2026-05-23T04:00:06Z). Merged 2026-05-22 via PR [#1840](https://github.com/eddacraft/anvil-001/pull/1840) at `e1cc066a`. Closes GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831). Release record: `plans/releases/v0.7.1-beta.md`. Tracking issue: [#1867](https://github.com/eddacraft/anvil-001/issues/1867).
 - **Intent:** `crates/anvil-cli/src/activation/diagnostic.rs` consumes
   `anvil_intercept::status::query_daemon_snapshot` +
   `build_protection_claim_from_wire` and, when the daemon attests
@@ -3108,18 +3118,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051h: `DaemonStatusV1::generated_at_unix` wire-add
 
-- **Status:** Merged via PR
-  [#1837](https://github.com/eddacraft/anvil-001/pull/1837)
-  rebase-merged at `4ec9c5a4` on 2026-05-22. `DaemonStatusV1` now
-  carries `generated_at_unix: u64` stamped at the IPC boundary by
-  `DaemonStatusProvider::query_status`; consumer-side `== 0` is the
-  documented "no-anchor — fall back to per-session heartbeat
-  freshness" sentinel, pinned by `provider_stamps_non_zero_generated_at_unix`
-  and `generated_at_unix_zero_is_the_no_anchor_sentinel`. The
-  MLP2-051f consumer (PR
-  [#1840](https://github.com/eddacraft/anvil-001/pull/1840)) reads
-  against this anchor. Awaiting `v0.7.0-beta` release evidence to
-  advance Merged → Released/Shipped → Complete.
+- **Status:** Released/Shipped via `v0.7.1-beta` (published 2026-05-23T04:00:06Z). Merged via PR [#1837](https://github.com/eddacraft/anvil-001/pull/1837) rebase-merged at `4ec9c5a4` on 2026-05-22. `DaemonStatusV1` now carries `generated_at_unix: u64` stamped at the IPC boundary by `DaemonStatusProvider::query_status`; consumer-side `== 0` is the documented "no-anchor — fall back to per-session heartbeat freshness" sentinel, pinned by `provider_stamps_non_zero_generated_at_unix` and `generated_at_unix_zero_is_the_no_anchor_sentinel`. The MLP2-051f consumer (PR [#1840](https://github.com/eddacraft/anvil-001/pull/1840)) reads against this anchor. Release record: `plans/releases/v0.7.1-beta.md`.
 - **Intent:** Precursor to the MLP2-051f activation wire-up.
   `DaemonStatusV1` carries no daemon-level wall-clock anchor today —
   `HealthStateV1.uptime_seconds` is monotonic-since-start and the only
@@ -4021,7 +4020,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-069: `EngineUnavailableReason::IoError` variant
 
-- **Status:** Done
+- **Status:** Released/Shipped via `v0.7.1-beta` (published 2026-05-23T04:00:06Z); Done 2026-05-22 via PR [#1850](https://github.com/eddacraft/anvil-001/pull/1850). Release record: `plans/releases/v0.7.1-beta.md`.
 - **Intent:** `anvil_l4::EngineUnavailableReason` closes over
   `{ NotImplemented, BinaryMissing, Timeout }`. MLP2-016 maps
   several distinct I/O outages (`tempfile::TempDir::new()`
