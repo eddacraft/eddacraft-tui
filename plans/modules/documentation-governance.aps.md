@@ -252,7 +252,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `plans/execution/DOCGOV-006.steps.md`,
   `docs/guides/runbook-template.md` (new),
   `docs/guides/documentation-governance.md`,
-  `docs/guides/release-runbook.md`,
+  `docs/runbooks/release-runbook.md`,
   `docs/guides/release-doc-checklist.md`,
   `docs/guides/anvil-rule-authoring.md`,
   `docs/architecture/rust-architecture-endstate.md`,
@@ -272,7 +272,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
     - *(ex-DOCSYNC-015)* Gate-runner runbook section — CPU/latency envelope
       and `registry.json` resolution failure recovery
     - *(ex-DOCSYNC-017)* Name `pnpm test:scanner-parity` as a named preflight
-      gate in `docs/guides/release-runbook.md`
+      gate in `docs/runbooks/release-runbook.md`
     - *(ex-DOCSYNC-018)* Document rayon pool scope / `RAYON_NUM_THREADS`
       behaviour for `anvil-checks` in `rust-architecture-endstate.md`
     - *(ex-DOCSYNC-019)* Extend `docs/guides/release-doc-checklist.md` to
@@ -339,7 +339,8 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-008: Migrate stale entrypoints and archive dead docs
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Execution plan:** [`plans/execution/DOCGOV-008.steps.md`](../execution/DOCGOV-008.steps.md); audit evidence + closeout delta at [`plans/execution/DOCGOV-008.audit.md`](../execution/DOCGOV-008.audit.md). All 6 tasks complete locally on `docs/docgov-008-archive-dead-docs` (release-runbook relocation via Option A; 19 archive moves; 20 files moved out-of-repo to `~/Projects/anvil-gtm-wip/`; entrypoint relinks; baseline `metadata` shrank 179 → 140). Final closeout remains In Progress until PR opens and CI passes.
 - **Intent:** Reduce ambiguity by fixing stale onboarding links, archiving
   dead operational docs out of active paths, and resolving the long-standing
   release-runbook migration exception — done before the live-doc backfill /
@@ -350,15 +351,16 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   generated indexes; clearly-dead specs and guides are archived via
   `git mv` to `docs/archive/**` (or `plans/archive/**` where APS-linked) with
   redirect stubs only where inbound links exist outside the repo; the
-  `docs/guides/release-runbook.md` migration exception is closed (either by
-  finishing the migration or by archiving the legacy file with a pointer to
-  the canonical runbook); public-vs-internal docs platform claims in
+  legacy `docs/guides/release-runbook.md` migration exception is closed by
+  relocating the runbook to `docs/runbooks/release-runbook.md` (Option A —
+  locked 2026-05-23 in `plans/execution/DOCGOV-008.steps.md`);
+  public-vs-internal docs platform claims in
   `docs/README.md` and `docs/guides/documentation-governance.md` are
   reconciled against current reality.
 - **Validation:** `pnpm docs:check && pnpm format:check`
 - **Dependencies:** DOCGOV-005, DOCGOV-007
 - **Files:** `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/README.md`,
-  `docs/guides/release-runbook.md`,
+  `docs/runbooks/release-runbook.md`,
   `docs/guides/documentation-governance.md`, `docs/archive/**` (new),
   package and crate README cross-references,
   `docs/governance/docs-check.baseline.json`,

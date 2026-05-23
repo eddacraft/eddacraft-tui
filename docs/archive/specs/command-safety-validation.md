@@ -9,7 +9,7 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Default Block/Allow Lists](#default-blocksallow-lists)
+3. [Default Block/Allow Lists](#default-blockallow-lists)
 4. [Configuration System](#configuration-system)
 5. [Blocking Behavior](#blocking-behavior)
 6. [Implementation Details](#implementation-details)
@@ -1341,7 +1341,7 @@ export const SAFE_COMMANDS = [
 
 ### Appendix A: Command Rule Examples
 
-See [Default Block/Allow Lists](#default-blocksallow-lists) section.
+See [Default Block/Allow Lists](#default-blockallow-lists) section.
 
 ### Appendix B: Configuration Examples
 
@@ -1349,9 +1349,9 @@ See [Configuration System](#configuration-system) section.
 
 ### Appendix C: Related Documentation
 
-- [claude-code-safety-net Review](./claude-code-safety-net-review.md)
-- [Gate System Architecture](../architecture/overview.md#gate-layer)
-- [APS Specification](../../core/src/schema/aps.schema.ts)
+- _claude-code-safety-net Review (referenced doc never landed)_
+- [Gate System Architecture](../../architecture/overview.md) _(gate-layer section was renamed/moved post-archive)_
+- _APS Specification (was `core/src/schema/aps.schema.ts` — schema moved to `packages/aps/src/`)_
 
 ---
 

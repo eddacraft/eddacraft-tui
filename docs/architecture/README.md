@@ -104,9 +104,10 @@ but trust the source first.
   Ember / Edda), separation of observation / interpretation / memory (current)
 - [quality-model.md](quality-model.md) — conceptual model for `check`, `gate`,
   `watch`, `audit`, `doctor`, `architecture`, `policy` surfaces (current)
-- [monorepo-structure.md](monorepo-structure.md) — historical migration plan and
-  archived target shape (stale by design — for live layout, use the root
-  `README.md`, `apps/README.md`, and `plans/index.aps.md`)
+- _Archived 2026-05-23 (DOCGOV-008):_
+  [`monorepo-structure.md`](../archive/architecture/monorepo-structure.md) —
+  historical migration plan. For live layout use the root `README.md`,
+  `apps/README.md`, and `plans/index.aps.md`.
 - [oss-surface.md](oss-surface.md) — eddacraft's three open-source repos
   (`eddacraft-tui`, `anvil-plan-spec`, `kindling`) and their relationship to the
   closed product (current)
@@ -138,19 +139,25 @@ Specs that are active authority for planned implementation slices.
 Older design drafts and feature design specs. These describe intent at the time
 of writing and predate the as-built docs.
 
-- [`2026-03-15-beta-auth-streamline-design.md`](../specs/2026-03-15-beta-auth-streamline-design.md)
-  — design that produced the device-code + OTP flows now documented in
-  `auth-as-built.md`
-- [`2026-03-27-rust-cli-cutover-design.md`](../specs/2026-03-27-rust-cli-cutover-design.md)
-  — RCLI module cutover, archival, and distribution design
-- [`command-safety-validation.md`](../specs/command-safety-validation.md) —
-  command safety validation specification (older — 2025-12-28)
-- [`edda-api-contracts.md`](../specs/edda-api-contracts.md) — Edda API contracts
-  and integration points
-- [`edda-authority-trust.md`](../specs/edda-authority-trust.md) — Edda authority
-  and trust model
-- [`edda-enforcement-hooks.md`](../specs/edda-enforcement-hooks.md) — Edda
-  enforcement and guidance hooks
+Live specs:
+
+- [`watch-output-contract.md`](../specs/watch-output-contract.md) — WOUT
+  module's `anvil.watch.event.v1` contract.
+
+Archived 2026-05-23 (DOCGOV-008) — kept under `docs/archive/specs/` for history:
+
+- [`2026-03-12-product-licensing-design.md`](../archive/specs/2026-03-12-product-licensing-design.md)
+- [`2026-03-15-beta-auth-streamline-design.md`](../archive/specs/2026-03-15-beta-auth-streamline-design.md)
+  — design that produced the device-code + OTP flows in `auth-as-built.md`.
+- [`2026-03-18-pitch-deck-direction-design.md`](../archive/specs/2026-03-18-pitch-deck-direction-design.md)
+- [`2026-03-27-rust-cli-cutover-design.md`](../archive/specs/2026-03-27-rust-cli-cutover-design.md)
+  — RCLI module cutover, archival, and distribution design.
+- [`command-safety-validation.md`](../archive/specs/command-safety-validation.md)
+  — command safety validation specification (2025-12-28).
+- Edda specs ([`api-contracts`](../archive/specs/edda-api-contracts.md),
+  [`authority-trust`](../archive/specs/edda-authority-trust.md),
+  [`enforcement-hooks`](../archive/specs/edda-enforcement-hooks.md)) —
+  pre-rename Edda drafts.
 
 ## Internal (`docs/internal/`)
 
@@ -166,12 +173,12 @@ shape.
 
 Operational procedures live in [`docs/runbooks/`](../runbooks/) and have their
 own structure. The current release runbook is
-[`v0.6.0-beta-release-runbook.md`](../runbooks/v0.6.0-beta-release-runbook.md);
+[`v0.6.0-beta-release-runbook.md`](../archive/runbooks/v0.6.0-beta-release-runbook.md);
 release-time security context is captured in
-[`v0.6.0-beta-security-note.md`](../runbooks/v0.6.0-beta-security-note.md). For
-day-to-day ops (admin CLI, branch reconciliation, DB migrations, observability
-triage, post-deploy smoke checks, waitlist email operations), see the directory
-listing.
+[`v0.6.0-beta-security-note.md`](../archive/runbooks/v0.6.0-beta-security-note.md).
+For day-to-day ops (admin CLI, branch reconciliation, DB migrations,
+observability triage, post-deploy smoke checks, waitlist email operations), see
+the directory listing.
 
 ## Adjacent indexes
 

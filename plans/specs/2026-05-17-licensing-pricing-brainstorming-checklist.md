@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [`plans/index.aps.md`](../index.aps.md), [`plans/specs/2026-03-12-product-licensing.md`](./2026-03-12-product-licensing.md), [`docs/specs/2026-03-12-product-licensing-design.md`](../../docs/specs/2026-03-12-product-licensing-design.md) | Future licensing, packaging, pricing, and go-to-market decisions |
+| [`plans/index.aps.md`](../index.aps.md), [`plans/specs/2026-03-12-product-licensing.md`](./2026-03-12-product-licensing.md), [`docs/archive/specs/2026-03-12-product-licensing-design.md`](../../docs/archive/specs/2026-03-12-product-licensing-design.md) | Future licensing, packaging, pricing, and go-to-market decisions |
 
 This checklist is prep material for a brainstorming session. It is not a
 pricing decision, licence recommendation, or implementation plan.

@@ -13,7 +13,7 @@ direction spec and pipeline materials, following the eddacraft design system
 brainstorming decisions, (2) generate the .pptx deck using the pptx skill, (3)
 update investor FAQ and create leave-behind one-pager. All content comes from
 two authoritative sources: `plans/pitch-deck/` (pipeline) and
-`docs/specs/2026-03-18-pitch-deck-direction-design.md` (direction
+`docs/archive/specs/2026-03-18-pitch-deck-direction-design.md` (direction
 spec).
 
 **Tech Stack:** pptx skill (eddacraft Design System enforced), markdown, git
@@ -24,7 +24,7 @@ spec).
 
 | File                                                               | Role                                                                                   |
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `docs/specs/2026-03-18-pitch-deck-direction-design.md` | Direction spec — slides 10-12, slide 6 update, "no AI inside" thread, investor context |
+| `docs/archive/specs/2026-03-18-pitch-deck-direction-design.md` | Direction spec — slides 10-12, slide 6 update, "no AI inside" thread, investor context |
 | `plans/pitch-deck/content/slide-copy.md`                           | Slide-by-slide copy (slides 1-9 complete, 10-12 to be updated)                         |
 | `plans/pitch-deck/content/visual-specs.md`                         | Per-slide layout, colour, typography, visual elements                                  |
 | `plans/pitch-deck/content/data-viz-specs.md`                       | Chart types, data sources, colour mapping                                              |
@@ -46,7 +46,7 @@ generation. This ensures a single source of truth.
 
 - Modify: `plans/pitch-deck/content/slide-copy.md` — slides 10-12 (search for
   `[EVIDENCE NEEDED]` blocks) and slide 6 headline
-- Reference: `docs/specs/2026-03-18-pitch-deck-direction-design.md`
+- Reference: `docs/archive/specs/2026-03-18-pitch-deck-direction-design.md`
 
 - [ ] **Step 1: Replace slide 10 copy**
 

@@ -15,7 +15,7 @@ background refresh fires after a configurable `rcAfter` window.
 **Tech Stack:** `jose` (JWT signing/verification, ESM native, zero deps), Zod
 (schema validation), Node `crypto` (existing patterns), Vitest (testing).
 
-**Spec:** `docs/specs/2026-03-12-product-licensing-design.md`
+**Spec:** `docs/archive/specs/2026-03-12-product-licensing-design.md` (archived 2026-05-23, DOCGOV-008)
 
 ---
 

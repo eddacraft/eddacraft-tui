@@ -5,11 +5,11 @@
 > while working through the actual rehearsal. **Audience:** eddacraft release
 > engineer (you) **Companion docs:**
 >
-> - [`docs/guides/release-runbook.md`](./release-runbook.md) — the operational
+> - [`docs/runbooks/release-runbook.md`](../../runbooks/release-runbook.md) — the operational
 >   runbook for _ongoing_ releases (assumes the pipeline works)
-> - [`plans/modules/distribution-pipeline.aps.md`](../../plans/modules/distribution-pipeline.aps.md)
->   — DIST module with item-level scope
-> - [`plans/decisions/018-product-ip-architecture.md`](../../plans/decisions/018-product-ip-architecture.md)
+> - [`plans/archive/modules/distribution-pipeline.aps.md`](../../../plans/archive/modules/distribution-pipeline.aps.md)
+>   — DIST module with item-level scope (archived)
+> - [`plans/decisions/018-product-ip-architecture.md`](../../../plans/decisions/018-product-ip-architecture.md)
 >   — closed-source IP model
 
 ## Why this doc exists
@@ -523,7 +523,7 @@ By this point:
 - [ ] Tag name does not include `rc`, `test`, `rehearsal`
 - [ ] `Cargo.toml` workspace version matches the tag
 - [ ] Branch is `main` or `dev` (not a rehearsal branch)
-- [ ] `docs/guides/release-runbook.md` is followed for the actual release-day
+- [ ] `docs/runbooks/release-runbook.md` is followed for the actual release-day
       operational steps
 - [ ] Announcement post is drafted
 

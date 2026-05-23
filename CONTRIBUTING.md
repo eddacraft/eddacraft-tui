@@ -218,7 +218,7 @@ See the detailed guides for the full policy:
 
 - `docs/guides/branching-strategy.md`
 - `docs/guides/worktree-policy.md`
-- `docs/guides/release-runbook.md`
+- `docs/runbooks/release-runbook.md`
 - `docs/policies/release-cadence.md`
 
 ### Before Submitting

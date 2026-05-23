@@ -4199,7 +4199,7 @@ to redesign once GV2-001..-023 land.
   shape, `SubscriberId` peer-credential minting, the
   `RegistryOwnershipResolver` production impl, the per-startup
   HMAC salt that folds in §H2 of
-  `docs/runbooks/v0.6.0-beta-security-note.md`, the spoofed-
+  `docs/archive/runbooks/v0.6.0-beta-security-note.md`, the spoofed-
   origin denial rule (D6), and the implementation slice
   contract with its validation matrix. MLP2-070 (lineage-
   anchor daemon-derivation hardening) is documented as a

@@ -155,7 +155,7 @@ Without this, `gh pr create` may still propose `dev` as the default base.
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)
-- [Release Runbook](release-runbook.md)
+- [Release Runbook](../runbooks/release-runbook.md)
 - [Main-First Cutover Runbook](../runbooks/main-first-cutover.md) (historical
   evidence of the 2026-05-11 cutover)
 - [Operating Model Spec](../../plans/specs/2026-05-09-plan-build-release-operating-model.md)

@@ -42,17 +42,11 @@
     "docs/architecture/mcp-shim-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
     ],
-    "docs/architecture/monorepo-structure.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
     "docs/architecture/observability-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
     ],
     "docs/architecture/oss-surface.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/architecture/overview.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
     ],
     "docs/architecture/quality-model.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
@@ -96,9 +90,6 @@
     "docs/guides/anchor-rescoring-process.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
     ],
-    "docs/guides/architecture-diagrams.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
     "docs/guides/branching-strategy.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
     ],
@@ -132,16 +123,10 @@
     "docs/guides/feature-flag-reference.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
     ],
-    "docs/guides/first-rust-release-rehearsal.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
     "docs/guides/git-hook-compatibility.md": [
       "Missing Upstream/Downstream relationships table after the metadata table"
     ],
     "docs/guides/opa-policy-testing.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/rust-cli-release-scope.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
     "docs/guides/stack-migration.md": [
@@ -159,80 +144,11 @@
     "docs/internal/weave-feature-brief.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
-    "docs/marketing/anvil-product-sheet.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/marketing/pitch-deck-cc.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/marketing/pitch-deck-oc/narrative-synthesis.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/marketing/pitch-deck/content/data-viz-specs.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/content/investor-faq.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/marketing/pitch-deck/content/slide-copy.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/marketing/pitch-deck/content/talking-points.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/marketing/pitch-deck/content/visual-specs.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/deliverables/executive-summary.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/marketing/pitch-deck/deliverables/one-pager.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/research/competitive-landscape.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/marketing/pitch-deck/research/market-sizing.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/research/problem-quantification.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/marketing/pitch-deck/research/regulatory-landscape.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/research/trend-analysis.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/marketing/pitch-deck/status.md": [
-      "Metadata table column 1 must be \"type\"; got \"phase\""
-    ],
-    "docs/marketing/pitch-deck/strategy/narrative-arc.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/marketing/pitch-deck/strategy/positioning.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/marketing/pitch-deck/strategy/slide-outline.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/marketing/pitch-deck/strategy/win-themes.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
     "docs/observability/local-tracing.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
     "docs/observability/namespace-registry.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/plans/2026-03-09-aps-vs-gh-projects-trial-decision-space.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/plans/2026-03-11-verifiable-governance-technical-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/plans/2026-03-17-lineage-authorship-confidence-v1.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
     "docs/public/anvil/beta-testing-guide.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
@@ -441,9 +357,6 @@
     "docs/public/start-here/what-is-eddacraft.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
-    "docs/reviews/deep-research-report.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
     "docs/runbooks/branch-reconciliation.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
@@ -480,38 +393,8 @@
     "docs/runbooks/rollback-bad-published-release.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
-    "docs/runbooks/v0.6.0-beta-release-runbook.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/v0.6.0-beta-security-note.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
     "docs/runbooks/waitlist-email-operations.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/specs/2026-03-12-product-licensing-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/specs/2026-03-15-beta-auth-streamline-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/specs/2026-03-18-pitch-deck-direction-design.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/specs/2026-03-27-rust-cli-cutover-design.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/specs/command-safety-validation.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/specs/edda-api-contracts.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/specs/edda-authority-trust.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/specs/edda-enforcement-hooks.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
     ],
     "docs/strategy/borrow-adopt-candidates.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
@@ -551,17 +434,6 @@
     "docs/architecture/kernel-benchmarking-spec.md": [
       "broken link \"../../plans/modules/rust-kernel.aps.md\" — target file does not exist"
     ],
-    "docs/architecture/overview.md": [
-      "broken link \"../plans/decisions/\" — target file does not exist",
-      "broken link \"../plans/decisions/001-planless-first.md\" — target file does not exist",
-      "broken link \"../plans/decisions/002-warnings-over-blocks.md\" — target file does not exist",
-      "broken link \"../plans/decisions/003-new-edges-only.md\" — target file does not exist",
-      "broken link \"../plans/decisions/004-suppression-syntax.md\" — target file does not exist",
-      "broken link \"../plans/decisions/005-ink-over-opentui.md\" — target file does not exist",
-      "broken link \"../plans/decisions/006-hybrid-dc-opa.md\" — target file does not exist",
-      "broken link \"../plans/decisions/007-pulumi-iac.md\" — target file does not exist",
-      "broken link \"../plans/modules/\" — target file does not exist"
-    ],
     "docs/architecture/tutorial-as-built.md": [
       "broken link \"../../plans/modules/launch-flow-readiness.aps.md\" — target file does not exist"
     ],
@@ -589,10 +461,7 @@
     ],
     "docs/archive/edda-pre-implementation/EDDA-ARCHITECTURE-INDEX.md": [
       "broken link \"../../packages/edda-stack/src/contracts/edda-extended.ts\" — target file does not exist",
-      "broken link \"../../plans/edda-phase-breakdown.md\" — target file does not exist",
-      "broken link \"../specs/edda-api-contracts.md\" — target file does not exist",
-      "broken link \"../specs/edda-authority-trust.md\" — target file does not exist",
-      "broken link \"../specs/edda-enforcement-hooks.md\" — target file does not exist"
+      "broken link \"../../plans/edda-phase-breakdown.md\" — target file does not exist"
     ],
     "docs/archive/engineering-history.md": [
       "broken link \"./CHANGELOG.md\" — target file does not exist"
@@ -687,9 +556,6 @@
     "docs/guides/command-safety.md": [
       "broken anchor \"../architecture/overview.md#gate-layer\" — file exists but heading \"#gate-layer\" not found"
     ],
-    "docs/guides/first-rust-release-rehearsal.md": [
-      "broken link \"../../plans/modules/distribution-pipeline.aps.md\" — target file does not exist"
-    ],
     "docs/guides/worktree-policy.md": [
       "broken anchor \"branching-strategy.md#archive--pre-opmodel-012-compatibility-model\" — file exists but heading \"#archive--pre-opmodel-012-compatibility-model\" not found"
     ],
@@ -749,9 +615,7 @@
       "broken link \"./ai-guardrail-demo#resetting-between-scenarios\" — target file does not exist",
       "broken link \"/anvil/beta-testing-guide\" — target file does not exist",
       "broken link \"/anvil/integrations/mcp\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist",
-      "broken link \"/anvil/quickstart#step-1----install\" — target file does not exist",
-      "broken link \"/anvil/quickstart#step-6----watch-fallback\" — target file does not exist"
+      "broken link \"/anvil/quickstart\" — target file does not exist"
     ],
     "docs/public/anvil/integrations/github.md": [
       "broken link \"/anvil/integrations/vscode\" — target file does not exist"
@@ -965,12 +829,6 @@
     "docs/runbooks/rollback-bad-candidate-artefact.md": [
       "broken anchor \"../../plans/specs/2026-05-10-release-readiness-workflow.md#inputs\" — file exists but heading \"#inputs\" not found"
     ],
-    "docs/specs/command-safety-validation.md": [
-      "broken anchor \"#default-blocksallow-lists\" — heading \"#default-blocksallow-lists\" not found in current file",
-      "broken anchor \"../architecture/overview.md#gate-layer\" — file exists but heading \"#gate-layer\" not found",
-      "broken link \"../../core/src/schema/aps.schema.ts\" — target file does not exist",
-      "broken link \"./claude-code-safety-net-review.md\" — target file does not exist"
-    ],
     "plans/archive/execution/CMDSAF-001-003.steps.md": [
       "broken link \"../../docs/specifications/command-safety-validation.md\" — target file does not exist"
     ],
@@ -1111,9 +969,6 @@
     "plans/modules/usage-analytics.aps.md": [
       "broken anchor \"./feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
     ],
-    "plans/releases/v0.3.0-beta.md": [
-      "broken link \"../docs/guides/release-runbook.md\" — target file does not exist"
-    ],
     "plans/specs/2026-04-24-adr-030-council-findings.md": [
       "broken link \"../modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",
       "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
@@ -1140,13 +995,6 @@
       "source path does not exist: \"release-readiness.yml\" (body reference \"release-readiness.yml\")",
       "source path does not exist: \"release-sign-artefacts.yml\" (body reference \"release-sign-artefacts.yml\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
-    ],
-    "docs/guides/release-runbook.md": [
-      "source path does not exist: \"about.toml.accepted\" (body reference \"about.toml.accepted\")",
-      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
-      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
-      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
-      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
     ],
     "docs/runbooks/anvil-air-gapped.md": [
       "source path does not exist: \"multilayer-protection.aps.md\" (body reference \"multilayer-protection.aps.md\")",
@@ -1179,22 +1027,18 @@
       "source path does not exist: \"release-token-scope.md\" (upstream reference \"release-token-scope.md\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
     ],
+    "docs/runbooks/release-runbook.md": [
+      "source path does not exist: \"about.toml.accepted\" (body reference \"about.toml.accepted\")",
+      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
+      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
+      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
+    ],
     "docs/runbooks/release-signing.md": [
       "source path does not exist: \"distribution-and-update.aps.md\" (body reference \"distribution-and-update.aps.md\")",
       "source path does not exist: \"distribution-and-update.aps.md\" (upstream reference \"distribution-and-update.aps.md\")",
       "source path does not exist: \"release-sign-artefacts.yml\" (body reference \"release-sign-artefacts.yml\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
-    ],
-    "docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md": [
-      "source path does not exist: \".anvil.json\" (body reference \".anvil.json\")",
-      "source path does not exist: \".anvil.toml\" (body reference \".anvil.toml\")",
-      "source path does not exist: \".anvil.yaml\" (body reference \".anvil.yaml\")",
-      "source path does not exist: \".anvil.yml\" (body reference \".anvil.yml\")",
-      "source path does not exist: \".github/workflows/anvil-audit.yml\" (body reference \".github/workflows/anvil-audit.yml\")",
-      "source path does not exist: \".pre-commit-config.yaml\" (body reference \".pre-commit-config.yaml\")",
-      "source path does not exist: \"lefthook.toml\" (body reference \"lefthook.toml\")",
-      "source path does not exist: \"lefthook.yaml\" (body reference \"lefthook.yaml\")",
-      "source path does not exist: \"lefthook.yml\" (body reference \"lefthook.yml\")"
     ],
     "docs/runbooks/v0.7.0-beta-release-runbook.md": [
       "source path does not exist: \"intd-012-windows-evidence.md\" (body reference \"intd-012-windows-evidence.md\")",

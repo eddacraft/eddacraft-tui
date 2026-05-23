@@ -509,7 +509,7 @@ synthesis (`commands/start.rs:148-150`).
 Windows the MCP path still works but the `correlation.daemonStatus` field
 returned by `anvil_validate_write` is always `"not-wired"`. Cross-link to
 `docs/architecture/intercept-as-built.md` when written (planned, in flight).
-Currently surfaced in `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+Currently surfaced in `docs/archive/runbooks/v0.6.0-beta-release-runbook.md`.
 
 ### G-04: Tutorial `--json` mode constraints (2026-05-07)
 
@@ -570,5 +570,6 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
   activate path).
 - `docs/architecture/intercept-as-built.md` — planned, in flight (will carry the
   daemon-side detail referenced in G-03).
-- `docs/runbooks/v0.6.0-beta-release-runbook.md` — operator-facing caveats.
+- `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` — operator-facing
+  caveats.
 - `RELEASE-PLAN.md` — Tier A1 framing.

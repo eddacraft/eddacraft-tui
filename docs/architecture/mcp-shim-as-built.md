@@ -384,7 +384,7 @@ This is the only MCP tool surface where the §4.4 redaction filter is **wired**
 in `v0.6.0-beta`. The broader §4.4 spec — covering `scan.files`, `fix.apply`,
 and `status.query` daemon-side responses — is shipped as **specification only**;
 runtime parity is owned by RMCPF-010 and lands in a later tag. Cross-link:
-`docs/runbooks/v0.6.0-beta-security-note.md` §H3 (lines 143-185) for the
+`docs/archive/runbooks/v0.6.0-beta-security-note.md` §H3 (lines 143-185) for the
 operator framing; `crates/anvil-intercept/src/ipc.rs` carries the daemon-side
 filter wiring once RMCPF-010 graduates.
 
@@ -587,7 +587,7 @@ through `anvil-intercept-win32::connect_owner_only_pipe_client` (the same helper
 the `intercept status` Windows path uses, `intercept.rs:143-148`). Tracked
 alongside the `chore/windows-status` workstream that already shipped the
 `intercept status` Windows client. See
-`docs/runbooks/v0.6.0-beta-release-runbook.md` §2.
+`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §2.
 
 ### G-02: §4.4 redaction filter spec-only outside `validate_write`
 
@@ -599,7 +599,8 @@ un-redacted secret-rule excerpts on those three legacy-Node tools.
 
 **Risk:** Medium for deployments with untrusted same-UID MCP clients; low
 otherwise. **Fix:** RMCPF-010 wires the runtime filter against the daemon's MCP
-transport. See `docs/runbooks/v0.6.0-beta-security-note.md` §H3 (143-185).
+transport. See `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H3
+(143-185).
 
 ### G-03: Redaction hash unsalted across sessions
 
@@ -613,7 +614,7 @@ subscriber who can guess at the deployment's repository tree can rainbow-table
 
 **Risk:** Low for `validate_write` (regex sweep dominates); medium for the
 broader fan-out path. **Fix:** Per-startup HMAC salt minted on daemon launch.
-See `docs/runbooks/v0.6.0-beta-security-note.md` §H2 (108-139).
+See `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H2 (108-139).
 
 ### G-04: Tool surface limited to `anvil_validate_write`
 
@@ -695,10 +696,10 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
   drift policy and atomic-write contract.
 - `docs/public/anvil/integrations/mcp.md` — public-side narrative for the same
   surface; the legacy Node MCP catalogue lives there.
-- `docs/runbooks/v0.6.0-beta-release-runbook.md` §2 — the corrected Windows
-  `correlation.daemonStatus` framing.
-- `docs/runbooks/v0.6.0-beta-security-note.md` §H2 (unsalted hash) and §H3 (§4.4
-  spec-only) — the operator-facing trade-offs the shim inherits.
+- `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §2 — the corrected
+  Windows `correlation.daemonStatus` framing.
+- `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H2 (unsalted hash) and
+  §H3 (§4.4 spec-only) — the operator-facing trade-offs the shim inherits.
 - `plans/modules/rust-mcp-launch-shim.aps.md` — RMCP-001..RMCP-008, the eight A1
   work items behind this surface.
 - `plans/modules/rust-mcp-full-port.aps.md` — RMCPF, the tracked follow-up that

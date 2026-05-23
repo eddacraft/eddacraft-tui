@@ -185,9 +185,8 @@ For the full explanation of checks, findings, and gates, see
 
 anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. See the
 [beta testing guide](/anvil/beta-testing-guide) for what to expect. If you're
-upgrading from `0.6.x`, read the
-[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
-first, then apply the `0.7.1-beta` patch notes.
+upgrading from `0.6.x`, read the v0.6.x → v0.7.0-beta migration note first, then
+apply the `0.7.1-beta` patch notes.
 
 ### v0.7.x-beta operator surfaces
 
@@ -204,10 +203,9 @@ deep-link rather than duplicate them:
   — wrapped-launch ingress for `claude`, `codex`, `aider`, and similar agents.
 - [`anvil l4-validate`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
   — dedicated L4-policy validator for CI consumers.
-- [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
-  — the `ProtectionClaim` shape and the four surfaces it renders on.
-- [`--new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
-  — fork opt-out on `anvil start` / `anvil baseline`.
+- Protection-claim contract — the `ProtectionClaim` shape and the four surfaces
+  it renders on.
+- `--new-identity` — fork opt-out on `anvil start` / `anvil baseline`.
 - [`--acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
   — clear a rate-limited fence cascade after the incident is resolved.
 - [Witness chain](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)

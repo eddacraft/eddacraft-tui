@@ -23,9 +23,8 @@ anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. If yo
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
-gaps, and the
-[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
-if you're upgrading an existing `0.6.x` install.
+gaps, and the v0.6.x → v0.7.0-beta migration note if you're upgrading an
+existing `0.6.x` install.
 
 :::
 
@@ -309,14 +308,13 @@ One warning down. Repeat for the rest at your own pace.
 - [`anvil l4-validate`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
   — dedicated L4-policy validator for CI / pre-push consumers; replaces the
   prior `anvil hook pre-push` reuse.
-- [Protection-claim contract](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-protection-claim-render-surfaces)
-  — `anvil status --json | jq '.claim.worktree_state'` and the same
-  `ProtectionClaim` shape on `anvil doctor --json`, the `anvil_validate_write`
-  MCP-tool response when the daemon is reachable, and the TypeScript
-  driver-client. Windows MCP protection-claim parity landed in `v0.7.1-beta`.
-- [`anvil baseline --new-identity` / `anvil start --new-identity`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#new-cli-surfaces)
-  — fork opt-out: mint a fresh `project_uuid` and record the previous one as
-  `forked_from`.
+- Protection-claim contract — `anvil status --json | jq '.claim.worktree_state'`
+  and the same `ProtectionClaim` shape on `anvil doctor --json`, the
+  `anvil_validate_write` MCP-tool response when the daemon is reachable, and the
+  TypeScript driver-client. Windows MCP protection-claim parity landed in
+  `v0.7.1-beta`.
+- `anvil baseline --new-identity` / `anvil start --new-identity` — fork opt-out:
+  mint a fresh `project_uuid` and record the previous one as `forked_from`.
 - [`anvil intercept unblock --acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
   — clear a `degraded:fence-cascade` rate-limited fence. The `RateWindow`
   capacity is 4, so the **fifth** fire within a 60 s window engages cascade; use

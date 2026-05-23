@@ -12,17 +12,16 @@
 
 ## @aneki
 
-| Document                                                                                        | Path                                               | Type     | Authority     | Owner  | Status |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------- | ------------- | ------ | ------ |
-| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                            | `docs/runbooks/anvil-adoption.md`                  | Runbook  | Authoritative | @aneki | Live   |
-| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                       | `docs/runbooks/anvil-air-gapped.md`                | Runbook  | Authoritative | @aneki | Live   |
-| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)          | `docs/runbooks/homebrew-publish.md`                | Runbook  | Authoritative | @aneki | Live   |
-| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)            | `docs/runbooks/anvil-hook-coexistence.md`          | Runbook  | Authoritative | @aneki | Live   |
-| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md`       | As-built | Derived       | @aneki | Live   |
-| [Migration: v0.6.x → v0.7.0-beta](../../docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)       | `docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md` | Runbook  | Authoritative | @aneki | Live   |
-| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                    | `docs/runbooks/release-signing.md`                 | Runbook  | Authoritative | @aneki | Live   |
-| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                  | `docs/runbooks/anvil-witness-chain.md`             | Runbook  | Authoritative | @aneki | Live   |
-| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                | `docs/runbooks/anvil-run.md`                       | Runbook  | Authoritative | @aneki | Live   |
+| Document                                                                                        | Path                                         | Type     | Authority     | Owner  | Status |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------- | -------- | ------------- | ------ | ------ |
+| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                            | `docs/runbooks/anvil-adoption.md`            | Runbook  | Authoritative | @aneki | Live   |
+| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                       | `docs/runbooks/anvil-air-gapped.md`          | Runbook  | Authoritative | @aneki | Live   |
+| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)          | `docs/runbooks/homebrew-publish.md`          | Runbook  | Authoritative | @aneki | Live   |
+| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)            | `docs/runbooks/anvil-hook-coexistence.md`    | Runbook  | Authoritative | @aneki | Live   |
+| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md` | As-built | Derived       | @aneki | Live   |
+| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                    | `docs/runbooks/release-signing.md`           | Runbook  | Authoritative | @aneki | Live   |
+| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                  | `docs/runbooks/anvil-witness-chain.md`       | Runbook  | Authoritative | @aneki | Live   |
+| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
 
 ## ADOPT (plans/modules/adoption-friction.aps.md)
 
@@ -75,9 +74,9 @@
 
 ## RELORCH
 
-| Document                                                      | Path                             | Type    | Authority     | Owner   | Status |
-| ------------------------------------------------------------- | -------------------------------- | ------- | ------------- | ------- | ------ |
-| [Anvil Release Runbook](../../docs/guides/release-runbook.md) | `docs/guides/release-runbook.md` | Runbook | Authoritative | RELORCH | Live   |
+| Document                                                        | Path                               | Type    | Authority     | Owner   | Status |
+| --------------------------------------------------------------- | ---------------------------------- | ------- | ------------- | ------- | ------ |
+| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md) | `docs/runbooks/release-runbook.md` | Runbook | Authoritative | RELORCH | Live   |
 
 ## RMCPF-002
 

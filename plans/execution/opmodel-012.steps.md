@@ -113,7 +113,7 @@ Outputs:
      authoritative; move "Current Compatibility Model" to a clearly-marked
      Archive section (or remove if no longer cited anywhere).
    - `docs/guides/worktree-policy.md` — same flip.
-   - `docs/guides/release-runbook.md` — drop normal `dev -> main` promotion;
+   - `docs/runbooks/release-runbook.md` — drop normal `dev -> main` promotion;
      keep emergency-recovery references to OPMODEL-011 playbooks.
    - `.claude/skills/release/SKILL.md` — drop the "compat-mode" hedge in Mode
      Selection if RELORCH-011 has shipped; otherwise keep but reword to

@@ -9,7 +9,7 @@ Wave 1 **Status:** Honest-scope artefact for INTD-012 (Windows CI Matrix)
 > see
 > [`.github/workflows/rust.yml#L442-L445`](../../.github/workflows/rust.yml#L442-L445)
 > for the current `if:` and
-> [`docs/runbooks/v0.6.0-beta-release-runbook.md`](./v0.6.0-beta-release-runbook.md)
+> [`docs/archive/runbooks/v0.6.0-beta-release-runbook.md`](../archive/runbooks/v0.6.0-beta-release-runbook.md)
 > §5 for the operator-facing scope description. The TL;DR, "Workflow trigger
 > reality" section, and "Items deliberately deferred" item below are preserved
 > as the original 2026-05-06 evidence record but no longer reflect the current

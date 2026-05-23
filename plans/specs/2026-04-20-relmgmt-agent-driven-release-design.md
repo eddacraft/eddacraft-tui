@@ -51,7 +51,7 @@ In scope for Phase 3:
   no manifest contract.
 - Delete the `.release/` directory, its manifest artefact, and the
   `.gitignore` entry.
-- Update `docs/guides/release-runbook.md` quick-start to match.
+- Update `docs/runbooks/release-runbook.md` quick-start to match.
 - Reopen RELMGMT in `plans/index.aps.md` and add Phase 3 tasks to the
   module file.
 

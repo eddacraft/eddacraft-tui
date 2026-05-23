@@ -34,30 +34,27 @@ source instead.
 
 ## Document Types
 
-| Type              | Purpose                                   | Location                                  |
-| ----------------- | ----------------------------------------- | ----------------------------------------- |
-| APS index         | Module discovery and active state         | `plans/index.aps.md`                      |
-| APS module        | Execution authority                       | `plans/modules/*.aps.md`                  |
-| Release plan      | Current release-slate summary             | `RELEASE-PLAN.md`                         |
-| ADR               | Durable decision rationale                | `plans/decisions/*.md`                    |
-| Spec              | Intended design before or during work     | `plans/specs/`, `docs/specs/`             |
-| As-built          | Current implementation map                | `docs/architecture/*-as-built.md`         |
-| Runbook           | Operational procedure                     | `docs/runbooks/*.md`                      |
-| Guide             | Developer practice and operational policy | `docs/guides/*.md`, `docs/policies/*.md`  |
-| README            | Local orientation                         | nearest package, crate, app, or directory |
-| Contributor guide | Contribution workflow and expectations    | `CONTRIBUTING.md`                         |
-| Public docs       | User-facing behaviour                     | `docs/public/**/*.md`                     |
-| Archive           | Historical reference                      | `docs/archive/`, `plans/archive/`         |
-
-Current migration exception: the evergreen release runbook remains at
-`docs/guides/release-runbook.md`. Treat it as runbook authority until DOCGOV-008
-either moves it, renames it, or records why the exception remains.
+| Type              | Purpose                                   | Location                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| APS index         | Module discovery and active state         | `plans/index.aps.md`                                                                                                                                                                                                 |
+| APS module        | Execution authority                       | `plans/modules/*.aps.md`                                                                                                                                                                                             |
+| Release plan      | Current release-slate summary             | `RELEASE-PLAN.md`                                                                                                                                                                                                    |
+| ADR               | Durable decision rationale                | `plans/decisions/*.md`                                                                                                                                                                                               |
+| Spec              | Intended design before or during work     | `plans/specs/`, `docs/specs/`                                                                                                                                                                                        |
+| As-built          | Current implementation map                | `docs/architecture/*-as-built.md`                                                                                                                                                                                    |
+| Runbook           | Operational procedure                     | `docs/runbooks/*.md`                                                                                                                                                                                                 |
+| Guide             | Developer practice and operational policy | `docs/guides/*.md`, `docs/policies/*.md`                                                                                                                                                                             |
+| README            | Local orientation                         | nearest package, crate, app, or directory                                                                                                                                                                            |
+| Contributor guide | Contribution workflow and expectations    | `CONTRIBUTING.md`                                                                                                                                                                                                    |
+| Public docs       | User-facing behaviour                     | `docs/public/**/*.md` (published separately to the public docs site at `docs.eddacraft.ai`; internal docs MUST NOT link into the public surface for navigation, and the public surface owns its own discovery layer) |
+| Archive           | Historical reference                      | `docs/archive/`, `plans/archive/`                                                                                                                                                                                    |
 
 ## Metadata Convention
 
-New documents and materially touched non-APS documentation should declare their
-governance metadata immediately after the H1 title. Existing documents do not
-need a metadata-only migration until DOCGOV-005 adds validation.
+New documents and materially touched non-APS documentation must declare their
+governance metadata immediately after the H1 title. Legacy live documents may
+remain on the validation baseline until DOCGOV-009 backfills metadata, but do
+not add new missing-metadata debt to live docs.
 
 APS modules, APS indexes, and ADRs keep their native metadata formats unless
 their own schema or process explicitly adopts this table. Do not add this table

@@ -175,7 +175,7 @@ Contributor workflow quick links:
   and integration flow
 - [Worktree policy](docs/guides/worktree-policy.md) — permanent vs disposable
   worktrees
-- [Release runbook](docs/guides/release-runbook.md) — direct promotion vs
+- [Release runbook](docs/runbooks/release-runbook.md) — direct promotion vs
   `release/*` stabilisation
 - [Release cadence policy](docs/policies/release-cadence.md) — patch cadence,
   beta support windows, and hotfix expectations
@@ -600,22 +600,19 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
 ## Documentation
 
-| Document                                                                        | Description                                     |
-| ------------------------------------------------------------------------------- | ----------------------------------------------- |
-| [Quick Start](./docs/public/anvil/quickstart.md)                                | Get running in 5 minutes                        |
-| [CLI README](./crates/anvil-cli/README.md)                                      | Native CLI binary overview                      |
-| [First Project](./docs/public/anvil/first-project.md)                           | Real-world setup example                        |
-| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)            | Common issues and solutions                     |
-| [Configuration](./docs/public/anvil/operations/config.md)                       | Configuration options                           |
-| [Architecture](./docs/architecture/overview.md)                                 | System design                                   |
-| [Release Plan](./RELEASE-PLAN.md)                                               | Current release candidate cut-line              |
-| [Release Runbook](./docs/guides/release-runbook.md)                             | Command-driven release procedure                |
-| [Release Cadence](./docs/policies/release-cadence.md)                           | Beta support windows and patch expectations     |
-| [Adoption Runbook](./docs/runbooks/anvil-adoption.md)                           | Fresh-user and sustained-use adoption procedure |
-| [Air-Gapped Runbook](./docs/runbooks/anvil-air-gapped.md)                       | Network-blocked operation guarantee             |
-| [Hook Coexistence](./docs/runbooks/anvil-hook-coexistence.md)                   | Lefthook / Husky / pre-commit integration       |
-| [Witness Chain Runbook](./docs/runbooks/anvil-witness-chain.md)                 | Operator guide for witness-chain evidence       |
-| [anvil-run Manpage](./docs/runbooks/anvil-run.md)                               | Wrapped-launch ingress and session registration |
-| [v0.6.x → v0.7.0 Migration](./docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md) | Upgrade notes for the daemon-working candidate  |
-| [Plans](./plans/index.aps.md)                                                   | APS index and current planning state            |
-| [Documentation Governance](./docs/guides/documentation-governance.md)           | Documentation authority, metadata, and closeout |
+Most users want one of these golden-path entrypoints:
+
+| Audience             | Start here                                                                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| New users            | [Quick Start](./docs/public/anvil/quickstart.md)                                                                                                |
+| Contributors         | [CONTRIBUTING.md](./CONTRIBUTING.md), [AGENTS.md](./AGENTS.md)                                                                                  |
+| Operators / release  | [Release Runbook](./docs/runbooks/release-runbook.md), [Release Plan](./RELEASE-PLAN.md), [Release Cadence](./docs/policies/release-cadence.md) |
+| Architecture readers | [Architecture overview](./docs/architecture/overview.md)                                                                                        |
+| Planners             | [APS index](./plans/index.aps.md)                                                                                                               |
+
+For everything else, route through the generated documentation indexes:
+
+- [`docs/indexes/README.md`](./docs/indexes/README.md) — discovery surface over
+  governed documents, grouped by type, authority, owner, status, and tag.
+- [`docs/guides/documentation-governance.md`](./docs/guides/documentation-governance.md)
+  — authority model, metadata convention, and closeout protocol.

@@ -714,10 +714,10 @@ bump.
 
 - Same-UID local IPC only. No remote surface, no TLS, no signed manifests in v1.
   The four HIGH security trade-offs are catalogued in
-  `docs/runbooks/v0.6.0-beta-security-note.md` (H1: drivers.allow file mode not
-  verified before read; H2: cross-session telemetry redaction hash unsalted; H3:
-  §4.4 redaction filter spec-only outside `validate_write`; H4: PID-reuse TOCTOU
-  and macOS fence-first interrupt ladder).
+  `docs/archive/runbooks/v0.6.0-beta-security-note.md` (H1: drivers.allow file
+  mode not verified before read; H2: cross-session telemetry redaction hash
+  unsalted; H3: §4.4 redaction filter spec-only outside `validate_write`; H4:
+  PID-reuse TOCTOU and macOS fence-first interrupt ladder).
 - Telemetry identity is daemon-minted: `originating_driver_id` computed from
   peer credentials, never from a driver-supplied `driverName`. Cross-link
   `intercept-as-built.md` §5.
@@ -883,9 +883,9 @@ and where they don't:
 - `plans/specs/2026-05-06-editor-driver-protocol.md` — DRVR-002's editor-driver
   protocol design doc; the authoritative source for the §3.2 method table
   referenced from the proto crate.
-- `docs/runbooks/v0.6.0-beta-release-runbook.md` §2 — operator status path,
-  cross-platform parity contract, MCP correlation envelope Windows gap.
-- `docs/runbooks/v0.6.0-beta-security-note.md` — security trade-offs; H1
+- `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §2 — operator status
+  path, cross-platform parity contract, MCP correlation envelope Windows gap.
+- `docs/archive/runbooks/v0.6.0-beta-security-note.md` — security trade-offs; H1
   (drivers.allow file mode), H2 (telemetry redaction hash unsalted), H3 (§4.4
   redaction spec-only), H4 (PID-reuse + macOS fence-first).
 - `plans/modules/surface-drivers.aps.md` — DRVR module plan; Wave 1-3 task

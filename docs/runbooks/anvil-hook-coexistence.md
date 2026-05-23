@@ -211,8 +211,8 @@ commit. See the round-trip guarantee above.
   pre-push hooks Anvil installs actually write.
 - [`anvil-run` manpage](anvil-run.md) — the wrapped-launch ingress that
   cooperates with these hooks.
-- [v0.6.x → v0.7.0-beta migration note](v0.6.x-to-v0.7.0-beta-migration.md) —
-  what changes for hook installs across the upgrade.
+- [v0.6.x → v0.7.0-beta migration note](../archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  — what changes for hook installs across the upgrade.
 - [ADR-038](../../plans/decisions/038-hook-surface-and-noise-discipline.md) —
   doctrine anchor for the entire hook surface.
 

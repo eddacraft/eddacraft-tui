@@ -273,7 +273,7 @@ explicitly.
 - **macOS interrupt path** is fence-first this release (carry-forward from
   `v0.6.0-beta`): the launcher does not run the full SIGINT → SIGTERM → SIGKILL
   sequence on macOS. See details in
-  [`docs/runbooks/v0.6.0-beta-release-runbook.md`](v0.6.0-beta-release-runbook.md).
+  [`docs/archive/runbooks/v0.6.0-beta-release-runbook.md`](../archive/runbooks/v0.6.0-beta-release-runbook.md).
 
 ## SEE ALSO
 

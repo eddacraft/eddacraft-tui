@@ -4,12 +4,12 @@
 | ----- | --------- | ------ | ------ | ------------------------------------------------------------------ |
 | Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-22 against DOCGOV-006 release-doc sync scope |
 
-| Upstream                                                                          | Downstream                                     |
-| --------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `plans/modules/documentation-governance.aps.md`, `docs/guides/release-runbook.md` | Release operators, PR authors, `release` skill |
+| Upstream                                                                            | Downstream                                     |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `plans/modules/documentation-governance.aps.md`, `docs/runbooks/release-runbook.md` | Release operators, PR authors, `release` skill |
 
-Companion to the [release runbook](./release-runbook.md). Use this checklist to
-ensure all documentation is updated before and after every release.
+Companion to the [release runbook](../runbooks/release-runbook.md). Use this
+checklist to ensure all documentation is updated before and after every release.
 
 Copy the relevant section into a release PR description or tracking issue and
 tick items as they are completed.
@@ -72,7 +72,7 @@ affected by the changes shipping in this release.
 - [ ] `docs/guides/command-safety.md` — new command safety rules
 - [ ] `docs/guides/command-safety-configuration.md` — config changes
 - [ ] `docs/guides/custom-architecture-policies.md` — OPA policy changes
-- [ ] `docs/guides/release-runbook.md` — process changes
+- [ ] `docs/runbooks/release-runbook.md` — process changes
 
 ### Pre-release: package READMEs
 

@@ -42,8 +42,8 @@ Concretely the daemon:
 
 The trust boundary is **same-UID, local-IPC**. There is no remote surface, no
 cross-UID surface, no TLS, no signed manifests in v1; see §5 below and
-`docs/runbooks/v0.6.0-beta-security-note.md` for the four HIGH trade-offs the
-release council surfaced inside that boundary.
+`docs/archive/runbooks/v0.6.0-beta-security-note.md` for the four HIGH
+trade-offs the release council surfaced inside that boundary.
 
 ## 2. Architecture
 
@@ -127,10 +127,10 @@ crates/anvil-cli/src/commands/intercept.rs:438-444
         );
 ```
 
-The runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md` §1) records this as
-the only launch mode the release council validated for `v0.6.0-beta`. Operators
-running under systemd / launchd run the binary in foreground mode under the
-manager's supervision rather than double-backgrounding.
+The runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §1) records
+this as the only launch mode the release council validated for `v0.6.0-beta`.
+Operators running under systemd / launchd run the binary in foreground mode
+under the manager's supervision rather than double-backgrounding.
 
 **Shutdown.** `wait_for_shutdown_signal` (`lib.rs:711-735`) races SIGINT and (on
 Unix) SIGTERM. Windows hooks Ctrl+C only; Job Object termination is the
@@ -277,7 +277,7 @@ same-UID peer setting `"driverName": "vscode"` cannot impersonate the real
 VSCode driver in fan-out decisions.
 
 What v1 does **not** enforce: no remote surface, no TLS, no signed manifests.
-See `docs/runbooks/v0.6.0-beta-security-note.md` for the framing.
+See `docs/archive/runbooks/v0.6.0-beta-security-note.md` for the framing.
 
 ## 6. Fence-on-failure invariant (AD-7)
 
@@ -332,10 +332,11 @@ a tmp-and-rename ladder with `fsync` + parent dir sync on Unix
   written `0600` on Unix (`fence.rs:306-315`).
 
 **Restart does NOT release fences.** This is the most common operator
-expectation gap — the runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md`
-§3) records that operators reaching for "restart the daemon" hit this design.
-Fence state survives Ctrl-C / SIGTERM shutdown followed by a fresh
-`start --foreground`, daemon crash, machine reboot, and any combination thereof
+expectation gap — the runbook
+(`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §3) records that
+operators reaching for "restart the daemon" hit this design. Fence state
+survives Ctrl-C / SIGTERM shutdown followed by a fresh `start --foreground`,
+daemon crash, machine reboot, and any combination thereof
 (`fence.rs::tests::fenced_worktree_survives_store_reload`, `fence.rs:557-570`).
 The fence is meant to outlive ungraceful daemon shutdown so an interrupted
 enforcement decision is not silently undone.
@@ -359,8 +360,8 @@ A **CLI front-end for `unblock` is not shipping in v1.**
 task that wires the existing `FenceStore::unblock_worktree` helper to a clap
 subcommand. The intent and operator-facing shape are recorded in
 `plans/specs/2026-04-26-rtai-demo-runbook.md` §3.1; the current operator-runbook
-(`docs/runbooks/v0.6.0-beta-release-runbook.md` §3) names the v1 recovery path
-explicitly. See §16 gap 1.
+(`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §3) names the v1
+recovery path explicitly. See §16 gap 1.
 
 The supported v1 recovery is the **hard reset** path documented in
 `plans/specs/2026-04-26-rtai-demo-runbook.md` §3.2: stop the foreground daemon
@@ -516,9 +517,9 @@ the side effect (CI / MCP shim).
 is gated `#[cfg(unix)]` in `crates/anvil-cli/src/mcp/validation.rs`. On Windows
 the `cfg(not(unix))` arm returns `DaemonValidationOutcome::Unavailable`
 unconditionally, which the caller maps to `DaemonStatus::NotWired`. This is
-recorded in the runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md` §2): on
-Windows `correlation.daemonStatus` in `validate_write` MCP responses is always
-`not-wired` in v1 — it cannot distinguish daemon-up from daemon-down.
+recorded in the runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md`
+§2): on Windows `correlation.daemonStatus` in `validate_write` MCP responses is
+always `not-wired` in v1 — it cannot distinguish daemon-up from daemon-down.
 
 ## 13. §4.4 redaction filter
 
@@ -534,9 +535,9 @@ In `v0.6.0-beta` the filter is **wired only for `validate_write`**
 surfaces (`scan.files`, `fix.apply`, `status.query`) the contract is
 **spec-only** — the runtime filter integration is owned by RMCPF-010 and lands
 in a later tag. See security note H3
-(`docs/runbooks/v0.6.0-beta-security-note.md:143-185`) for the operator framing:
-an MCP client an operator does not fully trust will see un-redacted absolute
-paths and un-redacted secret-rule excerpts for those three tools in v1.
+(`docs/archive/runbooks/v0.6.0-beta-security-note.md:143-185`) for the operator
+framing: an MCP client an operator does not fully trust will see un-redacted
+absolute paths and un-redacted secret-rule excerpts for those three tools in v1.
 
 The redaction primitive `hash_of_path` (`fanout.rs:436-441`) is unsalted
 SHA-256; per-startup HMAC is tracked for the next tag (security note H2).
@@ -558,8 +559,8 @@ SHA-256; per-startup HMAC is tracked for the next tag (security note H2).
 **`stop` and `unblock` are not shipped CLI commands in HEAD `8bbe65b9`.** The
 underlying daemon surfaces (shutdown signals, `FenceStore::unblock_worktree`)
 are wired, but the CLI front-ends ride a follow-up INTD task. The
-operator-runbook (`docs/runbooks/v0.6.0-beta-release-runbook.md` §1, §3) names
-the v1 substitutes: Ctrl-C / SIGTERM by PID for shutdown, daemon-stop +
+operator-runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §1, §3)
+names the v1 substitutes: Ctrl-C / SIGTERM by PID for shutdown, daemon-stop +
 `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"` for fence recovery. See
 §16 gap 1.
 
@@ -717,10 +718,10 @@ small to keep the daemon's evaluation cost predictable.
 
 ## 18. Related docs
 
-- `docs/runbooks/v0.6.0-beta-release-runbook.md` — operator runbook; foreground
-  daemon, fence persistence, macOS fence-first, Windows CI gap. The
+- `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` — operator runbook;
+  foreground daemon, fence persistence, macOS fence-first, Windows CI gap. The
   user/operator perspective; this doc is the implementation perspective.
-- `docs/runbooks/v0.6.0-beta-security-note.md` — the four HIGH security
+- `docs/archive/runbooks/v0.6.0-beta-security-note.md` — the four HIGH security
   trade-offs (drivers.allow file mode, redaction hash unsalted, §4.4 filter
   spec-only, PID-reuse). Cross-referenced inline.
 - `docs/runbooks/intd-012-windows-evidence.md` — Windows CI cross-compile matrix

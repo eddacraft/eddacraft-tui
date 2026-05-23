@@ -275,7 +275,7 @@ hints when something blocks promotion.
   editors can route the operator to the recovery step. Operators upgrading from
   `v0.6.x` on a machine with a revoked session must run `anvil auth login` once
   on first invocation. See the
-  [`v0.6.x → v0.7.0-beta` migration runbook](docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  [`v0.6.x → v0.7.0-beta` migration runbook](docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
   for the recovery flow. Closes PR
   [#1822](https://github.com/eddacraft/anvil-001/pull/1822) /
   [#1824](https://github.com/eddacraft/anvil-001/pull/1824).
@@ -316,7 +316,7 @@ hints when something blocks promotion.
 These are shipped behaviours an operator should know about before adopting
 `v0.7.0-beta`. Each one has a tracked follow-up; none change the v1 same-UID
 local-IPC trust boundary documented in
-[`docs/runbooks/v0.6.0-beta-security-note.md`](docs/runbooks/v0.6.0-beta-security-note.md).
+[`docs/archive/runbooks/v0.6.0-beta-security-note.md`](docs/archive/runbooks/v0.6.0-beta-security-note.md).
 
 - **`telemetry.allow_cross_session` cross-session redaction reaches Fanout but
   not yet operators.** Post-MLP2-071 Phase 1 the daemon now constructs the
@@ -357,7 +357,7 @@ local-IPC trust boundary documented in
 - Direct download: pick up the new release from
   [the v0.7.0-beta release page](https://github.com/eddacraft/anvil/releases/tag/v0.7.0-beta).
 - Migration questions: see the
-  [v0.6.x → v0.7.0-beta migration note](docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md).
+  [v0.6.x → v0.7.0-beta migration note](docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md).
   v0.6.x users with revoked sessions will hit `state: "authRequired"` on first
   invocation — see the migration note's "Action commands require an
   authenticated session" section for the one-step recovery.
@@ -566,11 +566,11 @@ breaking changes; the upgrade is drop-in for existing installs.
   enforcement decision is no longer silently undone after a daemon crash,
   restart, or reboot. Recovery procedure and the deferred `anvil intercept stop`
   / `unblock` CLI subcommands are documented in
-  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+  `docs/archive/runbooks/v0.6.0-beta-release-runbook.md`.
 - **macOS interrupt path is fence-first this release** — on macOS the interrupt
   ladder falls through to fence-on-uncertainty rather than running the full
   SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in
-  `docs/runbooks/v0.6.0-beta-release-runbook.md`.
+  `docs/archive/runbooks/v0.6.0-beta-release-runbook.md`.
 - **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
@@ -607,9 +607,9 @@ breaking changes; the upgrade is drop-in for existing installs.
   integration suite is not yet wired for Windows; Windows coverage rides the
   same follow-up that closes the MCP correlation gap above.
 - **Operator artefacts** — the release ships
-  `docs/runbooks/v0.6.0-beta-release-runbook.md` (five operator items) and
-  `docs/runbooks/v0.6.0-beta-security-note.md` (four HIGH security trade-offs
-  documented for review).
+  `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` (five operator items)
+  and `docs/archive/runbooks/v0.6.0-beta-security-note.md` (four HIGH security
+  trade-offs documented for review).
 
 ## [0.5.1-beta] — Scanner Signal & TUI Hotfixes
 

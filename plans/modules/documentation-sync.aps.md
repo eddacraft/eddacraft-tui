@@ -134,7 +134,7 @@ architecture / runbook freshness now live under DOCGOV.
 | ----------- | ------------------------------------------------------------------------------------ |
 | DOCSYNC-014 | Superseded by DOCGOV-001 (`docs/guides/documentation-governance.md` already covers it) |
 | DOCSYNC-015 | Closed by DOCGOV-006 (gate-runner runbook freshness)                                 |
-| DOCSYNC-017 | Closed by DOCGOV-006 (`docs/guides/release-runbook.md` freshness)                    |
+| DOCSYNC-017 | Closed by DOCGOV-006 (`docs/runbooks/release-runbook.md` freshness)                  |
 | DOCSYNC-018 | Closed by DOCGOV-006 (`rust-architecture-endstate.md` as-built freshness)            |
 | DOCSYNC-019 | Closed by DOCGOV-006 (`docs/guides/release-doc-checklist.md` freshness)              |
 | DOCSYNC-020 | Closed by DOCGOV-006 (`docs/guides/anvil-rule-authoring.md` ReDoS framing)           |

@@ -51,8 +51,8 @@ How-to guides for developers working on Anvil.
 ### CLI
 
 - [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
-- [Release Runbook](release-runbook.md) — Operational release runbook retained
-  here during the DOCGOV migration
+- [Release Runbook](../runbooks/release-runbook.md) — Operational release
+  runbook (relocated to `docs/runbooks/` 2026-05-23, DOCGOV-008 Task 2)
 - [Release Doc Checklist](release-doc-checklist.md) — Documentation sync
   checklist per release
 

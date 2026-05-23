@@ -16,7 +16,7 @@
 - `docs/architecture/_as-built-template.md` — document the required freshness and source-reference shape.
 - `docs/guides/runbook-template.md` — add the runbook freshness template.
 - `docs/guides/documentation-governance.md` — describe source-reference validation and closeout expectations.
-- `docs/guides/release-runbook.md` — add the scanner-parity preflight gate note absorbed from DOCSYNC.
+- `docs/runbooks/release-runbook.md` — add the scanner-parity preflight gate note absorbed from DOCSYNC.
 - `docs/guides/release-doc-checklist.md` — expand release doc sync coverage.
 - `docs/guides/anvil-rule-authoring.md` — add ReDoS-risk framing for PR-body and commit-message rules.
 - `docs/architecture/rust-architecture-endstate.md` — document rayon pool / `RAYON_NUM_THREADS` behaviour for `anvil-checks`.
@@ -56,7 +56,7 @@
 - Modify: `docs/architecture/_as-built-template.md`
 - Create: `docs/guides/runbook-template.md`
 - Modify: `docs/guides/documentation-governance.md`
-- Modify: `docs/guides/release-runbook.md`
+- Modify: `docs/runbooks/release-runbook.md`
 - Modify: `docs/guides/release-doc-checklist.md`
 - Modify: `docs/guides/anvil-rule-authoring.md`
 - Modify: `docs/architecture/rust-architecture-endstate.md`

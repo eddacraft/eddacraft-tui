@@ -37,7 +37,7 @@ In scope:
   (and the MLP2-070 lineage-derivation hardening that this design pass treats
   as a prerequisite, not a co-requisite)
 - how the per-startup HMAC salt tracked in
-  [`docs/runbooks/v0.6.0-beta-security-note.md`](../../docs/runbooks/v0.6.0-beta-security-note.md)
+  [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
   §H2 feeds the redaction primitive — what rotates, who holds the key,
   what subscribers observe across a daemon restart
 - the `IpcCommand::SubscribeTelemetry` frame shape (new variant in
@@ -435,7 +435,7 @@ The slice must NOT:
   — `originating_session_id` / `originating_driver_id` contract.
 - [`plans/specs/2026-04-26-diagnostic-envelope-coordination.md`](2026-04-26-diagnostic-envelope-coordination.md)
   lines 222-229 — Subscribers MUST default-deny on unknown session ids.
-- [`docs/runbooks/v0.6.0-beta-security-note.md`](../../docs/runbooks/v0.6.0-beta-security-note.md)
+- [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
   §H2 — per-startup HMAC salt follow-up (folded into this slice).
 - [`docs/runbooks/v0.7.0-beta-security-note.md`](../../docs/runbooks/v0.7.0-beta-security-note.md)
   §M1 — lineage-anchor daemon-derivation prerequisite (MLP2-070).

@@ -148,7 +148,7 @@ Release assets, and release records.
 ## Related docs
 
 - [Worktree Policy](worktree-policy.md)
-- [Release Runbook](release-runbook.md)
+- [Release Runbook](../runbooks/release-runbook.md)
 - [Main-First Cutover Runbook](../runbooks/main-first-cutover.md) (historical
   evidence of the 2026-05-11 cutover; not for re-execution)
 - [Branch Reconciliation Runbook](../runbooks/branch-reconciliation.md)

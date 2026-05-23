@@ -208,7 +208,7 @@ operational cost is that a same-UID subscriber with a candidate corpus (common
 paths, `.env.local`, repo tree) can rainbow-table the hash back to plaintext.
 This is an accepted v1 trade-off; details, operator guidance, and the
 per-startup HMAC fix tracked for the next tag are in
-[`docs/runbooks/v0.6.0-beta-security-note.md`](../../docs/runbooks/v0.6.0-beta-security-note.md)
+[`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
 **H2**.
 
 ## 7. Traceparent helper (`traceparent.rs`)
@@ -324,7 +324,7 @@ multi-tenant developer machine; Low otherwise (default-off). **Fix:**
 Per-startup HMAC salt minted on daemon launch, rotated every cold start. Tracked
 under TRACE-003 alongside the subscriber-side redaction layer. Full
 operator-facing detail in
-[`docs/runbooks/v0.6.0-beta-security-note.md`](../../docs/runbooks/v0.6.0-beta-security-note.md)
+[`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
 **H2** (the primary cross-link for this gap; do not duplicate the writeup here).
 
 ### G-02: Redaction deny-list (`SENSITIVE_FIELDS`) has no consumers
@@ -405,7 +405,7 @@ converge on the observability `REDACTED` constant.
   envelope; the §4.4 redaction filter site is in `validate_write.rs`.
 - [`docs/runbooks/observability-triage.md`](../../docs/runbooks/observability-triage.md)
   — operator runbook (OBS-005-owned; cross-link only).
-- [`docs/runbooks/v0.6.0-beta-security-note.md`](../../docs/runbooks/v0.6.0-beta-security-note.md)
+- [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
   **H2** — operator-facing detail on the unsalted SHA-256 redaction-hash
   trade-off (G-01 above).
 - [`plans/modules/tracing-foundation.aps.md`](../../plans/modules/tracing-foundation.aps.md)

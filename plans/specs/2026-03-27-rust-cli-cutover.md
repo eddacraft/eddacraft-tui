@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (clap, anyhow, serde_json, reqwest), cargo-dist, GitHub Actions
 
-**Spec:** `docs/specs/2026-03-27-rust-cli-cutover-design.md`
+**Spec:** `docs/archive/specs/2026-03-27-rust-cli-cutover-design.md` (archived 2026-05-23, DOCGOV-008)
 
 ---
 

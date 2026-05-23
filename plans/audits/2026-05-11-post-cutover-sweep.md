@@ -46,7 +46,7 @@ Hits were classified into three buckets:
 |---|---|
 | `docs/runbooks/branch-reconciliation.md` | Self-described one-time divergence-recovery doc; the `dev` references are accurate for what it documents. |
 | `docs/runbooks/intd-012-windows-evidence.md` | Dated evidence document for INTD-012; captures state as of when it was written. |
-| `docs/runbooks/v0.6.0-beta-release-runbook.md` | Historical release runbook for `v0.6.0-beta`. |
+| `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` | Historical release runbook for `v0.6.0-beta`. |
 | `plans/specs/2026-05-04-launch-a1-execution.md` | Historical execution plan; describes how A1 shipped. |
 | `plans/specs/2026-05-09-plan-build-release-operating-model.md` | The OPMODEL operating-model spec itself; `dev` references describe the migration plan that this spec drove. |
 | `plans/specs/2026-05-10-ci-cd-validation-operating-model.md` | The CICD operating-model spec; describes migration vs target columns deliberately. |
@@ -60,7 +60,7 @@ here:
 
 - `docs/guides/branching-strategy.md`
 - `docs/guides/worktree-policy.md`
-- `docs/guides/release-runbook.md`
+- `docs/runbooks/release-runbook.md`
 - `.claude/skills/release/SKILL.md`
 - `docs/runbooks/emergency-hotfix.md`
 - `.github/dependabot.yml`

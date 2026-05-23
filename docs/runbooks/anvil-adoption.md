@@ -275,11 +275,11 @@ design — Anvil does not edit user-owned config blocks on uninstall.
 - **Authoring rules.** See
   [`docs/guides/anvil-rule-authoring.md`](../guides/anvil-rule-authoring.md).
 - **Daemon ops.** See
-  [`docs/runbooks/v0.6.0-beta-release-runbook.md`](v0.6.0-beta-release-runbook.md)
+  [`docs/archive/runbooks/v0.6.0-beta-release-runbook.md`](../archive/runbooks/v0.6.0-beta-release-runbook.md)
   (carry-forward from `v0.6.0-beta`) for foreground-launch + macOS interrupt
   path, both unchanged in `v0.7.0-beta`.
 - **Upgrade from a specific prior version.** See the
-  [v0.6.x → v0.7.0-beta migration note](v0.6.x-to-v0.7.0-beta-migration.md).
+  [v0.6.x → v0.7.0-beta migration note](../archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md).
 
 ## Troubleshooting
 
@@ -329,8 +329,8 @@ entry in the [witness-chain runbook](anvil-witness-chain.md).
 - [Witness chain runbook](anvil-witness-chain.md) — chain shape and recovery
   procedures.
 - [`anvil-run` manpage](anvil-run.md) — wrapped-launch ingress semantics.
-- [v0.6.x → v0.7.0-beta migration note](v0.6.x-to-v0.7.0-beta-migration.md) —
-  what changes if you are upgrading.
+- [v0.6.x → v0.7.0-beta migration note](../archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  — what changes if you are upgrading.
 
 ## Provenance
 
