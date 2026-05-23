@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | Ready  | 0/10     |
+| APSCAN | —     | In Progress | 1/10     |
 
 ## Purpose
 
@@ -90,16 +90,23 @@ Migrate in waves:
 
 ### APSCAN-001: Define active APS lint scope
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Prevent archived legacy plans from blocking canonical APS lint while
   making active APS conformance measurable.
 - **Expected Outcome:** Canonical lint targets active APS files only and excludes
   `plans/archive/**`, legacy phase files, and historical review artefacts unless
   explicitly requested.
-- **Validation:** `aps lint` or equivalent wrapper reports active-surface results
-  without archive-only failures.
-- **Files:** `scripts/docs/check-aps.mjs`, `package.json`, `.github/workflows/**`
-  if CI wiring changes
+- **Validation:** `pnpm test:aps-active-lint`; `pnpm aps:active-lint --list-files`
+  reports active-surface results without archive-only failures.
+- **Files:** `scripts/aps/active-lint.mjs`,
+  `scripts/aps/_test/active-lint.test.sh`, `package.json`
+- **Closeout:** Validation passed with `pnpm test:aps-active-lint`,
+  `node --check scripts/aps/active-lint.mjs`,
+  `bash -n scripts/aps/_test/active-lint.test.sh`,
+  `pnpm exec oxlint scripts/aps/active-lint.mjs`, and
+  `pnpm aps:active-lint --list-files`. APS drift still reports the two
+  pre-existing advisory findings for TUIR progress and ADOPT-005 release-record
+  evidence.
 - **Confidence:** high
 
 ### APSCAN-002: Split portable APS rules from Anvil project context
