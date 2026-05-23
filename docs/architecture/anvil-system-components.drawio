@@ -161,8 +161,8 @@
     <mxCell id="archcfg" value="&lt;b&gt;ARCHCFG&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;Arch Config&lt;br&gt;Validation 0/5&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="470" y="38" width="120" height="90" as="geometry"/>
     </mxCell>
-    <mxCell id="aiguard" value="&lt;b&gt;AIGUARD&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;AI Guardrail&lt;br&gt;Profile complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="future_lane">
-      <mxGeometry x="20" y="148" width="120" height="70" as="geometry"/>
+    <mxCell id="aiguard" value="&lt;b&gt;AIGUARD&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;AI Guardrail&lt;br&gt;Profile complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
+      <mxGeometry x="480" y="140" width="120" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="orghier" value="&lt;b&gt;Policy Domain&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;ORGHIER, POLLC&lt;br&gt;COMPLY, POLFED&lt;br&gt;All unsized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="160" y="148" width="130" height="70" as="geometry"/>
