@@ -50,6 +50,7 @@ These define how Anvil behaves by default. All features must align.
 | [025](025-package-manager-distribution.md) | Package manager distribution strategy across npm / crates.io / GitHub Releases | Accepted |
 | [045](045-update-signing-scheme.md) | Minisign (Ed25519 + BLAKE2b) signs release artefacts; pure-Rust `minisign-verify` enforces the chain inside `anvil update`; long-lived key custody via GitHub Actions secret + offline backup | Proposed |
 | [047](047-eddacraft-tui-canonical-source-mirror.md) | Move `eddacraft-tui` canonical source back into Anvil; keep the public repo as a read-only mirror and crates.io as external distribution | Accepted |
+| [050](050-eddacraft-tui-runner-and-cli-policy.md) | `eddacraft-tui` ships an opt-in `runner` feature flag bundling a turn-key `launch_default(app)` entry point (lifecycle + minimal `lexopt` parser + `TerminalApp` trait); library-shaped consumers get a CLI from a 3-line `main.rs`; Anvil keeps its own `TerminalGuard` + `clap` tree (non-adopter); no `clap` in core, no `[[bin]]` in core, no sibling crate | Proposed |
 
 ## Configuration and Structure
 
