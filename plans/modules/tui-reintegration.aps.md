@@ -5,9 +5,9 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 2/8      |
+| TUIR | joshuaboys | In Progress | 3/8      |
 
-**Last reviewed:** 2026-05-23
+**Last reviewed:** 2026-05-23 (TUIR-003)
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -663,7 +663,7 @@ workspace crate) and TUIR-004 (mirror automation) are merged.
 
 ### TUIR-003: Switch Anvil consumers to the workspace path crate
 
-- **Status:** open
+- **Status:** completed
 
 **Intent:** Replace the crates.io dependency on `eddacraft-tui` with the
 in-workspace path crate inside Anvil.
@@ -675,20 +675,23 @@ in-workspace path crate inside Anvil.
 from a crates.io version pin to a path dependency, and the TUIR-002
 transitional-state comment on that line is removed in the same edit.
 `crates/workspace-hack/Cargo.toml` is regenerated with `cargo hakari
-generate` so the workspace-hack reference resolves to the path crate
-(the pre-migration `version = "0.2"` reference becomes a path
-reference). **Hakari ordering is load-bearing:** the workspace dep
-rewrite MUST land before `cargo hakari generate` runs, otherwise
-`workspace-hack` regenerates from the still-registry workspace dep
-and the split-resolution graph (most consumers on path,
-`workspace-hack` on registry) persists until a follow-up regen.
+generate`; the pre-migration `eddacraft-tui = { version = "0.2", ...
+features = ["test-utils"] }` entry is dropped entirely rather than
+rewritten to a path reference — hakari only aggregates external
+versions across a workspace, and path crates need no aggregation, so
+the entry is simply absent from the regenerated file. **Hakari
+ordering is load-bearing:** the workspace dep rewrite MUST land
+before `cargo hakari generate` runs, otherwise `workspace-hack`
+regenerates from the still-registry workspace dep and the split-
+resolution graph (most consumers on path, `workspace-hack` on
+registry) persists until a follow-up regen.
 The crates.io `eddacraft-tui` entry no longer appears in the
 workspace `Cargo.lock` as an external dependency for first-party
 crates.
 
 **Validation:** `cargo tree -p eddacraft-anvil-tui -i eddacraft-tui`
-shows the path crate; `cargo tree -p anvil-cli -i eddacraft-tui` shows
-the path crate; `cargo hakari verify`; `cargo test --workspace`;
+shows the path crate; `cargo tree -p eddacraft-anvil -i eddacraft-tui`
+shows the path crate; `cargo hakari verify`; `cargo test --workspace`;
 `grep -F 'eddacraft-tui = "' Cargo.toml crates/*/Cargo.toml` returns
 zero hits (no version pins remain on first-party crates).
 
