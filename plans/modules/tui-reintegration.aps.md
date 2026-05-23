@@ -5,9 +5,9 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 1/8      |
+| TUIR | joshuaboys | In Progress | 2/8      |
 
-**Last reviewed:** 2026-05-22
+**Last reviewed:** 2026-05-23
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -416,6 +416,43 @@ trust surface and crates.io contract.
   and silent banner-swap-step regressions.
 - **Status:** Proposed.
 
+**D-TUIR-019:** Workspace clippy `-D warnings` × verbatim
+`clippy::pedantic = "warn"` collision (resolved by in-crate fixes)
+
+- **Resolution:** Surfaced at TUIR-002 import time. The standalone
+  crate's `[lints.clippy]` block carries `pedantic = { level = "warn",
+  priority = -1 }`, preserved verbatim per D-TUIR-016. D-TUIR-007's
+  Anvil-side gate adds `-- -D warnings` at the CLI, escalating those
+  pedantic warnings to errors — 20 of them at v0.2.2 (`map_unwrap_or`,
+  `doc_markdown`, `manual_let_else`, `format_collect`,
+  `uninlined_format_args`, `too_many_lines`). Standalone CI runs
+  `cargo clippy --all-targets` without `-D warnings`, so the
+  standalone tree is clean at the error level it gates against, but
+  not at the level Anvil gates against. The plan didn't surface this
+  interaction until first contact. **Resolution adopted in TUIR-002:**
+  apply mechanical clippy fixes in-crate — `map_or` for
+  `map_unwrap_or` (5 sites in `src/pretext/{layout,prepare,segment}.rs`
+  + `src/widgets/pretext.rs`), backtick the bare identifiers in
+  `///` docs for `doc_markdown` (3 sites), `let ... else` for
+  `manual_let_else` (1 site in `src/pretext/segment.rs`), a small
+  `repeat_words(count, prefix)` test-only helper function added to
+  `src/pretext/layout.rs`'s `mod tests` that uses `write!(s, ...)`
+  inside a `for` loop instead of `(0..n).map(|i| format!(...)).collect()`
+  to resolve `format_collect` at 4 test-input sites, `{var}` form for
+  `uninlined_format_args` (~5 sites), and a single
+  `#[allow(clippy::too_many_lines)]` on the deliberately long
+  internal `layout_with_cap`. Net effect: no intentional public API
+  changes were made — every edit is at a non-`pub` site or inside a
+  `///` doc comment, and a source review of the staged diff confirms
+  mechanical-only transformations. Published `0.2.3` carries the
+  cleaner source. Mirror reflects the same. The `[lints]` block
+  itself stays verbatim — pedantic is still `warn` for downstream
+  consumers building from crates.io who don't pass `-D warnings`.
+  Future migrations under this plan should expect the first run of
+  D-TUIR-007's clippy gate to surface a similar delta and budget for
+  mechanical fixes (not for a plan reopen).
+- **Status:** Accepted in TUIR-002 (2026-05-23).
+
 ## Risks
 
 - **Public git consumers of `main` see rewritten history.** Mitigation:
@@ -532,7 +569,7 @@ tree; `cargo package --list -p eddacraft-tui` output stored under
 
 ### TUIR-002: Import `eddacraft-tui` into `crates/eddacraft-tui/`
 
-- **Status:** open
+- **Status:** completed
 
 **Intent:** Move the canonical source into the workspace without
 behaviour or API change.
@@ -562,6 +599,39 @@ crate root with the mirror banner content (D-TUIR-012). Workspace
 `Cargo.toml` lists the crate as a member but does NOT add it to a
 workspace `default-members` list that would pull it into
 `cargo run`-style implicit builds.
+The empty `[workspace]` table the standalone crate's `Cargo.toml`
+carries (the conventional trick that makes the crate its own
+workspace root when consumed outside a parent workspace) is stripped
+on import — leaving it in place would make `crates/eddacraft-tui/`
+declare itself a nested workspace root and conflict with anvil-001
+workspace membership. This is a structural requirement of workspace
+membership, not a metadata change covered by D-TUIR-013, and does
+not appear in the published `Cargo.toml.orig` (cargo strips empty
+tables on publish), so it has zero downstream visibility. The
+20-site clippy delta caused by D-TUIR-007's `-D warnings` × the
+verbatim `clippy::pedantic = "warn"` lint policy is resolved
+in-crate per D-TUIR-019; the migration is byte-equivalent at the
+public API surface but no longer at the source-line level.
+The upstream tarball's `docs/council-review-issues.md` (a
+development-branch council session log carried into the v0.2.2
+tarball by accident) is dropped on import — it has no shipped-crate
+value and would be noise inside the canonical source. The published
+file list therefore loses one entry on top of the deltas tracked in
+the baseline; the validation `package --list` diff treats this as an
+expected omission.
+**Transitional consumer state:** TUIR-002 does NOT switch consumers.
+The workspace dep `eddacraft-tui = "0.2.2"` in root `Cargo.toml`
+stays a crates.io version requirement, and `workspace-hack` keeps
+its own direct `version = "0.2"` reference. Consumers
+(`eddacraft-anvil-tui`, `eddacraft-anvil`, `workspace-hack`)
+continue resolving `eddacraft-tui` to the registry copy after
+TUIR-002 merges; the path crate at `crates/eddacraft-tui/` is an
+orphan member in `Cargo.lock` until TUIR-003. This is the documented
+hand-off shape, but it means `cargo test --workspace` does NOT
+exercise the path crate's source — only the per-crate gates
+(`cargo test -p eddacraft-tui ...`) do. The root `Cargo.toml`
+workspace dep line carries an explicit comment marking the
+transitional state.
 
 **Validation:**
 - `cargo test -p eddacraft-tui --all-features`;
@@ -602,12 +672,18 @@ in-workspace path crate inside Anvil.
 `crates/anvil-cli/`, and any other Anvil crates that consume
 `eddacraft-tui` resolve it via workspace `path =` inheritance. Root
 `Cargo.toml`'s workspace dependency for `eddacraft-tui` is rewritten
-from a crates.io version pin to a path dependency.
+from a crates.io version pin to a path dependency, and the TUIR-002
+transitional-state comment on that line is removed in the same edit.
 `crates/workspace-hack/Cargo.toml` is regenerated with `cargo hakari
 generate` so the workspace-hack reference resolves to the path crate
 (the pre-migration `version = "0.2"` reference becomes a path
-reference). The crates.io `eddacraft-tui` entry no longer appears in
-the workspace `Cargo.lock` as an external dependency for first-party
+reference). **Hakari ordering is load-bearing:** the workspace dep
+rewrite MUST land before `cargo hakari generate` runs, otherwise
+`workspace-hack` regenerates from the still-registry workspace dep
+and the split-resolution graph (most consumers on path,
+`workspace-hack` on registry) persists until a follow-up regen.
+The crates.io `eddacraft-tui` entry no longer appears in the
+workspace `Cargo.lock` as an external dependency for first-party
 crates.
 
 **Validation:** `cargo tree -p eddacraft-anvil-tui -i eddacraft-tui`
@@ -623,6 +699,16 @@ zero hits (no version pins remain on first-party crates).
 ### TUIR-004: Mirror `crates/eddacraft-tui/` to the public repo
 
 - **Status:** open
+
+**Prerequisite:** TUIR-007 (`CONTRIBUTING.md` mirror-aware update)
+MUST land before this workflow runs even once against
+`eddacraft/eddacraft-tui:main`. The `MIRROR-README.md` banner points
+contributors at `CONTRIBUTING.md`, and TUIR-002 left
+`CONTRIBUTING.md` carrying the standalone repo's `dev`/`main`
+branching language — running the mirror before TUIR-007 lands would
+publish a banner whose redirect target actively misleads external
+contributors. Either land TUIR-007 first, or land TUIR-004 and
+TUIR-007 in the same PR.
 
 **Intent:** Ship `.github/workflows/mirror-eddacraft-tui.yml` modelled
 on `mirror-acknowledgements-starter.yml`, mirroring the subtree to
