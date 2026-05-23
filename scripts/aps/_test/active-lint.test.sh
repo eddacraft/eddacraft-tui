@@ -52,3 +52,35 @@ if (!doc.files.includes("plans/modules/active.aps.md")) {
   throw new Error("JSON output omitted active module");
 }
 '
+
+fake_aps="$tmp/fake-aps"
+cat >"$fake_aps" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$FAKE_APS_ARGS"
+exit 7
+SH
+chmod +x "$fake_aps"
+
+args_log="$tmp/aps-args.log"
+set +e
+FAKE_APS_ARGS="$args_log" "${CHECK[@]}" --root "$tmp" --aps-bin "$fake_aps" >/dev/null 2>&1
+status=$?
+set -e
+
+if [[ "$status" -ne 7 ]]; then
+  printf 'expected fake aps exit status 7, got %s\n' "$status" >&2
+  exit 1
+fi
+
+require_argv() {
+  local expected="$1"
+  if ! grep -qx "$expected" "$args_log"; then
+    printf 'missing expected aps argv: %s\nargv:\n%s\n' "$expected" "$(cat "$args_log")" >&2
+    exit 1
+  fi
+}
+
+require_argv 'lint'
+require_argv 'plans/index.aps.md'
+require_argv 'plans/modules/active.aps.md'
+require_argv 'plans/execution/ACTIVE-001.actions.md'
