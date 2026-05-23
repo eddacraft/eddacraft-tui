@@ -106,19 +106,120 @@ flat-rooted, per D-TUIR-004) once TUIR-004 lands the mirror workflow itself.
 
 ## Backport and Conflict Policy
 
-**To be filled by TUIR-007**
-([`plans/modules/tui-reintegration.aps.md` TUIR-007](../../plans/modules/tui-reintegration.aps.md#tuir-007-document-mirror-policy-and-update-public-surfaces)).
+This section ratifies **D-TUIR-009** (backport / mirror conflict policy). It
+covers the failure modes that the mirror topology introduces and what the
+correct response is to each.
 
-Will cover:
+### Drive-by source PR against the mirror
 
-- Drive-by source PR against the mirror — auto-close template, redirect to
-  canonical source path + contribution guide.
-- Mirror force-push collision (someone pushed to the mirror directly) — next
-  scheduled mirror run wins; lost work is the pusher's responsibility.
-- Emergency security fix routing — canonical first, mirror propagates, crates.io
-  publish follows; no "fix on mirror first" path is sanctioned.
-- Tag conflict on the mirror — mirror automation refuses to overwrite existing
-  tags; operator resolves manually.
+External contributors may open PRs against `eddacraft/eddacraft-tui` not
+realising it is a read-only mirror — that is the failure mode the mirror's
+public banner (per D-TUIR-012) is sized to prevent, but a banner is not
+enforcement.
+
+**Response:** auto-close. A workflow at
+`crates/eddacraft-tui/.github/workflows/pr-redirect.yml` ships with the
+canonical source, lands on the mirror via TUIR-004's flat-rooted sync, and posts
+a single comment + closes any `pull_request` opened against the mirror. The
+redirect template names the canonical source path, the contribution guide, and
+the issue queue — see
+[`crates/eddacraft-tui/CONTRIBUTING.md`](../../crates/eddacraft-tui/CONTRIBUTING.md)
+"External contributors" section. The maintainer rotation reviews closed PRs for
+genuinely useful changes the contributor took the time to write up; if a change
+is accepted, a maintainer ports it into `crates/eddacraft-tui/` inside Anvil and
+the next mirror sync carries it out. The original PR stays closed with the
+redirect template; ownership of the ported commit credits the maintainer (with
+`Co-Authored-By:` honouring the original contributor when appropriate). Source
+PRs are **never reopened** on the mirror — the mirror is one-way.
+
+### Mirror force-push collision
+
+A maintainer with write access to `eddacraft/eddacraft-tui:main` pushes directly
+(e.g. a "quick fix" out of habit, or a tool that targets the wrong remote).
+
+**Response:** the next scheduled mirror run wins. The mirror workflow
+force-pushes on every change to `crates/eddacraft-tui/**` on Anvil's `main`, and
+the daily drift-check job (D-TUIR-018) catches the divergence within at most 24
+hours. The pusher's local commits are lost from the mirror's `main` the moment
+the next sync fires; reflog rescue is possible until the mirror runner's GitHub
+Actions tmpfs is recycled (typically one workflow run). **The lost work is the
+pusher's responsibility** — the mirror's `README.md` banner explicitly warns
+against direct pushes. The drift-check finding becomes a tracked issue so the
+pattern is visible if it recurs.
+
+### Emergency security fix routing
+
+A maintainer learns of a vulnerability in `eddacraft-tui` (via the SECURITY.md
+private channel, an upstream advisory, or internal review) and needs to ship a
+fix faster than the normal release cadence.
+
+**Response:** the fix lands in `crates/eddacraft-tui/` inside Anvil first. The
+standard mirror push (within one workflow run) carries it to the public mirror.
+The crates.io publish workflow (TUIR-005) fires from canonical source on a tag
+push. No "fix on mirror first, port to Anvil later" path is sanctioned — even
+under time pressure, that path produces a mirror that's out of sync with both
+canonical source and the published crate, and the drift-check job will flag the
+divergence on its next run anyway. The fast path is to skip the normal review
+buffer with explicit operator sign-off, not to skip the canonical-source-first
+ordering.
+
+If the canonical-source-first ordering is the bottleneck (e.g. canonical source
+CI is broken and the fix can't merge through normal channels), the escalation is
+to fix the CI first or to use an explicit hotfix branch off `main` per Anvil's
+branching strategy — not to start landing fixes on the mirror.
+
+### Tag conflict on the mirror
+
+A maintainer tags `eddacraft-tui-vX.Y.Z` on the mirror directly (or a stale tag
+exists from before the migration).
+
+**Response:** the mirror automation refuses to overwrite or move existing tags
+(per D-TUIR-002 — tags are append-only). If the same tag name already exists on
+the mirror with a different commit SHA, the mirror sync fails the
+tag-propagation step and surfaces an operator-facing error; the broken state is
+the operator's to resolve. Two reasonable resolutions:
+
+1. **Yank from crates.io and re-tag with a successor version**
+   (`eddacraft-tui-vX.Y.Z+1`) if the conflicting tag points at a published
+   release that should be retracted.
+2. **Manually delete the conflicting tag on the mirror** if it was a stray (not
+   yet a real release) — then re-run the mirror sync.
+
+The historical unprefixed `v0.x.y` tags from before the migration (`v0.1.0`,
+`v0.2.0`, `v0.2.1`, `v0.2.2`) are not tag conflicts under this policy: they
+predate the prefixed naming scheme (D-TUIR-011) and remain in place untouched,
+pointing at the `pre-canonical-archive` history (D-TUIR-010).
+
+### Mirror history rewrite (per D-TUIR-020)
+
+The mirror's `main` is force-pushed by automation on every change. External git
+consumers tracking `main` will see history rewrites — that is the documented
+contract (the public README banner warns about it, and ADR-050's runner-helper
+consumers depend on the crates.io release, not on `main`).
+
+**Response:** none required — this is intended behaviour, ratified by D-TUIR-020
+as a distinct decision from the one-shot cutover rewrite handled by D-TUIR-010.
+External users who pin a commit SHA on `main` and need a stable reference should
+pin a release tag instead (`eddacraft-tui-vX.Y.Z`); tags are append-only.
+
+## Mirror Banner Sync Set
+
+Three files carry mirror banners with overlapping prose. They are a **sync set**
+— when the canonical Anvil monorepo URL, the mirror URL, or the force-push
+contract changes, all three must update:
+
+1. [`crates/eddacraft-tui/MIRROR-README.md`](../../crates/eddacraft-tui/MIRROR-README.md)
+   — prepended onto `README.md` by the mirror workflow (per D-TUIR-012); the
+   only one external readers see verbatim on the mirror's root.
+2. [`crates/eddacraft-tui/CONTRIBUTING.md`](../../crates/eddacraft-tui/CONTRIBUTING.md)
+   — top-of-file banner; tells contributors which path applies.
+3. [`crates/eddacraft-tui/SECURITY.md`](../../crates/eddacraft-tui/SECURITY.md)
+   — top-of-file banner; clarifies that the mirror reporting channels route to
+   the same maintainer team as the canonical source.
+
+The three banners are deliberately tuned per audience and not auto-generated;
+treat them as a manually-synced trio. Any drift caught in review of one banner
+triggers a check of the other two.
 
 ## Where Decisions Live
 

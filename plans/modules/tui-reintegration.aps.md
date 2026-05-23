@@ -5,9 +5,9 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 4/8      |
+| TUIR | joshuaboys | In Progress | 5/8      |
 
-**Last reviewed:** 2026-05-23 (TUIR-006)
+**Last reviewed:** 2026-05-23 (TUIR-007)
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -292,7 +292,27 @@ trust surface and crates.io contract.
   - **Tag conflict (someone tagged on the mirror):** mirror automation
     refuses to overwrite existing tags; the operator resolves manually
     and the conflicting tag is either renamed or yanked from crates.io.
-- **Status:** Proposed.
+- **Status:** Accepted 2026-05-23 — ratified by TUIR-007 (PR #1886) via
+  [`docs/policies/eddacraft-tui-mirror.md` §Backport and Conflict
+  Policy](../../docs/policies/eddacraft-tui-mirror.md#backport-and-conflict-policy).
+  The policy doc expands each bullet above into a sub-section and adds
+  an ongoing-mirror-history-rewrite sub-policy (per D-TUIR-020) that
+  belongs alongside the four conflict cases originally listed here.
+
+**D-TUIR-020:** Ongoing mirror history rewrite contract
+
+- **Resolution:** The mirror's `main` is force-pushed by automation on
+  every change to `crates/eddacraft-tui/**` on Anvil's `main`. External
+  git consumers tracking the mirror's `main` will see history rewrites
+  on every sync — that is intended behaviour and is distinct from the
+  one-shot cutover handled by D-TUIR-010. The public README banner
+  (per D-TUIR-012) warns external consumers to depend on the crates.io
+  release or on a tag, not on `main`. ADR-050's runner-helper consumers
+  follow the same guidance via the documented dependency form. No
+  response is required when the rewrite happens; this decision exists
+  so the policy doc's "Mirror history rewrite" sub-section has a
+  numbered decision to ratify rather than being slipped into D-TUIR-009.
+- **Status:** Accepted 2026-05-23 — ratified by TUIR-007 (PR #1886).
 
 **D-TUIR-010:** Existing public history at cutover
 
@@ -787,7 +807,7 @@ surface only the gate that should run there.
 
 ### TUIR-007: Document mirror policy and update public surfaces
 
-- **Status:** open
+- **Status:** Merged 2026-05-23 via PR #1886
 
 **Intent:** Make the public repo accurately describe itself as a
 read-only mirror, redirect contributions, and document the backport /
