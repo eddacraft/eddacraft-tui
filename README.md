@@ -80,11 +80,11 @@ The `widgets/` module ships a curated component set. Highlights:
 
 ## Optional features
 
-| Feature    | Adds                                                        |
-| ---------- | ----------------------------------------------------------- |
-| `image`    | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
-| `big-text` | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes |
-| `test-utils` | Snapshot testing helpers re-exported for downstream crates |
+| Feature      | Adds                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| `image`      | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
+| `big-text`   | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes                   |
+| `test-utils` | Snapshot testing helpers re-exported for downstream crates                                  |
 
 ```toml
 [dependencies]
