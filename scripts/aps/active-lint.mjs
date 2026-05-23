@@ -70,13 +70,14 @@ const result = spawnSync(apsBin, ['lint', ...files], {
   stdio: json ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   encoding: 'utf8',
 });
+const exitStatus = result.error ? 2 : (result.status ?? 1);
 
 if (json) {
   console.log(
     JSON.stringify(
       {
         files,
-        status: result.status ?? 1,
+        status: exitStatus,
         stdout: result.stdout ?? '',
         stderr: result.stderr ?? '',
         error: result.error?.message,
@@ -89,10 +90,10 @@ if (json) {
 
 if (result.error) {
   if (!json) console.error(`[aps-active-lint] failed to invoke ${apsBin}: ${result.error.message}`);
-  process.exit(2);
+  process.exit(exitStatus);
 }
 
-process.exit(result.status ?? 1);
+process.exit(exitStatus);
 
 function activeApsFiles(projectRoot) {
   const plans = join(projectRoot, 'plans');

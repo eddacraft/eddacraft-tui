@@ -84,3 +84,24 @@ require_argv 'lint'
 require_argv 'plans/index.aps.md'
 require_argv 'plans/modules/active.aps.md'
 require_argv 'plans/execution/ACTIVE-001.actions.md'
+
+missing_json="$tmp/missing-aps.json"
+set +e
+"${CHECK[@]}" --root "$tmp" --aps-bin "$tmp/does-not-exist" --json >"$missing_json" 2>/dev/null
+missing_status=$?
+set -e
+
+if [[ "$missing_status" -ne 2 ]]; then
+  printf 'expected missing aps exit status 2, got %s\n' "$missing_status" >&2
+  exit 1
+fi
+
+node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+if (doc.status !== 2) {
+  throw new Error(`expected JSON status 2 for missing aps binary, got ${doc.status}`);
+}
+if (!doc.error) {
+  throw new Error("expected JSON error for missing aps binary");
+}
+' "$missing_json"
