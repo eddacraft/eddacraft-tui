@@ -1,10 +1,18 @@
 # Acknowledgements starter kit
 
-A drop-in third-party-attribution pipeline. Wraps
-[`cargo-about`](https://github.com/EmbarkStudios/cargo-about) and splices its
-output between BEGIN/END marker comments in a target markdown file (typically
-`ACKNOWLEDGEMENTS.md`). Hand-curated content above and below the markers is
-preserved verbatim.
+A drop-in third-party-attribution pipeline. The generator is a **dispatcher**
+that reads a `[[blocks]]` array from `attribution.toml` and routes each block to
+an ecosystem-specific driver under `drivers/<ecosystem>.sh`. Each driver emits
+markdown that gets spliced between BEGIN/END marker comments in a target
+markdown file (typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above,
+between, and below the markers is preserved verbatim.
+
+The first shipped driver is
+[`cargo-about`](https://github.com/EmbarkStudios/cargo-about) (Rust). Drivers
+for Node (`license-checker`), Go (`go-licenses`), and Python (`pip-licenses`)
+are queued under ATTRIB-012/013/014. Existing consumers with a legacy flat
+`[rust]` config keep working unchanged via a back-compat shim (see
+"Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -12,17 +20,18 @@ edits required.
 
 ## What ships in this kit
 
-| File                           | Purpose                                              |
-| ------------------------------ | ---------------------------------------------------- |
-| `generate-acknowledgements.sh` | The parameterised generator                          |
-| `expand-licences.sh`           | ATTRIB-006 single-source allow-list expander         |
-| `attribution.toml.example`     | Annotated template for the consumer-side config      |
-| `about.toml.template`          | cargo-about config template (licence allow-list etc) |
-| `about.hbs.template`           | cargo-about handlebars render template               |
-| `ACKNOWLEDGEMENTS.md.template` | Bootstrap target file with markers in place          |
-| `ci-freshness.yml.snippet`     | GitHub Actions freshness-gate job                    |
-| `tests/`                       | Self-tests pinning the kit's invariants              |
-| `README.md`                    | This file (the marker-splice contract)               |
+| File                           | Purpose                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `generate-acknowledgements.sh` | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
+| `drivers/`                     | Ecosystem driver scripts (`rust.sh` ships today; more under ATTRIB-012+) |
+| `expand-licences.sh`           | ATTRIB-006 single-source allow-list expander                             |
+| `attribution.toml.example`     | Annotated template for the consumer-side config                          |
+| `about.toml.template`          | cargo-about config template (licence allow-list etc)                     |
+| `about.hbs.template`           | cargo-about handlebars render template                                   |
+| `ACKNOWLEDGEMENTS.md.template` | Bootstrap target file with markers in place                              |
+| `ci-freshness.yml.snippet`     | GitHub Actions freshness-gate job                                        |
+| `tests/`                       | Self-tests pinning the kit's invariants                                  |
+| `README.md`                    | This file (the marker-splice contract)                                   |
 
 ## Adoption checklist (downstream consumer)
 
@@ -279,7 +288,16 @@ The generator treats those bytes as opaque.
 ## Configuration reference
 
 `attribution.toml` (consumer-side, repo root) drives every project-specific
-value. The generator carries no hard-coded paths, markers, or fix-it strings.
+value. The dispatcher carries no hard-coded paths, markers, or fix-it strings.
+
+Two schema shapes are accepted; they are **mutually exclusive** within one file.
+Mixing them is a hard error so silent precedence rules never apply.
+
+### Canonical: `[[blocks]]` array
+
+Each entry declares one block. `name` and `ecosystem` are required; remaining
+keys are ecosystem-specific (the driver script for that ecosystem documents what
+it expects).
 
 ```toml
 [project]
@@ -288,23 +306,102 @@ fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"  
 # marker_begin = "<!-- BEGIN AUTO-GENERATED -->"  # optional; default shown
 # marker_end   = "<!-- END AUTO-GENERATED -->"    # optional; default shown
 
-[rust]
-manifest_path = "crates/your-cli/Cargo.toml" # required
-template_path = "about.hbs"                  # required
-config_path   = "about.toml"                 # required
+[[blocks]]
+name          = "rust"                       # required; kebab-case when non-empty;
+                                             # used to suffix the block's markers
+                                             # (`<!-- BEGIN AUTO-GENERATED rust -->`)
+ecosystem     = "rust"                       # required; must match drivers/<ecosystem>.sh
+manifest_path = "crates/your-cli/Cargo.toml" # ecosystem-specific (rust driver)
+template_path = "about.hbs"                  # ecosystem-specific (rust driver)
+config_path   = "about.toml"                 # ecosystem-specific (rust driver)
 ```
+
+A repo can declare multiple blocks — typically one per shipping artefact (a
+pnpm-workspace monorepo shipping a CLI + an HTTP API + a sidecar daemon declares
+three entries, each pointing at its own `package.json`). Block names must be
+unique within the file; each block gets its own per-block marker pair in the
+target file.
+
+### Back-compat: flat `[rust]` table
+
+The kit's pre-ATTRIB-008 schema. A config with `[rust]` and no `[[blocks]]`
+entries is treated as if it declared a single unnamed block with
+`ecosystem = "rust"`. Markers for the unnamed block omit the name suffix
+(`<!-- BEGIN AUTO-GENERATED -->`), keeping today's `ACKNOWLEDGEMENTS.md` files
+byte-identical after the refactor.
+
+```toml
+[project]
+target_path   = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[rust]
+manifest_path = "crates/your-cli/Cargo.toml"
+template_path = "about.hbs"
+config_path   = "about.toml"
+```
+
+Existing consumers don't need to migrate — the shim is permanent for the
+Rust-only single-block case. Migrate to `[[blocks]]` when you want a second
+block (Node devtools attribution, bundled binaries, etc.) or when you adopt a
+non-Rust driver.
 
 All paths are resolved relative to the directory containing `attribution.toml`.
 Absolute paths are also accepted.
 
+## Dispatcher and driver contracts
+
+Full design at
+[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../../../plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
+(the v3.2 spec).
+
+The dispatcher (`generate-acknowledgements.sh`) is responsible for: TOML
+parsing, schema validation (mixed-schema detection, name uniqueness, ecosystem →
+driver lookup), per-block marker-count gating, splicing each driver's output
+between its block's markers in a working temp, and a single atomic `mv` over the
+target at the end of the loop. Any driver exiting non-zero aborts before the
+atomic `mv` — the on-disk target stays byte-identical.
+
+A driver script under `drivers/<ecosystem>.sh` is invoked with two arguments:
+
+```
+drivers/<ecosystem>.sh <block-config-json> <output-temp-path>
+```
+
+`<block-config-json>` is a compact JSON object containing the block's resolved
+config (absolute paths). `<output-temp-path>` is where the driver writes its
+rendered markdown.
+
+Each driver must:
+
+1. **Preflight** — verify required tool + state; actionable error on stderr;
+   non-zero exit if anything is missing.
+2. **Render** — deterministic markdown sorted/structured by the tool's own
+   template. Idempotency under `--check` depends on it.
+3. **Strict-licence check** — reject disallowed or missing licences _before_
+   render (cargo-about uses `--fail`; other drivers wire their equivalent).
+4. **No side effects on the splice target** — write only to the
+   `<output-temp-path>` argument. Never touch `target_path` directly.
+
+Tests can swap in stub drivers via `ATTRIB_DRIVERS_DIR=<dir>`; production
+consumers should leave the env var unset and let the dispatcher use the
+kit-local `drivers/` directory.
+
 ## Future evolution
 
-The kit currently covers a single Rust block. The roadmap, tracked in the
-upstream Anvil project's `attribution-pipeline-v3` APS module, plans multi-block
-markers (ATTRIB-008) for additional ecosystems
-(`<!-- BEGIN AUTO-GENERATED rust -->`, `<!-- BEGIN AUTO-GENERATED binaries -->`,
-...). The marker-count gate is per-marker-text, so adding new blocks is additive
-— existing single-block consumers don't need to change anything.
+ATTRIB-008 (this commit) landed the dispatcher + driver-per-ecosystem
+architecture and the Rust driver. The roadmap, tracked in the upstream Anvil
+project's `attribution-pipeline-v3` APS module, queues:
+
+- **ATTRIB-012** — Node driver (`license-checker`)
+- **ATTRIB-013** — Go driver (`go-licenses`)
+- **ATTRIB-014** — Python driver (`pip-licenses` against a pre-built venv)
+- **ATTRIB-015** — Anvil adopts a `node-devtools` block in its own
+  `ACKNOWLEDGEMENTS.md`
+- Java/Kotlin / Ruby / Swift drivers deferred until a real consumer needs them
+
+Each new driver is a self-contained `drivers/<eco>.sh` against the driver
+contract documented above; the dispatcher doesn't need to change.
 
 ## Public mirror
 

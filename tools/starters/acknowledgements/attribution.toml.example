@@ -1,32 +1,54 @@
 # Copy this file to your repo root as `attribution.toml` and edit the
-# values to match your project. The generator at
+# values to match your project. The dispatcher at
 # tools/starters/acknowledgements/generate-acknowledgements.sh reads this
 # file and uses NO other project-specific configuration.
 #
 # All paths are relative to the directory containing this file (your
 # project root). Absolute paths are also accepted.
+#
+# Two schema shapes are accepted; they are mutually exclusive:
+#
+#   1. [[blocks]] array (canonical) — shown below. Each entry declares
+#      one block, dispatched to drivers/<ecosystem>.sh.
+#   2. Flat [rust] table (back-compat) — the kit's pre-ATTRIB-008 shape.
+#      Existing consumers don't need to migrate; new consumers should
+#      adopt [[blocks]] so multi-block / multi-ecosystem additions stay
+#      cheap.
+#
+# Full design: plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md
 
 [project]
-# The markdown file the BEGIN/END marker block lives inside.
+# The markdown file the BEGIN/END marker blocks live inside.
 target_path = "ACKNOWLEDGEMENTS.md"
 
 # Command shown in CI / `--check` failure messages so contributors know
 # how to regenerate locally. Pick whatever entry point your repo wires up.
 fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 
-# Optional. Override only if you need multiple blocks in one file or
-# wish to customise the marker text. Defaults shown.
+# Optional. Override only if you wish to customise the marker text.
+# Defaults shown. Per-block markers append the block's `name` as a
+# suffix (`<!-- BEGIN AUTO-GENERATED rust -->`); an empty name (only
+# used by the back-compat shim) keeps the unsuffixed default.
 # marker_begin = "<!-- BEGIN AUTO-GENERATED -->"
 # marker_end   = "<!-- END AUTO-GENERATED -->"
 
-[rust]
-# Path to the Cargo manifest cargo-about should walk. Pointing at the
-# shipping binary's manifest (rather than the workspace root) keeps
-# dev-only deps out of the attribution.
-manifest_path = "crates/your-cli/Cargo.toml"
+# Canonical [[blocks]] schema. Each entry needs `name` (kebab-case when
+# non-empty, unique within the file) and `ecosystem` (must match a
+# drivers/<ecosystem>.sh script). Remaining keys are ecosystem-specific.
 
-# Path to the cargo-about handlebars template.
-template_path = "about.hbs"
+[[blocks]]
+name = "rust"
+ecosystem = "rust"
+# Rust-specific keys (cargo-about driver):
+manifest_path = "crates/your-cli/Cargo.toml" # shipping binary's manifest
+template_path = "about.hbs" # cargo-about handlebars template
+config_path = "about.toml" # cargo-about config
 
-# Path to the cargo-about config (`about.toml`).
-config_path = "about.toml"
+# Add additional blocks below as you adopt non-Rust drivers
+# (ATTRIB-012 Node, ATTRIB-013 Go, ATTRIB-014 Python).
+#
+# [[blocks]]
+# name      = "node-devtools"
+# ecosystem = "node"
+# manifest_path = "package.json"
+# prod_only     = false           # include devDependencies
