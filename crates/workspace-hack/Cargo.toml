@@ -24,7 +24,6 @@ clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
 console = { version = "0.16" }
 crossbeam-utils = { version = "0.8" }
-eddacraft-tui = { version = "0.2", default-features = false, features = ["test-utils"] }
 either = { version = "1", default-features = false, features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3" }

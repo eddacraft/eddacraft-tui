@@ -1175,7 +1175,7 @@ dependencies = [
  "eddacraft-anvil-rules",
  "eddacraft-anvil-tui",
  "eddacraft-anvil-witness",
- "eddacraft-tui 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "eddacraft-tui",
  "futures-util",
  "hex",
  "ignore",
@@ -1504,7 +1504,7 @@ dependencies = [
  "animate",
  "crossterm",
  "eddacraft-anvil-kernel-types",
- "eddacraft-tui 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "eddacraft-tui",
  "insta",
  "ratatui",
  "temp-env",
@@ -1541,19 +1541,6 @@ dependencies = [
  "tempfile",
  "textwrap",
  "tui-big-text",
- "unicode-width 0.2.2",
-]
-
-[[package]]
-name = "eddacraft-tui"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "340069781207f33d81f3a34c3d4ea057626df6fc8a5bbe6351bad38cf020c5d8"
-dependencies = [
- "animate",
- "crossterm",
- "ratatui",
- "textwrap",
  "unicode-width 0.2.2",
 ]
 
@@ -5939,7 +5926,6 @@ dependencies = [
  "clap_builder",
  "console",
  "crossbeam-utils",
- "eddacraft-tui 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "either",
  "errno",
  "futures-channel",
