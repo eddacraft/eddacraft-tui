@@ -64,7 +64,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo test -p eddacraft-tui --all-features
-cargo check -p eddacraft-tui --release
+cargo check -p eddacraft-tui --all-features --release
 ```
 
 If any command fails, fix the issue before pushing — CI runs the
