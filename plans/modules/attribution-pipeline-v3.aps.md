@@ -98,7 +98,10 @@ source of truth.
   `<!-- END AUTO-GENERATED <name> -->` pair so a partial failure
   (e.g. one tool unavailable in a contributor's local env, or one
   ecosystem's strict-license check tripping) does not clobber unrelated
-  content. Per-block marker-count gate; per-block atomic write.
+  content. Per-block marker-count gate; a single whole-file atomic
+  rename at the end of the splice loop preserves the no-partial-clobber
+  invariant (driver failure mid-loop leaves the on-disk target
+  untouched). Full dispatcher contract in the v3.2 spec.
 - `tools/bundled-binaries.toml` (ATTRIB-004) remains a separate ingest
   stream for binaries that aren't a package manager's deps.
 - CycloneDX SBOM JSON stays a queued option as an alternative `tool=`
@@ -147,8 +150,7 @@ source of truth.
   `license_finder` / `licenseplist` are well-known tools and the
   driver-dispatch shape would accommodate them, but no current
   downstream consumer ships these ecosystems. Reserved for re-decision
-  if a real consumer surfaces a need; the design doc's
-  ecosystem-tooling list at line 85 records the candidate tools.
+  if a real consumer surfaces a need.
 
 ## Interfaces
 

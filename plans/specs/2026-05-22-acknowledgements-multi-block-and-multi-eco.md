@@ -70,7 +70,7 @@ fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 # names suffix the marker text (see "Markers" below).
 
 [[blocks]]
-name          = "rust"                            # required, kebab-case
+name          = "rust"                            # required; kebab-case when non-empty (empty reserved for back-compat shim — see Validation rules)
 ecosystem     = "rust"                            # required, matches drivers/<ecosystem>.sh
 manifest_path = "crates/anvil-cli/Cargo.toml"     # required (ecosystem-specific)
 template_path = "about.hbs"                       # required (ecosystem-specific)
@@ -119,10 +119,16 @@ migrating to `[[blocks]]` whenever they're ready; no flag day.
 ### Validation rules
 
 - Each `[[blocks]]` entry must declare both `name` and `ecosystem`.
-- `name` is kebab-case, unique within the config, and used to suffix
-  the marker text — so `name = "rust"` produces
-  `<!-- BEGIN AUTO-GENERATED rust -->`. Empty name is reserved for the
-  back-compat shim and produces the legacy markerless form.
+  The `name` field MAY be empty only when the config takes the
+  back-compat shape (see "Back-compat shim" above); explicit
+  `[[blocks]]` entries authored by the consumer always carry a
+  non-empty name.
+- When non-empty, `name` is kebab-case, unique within the config, and
+  used to suffix the marker text — so `name = "rust"` produces
+  `<!-- BEGIN AUTO-GENERATED rust -->`. Empty `name` (back-compat only)
+  produces the unsuffixed marker form — the existing default
+  `<!-- BEGIN AUTO-GENERATED -->` / `<!-- END AUTO-GENERATED -->`
+  markers stay in place; they just lack a per-block name suffix.
 - `ecosystem` must match a file at `drivers/<ecosystem>.sh`. Unknown
   ecosystems fail fast with `error: no driver for ecosystem '<x>';
   expected drivers/<x>.sh`.
