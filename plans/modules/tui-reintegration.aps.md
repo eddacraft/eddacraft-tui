@@ -569,7 +569,7 @@ tree; `cargo package --list -p eddacraft-tui` output stored under
 
 ### TUIR-002: Import `eddacraft-tui` into `crates/eddacraft-tui/`
 
-- **Status:** completed
+- **Status:** Merged 2026-05-23 via PR #1875
 
 **Intent:** Move the canonical source into the workspace without
 behaviour or API change.
@@ -663,7 +663,7 @@ workspace crate) and TUIR-004 (mirror automation) are merged.
 
 ### TUIR-003: Switch Anvil consumers to the workspace path crate
 
-- **Status:** completed
+- **Status:** Merged 2026-05-23 via PR #1879
 
 **Intent:** Replace the crates.io dependency on `eddacraft-tui` with the
 in-workspace path crate inside Anvil.
