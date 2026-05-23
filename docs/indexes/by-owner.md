@@ -45,13 +45,15 @@
 
 ## DOCGOV
 
-| Document                                                                      | Path                                      | Type   | Authority     | Owner  | Status |
-| ----------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ------ | ------ |
-| [Development Guides](../../docs/guides/README.md)                             | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)     | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCGOV | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`       | Guide  | Authoritative | DOCGOV | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                    | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
-| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md`    | Guide  | Advisory      | DOCGOV | Live   |
+| Document                                                                       | Path                                      | Type   | Authority     | Owner  | Status |
+| ------------------------------------------------------------------------------ | ----------------------------------------- | ------ | ------------- | ------ | ------ |
+| [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`           | Guide  | Derived       | DOCGOV | Live   |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCGOV | Live   |
+| [Development Guides](../../docs/guides/README.md)                              | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)      | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCGOV | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`       | Guide  | Authoritative | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md`    | Guide  | Advisory      | DOCGOV | Live   |
 
 ## KERN
 

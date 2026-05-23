@@ -26,6 +26,7 @@
 | [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                      | `docs/runbooks/anvil-adoption.md`                  | Runbook     | Authoritative | @aneki                                                 | Live   |
 | [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                 | `docs/runbooks/anvil-air-gapped.md`                | Runbook     | Authoritative | @aneki                                                 | Live   |
 | [Anvil Release Runbook](../../docs/guides/release-runbook.md)                             | `docs/guides/release-runbook.md`                   | Runbook     | Authoritative | RELORCH                                                | Live   |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)            | `docs/guides/architecture-diagrams.md`             | Guide       | Authoritative | DOCGOV                                                 | Live   |
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)                       | `docs/guides/anvil-rule-authoring.md`              | Guide       | Authoritative | SCAN                                                   | Live   |
 | [Documentation Governance](../../docs/guides/documentation-governance.md)                 | `docs/guides/documentation-governance.md`          | Guide       | Authoritative | DOCGOV                                                 | Live   |
 | [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)                   | `docs/governance/tags-catalogue.md`                | Guide       | Authoritative | DOCGOV                                                 | Live   |
@@ -49,6 +50,7 @@
 
 | Document                                                                                                   | Path                                              | Type     | Authority | Owner                                   | Status |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
+| [Anvil Architecture](../../docs/architecture/overview.md)                                                  | `docs/architecture/overview.md`                   | Guide    | Derived   | DOCGOV                                  | Live   |
 | [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec     | Derived   | KERN                                    | Live   |
 | [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)            | `docs/architecture/jsts-release-surfaces.md`      | As-built | Derived   | @aneki                                  | Live   |
 | [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                               | `docs/architecture/_as-built-template.md`         | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |

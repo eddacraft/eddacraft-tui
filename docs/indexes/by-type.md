@@ -19,15 +19,17 @@
 
 ## Guide
 
-| Document                                                                      | Path                                      | Type  | Authority     | Owner                                                  | Status |
-| ----------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
-| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)           | `docs/guides/anvil-rule-authoring.md`     | Guide | Authoritative | SCAN                                                   | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)     | `docs/guides/documentation-governance.md` | Guide | Authoritative | DOCGOV                                                 | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`       | Guide | Authoritative | DOCGOV                                                 | Live   |
-| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md)       | `docs/policies/editor-coexistence.md`     | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
-| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md)  | `docs/policies/release-cadence.md`        | Guide | Authoritative | DISTRIB (plans/modules/distribution-and-update.aps.md) | Live   |
-| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md`    | Guide | Advisory      | DOCGOV                                                 | Live   |
-| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md)       | `docs/policies/resource-budget.md`        | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
+| Document                                                                       | Path                                      | Type  | Authority     | Owner                                                  | Status |
+| ------------------------------------------------------------------------------ | ----------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
+| [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`           | Guide | Derived       | DOCGOV                                                 | Live   |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide | Authoritative | DOCGOV                                                 | Live   |
+| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)            | `docs/guides/anvil-rule-authoring.md`     | Guide | Authoritative | SCAN                                                   | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)      | `docs/guides/documentation-governance.md` | Guide | Authoritative | DOCGOV                                                 | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`       | Guide | Authoritative | DOCGOV                                                 | Live   |
+| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md)        | `docs/policies/editor-coexistence.md`     | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
+| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md)   | `docs/policies/release-cadence.md`        | Guide | Authoritative | DISTRIB (plans/modules/distribution-and-update.aps.md) | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md`    | Guide | Advisory      | DOCGOV                                                 | Live   |
+| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md)        | `docs/policies/resource-budget.md`        | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md)         | Live   |
 
 ## Public docs
 

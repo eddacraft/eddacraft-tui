@@ -38,7 +38,7 @@
     <mxCell id="apps_lane" value="Applications" style="swimlane;startSize=28;fillColor=#16213e;strokeColor=#4a90d9;fontColor=#4a90d9;fontStyle=1;fontSize=13;rounded=1;swimlaneLine=0;" vertex="1" parent="1">
       <mxGeometry x="30" y="30" width="1030" height="130" as="geometry"/>
     </mxCell>
-    <mxCell id="cli" value="&lt;b&gt;anvil-cli&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;36 commands&lt;br&gt;Ink TUI surfaces&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
+    <mxCell id="cli" value="&lt;b&gt;anvil-cli&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Rust binary&lt;br&gt;clap + Ratatui&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
       <mxGeometry x="20" y="40" width="130" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="api" value="&lt;b&gt;anvil-api&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Hono + Neon&lt;br&gt;Auth, waitlist, cron&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
@@ -47,7 +47,7 @@
     <mxCell id="web" value="&lt;b&gt;website&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Next.js 16&lt;br&gt;Dashboard + marketing&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
       <mxGeometry x="320" y="40" width="140" height="70" as="geometry"/>
     </mxCell>
-    <mxCell id="docs" value="&lt;b&gt;docs-site&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Docusaurus&lt;br&gt;Public docs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
+    <mxCell id="docs" value="&lt;b&gt;docs apps&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;docs-public&lt;br&gt;docs-shell&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
       <mxGeometry x="480" y="40" width="120" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="e2e" value="&lt;b&gt;e2e&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Integration&lt;br&gt;test harness&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="apps_lane">
@@ -89,25 +89,25 @@
     <mxCell id="tool_lane" value="Tooling and Integrations" style="swimlane;startSize=28;fillColor=#16213e;strokeColor=#4a90d9;fontColor=#4a90d9;fontStyle=1;fontSize=13;rounded=1;swimlaneLine=0;" vertex="1" parent="1">
       <mxGeometry x="680" y="190" width="620" height="300" as="geometry"/>
     </mxCell>
-    <mxCell id="mcp" value="&lt;b&gt;mcp-server&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;MCP protocol&lt;br&gt;Constraints resource&lt;br&gt;Express + SDK&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
+    <mxCell id="mcp" value="&lt;b&gt;MCP shim&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;anvil mcp serve&lt;br&gt;stdio JSON-RPC&lt;br&gt;validate_write&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
       <mxGeometry x="20" y="38" width="140" height="80" as="geometry"/>
     </mxCell>
     <mxCell id="aps" value="&lt;b&gt;anvil-aps&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Plan parser&lt;br&gt;Validator, state&lt;br&gt;Templates&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
       <mxGeometry x="180" y="38" width="130" height="80" as="geometry"/>
     </mxCell>
-    <mxCell id="vscode" value="&lt;b&gt;vscode-extension&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Code lens, tree views&lt;br&gt;10 commands&lt;br&gt;APS + Rego syntax&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
+    <mxCell id="vscode" value="&lt;b&gt;legacy VS Code&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#999'&gt;archived per ADR-033&lt;br&gt;returns via DRVR&lt;br&gt;not active runtime&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="tool_lane">
       <mxGeometry x="330" y="38" width="145" height="80" as="geometry"/>
     </mxCell>
     <mxCell id="eslint" value="&lt;b&gt;eslint-plugin&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Test quality rules&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
       <mxGeometry x="495" y="38" width="110" height="80" as="geometry"/>
     </mxCell>
-    <mxCell id="tx" value="&lt;b&gt;transactional&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;React Email&lt;br&gt;templates&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
+    <mxCell id="tx" value="&lt;b&gt;legacy Node MCP&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#999'&gt;archived package&lt;br&gt;Express + SDK&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="tool_lane">
       <mxGeometry x="20" y="140" width="120" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="patterns" value="&lt;b&gt;patterns/&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;5 anti-pattern categories&lt;br&gt;18 pattern definitions&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
       <mxGeometry x="160" y="140" width="160" height="70" as="geometry"/>
     </mxCell>
-    <mxCell id="infra" value="&lt;b&gt;infra&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Pulumi IaC&lt;br&gt;Azure + Vercel&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
+    <mxCell id="infra" value="&lt;b&gt;anvil-intercept&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;local daemon&lt;br&gt;IPC + fences&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="tool_lane">
       <mxGeometry x="340" y="140" width="120" height="70" as="geometry"/>
     </mxCell>
 
@@ -118,10 +118,10 @@
     <mxCell id="kernel" value="&lt;b&gt;anvil-kernel&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#cca'&gt;tree-sitter parser&lt;br&gt;File watcher (notify)&lt;br&gt;Semantic graph&lt;br&gt;KERN 4/25&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#6b4c00;strokeColor=#daa520;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
       <mxGeometry x="20" y="38" width="150" height="90" as="geometry"/>
     </mxCell>
-    <mxCell id="tui" value="&lt;b&gt;anvil-tui&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#cca'&gt;11 Ratatui surfaces&lt;br&gt;watch, gate, wizard&lt;br&gt;RATS 1/7&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#6b4c00;strokeColor=#daa520;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
+    <mxCell id="tui" value="&lt;b&gt;anvil-tui&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Ratatui surfaces&lt;br&gt;watch, gate, wizard&lt;br&gt;RATS complete&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
       <mxGeometry x="195" y="38" width="140" height="90" as="geometry"/>
     </mxCell>
-    <mxCell id="tuilib" value="&lt;b&gt;eddacraft-tui&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#cca'&gt;Shared Ratatui&lt;br&gt;component library&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#6b4c00;strokeColor=#daa520;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
+    <mxCell id="tuilib" value="&lt;b&gt;eddacraft-tui&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Shared Ratatui&lt;br&gt;component library&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
       <mxGeometry x="360" y="38" width="130" height="90" as="geometry"/>
     </mxCell>
     <mxCell id="checks" value="&lt;b&gt;anvil-checks&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#aaa'&gt;Secret scan&lt;br&gt;Anti-pattern detect&lt;br&gt;Command safety&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a5c2a;strokeColor=#3cb371;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="rust_lane">
@@ -170,7 +170,7 @@
     <mxCell id="rtv" value="&lt;b&gt;Real-time Validation&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;RTVS + RTVF&lt;br&gt;OPENSPEC&lt;br&gt;All unsized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="310" y="148" width="140" height="70" as="geometry"/>
     </mxCell>
-    <mxCell id="port" value="&lt;b&gt;PORT&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;Ink to Ratatui&lt;br&gt;Port 0/15&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
+    <mxCell id="port" value="&lt;b&gt;TUIDASH&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;Dashboard renderer&lt;br&gt;Draft 0/12&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="470" y="148" width="120" height="70" as="geometry"/>
     </mxCell>
 
@@ -204,7 +204,7 @@
     </mxCell>
 
     <!-- Summary box -->
-    <mxCell id="summary" value="&lt;b style='color:#e0e0e0;font-size:12px'&gt;Summary&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style='color:#3cb371'&gt;25 components shipped&lt;/font&gt;&lt;br&gt;&lt;font style='color:#daa520'&gt;4 components in progress&lt;/font&gt;&lt;br&gt;&lt;font style='color:#888'&gt;2 stubs + 13 planned modules&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#aaa'&gt;182 work items done&lt;br&gt;~213 remaining&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a1a2e;strokeColor=#4a90d9;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+    <mxCell id="summary" value="&lt;b style='color:#e0e0e0;font-size:12px'&gt;Summary&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style='color:#3cb371'&gt;Rust CLI, kernel, TUI, MCP shim, and intercept are live&lt;/font&gt;&lt;br&gt;&lt;font style='color:#daa520'&gt;Active hardening remains in APS&lt;/font&gt;&lt;br&gt;&lt;font style='color:#888'&gt;Legacy Node MCP and VS Code are archived&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style='font-size:10px;color:#aaa'&gt;See overview.md and as-built docs for source-pinned details&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#1a1a2e;strokeColor=#4a90d9;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
       <mxGeometry x="1080" y="170" width="220" height="160" as="geometry"/>
     </mxCell>
   </root>

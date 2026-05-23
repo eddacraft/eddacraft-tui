@@ -1,15 +1,23 @@
 # Architecture Diagram Maintenance
 
+| Type  | Authority     | Owner  | Status | Freshness                                                                                  |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-23 against `docs/architecture/overview.md` and current diagram drift |
+
+| Upstream                                                                                   | Downstream                                  |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `plans/modules/documentation-governance.aps.md`, `docs/guides/documentation-governance.md` | Architecture diagram reviews and PR hygiene |
+
 This guide covers how architecture diagrams are managed, when to update them,
 and which tool to use.
 
 ## Diagram Inventory
 
-| Diagram           | Format  | Location                                           | What it shows                     |
-| ----------------- | ------- | -------------------------------------------------- | --------------------------------- |
-| System overview   | Mermaid | `docs/architecture/overview.md`                    | Dependency graph between packages |
-| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | Full component diagram            |
-| PPTX workflow     | Draw.io | `docs/architecture/pptx-workflow.drawio`           | Presentation generation flow      |
+| Diagram           | Format  | Location                                           | What it shows                                                |
+| ----------------- | ------- | -------------------------------------------------- | ------------------------------------------------------------ |
+| System overview   | Mermaid | `docs/architecture/overview.md`                    | Active runtime, package/crate dependency graph, and surfaces |
+| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | Full component map, shipped/planned/archived status          |
+| PPTX workflow     | Draw.io | `docs/architecture/pptx-workflow.drawio`           | Presentation generation flow                                 |
 
 ## Tool Choice
 
@@ -37,6 +45,7 @@ Update the relevant diagram when:
 - An ADR introduces a new architectural layer or pattern
 - A module is promoted from Draft to In Progress (new subsystem entering the
   codebase)
+- A surface moves between active, planned, deprecated, or archived state
 
 You do **not** need to update diagrams for:
 
@@ -67,6 +76,8 @@ When reviewing a PR that changes architecture:
 - [ ] If yes, is the relevant diagram updated?
 - [ ] Are new components labelled consistently with existing naming?
 - [ ] Do dependency arrows match the actual `Cargo.toml` / `package.json` deps?
+- [ ] Are archived surfaces labelled as archived instead of active runtime?
+- [ ] Do active surface diagrams match the relevant `*-as-built.md` document?
 
 ## Quarterly Audit
 

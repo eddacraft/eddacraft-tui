@@ -1,5 +1,13 @@
 # Anvil Architecture
 
+| Type  | Authority | Owner  | Status | Freshness                                                                                                                            |
+| ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-05-23 against `crates/*/Cargo.toml`, `packages/**/package.json`, and `docs/architecture/*-as-built.md` references |
+
+| Upstream                                                                                                                    | Downstream                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `docs/architecture/kernel-as-built.md`, `docs/architecture/intercept-as-built.md`, `docs/architecture/mcp-shim-as-built.md` | `docs/guides/architecture-diagrams.md`, README.md |
+
 **Version**: 3.0.0 | **Last Updated**: 27 February 2026 | **Status**: Living
 Document
 
@@ -42,8 +50,9 @@ Four principles govern every architectural decision:
    reproducible execution environments.
 
 3. **Composable** -- Every check, policy, adapter, and surface is independently
-   usable. The CLI, VS Code extension, MCP server, and REST API all consume the
-   same runtime without coupling to each other.
+   usable. The CLI, Ratatui surfaces, MCP shim, intercept daemon, REST API, and
+   website/docs apps consume shared engines and contracts without coupling to
+   each other.
 
 4. **Safety by default** -- Warnings over blocks
    ([D-002](../plans/decisions/002-warnings-over-blocks.md)). New edges only
@@ -59,29 +68,47 @@ The monorepo enforces a strict unidirectional dependency graph. Each layer may
 only depend on layers below it -- never sideways or upward.
 
 ```
-contracts (zero deps)
-    --> ports (contracts only)
-        --> core (contracts, ports)
-            --> runtime (core, policy, contracts)
-                --> CLI / MCP / API (runtime, core, adapters, ...)
+shared contracts / config / kernel-types
+    --> engines and checks (kernel, checks, rules, policy, architecture)
+        --> orchestration (intercept daemon, CLI runners, TS runtime)
+            --> surfaces (CLI, TUI, MCP shim, API, website, docs)
 ```
 
 ### Packages
 
-| Package                           | npm Name                      | Purpose                                                                                                |
-| --------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `packages/anvil/contracts/`       | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                         |
-| `packages/anvil/ports/`           | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                      |
-| `packages/anvil/core/`            | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.     |
-| `packages/anvil/runtime/`         | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                           |
-| `packages/anvil/policy/`          | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                               |
-| `packages/adapters/`              | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                |
-| `packages/aps/`                   | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                     |
-| `archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy MCP tools/resources/prompts (archived per ADR-033; live MCP path is `anvil mcp serve --stdio`). |
-| `archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033; returns via DRVR-003).                                 |
-| `packages/eslint-plugin-anvil/`   | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                             |
-| `packages/edda-stack/`            | --                            | Kindling, Ember, Edda memory layers (planned).                                                         |
-| `packages/kindling-integration/`  | --                            | Kindling memory contracts and emitters.                                                                |
+| Package                           | npm Name                      | Purpose                                                                                                     |
+| --------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `packages/anvil/contracts/`       | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                              |
+| `packages/anvil/ports/`           | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                           |
+| `packages/anvil/core/`            | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.          |
+| `packages/anvil/runtime/`         | `@eddacraft/anvil-runtime`    | TypeScript runtime orchestration retained for API/archive surfaces and package consumers.                   |
+| `packages/anvil/policy/`          | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                                    |
+| `packages/adapters/`              | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                     |
+| `packages/aps/`                   | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                          |
+| `archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy Node MCP tools/resources/prompts (archived per ADR-033; live MCP path is `anvil mcp serve --stdio`). |
+| `archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033; returns via DRVR-003).                                      |
+| `packages/eslint-plugin-anvil/`   | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                                  |
+| `packages/edda-stack/`            | --                            | Kindling, Ember, Edda memory layers (planned).                                                              |
+| `packages/kindling-integration/`  | --                            | Kindling memory contracts and emitters.                                                                     |
+
+### Crates
+
+| Crate                         | Purpose                                                                                 |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/`           | Primary `anvil` binary, command dispatch, TUI runner, MCP shim, activation, release UX. |
+| `crates/anvil-kernel/`        | Watch, parse, graph, embedded scan, and Rust policy invariants.                         |
+| `crates/anvil-kernel-types/`  | Shared Rust wire types for events, diagnostics, graph nodes, feature flags, hooks.      |
+| `crates/anvil-tui/`           | Ratatui surfaces for watch, gate, tutorial, welcome, doctor, audit, init, and wizard.   |
+| `crates/anvil-checks/`        | Check registry for secrets, anti-patterns, command safety, and related diagnostics.     |
+| `crates/anvil-intercept/`     | Local pre-write validation daemon, session registry, IPC, enforcement, and fences.      |
+| `crates/anvil-intercept-*`    | Protocol, rule, and Windows named-pipe support for the intercept daemon.                |
+| `crates/anvil-config/`        | Shared configuration loading and enforcement-mode inputs.                               |
+| `crates/anvil-rules/`         | Rule distribution and evaluation support.                                               |
+| `crates/anvil-baseline/`      | Baseline persistence for known findings and drift.                                      |
+| `crates/anvil-hook/`          | Git hook coexistence and managed-command detection.                                     |
+| `crates/anvil-l4/`            | L4 policy and protection claims.                                                        |
+| `crates/anvil-observability/` | Local tracing and correlation primitives.                                               |
+| `crates/anvil-witness/`       | Witness-chain support for protection evidence.                                          |
 
 ### Apps
 
@@ -101,55 +128,63 @@ contracts (zero deps)
 
 ```mermaid
 graph TD
-    contracts["contracts<br/><small>Zod schemas, types, events</small>"]
-    ports["ports<br/><small>Interface definitions</small>"]
-    core["core<br/><small>Domain logic</small>"]
-    policy["policy<br/><small>OPA/Rego wrappers</small>"]
-    runtime["runtime<br/><small>GateRunner, cache, watch</small>"]
-    adapters["adapters<br/><small>SpecKit, BMAD, APS</small>"]
-    aps["aps<br/><small>APS parser/validator</small>"]
-    mcp["mcp-server<br/><small>MCP tools & resources</small>"]
-    vscode["vscode-extension<br/><small>Real-time diagnostics</small>"]
-    cli["anvil-cli<br/><small>Rust + clap + Ratatui</small>"]
+    contracts["anvil-contracts<br/><small>TS schemas, types, events</small>"]
+    ports["anvil-ports<br/><small>TS interfaces</small>"]
+    ktypes["anvil-kernel-types<br/><small>Rust events, diagnostics, graph</small>"]
+    config["anvil-config<br/><small>Rust config + modes</small>"]
+    core["anvil-core<br/><small>TS domain utilities</small>"]
+    tsruntime["anvil-runtime<br/><small>TS orchestration for API/archive consumers</small>"]
+    policy["anvil-policy<br/><small>OPA/Rego wrappers</small>"]
+    kernel["anvil-kernel<br/><small>watch / parse / graph / embedded scan</small>"]
+    checks["anvil-checks<br/><small>secret / anti-pattern / command safety</small>"]
+    intercept["anvil-intercept<br/><small>pre-write daemon + fence store</small>"]
+    tui["anvil-tui<br/><small>Ratatui surfaces</small>"]
+    cli["anvil-cli<br/><small>primary binary + MCP shim</small>"]
     api["anvil-api<br/><small>Hono + Vercel</small>"]
-    kindling["kindling-integration<br/><small>Memory contracts</small>"]
+    website["website / docs apps<br/><small>Next.js + Docusaurus</small>"]
+    adapters["adapters / aps<br/><small>plan converters and APS parser</small>"]
+    legacy["archived Node MCP + VS Code<br/><small>legacy surfaces, not active runtime</small>"]
 
     ports --> contracts
     core --> contracts
     core --> ports
-    policy --> contracts
-    runtime --> core
-    runtime --> policy
-    runtime --> contracts
-    runtime --> kindling
+    tsruntime --> core
+    tsruntime --> policy
+    tsruntime --> contracts
     adapters --> contracts
-    adapters --> aps
-    aps --> contracts
-    mcp --> runtime
-    mcp --> core
-    mcp --> contracts
-    cli --> runtime
-    cli --> core
-    cli --> adapters
-    cli --> contracts
-    api --> runtime
-    api --> core
+
+    kernel --> ktypes
+    kernel --> config
+    checks --> ktypes
+    intercept --> ktypes
+    intercept --> config
+    intercept --> checks
+    tui --> ktypes
+    cli --> kernel
+    cli --> ktypes
+    cli --> policy
+    cli --> checks
+    cli --> intercept
+    cli --> tui
+    cli --> config
+    api --> tsruntime
     api --> contracts
-    vscode --> runtime
-    vscode --> core
-    kindling --> contracts
+    website --> api
+    legacy -.-> tsruntime
 
     classDef foundation fill:#e8f5e9,stroke:#2e7d32
     classDef domain fill:#e3f2fd,stroke:#1565c0
     classDef orchestration fill:#fff3e0,stroke:#e65100
     classDef surface fill:#fce4ec,stroke:#c62828
     classDef support fill:#f3e5f5,stroke:#6a1b9a
+    classDef archive fill:#eeeeee,stroke:#777,stroke-dasharray: 5 5
 
-    class contracts,ports foundation
-    class core,policy domain
-    class runtime orchestration
-    class cli,api,mcp,vscode surface
-    class adapters,aps,kindling support
+    class contracts,ports,ktypes,config foundation
+    class core,policy,kernel,checks domain
+    class tsruntime,intercept orchestration
+    class cli,tui,api,website surface
+    class adapters support
+    class legacy archive
 ```
 
 ---
@@ -258,58 +293,73 @@ flowchart TD
 
 ## Surface Architecture
 
-Anvil exposes its runtime through multiple surfaces. Each surface is a thin
-adapter over the same core runtime -- no surface contains domain logic.
+Anvil exposes its engines through multiple surfaces. Each surface is a thin
+adapter over shared Rust/TypeScript contracts and runtime services -- no surface
+contains domain logic.
 
-| Surface               | Technology                              | Primary Use                                                                   |
-| --------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
-| **CLI**               | Rust + clap + Ratatui TUI               | Developer workflow, CI/CD                                                     |
-| **VS Code Extension** | VS Code API                             | Real-time diagnostics on save                                                 |
-| **MCP Server**        | MCP protocol                            | AI code generation tools (check, gate, fix, suppress, status, query-boundary) |
-| **REST API**          | Hono + Vercel                           | Dashboard consumption                                                         |
-| **CI/CD**             | GitHub Actions composite action         | PR checks                                                                     |
-| **Export**            | llms.txt, MCP resource, prompt fragment | Constraint export for AI contexts                                             |
+| Surface                  | Technology                   | Primary Use                                                                                        |
+| ------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------- |
+| **CLI**                  | Rust + clap + Ratatui TUI    | Developer workflow, CI/CD, activation, release, and local diagnostics.                             |
+| **TUI surfaces**         | Ratatui + crossterm          | Interactive watch, gate, tutorial, welcome, doctor, audit, init, and wizard flows.                 |
+| **MCP shim**             | Rust stdio JSON-RPC          | Editor pre-write validation through `anvil_validate_write`; daemon-backed when available.          |
+| **Intercept daemon**     | Rust local IPC               | Per-user pre-write validation, session registry, enforcement pipeline, and fence persistence.      |
+| **REST API**             | Hono + Vercel                | Dashboard and admin consumption.                                                                   |
+| **Website / docs apps**  | Next.js + Docusaurus         | Marketing, dashboard, public docs, and gated docs entrypoints.                                     |
+| **CI/CD**                | GitHub Actions + `anvil` CLI | PR and release checks through the shipped binary.                                                  |
+| **Legacy MCP / VS Code** | Node MCP SDK / VS Code API   | Archived surfaces; live MCP is the Rust shim and live editor protection routes through activation. |
 
 ### Surface Connectivity Diagram
 
 ```mermaid
 graph LR
-    runtime["runtime<br/>GateRunner + core"]
+    kernel["anvil-kernel<br/>watch / parse / graph"]
+    checks["anvil-checks<br/>diagnostics"]
+    intercept["anvil-intercept<br/>local daemon + fence store"]
 
     cli["CLI<br/>Rust + clap + Ratatui"]
-    vscode["VS Code Extension<br/>on-save diagnostics"]
-    mcp["MCP Server<br/>AI tools & resources"]
+    tui["TUI surfaces<br/>Ratatui"]
+    mcp["MCP shim<br/>anvil mcp serve --stdio"]
     api["REST API<br/>Hono + Vercel"]
     cicd["CI/CD<br/>GitHub Actions"]
-    export["Export<br/>llms.txt / MCP / prompt"]
+    website["Website + docs<br/>Next.js / Docusaurus"]
+    legacy["Archived Node MCP + VS Code"]
 
-    cli --> runtime
-    vscode --> runtime
-    mcp --> runtime
+    cli --> kernel
+    cli --> checks
+    cli --> tui
+    cli --> intercept
+    mcp --> intercept
+    mcp --> kernel
     api --> runtime
+    website --> api
     cicd --> cli
-    export --> runtime
+    legacy -.-> runtime
+
+    runtime["TS runtime<br/>API/archive consumers"]
 
     dashboard["Web Dashboard"]
-    ai["AI Assistants<br/>Claude / Copilot"]
-    ide["VS Code"]
+    ai["AI Assistants<br/>Claude Code / Cursor"]
+    editor["Editor MCP client"]
     developer["Developer"]
     pipeline["GitHub Actions"]
 
     developer --> cli
-    developer --> ide --> vscode
+    developer --> tui
+    developer --> editor
+    editor --> mcp
     ai --> mcp
-    dashboard --> api
+    dashboard --> website
     pipeline --> cicd
-    ai --> export
 
     classDef surface fill:#e3f2fd,stroke:#1565c0
     classDef runtime fill:#fff3e0,stroke:#e65100
     classDef consumer fill:#f3e5f5,stroke:#6a1b9a
+    classDef archive fill:#eeeeee,stroke:#777,stroke-dasharray: 5 5
 
-    class cli,vscode,mcp,api,cicd,export surface
-    class runtime runtime
-    class dashboard,ai,ide,developer,pipeline consumer
+    class cli,tui,mcp,api,cicd,website surface
+    class kernel,checks,intercept,runtime runtime
+    class dashboard,ai,editor,developer,pipeline consumer
+    class legacy archive
 ```
 
 ---
