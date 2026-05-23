@@ -322,10 +322,11 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-010: Update release runbook + doc checklist
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1550 (`92d128ab` · 2026-05-14)
 - **Intent:** Reference the starter-kit location and the `--check` invocation downstream consumers should run pre-release.
 - **Expected Outcome:** `docs/guides/release-doc-checklist.md` mentions the kit; release runbook calls out the gate.
 - **Validation:** Release runbook references resolve; doc lint passes.
+- **Shipped:** PR #1550 merged 2026-05-14 at commit `92d128ab`. Repo state verified 2026-05-23: `docs/guides/release-doc-checklist.md:180` links the `attribution-pipeline-v3` module; lines 185-194 list both pre-tag `--check` invocations (`generate-acknowledgements.sh --check` + `expand-licences.sh --check`) with cross-refs to ATTRIB-006 + ATTRIB-007 and the rationale for running them locally before tagging. Not yet in a published release record (release-narrative status remains `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-011: Mirror starter kit to a public sibling repo
 
