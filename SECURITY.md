@@ -1,5 +1,11 @@
 # Security Policy
 
+> **`eddacraft-tui` is mirrored from the Anvil monorepo.** The
+> canonical source is at
+> [`anvil-001:crates/eddacraft-tui/`](https://github.com/eddacraft/anvil-001/tree/main/crates/eddacraft-tui)
+> (private). The reporting channels below route to the same
+> maintainer team regardless of which surface you reach us through.
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in `eddacraft-tui`, **please
@@ -9,8 +15,10 @@ downstream users of the crate before a fix is available.
 Instead, report it privately using one of the following:
 
 1. **GitHub Security Advisory (preferred):**
-   <https://github.com/eddacraft/eddacraft-tui/security/advisories/new>
-2. **Email:** security@eddacraft.com
+   <https://github.com/eddacraft/eddacraft-tui/security/advisories/new>.
+   This routes to the public-mirror security tab; maintainers
+   monitor it alongside the canonical source.
+2. **Email:** security@eddacraft.com.
 
 Please include:
 
@@ -60,6 +68,21 @@ We treat dependencies in two trust tiers:
   [`crate::animation`] so the underlying engine can be swapped
   without breaking downstream callers.
 
-CI runs `cargo audit` and `cargo deny check` on every push and
-pull request; advisories against the dependency graph fail the
-build.
+## Fix routing
+
+Fixes land in the **canonical Anvil source first** (per
+D-TUIR-009 / [`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md)),
+propagate to the public mirror within one workflow run, and reach
+crates.io via the publish workflow on a tag push. There is no "fix
+on the mirror first" path — even under time pressure, that path
+produces drift the daily mirror-drift-check job (D-TUIR-018) flags
+within 24 hours.
+
+## CI
+
+`cargo deny check` and `cargo audit`-equivalent advisory gates run
+on every push and PR to the canonical Anvil source via the
+workspace-wide jobs in `rust.yml`; advisories against the
+dependency graph fail the build. Full Anvil-side gate contracts
+are documented in
+[`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md).

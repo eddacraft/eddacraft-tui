@@ -1,54 +1,85 @@
 # Contributing to eddacraft-tui
 
+> **`eddacraft-tui` is mirrored from the Anvil monorepo.** The
+> canonical source for this crate lives at
+> [`anvil-001:crates/eddacraft-tui/`](https://github.com/eddacraft/anvil-001/tree/main/crates/eddacraft-tui)
+> (private); the public read-only mirror is at
+> [`eddacraft/eddacraft-tui`](https://github.com/eddacraft/eddacraft-tui).
+> Two contribution paths — pick the section below that matches
+> where you can write code.
+>
+> Governance summary: [`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md)
+> (CI gate split, backport / conflict policy, topology).
+
 Thanks for your interest in improving the eddacraft Ratatui component
-library. This guide covers the development workflow, coding standards,
-and what to expect from the review process.
+library.
 
-## Getting Started
+## If you are contributing from the public mirror (`eddacraft/eddacraft-tui`)
 
-### Prerequisites
+- **Bugs and feature requests** — please open an issue at
+  <https://github.com/eddacraft/eddacraft-tui/issues>. Include a
+  minimal reproduction (for bugs) or a clear use case (for
+  features), the crate version, `rustc --version`, and any
+  relevant terminal emulator / OS context for rendering bugs.
+- **Source pull requests** opened against the mirror will be
+  **auto-closed with a redirect** by the
+  [`pr-redirect.yml`](.github/workflows/pr-redirect.yml) workflow
+  (per D-TUIR-009). The mirror's `main` is force-pushed by
+  automation, and any local commits would be overwritten on the
+  next sync — auto-closing protects your work from quiet loss.
+- **Security issues** — see [`SECURITY.md`](SECURITY.md). The
+  GitHub Security Advisory channel and the security email both
+  route to maintainers; do not open public issues.
+- **Accepted external changes** — if a maintainer accepts a change
+  you proposed on a closed PR, they will port it into the
+  canonical Anvil source on your behalf. The next mirror sync
+  carries it out; credit goes to the maintainer commit with a
+  `Co-Authored-By:` trailer honouring you.
 
-- Rust (stable toolchain; the project builds on the latest stable)
-- `rustfmt` and `clippy` components: `rustup component add rustfmt clippy`
+## If you have access to the Anvil monorepo (`eddacraft/anvil-001`)
 
-### Clone and build
+If you can read or clone `eddacraft/anvil-001`, work happens there.
+The eddacraft-tui crate lives at
+[`crates/eddacraft-tui/`](https://github.com/eddacraft/anvil-001/tree/main/crates/eddacraft-tui).
+
+### Getting started
 
 ```sh
-git clone https://github.com/eddacraft/eddacraft-tui.git
-cd eddacraft-tui
-cargo build --all-features
+git clone https://github.com/eddacraft/anvil-001.git
+cd anvil-001
+cargo build -p eddacraft-tui --all-features
 ```
 
-### Run the full local check
+The full Anvil workspace builds with `cargo build` (no `-p`) — but
+you do not need the full workspace to develop the crate.
 
-Before opening a PR, run the same checks CI runs:
+### Pre-PR local checks
+
+The Anvil-side gate contracts are documented in full at
+[`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md).
+The minimum local pass before pushing:
 
 ```sh
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features
-cargo test --all-features
-cargo publish --dry-run --all-features
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo test -p eddacraft-tui --all-features
+cargo check -p eddacraft-tui --release
 ```
 
-(CI matches the `--all-features` `publish --dry-run` row, since the
-crate ships the `image` and `big-text` features and only the
-all-features tarball exercises every gate.)
+If any command fails, fix the issue before pushing — CI runs the
+same gates.
 
-If any command fails, fix the issue before pushing.
+### Branching
 
-## Branching Model
+Anvil-001 uses `main` as the single permanent branch. Feature work
+branches off `main` with the standard prefixes (`feat/<topic>`,
+`fix/<topic>`, `docs/<topic>`, `chore/<topic>`); PRs target `main`.
+There is no `dev` branch (retired by OPMODEL-012 on 2026-05-11).
 
-- **`dev`** — default working branch. All feature branches and fixes
-  target `dev`.
-- **`main`** — published branch. Only receives merged PRs from `dev`
-  via release PRs. Do not push feature work here.
-- **Feature branches** — short-lived, branched from `dev`. Naming:
-  `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `refactor/<topic>`,
-  `chore/<topic>`.
+### Commit messages
 
-## Commit Messages
-
-This project uses [Conventional Commits](https://www.conventionalcommits.org/):
+Conventional Commits:
 
 ```
 <type>(<optional scope>): <subject>
@@ -62,39 +93,29 @@ Rules:
 - Subject: imperative mood, lowercase, no trailing period, ≤ 50 chars.
 - Body (when needed): wrap at 72 chars, explain _why_ not _what_.
 - Footer: `Fixes #N`, `Relates to #N`.
-- One logical change per commit — prefer small, atomic commits.
+- One logical change per commit.
 
-Examples:
+### Pull requests
 
-```
-feat(spinner): add anvil preset
-fix(progress_bar): clamp display_fraction to [0, 1]
-docs: clarify shell branding options in README
-```
-
-## Pull Requests
-
-1. **Branch from `dev`** and target `dev` when opening the PR.
-2. **Keep PRs focused.** One feature or fix per PR. Split mechanical
+1. **Keep PRs focused.** One feature or fix per PR. Split mechanical
    refactors from behavioural changes when feasible.
-3. **Fill in a short summary** of what changed and why. Include a
+2. **Fill in a short summary** of what changed and why. Include a
    test plan — what you verified locally.
-4. **CI must be green.** `main` requires `Check (default)`,
-   `Check (all-features)`, `Check (no-default-features)`,
-   `MSRV (1.88.0)`, `Supply chain (audit + deny)`, and `CodeQL`.
-   `dev` runs the same matrix without enforcing required contexts.
-5. **Resolve every review thread.** Either apply the change or reply
-   with the reasoning; do not leave threads unanswered.
-6. **No force-pushing after review starts** unless you are rebasing
-   on `dev` and you tell the reviewer.
+3. **CI must be green.** Authoritative Anvil-side gates are listed
+   in [`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md);
+   mirror-side gates run on every mirror push after this PR lands.
+4. **Resolve every review thread.** Either apply the change or
+   reply with the reasoning; do not leave threads unanswered.
+5. **No force-pushing after review starts** unless you are rebasing
+   onto `main` and you flag it on the PR.
 
 ### Snapshot tests
 
-Some widgets use [`insta`](https://insta.rs/) snapshot tests. When a
-rendered change is intentional:
+Some widgets use [`insta`](https://insta.rs/) snapshot tests.
+When a rendered change is intentional:
 
 ```sh
-INSTA_UPDATE=always cargo test
+INSTA_UPDATE=always cargo test -p eddacraft-tui --all-features
 ```
 
 Commit the updated snapshots alongside the source change. If the
@@ -102,42 +123,38 @@ version string appears in a rendered snapshot (e.g. shell chrome),
 bumping the version requires re-running this command — see
 [RELEASE.md](RELEASE.md) for the full release flow.
 
-## Coding Standards
+### Coding standards
 
 - **Follow `rustfmt`.** CI fails on unformatted code.
-- **Zero clippy warnings at deny-level.** Pedantic warnings are
-  treated as informational per `Cargo.toml`; resolve them when
-  practical but they do not block CI.
-- **No `unsafe` code.** The crate forbids it (`unsafe_code = "forbid"`).
+- **Workspace clippy `-D warnings` is the gate.** The crate carries
+  its own `[lints]` block (see `Cargo.toml`); pedantic warnings are
+  treated as informational _within the standalone crate's own CI
+  posture_ but become errors under Anvil's workspace clippy gate
+  (D-TUIR-019). Resolve them; do not commit code that fails the
+  workspace gate.
+- **No `unsafe` code.** The crate forbids it
+  (`unsafe_code = "forbid"`).
 - **Public API stability.** For user-facing types, prefer
-  `#[non_exhaustive]` over adding private fields, and use a `Default`
-  impl plus public field mutation as the documented construction
-  pattern (see `CheckProgress`, `ParallelProgressState`).
+  `#[non_exhaustive]` over adding private fields, and use a
+  `Default` impl plus public field mutation as the documented
+  construction pattern.
 - **Write tests.** New behaviour needs unit tests; bug fixes need
   regression tests.
 - **Comments explain _why_, not _what_.** Well-named code documents
-  itself; reserve comments for non-obvious constraints.
+  itself.
 
-## Reporting Bugs and Requesting Features
+### Releases
 
-Open an issue at
-<https://github.com/eddacraft/eddacraft-tui/issues> with:
-
-- A minimal reproduction (for bugs) or a clear use case (for features)
-- The crate version and `rustc --version`
-- Any relevant terminal emulator / OS context for rendering bugs
+Releases are cut by maintainers from `main` via tag pushes
+(`eddacraft-tui-vX.Y.Z`); the publish workflow (TUIR-005) fires
+from canonical source. The full runbook lives in [RELEASE.md](RELEASE.md).
+Contributors do not need to bump versions in feature PRs.
 
 ## Security
 
-If you discover a security vulnerability, **do not open a public
-issue**. See [SECURITY.md](SECURITY.md) for the private disclosure
-process.
-
-## Releases
-
-Releases are cut by maintainers from `main`. The full runbook lives
-in [RELEASE.md](RELEASE.md). Contributors do not need to bump
-versions in feature PRs.
+See [SECURITY.md](SECURITY.md) — the private disclosure process
+routes through GitHub Security Advisories on the mirror or the
+security email. Both reach the maintainer team.
 
 ## Licence
 
