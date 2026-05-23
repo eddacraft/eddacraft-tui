@@ -91,8 +91,9 @@ wrapped agent launch share a single typed `ProtectionClaim` rendered on
 `anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
 MCP-tool response (when the daemon is reachable; the Windows MCP shim still
 reports `daemonStatus: not-wired` and omits `protection_claim`), and the
-TypeScript driver-client. Most of the surface delta is additive; the v0.6.x →
-v0.7.0-beta migration note is the authoritative operator reference.
+TypeScript driver-client. Most of the surface delta is additive; the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+is the authoritative operator reference.
 
 ```bash
 # Upgrade via the installer (Homebrew-aware)
@@ -144,7 +145,8 @@ if any of the following apply:
 - **Multi-branch adoption (enterprise / monorepo).** If you adopt on multiple
   long-lived branches in parallel, each branch mints its own genesis anchor, and
   the first cross-branch merge fails with `OrphanMerge`. Roll out on the default
-  branch first; see the migration note's "Multi-branch adoption" section.
+  branch first; see the
+  [migration note's "Multi-branch adoption" section](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md#multi-branch-adoption-enterprise--monorepo).
 - **Teammates pushing without `anvil` on PATH.** The pre-push hook now applies
   the full L4-policy pipeline including witness-chain DAG verification.
   Unwitnessed commits are recovered with
@@ -215,7 +217,8 @@ if any of the following apply:
 The foreground-only daemon launch mode, macOS fence-first interrupt ladder, and
 Windows CI scope (cross-compile matrix on `main`) are unchanged. The Windows MCP
 correlation gap in this `0.7.0-beta` section was closed by `0.7.1-beta`. See the
-v0.6.0-beta release runbook for the original operational realities — the
+[v0.6.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-release-runbook.md)
+for the original operational realities — the
 [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
 references those sections rather than duplicating them.
 

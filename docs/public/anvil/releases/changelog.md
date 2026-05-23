@@ -111,8 +111,9 @@ on `anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
 MCP-tool response (when the daemon is reachable; daemon-backed MCP is Unix-only
 this release — the Windows MCP shim still reports `daemonStatus: not-wired` and
 omits `protection_claim`), and the TypeScript driver-client. Most of the surface
-delta is additive; the v0.6.x → v0.7.0-beta migration note calls out the few
-places where operator action or expectation needs to shift.
+delta is additive; the
+[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+calls out the few places where operator action or expectation needs to shift.
 
 ### Added
 
@@ -294,7 +295,8 @@ places where operator action or expectation needs to shift.
 
 ### Operator artefacts
 
-- v0.6.x → v0.7.0-beta migration note — surface delta and operator action.
+- [v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+  — surface delta and operator action.
 - [v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
   — protection-claim hard gate, tag-time pre-flight, recovery procedures.
 - [`anvil-run` manpage](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
@@ -414,12 +416,12 @@ breaking changes; the upgrade is drop-in for existing installs.
 - **Fences persist across daemon restart by design** — an interrupted
   enforcement decision is no longer silently undone after a daemon crash,
   restart, or reboot. Recovery procedure and the deferred `anvil intercept stop`
-  / `unblock` CLI subcommands are documented in the v0.6.0-beta operator
-  runbook.
+  / `unblock` CLI subcommands are documented in the
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-release-runbook.md).
 - **macOS interrupt path is fence-first this release** — on macOS the interrupt
   ladder falls through to fence-on-uncertainty rather than running the full
   SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in the
-  v0.6.0-beta operator runbook.
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-release-runbook.md).
 - **Windows MCP correlation gap** — `correlation.daemonStatus` returned by
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
@@ -455,9 +457,11 @@ breaking changes; the upgrade is drop-in for existing installs.
 - **MCP daemon integration tests run on Unix only this cut** — the daemon-backed
   integration suite is not yet wired for Windows; Windows coverage rides the
   same follow-up that closes the MCP correlation gap above.
-- **Operator artefacts** — the release ships the v0.6.0-beta operator runbook
-  (five operator items) and the v0.6.0-beta security note (four HIGH security
-  trade-offs documented for review).
+- **Operator artefacts** — the release ships the
+  [v0.6.0-beta operator runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-release-runbook.md)
+  (five operator items) and the
+  [v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-security-note.md)
+  (four HIGH security trade-offs documented for review).
 
 ## [0.5.1-beta] — 2026-05-03 — Scanner Signal & TUI Hotfixes
 

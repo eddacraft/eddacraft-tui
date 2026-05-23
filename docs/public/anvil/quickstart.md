@@ -24,7 +24,9 @@ team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
 gaps, and the v0.6.x → v0.7.0-beta migration note if you're upgrading an
-existing `0.6.x` install.
+existing `0.6.x` install. See the
+[archived migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+for the operator delta.
 
 :::
 
