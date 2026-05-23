@@ -1,0 +1,80 @@
+# Auto-close source pull requests opened against the public mirror.
+#
+# `eddacraft/eddacraft-tui` is a read-only mirror of the canonical
+# source at `anvil-001:crates/eddacraft-tui/` per ADR-047 / TUIR. The
+# mirror's `main` is force-pushed by automation on every change to the
+# canonical tree; any local commits to the mirror would be silently
+# overwritten on the next sync. Auto-closing source PRs protects the
+# contributor's work from quiet loss and surfaces the correct
+# contribution path.
+#
+# This file lives in the canonical source at
+# `crates/eddacraft-tui/.github/workflows/pr-redirect.yml` and is
+# carried out to the mirror flat-rooted by TUIR-004's mirror workflow,
+# landing at `.github/workflows/pr-redirect.yml` on the mirror.
+#
+# It is a no-op on the canonical Anvil-001 repository: the trigger
+# fires on `pull_request_target: opened`, and on Anvil-001 those PRs
+# are expected and welcome; the job-level guard
+# (`jobs.redirect.if`) checks
+# `github.repository == 'eddacraft/eddacraft-tui'` so canonical PRs
+# are left alone (the job shows as Skipped, not Failed).
+#
+# `pull_request_target` is required (not plain `pull_request`)
+# because fork PRs run with a read-only GITHUB_TOKEN under
+# `pull_request`, which would make `gh pr comment` + `gh pr close`
+# fail with auth errors — the failure mode the auto-close is sized
+# to prevent. `pull_request_target` runs in the base-repo context
+# (the mirror) with write access. Safe here because the workflow
+# performs no `actions/checkout` of fork code — it only reads event
+# payload fields and calls `gh` with them.
+#
+# Backport / conflict policy: `docs/policies/eddacraft-tui-mirror.md`
+# §"Drive-by source PR against the mirror".
+
+name: PR redirect (mirror only)
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  redirect:
+    name: Comment and close
+    runs-on: ubuntu-latest
+    if: github.repository == 'eddacraft/eddacraft-tui'
+    timeout-minutes: 5
+    steps:
+      - name: Post redirect comment and close PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          # Quoted heredoc preserves the body verbatim (backticks
+          # stay as literal markdown — under an unquoted heredoc they
+          # would trigger command substitution and break the body).
+          # The contributor's username is injected via sed because
+          # quoted heredoc also suppresses `$PR_AUTHOR` expansion;
+          # the `__PR_AUTHOR__` placeholder is shell-safe and never
+          # collides with anything in the body text.
+          BODY=$(sed "s|__PR_AUTHOR__|${PR_AUTHOR}|g" <<'EOF'
+          Thanks for the contribution, @__PR_AUTHOR__ — and apologies for the auto-close.
+
+          **`eddacraft/eddacraft-tui` is a read-only mirror.** The canonical source for this crate lives in the Anvil monorepo at `anvil-001:crates/eddacraft-tui/`, and `main` here is force-pushed by automation whenever the canonical tree changes. Any commits landed on this PR would be silently overwritten on the next sync, so we auto-close source PRs against the mirror to protect your work.
+
+          ### What to do instead
+
+          - **Bug reports and feature requests** — please open an issue at <https://github.com/eddacraft/eddacraft-tui/issues> with a minimal reproduction (for bugs) or a clear use case (for features). Issues on the mirror are monitored and forwarded into the canonical project.
+          - **Source changes** — if you have a fix or feature you'd like to propose, the best path is to describe the change in an issue (per above). A maintainer will triage and, if accepted, port the change into the canonical source on your behalf with a `Co-Authored-By:` trailer crediting you.
+          - **Security issues** — see [SECURITY.md](https://github.com/eddacraft/eddacraft-tui/blob/main/SECURITY.md); the GitHub Security Advisory channel and the security email both reach maintainers.
+
+          Full backport and conflict policy: [`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md) (the Anvil repo is private; if you don't have access, the relevant excerpts are mirrored to [CONTRIBUTING.md](https://github.com/eddacraft/eddacraft-tui/blob/main/CONTRIBUTING.md) on this mirror).
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --body "$BODY"
+          gh pr close "$PR_NUMBER"

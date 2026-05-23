@@ -23,9 +23,15 @@ mirror job — pin to a tag if you need a frozen reference.
 
 Issues are open on this mirror — file them here and a maintainer will
 triage and forward into the canonical project as needed. Source PRs
-opened against this mirror are auto-closed with a redirect to the
-contribution guide; if your change is accepted, a maintainer will port
-it into the canonical tree and the next mirror sync will carry it out.
+opened against this mirror are **auto-closed** by the
+[`pr-redirect.yml`](.github/workflows/pr-redirect.yml) workflow with
+a link to the contribution guide; auto-close protects your work,
+because `main` here is force-pushed by automation on every canonical
+change and any local commits would be silently overwritten on the
+next sync. If a maintainer accepts a change you proposed, they will
+port it into the canonical tree and the next mirror sync will carry
+it out — credit goes via a `Co-Authored-By:` trailer on the ported
+commit.
 
 ## Why this layout
 
@@ -33,7 +39,8 @@ Anvil is the load-bearing consumer of `eddacraft-tui`. Hosting the
 canonical source in the Anvil monorepo lets widget and consumer
 changes ship atomically without a publish-then-bump round trip;
 mirroring out and publishing to crates.io preserves the public trust
-surface for external users. See `CONTRIBUTING.md` for the
-contribution workflow.
+surface for external users. See [`CONTRIBUTING.md`](CONTRIBUTING.md)
+"External contributors" section for the contribution path that
+applies from this mirror.
 
 ---
