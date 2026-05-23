@@ -214,7 +214,7 @@ This module is **Ready** when:
 - **Validation:**
   `cargo test -p eddacraft-anvil-observability -p eddacraft-anvil-intercept && rg -n "traceparent" crates/anvil-intercept/tests/jsonrpc_conformance.rs`
 - **Confidence:** medium
-- **Status:** Complete
+- **Status:** Done
 
 ---
 
@@ -350,7 +350,7 @@ This module is **Ready** when:
   (helper + attribute pass + opt-in sink) and TRACE-001's plumbing is
   the integration point. Risk lives in the breadth of the
   instrumentation pass.
-- **Status:** Complete
+- **Status:** Done
 
 ## Risks
 

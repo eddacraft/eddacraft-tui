@@ -102,7 +102,7 @@ discovery.
 ### V060F-001: admin command parity for `anvil admin` (nomination)
 
 - **Source:** [RCLI2-009](./rust-cli-tier2.aps.md#rcli2-009-admin-command-parity-listshowrevokeauditsend-migrationemail-update)
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Track RCLI2-009 as the nominated admin parity candidate for the
   next release window until the source work item is complete.
 - **Why earmark:** Operator-experience papercut — RCLI-016 only ported
@@ -578,7 +578,7 @@ discovery.
   so the panic backtrace is readable. Apply at every `run_*`
   entry point.
 - **Confidence:** high (the fix is a well-known Rust idiom)
-- **Status:** Complete — `TerminalGuard` (RAII enter / `Drop` /
+- **Status:** Done — `TerminalGuard` (RAII enter / `Drop` /
   explicit `leave`) wired through `run_surface`, `run_tutorial`,
   `run_watch_demo`, `run_watch` in `crates/anvil-cli/src/tui.rs`.
   `setup_terminal` (welcome-hub path) installs the same panic
@@ -615,7 +615,7 @@ discovery.
   ProtectionLoop is the canonical first-touch; the legacy paths
   carry their weight only if they remain accurate.
 - **Confidence:** high
-- **Status:** Complete — All four legacy paths (Policy,
+- **Status:** Done — All four legacy paths (Policy,
   Architecture, Drift, CI) refreshed in `crates/anvil-tui/src/surfaces/tutorial/paths.rs`.
   YAML references changed to Rego; file extensions aligned
   to `.rego`; `anvil architecture show` and `anvil policy test`
@@ -723,7 +723,7 @@ discovery.
   the duplicate-pin guard green, and re-run the OPA policy validation surface.
 - **Confidence:** high (runtime bump is isolated to OPA binary management and
   real-binary policy tests)
-- **Status:** Complete — bumped to OPA `1.16.1`.
+- **Status:** Done — bumped to OPA `1.16.1`.
 
 ---
 

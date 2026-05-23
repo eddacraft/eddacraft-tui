@@ -84,7 +84,7 @@ archive.
 
 ### CIB-001: Sweep global `dev-workflow` skill for post-cutover and current-council drift
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Bring the global `dev-workflow` routing skill into alignment with
   the main-first cutover and the current risk-tiered council architecture.
 - **Expected Outcome:** `~/Projects/src/code-env/.claude/skills/dev-workflow/SKILL.md`
@@ -140,7 +140,7 @@ archive.
 
 ### CIB-003: Harden PR remediation against partial closure
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Ensure PR review remediation does not stop after fixing only CI,
   only review comments, or only merge conflicts.
 - **Expected Outcome:** Repo-local `addressing-pr-reviews` skills for Claude,
@@ -162,7 +162,7 @@ archive.
 
 ### CIB-004: Simplify admin-key retrieval with credential-source config
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Make routine admin CLI use easier without storing plaintext admin
   keys by letting operators configure where the key should be retrieved from.
 - **Expected Outcome:** `anvil admin auth set 1password <op-reference>` writes

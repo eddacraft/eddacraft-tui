@@ -92,7 +92,7 @@ daemon hot path.
   content, returning an allow or interrupt decision with reason metadata; trait
   is object-safe for dynamic dispatch in the rule registry
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib`
-- **Status:** Complete
+- **Status:** Done
 - **Progress (2026-04-28):** Crate created at
   `crates/anvil-intercept-rules/` and added to the workspace. `InterceptRule`
   trait shipped with `rule_id`/`needs_content`/`evaluate(&RuleInput<'_>) ->
@@ -115,7 +115,7 @@ daemon hot path.
 - **Expected Outcome:** A thin adapter that calls anvil-checks secret scanning
   on changed file content and maps findings to interrupt decisions
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib secret`
-- **Status:** Complete
+- **Status:** Done
 
 ### INTR-003: Antipattern Scanning Wrapper
 
@@ -134,7 +134,7 @@ daemon hot path.
   configurable deny list; matches produce an interrupt decision with the
   matching pattern and path
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib path_deny`
-- **Status:** Complete
+- **Status:** Done
 - **Progress (2026-05-13, `feat/INTR-004-path-deny`):** `PathDenyListRule`
   shipped in `crates/anvil-intercept-rules/src/path_deny.rs`. Compiles
   configured gitignore-flavoured globs (via `globset`) eagerly at
@@ -173,7 +173,7 @@ daemon hot path.
   decision (or allow if all pass); supports observe-only mode where interrupt
   decisions are logged but not enforced
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib registry`
-- **Status:** Complete
+- **Status:** Done
 - **Progress (2026-04-29, `feat/INTR-006`):** `RuleRegistry` landed in
   `crates/anvil-intercept-rules/src/registry.rs` with `RegistryDecision`
   (Allow / Interrupt) and `RegistryMode` (Enforce / ObserveOnly).
@@ -224,4 +224,4 @@ daemon hot path.
   payload and asserts the RMCP/RTAI response contains a canonical diagnostic with
   no dependency on Node.js or the archived TS MCP server
   (`archive/anvil-mcp-server/`)
-- **Status:** Complete
+- **Status:** Done

@@ -110,7 +110,7 @@ retirement decisions:
 
 ### RMCPF-001: Existing MCP surface inventory
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Create the compatibility matrix for every current TS MCP tool,
   resource, prompt, and transport.
 - **Expected Outcome:** Inventory records contract, implementation owner,
@@ -133,7 +133,7 @@ retirement decisions:
 
 ### RMCPF-002: Rust MCP parity architecture spec
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Define the post-launch Rust MCP architecture and how it relates to
   the daemon, driver framework, Graph v2, and legacy TS server.
 - **Expected Outcome:** Spec defines command layout, protocol support,
@@ -174,7 +174,7 @@ retirement decisions:
 
 ### RMCPF-003: Phase 1 readiness decision closure
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Close the remaining client, transport, and TypeScript archive
   retirement decisions before RMCPF Phase 1 tool parity starts.
 - **Expected Outcome:** Supported-client matrix is confirmed; Streamable HTTP is
@@ -207,7 +207,7 @@ retirement decisions:
 
 ### RMCPF-010: Port check/gate/status tools
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Move the core read-only validation tools from the TS MCP server to
   Rust while preserving response contracts or documenting intentional changes.
 - **Expected Outcome:** Rust MCP server exposes parity for `anvil_check`,
@@ -306,7 +306,7 @@ retirement decisions:
 
 ---
 
-#### RMCPF-011: Port fix/suppress/boundary tools
+### RMCPF-011: Port fix/suppress/boundary tools
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
@@ -379,7 +379,7 @@ retirement decisions:
 
 ---
 
-#### RMCPF-012: Port or retire MCP prompts
+### RMCPF-012: Port or retire MCP prompts
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be

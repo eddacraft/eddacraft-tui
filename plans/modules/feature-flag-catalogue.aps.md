@@ -448,7 +448,7 @@ Change status to **Ready** when:
   plus review that ADR-041 answers snapshot shape, join key, and ADR-019 scope.
 - **Confidence:** high — the contract is documented; implementation
   remains intentionally out of scope.
-- **Status:** Complete
+- **Status:** Done
 
 ### FLAGCAT-008: Revisit `cli.licence-gate` membership — at minimum exempt `welcome`, consider `status` / `check`
 

@@ -151,7 +151,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-001 — Check-ID registry
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Promote the existing Rust check catalogue into a durable
   check-ID registry with stable IDs, aliases, and migrated metadata for current
   checks.
@@ -190,7 +190,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Provide reusable check guards and runtime budgets so absent file
   shapes short-circuit before expensive work.
 - **Expected Outcome:** `CheckDefinition` declares optional file-shape globs

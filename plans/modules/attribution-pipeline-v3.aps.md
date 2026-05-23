@@ -247,21 +247,21 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-001: Document the marker-splice contract
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Stable reference that downstream consumers read before adopting the kit.
 - **Expected Outcome:** README in `tools/starters/acknowledgements/` covers marker syntax, idempotency invariants, `--check` exit-code semantics, atomic-write / empty-output / marker-count guarantees.
 - **Validation:** README exists; `markdownlint` clean; cross-references resolve.
 
 ### ATTRIB-002: Parameterise the generator via a config file
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Eliminate hard-coded `crates/anvil-cli/Cargo.toml` and `pnpm run licenses:generate` strings from the bash.
 - **Expected Outcome:** Generator reads `attribution.toml` (per-ecosystem manifests + project metadata) instead of baked-in paths. Anvil's existing config lives at repo root.
 - **Validation:** `tools/generate-acknowledgements.sh --check` passes against unchanged anvil graph after the refactor; no project-specific strings remain in the script.
 
 ### ATTRIB-003: Extract starter kit to `tools/starters/acknowledgements/`
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Vendor the kit at its agreed canonical location so downstream repos can `git subtree pull` without copy-paste rot.
 - **Expected Outcome:** Directory contains the parameterised script, `attribution.toml.example`, template files, `ACKNOWLEDGEMENTS.md.template`, README, and the GitHub Actions snippet. Self-contained: no imports from the rest of the repo.
 - **Validation:** `tar -czf` of the directory extracts cleanly; a fresh repo can adopt by copy + `attribution.toml` edit only.
@@ -292,7 +292,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-007: Workspace-crate `license` field lint
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Make cargo-about's "no license field" warning a hard error so missing fields can't slip past review.
 - **Expected Outcome:** CI step fails when a workspace crate lacks a `license` (or `license-file`) field. Existing crates already comply (per RUSTNX-009); this prevents regression.
 - **Validation:** Test crate without a `license` field triggers the lint locally and in CI.
@@ -328,7 +328,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-011: Mirror starter kit to a public sibling repo
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Make the kit usable from public projects (`eddacraft-tui`, the owner's future public projects) that can't `git subtree` from the private `anvil-001` repo.
 - **Expected Outcome:** New public repo (proposed: `eddacraft/acknowledgements-starter`) mirrors `tools/starters/acknowledgements/` with a one-shot or scheduled mirror job. Public repo carries its own README pointing at this module for design history.
 - **Validation:** Public repo exists; mirror job succeeds; one external project (`eddacraft-tui`) consumes it.

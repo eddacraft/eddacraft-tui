@@ -131,7 +131,7 @@ Change status to **Ready** when:
 #### Phase 1 — Check & Validate
 ### RCLI2-001: check command
 
-- **Status:** Complete (commit `1e44ef2d`; file present at `crates/anvil-cli/src/commands/check.rs`, ~1347 LOC)
+- **Status:** Done (commit `1e44ef2d`; file present at `crates/anvil-cli/src/commands/check.rs`, ~1347 LOC)
 - **Intent:** Port `anvil check` (planless file analysis). Supports file
   selection modes: explicit paths, `--all`, `--changed`, `--staged`,
   `--since <ref>`. Runs GateRunner in planless mode. Supports interactive
@@ -156,7 +156,7 @@ Change status to **Ready** when:
 
 ### RCLI2-002: validate command
 
-- **Status:** Complete (commit `c5679432`; file present at `crates/anvil-cli/src/commands/validate.rs`, ~890 LOC)
+- **Status:** Done (commit `c5679432`; file present at `crates/anvil-cli/src/commands/validate.rs`, ~890 LOC)
 - **Intent:** Port `anvil validate <plan>`. Auto-detects plan format (APS,
   SpecKit, BMAD), validates structure, verifies content hash integrity.
   Supports `--format` override and `--no-validate-hash`
@@ -177,7 +177,7 @@ Change status to **Ready** when:
 
 ### RCLI2-003: drift command
 
-- **Status:** Complete (commit `a2297dca`; file present at `crates/anvil-cli/src/commands/drift.rs`, ~1059 LOC)
+- **Status:** Done (commit `a2297dca`; file present at `crates/anvil-cli/src/commands/drift.rs`, ~1059 LOC)
 - **Intent:** Port `anvil drift` with four subcommands: `snapshot` (capture
   baseline), `compare` (diff two snapshots), `report` (longitudinal analysis),
   `list` (enumerate snapshots). Reads/writes `.anvil/snapshots/` directory.
@@ -202,7 +202,7 @@ Change status to **Ready** when:
 
 ### RCLI2-004: gate-config command
 
-- **Status:** Complete (commit `06d764d4`; file present at `crates/anvil-cli/src/commands/gate_config.rs`, ~432 LOC)
+- **Status:** Done (commit `06d764d4`; file present at `crates/anvil-cli/src/commands/gate_config.rs`, ~432 LOC)
 - **Intent:** Port `anvil gate-config`. List, enable, disable, and
   interactively configure gate checks and thresholds. Reads/writes
   `.anvil/gate-config.json`
@@ -301,7 +301,7 @@ Change status to **Ready** when:
 #### Phase 5 — Admin Parity
 ### RCLI2-009: admin command parity (list/show/revoke/audit/send-migration/email-update)
 
-- **Status:** Complete
+- **Status:** Done
 - **Intent:** Bring `anvil admin` to feature parity with the historical Node
   operator CLI (`apps/admin-cli/`, binary `anvil-admin`) and add a CLI surface
   for `POST /admin/user/email-update`, which previously had no CLI. RCLI-016

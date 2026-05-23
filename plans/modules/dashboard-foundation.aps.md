@@ -258,4 +258,4 @@ Change status to **Ready** when:
 - **Dependencies:** DASH-001
 - **Validation:** `apps/anvil-ui/` no longer exists; no broken references remain
 - **Confidence:** high
-- **Status:** Complete
+- **Status:** Done
