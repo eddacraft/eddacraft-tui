@@ -358,6 +358,27 @@ elif [ "$blocks_count" -gt 0 ]; then
         ;;
     esac
     seen_names="$seen_names|$name|"
+    # Strict shape check on `name` and `ecosystem` BEFORE they are
+    # substituted into filesystem paths or marker text. Rejects:
+    #   - path-escape sequences (`..`, `/`) that could resolve outside
+    #     the drivers/ directory (e.g. `ecosystem = "../expand-licences"`
+    #     would run a sibling script instead of an ecosystem driver)
+    #   - whitespace or shell metacharacters that confuse downstream
+    #     consumers of the value
+    # Kebab-case only (lowercase letters, digits, hyphens) keeps
+    # markers unambiguous and matches the spec.
+    case "$name" in
+      *[!a-z0-9-]* | "" | -* | *- | *--*)
+        echo "error: block name '$name' is not valid kebab-case (lowercase letters, digits, hyphens; no leading/trailing or doubled hyphens)." >&2
+        exit 1
+        ;;
+    esac
+    case "$ecosystem" in
+      *[!a-z0-9-]* | "" | -* | *- | *--*)
+        echo "error: ecosystem '$ecosystem' is not valid kebab-case (lowercase letters, digits, hyphens; no leading/trailing or doubled hyphens)." >&2
+        exit 1
+        ;;
+    esac
     driver_script="$drivers_dir/$ecosystem.sh"
     if [ ! -x "$driver_script" ]; then
       echo "error: no driver for ecosystem '$ecosystem' (expected $driver_script to exist and be executable)." >&2
@@ -392,15 +413,24 @@ marker_for() {
     printf '%s' "$base"
     return
   fi
-  # Insert " <name>" before the closing `-->` (or other trailer) so
-  # `<!-- BEGIN AUTO-GENERATED -->` becomes `<!-- BEGIN AUTO-GENERATED rust -->`.
+  # Insert " <name>" immediately before the closing HTML-comment
+  # trailer (`-->`), with or without a preceding space, so both
+  # `<!-- BEGIN AUTO-GENERATED -->` and `<!-- BEGIN AUTO-GENERATED-->`
+  # produce well-formed `<!-- BEGIN AUTO-GENERATED <name> -->`.
+  # Marker overrides that don't end with `-->` cannot be safely
+  # suffixed (the dispatcher would emit text outside the comment
+  # node, breaking the splice gate); fail loud rather than guess.
   case "$base" in
     *' -->')
       printf '%s %s -->' "${base%' -->'}" "$name"
       ;;
+    *'-->')
+      printf '%s %s -->' "${base%'-->'}" "$name"
+      ;;
     *)
-      # Unfamiliar override shape: append name with a space and call it good.
-      printf '%s %s' "$base" "$name"
+      echo "error: marker '$base' does not end with '-->'; per-block name suffix requires an HTML-comment trailer." >&2
+      echo "  set [project].marker_begin / marker_end to comments ending in '-->' or use the back-compat shim (no [[blocks]] entries)." >&2
+      exit 1
       ;;
   esac
 }
@@ -420,7 +450,12 @@ marker_for() {
 working_dir="$(cd "$(dirname "$output_path")" && pwd)"
 working_file="$(mktemp "$working_dir/.generate-acknowledgements.work.XXXXXX")"
 tmp_driver_outputs_dir="$(mktemp -d)"
-trap 'rm -f "$working_file"; rm -rf "$tmp_driver_outputs_dir"' EXIT
+# Track per-block splice temps so they are cleaned even when awk fails
+# mid-write (set -e exits before our explicit `rm`). Each loop
+# iteration creates a fresh `spliced` file; the trap removes any that
+# survive an abnormal exit.
+splice_temps=""
+trap 'rm -f "$working_file" $splice_temps; rm -rf "$tmp_driver_outputs_dir"' EXIT
 
 cp "$splice_input" "$working_file"
 
@@ -473,6 +508,7 @@ while IFS= read -r block_json; do
 
   # Splice driver_output between begin_marker and end_marker in working_file.
   spliced="$(mktemp "$working_dir/.generate-acknowledgements.splice.XXXXXX")"
+  splice_temps="$splice_temps $spliced"
   awk -v gen="$driver_output" -v begin="$begin_marker" -v end="$end_marker" '
     BEGIN { in_block = 0 }
     index($0, begin) {

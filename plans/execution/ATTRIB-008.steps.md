@@ -23,7 +23,7 @@ Full design contract at
 | Back-compat shape | Flat `[rust]` top-level table auto-promotes to a single unnamed block | Existing consumers (Anvil today, `eddacraft-tui` via the mirror) don't migrate. |
 | Mixed schema policy | Flat `[rust]` and `[[blocks]]` array in the same file fails preflight with an actionable error | Avoid silent precedence rules; force the operator to pick a shape. |
 | Atomic-write granularity | Single whole-file `mv` at the end of the splice loop (not per-block) | Preserves the no-partial-clobber invariant cleanly; matches the existing single-block contract. Per-block writes would multiply failure modes. |
-| Stub-ecosystem driver | Test-only `drivers/_stub.sh` lives under `tests/fixtures/` not under `drivers/` | Keeps the production driver set clean; test fixture stays alongside the test that uses it. |
+| Stub-ecosystem driver | Each test stands up its own stub drivers under an `mktemp -d` fixture and points the dispatcher at them via `ATTRIB_DRIVERS_DIR` | Keeps the production `drivers/` set clean and avoids checking test-only files into the kit tree. Equivalent to the earlier "tests/fixtures/" plan but per-test ephemeral. |
 | Driver invocation contract | `drivers/<ecosystem>.sh <block-config-json> <output-temp-path>` | Argv form matches the spec; JSON config keeps the driver/dispatcher boundary narrow. |
 
 ## Actions
@@ -40,16 +40,23 @@ Full design contract at
 ### 2. Write failing dispatcher tests
 
 - **Purpose:** Pin the new behaviour with red tests before refactoring.
-- **Produces:** New `tests/dispatcher-shim.sh` covering the back-compat
-  flat-`[rust]` shape; new `tests/dispatcher-two-block.sh` covering a
-  two-block fixture (Rust + a `_stub` ecosystem) round-tripping with
-  partial regeneration leaving the other block byte-identical; new
-  `tests/dispatcher-schema-validation.sh` covering: missing `name`,
-  missing `ecosystem`, unknown `ecosystem`, mixed flat-`[rust]` +
-  `[[blocks]]`, block-name collisions, failure isolation when a driver
-  exits non-zero.
-- **Checkpoint:** All new tests fail with the current generator
-  (`bash tests/dispatcher-*.sh` exits non-zero on each).
+- **Produces:** Two new test files (back-compat shim coverage comes
+  from the pre-existing `tests/strict-license-field.sh`, which uses a
+  flat-`[rust]` config and exercises the shim end-to-end through the
+  rust driver — a dedicated `dispatcher-shim.sh` would be redundant):
+  - `tests/dispatcher-schema-validation.sh` — 5 scenarios: mixed
+    flat-`[rust]` + `[[blocks]]`, missing `name`, missing `ecosystem`,
+    unknown `ecosystem` (no matching `drivers/<eco>.sh`), duplicate
+    block name.
+  - `tests/dispatcher-two-block.sh` — 3 scenarios using stub drivers
+    (planted under each test's own `mktemp -d`, surfaced via the
+    `ATTRIB_DRIVERS_DIR` env override): two-block round-trip +
+    idempotency + `--check`; partial regeneration leaves the other
+    block byte-identical; driver failure leaves the on-disk target
+    byte-identical.
+- **Checkpoint:** Both new test files fail against the current
+  single-block generator; both pass against the dispatcher refactor
+  in Action 4.
 
 ### 3. Extract `drivers/rust.sh` with no behaviour change
 
@@ -114,7 +121,7 @@ Full design contract at
   produces no untracked changes to the kit.
 - **Checkpoint:** All checks green locally; ready for CI.
 - **Validate:**
-  `bash tools/starters/acknowledgements/tests/dispatcher-shim.sh && bash tools/starters/acknowledgements/tests/dispatcher-two-block.sh && bash tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh && bash tools/starters/acknowledgements/tests/strict-license-field.sh && bash tools/starters/acknowledgements/tests/licences-drift.sh && tools/starters/acknowledgements/generate-acknowledgements.sh --check && node scripts/aps/drift-check.mjs`
+  `bash tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh && bash tools/starters/acknowledgements/tests/dispatcher-two-block.sh && bash tools/starters/acknowledgements/tests/strict-license-field.sh && bash tools/starters/acknowledgements/tests/licences-drift.sh && tools/starters/acknowledgements/generate-acknowledgements.sh --check && node scripts/aps/drift-check.mjs`
 
 ### 8. Open the PR
 

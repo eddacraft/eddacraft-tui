@@ -46,6 +46,14 @@ config_path_about="$(printf '%s' "$config_json" | jq -er '.config_path // empty'
 }
 
 # ── Preflight ────────────────────────────────────────────────────────
+# Driver-author contract rule 1: actionable error if any required
+# tool is missing. The dispatcher also preflights `jq`, but each
+# driver checks its own deps so direct invocation (tests, scripts)
+# gives the same actionable error rather than a `command not found`.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "drivers/rust.sh: jq not installed (required to parse the block-config-json argument)" >&2
+  exit 1
+fi
 if ! command -v cargo-about >/dev/null 2>&1; then
   echo "drivers/rust.sh: cargo-about not installed. Install the version pinned by your project (see CI), e.g.:" >&2
   echo "  cargo install cargo-about --locked --version <CARGO_ABOUT_VERSION>" >&2

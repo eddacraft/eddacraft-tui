@@ -148,14 +148,19 @@ do
   fi
 done
 
-# Idempotency: a second run must produce no diff.
-checksum_before="$(sha256sum "$scenario1/ACKNOWLEDGEMENTS.md" | awk '{print $1}')"
+# Idempotency: a second run must produce no diff. Snapshot the file
+# via `cp` rather than a checksum tool so the test stays portable
+# across systems that ship `shasum` instead of GNU `sha256sum`.
+idempotency_snapshot="$(mktemp)"
+cp "$scenario1/ACKNOWLEDGEMENTS.md" "$idempotency_snapshot"
 (cd "$scenario1" && "$GENERATOR") >/dev/null
-checksum_after="$(sha256sum "$scenario1/ACKNOWLEDGEMENTS.md" | awk '{print $1}')"
-if [ "$checksum_before" != "$checksum_after" ]; then
+if ! diff -q "$idempotency_snapshot" "$scenario1/ACKNOWLEDGEMENTS.md" >/dev/null; then
   echo "FAIL scenario 1: second run produced a different file (not idempotent)" >&2
+  diff -u "$idempotency_snapshot" "$scenario1/ACKNOWLEDGEMENTS.md" >&2 || true
+  rm -f "$idempotency_snapshot"
   exit 1
 fi
+rm -f "$idempotency_snapshot"
 
 # --check on the unchanged file must exit 0.
 if ! (cd "$scenario1" && "$GENERATOR" --check) >/dev/null 2>&1; then
@@ -269,7 +274,10 @@ name = "brokeneco"
 ecosystem = "brokeneco"
 EOF
 
-target_before_checksum="$(sha256sum "$scenario3/ACKNOWLEDGEMENTS.md" | awk '{print $1}')"
+# Snapshot via cp instead of sha256sum so the test runs on systems
+# that ship `shasum` instead of GNU `sha256sum`.
+target_snapshot="$(mktemp)"
+cp "$scenario3/ACKNOWLEDGEMENTS.md" "$target_snapshot"
 
 set +e
 (cd "$scenario3" && "$GENERATOR") >/dev/null 2>&1
@@ -277,15 +285,17 @@ exit_code=$?
 set -e
 if [ "$exit_code" -eq 0 ]; then
   echo "FAIL scenario 3: generator exited 0 despite brokeneco driver failure" >&2
+  rm -f "$target_snapshot"
   exit 1
 fi
 
-target_after_checksum="$(sha256sum "$scenario3/ACKNOWLEDGEMENTS.md" | awk '{print $1}')"
-if [ "$target_before_checksum" != "$target_after_checksum" ]; then
+if ! diff -q "$target_snapshot" "$scenario3/ACKNOWLEDGEMENTS.md" >/dev/null; then
   echo "FAIL scenario 3: target file changed despite driver failure (clobber!)" >&2
-  diff <(echo "$target_before_checksum") <(echo "$target_after_checksum") >&2 || true
+  diff -u "$target_snapshot" "$scenario3/ACKNOWLEDGEMENTS.md" >&2 || true
+  rm -f "$target_snapshot"
   exit 1
 fi
+rm -f "$target_snapshot"
 echo "ok scenario 3: driver failure left on-disk target byte-identical (exit $exit_code)"
 
 echo ""
