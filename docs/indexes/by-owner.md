@@ -98,6 +98,12 @@
 | ------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ----- | ------ |
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md) | `docs/guides/anvil-rule-authoring.md` | Guide | Authoritative | SCAN  | Live   |
 
+## TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
+
+| Document                                                                                           | Path                                    | Type  | Authority     | Owner                                                               | Status |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------------------------------------------------------------- | ------ |
+| [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
+
 ## WOUT (plans/modules/watch-output-contract.aps.md)
 
 | Document                                                                                  | Path                                             | Type        | Authority     | Owner                                             | Status |
