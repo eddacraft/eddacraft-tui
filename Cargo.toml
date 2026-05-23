@@ -1,142 +1,61 @@
-[workspace]
-resolver = "2"
-members = [
-  "crates/spike",
-  "crates/anvil-kernel-types",
-  "crates/anvil-kernel",
-  "crates/anvil-rayon-init",
-  "crates/anvil-tui",
-  "crates/anvil-checks",
-  "crates/anvil-checks-napi",
-  "crates/anvil-bench",
-  "crates/anvil-cli",
-  "crates/anvil-config",
-  "crates/anvil-intercept",
-  "crates/anvil-intercept-proto",
-  "crates/anvil-run",
-  "crates/anvil-observability",
-  "crates/anvil-intercept-rules",
-  "crates/anvil-intercept-win32",
-  "crates/anvil-policy",
-  "crates/anvil-policy-engine",
-  "crates/anvil-witness",
-  "crates/anvil-rules",
-  "crates/anvil-baseline",
-  "crates/anvil-hook",
-  "crates/anvil-l4",
-  "crates/anvil-architecture",
-  "crates/anvil-attribution",
-  "crates/workspace-hack",
-]
-
-[workspace.package]
-version = "0.7.1-beta"
+[package]
+name = "eddacraft-tui"
+version = "0.2.2"
 edition = "2024"
-license = "LicenseRef-Proprietary"
-repository = "https://github.com/eddacraft/anvil-001"
+rust-version = "1.88"
+license = "Apache-2.0"
+description = "Shared Ratatui component library for the eddacraft product family"
+repository = "https://github.com/eddacraft/eddacraft-tui"
+readme = "README.md"
+keywords = ["tui", "ratatui", "widgets", "terminal"]
+categories = ["command-line-interface"]
 
-[workspace.dependencies]
-# Parsing
-tree-sitter = "0.26"
-tree-sitter-typescript = "0.23"
-tree-sitter-javascript = "0.25"
+# Build all features and surface `doc(cfg(...))` badges on docs.rs so feature-
+# gated widgets (image, big-text) are discoverable. Locally, `cargo doc
+# --all-features` works without further configuration; the docsrs cfg is only
+# set on docs.rs itself.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
-# File watching
-notify = "8"
-
-# Graph
-petgraph = "0.8"
-
-# Parallelism
-rayon = "1.11"
-num_cpus = "1"
-
-# Serialisation
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-toml = "1"
-
-# Policy engine (ADR-040 — pinned at a committed minor version)
-regorus = "=0.10.0"
-
-# TUI
-animate = { version = "0.3", features = ["ratatui"] }
-eddacraft-tui = "0.2.2"
+[dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
+unicode-width = "0.2"
+textwrap = { version = "0.16", features = ["smawk"] }
+# `animate` is pinned to an exact version because the crate has a small
+# public footprint and ships proc-macro code (build-time RCE surface). Bumps
+# should go through `cargo audit` and a manual review.
+animate = { version = "=0.3.0", features = ["ratatui"] }
+ratatui-image = { version = "10", default-features = false, features = ["crossterm"], optional = true }
+tui-big-text = { version = "0.8", optional = true }
+image = { version = "0.25", default-features = false, optional = true }
 
-# CLI
-clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
-anyhow = "1"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-dirs = "6"
+[features]
+test-utils = []
+# Enabling `image` pulls a substantial transitive graph (ratatui-image, image,
+# rayon, the windows crate family, icy_sixel, etc.). Build time and binary
+# size grow accordingly — only enable if `ImagePane` is needed.
+#
+# MSRV note: `image` and `big-text` raise the effective MSRV beyond the
+# core library's 1.88 floor — `image`'s transitive `quantette` requires
+# 1.90, and upstream bumps may push it further. The core library is
+# verified at 1.88 by the `MSRV` CI job, which builds without these
+# features; the `Check (all-features)` row uses stable Rust.
+image = ["dep:ratatui-image", "dep:image"]
+big-text = ["dep:tui-big-text"]
 
-# Identity (project_uuid for MLP-001 / A7.2)
-uuid = { version = "1", features = ["v4", "v7"] }
-
-# Semver parsing (anvil-rules required-version floor, anvil-l4 version-floor evaluation)
-semver = "1"
-
-# Filesystem test fixtures
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
 tempfile = "3"
 
-# Error handling
-thiserror = "2"
-
-# Observability (TRACE-001 / ADR-035)
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = [
-  "env-filter",
-  "fmt",
-  "json",
-  "registry",
-] }
-
-# Async
-tokio = { version = "1", features = ["full"] }
-
-# File system
-walkdir = "2"
-regex = "1"
-globset = "0.4"
-
-# Testing
-insta = { version = "1", features = ["yaml"] }
-criterion = { version = "0.8", features = ["html_reports"] }
-
-# Internal workspace-hack (managed by cargo hakari)
-workspace-hack = { version = "0.1.0", path = "crates/workspace-hack" }
-
-[workspace.lints.rust]
+[lints.rust]
 unsafe_code = "forbid"
 
-[workspace.lints.clippy]
+[lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-# Allow common pedantic false positives
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-
-# Profile for the napi-rs binding crate. Inherits release, but overrides
-# panic=unwind so a panic in the scanner returns to the napi FFI boundary
-# (where catch_unwind maps it to a JS exception) instead of aborting the
-# host Node process. The CLI binary stays on the abort profile — abort is
-# correct there because the binary owns its own process and a panic is
-# acceptable to terminate it.
-[profile.release-napi]
-inherits = "release"
-panic = "unwind"
-
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-strip = "symbols"

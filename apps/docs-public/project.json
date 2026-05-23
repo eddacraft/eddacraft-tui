@@ -1,7 +1,0 @@
-{
-  "name": "docs-public",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/docs-public/src",
-  "projectType": "application",
-  "tags": ["scope:docs"]
-}

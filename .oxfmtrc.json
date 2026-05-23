@@ -1,22 +1,3 @@
 {
-  "singleQuote": true,
-  "trailingComma": "es5",
-  "printWidth": 100,
-  "tabWidth": 2,
-  "semi": true,
-  "bracketSpacing": true,
-  "arrowParens": "always",
-  "endOfLine": "lf",
-  "proseWrap": "always",
-  "sortPackageJson": false,
-  "overrides": [
-    {
-      "files": ["*.md"],
-      "options": {
-        "proseWrap": "always",
-        "printWidth": 80
-      }
-    }
-  ],
-  "_note": "oxfmt uses .prettierignore for file exclusion, not this field"
+  "ignorePatterns": []
 }

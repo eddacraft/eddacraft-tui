@@ -1,8 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/docs-shell",
-  "buildCommand": "pnpm nx build docs-shell",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "outputDirectory": ".next"
-}

@@ -1,1 +1,0 @@
-{"schema_version":"anvil.watch.event.v1","seq":9,"timestamp":"2026-05-14T10:21:31Z","event_type":"error","payload":{"code":"ParseError","file":"src/broken.ts","message":"Unexpected token","recoverable":true}}

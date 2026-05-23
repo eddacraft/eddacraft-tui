@@ -1,8 +1,0 @@
-{
-  "name": "anvil-driver-client",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/anvil-driver-client/src",
-  "projectType": "library",
-  "tags": ["scope:driver", "layer:3"],
-  "targets": {}
-}

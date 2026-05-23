@@ -1,7 +1,0 @@
-{
-  "name": "anvil-docs-private",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/anvil-docs-private/src",
-  "projectType": "application",
-  "tags": ["scope:docs"]
-}

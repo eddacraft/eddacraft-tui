@@ -1,3 +1,0 @@
-{
-  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/website"
-}

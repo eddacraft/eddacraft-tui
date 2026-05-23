@@ -1,621 +1,155 @@
-# anvil
+# eddacraft-tui
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                          |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-18 against `RELEASE-PLAN.md`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
+Shared Ratatui component library for open-source TUIs that follow the eddacraft design system.
 
-| Upstream                                               | Downstream                        |
-| ------------------------------------------------------ | --------------------------------- |
-| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository users and contributors |
+## Modules
 
-<p align="center">
-  <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="anvil brandmark" width="120" />
-</p>
+- **`theme/`** — eddacraft Terminal Standard colour palette, `Theme` trait,
+  semantic `Role` tokens, and brand theming
+- **`keyboard/`** — key binding definitions, action mapping, and
+  introspectable `Binding` table
+- **`widgets/`** — reusable TUI widgets (see [Widgets](#widgets) below)
+- **`pretext/`** — two-phase prepare/layout text engine for streaming AI
+  output and dynamic reflow
+- **`surface.rs`** — base `Surface` trait for TUI screens
+- **`shell.rs`** — shared shell chrome renderer
 
-> **AI agents make software probabilistic. anvil makes it deterministic.**
+## Design System
 
-anvil enforces policy at generation time, not at review. It sits between
-probabilistic AI agents and production code as a deterministic governance layer
-that catches architectural drift, anti-patterns, security risks, and policy
-violations **before they ever leave the developer's machine.**
+Implements the eddacraft Terminal Standard:
 
-**[→ Early access at eddacraft.ai](https://eddacraft.ai)** ·
-[Docs](https://docs.eddacraft.ai/anvil/overview) ·
-[GTM strategy](https://github.com/eddacraft/eddacraft-gtm) ·
-[Brand & design](https://github.com/eddacraft/brand-and-design)
+| Token       | Colour               |
+| ----------- | -------------------- |
+| Void        | `rgb(13, 13, 15)`    |
+| Structure   | `rgb(42, 42, 46)`    |
+| Off-White   | `rgb(235, 235, 235)` |
+| Ghost Grey  | `rgb(133, 133, 138)` |
+| anvil Ember | `rgb(204, 85, 0)`    |
+| edda Growth | `rgb(46, 139, 87)`   |
+| Brick Red   | `rgb(201, 74, 74)`   |
+| Dull Amber  | `rgb(208, 140, 56)`  |
 
-## Hero stats
+## Usage
 
-```
-10 µs      save-time check (incremental file update)
-800 ns     full policy evaluation, all invariants
-14.5 ms    cold graph build, 100-file codebase
-0          perceptible delay
-```
-
-Measured 2026-05-08 on deus (Ryzen 7 5800X) against the Rust kernel via
-Criterion (release build). Previously measured 2026-04-28 and 2026-04-03.
-Governance overhead is effectively zero — anvil is in a different category from
-SAST, not a faster scanner.
-
-Latest standard benchmark snapshot from `cargo bench -p anvil-bench` on deus:
-
-- **Parallel anti-pattern scan** — ~842K–877K elements/sec
-- **Secret scan parallel rollout** — ~3.60K–3.79K elements/sec (~7x faster than
-  serial)
-
-See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
-[the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
-for marketing-ready proof points.
-
-## What anvil is
-
-**Agentic engineering governance** — a category being defined right now. anvil
-is not a SAST scanner, not a linter, not an observability product, not a
-compliance dashboard. It is the governance layer that complements and constrains
-AI coding tools (Cursor, Copilot, Codex) in real time, in the developer workflow
-— _not_ in the PR queue.
-
-For full positioning, ICP definition, competitive intelligence, and the GTM
-primer, see
-[`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm).
-
-## Why now
-
-The **EU AI Act becomes substantially enforceable on 2 August 2026** — under
-four months out. High-risk obligations (Annex III), Article 50 transparency,
-conformity assessments, technical documentation, CE marking, and EU database
-registration all become required by that date for in-scope systems. Every
-EU-exposed engineering team now has a hard deadline to prove their agents are
-governed.
-
-At the same time, adjacent funding tells the same story: Qodo closed a $70M
-Series B and DAM Secure closed a $4M seed in the same week (April 2026);
-Microsoft, GitHub, Cisco, Zapier, Nvidia, and JetBrains are all shipping
-adjacent primitives in Q1–Q2 2026. The category is being built right now.
-
-Full market context and the parallel-track ICP framing that follows from this
-deadline live in
-[`eddacraft-gtm/GTM-PRIMER.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/GTM-PRIMER.md).
-
-## Related repos
-
-| Repo                                                                          | Purpose                                                                       |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm)       | GTM strategy, positioning, competitive radar, market signals, benchmark proof |
-| [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Visual identity, design system, deck templates, brand assets                  |
-| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
-
-## Install
-
-Get the latest release from
-[**install.eddacraft.ai**](https://install.eddacraft.ai) — auto-detects your OS
-and highlights the recommended command.
-
-```bash
-# Linux / macOS
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
-
-# macOS (Homebrew)
-brew install eddacraft/tap/anvil
+```toml
+[dependencies]
+eddacraft-tui = "0.2"
 ```
 
-```powershell
-# Windows (PowerShell)
-irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+```rust
+use eddacraft_tui::prelude::*;
 
-# Windows (WinGet)
-winget install eddacraft.anvil
+let theme = EddaCraftTheme;
+let spinner = Spinner::new(&theme).eddacraft().label("Loading...");
+let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
 
-# Windows (Scoop)
-scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
-scoop install anvil
+// Pass the consuming crate's version explicitly.
+// render_shell(frame, area, ShellBranding::Anvil, "anvil", "Watch", "[q] quit", &theme, env!("CARGO_PKG_VERSION"));
 ```
 
-### Upgrading on Windows
+`ParallelProgress` also uses the branded `anvil` spinner automatically for running checks.
 
-`anvil update` cannot self-replace `anvil.exe` on Windows in the current release
-(the cargo-dist updater sidecar is disabled until upstream ships an ARM64
-Windows build). Use your package manager or re-run the installer:
+`render_shell` supports reusable shell marks for open-source apps:
 
-```powershell
-winget upgrade --id eddacraft.anvil
-# or
-irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+- `ShellBranding::Plain`
+- `ShellBranding::EddaCraft` -> `[■]`
+- `ShellBranding::Edda` -> `[=]`
+- `ShellBranding::Anvil` -> `[‡]`
+
+`ProgressBar` and `ParallelProgress` animate toward their target value. Your
+event loop must call `animate_tick` each frame for the transition to play — see
+[`docs/animations.md`](docs/animations.md).
+
+## Widgets
+
+The `widgets/` module ships a curated component set. Highlights:
+
+- **Inputs** — `TextInput`, `Editor`, `Select`, `Confirm`
+- **Status** — `Spinner`, `ProgressBar`, `ParallelProgress`, `StatusBadge`, `StatusBar`
+- **Layout** — `Container`, `Divider`, `Header`
+- **Data** — `DataTable` (sortable, themed `▲`/`▼` indicators), `Tree`
+  (expand/collapse via `TreeState`), `LogPanel`
+- **Overlays** — `OverlayStack` + `Layer` + `Placement` for layered modals;
+  `Modal` and `Toast`/`ToastStack` as ready-made consumers
+- **Chrome** — `HelpBar` auto-renders key hints from
+  `KeyHandler::default_bindings()`, so help text stays in sync with the keymap
+- **Text reflow** — `PretextWidget` + `PretextState` for cached two-phase
+  layout (see [Pretext layout](#pretext-layout) below)
+- **Wrappers** — `Hideable`, `Disableable`, `Padded` decorate any
+  `Widget`/`StatefulWidget` without bloating each widget's API
+
+## Optional features
+
+| Feature    | Adds                                                        |
+| ---------- | ----------------------------------------------------------- |
+| `image`    | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
+| `big-text` | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes |
+| `test-utils` | Snapshot testing helpers re-exported for downstream crates |
+
+```toml
+[dependencies]
+eddacraft-tui = { version = "0.2", features = ["image", "big-text"] }
 ```
 
-If the installer fails with
-`The process cannot access the file ... because it is being used by another process`,
-an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
-`anvil mcp serve` process) and retry.
+[`ratatui-image`]: https://crates.io/crates/ratatui-image
+[`tui-big-text`]: https://crates.io/crates/tui-big-text
 
-## Release Status
+## Pretext layout
 
-Latest repository tag: **`v0.7.0-beta`** (2026-05-20) — the daemon-working
-product slate. Anvil now protects this project end-to-end through the daemon,
-hooks, witness chain, baseline, and wrapped agent-launch surfaces, with a
-signature-verified update path.
+`pretext` is a two-phase text layout engine inspired by Cheng Lou's
+[Pretext](https://github.com/chenglou/pretext) library for the browser.
+Measure word widths once with `unicode-width`, cache the layout per
+container width, and re-run only on resize — eliminating reflow stutter
+for streaming AI output and animated layouts.
 
-Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate.
-The candidate-time expectation is that Anvil provides a unified browser surface
-for platform engineers and team leads to view last-gate runs, severity-grouped
-warnings, and historical drift trends, backed by a local-only database. Current
-cut-line, docs-phase closure, and deferrals live in
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
-[`plans/index.aps.md`](./plans/index.aps.md).
+```rust,ignore
+use eddacraft_tui::prelude::*;
+use ratatui::widgets::StatefulWidget;
 
-Release cadence and beta support-window expectations are documented in
-[`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
+let theme = EddaCraftTheme;
+let mut state = PretextState::new("streaming tokens flow here…");
+let widget = PretextWidget::themed(&theme);
 
----
+// Each frame:
+// widget.render(area, frame.buffer_mut(), &mut state);
 
-## For contributors
+// On new tokens:
+state.append(" more text from the model");
 
-[![CI](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml)
-[![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
-[![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Rust](https://img.shields.io/badge/Rust-2024%20edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=22.13-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-
-eddacraft monorepo. Currently home to **anvil** — a deterministic development
-automation platform that catches architecture drift and AI anti-patterns at file
-save, before they reach code review. Active release work is on the `v0.8.0-beta`
-Team-Lead Surface and platform slate: unified browser dashboard, `anvil export`
-run-state, severity-grouped warning panels, and local database integration.
-
-Coverage is advisory rather than a merge gate. Nightly CI publishes the
-authoritative coverage artefacts; local commands are listed in
-[Test Coverage](#test-coverage).
-
-Contributor workflow quick links:
-
-- [Branching strategy](docs/guides/branching-strategy.md) — main-first release
-  and integration flow
-- [Worktree policy](docs/guides/worktree-policy.md) — permanent vs disposable
-  worktrees
-- [Release runbook](docs/guides/release-runbook.md) — direct promotion vs
-  `release/*` stabilisation
-- [Release cadence policy](docs/policies/release-cadence.md) — patch cadence,
-  beta support windows, and hotfix expectations
-- [Contributing](CONTRIBUTING.md) — setup, commands, and submission checklist
-
-## Vision
-
-anvil ensures AI and humans cannot produce unsafe software.
-
-AI generates code, infrastructure, and decisions at unprecedented speed. anvil
-acts as a deterministic governance layer in the developer workflow, intercepting
-and validating changes at the moment of creation.
-
-It prevents:
-
-- Anti-patterns
-- Security risks
-- Policy violations
-
-Before they are ever executed. Only correct, compliant, and safe outcomes are
-allowed to proceed.
-
-## Repository Structure
-
-This is an NX-managed pnpm workspace containing the following apps, packages,
-and tooling.
-
-### Root files
-
-| File                       | Purpose                                                                    |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `package.json`             | Workspace scripts, shared devDependencies, and package manager constraints |
-| `pnpm-workspace.yaml`      | Workspace package discovery for apps, packages, tools, and infra           |
-| `nx.json`                  | Nx task and workspace configuration                                        |
-| `rust-toolchain.toml`      | Pinned Rust toolchain for workspace crates                                 |
-| `dist-workspace.toml`      | `cargo-dist` release configuration for Rust binaries                       |
-| `.anvilrc`                 | Repository-level anvil configuration                                       |
-| `.node-version` / `.nvmrc` | Node version hints for CI and local tooling                                |
-
-### Apps
-
-| Directory                 | Package                         | Description                                                  | Deployment |
-| ------------------------- | ------------------------------- | ------------------------------------------------------------ | ---------- |
-| `apps/admin-cli`          | `@eddacraft/anvil-admin-cli`    | Operator CLI for beta/admin workflows                        | —          |
-| `apps/anvil-api`          | —                               | API service                                                  | Vercel     |
-| `apps/anvil-docs-private` | `@eddacraft/anvil-docs-private` | Private Docusaurus docs app                                  | Vercel     |
-| `apps/docs-public`        | `@eddacraft/docs-public`        | Public Docusaurus docs app                                   | Vercel     |
-| `apps/docs-shell`         | `@eddacraft/docs-shell`         | Documentation shell and auth/proxy entrypoint                | Vercel     |
-| `apps/docs-site`          | `@eddacraft/docs-site`          | Legacy docs app retained during the docs-platform transition | Vercel     |
-| `apps/e2e`                | —                               | End-to-end Vitest harness                                    | —          |
-| `apps/website`            | `@eddacraft/anvil-website`      | Marketing website (Next.js)                                  | Vercel     |
-
-### Packages — anvil core
-
-| Directory                  | Package                      | Description                                               |
-| -------------------------- | ---------------------------- | --------------------------------------------------------- |
-| `packages/anvil/contracts` | `@eddacraft/anvil-contracts` | Schemas, types, and events with zero dependencies         |
-| `packages/anvil/ports`     | `@eddacraft/anvil-ports`     | Interface definitions depending only on contracts         |
-| `packages/anvil/core`      | `@eddacraft/anvil-core`      | Pure domain logic depending on ports and contracts        |
-| `packages/anvil/runtime`   | `@eddacraft/anvil-runtime`   | Orchestration and I/O depending on core, ports, contracts |
-| `packages/anvil/policy`    | `@eddacraft/anvil-policy`    | OPA/Rego wrappers depending on contracts                  |
-
-### Packages — Ecosystem
-
-| Directory                       | Package                                 | Description                                       |
-| ------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
-| `packages/anvil-driver-client`  | `@eddacraft/anvil-driver-client`        | TypeScript driver-client contracts                |
-| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
-| `packages/docs-meta`            | `@eddacraft/anvil-docs-meta`            | Documentation metadata and docs-check parser      |
-| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
-| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
-| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
-
-Archived integrations retained for historical context:
-
-| Directory                        | Former package                | Status                                            |
-| -------------------------------- | ----------------------------- | ------------------------------------------------- |
-| `archive/anvil-vscode-extension` | `anvil-vscode`                | Archived per ADR-033; not release-active          |
-| `archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server` | Archived TypeScript MCP server; Rust shim is live |
-| `packages/libs/render`           | `@eddacraft/render`           | Retained package; not part of the active release  |
-| `packages/shared`                | —                             | Retained shared utilities                         |
-
-### Packages — Tooling
-
-| Directory                        | Description                      |
-| -------------------------------- | -------------------------------- |
-| `packages/tooling/tsconfig`      | Shared TypeScript configurations |
-| `packages/tooling/eslint-config` | Shared ESLint configurations     |
-
-### Crates (Rust)
-
-| Directory                      | Description                                                        |
-| ------------------------------ | ------------------------------------------------------------------ |
-| `crates/anvil-architecture`    | Architecture rule evaluation                                       |
-| `crates/anvil-attribution`     | Agent/session attribution primitives for protection evidence       |
-| `crates/anvil-baseline`        | Baseline adoption and genesis witness helpers                      |
-| `crates/anvil-bench`           | Stress-test harness for capacity discovery                         |
-| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001)     |
-| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)          |
-| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)          |
-| `crates/anvil-config`          | Multi-format `.anvil.<ext>` configuration discovery and validation |
-| `crates/anvil-hook`            | Git hook installation, coexistence, witness writes, and L4 handoff |
-| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                       |
-| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon               |
-| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                         |
-| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                          |
-| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy              |
-| `crates/anvil-kernel-types`    | Shared types for kernel, diagnostics, and protection claims        |
-| `crates/anvil-l4`              | L4 policy and witness-chain validation engine                      |
-| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)          |
-| `crates/anvil-policy`          | Policy wrapper and OPA integration surface                         |
-| `crates/anvil-policy-engine`   | Policy-engine internals                                            |
-| `crates/anvil-rayon-init`      | Shared Rayon initialisation                                        |
-| `crates/anvil-rules`           | Rule registry and deterministic rules digest                       |
-| `crates/anvil-run`             | Wrapped agent launcher and session registration ingress            |
-| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)            |
-| `crates/anvil-witness`         | Hash-chained witness log writer, rollover, manifest, and verifier  |
-| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph             |
-| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                     |
-
-### Infrastructure
-
-| Directory | Package                  | Description                     |
-| --------- | ------------------------ | ------------------------------- |
-| `infra`   | `@eddacraft/anvil-infra` | Pulumi IaC (Vercel, DNS, cloud) |
-
-### Tools
-
-| Directory          | Description                                                                             |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `tools/scripts`    | Build and utility scripts                                                               |
-| `tools/generators` | NX code generators                                                                      |
-| `tools/codemods`   | Codemod transformations                                                                 |
-| `tools/nx-rust`    | Historical vendored nxrust copy; active plugin resolves from npm as `@eddacraft/nxrust` |
-| `tools/test-utils` | Shared test utilities and fixtures                                                      |
-
-### Plans
-
-| Directory         | Description                     |
-| ----------------- | ------------------------------- |
-| `plans/modules`   | APS module specs and work items |
-| `plans/decisions` | Architecture decision records   |
-| `plans/execution` | Step-level execution evidence   |
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 22** is
-  the default CI/setup-workspace version, with Node 24 exercised in nightly
-  compatibility jobs
-- **pnpm** >= 10.20.0
-- **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
-- **cargo-llvm-cov** (optional, for Rust coverage) —
-  `cargo install cargo-llvm-cov`
-- **cargo-nextest** (optional, required by `pnpm test:coverage:rust`) —
-  `cargo install cargo-nextest --locked`
-
-### Setup
-
-```bash
-gx clone eddacraft/anvil-001
-gx anvil-001
-pnpm install
-pnpm build
+// Flow text around moving shapes:
+state.set_exclusions(vec![ExclusionZone::circle(40, 8, 5)]);
 ```
 
-### Common Commands
-
-```bash
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Type checking
-pnpm typecheck
-
-# Linting / formatting / docs checks
-pnpm lint:check
-pnpm format:check
-pnpm docs:check
-
-```
-
-NX is used under the hood — you can also use `npx nx` commands directly for
-targeted builds, affected-only runs, and task graph visualisation.
-
-## Test Coverage
-
-Coverage data changes frequently enough that the repository README should point
-to the commands, generated reports, and CI artefacts rather than freeze a
-per-project table that goes stale.
-
-### Running coverage
-
-```bash
-# Full monorepo (TypeScript + Rust)
-pnpm test:coverage
-
-# TypeScript only (via Nx — runs project-level Vitest configs)
-pnpm test:coverage:ts
-
-# Rust only (cargo-llvm-cov → target/llvm-cov/html/)
-pnpm test:coverage:rust
-
-# E2E harness (kept separate from coverage totals)
-pnpm test:e2e:harness
-```
-
-TypeScript coverage is emitted by each Vitest project under its local
-`coverage/` directory, with JSON summaries in `coverage/coverage-summary.json`
-where the project config enables them. Per APS CICD-006, CI coverage runs in the
-nightly `ci-nightly.yml` workflow — not on PR or `main` push events; the
-`coverage-typescript` nightly job uploads the root, package, and app `coverage/`
-directories as `coverage-report-22.x` (14-day retention) and writes a
-per-project line/branch/function/statement table to the GitHub Actions job
-summary.
-
-Rust coverage uses `cargo-llvm-cov` and writes the local HTML report to
-`target/llvm-cov/html/`. The local command also prints the workspace summary.
-The nightly `coverage-rust` job uploads `coverage-rust.json`,
-`coverage-rust-summary.txt`, and the HTML report directory as
-`coverage-report-rust` (14-day retention); PRs and `main` push runs use the
-strict `cargo nextest` test gate without coverage instrumentation to keep
-feedback fast.
-
-The E2E harness is reported separately from unit coverage totals. Its JSON
-result is uploaded as `e2e-results` from `coverage/e2e-results.json`.
-
-## Rust Kernel Benchmarks
-
-The Rust kernel (`anvil-kernel`) includes Criterion micro-benchmarks for
-regression detection. These validate the performance targets defined in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md).
-
-### Performance Targets vs Measured
-
-The kernel was designed against the targets in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md). The 2026-04-03 benchmark
-run (rayon-parallel parser, release build, Criterion 100 samples):
-
-| Metric                                    | Target      | Measured (2026-04-03)      | Status                            |
-| ----------------------------------------- | ----------- | -------------------------- | --------------------------------- |
-| Cold graph build, 100 files               | —           | **14.5 ms**                | Validated                         |
-| Cold graph build, 1,000 files             | —           | **~565 ms** (extrapolated) | Validated                         |
-| Cold graph build, 2,500 files             | —           | **~3.4 s** (extrapolated)  | Validated                         |
-| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness     | Pending                           |
-| Incremental update (single file)          | < 100 ms    | **10.7 µs**                | Validated · ~10,000× under target |
-| Policy evaluation (all invariants)        | —           | **799 ns**                 | Validated                         |
-| Event emission (1,000 events)             | < 10 ms     | **408 µs**                 | Validated · ~25× under target     |
-| Memory footprint (medium repo)            | < 500 MB    | Pending stress test        | Pending                           |
-| File detection latency (p99)              | < 20 ms     | Validated (spike)          | Validated                         |
-| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)  | Validated                         |
-
-Full benchmark report and marketing-ready angles:
-[`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
-
-### Scan throughput across releases
-
-`anvil-bench` measures end-to-end scanner throughput on a 320-artifact mixed
-corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
-on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
-so cross-release numbers stay honest.
-
-| Release         | Date       | Per-pass time | Throughput              | Notes                                                                       |
-| --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
-| pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
-| **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
-| **v0.5.0-beta** | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
-
-```mermaid
-xychart-beta
-    title "antipattern_scan throughput (artifacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)"]
-    y-axis "artifacts / sec" 0 --> 44000
-    bar [21900, 28600, 39900]
-    line [21900, 28600, 39900]
-```
-
-Each release adds a row so scan-path drift is visible over time. Per-run detail
-lives in [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md).
-
-### Benchmark Groups
-
-| Group                       | What it measures                                   | Scale                                |
-| --------------------------- | -------------------------------------------------- | ------------------------------------ |
-| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
-| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
-| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
-| `symbol_extraction`         | Extract symbols from a parsed AST                  | 10, 100, 500, 1000 LOC               |
-| `import_resolution`         | Re-resolve imports against known files             | 100, 1k, 10k files                   |
-| `trust_annotation`          | Annotate graph symbols with trust levels           | 100, 1k, 5k files                    |
-| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
-| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
-| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
-| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
-| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
-| `filter_throughput`         | `should_process` over mixed project paths          | 1k, 10k, 50k paths                   |
-
-### Running Benchmarks
-
-```bash
-# Run the full routine benchmark suite
-pnpm bench
-
-# Run all Criterion micro-benchmarks
-cargo bench --bench kernel
-
-# Run a specific group
-cargo bench --bench kernel -- cold_graph_build
-cargo bench --bench kernel -- incremental_update
-cargo bench --bench kernel -- incremental_update_varied
-cargo bench --bench kernel -- symbol_extraction
-cargo bench --bench kernel -- import_resolution
-cargo bench --bench kernel -- trust_annotation
-cargo bench --bench kernel -- policy_evaluation
-cargo bench --bench kernel -- policy_scaling
-cargo bench --bench kernel -- event_emission
-cargo bench --bench kernel -- graph_query
-cargo bench --bench kernel -- debouncer_throughput
-cargo bench --bench kernel -- filter_throughput
-```
-
-Criterion produces HTML reports in `target/criterion/` — open
-`target/criterion/report/index.html` for detailed charts and comparison against
-previous runs.
-
-### Planned Extensions
-
-The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
-defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
-saturation, graph memory ceiling, incremental throughput under sustained load,
-and cold start scaling. See the
-[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and Phase
-3 work items.
-
-## Deployment
-
-| App / surface             | Platform                     | Trigger                                                |
-| ------------------------- | ---------------------------- | ------------------------------------------------------ |
-| `anvil` (Rust)            | GitHub Releases / cargo-dist | Git tag (`v*`) via `release.yml`                       |
-| Homebrew formula          | `eddacraft/tap`              | Release follow-up via `homebrew-bump.yml`              |
-| Release signatures        | GitHub Actions artefacts     | `release-sign-artefacts.yml`                           |
-| Release readiness         | GitHub Actions               | Exact-SHA readiness checks via `release-readiness.yml` |
-| `apps/docs-public`        | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/anvil-docs-private` | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/docs-shell`         | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/website`            | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/anvil-api`          | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-
-The legacy Node CLI and TypeScript MCP server are archived; new releases ship
-the Rust binary and Rust MCP shim surfaces.
-
-### Native Binary Targets
-
-The Rust CLI is built for the following platforms via cargo-dist:
-
-| Platform | Architecture            | Binary      |
-| -------- | ----------------------- | ----------- |
-| macOS    | x86_64                  | `anvil`     |
-| macOS    | aarch64 (Apple Silicon) | `anvil`     |
-| Linux    | x86_64                  | `anvil`     |
-| Linux    | aarch64                 | `anvil`     |
-| Windows  | x86_64                  | `anvil.exe` |
-
-> Windows aarch64 is not yet shipped via `cargo-dist` / GitHub Releases —
-> axoupdater has no prebuilt binary for that target, so it is excluded from the
-> `cargo-dist` matrix until upstream support lands. The target is still built in
-> Rust CI (`.github/workflows/rust.yml`).
-
-## CI/CD
-
-The repository has several GitHub Actions workflows:
-
-- **ci.yml** — main/PR TypeScript lint, format, typecheck, unit tests, build,
-  E2E harness, docs lint, docs metadata validation, and change classification.
-- **rust.yml** — Rust clippy, tests, formatting, OPA/Rego checks,
-  acknowledgements freshness, and targeted cross-platform build smoke.
-- **ci-nightly.yml** — nightly coverage and broader Node 22/24 compatibility
-  coverage.
-- **release-readiness.yml** — exact-SHA release-readiness checks without
-  publishing credentials.
-- **release.yml** — cargo-dist release workflow for `v*` tags.
-- **release-sign-artefacts.yml** — release artefact signing.
-- **homebrew-bump.yml** — Homebrew tap formula update workflow.
-- **release-harness.yml** — release command harness validation.
-- **resource-budget.yml** — runtime resource-budget validation.
-- **security.yml** — dependency audit, secret scan, OPA/Regal, and security
-  targeting.
-- **codeql.yml** — GitHub CodeQL static analysis.
-- **bench.yml** / **bench-nightly.yml** — Rust kernel benchmark runs.
-- **infra.yml** — Infrastructure provisioning and validation.
-- **napi.yml** — NAPI/native binding canary workflow.
-- **labeler.yml** — Automatic PR labelling based on changed paths.
-
-A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
-also provided at `.github/actions/anvil-check/` for running anvil analysis in
-your own workflows.
-
-## Code Conventions
-
-- **UK English** — organise, colour, behaviour
-- **ESM with .js extensions** — `import { foo } from './bar.js'`
-- **Zod-first schemas** — Define with Zod, export inferred types
-- **Tests co-located** — `file.ts` + `file.test.ts`
-
-## Contributing
-
-1. Fork and clone with `gx clone <repo>`
-2. Create a Worktrunk branch from `main`: `wt switch --create feat/my-feature`
-3. Make changes, run
-   `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
-4. `git commit` will also run the Husky pre-commit hook, which applies
-   `lint-staged` fixes and re-checks staged `oxfmt`-managed files
-5. Open PR
-
-See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
+The widget itself is zero-sized — all caching lives on `PretextState`. At
+unchanged container width subsequent renders skip layout entirely; the
+cache is invalidated by a width change, by any text mutation
+(`set_text`, `set_styled_text`, `append`, `append_styled`), by
+`set_exclusions`, or by an explicit `invalidate_layout()` call.
 
 ## Documentation
 
-| Document                                                                        | Description                                     |
-| ------------------------------------------------------------------------------- | ----------------------------------------------- |
-| [Quick Start](./docs/public/anvil/quickstart.md)                                | Get running in 5 minutes                        |
-| [CLI README](./crates/anvil-cli/README.md)                                      | Native CLI binary overview                      |
-| [First Project](./docs/public/anvil/first-project.md)                           | Real-world setup example                        |
-| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)            | Common issues and solutions                     |
-| [Configuration](./docs/public/anvil/operations/config.md)                       | Configuration options                           |
-| [Architecture](./docs/architecture/overview.md)                                 | System design                                   |
-| [Release Plan](./RELEASE-PLAN.md)                                               | Current release candidate cut-line              |
-| [Release Runbook](./docs/guides/release-runbook.md)                             | Command-driven release procedure                |
-| [Release Cadence](./docs/policies/release-cadence.md)                           | Beta support windows and patch expectations     |
-| [Adoption Runbook](./docs/runbooks/anvil-adoption.md)                           | Fresh-user and sustained-use adoption procedure |
-| [Air-Gapped Runbook](./docs/runbooks/anvil-air-gapped.md)                       | Network-blocked operation guarantee             |
-| [Hook Coexistence](./docs/runbooks/anvil-hook-coexistence.md)                   | Lefthook / Husky / pre-commit integration       |
-| [Witness Chain Runbook](./docs/runbooks/anvil-witness-chain.md)                 | Operator guide for witness-chain evidence       |
-| [anvil-run Manpage](./docs/runbooks/anvil-run.md)                               | Wrapped-launch ingress and session registration |
-| [v0.6.x → v0.7.0 Migration](./docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md) | Upgrade notes for the daemon-working candidate  |
-| [Plans](./plans/index.aps.md)                                                   | APS index and current planning state            |
-| [Documentation Governance](./docs/guides/documentation-governance.md)           | Documentation authority, metadata, and closeout |
+Extended guides live in [`docs/`](docs/). Contributor docs remain at the repo
+root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
+[`SECURITY.md`](SECURITY.md)).
+
+## Links
+
+- eddacraft: <https://eddacraft.ai>
+- anvil public repository: <https://github.com/eddacraft/anvil>
+- Brand and design system: <https://github.com/eddacraft/brand-and-design>
+- pretext-tui demos: <https://github.com/joshuaboys/pretext-tui>
+
+## Acknowledgements
+
+Smooth progress and spinner animations are powered by
+[`vyfor/animate`](https://github.com/vyfor/animate), a minimal animation
+engine for Ratatui.
+
+The `pretext` module ports the layout engine and widget originally
+prototyped in [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui),
+itself inspired by Cheng Lou's [Pretext](https://github.com/chenglou/pretext)
+for the browser.
+
+## Licence
+
+Apache-2.0

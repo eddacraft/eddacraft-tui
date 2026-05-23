@@ -1,8 +1,0 @@
-{
-  "name": "policy",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/anvil/policy/src",
-  "projectType": "library",
-  "tags": ["scope:core", "layer:2"],
-  "targets": {}
-}

@@ -1,264 +1,145 @@
-# Contributing to Anvil
+# Contributing to eddacraft-tui
 
-| Type              | Authority | Owner  | Status | Freshness                                                                               |
-| ----------------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------- |
-| Contributor guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-16 against `docs/policies/release-cadence.md` and worktree policy |
-
-| Upstream                                                             | Downstream                  |
-| -------------------------------------------------------------------- | --------------------------- |
-| `docs/guides/worktree-policy.md`, `docs/policies/release-cadence.md` | Contributors and PR authors |
-
-Thank you for your interest in contributing to Anvil! This guide will help you
-get started.
+Thanks for your interest in improving the eddacraft Ratatui component
+library. This guide covers the development workflow, coding standards,
+and what to expect from the review process.
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Node.js**: >=22.13.0
-- **pnpm**: >=10.20.0
+- Rust (stable toolchain; the project builds on the latest stable)
+- `rustfmt` and `clippy` components: `rustup component add rustfmt clippy`
 
-### Setup
+### Clone and build
 
-```bash
-# Clone the repository
-git clone https://github.com/your-org/anvil.git
-cd anvil
-
-# Install dependencies
-pnpm install
-
-# Build all packages (required before testing)
-pnpm build
-
-# Run tests
-pnpm test
+```sh
+git clone https://github.com/eddacraft/eddacraft-tui.git
+cd eddacraft-tui
+cargo build --all-features
 ```
 
-## Development Workflow
+### Run the full local check
 
-All commands are designed to run from the **repository root**. You should never
-need to `cd` into a package directory — use the patterns below instead.
+Before opening a PR, run the same checks CI runs:
 
-### Essential Commands (repo root)
-
-```bash
-pnpm build          # Build all packages (Nx orchestrated, honours dependency graph)
-pnpm test           # Run all unit tests (excludes E2E)
-pnpm lint           # oxlint + ESLint + Rust lint + markdownlint auto-fix
-pnpm lint:check     # Same as lint but without auto-fix (CI mode)
-pnpm typecheck      # TypeScript strict mode across all packages (excludes anvil-vscode)
-pnpm format         # oxfmt format (write mode)
-pnpm format:check   # oxfmt format (check mode, CI)
+```sh
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features
+cargo test --all-features
+cargo publish --dry-run --all-features
 ```
 
-### Build Before Test
+(CI matches the `--all-features` `publish --dry-run` row, since the
+crate ships the `image` and `big-text` features and only the
+all-features tarball exercises every gate.)
 
-TypeScript project references require packages to be built before cross-package
-imports resolve at test time:
+If any command fails, fix the issue before pushing.
 
-```bash
-pnpm build        # Required once after clone or dependency changes
-pnpm test         # Now cross-package imports work
-```
+## Branching Model
 
-### Package-Specific Commands
+- **`dev`** — default working branch. All feature branches and fixes
+  target `dev`.
+- **`main`** — published branch. Only receives merged PRs from `dev`
+  via release PRs. Do not push feature work here.
+- **Feature branches** — short-lived, branched from `dev`. Naming:
+  `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `refactor/<topic>`,
+  `chore/<topic>`.
 
-Use `pnpm -F` (filter) or `nx` to target individual packages:
+## Commit Messages
 
-```bash
-# Using pnpm filter (by package name)
-pnpm -F @eddacraft/anvil-core test
-pnpm -F @eddacraft/anvil-aps test
-pnpm -F @eddacraft/anvil-cli test
-
-# Using Nx (by project name)
-pnpm exec nx test core
-pnpm exec nx test @eddacraft/anvil-aps
-pnpm exec nx build @eddacraft/anvil-cli
-
-# Test with pattern filter
-pnpm exec nx test core --testNamePattern="validator"
-
-# Run a specific package script
-pnpm -F @eddacraft/anvil-aps run generate-templates
-```
-
-Both `pnpm -F <package-name>` and `pnpm -C <relative-path>` work for targeting
-packages. The canonical form is `pnpm -F` (by package name) because it does not
-depend on directory structure.
-
-### E2E and CLI Testing
-
-```bash
-pnpm test:e2e       # Playwright E2E tests
-pnpm test:e2e:cli   # CLI-only E2E tests
-pnpm link:cli       # Build + link 'anvil' command globally
-pnpm unlink:cli     # Remove global link
-```
-
-### Coverage
-
-```bash
-# Per-project coverage
-pnpm exec nx test core --coverage
-
-# Full monorepo coverage
-pnpm test:coverage
-```
-
-### Running a candidate (`anvil-beta`) side-by-side with prod
-
-Use `scripts/dev/run-candidate.sh` to dogfood a pre-release candidate without
-uninstalling the production Anvil install. The script builds the current HEAD
-(or a specific git ref), stops the prod daemon so the candidate can bind the
-socket, symlinks the candidate as `~/.local/bin/anvil-beta`, and pre-creates an
-isolated scratch project under `/tmp/anvil-candidate-<sha>/`.
-
-```bash
-scripts/dev/run-candidate.sh             # build current HEAD + setup
-scripts/dev/run-candidate.sh --ref <sha> # build a specific candidate
-scripts/dev/run-candidate.sh --status    # show current install state
-scripts/dev/run-candidate.sh --restore   # remove symlink, restart prod
-```
-
-Caveat: `~/.anvil/` user state is still shared between prod and candidate (no
-`ANVIL_HOME` override exists yet — tracked as
-[GH #1726](https://github.com/eddacraft/anvil-001/issues/1726)). Project state
-is isolated by virtue of using a scratch directory. **Do not use this for Boring
-Week** — the protocol explicitly requires real install paths so testers see what
-a first-time user sees.
-
-## Code Standards
-
-### Language
-
-Use **UK English** throughout:
-
-- `colour`, `behaviour`, `organise`, `initialise`, `serialise`
-
-### TypeScript
-
-- **ESM with .js extensions** (NodeNext module resolution)
-- **Zod-first schemas** - define with Zod, export inferred types
-- **Strict mode** - no `any`, no `@ts-ignore`
-
-```typescript
-// Correct - .js extension required
-import { foo } from './utils.js';
-
-// Zod-first pattern
-export const MySchema = z.object({ field: z.string() });
-export type MyType = z.infer<typeof MySchema>;
-```
-
-### Formatting
-
-- **oxfmt**: Single quotes, trailing commas (es5), 100 char width
-- **Line endings**: LF (Unix-style)
-
-## Testing
-
-See **[docs/guides/testing.md](docs/guides/testing.md)** for comprehensive
-testing guidelines, including:
-
-- Vitest mocking best practices
-- Fixture and factory patterns
-- Package-specific testing approaches
-- Quick checklist for PR review
-
-### Key Testing Principles
-
-1. **Co-locate tests** with source code as `.test.ts`
-2. **Don't mock unless necessary** - prefer real implementations
-3. **Mock at your boundary** - not deep inside vendors
-4. **Clean up** temp directories and restore `process.cwd()`
-
-## Pull Request Process
-
-1. **Create a Worktrunk worktree and branch** from `main` for normal work with
-   `wt switch --create <branch>`. Hotfixes also branch from `main`, or from the
-   latest good tag only when `main` is unreleasable.
-2. **Make your changes** following the code standards above.
-3. **Run the full test suite**: `pnpm build && pnpm test && pnpm lint`.
-4. **Submit a PR** with a clear description of changes.
-5. **Offer or perform local cleanup** once the PR is opened, merged, abandoned,
-   or paused with no near-term next action.
-
-## Branching and Worktrees
-
-This repository uses a main-first model with Worktrunk-managed worktrees for
-active streams.
-
-- `main` is the only permanent product branch and PR target.
-- `dev` is retired as of the OPMODEL-012 cutover.
-- normal feature, fix, docs, and chore branches are created from `main` with
-  `wt switch --create <branch>`.
-- `release/*` branches are exceptional and short-lived when `main` cannot be
-  tagged directly.
-- hotfix branches are created from `main`, or from the latest good tag only when
-  `main` is unreleasable.
-
-Keep `main` as the only permanent worktree. Treat all other worktrees as
-Worktrunk-managed task spaces and remove them with `wt remove` once the branch
-is merged, replaced, abandoned, or paused without near-term action. Before
-deleting a branch, confirm the worktree is clean and the branch is merged or
-safely pushed.
-
-Release guidance:
-
-- normal releases tag an exact green `main` SHA
-- use a short-lived `release/*` branch only for exceptional stabilisation
-- merge release hardening back to `main`, tag from `main`, then delete the
-  stabilisation branch
-- release cadence, beta support windows, and hotfix expectations are documented
-  in `docs/policies/release-cadence.md`
-
-See the detailed guides for the full policy:
-
-- `docs/guides/branching-strategy.md`
-- `docs/guides/worktree-policy.md`
-- `docs/guides/release-runbook.md`
-- `docs/policies/release-cadence.md`
-
-### Before Submitting
-
-- [ ] All tests pass (`pnpm test`)
-- [ ] No lint errors (`pnpm lint`)
-- [ ] TypeScript compiles (`pnpm typecheck`)
-- [ ] Changes are documented if needed
-- [ ] Commit messages are clear and descriptive
-
-## Project Structure
+This project uses [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-anvil/
-├── apps/
-│   ├── anvil-cli/        # CLI application (Commander.js + Ink TUI)
-│   ├── docs-site/        # Docusaurus documentation site
-│   └── e2e/              # E2E test suites
-├── packages/
-│   ├── adapters/         # Format converters (SpecKit, BMAD)
-│   ├── anvil/            # Core packages (contracts, core, runtime, policy)
-│   ├── aps/              # APS document parser and tooling
-│   ├── edda-stack/       # Memory system contracts
-│   └── vscode-extension/ # VS Code integration
-├── docs/                 # Internal engineering documentation
-└── plans/                # Project planning (.aps.md specs)
+<type>(<optional scope>): <subject>
 ```
 
-## Additional Resources
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`chore`, `ci`.
 
-| Document                            | Purpose                  |
-| ----------------------------------- | ------------------------ |
-| `AGENTS.md`                         | AI agent instructions    |
-| `CLAUDE.md`                         | Claude Code instructions |
-| `docs/architecture/overview.md`     | System design            |
-| `docs/guides/branching-strategy.md` | Branching model          |
-| `docs/guides/worktree-policy.md`    | Worktree hygiene         |
-| `docs/guides/testing.md`            | Testing best practices   |
-| `docs/adr/`                         | Architecture decisions   |
+Rules:
 
-## Questions?
+- Subject: imperative mood, lowercase, no trailing period, ≤ 50 chars.
+- Body (when needed): wrap at 72 chars, explain _why_ not _what_.
+- Footer: `Fixes #N`, `Relates to #N`.
+- One logical change per commit — prefer small, atomic commits.
 
-If you have questions or need help, please open an issue on GitHub.
+Examples:
+
+```
+feat(spinner): add anvil preset
+fix(progress_bar): clamp display_fraction to [0, 1]
+docs: clarify shell branding options in README
+```
+
+## Pull Requests
+
+1. **Branch from `dev`** and target `dev` when opening the PR.
+2. **Keep PRs focused.** One feature or fix per PR. Split mechanical
+   refactors from behavioural changes when feasible.
+3. **Fill in a short summary** of what changed and why. Include a
+   test plan — what you verified locally.
+4. **CI must be green.** `main` requires `Check (default)`,
+   `Check (all-features)`, `Check (no-default-features)`,
+   `MSRV (1.88.0)`, `Supply chain (audit + deny)`, and `CodeQL`.
+   `dev` runs the same matrix without enforcing required contexts.
+5. **Resolve every review thread.** Either apply the change or reply
+   with the reasoning; do not leave threads unanswered.
+6. **No force-pushing after review starts** unless you are rebasing
+   on `dev` and you tell the reviewer.
+
+### Snapshot tests
+
+Some widgets use [`insta`](https://insta.rs/) snapshot tests. When a
+rendered change is intentional:
+
+```sh
+INSTA_UPDATE=always cargo test
+```
+
+Commit the updated snapshots alongside the source change. If the
+version string appears in a rendered snapshot (e.g. shell chrome),
+bumping the version requires re-running this command — see
+[RELEASE.md](RELEASE.md) for the full release flow.
+
+## Coding Standards
+
+- **Follow `rustfmt`.** CI fails on unformatted code.
+- **Zero clippy warnings at deny-level.** Pedantic warnings are
+  treated as informational per `Cargo.toml`; resolve them when
+  practical but they do not block CI.
+- **No `unsafe` code.** The crate forbids it (`unsafe_code = "forbid"`).
+- **Public API stability.** For user-facing types, prefer
+  `#[non_exhaustive]` over adding private fields, and use a `Default`
+  impl plus public field mutation as the documented construction
+  pattern (see `CheckProgress`, `ParallelProgressState`).
+- **Write tests.** New behaviour needs unit tests; bug fixes need
+  regression tests.
+- **Comments explain _why_, not _what_.** Well-named code documents
+  itself; reserve comments for non-obvious constraints.
+
+## Reporting Bugs and Requesting Features
+
+Open an issue at
+<https://github.com/eddacraft/eddacraft-tui/issues> with:
+
+- A minimal reproduction (for bugs) or a clear use case (for features)
+- The crate version and `rustc --version`
+- Any relevant terminal emulator / OS context for rendering bugs
+
+## Security
+
+If you discover a security vulnerability, **do not open a public
+issue**. See [SECURITY.md](SECURITY.md) for the private disclosure
+process.
+
+## Releases
+
+Releases are cut by maintainers from `main`. The full runbook lives
+in [RELEASE.md](RELEASE.md). Contributors do not need to bump
+versions in feature PRs.
+
+## Licence
+
+By contributing, you agree that your contributions will be licensed
+under the [Apache-2.0 License](LICENSE).

@@ -1,1 +1,0 @@
-{"schema_version":"anvil.watch.event.v1","seq":3,"timestamp":"2026-05-14T10:21:30Z","event_type":"snapshot","payload":{"node_count":312,"edge_count":845,"files_watched":64}}

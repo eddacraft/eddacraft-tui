@@ -1,1 +1,0 @@
-{"schema_version":"anvil.watch.event.v1","seq":7,"timestamp":"2026-05-14T10:21:31Z","event_type":"violation","payload":{"policy_id":"no-circular-deps","file":"src/main.ts","symbol":"App","message":"Circular dependency detected"}}

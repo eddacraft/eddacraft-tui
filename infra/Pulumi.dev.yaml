@@ -1,4 +1,0 @@
-encryptionsalt: v1:ShgnHhh4GrQ=:v1:GfP33ur0LapW/z18:VHr9E/o64uQtv1c27WDm6HgbQf93mw==
-config:
-  keyvault:vaultName: kv-iac-anvil
-  azure-dns:resourceGroupName: rg-prd-ap-public-web

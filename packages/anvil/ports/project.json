@@ -1,8 +1,0 @@
-{
-  "name": "ports",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/anvil/ports/src",
-  "projectType": "library",
-  "tags": ["scope:core", "layer:1"],
-  "targets": {}
-}

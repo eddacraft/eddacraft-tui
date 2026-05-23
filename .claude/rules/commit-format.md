@@ -1,1 +1,0 @@
-/home/aneki/Projects/src/code-env/.claude/rules/commit-format.md
