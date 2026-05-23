@@ -1,0 +1,61 @@
+[package]
+name = "eddacraft-tui"
+version = "0.2.2"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+description = "Shared Ratatui component library for the eddacraft product family"
+repository = "https://github.com/eddacraft/eddacraft-tui"
+readme = "README.md"
+keywords = ["tui", "ratatui", "widgets", "terminal"]
+categories = ["command-line-interface"]
+
+# Build all features and surface `doc(cfg(...))` badges on docs.rs so feature-
+# gated widgets (image, big-text) are discoverable. Locally, `cargo doc
+# --all-features` works without further configuration; the docsrs cfg is only
+# set on docs.rs itself.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+unicode-width = "0.2"
+textwrap = { version = "0.16", features = ["smawk"] }
+# `animate` is pinned to an exact version because the crate has a small
+# public footprint and ships proc-macro code (build-time RCE surface). Bumps
+# should go through `cargo audit` and a manual review.
+animate = { version = "=0.3.0", features = ["ratatui"] }
+ratatui-image = { version = "10", default-features = false, features = ["crossterm"], optional = true }
+tui-big-text = { version = "0.8", optional = true }
+image = { version = "0.25", default-features = false, optional = true }
+
+[features]
+test-utils = []
+# Enabling `image` pulls a substantial transitive graph (ratatui-image, image,
+# rayon, the windows crate family, icy_sixel, etc.). Build time and binary
+# size grow accordingly — only enable if `ImagePane` is needed.
+#
+# MSRV note: `image` and `big-text` raise the effective MSRV beyond the
+# core library's 1.88 floor — `image`'s transitive `quantette` requires
+# 1.90, and upstream bumps may push it further. The core library is
+# verified at 1.88 by the `MSRV` CI job, which builds without these
+# features; the `Check (all-features)` row uses stable Rust.
+image = ["dep:ratatui-image", "dep:image"]
+big-text = ["dep:tui-big-text"]
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

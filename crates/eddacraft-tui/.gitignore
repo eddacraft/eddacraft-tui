@@ -1,0 +1,24 @@
+# Build artifacts
+target/
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Personal brag/work-tracking notes (kept out of the public crate)
+docs/brag-*.md
+
+# Claude AI logs
+.claude/logs/

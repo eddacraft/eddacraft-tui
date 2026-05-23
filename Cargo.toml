@@ -26,6 +26,7 @@ members = [
   "crates/anvil-l4",
   "crates/anvil-architecture",
   "crates/anvil-attribution",
+  "crates/eddacraft-tui",
   "crates/workspace-hack",
 ]
 
@@ -62,6 +63,13 @@ regorus = "=0.10.0"
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }
+# TUIR-002 transitional: workspace dep stays a crates.io version req while the
+# imported path crate at `crates/eddacraft-tui/` sits unused as a workspace
+# member. TUIR-003 rewrites this to `{ path = "crates/eddacraft-tui" }` and
+# regenerates `workspace-hack` via `cargo hakari generate` in the same PR.
+# Until TUIR-003 lands, the path crate is NOT exercised by any consumer's
+# `cargo test --workspace` run — changes in `crates/eddacraft-tui/` are
+# validated by the per-crate `cargo test -p eddacraft-tui` gates only.
 eddacraft-tui = "0.2.2"
 ratatui = "0.30"
 crossterm = "0.29"
