@@ -10,7 +10,7 @@
 **Last reviewed:** 2026-05-22
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
-> is In Progress. TUIR-001 (baseline capture) is `completed` — baseline
+> is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
 > spec landed at
 > [`plans/specs/2026-05-22-tui-reintegration-baseline.md`](../specs/2026-05-22-tui-reintegration-baseline.md)
 > with the byte-exact published-tarball file list at
@@ -19,10 +19,13 @@
 > executable as their own prerequisites land (mirror PAT for TUIR-004,
 > crates.io token for TUIR-005, MIRROR-README + docs/policies drafts
 > for TUIR-007, runbook + pre-canonical-archive plan for TUIR-008 — see
-> Ready Checklist). Per `plans/aps-rules.md`, task `Status:` lines stay
-> in the canonical execution-token vocabulary (`open` / `locked` /
-> `completed` / `cancelled`) — the planning vocabulary
-> (Proposed/Ready/In Progress/Done) is for the module header only.
+> Ready Checklist). Per `plans/aps-rules.md`, the canonical
+> execution-token vocabulary is `open` / `locked` / `completed` /
+> `cancelled`; the parser is lenient and normalises planning-vocabulary
+> words (`Done`, `In Progress`, `Ready`, etc.) onto the same tokens —
+> `Done` → `completed`. TUIR-001's `Status: Done` reflects that
+> normalisation (drift-check accepts it; the underlying execution token
+> is still `completed`).
 >
 > **Supersedes:** [`eddacraft-tui-canonical-source`](./eddacraft-tui-canonical-source.aps.md)
 > (TUIMIRROR, 0/8, Proposed). TUIR carries the same intent at a higher
