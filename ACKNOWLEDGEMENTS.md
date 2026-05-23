@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 276 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 285 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1028,6 +1028,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `regex-syntax` | 0.8.10 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.12.3 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.23.1 | MIT License | https://github.com/uuid-rs/uuid |
+| `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
 | `hyper` | 1.9.0 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.15.0 | MIT License | https://github.com/rayon-rs/either |
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
@@ -1039,6 +1040,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
+| `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
 | `fixedbitset` | 0.5.7 | MIT License | https://github.com/petgraph/fixedbitset |
 | `winapi` | 0.3.9 | MIT License | https://github.com/retep998/winapi-rs |
@@ -1158,8 +1160,10 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `darling` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_core` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_macro` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
+| `crc32fast` | 1.5.0 | MIT License | https://github.com/srijs/rust-crc32fast |
 | `zeroize` | 1.8.2 | MIT License | https://github.com/RustCrypto/utils |
 | `bytemuck` | 1.25.0 | MIT License | https://github.com/Lokathor/bytemuck |
+| `bytemuck_derive` | 1.10.2 | MIT License | https://github.com/Lokathor/bytemuck |
 | `strum` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
 | `strum_macros` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
@@ -1177,6 +1181,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.44 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
+| `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
 | `objc2-encode` | 4.1.0 | MIT License | https://github.com/madsmtm/objc2 |
 | `objc2` | 0.6.4 | MIT License | https://github.com/madsmtm/objc2 |
@@ -1213,11 +1218,15 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows_x86_64_msvc` | 0.53.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `tokio-util` | 0.7.18 | MIT License | https://github.com/tokio-rs/tokio |
 | `tokio` | 1.52.3 | MIT License | https://github.com/tokio-rs/tokio |
+| `simd-adler32` | 0.3.9 | MIT License | https://github.com/mcountryman/simd-adler32 |
+| `miniz_oxide` | 0.8.9 | MIT License | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide |
+| `fdeflate` | 0.3.7 | MIT License | https://github.com/image-rs/fdeflate |
 | `image` | 0.25.10 | MIT License | https://github.com/image-rs/image |
 | `ident_case` | 1.0.1 | MIT License | https://github.com/TedDriggs/ident_case |
 | `widestring` | 1.2.1 | MIT License | https://github.com/VoidStarKat/widestring-rs |
 | `crossterm` | 0.29.0 | MIT License | https://github.com/crossterm-rs/crossterm |
 | `crossterm_winapi` | 0.9.1 | MIT License | https://github.com/crossterm-rs/crossterm-winapi |
+| `adler2` | 2.0.1 | MIT License | https://github.com/oyvindln/adler2 |
 | `anyhow` | 1.0.102 | MIT License | https://github.com/dtolnay/anyhow |
 | `atomic-waker` | 1.1.2 | MIT License | https://github.com/smol-rs/atomic-waker |
 | `camino` | 1.2.2 | MIT License | https://github.com/camino-rs/camino |

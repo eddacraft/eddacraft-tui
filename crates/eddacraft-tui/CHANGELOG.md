@@ -20,7 +20,7 @@ Hotfix for a release-build compile error introduced in 0.2.0.
   skips _evaluation_ in release builds — name resolution still runs — so
   any consumer building this crate with `debug_assertions = false`
   (`--release`, `--release-napi`, etc.) hit `error[E0425]: cannot find
-  function ids_are_unique in this scope`. The cfg-gate has been removed;
+function ids_are_unique in this scope`. The cfg-gate has been removed;
   the helper now exists in every profile (it's still only called by
   `debug_assert!`, so it's a no-op at runtime in release builds).
 
@@ -212,7 +212,7 @@ contains breaking changes — see **Breaking** below.
   Acknowledgements now credit `vyfor/animate` for the animation runtime;
   the `rattles` reference (no longer a dependency) was removed.
 - `CONTRIBUTING.md` local-check checklist matches CI (`cargo publish
-  --dry-run --all-features`); required-status-checks list updated to
+--dry-run --all-features`); required-status-checks list updated to
   reflect the matrix-style CI.
 - `pretext`: preserve leading whitespace as indent (#16 follow-up).
 - Spinner: addressed council review feedback on bracket-syntax frames and
@@ -239,7 +239,7 @@ contains breaking changes — see **Breaking** below.
 
 - CI now runs a 3-row feature matrix (`default`, `all-features`,
   `no-default-features`) plus dedicated `MSRV (1.88.0)` and `Supply chain
-  (audit + deny)` jobs. `cargo publish --dry-run --all-features` runs on the
+(audit + deny)` jobs. `cargo publish --dry-run --all-features` runs on the
   all-features row to validate the release tarball every PR.
 - Release workflow uses `cargo pkgid` for robust version extraction.
 
