@@ -140,6 +140,13 @@ This ADR also fixes a TUIN scope-framing issue surfaced during draft:
 ```rust
 // crates/eddacraft-tui/src/runner/mod.rs   (under feature = "runner")
 
+use std::ops::ControlFlow;          // stdlib
+use std::process::ExitCode;         // stdlib
+use ratatui::Frame;                 // ratatui re-export
+use crate::runner::event::Event;    // runner-local event envelope wrapping
+                                    // crossterm input + the consumer's
+                                    // user-event type (A::Event)
+
 /// A consumer-supplied terminal application.
 ///
 /// Implementers describe their own state, event handling, and render
@@ -147,14 +154,20 @@ This ADR also fixes a TUIN scope-framing issue surfaced during draft:
 /// terminal lifecycle, panic-restore, theme selection, and the
 /// render loop.
 pub trait TerminalApp {
+    /// User-defined event payload (typically `()` for simple apps; a
+    /// channel-carried `enum` for apps with background work).
     type Event: Send + 'static;
 
     /// Render one frame against the supplied Ratatui frame.
-    fn render(&self, frame: &mut ratatui::Frame<'_>);
+    fn render(&self, frame: &mut Frame<'_>);
 
-    /// Handle a single event. Return `ControlFlow::Break(_)` to exit
-    /// the run loop with a specified exit code.
-    fn handle_event(&mut self, event: Event<Self::Event>) -> ControlFlow<ExitCode>;
+    /// Handle a single event. Return `ControlFlow::Break(exit_code)`
+    /// to exit the run loop with the specified `ExitCode`; return
+    /// `ControlFlow::Continue(())` to keep running.
+    fn handle_event(
+        &mut self,
+        event: Event<Self::Event>,
+    ) -> ControlFlow<ExitCode>;
 }
 
 /// The default runner.
@@ -165,12 +178,22 @@ pub trait TerminalApp {
 /// `Theme` (default `EddaCraftTheme`); enters the render loop; returns
 /// an `ExitCode`. Consumers wanting more control bypass this and call
 /// the lower-level helpers directly.
-pub fn launch_default<A: TerminalApp>(app: A) -> ExitCode { ... }
+pub fn launch_default<A: TerminalApp>(app: A) -> ExitCode { /* ... */ }
 
 /// As `launch_default`, but accepts pre-parsed args + theme so
 /// consumers can integrate with their own parser if they want to.
-pub fn launch_with<A: TerminalApp>(app: A, opts: RunnerOptions) -> ExitCode { ... }
+pub fn launch_with<A: TerminalApp>(
+    app: A,
+    opts: RunnerOptions,
+) -> ExitCode { /* ... */ }
 ```
+
+`Event<U>` is a runner-local envelope (defined alongside the trait
+in `crates/eddacraft-tui/src/runner/event.rs` per TUIN-004) wrapping
+`crossterm::event::Event` from the terminal plus a user-defined
+`U = A::Event` for app-internal events delivered via a channel. Its
+exact shape is a TUIN-003 / TUIN-004 deliverable; this snippet only
+fixes the trait surface the consumer sees.
 
 The exact trait shape, the parser choice (`lexopt` working
 assumption), and the precise default-flags surface are TUIN-003 /

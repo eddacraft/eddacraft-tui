@@ -132,8 +132,10 @@ surface.
   `[[bin]]` lives in each consumer crate (D-TUIN-004 unchanged). The
   TUIR Out-of-Scope clause forbidding `clap` in core is upheld and
   carried forward.
-- **Status:** Proposed (ratified by ADR-050 — see
-  [`050-eddacraft-tui-runner-and-cli-policy.md`](../decisions/050-eddacraft-tui-runner-and-cli-policy.md)).
+- **Status:** Proposed (captured by ADR-050 — see
+  [`050-eddacraft-tui-runner-and-cli-policy.md`](../decisions/050-eddacraft-tui-runner-and-cli-policy.md);
+  promote to Accepted when ADR-050 itself moves from Proposed →
+  Accepted).
 
 **D-TUIN-002:** CLI mode-detection helpers ownership
 
@@ -166,7 +168,8 @@ surface.
   own their lifecycle, like Anvil, ignore it; apps that want
   managed lifecycle opt in directly or via `runner`).
 - **Status:** Proposed (sanity-check during TUIN-002 survey;
-  composition with `runner` ratified by ADR-050).
+  composition with `runner` captured by ADR-050 — promote when
+  ADR-050 moves from Proposed → Accepted).
 
 **D-TUIN-004:** Demo / fallback binary
 
