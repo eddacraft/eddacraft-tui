@@ -185,7 +185,7 @@ if (existsSync(indexPath)) {
   const indexText = readText(indexPath);
   for (const module of modules) {
     const indexProgress = indexText.match(
-      new RegExp(`\\b${escapeRegExp(module.id)}\\b[^\\n]*?(\\d+)\\/(\\d+)`)
+      new RegExp(`\\|\\s*${escapeRegExp(module.id)}\\s*\\|[^\\n]*?(\\d+)\\/(\\d+)`)
     );
     if (!indexProgress || module.progressDone === null || module.progressTotal === null) continue;
     const done = Number(indexProgress[1]);
