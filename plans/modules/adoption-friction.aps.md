@@ -276,7 +276,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
   - Integration: install + uninstall in a fixture repo, verify
     `git status` is clean and `.anvil/` is gone (verified manually on
     fixture; runbook task is to formalise this as a script)
-- **Status:** Released/Shipped
+- **Status:** Released/Shipped via v0.6.3-beta (PR #1521 · 2026-05-14)
 - **Evidence:** Merged via PR #1521 (`feat(cli): add 'anvil uninstall' command +
   ADR-044 MCP entry ownership`) on 2026-05-14. Released in
   [`v0.6.3-beta`](../releases/v0.6.3-beta.md) (2026-05-15).

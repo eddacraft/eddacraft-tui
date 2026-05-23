@@ -490,7 +490,7 @@ trust surface and crates.io contract.
 
 ### TUIR-001: Lock the import baseline
 
-- **Status:** completed
+- **Status:** Done
 
 **Intent:** Record the exact public source, version, tags, release
 workflow, and crates.io state that will be imported into Anvil so the
