@@ -161,6 +161,10 @@ memory.json
 autonomous-state.json
 .setup-meta
 
+# Anvil runtime sidecar — operator state appended on every run
+anvil/kindling/
+anvil/witness/
+
 # Temporary files
 *.tmp
 *.bak
