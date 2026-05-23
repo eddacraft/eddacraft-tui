@@ -15,9 +15,8 @@ across its two surfaces — the canonical source in this monorepo at
 which CI gates run where, what the backport contract is, and how drive-by
 changes against the mirror are handled.
 
-The policy is referenced from `crates/eddacraft-tui/CONTRIBUTING.md` **once
-TUIR-007 lands** (in flight at PR #1886) and — after the mirror sync per
-D-TUIR-012 — from the public `README.md` banner.
+The policy is referenced from `crates/eddacraft-tui/CONTRIBUTING.md` and — after
+the mirror sync per D-TUIR-012 — from the public `README.md` banner.
 
 ## Topology At A Glance
 

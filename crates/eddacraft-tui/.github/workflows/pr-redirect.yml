@@ -14,11 +14,18 @@
 # landing at `.github/workflows/pr-redirect.yml` on the mirror.
 #
 # It is a no-op on the canonical Anvil-001 repository: the trigger
-# fires on `pull_request_target: opened`, and on Anvil-001 those PRs
-# are expected and welcome; the job-level guard
+# fires on `pull_request_target: [opened, reopened]`, and on
+# Anvil-001 those PRs are expected and welcome; the job-level guard
 # (`jobs.redirect.if`) checks
 # `github.repository == 'eddacraft/eddacraft-tui'` so canonical PRs
 # are left alone (the job shows as Skipped, not Failed).
+#
+# `reopened` is on the trigger list so a contributor cannot bypass
+# the auto-close by reopening a closed PR — the backport policy
+# (D-TUIR-009 §"Drive-by source PR against the mirror") states
+# source PRs are never reopened on the mirror, and the workflow
+# re-runs the close on every reopen to make that enforceable
+# rather than aspirational.
 #
 # `pull_request_target` is required (not plain `pull_request`)
 # because fork PRs run with a read-only GITHUB_TOKEN under
@@ -36,7 +43,7 @@ name: PR redirect (mirror only)
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, reopened]
 
 permissions:
   pull-requests: write
