@@ -1,15 +1,30 @@
 #!/usr/bin/env bash
-# Regenerate the auto-generated attribution block inside a target markdown
+# Regenerate auto-generated attribution blocks inside a target markdown
 # file (default: ACKNOWLEDGEMENTS.md).
 #
-# This is a parameterised, portable generator: every project-specific value
-# (manifest path, template paths, marker output, fix-it command) lives in
-# the consumer repo's `attribution.toml`. The script itself carries no
-# hard-coded paths.
+# This is a parameterised, portable dispatcher. Every project-specific
+# value (manifests, tool selection, marker output, fix-it command)
+# lives in the consumer repo's `attribution.toml`. The dispatcher
+# routes each declared block to an ecosystem-specific driver under
+# `drivers/<ecosystem>.sh`.
 #
-# Wraps `cargo about generate` against a single Cargo manifest and splices
-# the result between BEGIN/END marker comments inside the target file.
-# Hand-edited content above and below the marker is preserved verbatim.
+# Schema (canonical):
+#
+#   [project]
+#   target_path   = "ACKNOWLEDGEMENTS.md"
+#   fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+#   # marker_begin / marker_end optional global overrides
+#
+#   [[blocks]]
+#   name      = "rust"             # required (kebab-case when non-empty)
+#   ecosystem = "rust"             # required; must match drivers/<ecosystem>.sh
+#   # ecosystem-specific keys: manifest_path, template_path, config_path, …
+#
+# Back-compat shim: a consumer with the legacy flat `[rust]` table
+# (no `[[blocks]]` entries) is treated as if it declared a single
+# unnamed block (`name = ""`, `ecosystem = "rust"`). Markers for the
+# unnamed block omit the name suffix (`<!-- BEGIN AUTO-GENERATED -->`).
+# Mixing flat `[rust]` and `[[blocks]]` in one file is a hard error.
 #
 # Usage:
 #   generate-acknowledgements.sh                     # write target file in place
@@ -19,15 +34,22 @@
 #
 # `--check` and `--output` are mutually exclusive.
 #
-# By default the script discovers `attribution.toml` by walking from the
-# caller's CWD upward; `--config` overrides discovery.
+# Discovery: walks from CWD upward for `attribution.toml`. `--config`
+# overrides discovery. Drivers are looked up at
+# `${ATTRIB_DRIVERS_DIR:-<script-dir>/drivers}/<ecosystem>.sh`; the
+# env var override is intended for tests, not production consumers.
+#
+# Full design contract:
+#   plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md
 #
 # Exit codes:
 #   0  success / no drift
-#   1  drift detected, missing markers, empty output, missing tool, or bad config
+#   1  drift detected, missing markers, empty output, missing tool, bad config, driver failure
 #   2  CLI argument error
 
 set -euo pipefail
+
+# ── CLI parsing ──────────────────────────────────────────────────────
 
 mode="write"
 target_override=""
@@ -62,7 +84,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h|--help)
-      sed -n '2,30p' "$0"
+      sed -n '2,57p' "$0"
       exit 0
       ;;
     *)
@@ -77,11 +99,14 @@ if [ "$mode" = "check" ] && [ -n "$target_override" ]; then
   exit 2
 fi
 
-# --- Locate attribution.toml --------------------------------------------------
-#
-# Discovery walks upward from CWD looking for `attribution.toml`. The file's
-# parent directory becomes the project root all relative paths are resolved
-# against.
+# ── Tool preflight ───────────────────────────────────────────────────
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq not installed (required for block-config JSON handoff to drivers)" >&2
+  exit 1
+fi
+
+# ── Locate attribution.toml ──────────────────────────────────────────
 
 if [ -n "$config_override" ]; then
   if [ ! -f "$config_override" ]; then
@@ -107,25 +132,32 @@ else
 fi
 
 project_root="$(cd "$(dirname "$config_path")" && pwd)"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+drivers_dir="${ATTRIB_DRIVERS_DIR:-$script_dir/drivers}"
 
-# --- Read attribution.toml ---------------------------------------------------
-#
-# Minimal TOML reader: pulls top-level string keys from the [project] and
-# [rust] tables. Comments and blank lines are skipped; values may be
-# quoted with single or double quotes. The schema is intentionally narrow
-# so `grep`+`sed` parsing is safe.
+# ── TOML helpers ─────────────────────────────────────────────────────
+# The schema we accept is narrow on purpose: a small number of named
+# scalar tables ([project], [rust]) plus an array-of-tables [[blocks]]
+# carrying string-valued keys. We do not try to be a general TOML
+# parser — kits adopting this script benefit from the simplicity.
 
-read_toml_value() {
-  # Args: <table> <key>; emits the unquoted value or empty.
+# read_scalar() extracts kvs from a scalar table `[name]` and emits
+# `key=value` lines on stdout. Values are unquoted (single or double
+# quotes stripped). Lines with no `=` are ignored.
+read_scalar() {
   local table="$1"
-  local key="$2"
-  awk -v table="$table" -v key="$key" '
+  awk -v table="$table" '
     BEGIN { in_table = 0 }
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { next }
-    /^[[:space:]]*\[/ {
-      gsub(/[[:space:]\[\]]/, "", $0)
-      in_table = ($0 == table)
+    /^[[:space:]]*\[\[/ {            # array-of-tables marker
+      in_table = 0
+      next
+    }
+    /^[[:space:]]*\[/ {               # scalar table marker
+      header = $0
+      gsub(/[[:space:]\[\]]/, "", header)
+      in_table = (header == table)
       next
     }
     in_table {
@@ -137,52 +169,132 @@ read_toml_value() {
       v = substr(line, n + 1)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-      if (k == key) {
-        gsub(/^["'\'']|["'\'']$/, "", v)
-        print v
-        exit
-      }
+      gsub(/^["'\'']|["'\'']$/, "", v)
+      print k "=" v
     }
   ' "$config_path"
 }
 
-require_value() {
-  local table="$1"
-  local key="$2"
-  local val
-  val="$(read_toml_value "$table" "$key")"
-  if [ -z "$val" ]; then
-    echo "error: attribution.toml is missing required key [$table].$key" >&2
-    exit 1
-  fi
-  printf '%s' "$val"
+# count_array_entries() counts `[[name]]` occurrences (one per array entry).
+count_array_entries() {
+  local name="$1"
+  awk -v name="$name" '
+    /^[[:space:]]*\[\[/ {
+      header = $0
+      gsub(/[[:space:]\[\]]/, "", header)
+      if (header == name) count++
+    }
+    END { print count + 0 }
+  ' "$config_path"
 }
 
+# read_array_entry() extracts the i-th `[[name]]` entry's kvs as
+# `key=value` lines. i is 0-indexed.
+read_array_entry() {
+  local name="$1"
+  local index="$2"
+  awk -v name="$name" -v target="$index" '
+    BEGIN { current = -1; in_entry = 0 }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*\[\[/ {
+      header = $0
+      gsub(/[[:space:]\[\]]/, "", header)
+      if (header == name) {
+        current++
+        in_entry = (current == target)
+      } else {
+        in_entry = 0
+      }
+      next
+    }
+    /^[[:space:]]*\[/ {                # scalar table closes any open array entry
+      in_entry = 0
+      next
+    }
+    in_entry {
+      line = $0
+      sub(/[[:space:]]*#.*$/, "", line)
+      n = index(line, "=")
+      if (n == 0) next
+      k = substr(line, 1, n - 1)
+      v = substr(line, n + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+      gsub(/^["'\'']|["'\'']$/, "", v)
+      print k "=" v
+    }
+  ' "$config_path"
+}
+
+# scalar_table_present() returns 0 if `[name]` is declared at all,
+# even with no keys; 1 otherwise. Used for shim/mixed-schema detection.
+scalar_table_present() {
+  local name="$1"
+  awk -v name="$name" '
+    /^[[:space:]]*\[\[/ { next }
+    /^[[:space:]]*\[/ {
+      header = $0
+      gsub(/[[:space:]\[\]]/, "", header)
+      if (header == name) { found = 1; exit }
+    }
+    END { exit (found ? 0 : 1) }
+  ' "$config_path"
+}
+
+# resolve_path() turns a config-relative path into an absolute one,
+# leaving already-absolute paths untouched.
 resolve_path() {
-  # Resolve a config-relative path against $project_root, leaving absolute
-  # paths untouched.
   case "$1" in
     /*) printf '%s' "$1" ;;
     *)  printf '%s/%s' "$project_root" "$1" ;;
   esac
 }
 
-manifest_path="$(resolve_path "$(require_value rust manifest_path)")"
-template_path="$(resolve_path "$(require_value rust template_path)")"
-config_path_about="$(resolve_path "$(require_value rust config_path)")"
-target_default="$(resolve_path "$(require_value project target_path)")"
-fixit_command="$(require_value project fixit_command)"
-marker_begin="$(read_toml_value project marker_begin)"
-marker_end="$(read_toml_value project marker_end)"
+# kv_get() pulls the value for key `$2` out of a `key=value` lines
+# blob `$1` (stdin-style strings), or empty if absent.
+kv_get() {
+  local blob="$1"
+  local key="$2"
+  printf '%s\n' "$blob" | awk -F= -v k="$key" '
+    $1 == k { sub(/^[^=]*=/, ""); print; exit }
+  '
+}
+
+# kv_to_json() turns a `key=value` lines blob into a JSON object on
+# one line. Values are emitted as strings (no type coercion; this
+# kit accepts string-valued keys only for now). Compact output so
+# downstream `while read -r` loops can consume one block per line.
+kv_to_json() {
+  local blob="$1"
+  printf '%s\n' "$blob" | jq -Rsc '
+    split("\n")
+    | map(select(length > 0))
+    | map(split("=") | {(.[0]): (.[1:] | join("="))})
+    | add // {}
+  '
+}
+
+# ── Project-level keys + marker defaults ────────────────────────────
+
+project_kvs="$(read_scalar project)"
+target_default_rel="$(kv_get "$project_kvs" target_path)"
+fixit_command="$(kv_get "$project_kvs" fixit_command)"
+marker_begin="$(kv_get "$project_kvs" marker_begin)"
+marker_end="$(kv_get "$project_kvs" marker_end)"
+
+if [ -z "$target_default_rel" ]; then
+  echo "error: attribution.toml is missing required key [project].target_path" >&2
+  exit 1
+fi
+if [ -z "$fixit_command" ]; then
+  echo "error: attribution.toml is missing required key [project].fixit_command" >&2
+  exit 1
+fi
 marker_begin="${marker_begin:-<!-- BEGIN AUTO-GENERATED -->}"
 marker_end="${marker_end:-<!-- END AUTO-GENERATED -->}"
 
-# `splice_input` is the file with the BEGIN/END markers we splice into.
-# It must already exist (the kit's bootstrap produces it from
-# ACKNOWLEDGEMENTS.md.template). `output_path` is where the spliced
-# result is written — when --output is not given, output_path == splice_input
-# (overwrite-in-place). When --output IS given, output_path differs from
-# splice_input and need not pre-exist.
+target_default="$(resolve_path "$target_default_rel")"
 splice_input="$target_default"
 if [ -z "$target_override" ]; then
   output_path="$target_default"
@@ -190,98 +302,210 @@ else
   output_path="$target_override"
 fi
 
-# --- Preflight ----------------------------------------------------------------
-
-if ! command -v cargo-about >/dev/null 2>&1; then
-  echo "cargo-about not installed. Install the version pinned by your project (see CI), e.g.:" >&2
-  echo "  cargo install cargo-about --locked --version <CARGO_ABOUT_VERSION>" >&2
+if [ ! -f "$splice_input" ]; then
+  echo "error: target_path does not exist: $splice_input" >&2
   exit 1
 fi
 
-for f in "$manifest_path" "$template_path" "$config_path_about" "$splice_input"; do
-  if [ ! -f "$f" ]; then
-    echo "error: required file does not exist: $f" >&2
+# ── Resolve blocks (with back-compat shim) ──────────────────────────
+
+blocks_count="$(count_array_entries blocks)"
+has_flat_rust=0
+if scalar_table_present rust; then has_flat_rust=1; fi
+
+if [ "$has_flat_rust" -eq 1 ] && [ "$blocks_count" -gt 0 ]; then
+  echo "error: attribution.toml mixes flat [rust] and [[blocks]] schemas." >&2
+  echo "  pick one: either keep the legacy flat [rust] table, OR migrate to [[blocks]] entries." >&2
+  echo "  the two schemas are mutually exclusive to avoid silent precedence rules." >&2
+  exit 1
+fi
+
+# RESOLVED_BLOCKS holds one JSON object per block, newline-separated.
+# Each object includes "name" + "ecosystem" + every ecosystem-specific
+# key the consumer declared. Order matches the source file (or, for
+# the shim path, a single unnamed block).
+RESOLVED_BLOCKS=""
+
+if [ "$has_flat_rust" -eq 1 ]; then
+  # Back-compat shim: synthesise a single unnamed block from [rust].
+  rust_kvs="$(read_scalar rust)"
+  if [ -z "$rust_kvs" ]; then
+    echo "error: [rust] table is empty; nothing to synthesise into a back-compat block." >&2
     exit 1
   fi
-done
-
-# Marker-count gate. Bare `grep -c` greps the entire literal string, so we
-# can compare against exactly 1 BEGIN and 1 END marker without having to
-# escape regex metacharacters in the configured marker.
-begin_count=$(grep -cF "$marker_begin" "$splice_input" || true)
-end_count=$(grep -cF "$marker_end" "$splice_input" || true)
-if [ "$begin_count" != "1" ] || [ "$end_count" != "1" ]; then
-  echo "error: $splice_input must contain exactly one BEGIN and one END marker." >&2
-  echo "  '$marker_begin' count: $begin_count (expected 1)" >&2
-  echo "  '$marker_end' count: $end_count (expected 1)" >&2
+  shim_block_json="$(kv_to_json "$rust_kvs" | jq -c --arg name "" --arg ecosystem "rust" '. + {name: $name, ecosystem: $ecosystem}')"
+  RESOLVED_BLOCKS="$shim_block_json"
+elif [ "$blocks_count" -gt 0 ]; then
+  seen_names=""
+  i=0
+  while [ "$i" -lt "$blocks_count" ]; do
+    entry_kvs="$(read_array_entry blocks "$i")"
+    entry_json="$(kv_to_json "$entry_kvs")"
+    name="$(printf '%s' "$entry_json" | jq -r '.name // ""')"
+    ecosystem="$(printf '%s' "$entry_json" | jq -r '.ecosystem // ""')"
+    if [ -z "$name" ]; then
+      echo "error: [[blocks]] entry #$((i+1)) is missing required key 'name'." >&2
+      exit 1
+    fi
+    if [ -z "$ecosystem" ]; then
+      echo "error: [[blocks]] entry '$name' is missing required key 'ecosystem'." >&2
+      exit 1
+    fi
+    case "$seen_names" in
+      *"|$name|"*)
+        echo "error: duplicate block name '$name' in [[blocks]] — names must be unique within attribution.toml." >&2
+        exit 1
+        ;;
+    esac
+    seen_names="$seen_names|$name|"
+    driver_script="$drivers_dir/$ecosystem.sh"
+    if [ ! -x "$driver_script" ]; then
+      echo "error: no driver for ecosystem '$ecosystem' (expected $driver_script to exist and be executable)." >&2
+      exit 1
+    fi
+    if [ -z "$RESOLVED_BLOCKS" ]; then
+      RESOLVED_BLOCKS="$entry_json"
+    else
+      RESOLVED_BLOCKS="$RESOLVED_BLOCKS"$'\n'"$entry_json"
+    fi
+    i=$((i + 1))
+  done
+else
+  echo "error: attribution.toml declares no blocks." >&2
+  echo "  add a [[blocks]] entry or the legacy flat [rust] table." >&2
   exit 1
 fi
 
-# --- Generate ----------------------------------------------------------------
+# ── Per-block marker computation ────────────────────────────────────
 
-tmp_generated=""
-tmp_output=""
-trap 'rm -f "${tmp_generated:-}" "${tmp_output:-}"' EXIT
-tmp_generated="$(mktemp)"
-# Create the splice-output temp file in the same directory as the final
-# output_path so the closing `mv` is a same-filesystem rename (atomic).
-# `mktemp` would otherwise default to $TMPDIR (often /tmp), which can be
-# on a different filesystem and silently degrade `mv` to copy+delete —
-# breaking the atomic-write guarantee documented in the kit README.
-output_dir="$(cd "$(dirname "$output_path")" && pwd)"
-tmp_output="$(mktemp "$output_dir/.generate-acknowledgements.tmp.XXXXXX")"
+marker_for() {
+  # Args: <name> <begin|end>; emits the composed marker text.
+  local name="$1"
+  local kind="$2"
+  local base
+  if [ "$kind" = "begin" ]; then
+    base="$marker_begin"
+  else
+    base="$marker_end"
+  fi
+  if [ -z "$name" ]; then
+    printf '%s' "$base"
+    return
+  fi
+  # Insert " <name>" before the closing `-->` (or other trailer) so
+  # `<!-- BEGIN AUTO-GENERATED -->` becomes `<!-- BEGIN AUTO-GENERATED rust -->`.
+  case "$base" in
+    *' -->')
+      printf '%s %s -->' "${base%' -->'}" "$name"
+      ;;
+    *)
+      # Unfamiliar override shape: append name with a space and call it good.
+      printf '%s %s' "$base" "$name"
+      ;;
+  esac
+}
 
-# Run cargo-about from the directory containing about.toml so it picks up
-# the config without an explicit flag (cargo-about looks beside the cwd by
-# default for `about.toml`).
+# ── Splice loop ──────────────────────────────────────────────────────
+# For each block:
+#   1. Marker-count gate on the *current* working text (which may have
+#      been mutated by a previous iteration's splice).
+#   2. Run the ecosystem driver to a per-block temp output file.
+#   3. Splice the driver output between the block's markers in the
+#      working file.
+# At the end, atomic mv working file → output_path (or --check diff).
 #
-# ATTRIB-007: `--fail` makes cargo-about exit non-zero when a workspace
-# crate is missing the `license` (or `license-file`) field. Without it
-# cargo-about emits a WARN and exits 0, and the crate silently drops out
-# of the generated ACKNOWLEDGEMENTS.md. The script's downstream
-# "empty file" sentinel sometimes catches this by coincidence (when the
-# template yields no output), but that path is fragile and gives an
-# unhelpful error. `--fail` puts the diagnostic at the canonical layer.
-about_dir="$(cd "$(dirname "$config_path_about")" && pwd)"
-(
-  cd "$about_dir"
-  cargo about generate "$template_path" \
-    --manifest-path "$manifest_path" \
-    --fail \
-    -o "$tmp_generated"
-)
+# On any driver failure, abort before the mv: the on-disk target stays
+# byte-identical.
 
-if [ ! -s "$tmp_generated" ]; then
-  echo "error: cargo-about produced an empty file; refusing to clobber $output_path" >&2
-  exit 1
-fi
+working_dir="$(cd "$(dirname "$output_path")" && pwd)"
+working_file="$(mktemp "$working_dir/.generate-acknowledgements.work.XXXXXX")"
+tmp_driver_outputs_dir="$(mktemp -d)"
+trap 'rm -f "$working_file"; rm -rf "$tmp_driver_outputs_dir"' EXIT
 
-awk -v gen="$tmp_generated" -v begin="$marker_begin" -v end="$marker_end" '
-  BEGIN { in_block = 0 }
-  index($0, begin) {
-    print
-    while ((getline line < gen) > 0) print line
-    in_block = 1
-    next
-  }
-  index($0, end) {
-    in_block = 0
-    print
-    next
-  }
-  !in_block { print }
-' "$splice_input" > "$tmp_output"
+cp "$splice_input" "$working_file"
+
+block_idx=0
+while IFS= read -r block_json; do
+  [ -z "$block_json" ] && continue
+  name="$(printf '%s' "$block_json" | jq -r '.name')"
+  ecosystem="$(printf '%s' "$block_json" | jq -r '.ecosystem')"
+
+  begin_marker="$(marker_for "$name" begin)"
+  end_marker="$(marker_for "$name" end)"
+
+  # Per-block marker-count gate.
+  begin_count="$(grep -cF "$begin_marker" "$working_file" || true)"
+  end_count="$(grep -cF "$end_marker" "$working_file" || true)"
+  if [ "$begin_count" != "1" ] || [ "$end_count" != "1" ]; then
+    label="${name:-(unnamed)}"
+    echo "error: $splice_input must contain exactly one BEGIN and one END marker for block '$label'." >&2
+    echo "  '$begin_marker' count: $begin_count (expected 1)" >&2
+    echo "  '$end_marker' count: $end_count (expected 1)" >&2
+    exit 1
+  fi
+
+  # Resolve ecosystem-specific paths (string values only) against project_root.
+  resolved_json="$(printf '%s' "$block_json" | jq -c --arg root "$project_root" '
+    to_entries
+    | map(
+        if (.value | type) == "string" and (.key | endswith("_path"))
+        then .value = (if (.value | startswith("/")) then .value else ($root + "/" + .value) end)
+        else .
+        end
+      )
+    | from_entries
+  ')"
+
+  driver_script="$drivers_dir/$ecosystem.sh"
+  driver_output="$tmp_driver_outputs_dir/block-$block_idx.md"
+
+  if ! "$driver_script" "$resolved_json" "$driver_output"; then
+    echo "" >&2
+    echo "error: driver for ecosystem '$ecosystem' (block '${name:-(unnamed)}') exited non-zero." >&2
+    echo "  on-disk target $output_path was not modified." >&2
+    exit 1
+  fi
+
+  if [ ! -s "$driver_output" ]; then
+    echo "error: driver for ecosystem '$ecosystem' (block '${name:-(unnamed)}') produced an empty file; refusing to clobber the block." >&2
+    exit 1
+  fi
+
+  # Splice driver_output between begin_marker and end_marker in working_file.
+  spliced="$(mktemp "$working_dir/.generate-acknowledgements.splice.XXXXXX")"
+  awk -v gen="$driver_output" -v begin="$begin_marker" -v end="$end_marker" '
+    BEGIN { in_block = 0 }
+    index($0, begin) {
+      print
+      while ((getline line < gen) > 0) print line
+      in_block = 1
+      next
+    }
+    index($0, end) {
+      in_block = 0
+      print
+      next
+    }
+    !in_block { print }
+  ' "$working_file" > "$spliced"
+  mv "$spliced" "$working_file"
+
+  block_idx=$((block_idx + 1))
+done <<< "$RESOLVED_BLOCKS"
+
+# ── Drift check or atomic write ─────────────────────────────────────
 
 if [ "$mode" = "check" ]; then
-  if ! diff -u "$splice_input" "$tmp_output"; then
+  if ! diff -u "$splice_input" "$working_file"; then
     echo "" >&2
     echo "$splice_input is out of date." >&2
     echo "Run: $fixit_command" >&2
     exit 1
   fi
 else
-  mv "$tmp_output" "$output_path"
-  # Disable trap removal of $tmp_output since it's been moved.
-  trap 'rm -f "${tmp_generated:-}"' EXIT
+  mv "$working_file" "$output_path"
+  # Suppress the trap's removal of the now-moved working file; the
+  # driver-outputs temp dir is still owned by the trap.
+  trap 'rm -rf "$tmp_driver_outputs_dir"' EXIT
   echo "Updated $output_path"
 fi
