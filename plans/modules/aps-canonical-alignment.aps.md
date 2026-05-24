@@ -125,7 +125,7 @@ Migrate in waves:
 
 ### APSCAN-003: Add canonical aliases to Anvil APS parser and validator
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Allow active plans to move from legacy Anvil terms to canonical APS
   terms without breaking existing tooling mid-migration.
 - **Expected Outcome:** Anvil tooling accepts `## Work Items`, `Expected Outcome`,
