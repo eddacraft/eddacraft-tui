@@ -4369,7 +4369,8 @@ experiences.
 
 #### MLP2-074: Daemon-side `session.report_process` IPC handler
 
-- **Status:** Ready
+- **Status:** In Progress (branch `feat/mlp2-074-session-report-process`;
+  daemon dispatch implemented + tested; PR pending)
 - **Tracking:** GH issue [#1827](https://github.com/eddacraft/anvil-001/issues/1827)
 - **Source:** v0.7.0-beta pre-tag release council `council-a1e2648f`
   (2026-05-21) action A2; council verdict at

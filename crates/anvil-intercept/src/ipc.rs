@@ -193,6 +193,20 @@ impl SessionDispatcher for NoopDispatcher {
     fn list(&self) -> Vec<anvil_intercept_proto::SessionRecord> {
         Vec::new()
     }
+    fn report_process(
+        &self,
+        _id: &anvil_intercept_proto::SessionId,
+        _child_pid: u32,
+        _child_pid_starttime: u64,
+        _peer_pid: u32,
+    ) -> Result<(), crate::registry::RegistryError> {
+        // No-op: NoopDispatcher carries no per-session state, so
+        // there is no lineage index to narrow. The IPC dispatch arm
+        // still gates on `peer_pid.is_some()` before calling this,
+        // so the legacy NDJSON / no-peer-credential paths cannot
+        // smuggle a report_process through the noop.
+        Ok(())
+    }
 }
 
 /// Errors that the IPC listener surfaces. Bind-time failures bubble
@@ -2358,6 +2372,7 @@ struct JsonRpcFailure {
     data: Value,
 }
 
+#[allow(clippy::too_many_lines)] // MLP2-074 adds the report-process arm; this is a flat per-method dispatch table and is most readable inline.
 fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, JsonRpcFailure> {
     match method {
         "list-sessions" | "session.list" => {
@@ -2441,6 +2456,38 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 Ok(IpcCommand::UnregisterSession { session_id })
             })
         }
+        // MLP2-074: post-spawn lineage-anchor narrowing. The launcher
+        // emits this with `pid`, `pgid`, `pid_starttime`,
+        // `job_object_name` keys; the daemon parses only the trio it
+        // needs (`session_id`, `pid`, `pid_starttime`) and silently
+        // ignores `pgid` / `job_object_name` so the wire shape can
+        // grow additively as the daemon's per-platform process
+        // bookkeeping fills in. Method name accepts the
+        // launcher-emitted `session.report_process` underscore form
+        // and the kebab-case wire discriminator
+        // (`report-process` / `session.report-process`) so both
+        // future-canonical and legacy spellings route to the same
+        // handler. See `crates/anvil-run/src/spawn.rs::report_to_daemon`.
+        "session.report_process"
+        | "session.report-process"
+        | "report-process"
+        | "report_process" => params_object(params, method).and_then(|params| {
+            let session_id = anvil_intercept_proto::SessionId::new(required_string(
+                params,
+                "session_id",
+                method,
+            )?);
+            let pid_u64 = required_u64(params, "pid", method)?;
+            let pid = u32::try_from(pid_u64).map_err(|_| {
+                invalid_params(method, format!("pid must fit in u32, got {pid_u64}"))
+            })?;
+            let pid_starttime = required_u64(params, "pid_starttime", method)?;
+            Ok(IpcCommand::ReportProcess {
+                session_id,
+                pid,
+                pid_starttime,
+            })
+        }),
         "unblock-cascade" | "fence.unblock-cascade" => {
             params_object(params, method).and_then(|params| {
                 let worktree = required_string(params, "worktree", method)?;
@@ -3041,7 +3088,9 @@ fn verify_lineage_claim(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
+#[allow(clippy::too_many_arguments)]
+// MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
+#[allow(clippy::too_many_lines)] // MLP2-074 adds the ReportProcess arm; this is the canonical per-variant dispatch table and inlining keeps the routing visible at one glance.
 fn dispatch_command<D: SessionDispatcher>(
     command: &IpcCommand,
     dispatcher: &Arc<D>,
@@ -3095,6 +3144,30 @@ fn dispatch_command<D: SessionDispatcher>(
                 .unregister(session_id)
                 .map_err(|err| err.to_string())?,
         })),
+        IpcCommand::ReportProcess {
+            session_id,
+            pid,
+            pid_starttime,
+        } => {
+            // MLP2-074: lineage-anchor narrowing requires an
+            // authenticated peer pid so the daemon can prove the
+            // caller is the launcher that registered the session
+            // (not a same-UID neighbour). The legacy NDJSON wire and
+            // any platform without `SO_PEERCRED`-style peer reads
+            // surface `peer_pid: None`; reject those so we never
+            // narrow on unauthenticated input.
+            let Some(peer_pid) = peer_pid else {
+                return Err(
+                    "session.report_process requires authenticated peer credentials \
+                     (MLP2-074)"
+                        .to_owned(),
+                );
+            };
+            dispatcher
+                .report_process(session_id, *pid, *pid_starttime, peer_pid)
+                .map_err(|err| err.to_string())?;
+            Ok(json!({"ok": true}))
+        }
         IpcCommand::UnblockCascade {
             worktree,
             // MLP2-026: client-supplied operator field is silently
@@ -3779,6 +3852,173 @@ mod tests {
         );
     }
 
+    // ----------------------------------------------------------------
+    // MLP2-074: post-spawn lineage-anchor narrowing dispatch surface.
+    // The launcher emits `session.report_process` after spawn; the
+    // daemon authenticates the call via peer credentials, swings the
+    // lineage index from the launcher to the child, and returns
+    // typed errors on credential or ownership failures.
+    // ----------------------------------------------------------------
+
+    /// `dispatch_command` routes a `ReportProcess` frame to the
+    /// dispatcher with the launcher's peer pid and the child's
+    /// `(pid, pid_starttime)` from the wire body. Returns
+    /// `{"ok": true}` on success.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_report_process_forwards_peer_and_child_anchor() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let command = IpcCommand::ReportProcess {
+            session_id: SessionId::new("sess-rp"),
+            pid: 5151,
+            pid_starttime: 1_700_100_000,
+        };
+        let result = dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("report_process must dispatch ok");
+        assert_eq!(result["ok"], true);
+
+        let calls = recorder.calls();
+        match calls.as_slice() {
+            [
+                RecordedCall::ReportProcess {
+                    id,
+                    child_pid,
+                    child_pid_starttime,
+                    peer_pid: forwarded_peer,
+                },
+            ] => {
+                assert_eq!(id, "sess-rp");
+                assert_eq!(*child_pid, 5151);
+                assert_eq!(*child_pid_starttime, 1_700_100_000);
+                assert_eq!(*forwarded_peer, peer_pid);
+            }
+            other => panic!("expected single ReportProcess call, got {other:?}"),
+        }
+    }
+
+    /// `dispatch_command` rejects `ReportProcess` when `peer_pid` is
+    /// `None` — the legacy NDJSON path and any wire without
+    /// `SO_PEERCRED`-style peer reads cannot prove the caller is the
+    /// launcher, so we fail closed rather than narrow on
+    /// unauthenticated input.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_report_process_requires_peer_credentials() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let command = IpcCommand::ReportProcess {
+            session_id: SessionId::new("sess-rp"),
+            pid: 5151,
+            pid_starttime: 1_700_100_000,
+        };
+        let err = dispatch_command(&command, &dispatcher, None, None)
+            .expect_err("report_process without peer must error");
+        assert!(
+            err.contains("peer credentials"),
+            "error must name the missing credential, got: {err}",
+        );
+        assert!(
+            recorder.calls().is_empty(),
+            "dispatcher.report_process must not be invoked when peer_pid is absent; calls={:?}",
+            recorder.calls(),
+        );
+    }
+
+    /// The JSON-RPC method-name parser accepts every spelling the
+    /// launcher might use today or after a future rename — the
+    /// launcher emits `session.report_process` (underscore), and we
+    /// also accept the kebab-case discriminator forms so the wire
+    /// remains forward-compatible with the proto enum's
+    /// `rename_all`. All forms must produce the same
+    /// `IpcCommand::ReportProcess` shape.
+    #[test]
+    fn command_from_jsonrpc_parses_report_process_aliases() {
+        use anvil_intercept_proto::IpcCommand;
+        let params = json!({
+            "session_id": "sess-rp",
+            "pid": 5151,
+            "pid_starttime": 1_700_100_000_u64,
+            // Launcher also sends pgid + job_object_name today; the
+            // parser must silently accept and ignore them. Without
+            // this tolerance the launcher's existing wire shape would
+            // be a hard reject after we add the method.
+            "pgid": 5151,
+            "job_object_name": "anvil-intercept-sess-rp",
+        });
+        for method in [
+            "session.report_process",
+            "session.report-process",
+            "report-process",
+            "report_process",
+        ] {
+            let parsed = match command_from_jsonrpc(method, &params) {
+                Ok(cmd) => cmd,
+                Err(failure) => panic!(
+                    "method {method} must parse, got JSON-RPC failure code={} message={}",
+                    failure.code, failure.message,
+                ),
+            };
+            match parsed {
+                IpcCommand::ReportProcess {
+                    session_id,
+                    pid,
+                    pid_starttime,
+                } => {
+                    assert_eq!(session_id.as_str(), "sess-rp");
+                    assert_eq!(pid, 5151);
+                    assert_eq!(pid_starttime, 1_700_100_000);
+                }
+                other => panic!("expected ReportProcess, got {other:?} for method {method}"),
+            }
+        }
+    }
+
+    /// Missing or malformed required fields produce typed JSON-RPC
+    /// failures (Invalid params), not panics. Pin each of the three
+    /// required fields so a future shape edit cannot silently
+    /// downgrade one of them to optional.
+    #[test]
+    fn command_from_jsonrpc_rejects_report_process_with_missing_fields() {
+        // Missing session_id.
+        let missing_session = json!({"pid": 1, "pid_starttime": 1});
+        match command_from_jsonrpc("session.report_process", &missing_session) {
+            Ok(_) => panic!("missing session_id must error"),
+            Err(failure) => assert_eq!(failure.code, -32602),
+        }
+        // Missing pid.
+        let missing_pid = json!({"session_id": "x", "pid_starttime": 1});
+        match command_from_jsonrpc("session.report_process", &missing_pid) {
+            Ok(_) => panic!("missing pid must error"),
+            Err(failure) => assert_eq!(failure.code, -32602),
+        }
+        // Missing pid_starttime.
+        let missing_starttime = json!({"session_id": "x", "pid": 1});
+        match command_from_jsonrpc("session.report_process", &missing_starttime) {
+            Ok(_) => panic!("missing pid_starttime must error"),
+            Err(failure) => assert_eq!(failure.code, -32602),
+        }
+        // pid that overflows u32 is a typed error, not a silent
+        // truncation. Pinned because the launcher pulls pid from
+        // `Child::id()` (always fits) but a malicious caller could
+        // hand us a u64 the daemon should refuse on shape rather
+        // than ignore.
+        let overflow_pid = json!({
+            "session_id": "x",
+            "pid": u64::from(u32::MAX) + 1,
+            "pid_starttime": 1,
+        });
+        match command_from_jsonrpc("session.report_process", &overflow_pid) {
+            Ok(_) => panic!("u32-overflowing pid must error"),
+            Err(failure) => assert_eq!(failure.code, -32602),
+        }
+    }
+
     /// RCLI3-017b: the JSON-RPC method-name → `IpcCommand` parser
     /// accepts both the kebab-case alias `unblock-worktree` (matching
     /// `IpcCommand` `rename_all`) and the dotted `fence.unblock-worktree`
@@ -3972,6 +4212,12 @@ mod tests {
         Heartbeat(String),
         Unregister(String),
         List,
+        ReportProcess {
+            id: String,
+            child_pid: u32,
+            child_pid_starttime: u64,
+            peer_pid: u32,
+        },
     }
 
     #[cfg(unix)]
@@ -4015,6 +4261,24 @@ mod tests {
         fn list(&self) -> Vec<SessionRecord> {
             self.calls.lock().unwrap().push(RecordedCall::List);
             Vec::new()
+        }
+        fn report_process(
+            &self,
+            id: &SessionId,
+            child_pid: u32,
+            child_pid_starttime: u64,
+            peer_pid: u32,
+        ) -> Result<(), RegistryError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(RecordedCall::ReportProcess {
+                    id: id.as_str().to_owned(),
+                    child_pid,
+                    child_pid_starttime,
+                    peer_pid,
+                });
+            Ok(())
         }
     }
 

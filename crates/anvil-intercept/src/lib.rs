@@ -140,6 +140,22 @@ impl SessionDispatcher for RegistryDispatcher {
     fn list(&self) -> Vec<anvil_intercept_proto::SessionRecord> {
         SessionDispatcher::list(self.registry.as_ref())
     }
+
+    fn report_process(
+        &self,
+        id: &anvil_intercept_proto::SessionId,
+        child_pid: u32,
+        child_pid_starttime: u64,
+        peer_pid: u32,
+    ) -> Result<(), RegistryError> {
+        SessionDispatcher::report_process(
+            self.registry.as_ref(),
+            id,
+            child_pid,
+            child_pid_starttime,
+            peer_pid,
+        )
+    }
 }
 
 struct DaemonState {

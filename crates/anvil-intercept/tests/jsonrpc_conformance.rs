@@ -49,6 +49,16 @@ impl SessionDispatcher for RejectingDispatcher {
     fn list(&self) -> Vec<SessionRecord> {
         Vec::new()
     }
+
+    fn report_process(
+        &self,
+        _id: &SessionId,
+        _child_pid: u32,
+        _child_pid_starttime: u64,
+        _peer_pid: u32,
+    ) -> Result<(), RegistryError> {
+        Err(RegistryError::UnknownSession(SessionId::new("internal")))
+    }
 }
 
 async fn with_dispatcher<D: SessionDispatcher + Send + Sync + 'static>(

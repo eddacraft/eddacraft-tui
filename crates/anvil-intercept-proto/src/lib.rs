@@ -108,6 +108,27 @@ pub enum IpcCommand {
     Heartbeat { session_id: SessionId },
     /// Unregister a session, releasing it from the registry.
     UnregisterSession { session_id: SessionId },
+    /// MLP2-074: post-spawn lineage-anchor narrowing. The launcher
+    /// registers itself first (the lineage index points at the
+    /// launcher's `(pid, pid_starttime)`); after spawning the agent
+    /// child it calls this command to swing the anchor onto the
+    /// child's `(pid, pid_starttime)`. The daemon authenticates the
+    /// caller as the registering launcher via peer credentials before
+    /// updating the registry, so a same-UID neighbour cannot reattach
+    /// someone else's session to its own descendants.
+    ///
+    /// Wire shape:
+    /// `{"command": "report-process", "session_id": "...", "pid": N, "pid_starttime": N}`.
+    /// Pre-MLP2-074 daemons reject with `Method not found` and the
+    /// launcher absorbs the failure
+    /// (`crates/anvil-run/src/spawn.rs::report_to_daemon`); new daemons
+    /// accept it. Pinned by `report_process_round_trips` and
+    /// `report_process_uses_kebab_case_discriminator`.
+    ReportProcess {
+        session_id: SessionId,
+        pid: u32,
+        pid_starttime: u64,
+    },
     /// List all currently registered sessions. Diagnostic / status
     /// query — used by `anvil intercept status` (INTD-011) and the
     /// launcher's reconciliation flow.
@@ -485,6 +506,49 @@ mod tests {
         assert!(
             !line.contains("\"lineage\""),
             "lineage must be omitted on wire when None: {line}"
+        );
+    }
+
+    /// MLP2-074: `ReportProcess` round-trips with the kebab-case
+    /// `report-process` discriminator, carrying the launcher-supplied
+    /// child `(pid, pid_starttime)` for the daemon's lineage-anchor
+    /// narrowing.
+    #[test]
+    fn report_process_round_trips() {
+        let envelope = IpcEnvelope::request(
+            "req-rp",
+            IpcCommand::ReportProcess {
+                session_id: SessionId::new("sess_rp"),
+                pid: 4242,
+                pid_starttime: 1_700_000_000,
+            },
+        );
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(line.contains("\"report-process\""), "kebab-case: {line}");
+        assert!(line.contains("\"pid\":4242"), "pid present: {line}");
+        assert!(
+            line.contains("\"pid_starttime\":1700000000"),
+            "pid_starttime present: {line}",
+        );
+
+        let back: IpcEnvelope = serde_json::from_str(&line).expect("deserialise");
+        assert_eq!(back, envelope, "report-process round-trips losslessly");
+    }
+
+    /// MLP2-074: the discriminator string follows the same kebab-case
+    /// convention as every other variant — pinned alongside the
+    /// generic discriminator check below so renames stay visible.
+    #[test]
+    fn report_process_uses_kebab_case_discriminator() {
+        let serialised = serde_json::to_string(&IpcCommand::ReportProcess {
+            session_id: SessionId::new("x"),
+            pid: 1,
+            pid_starttime: 1,
+        })
+        .expect("serialise");
+        assert!(
+            serialised.contains("\"report-process\""),
+            "got: {serialised}"
         );
     }
 

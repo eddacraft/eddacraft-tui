@@ -158,6 +158,25 @@ pub enum RegistryError {
     /// Mirrors the `SessionCapExceeded` precedent. See spec §3.5.
     #[error("worktree is in degraded fence-cascade mode and refuses new sessions: {worktree:?}")]
     WorktreeCascaded { worktree: PathBuf },
+
+    /// MLP2-074: a control-lane command that mutates per-session
+    /// lineage state (today: `session.report_process`) was called
+    /// from a peer whose authenticated pid does not match the
+    /// launcher pid the session was registered with. The launcher's
+    /// pid is the `record.pid` stamped at `register_with_lineage`
+    /// time. A `None` `expected` (no anchor at register) is the
+    /// "legacy register without lineage" case and is rejected so the
+    /// daemon cannot be tricked into adopting a child anchor it
+    /// cannot attribute back to a known launcher.
+    #[error(
+        "session {session:?} peer-ownership check failed: \
+         expected launcher pid {expected:?}, peer pid {actual}"
+    )]
+    PeerOwnershipMismatch {
+        session: SessionId,
+        expected: Option<u32>,
+        actual: u32,
+    },
 }
 
 impl PartialEq for RegistryError {
@@ -187,6 +206,18 @@ impl PartialEq for RegistryError {
                 Self::FenceStateUnavailable { message: a },
                 Self::FenceStateUnavailable { message: b },
             ) => a == b,
+            (
+                Self::PeerOwnershipMismatch {
+                    session: a_sid,
+                    expected: a_expected,
+                    actual: a_actual,
+                },
+                Self::PeerOwnershipMismatch {
+                    session: b_sid,
+                    expected: b_expected,
+                    actual: b_actual,
+                },
+            ) => a_sid == b_sid && a_expected == b_expected && a_actual == b_actual,
             (
                 Self::SessionCapExceeded {
                     worktree: a_wt,
@@ -279,6 +310,23 @@ pub trait SessionDispatcher: Send + Sync + 'static {
     fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError>;
     fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError>;
     fn list(&self) -> Vec<SessionRecord>;
+
+    /// MLP2-074: narrow the session's lineage anchor onto the
+    /// spawned child's `(pid, pid_starttime)`. The dispatcher must
+    /// reject calls whose authenticated `peer_pid` does not match
+    /// the launcher pid stamped at `register` time —
+    /// [`SessionRegistry::update_lineage_anchor`] enforces this in
+    /// the canonical impl. Implementations that do not maintain a
+    /// lineage index (`NoopDispatcher`, test recorders) may treat
+    /// the call as a no-op as long as the IPC dispatch arm continues
+    /// to fail closed on missing peer credentials.
+    fn report_process(
+        &self,
+        id: &SessionId,
+        child_pid: u32,
+        child_pid_starttime: u64,
+        peer_pid: u32,
+    ) -> Result<(), RegistryError>;
 }
 
 /// In-memory session registry. Cheap to clone via `Arc`; the internal
@@ -679,6 +727,77 @@ impl SessionRegistry {
 
         let inner = self.lock();
         Some(inner.sessions.get(&matched_sid)?.record.worktree.clone())
+    }
+
+    /// MLP2-074: narrow the lineage anchor from the launcher's
+    /// `(pid, pid_starttime)` to the spawned child's. The launcher
+    /// calls `session.report_process` after spawn; the daemon
+    /// authenticates the call via the peer's authenticated pid
+    /// (`SO_PEERCRED` / equivalent) against the launcher pid stamped
+    /// on the session record at `register_with_lineage` time, then
+    /// drops the old `by_pid_lineage` entry and inserts a fresh one
+    /// keyed on the child's anchor. The record's `pid` /
+    /// `started_at_unix` fields follow the swap so MLP-014's
+    /// PID-reuse defence compares against the child rather than the
+    /// wrapping launcher.
+    ///
+    /// Returns:
+    /// - `RegistryError::UnknownSession` if `id` is not registered
+    ///   (or has been evicted between the launcher's calls).
+    /// - `RegistryError::PeerOwnershipMismatch` when the
+    ///   authenticated `peer_pid` does not match the launcher pid
+    ///   stamped on the session, or when the session was registered
+    ///   via the legacy lineage-less `register` path (no anchor was
+    ///   ever taken, so no narrowing can be attributed back to a
+    ///   known launcher).
+    ///
+    /// Trust model: the launcher pid trust is anchored at register
+    /// time by MLP2-070's `verify_lineage_claim`, which already
+    /// requires `claim.pid == peer_pid`. By the time this method
+    /// runs, `record.pid` is guaranteed to be the daemon's view of
+    /// the authenticated launcher pid — never a client-supplied
+    /// value — so the same-UID-neighbour-reattaches-someone-else's-
+    /// session forgery vector is closed without needing to re-walk
+    /// the registration trail.
+    pub fn update_lineage_anchor(
+        &self,
+        id: &SessionId,
+        child_pid: u32,
+        child_pid_starttime: u64,
+        peer_pid: u32,
+    ) -> Result<SessionRecord, RegistryError> {
+        let mut inner = self.lock();
+        let entry = inner
+            .sessions
+            .get_mut(id)
+            .ok_or_else(|| RegistryError::UnknownSession(id.clone()))?;
+
+        let launcher_pid = entry.record.pid;
+        if launcher_pid != Some(peer_pid) {
+            return Err(RegistryError::PeerOwnershipMismatch {
+                session: id.clone(),
+                expected: launcher_pid,
+                actual: peer_pid,
+            });
+        }
+        let launcher_starttime = entry.record.started_at_unix;
+        entry.record.pid = Some(child_pid);
+        entry.record.started_at_unix = child_pid_starttime;
+        let updated = entry.record.clone();
+
+        // `launcher_pid` is `Some(peer_pid)` per the ownership check
+        // above; the legacy register path never reaches here because
+        // it leaves `record.pid` as `None` and trips the mismatch
+        // branch first. The remove is therefore unconditional.
+        let launcher_pid = peer_pid;
+        inner
+            .by_pid_lineage
+            .remove(&(launcher_pid, launcher_starttime));
+        inner
+            .by_pid_lineage
+            .insert((child_pid, child_pid_starttime), id.clone());
+
+        Ok(updated)
     }
 
     /// Update process info for a registered session. `None` fields are
@@ -1142,6 +1261,17 @@ impl SessionDispatcher for SessionRegistry {
 
     fn list(&self) -> Vec<SessionRecord> {
         SessionRegistry::active_sessions(self)
+    }
+
+    fn report_process(
+        &self,
+        id: &SessionId,
+        child_pid: u32,
+        child_pid_starttime: u64,
+        peer_pid: u32,
+    ) -> Result<(), RegistryError> {
+        SessionRegistry::update_lineage_anchor(self, id, child_pid, child_pid_starttime, peer_pid)
+            .map(|_| ())
     }
 }
 
@@ -2132,6 +2262,164 @@ mod tests {
             registry.worktree_for_lineage(99_999).is_none(),
             "worktree_for_lineage returns None when no ancestor is registered"
         );
+    }
+
+    // MLP2-074: post-spawn lineage-anchor narrowing — the launcher
+    // calls `session.report_process` after spawning the agent child,
+    // and the daemon swings the `by_pid_lineage` index from the
+    // launcher's anchor to the child's so the cross-check resolves
+    // against the agent process, not the wrapping launcher.
+
+    /// Happy-path narrowing: a session registered with the launcher's
+    /// lineage has its anchor moved onto the child's
+    /// `(pid, pid_starttime)` after `update_lineage_anchor`. The old
+    /// launcher key disappears from the index; the new child key
+    /// resolves to the same session id; and `record.pid` /
+    /// `record.started_at_unix` follow the swap so MLP-014's
+    /// PID-reuse defence compares against the child.
+    #[test]
+    fn update_lineage_anchor_narrows_from_launcher_to_child() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_000_900);
+        let launcher_pid: u32 = 4242;
+        let launcher_starttime: u64 = 1_700_000_900;
+        let child_pid: u32 = 5151;
+        let child_starttime: u64 = 1_700_000_950;
+
+        registry
+            .register_with_lineage(
+                &sid("anchor"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                launcher_starttime,
+                Instant::now(),
+            )
+            .expect("register");
+
+        // Pre-state: launcher anchor seeded; child anchor empty.
+        {
+            let inner = registry.lock();
+            assert!(
+                inner
+                    .by_pid_lineage
+                    .contains_key(&(launcher_pid, launcher_starttime))
+            );
+            assert!(
+                !inner
+                    .by_pid_lineage
+                    .contains_key(&(child_pid, child_starttime))
+            );
+        }
+
+        let updated = registry
+            .update_lineage_anchor(&sid("anchor"), child_pid, child_starttime, launcher_pid)
+            .expect("narrow to child");
+
+        assert_eq!(updated.pid, Some(child_pid));
+        assert_eq!(updated.started_at_unix, child_starttime);
+
+        // Post-state: launcher key gone, child key resolves to the
+        // same session id.
+        let inner = registry.lock();
+        assert!(
+            !inner
+                .by_pid_lineage
+                .contains_key(&(launcher_pid, launcher_starttime)),
+            "launcher lineage key must be dropped after narrowing"
+        );
+        assert_eq!(
+            inner.by_pid_lineage.get(&(child_pid, child_starttime)),
+            Some(&sid("anchor")),
+            "child lineage key resolves to the same session"
+        );
+    }
+
+    /// Peer-pid mismatch: a same-UID neighbour trying to mint a
+    /// child anchor against someone else's registered session is
+    /// rejected with the typed error, and the registry's lineage
+    /// index is left unchanged.
+    #[test]
+    fn update_lineage_anchor_rejects_peer_pid_mismatch() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_001_000);
+        let launcher_pid: u32 = 4242;
+        let launcher_starttime: u64 = 1_700_001_000;
+        registry
+            .register_with_lineage(
+                &sid("victim"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                launcher_starttime,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let err = registry
+            .update_lineage_anchor(&sid("victim"), 6_666, 1_700_001_500, 9_999)
+            .expect_err("peer pid 9999 != launcher pid 4242");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("victim"),
+                expected: Some(launcher_pid),
+                actual: 9_999,
+            }
+        );
+
+        // Index untouched: launcher anchor still present, no child
+        // anchor inserted.
+        let inner = registry.lock();
+        assert!(
+            inner
+                .by_pid_lineage
+                .contains_key(&(launcher_pid, launcher_starttime))
+        );
+        assert!(!inner.by_pid_lineage.contains_key(&(6_666, 1_700_001_500)));
+    }
+
+    /// Legacy-register path: a session registered without a lineage
+    /// anchor (`record.pid == None`) has no launcher pid to verify
+    /// against, so `update_lineage_anchor` rejects with
+    /// `PeerOwnershipMismatch { expected: None, .. }` rather than
+    /// silently adopting an unattributable child anchor.
+    #[test]
+    fn update_lineage_anchor_rejects_session_registered_without_lineage() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        registry
+            .register(&sid("legacy"), wt.path(), None, Instant::now())
+            .expect("legacy register");
+
+        let err = registry
+            .update_lineage_anchor(&sid("legacy"), 1234, 1_700_001_111, 4242)
+            .expect_err("legacy register has no launcher pid");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("legacy"),
+                expected: None,
+                actual: 4242,
+            }
+        );
+    }
+
+    /// Unknown session id surfaces `UnknownSession` — the registry
+    /// may have evicted the session between the launcher's register
+    /// and `report_process` calls; the launcher must see the typed
+    /// error rather than a generic mismatch.
+    #[test]
+    fn update_lineage_anchor_unknown_session_returns_unknown_session() {
+        let registry = SessionRegistry::new();
+        let err = registry
+            .update_lineage_anchor(&sid("ghost"), 1, 1, 1)
+            .expect_err("ghost session id");
+        assert_eq!(err, RegistryError::UnknownSession(sid("ghost")));
     }
 
     // MLP2-057: unregister hook fires the daemon's cache-invalidation
