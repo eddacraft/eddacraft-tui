@@ -28,11 +28,18 @@ pub struct StatusArgs {
     /// `unsupported`, or `error`) without touching config.
     #[arg(long)]
     pub verify: bool,
+    /// MLP2-051g — print per-tier activation evidence to **stderr**
+    /// alongside the normal verdict on stdout. Mirrors the same flag
+    /// on `anvil start`. Only meaningful with `--verify`; on the full
+    /// `anvil status` surface the verbose block is suppressed because
+    /// the TUI / `--json` paths have their own diagnostic surfaces.
+    #[arg(long)]
+    pub why: bool,
 }
 
 pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if args.verify {
-        return run_verify(global);
+        return run_verify(args, global);
     }
 
     let mut data = gather_status_data(".");
@@ -110,7 +117,7 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// config, never spawns subprocesses outside read-only probes. The
 /// `anvil start --verify` form forwards here once LAUNCH-006 promotes
 /// the start command.
-fn run_verify(global: &GlobalArgs) -> anyhow::Result<()> {
+fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let activation = activation::verify(Path::new("."));
     if global.json {
         let json = serde_json::to_string_pretty(&activation::render_json(&activation))?;
@@ -118,6 +125,14 @@ fn run_verify(global: &GlobalArgs) -> anyhow::Result<()> {
     } else {
         print!("{}", activation::render_human(&activation));
         print!("{}", render_rule_mode_summary(Path::new(".")));
+        // MLP2-051g — verbose tier-evidence on stderr. Suppressed
+        // under `--json` (consumers expect a single JSON document on
+        // stdout; the stderr block does not change that contract,
+        // but printing a block of free-form text alongside a machine
+        // surface invites brittle parsers downstream).
+        if args.why {
+            eprint!("{}", activation::render_human_verbose(&activation));
+        }
     }
     Ok(())
 }

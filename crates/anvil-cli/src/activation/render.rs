@@ -236,6 +236,207 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
     out
 }
 
+/// MLP2-051g: verbose tier-evidence renderer for `anvil start --verify
+/// --why` (and the parallel `anvil status --verify --why`). Returns a
+/// multi-line block intended for **stderr**, not stdout — scripted
+/// consumers parse stdout, so the verbose copy must not perturb the
+/// stdout shape `--verify` already produces.
+///
+/// Derives entirely from existing [`ActivationDiagnostic`] fields plus
+/// the [`super::daemon_evidence::DaemonAttestation`] field MLP2-051f
+/// added. **No new fields are read off any other struct** — that's the
+/// "no schema growth" gate the parent spec
+/// (`plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
+/// §"Council Verdicts" item 9) locked.
+///
+/// **Security guard (spec §"Info-leak guard"):** stderr is
+/// terminal-visible; shoulder-surfing is the threat. The renderer
+/// MUST NOT surface:
+///
+/// - raw [`anvil_intercept::registry::SessionRecord`] fields — `pid`,
+///   `pgid`, full `agent_tag` lineage. These aren't reachable from
+///   `ActivationDiagnostic` today, so the guard is structural rather
+///   than runtime-filtered. A future field that does carry them MUST
+///   be elided here explicitly.
+/// - arbitrary filesystem paths beyond the workspace root. The
+///   diagnostic only reads tier labels (`McpTier`,
+///   [`super::daemon_evidence::DaemonAttestation`]), so no path
+///   substring reaches the output — verified by the `last_error`
+///   pass-through being the only string carrier and that field being
+///   set by the same orchestrator that already prints it to stdout.
+///
+/// The `daemon:` sub-line is only emitted under clients at
+/// [`McpTier::RestartHandshakeVerified`] — the only tier where
+/// [`super::daemon_evidence::DaemonAttestation`] gates promotion. For
+/// clients below that tier the daemon state is irrelevant to the
+/// remediation step.
+pub fn render_human_verbose(d: &ActivationDiagnostic) -> String {
+    let mut out = String::new();
+    out.push_str("ACTIVATION (verbose)\n");
+    let _ = writeln!(out, "  state: {}", d.protection_state().label());
+    let _ = writeln!(out, "  config: {}", d.config.label());
+
+    if d.mcp.is_empty() {
+        out.push_str("  mcp: not detected\n");
+    } else {
+        out.push_str("  mcp:\n");
+        for (client, result) in &d.mcp {
+            let _ = writeln!(out, "    {}:", client.display_name());
+            let _ = writeln!(out, "      tier:      {}", result.tier.label());
+            let _ = writeln!(out, "      transport: {}", result.transport.label());
+            // Per-client tier-evidence sub-steps. Each line answers
+            // "what was found at this layer?" and is derived purely
+            // from the tier label — McpProbeResult intentionally does
+            // not carry config paths or executable paths today (the
+            // spec locks "no new fields" — see this function's
+            // rustdoc).
+            let _ = writeln!(out, "      config:    {}", config_evidence(result.tier));
+            let _ = writeln!(out, "      command:   {}", command_evidence(result.tier));
+            let _ = writeln!(out, "      handshake: {}", handshake_evidence(result.tier));
+            // Daemon attestation only gates `RestartHandshakeVerified`
+            // promotion; suppress the line for tiers below that
+            // because it would be a misleading "missing piece" hint
+            // when the actual missing piece is the restart itself.
+            if matches!(result.tier, McpTier::RestartHandshakeVerified) {
+                let _ = writeln!(
+                    out,
+                    "      daemon:    {}",
+                    daemon_evidence_label(d.daemon_attestation),
+                );
+            }
+        }
+    }
+
+    let _ = writeln!(out, "  watch: {}", d.watch.label());
+
+    match (&d.baseline_summary, d.baseline_present) {
+        (Some(s), _) => {
+            let _ = writeln!(
+                out,
+                "  baseline: {} antipattern, {} secret",
+                s.antipattern, s.secret,
+            );
+        }
+        (None, true) => out.push_str("  baseline: present (unreadable)\n"),
+        (None, false) => out.push_str("  baseline: absent\n"),
+    }
+
+    // last_error is the only free-form string carrier on the
+    // diagnostic. It is already printed by `render_human` to stdout,
+    // so reflecting it here on stderr does not add a new leak
+    // surface — the secrecy boundary is the same one stdout already
+    // crosses.
+    if let Some(err) = &d.last_error {
+        let _ = writeln!(out, "  last_error: {err}");
+    }
+
+    // Daemon-side context block at the diagnostic level. Operator-
+    // facing copy (not the raw enum token) per the spec § "SkipReason
+    // vocabulary used by the daemon-evidence tracing is presented in
+    // operator-friendly copy".
+    let _ = writeln!(
+        out,
+        "  daemon-attestation: {}",
+        daemon_evidence_label(d.daemon_attestation),
+    );
+
+    let _ = writeln!(out, "  why: {}", why_summary(d.daemon_attestation));
+
+    out
+}
+
+/// Per-tier label for the "what is wired in the editor config?" line
+/// of the verbose block. Pure function of [`McpTier`] so the surface
+/// stays in lockstep with tier evolution.
+fn config_evidence(tier: McpTier) -> &'static str {
+    match tier {
+        McpTier::NotDetected => "client not detected",
+        McpTier::ConfigAbsent => "anvil entry absent",
+        McpTier::ConfigPresent
+        | McpTier::RestartRequired
+        | McpTier::RestartHandshakeVerified
+        | McpTier::ServerStartable
+        | McpTier::LiveValidation => "anvil entry present",
+    }
+}
+
+/// Per-tier label for the "is the configured command resolvable to a
+/// real executable?" line.
+fn command_evidence(tier: McpTier) -> &'static str {
+    match tier {
+        McpTier::NotDetected => "n/a (no client)",
+        McpTier::ConfigAbsent | McpTier::ConfigPresent => "not yet verified",
+        McpTier::RestartRequired
+        | McpTier::RestartHandshakeVerified
+        | McpTier::ServerStartable
+        | McpTier::LiveValidation => "verified",
+    }
+}
+
+/// Per-tier label for the "did the MCP server respond to the
+/// startup handshake?" line.
+fn handshake_evidence(tier: McpTier) -> &'static str {
+    match tier {
+        McpTier::NotDetected => "n/a (no client)",
+        McpTier::ConfigAbsent | McpTier::ConfigPresent | McpTier::RestartRequired => {
+            "not yet attempted (editor restart pending)"
+        }
+        McpTier::RestartHandshakeVerified | McpTier::LiveValidation => "ok",
+        McpTier::ServerStartable => "server spawns; client wiring not confirmed",
+    }
+}
+
+/// Operator-friendly copy for a [`super::daemon_evidence::DaemonAttestation`]
+/// — never the raw enum token. Mirrors the `SkipReason` vocabulary
+/// MLP2-051f documents at the daemon-evidence tracing site so a
+/// support engineer chasing the trace finds the same wording in the
+/// runbook.
+fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
+    use super::daemon_evidence::DaemonAttestation;
+    match att {
+        DaemonAttestation::NotProbed => "not probed (no handshake-verified client to promote)",
+        DaemonAttestation::Unreachable => "not running",
+        DaemonAttestation::Unenforced => "running but this worktree is not registered",
+        DaemonAttestation::StaleHeartbeat => "running but heartbeat is stale",
+        DaemonAttestation::AllSurfacesQuarantined => {
+            "running but every surface is quarantined (recover via `anvil intercept recover`)"
+        }
+        DaemonAttestation::Warming => "running but transient — wait briefly and re-run",
+        DaemonAttestation::NoParticipatingSurface => {
+            "running but this worktree has no participating surface yet"
+        }
+        DaemonAttestation::Promoted => "running and attesting this worktree",
+    }
+}
+
+/// One-line "what is missing?" summary. Lets the operator skim the
+/// verbose block and find the actionable next step without re-reading
+/// every tier line.
+fn why_summary(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
+    use super::daemon_evidence::DaemonAttestation;
+    match att {
+        DaemonAttestation::NotProbed => {
+            "restart your editor so the MCP handshake completes; the daemon will be probed afterwards"
+        }
+        DaemonAttestation::Unreachable => {
+            "start the intercept daemon (`anvil intercept start`) so pre-write validation can attach"
+        }
+        DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
+            "daemon is running but this worktree is not registered — see `anvil intercept status`"
+        }
+        DaemonAttestation::StaleHeartbeat => {
+            "daemon heartbeat is stale — check `anvil intercept status` for the live session set"
+        }
+        DaemonAttestation::AllSurfacesQuarantined => {
+            "every surface is quarantined — run `anvil intercept recover`"
+        }
+        DaemonAttestation::Warming => {
+            "daemon is starting up — wait briefly and re-run `anvil start --verify`"
+        }
+        DaemonAttestation::Promoted => "no missing piece — daemon attests this worktree",
+    }
+}
+
 /// Build the JSON value for embedding inside a parent JSON document
 /// (e.g. `anvil status --json`'s `activation` field).
 ///
@@ -1028,5 +1229,234 @@ mod tests {
         // "not part of the picture" (`not_requested`).
         let v = render_json(&watch_offered_no_mcp());
         assert_eq!(v["watch"], "offered");
+    }
+
+    // ---------------------------------------------------------------
+    // MLP2-051g: `anvil start --verify --why` verbose tier-evidence
+    // renderer. Pinned contracts (from the parent spec
+    // `plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
+    // §"Council Verdicts" item 9 and the MLP2-051g APS body):
+    //
+    // - Output starts with `ACTIVATION (verbose)` so an operator
+    //   reading stderr can tell at a glance which surface produced
+    //   the block.
+    // - The flag does NOT perturb the plain `render_human` stdout
+    //   block — same diagnostic input must produce identical
+    //   `render_human` output regardless of whether the caller also
+    //   asks for `render_human_verbose`.
+    // - DaemonAttestation surfaces as operator-friendly copy, never
+    //   the raw enum tokens (`Unreachable`, `NotProbed`, etc.) the
+    //   tracing site emits — support engineers map the trace token
+    //   to the runbook copy here.
+    // - The `daemon:` per-client line is gated on
+    //   `RestartHandshakeVerified`; clients below that tier don't
+    //   get a "daemon: …" sub-line because the daemon isn't the
+    //   missing piece for them.
+    // - Security guard: never leaks raw SessionRecord-shaped fields
+    //   (`pid`, `pgid`, `agent_tag` lineage), and never surfaces
+    //   filesystem paths beyond what `render_human` already prints.
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn verbose_render_header_marks_the_block() {
+        let h = render_human_verbose(&restart_required());
+        assert!(
+            h.starts_with("ACTIVATION (verbose)\n"),
+            "verbose render must open with the labelled header so stderr is unambiguous, got:\n{h}"
+        );
+    }
+
+    #[test]
+    fn verbose_render_does_not_perturb_render_human_stdout() {
+        // The flag is additive — `render_human` (stdout) must be
+        // byte-identical with or without the verbose block being
+        // generated alongside. Pins the "scripted consumers of
+        // `anvil start --verify` parse stdout" contract from the
+        // parent spec.
+        let cases = [
+            restart_required(),
+            protecting(),
+            watching(),
+            unsupported(),
+            config_error(),
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable),
+        ];
+        for d in cases {
+            let stdout_alone = render_human(&d);
+            let _verbose = render_human_verbose(&d);
+            let stdout_again = render_human(&d);
+            assert_eq!(
+                stdout_alone, stdout_again,
+                "render_human must be byte-identical regardless of whether \
+                 render_human_verbose is also called",
+            );
+        }
+    }
+
+    #[test]
+    fn verbose_render_emits_operator_friendly_daemon_copy_not_raw_tokens() {
+        // Raw enum tokens like "Unreachable", "Promoted",
+        // "AllSurfacesQuarantined" must not leak — operators see the
+        // runbook copy instead. Pinned per spec §"SkipReason
+        // vocabulary used by the daemon-evidence tracing is presented
+        // in operator-friendly copy (not the raw enum tokens)".
+        let raw_tokens = [
+            "NotProbed",
+            "Unreachable",
+            "Unenforced",
+            "StaleHeartbeat",
+            "AllSurfacesQuarantined",
+            "Warming",
+            "NoParticipatingSurface",
+            "Promoted",
+        ];
+        let attestations = [
+            super::super::daemon_evidence::DaemonAttestation::NotProbed,
+            super::super::daemon_evidence::DaemonAttestation::Unreachable,
+            super::super::daemon_evidence::DaemonAttestation::Unenforced,
+            super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
+            super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
+            super::super::daemon_evidence::DaemonAttestation::Warming,
+            super::super::daemon_evidence::DaemonAttestation::NoParticipatingSurface,
+            super::super::daemon_evidence::DaemonAttestation::Promoted,
+        ];
+        for att in attestations {
+            let d = handshake_verified_diag(att);
+            let h = render_human_verbose(&d);
+            for token in raw_tokens {
+                assert!(
+                    !h.contains(token),
+                    "verbose render must not leak raw enum token {token:?} for \
+                     attestation {att:?}, got:\n{h}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn verbose_render_daemon_line_is_only_emitted_when_handshake_verified() {
+        // For clients below RestartHandshakeVerified, the daemon
+        // attestation is not the missing piece (the missing piece is
+        // the restart). Surfacing a "daemon: not running" line under
+        // a ConfigPresent client would misdirect remediation.
+        let mut below = empty();
+        below.config = ConfigStatus::Valid;
+        below
+            .mcp
+            .insert(McpClientId::ClaudeCode, McpTier::ConfigPresent.into());
+        below.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Unreachable;
+        let h_below = render_human_verbose(&below);
+        // Find the indented per-client block and assert no "daemon:"
+        // sub-line appears under it. The diagnostic-level
+        // `daemon-attestation:` line is fine — it sits at the
+        // ACTIVATION block scope, not under the client.
+        let client_block_has_daemon_subline = h_below
+            .lines()
+            .any(|line| line.trim_start().starts_with("daemon:"));
+        assert!(
+            !client_block_has_daemon_subline,
+            "ConfigPresent client must not get a `daemon:` per-client sub-line, got:\n{h_below}"
+        );
+
+        let verified =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h_verified = render_human_verbose(&verified);
+        let verified_has_daemon_subline = h_verified
+            .lines()
+            .any(|line| line.trim_start().starts_with("daemon:"));
+        assert!(
+            verified_has_daemon_subline,
+            "RestartHandshakeVerified client must get a `daemon:` per-client sub-line, got:\n{h_verified}"
+        );
+    }
+
+    #[test]
+    fn verbose_render_security_guard_no_raw_session_fields() {
+        // Info-leak guard per spec §"Info-leak guard (security)".
+        // The renderer reads only `ActivationDiagnostic` +
+        // `DaemonAttestation` — none of which carry raw pid / pgid /
+        // agent_tag lineage today. The test plants the same names as
+        // substrings of last_error to confirm the structural guard:
+        // free-form strings the orchestrator chooses to put on
+        // `last_error` flow through (already a stdout surface), but
+        // there's no separate code path that could smuggle session
+        // fields in.
+        let mut d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unenforced);
+        // No PID / PGID / lineage on the diagnostic at all — guard
+        // confirms the renderer does not invent them.
+        let h = render_human_verbose(&d);
+        // These token strings would be load-bearing for a real
+        // attacker shoulder-surfing a stderr block. Confirm the
+        // renderer never emits them as field labels.
+        for forbidden in ["pid=", "pgid=", "agent_tag=", "lineage="] {
+            assert!(
+                !h.contains(forbidden),
+                "verbose render must not surface field label {forbidden:?}, got:\n{h}"
+            );
+        }
+        // last_error pass-through is allowed (already a stdout
+        // surface — no new disclosure boundary). Pin that the prefix
+        // is reflected verbatim so an operator chasing a stderr
+        // trace finds the same string.
+        d.last_error = Some("orchestrator: probe failed".to_string());
+        let h2 = render_human_verbose(&d);
+        assert!(
+            h2.contains("last_error: orchestrator: probe failed"),
+            "last_error must pass through to verbose render, got:\n{h2}",
+        );
+    }
+
+    #[test]
+    fn verbose_render_state_line_matches_plain_render() {
+        // The state label is the load-bearing handle a support
+        // engineer uses to correlate the verbose stderr block with
+        // the stdout headline. Pin that the same diagnostic produces
+        // the same `state:` line in both renders.
+        let cases = [
+            ("protecting", protecting()),
+            ("ready_restart_required", restart_required()),
+            ("watching", watching()),
+            ("unsupported", unsupported()),
+            ("error", config_error()),
+        ];
+        for (label, d) in cases {
+            let v = render_human_verbose(&d);
+            assert!(
+                v.contains(&format!("state: {label}")),
+                "verbose render must carry the state label `{label}`, got:\n{v}"
+            );
+        }
+    }
+
+    #[test]
+    fn verbose_render_why_summary_names_missing_piece_per_attestation() {
+        // Each attestation maps to a distinct "what's missing?"
+        // remediation copy so an operator skimming the verbose
+        // block finds the next step without re-reading every tier
+        // line. Pinned so a future tightening of one branch does
+        // not silently collapse two branches' copy.
+        let expected: &[(super::super::daemon_evidence::DaemonAttestation, &str)] = &[
+            (
+                super::super::daemon_evidence::DaemonAttestation::Unreachable,
+                "anvil intercept start",
+            ),
+            (
+                super::super::daemon_evidence::DaemonAttestation::Unenforced,
+                "anvil intercept status",
+            ),
+            (
+                super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
+                "anvil intercept recover",
+            ),
+        ];
+        for (att, needle) in expected {
+            let d = handshake_verified_diag(*att);
+            let h = render_human_verbose(&d);
+            assert!(
+                h.contains(needle),
+                "attestation {att:?} verbose render must name `{needle}`, got:\n{h}"
+            );
+        }
     }
 }

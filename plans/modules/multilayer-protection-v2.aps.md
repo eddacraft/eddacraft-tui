@@ -3235,7 +3235,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051g: `anvil start --verify --why` verbose tier-evidence flag
 
-- **Status:** Draft
+- **Status:** In Progress (branch `feat/mlp2-051g-verify-why`)
 - **Intent:** When `anvil start --verify` (or `anvil status --verify`)
   stalls at `ready_restart_required`, the user has no way to see what
   the activation surface actually found at each tier. Add a `--why`

@@ -66,6 +66,11 @@ use crate::config_summary::render_rule_mode_summary;
 use crate::warmup_cache::write_watch_warmup_cache;
 
 #[derive(Debug, Args)]
+// MLP2-051g — `--why` pushed the bool count past 3. clap-derive arg
+// structs are flat by construction (no state-machine refactor is
+// possible without breaking the derive macro's contract), so the
+// lint's recommended remediation does not apply here.
+#[allow(clippy::struct_excessive_bools)]
 pub struct StartArgs {
     /// Run a non-mutating activation probe — skip init, first-scan, and
     /// the MCP install step. Forwards to the same backend as `anvil
@@ -92,6 +97,16 @@ pub struct StartArgs {
     /// incompatible with `--verify` (read-only).
     #[arg(long = "new-identity")]
     pub new_identity: bool,
+    /// MLP2-051g — print per-tier activation evidence to **stderr**
+    /// alongside the normal verdict on stdout. Most useful when
+    /// `--verify` stalls at `ready_restart_required` and the operator
+    /// needs to see which tier is the missing piece (config, command,
+    /// handshake, daemon). Mirrors `cargo --explain`; named `--why`
+    /// (not `--verbose`) to avoid colliding with the log-verbosity
+    /// convention. Stdout is byte-identical with or without this flag
+    /// — scripted consumers of `anvil start --verify` are unaffected.
+    #[arg(long)]
+    pub why: bool,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -248,6 +263,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::render_human_with_install(&diagnostic, &install_report)
         );
         print!("{}", render_rule_mode_summary(root));
+        // MLP2-051g — verbose tier-evidence on stderr. Additive: the
+        // stdout block above is byte-identical with or without
+        // `--why`, so scripted consumers of `anvil start --verify`
+        // (the originating use-case for the flag) are unaffected.
+        if args.why {
+            eprint!("{}", activation::render_human_verbose(&diagnostic));
+        }
         // ADTRUST-006: first-run claim summary + verification recipe.
         // Only emit when activation actually ran (`read_only` is the
         // verify path — that surface already names the state) and
