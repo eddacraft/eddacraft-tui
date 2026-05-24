@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { adminRateLimit } from '../middleware/admin-rate-limit.js';
-import { getClient } from '../db/client.js';
+import { getClient, type NeonClient } from '../db/client.js';
 import {
   findUserByEmail,
   findUserWithTokens,
@@ -12,7 +12,6 @@ import {
   upsertWaitlistWithName,
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
-  findWaitlistBySource,
   findWaitlistPaginated,
   findAuditEntries,
   findRecentAuditForEmail,
@@ -21,10 +20,11 @@ import {
   findBroadcastSnapshot,
   findActiveScopesForUser,
   type AuthMethod,
+  type BroadcastSnapshot,
   type SnapshotRecipient,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
-import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
+import { sendBetaInvite } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
 import { DEFAULT_APPROVAL_SCOPES, resolveApiScope } from '../lib/feature-flags.js';
@@ -619,6 +619,87 @@ function computeCohortDrift(
   return { added: added.sort(), removed: removed.sort() };
 }
 
+interface BroadcastSendResult {
+  email: string;
+  sent: boolean;
+  error?: string;
+}
+
+type BroadcastSendOutcome =
+  | { type: 'invalid_template' }
+  | { type: 'drift'; added: string[]; removed: string[] }
+  | {
+      type: 'sent';
+      total: number;
+      sent: number;
+      failed: number;
+      results: BroadcastSendResult[];
+    };
+
+/**
+ * Given a consumed broadcast snapshot, re-resolve the audience against
+ * the snapshot's stored key + params, drift-check against the recorded
+ * recipient set, and dispatch the template's registered sender per row.
+ *
+ * Snapshot is the source of truth for who to email and what props to
+ * send — never the request body. Per-recipient send failures surface in
+ * `results[]` without aborting the batch.
+ *
+ * `invalid_template` is a defensive branch: snapshots are only created
+ * for broadcast templates, but the registry could change between
+ * snapshot and consume (e.g. template removed mid-flight). Callers
+ * translate it to an HTTP response.
+ */
+async function executeBroadcastFromSnapshot(
+  sql: NeonClient,
+  consumed: BroadcastSnapshot
+): Promise<BroadcastSendOutcome> {
+  const entry = EMAIL_REGISTRY[consumed.template as TemplateKey];
+  if (!entry || entry.kind !== 'broadcast') {
+    return { type: 'invalid_template' };
+  }
+
+  // freshLimit matches the snapshot's recipient count so a tighter or
+  // looser request limit doesn't produce false-positive drift.
+  const freshLimit = Math.max(consumed.recipients.length, 1);
+  const currentRows = await resolveAudience(sql, consumed.audience_key as AudienceKey, {
+    limit: freshLimit,
+    params: consumed.audience_params as Record<string, string>,
+  });
+  const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
+    email: r.email,
+    name: r.name,
+  }));
+  const drift = computeCohortDrift(consumed.recipients, currentRecipients);
+  if (drift.added.length > 0 || drift.removed.length > 0) {
+    return { type: 'drift', added: drift.added, removed: drift.removed };
+  }
+
+  const results: BroadcastSendResult[] = [];
+  for (const row of consumed.recipients) {
+    const delivery = await entry.sender(
+      // SnapshotRecipient doesn't store user_id; sender contract takes
+      // an AudienceRow. Pass null — current senders only use email + name.
+      { email: row.email, name: row.name, user_id: null },
+      consumed.template_props
+    );
+    results.push({
+      email: row.email,
+      sent: delivery.sent,
+      error: delivery.sent ? undefined : delivery.message,
+    });
+  }
+  const sent = results.filter((r) => r.sent).length;
+  const failed = results.filter((r) => !r.sent).length;
+  return {
+    type: 'sent',
+    total: consumed.recipients.length,
+    sent,
+    failed,
+    results,
+  };
+}
+
 /**
  * POST /admin/send-migration
  *
@@ -649,19 +730,29 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   const authMethod = resolveAuthMethod(c);
   const { source, dryRun, limit, previewToken } = c.req.valid('json');
 
+  // /admin/send-migration is a back-compat shim over the generalised
+  // /admin/broadcast flow: it maps {source} to the equivalent
+  // (template: waitlist-migration, audience: waitlist:source) call,
+  // reuses the same audience resolver, registry sender, snapshot
+  // queries, and post-consume helper, then translates the result back
+  // to the legacy migration response shape and audit-log entry
+  // (`migration.email.sent`).
+  //
+  // Per EMAIL-001 design decision 2, `waitlist:source` excludes
+  // addresses already in beta_users, narrowing the cohort vs. the
+  // pre-EMAIL-006 behaviour of findWaitlistBySource.
+
   if (dryRun) {
-    const waitlistRows = await findWaitlistBySource(sql, source, limit);
-    const recipients: SnapshotRecipient[] = waitlistRows.map((r) => ({
+    const audienceRows = await resolveAudience(sql, 'waitlist:source', {
+      limit,
+      params: { source },
+    });
+    const recipients: SnapshotRecipient[] = audienceRows.map((r) => ({
       email: r.email,
       name: r.name,
     }));
 
     const token = randomBytes(16).toString('hex');
-    // /admin/send-migration is now a back-compat surface over the
-    // generalised broadcast snapshot table. Until the EMAIL-006 shim
-    // lands, supply the waitlist-migration template + waitlist:source
-    // audience values inline so the row carries the same semantics as
-    // a future /admin/broadcast call.
     const snapshot = await insertBroadcastSnapshot(sql, {
       token,
       template: 'waitlist-migration',
@@ -694,12 +785,7 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   }
 
   const consumed = await consumeBroadcastSnapshot(sql, { token: previewToken, actor });
-
   if (!consumed) {
-    // The atomic consume failed; figure out which distinct reason so the
-    // CLI can surface a tailored recovery message. The find is scoped
-    // to (token, actor) so a non-owner caller falls into the `missing`
-    // branch and never learns that the token exists.
     const existing = await findBroadcastSnapshot(sql, { token: previewToken, actor });
     if (!existing) {
       return c.json(
@@ -719,7 +805,6 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
         410
       );
     }
-    // Only expiry remains.
     return c.json(
       {
         code: 'preview_token_expired',
@@ -731,50 +816,37 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
 
   // The snapshot row is the source of truth for both `source` and the
   // recipient set — the request's `source` field is redundant on the
-  // real-send path and a mismatch would otherwise produce a
-  // false-positive drift check against the wrong cohort. Under the
-  // generalised snapshot schema, `source` lives inside audience_params.
+  // real-send path. Under the generalised schema, source lives inside
+  // audience_params.
   const snapshotSource = String(consumed.audience_params['source']);
 
-  // Refetch the current cohort and compare to the snapshot. Use the
-  // snapshot size (not the request limit) so the fresh query returns
-  // an apples-to-apples slice — a caller-supplied limit smaller or
-  // larger than what the snapshot captured would otherwise produce a
-  // false-positive drift rejection.
-  const freshLimit = Math.max(consumed.recipients.length, 1);
-  const currentRows = await findWaitlistBySource(sql, snapshotSource, freshLimit);
-  const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
-    email: r.email,
-    name: r.name,
-  }));
-  const drift = computeCohortDrift(consumed.recipients, currentRecipients);
-
-  if (drift.added.length > 0 || drift.removed.length > 0) {
+  const outcome = await executeBroadcastFromSnapshot(sql, consumed);
+  if (outcome.type === 'invalid_template') {
+    // Should be impossible — snapshots are only created above with
+    // template='waitlist-migration', which is a registered broadcast
+    // template. Surface as 500-equivalent (treat as drift since the
+    // operator must re-preview).
     return c.json(
       {
         code: 'cohort_drift',
-        error: 'recipient set changed since preview; re-run with --dry-run',
-        added: drift.added,
-        removed: drift.removed,
+        error: 'snapshot template is no longer broadcastable; re-run with --dry-run',
+        added: [],
+        removed: [],
       },
       409
     );
   }
-
-  // Use the snapshot as the source of truth for who to email — not a
-  // fresh query — so the operator's confirmation anchors the send.
-  const results: { email: string; sent: boolean; error?: string }[] = [];
-  for (const row of consumed.recipients) {
-    const delivery = await sendWaitlistMigration(row.email, row.name ?? undefined);
-    results.push({
-      email: row.email,
-      sent: delivery.sent,
-      error: delivery.sent ? undefined : delivery.message,
-    });
+  if (outcome.type === 'drift') {
+    return c.json(
+      {
+        code: 'cohort_drift',
+        error: 'recipient set changed since preview; re-run with --dry-run',
+        added: outcome.added,
+        removed: outcome.removed,
+      },
+      409
+    );
   }
-
-  const sent = results.filter((r) => r.sent).length;
-  const failed = results.filter((r) => !r.sent).length;
 
   await insertAuditLog(
     sql,
@@ -782,8 +854,8 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     actor,
     {
       source: snapshotSource,
-      sent,
-      failed,
+      sent: outcome.sent,
+      failed: outcome.failed,
       previewToken,
     },
     authMethod
@@ -791,10 +863,10 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
 
   return c.json({
     source: snapshotSource,
-    total: consumed.recipients.length,
-    sent,
-    failed,
-    results,
+    total: outcome.total,
+    sent: outcome.sent,
+    failed: outcome.failed,
+    results: outcome.results,
   });
 });
 
@@ -1028,8 +1100,8 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
   }
 
   // ---- Real-send: snapshot is source of truth ------------------------------
-  const snapshotEntry = EMAIL_REGISTRY[consumed.template as TemplateKey];
-  if (!snapshotEntry || snapshotEntry.kind !== 'broadcast') {
+  const outcome = await executeBroadcastFromSnapshot(sql, consumed);
+  if (outcome.type === 'invalid_template') {
     // Should be impossible — snapshots are only created above for
     // broadcast templates — but defend in case the registry changed
     // between snapshot and consume (e.g. a template was removed mid-flight).
@@ -1041,52 +1113,17 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
       400
     );
   }
-
-  // Re-resolve audience using the snapshot's key + params, NOT the
-  // request body's. freshLimit matches snapshot size so a request limit
-  // smaller or larger than what was captured doesn't produce false drift.
-  const freshLimit = Math.max(consumed.recipients.length, 1);
-  const currentRows = await resolveAudience(sql, consumed.audience_key as AudienceKey, {
-    limit: freshLimit,
-    params: consumed.audience_params as Record<string, string>,
-  });
-  const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
-    email: r.email,
-    name: r.name,
-  }));
-  const drift = computeCohortDrift(consumed.recipients, currentRecipients);
-  if (drift.added.length > 0 || drift.removed.length > 0) {
+  if (outcome.type === 'drift') {
     return c.json(
       {
         code: 'cohort_drift',
         error: 'recipient set changed since preview; re-run with dryRun: true',
-        added: drift.added,
-        removed: drift.removed,
+        added: outcome.added,
+        removed: outcome.removed,
       },
       409
     );
   }
-
-  // ---- Real-send: dispatch -------------------------------------------------
-  // Snapshot rows are the source of truth for who to email and what
-  // props to send — the operator's preview confirmation anchors both.
-  const results: { email: string; sent: boolean; error?: string }[] = [];
-  for (const row of consumed.recipients) {
-    const delivery = await snapshotEntry.sender(
-      // SnapshotRecipient doesn't store user_id; sender contract takes
-      // an AudienceRow. Pass null — current senders only use email + name.
-      { email: row.email, name: row.name, user_id: null },
-      consumed.template_props
-    );
-    results.push({
-      email: row.email,
-      sent: delivery.sent,
-      error: delivery.sent ? undefined : delivery.message,
-    });
-  }
-
-  const sent = results.filter((r) => r.sent).length;
-  const failed = results.filter((r) => !r.sent).length;
 
   await insertAuditLog(
     sql,
@@ -1096,8 +1133,8 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
       template: consumed.template,
       audience: consumed.audience_key,
       audienceParams: consumed.audience_params,
-      sent,
-      failed,
+      sent: outcome.sent,
+      failed: outcome.failed,
       previewToken,
     },
     authMethod
@@ -1106,10 +1143,10 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
   return c.json({
     template: consumed.template,
     audience: consumed.audience_key,
-    total: consumed.recipients.length,
-    sent,
-    failed,
-    results,
+    total: outcome.total,
+    sent: outcome.sent,
+    failed: outcome.failed,
+    results: outcome.results,
   });
 });
 

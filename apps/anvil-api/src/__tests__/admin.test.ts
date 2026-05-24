@@ -75,6 +75,18 @@ vi.mock('../lib/audience.js', () => ({
   removeFromBetaAudience: vi.fn().mockResolvedValue(undefined),
 }));
 
+// EMAIL-006: /admin/send-migration now resolves recipients via the
+// broadcast-audiences resolver instead of findWaitlistBySource. Mock
+// resolveAudience so the existing send-migration tests can drive it.
+const resolveAudienceMock = vi.hoisted(() => vi.fn());
+vi.mock('../lib/broadcast-audiences.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/broadcast-audiences.js')>();
+  return {
+    ...actual,
+    resolveAudience: resolveAudienceMock,
+  };
+});
+
 import {
   findUserByEmail,
   findUserWithTokens,
@@ -85,7 +97,6 @@ import {
   findWaitlistEntryByEmail,
   findUnapprovedWaitlistEntries,
   insertAuditLog,
-  findWaitlistBySource,
   insertBroadcastSnapshot,
   findBroadcastSnapshot,
   consumeBroadcastSnapshot,
@@ -1270,7 +1281,7 @@ describe('admin endpoints', () => {
       });
 
       expect(res.status).toBe(401);
-      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(resolveAudienceMock).not.toHaveBeenCalled();
       expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
 
@@ -1283,7 +1294,7 @@ describe('admin endpoints', () => {
       );
 
       expect(res.status).toBe(400);
-      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(resolveAudienceMock).not.toHaveBeenCalled();
       expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
 
@@ -1296,7 +1307,7 @@ describe('admin endpoints', () => {
       );
 
       expect(res.status).toBe(400);
-      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(resolveAudienceMock).not.toHaveBeenCalled();
     });
 
     it('rejects limit below 1 via Zod with 400', async () => {
@@ -1308,11 +1319,11 @@ describe('admin endpoints', () => {
       );
 
       expect(res.status).toBe(400);
-      expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
+      expect(resolveAudienceMock).not.toHaveBeenCalled();
     });
 
-    it('passes the caller-supplied limit through to findWaitlistBySource on dry-run', async () => {
-      vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+    it('passes the caller-supplied limit through to resolveAudience on dry-run', async () => {
+      resolveAudienceMock.mockResolvedValue([]);
       vi.mocked(insertBroadcastSnapshot).mockResolvedValue({
         token: 'tk',
         template: 'waitlist-migration',
@@ -1334,7 +1345,10 @@ describe('admin endpoints', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(vi.mocked(findWaitlistBySource)).toHaveBeenCalledWith(expect.anything(), 'import', 7);
+      expect(resolveAudienceMock).toHaveBeenCalledWith(expect.anything(), 'waitlist:source', {
+        limit: 7,
+        params: { source: 'import' },
+      });
     });
   });
 
@@ -1362,7 +1376,7 @@ describe('admin endpoints', () => {
 
     describe('dry-run', () => {
       it('returns previewToken plus the recipient snapshot', async () => {
-        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        resolveAudienceMock.mockResolvedValue(importedRecipients);
         vi.mocked(insertBroadcastSnapshot).mockResolvedValue(makeSnapshot());
 
         const res = await request(
@@ -1396,7 +1410,7 @@ describe('admin endpoints', () => {
       });
 
       it('binds the snapshot to the sentinel and ignores X-Admin-Actor on shared-key auth', async () => {
-        vi.mocked(findWaitlistBySource).mockResolvedValue([]);
+        resolveAudienceMock.mockResolvedValue([]);
         vi.mocked(insertBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({ created_by_actor: 'shared-key@anvil', recipients: [] })
         );
@@ -1531,7 +1545,7 @@ describe('admin endpoints', () => {
             ],
           })
         );
-        vi.mocked(findWaitlistBySource).mockResolvedValue([
+        resolveAudienceMock.mockResolvedValue([
           { email: 'alice@example.com', name: 'Alice' },
           { email: 'carol@example.com', name: 'Carol' },
         ]);
@@ -1570,7 +1584,7 @@ describe('admin endpoints', () => {
             consumed_at: '2026-04-17T09:05:00Z',
           })
         );
-        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        resolveAudienceMock.mockResolvedValue(importedRecipients);
         vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
 
         const first = await request(
@@ -1600,7 +1614,7 @@ describe('admin endpoints', () => {
             recipients: importedRecipients,
           })
         );
-        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        resolveAudienceMock.mockResolvedValue(importedRecipients);
         vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
 
         const res = await request(
@@ -1640,7 +1654,7 @@ describe('admin endpoints', () => {
             recipients: importedRecipients,
           })
         );
-        vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
+        resolveAudienceMock.mockResolvedValue(importedRecipients);
         vi.mocked(sendWaitlistMigration)
           .mockResolvedValueOnce({ sent: true })
           .mockResolvedValueOnce({ sent: false, message: 'smtp blew up' });

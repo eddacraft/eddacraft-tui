@@ -3,9 +3,9 @@
 
 # Email Broadcast Surface
 
-| Scope | Owner | Priority | Status      |
-| ----- | ----- | -------- | ----------- |
-| EMAIL | —     | Medium   | In Progress |
+| Scope | Owner | Priority | Status |
+| ----- | ----- | -------- | ------ |
+| EMAIL | —     | Medium   | Done   |
 
 **Last reviewed:** 2026-05-24
 
@@ -398,7 +398,7 @@ in the same change.
 
 ### EMAIL-006 — `/admin/send-migration` back-compat shim
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Reduce `/admin/send-migration` to a thin handler that
@@ -410,9 +410,14 @@ in the same change.
   behave identically *except* that the resolver now excludes rows
   already in `beta_users` (per design decision 2). PR description calls
   out the narrowed cohort explicitly.
-- **Validation:** `pnpm --filter @anvil/api test admin send-migration`
-- **Files:** `apps/anvil-api/src/routes/admin.ts`,
-  `apps/anvil-api/src/__tests__/admin.test.ts`.
+- **Validation:** `pnpm exec vitest --run src/__tests__/admin.test.ts`
+- **Files:** `apps/anvil-api/src/routes/admin.ts` (extracted
+  `executeBroadcastFromSnapshot` helper, refactored both
+  `/admin/broadcast` and `/admin/send-migration` to use it; dropped
+  `findWaitlistBySource` + direct `sendWaitlistMigration` imports),
+  `apps/anvil-api/src/__tests__/admin.test.ts` (mocks switched from
+  `findWaitlistBySource` to `resolveAudience` for send-migration tests;
+  one assertion updated to new resolver signature).
 - **changeType:** fix
 - **releaseIntent:** candidate
 - **releaseScope:** none
@@ -420,6 +425,15 @@ in the same change.
   text "`/admin/send-migration` now excludes addresses already in
   `beta_users` from the recipient cohort."
 - **Dependencies:** EMAIL-005
+- **Notes:** Landed 2026-05-24. `executeBroadcastFromSnapshot(sql,
+  consumed)` returns a discriminated union (`invalid_template` |
+  `drift` | `sent`) that both handlers translate to their own response
+  shape — broadcast emits `broadcast.email.sent` with template +
+  audience + counts, send-migration emits `migration.email.sent` with
+  source + counts (legacy shape preserved). Per design decision 2 the
+  underlying `waitlist:source` resolver excludes already-invited
+  addresses; admin-CLI behaviour otherwise unchanged. Full anvil-api
+  suite 382/382 across 20 files; typecheck clean.
 
 ## Future Phases (Not Tasked Yet)
 
