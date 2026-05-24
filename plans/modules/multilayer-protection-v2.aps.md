@@ -4286,8 +4286,8 @@ to redesign once GV2-001..-023 land.
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
-| R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 0/1 |
-| **Total** | **81** | **62/81** |
+| R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 1/1 (Complete) |
+| **Total** | **81** | **63/81** |
 
 ## Recommended landing order
 
@@ -4369,8 +4369,10 @@ experiences.
 
 #### MLP2-074: Daemon-side `session.report_process` IPC handler
 
-- **Status:** In Progress (branch `feat/mlp2-074-session-report-process`;
-  daemon dispatch implemented + tested; PR pending)
+- **Status:** Merged 2026-05-24 via PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)
+  (rebase-merge — daemon dispatch in `54812298`; PR #1895 review
+  follow-ups — anchor-collision defence + Linux server-side
+  `pid_starttime` re-derivation — in `5bb10f3a`)
 - **Tracking:** GH issue [#1827](https://github.com/eddacraft/anvil-001/issues/1827)
 - **Source:** v0.7.0-beta pre-tag release council `council-a1e2648f`
   (2026-05-21) action A2; council verdict at
