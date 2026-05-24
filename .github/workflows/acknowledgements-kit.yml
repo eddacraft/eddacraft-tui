@@ -1,0 +1,91 @@
+name: Acknowledgements Kit
+
+# ATTRIB-012 CI wire-up. The existing `rust.yml::acknowledgements-diff`
+# job only fires when Cargo deps change — kit-only PRs (a new driver,
+# a docs edit, a test addition) wouldn't exercise the kit's own
+# self-tests under that gate. This dedicated workflow fires on changes
+# to the kit, the canonical licences.toml, or its generated consumers,
+# so kit invariants are verified on every PR that could break them.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/starters/acknowledgements/**'
+      - 'licences.toml'
+      - 'licences.node-allow.txt'
+      - '.github/workflows/acknowledgements-kit.yml'
+  pull_request:
+    paths:
+      - 'tools/starters/acknowledgements/**'
+      - 'licences.toml'
+      - 'licences.node-allow.txt'
+      - '.github/workflows/acknowledgements-kit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acknowledgements-kit-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to match rust.yml so the kit's strict-license-field.sh
+  # exercises the same cargo-about behaviour CI consumers see.
+  CARGO_ABOUT_VERSION: '0.8.4'
+  # Pinned license-checker version exercised by the kit's Node tests.
+  # Bump deliberately when license-checker ships a CLI-surface change.
+  LICENSE_CHECKER_VERSION: '25.0.1'
+
+jobs:
+  kit-self-tests:
+    name: Kit Self-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Rust driver tests need cargo-about (strict-license-field.sh).
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+      - name: Install cargo-about
+        uses: taiki-e/install-action@65851e10cd6c377f11a60e600abc07cb08643468 # v2.79.3
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+
+      # Node driver tests need Node + npm (the render + strict tests
+      # `npm install` license-checker into a per-test fixture). The
+      # preflight test runs without license-checker available — it
+      # plants its own stubs / controlled PATH.
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      # ATTRIB-008 dispatcher contract — schema validation paths.
+      - name: Dispatcher schema-validation test
+        run: bash tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh
+      # ATTRIB-008 dispatcher contract — multi-block round-trip + atomic write.
+      - name: Dispatcher two-block round-trip test
+        run: bash tools/starters/acknowledgements/tests/dispatcher-two-block.sh
+      # ATTRIB-007 strict license-field guard + ATTRIB-008 flat-[rust]
+      # back-compat shim coverage.
+      - name: Strict license-field regression test
+        run: bash tools/starters/acknowledgements/tests/strict-license-field.sh
+      # ATTRIB-006 single-source allow-list + ATTRIB-012 Node-fragment
+      # drift detection.
+      - name: Licences drift detector self-test
+        run: bash tools/starters/acknowledgements/tests/licences-drift.sh
+
+      # ATTRIB-012 Node driver tests. Render + strict skip cleanly if
+      # npm is unavailable; the setup-node step above guarantees it.
+      - name: Node driver preflight test
+        run: bash tools/starters/acknowledgements/tests/node-driver-preflight.sh
+      - name: Node driver render test
+        run: bash tools/starters/acknowledgements/tests/node-driver-render.sh
+      - name: Node driver strict test
+        run: bash tools/starters/acknowledgements/tests/node-driver-strict.sh
+
+      # ATTRIB-006 (+ ATTRIB-012 Node fragment): the canonical
+      # licences.toml must stay in sync with every consumer file it
+      # expands into (about.toml, deny.toml, licences.node-allow.txt).
+      - name: Licences single-source drift check
+        run: bash tools/starters/acknowledgements/expand-licences.sh --check

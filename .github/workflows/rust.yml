@@ -409,6 +409,15 @@ jobs:
         uses: taiki-e/install-action@65851e10cd6c377f11a60e600abc07cb08643468 # v2.79.3
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      # ATTRIB-012: Node driver tests need Node + npm (render + strict
+      # tests `npm install` license-checker into a per-test fixture).
+      # Even when only Rust deps change in this PR, we still want the
+      # Node driver to be exercised so a dep-only change can't silently
+      # break a different driver's contract.
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
           if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
@@ -422,15 +431,27 @@ jobs:
       # member and asserts the strict diagnostic fires.
       - name: Strict license-field regression test
         run: tools/starters/acknowledgements/tests/strict-license-field.sh
-      # ATTRIB-006: catch drift between licences.toml and the two
-      # consumer files (about.toml.accepted, deny.toml.[licenses].allow).
+      # ATTRIB-006: catch drift between licences.toml and every
+      # consumer file (about.toml.accepted, deny.toml.[licenses].allow,
+      # ATTRIB-012 licences.node-allow.txt when present).
       - name: Licences single-source drift check
         run: tools/starters/acknowledgements/expand-licences.sh --check
-      # ATTRIB-006 regression guard: the drift detector itself must
-      # actually detect drift. Three-scenario fixture test pins the
-      # contract so a regression that loosens the matcher is caught.
+      # ATTRIB-006/-012 regression guard: the drift detector itself
+      # must actually detect drift. Four-scenario fixture test pins
+      # the contract so a regression that loosens the matcher is
+      # caught.
       - name: Licences drift detector self-test
         run: tools/starters/acknowledgements/tests/licences-drift.sh
+      # ATTRIB-012 Node driver: preflight (no npm install needed),
+      # render (two-package fixture round-trip + idempotency +
+      # --check), strict (disallowed-licence rejection + on-disk
+      # target byte-identicality).
+      - name: Node driver preflight test
+        run: tools/starters/acknowledgements/tests/node-driver-preflight.sh
+      - name: Node driver render test
+        run: tools/starters/acknowledgements/tests/node-driver-render.sh
+      - name: Node driver strict test
+        run: tools/starters/acknowledgements/tests/node-driver-strict.sh
 
   # #1438 follow-up: collapse the six-leg fail-loud pattern (one
   # `::error::` per matrix target on detect-rust-changes failure) into
