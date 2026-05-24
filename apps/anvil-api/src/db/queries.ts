@@ -935,6 +935,27 @@ export async function insertBroadcastSnapshot(
  * the failure surface is uniform (`preview_token_missing`) and the
  * server never confirms a token's existence to a non-owner.
  */
+/**
+ * Wrap parseSnapshotRow so callers can distinguish 'no such row' (null)
+ * from 'row found but malformed' (logs + null). A malformed row — e.g.
+ * non-string audience_params from a manual DB write — would otherwise
+ * propagate a zod error all the way up to a generic 500. Logging here
+ * gives on-call a signal; returning null lets the handler classify the
+ * caller as `preview_token_missing` rather than crashing.
+ */
+function safeParseSnapshotRow(row: Record<string, unknown>): BroadcastSnapshot | null {
+  try {
+    return parseSnapshotRow(row);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('send_broadcast_snapshots row failed to parse', {
+      token_hash: row['token_hash'],
+      message,
+    });
+    return null;
+  }
+}
+
 export async function findBroadcastSnapshot(
   sql: NeonClient,
   params: { token: string; actor: string }
@@ -949,7 +970,7 @@ export async function findBroadcastSnapshot(
   `
   );
   if (!r[0]) return null;
-  return parseSnapshotRow(r[0]);
+  return safeParseSnapshotRow(r[0]);
 }
 
 /**
@@ -976,7 +997,7 @@ export async function consumeBroadcastSnapshot(
   `
   );
   if (!r[0]) return null;
-  return parseSnapshotRow(r[0]);
+  return safeParseSnapshotRow(r[0]);
 }
 
 export type WaitlistStatus = 'pending' | 'approved' | 'all';
@@ -1174,6 +1195,24 @@ export async function cleanupExpiredRefreshTokens(sql: NeonClient): Promise<numb
     WHERE (expires_at < now() - interval '1 hour')
        OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '7 days')
     RETURNING id
+  `
+  );
+  return r.length;
+}
+
+/**
+ * Delete broadcast snapshots expired more than 1 hour ago. The
+ * lazy reap inside `insertBroadcastSnapshot` only fires on insert;
+ * at low broadcast cadence rows would accumulate indefinitely without
+ * a periodic sweep. The cron handler invokes this alongside the
+ * other expired-state cleanups.
+ */
+export async function cleanupExpiredBroadcastSnapshots(sql: NeonClient): Promise<number> {
+  const r = rows(
+    await sql`
+    DELETE FROM send_broadcast_snapshots
+    WHERE expires_at < now() - interval '1 hour'
+    RETURNING token_hash
   `
   );
   return r.length;

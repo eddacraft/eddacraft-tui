@@ -811,13 +811,19 @@ describe('POST /admin/broadcast', () => {
 
       const auditCall = vi.mocked(insertAuditLog).mock.calls.at(-1);
       expect(auditCall?.[1]).toBe('broadcast.email.sent');
-      expect(auditCall?.[3]).toMatchObject({
+      const metadata = auditCall?.[3] as { previewTokenHash: string; [k: string]: unknown };
+      expect(metadata).toMatchObject({
         template: 'release-announcement',
         audience: 'beta:active',
         sent: 2,
         failed: 0,
-        previewToken: 'snap-bc-abc',
       });
+      // Token is hashed in metadata so audit_log doesn't leak the bearer.
+      // The hashToken mock returns 'mocked-hash'; the assertion that
+      // matters is that the raw 'snap-bc-abc' is NOT in the metadata.
+      expect(metadata.previewTokenHash).toBe('mocked-hash');
+      expect(metadata.previewTokenHash).not.toBe('snap-bc-abc');
+      expect(metadata).not.toHaveProperty('previewToken');
     });
 
     it('routes waitlist-migration through the registry sender', async () => {

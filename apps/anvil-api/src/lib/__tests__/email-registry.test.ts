@@ -94,6 +94,35 @@ describe('propsSchema — release-announcement', () => {
     expect(schema.safeParse({ releaseUrl: 'https://example.com/v0.7.0' }).success).toBe(true);
   });
 
+  it('rejects releaseUrl with userinfo (https://user:pass@evil.com)', () => {
+    expect(schema.safeParse({ releaseUrl: 'https://user:pass@evil.com' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'https://attacker@evil.com' }).success).toBe(false);
+  });
+
+  it('rejects releaseUrl with leading/trailing whitespace', () => {
+    expect(schema.safeParse({ releaseUrl: ' https://example.com' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'https://example.com\n' }).success).toBe(false);
+  });
+
+  it('rejects releaseUrl with embedded control characters', () => {
+    expect(schema.safeParse({ releaseUrl: 'https://example.com\nattack' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'https://example.com\tattack' }).success).toBe(false);
+  });
+
+  it('caps highlights at 20 elements', () => {
+    const tooMany = Array.from({ length: 21 }, (_, i) => ({ title: `t${i}`, body: 'b' }));
+    expect(schema.safeParse({ highlights: tooMany }).success).toBe(false);
+    const justRight = Array.from({ length: 20 }, (_, i) => ({ title: `t${i}`, body: 'b' }));
+    expect(schema.safeParse({ highlights: justRight }).success).toBe(true);
+  });
+
+  it('caps upgradeCommands and knownGaps at 20 elements', () => {
+    const tooMany = Array.from({ length: 21 }, (_, i) => ({ label: `l${i}`, command: 'c' }));
+    expect(schema.safeParse({ upgradeCommands: tooMany }).success).toBe(false);
+    const tooManyGaps = Array.from({ length: 21 }, (_, i) => ({ title: `t${i}`, body: 'b' }));
+    expect(schema.safeParse({ knownGaps: tooManyGaps }).success).toBe(false);
+  });
+
   it('rejects migrationUrl that is not https://', () => {
     expect(schema.safeParse({ migrationUrl: 'http://example.com' }).success).toBe(false);
     expect(schema.safeParse({ migrationUrl: 'https://example.com/migrate' }).success).toBe(true);

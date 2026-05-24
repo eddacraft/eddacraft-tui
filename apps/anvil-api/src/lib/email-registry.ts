@@ -26,12 +26,43 @@ const firstInvocationNoteSchema = z.object({
 // release-announcement template; an admin actor (or compromised admin key)
 // who can shape templateProps would otherwise have a high-trust phishing
 // vector under the from-address's valid SPF/DKIM/DMARC.
+//
+// Three categories rejected via superRefine that `z.string().url() + starts-with`
+// alone would let through:
+//   1. Userinfo URLs like `https://user:pass@evil.com` — visually pass
+//      'starts with https://' but resolve to evil.com.
+//   2. Leading / trailing whitespace — passes z.url() in some parsers
+//      and lands in href attributes.
+//   3. Embedded newlines or other control chars — passes z.url() and
+//      lands raw in HTML attributes.
 const httpsUrlSchema = z
   .string()
-  .url()
   .max(2048)
-  .refine((s) => s.startsWith('https://'), {
-    message: 'must be an https:// URL',
+  .superRefine((s, ctx) => {
+    if (s !== s.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'URL must not contain leading/trailing whitespace',
+      });
+      return;
+    }
+    if (/[\r\n\t]/.test(s)) {
+      ctx.addIssue({ code: 'custom', message: 'URL must not contain control characters' });
+      return;
+    }
+    let u: URL;
+    try {
+      u = new URL(s);
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'must be a valid URL' });
+      return;
+    }
+    if (u.protocol !== 'https:') {
+      ctx.addIssue({ code: 'custom', message: 'must be an https:// URL' });
+    }
+    if (u.username || u.password) {
+      ctx.addIssue({ code: 'custom', message: 'URL must not contain userinfo (user:pass@)' });
+    }
   });
 
 const knownGapSchema = z.object({
@@ -50,17 +81,22 @@ const boringWeekAskSchema = z.object({
 // comes from the recipient row, the second is computed at send time.
 // `strict()` ensures an operator cannot smuggle either through as a
 // template prop.
+// Array caps prevent an admin actor from inflating the snapshot row
+// (and the per-recipient send-loop cost) by submitting many-thousand
+// element arrays. Generous limits — V070_DEFAULTS has 6 highlights, 4
+// upgrade commands, 2 known gaps — so 20 each is well above realistic
+// use.
 export const releaseAnnouncementPropsSchema = z
   .object({
     version: z.string().max(64).optional(),
     theme: z.string().max(256).optional(),
     intro: z.string().max(4096).optional(),
-    highlights: z.array(releaseHighlightSchema).optional(),
+    highlights: z.array(releaseHighlightSchema).max(20).optional(),
     releaseUrl: httpsUrlSchema.optional(),
-    upgradeCommands: z.array(upgradeCommandSchema).optional(),
+    upgradeCommands: z.array(upgradeCommandSchema).max(20).optional(),
     firstInvocationNote: firstInvocationNoteSchema.optional(),
     migrationUrl: httpsUrlSchema.optional(),
-    knownGaps: z.array(knownGapSchema).optional(),
+    knownGaps: z.array(knownGapSchema).max(20).optional(),
     boringWeekAsk: boringWeekAskSchema.optional(),
     feedbackEmail: z.string().email().max(254).optional(),
   })

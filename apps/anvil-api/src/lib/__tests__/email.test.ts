@@ -126,6 +126,26 @@ describe('sendWaitlistConfirmation', () => {
     delete process.env['EMAIL_REPLY_TO'];
   });
 
+  it('falls back to defaults when EMAIL_FROM_ADDRESS is an empty string', async () => {
+    process.env['RESEND_API_KEY'] = 'resend_test_key';
+    process.env['EMAIL_FROM_ADDRESS'] = '';
+    process.env['EMAIL_REPLY_TO'] = '';
+    emailMocks.send.mockResolvedValue({ error: null });
+    const { sendWaitlistConfirmation } = await loadEmailModule();
+
+    await sendWaitlistConfirmation('person@example.com');
+
+    expect(emailMocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'Josh at eddacraft <anvil@updates.eddacraft.ai>',
+        replyTo: 'josh@eddacraft.ai',
+      })
+    );
+
+    delete process.env['EMAIL_FROM_ADDRESS'];
+    delete process.env['EMAIL_REPLY_TO'];
+  });
+
   it('returns provider_error when Resend reports a delivery error', async () => {
     process.env['RESEND_API_KEY'] = 'resend_test_key';
     emailMocks.send.mockResolvedValue({ error: { message: 'Provider unavailable' } });

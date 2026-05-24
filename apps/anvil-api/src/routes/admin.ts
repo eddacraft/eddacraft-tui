@@ -852,6 +852,13 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
 
   // Audit the dispatch BEFORE the send loop runs (see broadcast handler
   // for rationale). Legacy event name kept for the migration surface.
+  // Audit metadata records the SHA-256 hash of the preview token (matching
+  // the token_hash column in send_broadcast_snapshots) so an investigator
+  // can correlate audit rows to snapshot rows without storing the bearer
+  // in plain text. Logging the raw token would defeat migration 014's
+  // at-rest hashing.
+  const previewTokenHash = hashToken(previewToken);
+
   await insertAuditLog(
     sql,
     'migration.email.dispatch_started',
@@ -859,7 +866,7 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     {
       source: snapshotSource,
       recipientCount: consumed.recipients.length,
-      previewToken,
+      previewTokenHash,
     },
     authMethod
   );
@@ -876,7 +883,7 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
       sql,
       'migration.email.blocked',
       actor,
-      { reason: 'invalid_template', source: snapshotSource, previewToken },
+      { reason: 'invalid_template', source: snapshotSource, previewTokenHash },
       authMethod
     );
     return c.json(
@@ -897,7 +904,7 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
         source: snapshotSource,
         added: outcome.added,
         removed: outcome.removed,
-        previewToken,
+        previewTokenHash,
       },
       authMethod
     );
@@ -920,7 +927,10 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
       source: snapshotSource,
       sent: outcome.sent,
       failed: outcome.failed,
-      previewToken,
+      previewTokenHash,
+      failedRecipients: outcome.results
+        .filter((r) => !r.sent)
+        .map((r) => ({ email: r.email, error: r.error })),
     },
     authMethod
   );
@@ -1168,6 +1178,12 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
   // / crash still leaves a forensic record: at minimum we know template,
   // audience, and recipient count even if `broadcast.email.sent` (the
   // completion row below) never fires.
+  //
+  // Audit metadata records the SHA-256 hash of the preview token
+  // (matching the token_hash column in send_broadcast_snapshots) so
+  // an investigator can correlate audit rows to snapshot rows without
+  // storing the bearer in plain text.
+  const previewTokenHash = hashToken(previewToken);
   await insertAuditLog(
     sql,
     'broadcast.email.dispatch_started',
@@ -1177,7 +1193,7 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
       audience: consumed.audience_key,
       audienceParams: consumed.audience_params,
       recipientCount: consumed.recipients.length,
-      previewToken,
+      previewTokenHash,
     },
     authMethod
   );
@@ -1197,7 +1213,7 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
         reason: 'invalid_template',
         template: consumed.template,
         audience: consumed.audience_key,
-        previewToken,
+        previewTokenHash,
       },
       authMethod
     );
@@ -1221,7 +1237,7 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
         audienceParams: consumed.audience_params,
         added: outcome.added,
         removed: outcome.removed,
-        previewToken,
+        previewTokenHash,
       },
       authMethod
     );
@@ -1246,7 +1262,12 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
       audienceParams: consumed.audience_params,
       sent: outcome.sent,
       failed: outcome.failed,
-      previewToken,
+      previewTokenHash,
+      // Per-recipient failure detail for forensic recovery if the
+      // client loses the HTTP response. Bounded by limit=80.
+      failedRecipients: outcome.results
+        .filter((r) => !r.sent)
+        .map((r) => ({ email: r.email, error: r.error })),
     },
     authMethod
   );

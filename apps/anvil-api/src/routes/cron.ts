@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { getClient } from '../db/client.js';
 import {
+  cleanupExpiredBroadcastSnapshots,
   cleanupExpiredDeviceCodes,
   cleanupExpiredOtpCodes,
   cleanupExpiredRefreshTokens,
@@ -44,11 +45,13 @@ cron.get('/cleanup', async (c) => {
   const deviceCount = await cleanupExpiredDeviceCodes(sql);
   const otpCount = await cleanupExpiredOtpCodes(sql);
   const refreshCount = await cleanupExpiredRefreshTokens(sql);
+  const broadcastSnapshotCount = await cleanupExpiredBroadcastSnapshots(sql);
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,
     otpCodes: otpCount,
     refreshTokens: refreshCount,
+    broadcastSnapshots: broadcastSnapshotCount,
   });
 
   return c.json({
@@ -56,6 +59,7 @@ cron.get('/cleanup', async (c) => {
       deviceCodes: deviceCount,
       otpCodes: otpCount,
       refreshTokens: refreshCount,
+      broadcastSnapshots: broadcastSnapshotCount,
     },
   });
 });

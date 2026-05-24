@@ -29,10 +29,18 @@ function getResendClient(): Resend | null {
 
 // Env-overridable so staging / preview deploys can route mail to a
 // non-prod sender without a code change. The hardcoded defaults are
-// the prod values used today.
-const FROM_ADDRESS =
-  process.env['EMAIL_FROM_ADDRESS'] ?? 'Josh at eddacraft <anvil@updates.eddacraft.ai>';
-const REPLY_TO = process.env['EMAIL_REPLY_TO'] ?? 'josh@eddacraft.ai';
+// the prod values used today. Empty string is coerced to undefined so
+// a misconfigured Vercel env (blank value in the dashboard) falls back
+// to the default rather than sending mail with `from: ''`.
+function envOrDefault(name: string, fallback: string): string {
+  const v = process.env[name];
+  return v && v.length > 0 ? v : fallback;
+}
+const FROM_ADDRESS = envOrDefault(
+  'EMAIL_FROM_ADDRESS',
+  'Josh at eddacraft <anvil@updates.eddacraft.ai>'
+);
+const REPLY_TO = envOrDefault('EMAIL_REPLY_TO', 'josh@eddacraft.ai');
 
 export interface EmailDeliveryResult {
   sent: boolean;

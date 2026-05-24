@@ -1650,10 +1650,22 @@ describe('admin endpoints', () => {
             source: 'import',
             sent: 2,
             failed: 0,
-            previewToken: 'snap-token-abc',
+            // Token is hashed in audit metadata so a DB-read leak of
+            // audit_log doesn't recover usable preview tokens.
+            previewTokenHash: expect.any(String),
           }),
           'shared'
         );
+        // Confirm the hash is NOT the raw token. The hashToken mock
+        // returns 'mocked-hash' in the test env; the assertion that
+        // matters is that the raw token is not present.
+        const auditCall = vi
+          .mocked(insertAuditLog)
+          .mock.calls.find((call) => call[1] === 'migration.email.sent');
+        const metadata = auditCall?.[3] as { previewTokenHash: string };
+        expect(metadata.previewTokenHash).toBe('mocked-hash');
+        expect(metadata.previewTokenHash).not.toBe('snap-token-abc');
+        expect(metadata).not.toHaveProperty('previewToken');
       });
 
       it('records partial failures without aborting the send', async () => {

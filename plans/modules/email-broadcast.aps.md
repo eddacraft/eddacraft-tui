@@ -566,6 +566,63 @@ in the same change.
   loop. Operators mid-preview at deploy time must re-run --dry-run
   after deploy completes; documented in the migration comment.
 
+### EMAIL-009 — Council Wave 3 — regressions + missed gaps
+
+- **Status:** Done
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Address the seven load-bearing findings from the
+  council re-review (2026-05-24, after EMAIL-007 and EMAIL-008).
+  Two were direct regressions introduced by Wave 2; the rest were
+  pre-existing gaps the operator missed.
+- **Validation:** `pnpm exec vitest --run`
+- **Files:**
+  - `apps/anvil-api/src/db/migrations/014-broadcast-snapshot-token-hash.sql` —
+    `IF EXISTS` on the table is not enough; the RENAME COLUMN needs
+    a `DO $$` block that checks `information_schema.columns` so
+    fresh-install paths (where `schema.sql` already created
+    `token_hash`) don't fail with `column "token" does not exist`.
+    Also added `SET LOCAL lock_timeout = '30s'` matching migration
+    013 — the column rename acquires ACCESS EXCLUSIVE and should
+    fail fast under contention.
+  - `apps/anvil-api/src/routes/admin.ts` — replace `previewToken`
+    with `previewTokenHash: hashToken(previewToken)` in every audit
+    log metadata payload (8 sites across send-migration shim and
+    /admin/broadcast). The Wave 2 token-at-rest hashing was being
+    defeated by writing the raw bearer into `audit_log.metadata`
+    next door. Also added `failedRecipients` to the
+    `*.email.sent` audit rows so per-recipient failure attribution
+    survives a client-side HTTP response loss.
+  - `apps/anvil-api/src/lib/email-registry.ts` — `httpsUrlSchema`
+    replaced `.refine(s => s.startsWith('https://'))` with a
+    `superRefine` that uses `new URL(s)` and rejects (a) userinfo
+    (`https://user:pass@evil.com`), (b) leading/trailing whitespace,
+    (c) embedded control characters. The original guard rejected
+    `http://` and `javascript:` but let userinfo URLs through —
+    exactly the phishing vector SEC-EMAIL-001 was meant to close.
+    Array caps on `highlights`, `upgradeCommands`, `knownGaps` at
+    20 elements each.
+  - `apps/anvil-api/src/lib/email.ts` — `envOrDefault` helper
+    coerces empty string to fallback. `process.env.X ?? default`
+    only catches `undefined`; a Vercel env var set to blank in the
+    dashboard would otherwise produce `from: ''` and silent
+    Resend 4xx errors.
+  - `apps/anvil-api/src/db/queries.ts` — `safeParseSnapshotRow`
+    wraps `parseSnapshotRow` in try/catch so a malformed row
+    (non-string `audience_params` from a manual DB write or future
+    bad migration) logs + returns null rather than throwing an
+    uncaught zod error that becomes a generic 500.
+    `cleanupExpiredBroadcastSnapshots` joins the existing cron
+    cleanup family; previously only `insertBroadcastSnapshot`'s
+    lazy reap ever cleared the table — at closed-beta cadence that
+    means rows could accumulate indefinitely between sends.
+  - `apps/anvil-api/src/routes/cron.ts` — wires
+    `cleanupExpiredBroadcastSnapshots` into the hourly
+    `/cron/cleanup` handler alongside the other three expired-state
+    cleanups.
+- **Notes:** Landed 2026-05-24. 6 new tests; full anvil-api suite
+  407/407 across 20 files (was 401/401); typecheck clean.
+
 ## Phase 6 — Council Follow-Ups (Not Tasked Yet)
 
 The full council review on 2026-05-24 surfaced 39 findings. 8 landed
