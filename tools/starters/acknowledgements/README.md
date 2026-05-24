@@ -7,12 +7,12 @@ markdown that gets spliced between BEGIN/END marker comments in a target
 markdown file (typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above,
 between, and below the markers is preserved verbatim.
 
-The first shipped driver is
-[`cargo-about`](https://github.com/EmbarkStudios/cargo-about) (Rust). Drivers
-for Node (`license-checker`), Go (`go-licenses`), and Python (`pip-licenses`)
-are queued under ATTRIB-012/013/014. Existing consumers with a legacy flat
-`[rust]` config keep working unchanged via a back-compat shim (see
-"Configuration reference" below).
+Shipped drivers: Rust
+([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008) and
+Node ([`license-checker`](https://github.com/davglass/license-checker),
+ATTRIB-012). Go (`go-licenses`) and Python (`pip-licenses`) are queued under
+ATTRIB-013/014. Existing consumers with a legacy flat `[rust]` config keep
+working unchanged via a back-compat shim (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -20,18 +20,19 @@ edits required.
 
 ## What ships in this kit
 
-| File                           | Purpose                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| `generate-acknowledgements.sh` | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
-| `drivers/`                     | Ecosystem driver scripts (`rust.sh` ships today; more under ATTRIB-012+) |
-| `expand-licences.sh`           | ATTRIB-006 single-source allow-list expander                             |
-| `attribution.toml.example`     | Annotated template for the consumer-side config                          |
-| `about.toml.template`          | cargo-about config template (licence allow-list etc)                     |
-| `about.hbs.template`           | cargo-about handlebars render template                                   |
-| `ACKNOWLEDGEMENTS.md.template` | Bootstrap target file with markers in place                              |
-| `ci-freshness.yml.snippet`     | GitHub Actions freshness-gate job                                        |
-| `tests/`                       | Self-tests pinning the kit's invariants                                  |
-| `README.md`                    | This file (the marker-splice contract)                                   |
+| File                               | Purpose                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `generate-acknowledgements.sh`     | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
+| `drivers/`                         | Ecosystem driver scripts (`rust.sh`, `node.sh`; more under ATTRIB-013+)  |
+| `expand-licences.sh`               | ATTRIB-006 single-source allow-list expander                             |
+| `attribution.toml.example`         | Annotated template for the consumer-side config                          |
+| `about.toml.template`              | cargo-about config template (licence allow-list etc)                     |
+| `about.hbs.template`               | cargo-about handlebars render template                                   |
+| `licences.node-allow.txt.template` | Marker scaffolding for the Node driver's allow-list file                 |
+| `ACKNOWLEDGEMENTS.md.template`     | Bootstrap target file with markers in place                              |
+| `ci-freshness.yml.snippet`         | GitHub Actions freshness-gate job                                        |
+| `tests/`                           | Self-tests pinning the kit's invariants                                  |
+| `README.md`                        | This file (the marker-splice contract)                                   |
 
 ## Adoption checklist (downstream consumer)
 
@@ -349,6 +350,126 @@ non-Rust driver.
 All paths are resolved relative to the directory containing `attribution.toml`.
 Absolute paths are also accepted.
 
+## Per-driver block reference
+
+Each driver under `drivers/<ecosystem>.sh` declares its own block-config keys.
+The dispatcher passes the resolved block JSON to the driver verbatim; the driver
+is the authority on which keys it requires.
+
+### `ecosystem = "rust"` (ATTRIB-008)
+
+| Key             | Required | Description                                                                                                                        |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest_path` | yes      | `Cargo.toml` to walk — typically the shipping binary's manifest, not the workspace root, to keep dev-only deps out of attribution. |
+| `template_path` | yes      | `about.hbs` handlebars template the driver hands to `cargo about generate`.                                                        |
+| `config_path`   | yes      | `about.toml` carrying `cargo-about`'s `accepted = [...]` list (auto-populated by `expand-licences.sh` from `licences.toml`).       |
+
+Strict-licence gate: `cargo about generate --fail` rejects workspace crates
+missing a `license` field. Always-on; no opt-out (consumer fixes the missing
+field instead).
+
+### `ecosystem = "node"` (ATTRIB-012)
+
+| Key               | Required            | Description                                                                                                                                                     |
+| ----------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest_path`   | yes                 | `package.json` to walk. For monorepos: one block per shipping `package.json` is the recommended pattern (see Monorepo guidance below).                          |
+| `node_allow_path` | yes                 | `licences.node-allow.txt` — single semicolon-joined SPDX list between the kit's BEGIN/END markers. Auto-populated by `expand-licences.sh` from `licences.toml`. |
+| `prod_only`       | no (default `true`) | If `true`, `license-checker --production` excludes `devDependencies`. Set `false` to include dev tooling (the ATTRIB-015 Anvil-devtools path).                  |
+| `exclude`         | no                  | Semicolon-joined `package@version` list, forwarded raw to `license-checker --excludePackages`. Use to drop hoisted internal packages a workspace shim surfaces. |
+
+Worked example:
+
+```toml
+[[blocks]]
+name             = "node-devtools"
+ecosystem        = "node"
+manifest_path    = "package.json"
+node_allow_path  = "licences.node-allow.txt"
+prod_only        = false
+```
+
+Strict-licence gate: `license-checker --onlyAllow "<semi-joined SPDX list>"`
+runs before render; one disallowed dep exits non-zero, names the offending
+package@version in stderr, and leaves the on-disk target byte-identical.
+
+`--excludePrivatePackages` is always-on, so the consumer's own package and any
+internal `@workspace/*` packages marked `"private": true` stay out of the
+rendered block automatically.
+
+The driver requires `license-checker` on `PATH`. Install per-project:
+
+```bash
+npm install --save-dev license-checker
+# or globally: npm install -g license-checker
+```
+
+## Monorepo guidance
+
+The "right" attribution surface in a monorepo depends on shape. Three patterns
+cover almost every case:
+
+**One block per shipping artefact.** A pnpm-workspace monorepo shipping a CLI +
+an HTTP API + a sidecar daemon declares three `[[blocks]]` entries, each pointed
+at its own `package.json`:
+
+```toml
+[[blocks]]
+name             = "cli"
+ecosystem        = "node"
+manifest_path    = "packages/cli/package.json"
+node_allow_path  = "licences.node-allow.txt"
+
+[[blocks]]
+name             = "http-api"
+ecosystem        = "node"
+manifest_path    = "packages/http-api/package.json"
+node_allow_path  = "licences.node-allow.txt"
+
+[[blocks]]
+name             = "sidecar"
+ecosystem        = "node"
+manifest_path    = "packages/sidecar/package.json"
+node_allow_path  = "licences.node-allow.txt"
+```
+
+Each block gets its own marker pair in the target file. `--check` reports
+per-block drift so a regression in one shipping package doesn't mask drift in
+the others. Internal `@workspace/*` packages stay out automatically because they
+are marked `"private": true`.
+
+**Workspace-wide attribution (single block).** Point `manifest_path` at the root
+`package.json`, accept the union of every workspace's prod deps:
+
+```toml
+[[blocks]]
+name             = "node"
+ecosystem        = "node"
+manifest_path    = "package.json"
+node_allow_path  = "licences.node-allow.txt"
+prod_only        = true
+```
+
+Simple, broad, blunt. License-checker walks the root and resolves through the
+workspace's hoisted `node_modules`. Use this when per-package separation is not
+worth the bookkeeping.
+
+**Devtools-only block (ATTRIB-015 Anvil pattern).** When the prod surface is
+non-JS but you still want to attribute the JS tooling the repo builds with
+(linters, formatters, Nx, kindling integration), set `prod_only = false` on a
+root-manifest block:
+
+```toml
+[[blocks]]
+name             = "node-devtools"
+ecosystem        = "node"
+manifest_path    = "package.json"
+node_allow_path  = "licences.node-allow.txt"
+prod_only        = false
+```
+
+The block then includes `devDependencies`. Pair with `exclude` if a noisy dep
+keeps surfacing.
+
 ## Dispatcher and driver contracts
 
 Full design at
@@ -389,15 +510,15 @@ kit-local `drivers/` directory.
 
 ## Future evolution
 
-ATTRIB-008 (this commit) landed the dispatcher + driver-per-ecosystem
-architecture and the Rust driver. The roadmap, tracked in the upstream Anvil
+ATTRIB-008 landed the dispatcher + driver-per-ecosystem architecture and the
+Rust driver. ATTRIB-012 added the Node driver (`license-checker`) — see the
+per-driver block reference above. The roadmap, tracked in the upstream Anvil
 project's `attribution-pipeline-v3` APS module, queues:
 
-- **ATTRIB-012** — Node driver (`license-checker`)
 - **ATTRIB-013** — Go driver (`go-licenses`)
 - **ATTRIB-014** — Python driver (`pip-licenses` against a pre-built venv)
 - **ATTRIB-015** — Anvil adopts a `node-devtools` block in its own
-  `ACKNOWLEDGEMENTS.md`
+  `ACKNOWLEDGEMENTS.md` (consumes the Node driver from ATTRIB-012)
 - Java/Kotlin / Ruby / Swift drivers deferred until a real consumer needs them
 
 Each new driver is a self-contained `drivers/<eco>.sh` against the driver
