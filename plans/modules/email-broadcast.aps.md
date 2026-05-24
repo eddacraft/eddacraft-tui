@@ -354,7 +354,7 @@ in the same change.
 
 ### EMAIL-005 — `POST /admin/broadcast` handler
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** Medium
 - **Intent:** Implement the broadcast endpoint per the contract section
@@ -367,9 +367,16 @@ in the same change.
   `beta:active-recent`, inspect the recipient list, then real-send with
   the returned `previewToken`. Cohort drift between the two calls
   rejects with `409 cohort_drift` carrying the recipient diff.
-- **Validation:** `pnpm --filter @anvil/api test admin-broadcast`
-- **Files:** `apps/anvil-api/src/routes/admin.ts`,
-  `apps/anvil-api/src/__tests__/admin-broadcast.test.ts` (new).
+- **Validation:** `pnpm exec vitest --run src/__tests__/admin-broadcast.test.ts`
+- **Files:** `apps/anvil-api/src/routes/admin.ts` (new handler +
+  per-endpoint rate limit, renamed
+  `SEND_MIGRATION_SNAPSHOT_TTL_SECONDS` → `BROADCAST_SNAPSHOT_TTL_SECONDS`
+  with the send-migration handler updated in the same change),
+  `apps/anvil-api/src/routes/admin-schemas.ts` (new `broadcastSchema` +
+  `BroadcastInput` type),
+  `apps/anvil-api/src/__tests__/admin-broadcast.test.ts` (new — 19
+  tests covering input validation, dry-run flow, every real-send error
+  code, and three bait-and-switch defences).
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** none
@@ -377,11 +384,17 @@ in the same change.
   text "Admin API gains `POST /admin/broadcast` for sending release
   announcements and other broadcasts to named audiences."
 - **Dependencies:** EMAIL-001, EMAIL-002, EMAIL-003, EMAIL-004
-- **Risks:** The bait-and-switch invariant (snapshot wins, request body
-  loses) must hold across every snapshot field — not just `audience` as
-  in today's `source` case. Tests should cover an operator changing
-  `templateProps` between dry-run and real-send and confirm the snapshot
-  props are what get sent.
+- **Notes:** Landed 2026-05-24. The bait-and-switch defence is tested
+  on three axes: templateProps (operator changes props between dry-run
+  and real-send — snapshot wins), audience_key (operator changes
+  audience — snapshot's key is what re-resolves), and audience_params.
+  The `as Record<string, string>` cast on `consumed.audience_params`
+  matches the storage contract — only string values are ever written
+  via the request schema. Per-recipient send failures don't abort the
+  batch; failed entries surface in the response `results` array with
+  the provider error. Audit log writes `broadcast.email.sent` with
+  template + audience + counts + previewToken. Full anvil-api suite
+  382/382 across 20 files; typecheck clean.
 
 ### EMAIL-006 — `/admin/send-migration` back-compat shim
 

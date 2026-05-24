@@ -62,6 +62,21 @@ export const driftDiffSchema = z.object({
   removed: z.array(z.string()),
 });
 
+// POST /admin/broadcast request body. Template + audience values are
+// validated as plain strings here; the handler narrows them against the
+// EMAIL_REGISTRY and AUDIENCE_KEYS so unknown values yield specific
+// `template_unknown` / `audience_unknown` codes instead of a generic
+// zod enum mismatch.
+export const broadcastSchema = z.object({
+  template: z.string().min(1).max(64),
+  audience: z.string().min(1).max(64),
+  audienceParams: z.record(z.string(), z.string()).optional().default({}),
+  templateProps: z.record(z.string(), z.unknown()).optional().default({}),
+  limit: z.number().int().min(1).max(5000).default(1000),
+  dryRun: z.boolean().default(false),
+  previewToken: z.string().min(1).max(128).optional(),
+});
+
 export const userEmailUpdateSchema = z.object({
   currentEmail: z.string().email().max(254),
   newEmail: z.string().email().max(254),
@@ -103,6 +118,7 @@ export type InviteInput = z.infer<typeof inviteSchema>;
 export type ApproveInput = z.infer<typeof approveSchema>;
 export type RevokeInput = z.infer<typeof revokeSchema>;
 export type MigrationInput = z.infer<typeof migrationSchema>;
+export type BroadcastInput = z.infer<typeof broadcastSchema>;
 export type DriftDiffResponse = z.infer<typeof driftDiffSchema>;
 export type UserEmailUpdateInput = z.infer<typeof userEmailUpdateSchema>;
 export type WaitlistListQuery = z.infer<typeof waitlistListQuerySchema>;

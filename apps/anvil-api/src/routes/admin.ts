@@ -33,10 +33,13 @@ import {
   approveSchema,
   revokeSchema,
   migrationSchema,
+  broadcastSchema,
   userEmailUpdateSchema,
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
+import { AUDIENCE_KEYS, type AudienceKey, resolveAudience } from '../lib/broadcast-audiences.js';
+import { EMAIL_REGISTRY, type TemplateKey } from '../lib/email-registry.js';
 import { isUniqueViolation, isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
@@ -58,6 +61,11 @@ admin.use(
   '/send-migration',
   adminRateLimit({ windowMs: 60 * 60 * 1000, max: 5, scope: 'send-migration' })
 );
+
+// Same envelope for `/broadcast` — operator-initiated bulk email needs a
+// per-actor cap independent of the coarse one. Scope is on the endpoint
+// (not per template) so alternating templates can't dodge the budget.
+admin.use('/broadcast', adminRateLimit({ windowMs: 60 * 60 * 1000, max: 5, scope: 'broadcast' }));
 
 /**
  * Resolve the admin actor identity for audit logging.
@@ -598,7 +606,7 @@ admin.get('/user/:email', async (c) => {
 
 // Snapshot token TTL. Short enough to bound stale-preview risk, long
 // enough to accommodate a considered operator confirmation.
-const SEND_MIGRATION_SNAPSHOT_TTL_SECONDS = 10 * 60;
+const BROADCAST_SNAPSHOT_TTL_SECONDS = 10 * 60;
 
 function computeCohortDrift(
   snapshot: SnapshotRecipient[],
@@ -662,7 +670,7 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
       audienceParams: { source },
       recipients,
       createdByActor: actor,
-      ttlSeconds: SEND_MIGRATION_SNAPSHOT_TTL_SECONDS,
+      ttlSeconds: BROADCAST_SNAPSHOT_TTL_SECONDS,
     });
 
     return c.json({
@@ -863,6 +871,245 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
   return c.json({
     user: { id: updated.id, email: updated.email, status: updated.status },
     previousEmail: normalizedCurrent,
+  });
+});
+
+/**
+ * POST /admin/broadcast
+ *
+ * Generalised mail-to-many endpoint. Dispatches any registered broadcast
+ * template (`release-announcement`, `waitlist-migration`, ...) to any
+ * named audience (`beta:active`, `waitlist:source`, ...) under the same
+ * snapshot/preview/consume + cohort-drift contract that
+ * /admin/send-migration established under ADMINCLIH-001.
+ *
+ * Bait-and-switch defence: once a snapshot exists, the snapshot is the
+ * source of truth for template, templateProps, audience_key, and
+ * audience_params. The request body on real-send is ignored for those
+ * fields — only previewToken matters.
+ *
+ * Error codes (JSON `code` field, tested in admin-broadcast.test.ts):
+ *   400 template_unknown                — template not in EMAIL_REGISTRY
+ *   400 template_kind_not_broadcastable — registry says kind=transactional
+ *   400 template_props_invalid          — templateProps fails propsSchema
+ *   400 audience_unknown                — audience not in AUDIENCE_KEYS
+ *   400 audience_params_missing         — resolver needs a param the
+ *                                         request did not supply
+ *   400 preview_token_required          — real-send without a token
+ *   410 preview_token_missing           — token unknown (or cross-actor)
+ *   410 preview_token_expired           — TTL passed
+ *   410 preview_token_consumed          — already used
+ *   409 cohort_drift                    — re-resolved set differs
+ */
+admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
+  const { template, audience, audienceParams, templateProps, limit, dryRun, previewToken } =
+    c.req.valid('json');
+
+  // ---- Validate template ---------------------------------------------------
+  if (!(template in EMAIL_REGISTRY)) {
+    return c.json({ code: 'template_unknown', error: `unknown template: ${template}` }, 400);
+  }
+  const entry = EMAIL_REGISTRY[template as TemplateKey];
+  if (entry.kind !== 'broadcast') {
+    return c.json(
+      {
+        code: 'template_kind_not_broadcastable',
+        error: `template '${template}' is transactional and cannot be broadcast`,
+      },
+      400
+    );
+  }
+
+  // ---- Validate audience ---------------------------------------------------
+  if (!(AUDIENCE_KEYS as readonly string[]).includes(audience)) {
+    return c.json({ code: 'audience_unknown', error: `unknown audience: ${audience}` }, 400);
+  }
+  if (audience === 'waitlist:source' && !audienceParams['source']) {
+    return c.json(
+      {
+        code: 'audience_params_missing',
+        error: "audience 'waitlist:source' requires audienceParams.source",
+      },
+      400
+    );
+  }
+
+  // ---- Validate templateProps ----------------------------------------------
+  const propsParse = entry.propsSchema.safeParse(templateProps);
+  if (!propsParse.success) {
+    return c.json(
+      {
+        code: 'template_props_invalid',
+        error: propsParse.error.message,
+      },
+      400
+    );
+  }
+  const validatedProps = propsParse.data as Record<string, unknown>;
+
+  // ---- Dry-run -------------------------------------------------------------
+  if (dryRun) {
+    const audienceRows = await resolveAudience(sql, audience as AudienceKey, {
+      limit,
+      params: audienceParams,
+    });
+    const recipients: SnapshotRecipient[] = audienceRows.map((r) => ({
+      email: r.email,
+      name: r.name,
+    }));
+
+    const token = randomBytes(16).toString('hex');
+    const snapshot = await insertBroadcastSnapshot(sql, {
+      token,
+      template,
+      templateProps: validatedProps,
+      audienceKey: audience,
+      audienceParams,
+      recipients,
+      createdByActor: actor,
+      ttlSeconds: BROADCAST_SNAPSHOT_TTL_SECONDS,
+    });
+
+    return c.json({
+      dryRun: true,
+      template,
+      audience,
+      count: recipients.length,
+      recipients,
+      templateProps: validatedProps,
+      previewToken: snapshot.token,
+      expiresAt: snapshot.expires_at,
+    });
+  }
+
+  // ---- Real-send: token required -------------------------------------------
+  if (!previewToken) {
+    return c.json(
+      {
+        code: 'preview_token_required',
+        error: 'previewToken is required for real-sends; run with dryRun: true first',
+      },
+      400
+    );
+  }
+
+  // ---- Real-send: consume snapshot atomically ------------------------------
+  const consumed = await consumeBroadcastSnapshot(sql, { token: previewToken, actor });
+  if (!consumed) {
+    const existing = await findBroadcastSnapshot(sql, { token: previewToken, actor });
+    if (!existing) {
+      return c.json(
+        {
+          code: 'preview_token_missing',
+          error: 'preview token is unknown; re-run with dryRun: true for a fresh preview',
+        },
+        410
+      );
+    }
+    if (existing.consumed_at !== null) {
+      return c.json(
+        {
+          code: 'preview_token_consumed',
+          error: 'preview token has already been used; re-run with dryRun: true',
+        },
+        410
+      );
+    }
+    return c.json(
+      {
+        code: 'preview_token_expired',
+        error: 'preview token has expired; re-run with dryRun: true for a fresh preview',
+      },
+      410
+    );
+  }
+
+  // ---- Real-send: snapshot is source of truth ------------------------------
+  const snapshotEntry = EMAIL_REGISTRY[consumed.template as TemplateKey];
+  if (!snapshotEntry || snapshotEntry.kind !== 'broadcast') {
+    // Should be impossible — snapshots are only created above for
+    // broadcast templates — but defend in case the registry changed
+    // between snapshot and consume (e.g. a template was removed mid-flight).
+    return c.json(
+      {
+        code: 'template_kind_not_broadcastable',
+        error: `snapshot template '${consumed.template}' is no longer a broadcast template`,
+      },
+      400
+    );
+  }
+
+  // Re-resolve audience using the snapshot's key + params, NOT the
+  // request body's. freshLimit matches snapshot size so a request limit
+  // smaller or larger than what was captured doesn't produce false drift.
+  const freshLimit = Math.max(consumed.recipients.length, 1);
+  const currentRows = await resolveAudience(sql, consumed.audience_key as AudienceKey, {
+    limit: freshLimit,
+    params: consumed.audience_params as Record<string, string>,
+  });
+  const currentRecipients: SnapshotRecipient[] = currentRows.map((r) => ({
+    email: r.email,
+    name: r.name,
+  }));
+  const drift = computeCohortDrift(consumed.recipients, currentRecipients);
+  if (drift.added.length > 0 || drift.removed.length > 0) {
+    return c.json(
+      {
+        code: 'cohort_drift',
+        error: 'recipient set changed since preview; re-run with dryRun: true',
+        added: drift.added,
+        removed: drift.removed,
+      },
+      409
+    );
+  }
+
+  // ---- Real-send: dispatch -------------------------------------------------
+  // Snapshot rows are the source of truth for who to email and what
+  // props to send — the operator's preview confirmation anchors both.
+  const results: { email: string; sent: boolean; error?: string }[] = [];
+  for (const row of consumed.recipients) {
+    const delivery = await snapshotEntry.sender(
+      // SnapshotRecipient doesn't store user_id; sender contract takes
+      // an AudienceRow. Pass null — current senders only use email + name.
+      { email: row.email, name: row.name, user_id: null },
+      consumed.template_props
+    );
+    results.push({
+      email: row.email,
+      sent: delivery.sent,
+      error: delivery.sent ? undefined : delivery.message,
+    });
+  }
+
+  const sent = results.filter((r) => r.sent).length;
+  const failed = results.filter((r) => !r.sent).length;
+
+  await insertAuditLog(
+    sql,
+    'broadcast.email.sent',
+    actor,
+    {
+      template: consumed.template,
+      audience: consumed.audience_key,
+      audienceParams: consumed.audience_params,
+      sent,
+      failed,
+      previewToken,
+    },
+    authMethod
+  );
+
+  return c.json({
+    template: consumed.template,
+    audience: consumed.audience_key,
+    total: consumed.recipients.length,
+    sent,
+    failed,
+    results,
   });
 });
 
