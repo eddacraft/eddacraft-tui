@@ -16,10 +16,10 @@
 #   4. Hand-edit licences.node-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
 #      (ATTRIB-012 Node-fragment drift detection.)
+#   5. Deterministic note wrapping, fold-independent. (ATTRIB-016.)
 #   6. Hand-edit licences.go-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
 #      (ATTRIB-013 Go-fragment drift detection.)
-#   5. Deterministic note wrapping, fold-independent. (ATTRIB-016.)
 #
 # Local invocation:
 #   tools/starters/acknowledgements/tests/licences-drift.sh
@@ -200,42 +200,6 @@ if ! grep -q "Bogus-9.9" <<<"$output_s4"; then
 fi
 echo "ok scenario 4: hand-edit inside Node markers → --check detects drift"
 
-# Re-expand to restore the clean baseline for scenario 6.
-(cd "$fixture_dir" && "$EXPANDER") >/dev/null
-
-# --- Scenario 6: hand-edit licences.go-allow.txt inside markers -----------
-# ATTRIB-013 Go-fragment drift detection. The Go fragment is a single
-# comma-joined SPDX line, so inject a bogus SPDX above the END marker.
-python3 - "$fixture_dir/licences.go-allow.txt" <<'PY'
-import sys, pathlib
-p = pathlib.Path(sys.argv[1])
-text = p.read_text()
-marker = "# END AUTO-GENERATED FROM licences.toml — go-allow"
-text = text.replace(marker, "Bogus-7.7\n" + marker, 1)
-p.write_text(text)
-PY
-
-set +e
-output_s6="$(cd "$fixture_dir" && "$EXPANDER" --check 2>&1)"
-exit_s6=$?
-set -e
-
-if [ "$exit_s6" -eq 0 ]; then
-  echo "FAIL scenario 6: hand-edited Bogus-7.7 into licences.go-allow.txt" >&2
-  echo "    but --check exited 0. Hand-edits inside the Go markers must be" >&2
-  echo "    detected as drift (ATTRIB-013 single-source guarantee)." >&2
-  exit 1
-fi
-if ! grep -q "Bogus-7.7" <<<"$output_s6"; then
-  echo "FAIL scenario 6: drift detected (exit $exit_s6) but the diff did not" >&2
-  echo "    name the offending entry." >&2
-  echo "----- output -----" >&2
-  echo "$output_s6" >&2
-  echo "------------------" >&2
-  exit 1
-fi
-echo "ok scenario 6: hand-edit inside Go markers → --check detects drift"
-
 # --- Scenario 5: deterministic note wrapping (ATTRIB-016) -------------------
 #
 # The expander wraps long `note` fields into `#`-prefixed comment lines.
@@ -390,6 +354,42 @@ if [ "$s5_clean" != "$s5_poisoned" ]; then
   exit 1
 fi
 echo "ok scenario 5d: note wrap is independent of the 'fold' binary on PATH"
+
+# --- Scenario 6: hand-edit licences.go-allow.txt inside markers -----------
+# ATTRIB-013 Go-fragment drift detection. The Go fragment is a single
+# comma-joined SPDX line, so inject a bogus SPDX above the END marker.
+# Re-expand fixture_dir first: scenario 4 left licences.node-allow.txt
+# hand-edited, so restore the clean baseline before testing go-allow.
+(cd "$fixture_dir" && "$EXPANDER") >/dev/null
+python3 - "$fixture_dir/licences.go-allow.txt" <<'PY'
+import sys, pathlib
+p = pathlib.Path(sys.argv[1])
+text = p.read_text()
+marker = "# END AUTO-GENERATED FROM licences.toml — go-allow"
+text = text.replace(marker, "Bogus-7.7\n" + marker, 1)
+p.write_text(text)
+PY
+
+set +e
+output_s6="$(cd "$fixture_dir" && "$EXPANDER" --check 2>&1)"
+exit_s6=$?
+set -e
+
+if [ "$exit_s6" -eq 0 ]; then
+  echo "FAIL scenario 6: hand-edited Bogus-7.7 into licences.go-allow.txt" >&2
+  echo "    but --check exited 0. Hand-edits inside the Go markers must be" >&2
+  echo "    detected as drift (ATTRIB-013 single-source guarantee)." >&2
+  exit 1
+fi
+if ! grep -q "Bogus-7.7" <<<"$output_s6"; then
+  echo "FAIL scenario 6: drift detected (exit $exit_s6) but the diff did not" >&2
+  echo "    name the offending entry." >&2
+  echo "----- output -----" >&2
+  echo "$output_s6" >&2
+  echo "------------------" >&2
+  exit 1
+fi
+echo "ok scenario 6: hand-edit inside Go markers → --check detects drift"
 
 echo ""
 echo "ATTRIB-006/-012/-013/-016 drift test passed: all six scenarios green."

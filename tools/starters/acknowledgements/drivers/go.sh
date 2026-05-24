@@ -7,7 +7,10 @@
 #   {
 #     "name": "go",
 #     "ecosystem": "go",
-#     "module_path":   "absolute path to the package/binary dir to walk (e.g. ./cmd/anvil)",
+#     "module_path":   "ABSOLUTE path to the package/binary dir to walk. The
+#                        dispatcher resolves a config-relative value like
+#                        'cmd/anvil' to absolute before calling the driver;
+#                        direct callers must pass an absolute path.",
 #     "go_allow_path": "absolute path to licences.go-allow.txt",
 #     "template_path": "absolute path to a go-licenses report template (optional;
 #                       defaults to the kit's templates/go-licenses.tmpl)"
@@ -51,6 +54,17 @@ module_path="$(printf '%s' "$config_json" | jq -er '.module_path // empty')" || 
   echo "drivers/go.sh: block is missing required key 'module_path'" >&2
   exit 1
 }
+# The go.mod walk-up below relies on an absolute path — `dirname` of a
+# relative path bottoms out at "." (or ""), never "/", which would spin
+# forever. The dispatcher always resolves `*_path` keys to absolute;
+# guard direct callers that pass a relative path.
+case "$module_path" in
+  /*) ;;
+  *)
+    echo "drivers/go.sh: module_path must be an absolute path (got: $module_path)" >&2
+    exit 1
+    ;;
+esac
 go_allow_path="$(printf '%s' "$config_json" | jq -er '.go_allow_path // empty')" || {
   echo "drivers/go.sh: block is missing required key 'go_allow_path'" >&2
   exit 1
@@ -146,16 +160,21 @@ fi
 # header. go-licenses' own ordering is graph-derived and not guaranteed
 # stable, so sorting here is what makes --check deterministic.
 render_err="$(mktemp)"
-trap 'rm -f "$strict_err" "$render_err"' EXIT
-rows="$( ( cd "$mod_root" && go-licenses report "$module_path" \
-            --ignore "$main_module" \
-            --template "$template_path" ) 2>"$render_err" \
-          | grep -v '^[[:space:]]*$' | LC_ALL=C sort )" || {
+render_raw="$(mktemp)"
+trap 'rm -f "$strict_err" "$render_err" "$render_raw"' EXIT
+# Run go-licenses on its own first so a real tool failure is reported as
+# such — folding it into the filter|sort pipe would let an empty-but-
+# successful report trip the same error path (grep -v exits 1 on no
+# match under pipefail) and mislabel it "report failed".
+if ! ( cd "$mod_root" && go-licenses report "$module_path" \
+         --ignore "$main_module" \
+         --template "$template_path" ) >"$render_raw" 2>"$render_err"; then
   echo "drivers/go.sh: go-licenses report failed." >&2
   sed 's/^/    /' "$render_err" >&2
   exit 1
-}
+fi
 
+rows="$(grep -v '^[[:space:]]*$' "$render_raw" | LC_ALL=C sort)"
 if [ -z "$rows" ]; then
   echo "drivers/go.sh: go-licenses report produced no third-party dependencies for $module_path." >&2
   echo "  if this module genuinely has no third-party deps, omit the go block from attribution.toml." >&2
