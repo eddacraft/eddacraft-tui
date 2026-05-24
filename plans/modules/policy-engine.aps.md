@@ -214,6 +214,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-005: Result post-processing — warnings-over-blocks + new-edges-only
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Apply ADR-002 and ADR-003 uniformly to every engine evaluation
   so downstream tiers inherit Anvil's defaults without re-implementing them
 - **Expected Outcome:** `EvalResult` carries `Severity` (`Warning` / `Error`)

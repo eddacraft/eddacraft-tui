@@ -1,0 +1,298 @@
+//! Result post-processing — warnings-over-blocks + new-edges-only (POLENG-005).
+//!
+//! Raw evaluation yields an arbitrary JSON value ([`crate::EvalResult`]). Anvil
+//! policies emit *findings* — an array of objects — and every tier must inherit
+//! the same two defaults rather than re-implementing them:
+//!
+//! - **ADR-002 (warnings over blocks):** a [`Severity::Warning`] never blocks
+//!   (exit 0); only a [`Severity::Error`] does. CI opts into stricter behaviour
+//!   with [`PostProcessOptions::fail_on_warnings`].
+//! - **ADR-003 (new edges only):** a finding whose `fingerprint` is in the
+//!   baseline is annotated `baselined` and suppressed — it neither warns nor
+//!   blocks, it is only tracked for drift. A finding about a dependency edge in
+//!   `input.diff.new_edges` (and not baselined) is annotated `is_new_edge`.
+//!
+//! [`post_process`] applies both uniformly and computes the process exit code.
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::PolicyInput;
+
+/// Severity of a finding. Defaults to [`Severity::Warning`] per ADR-002, so a
+/// policy that omits the field gets the non-blocking default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    /// Advisory. Never blocks unless [`PostProcessOptions::fail_on_warnings`].
+    #[default]
+    Warning,
+    /// Hard failure (schema error, crash). Always blocks.
+    Error,
+}
+
+/// A single policy finding. The first block of fields is supplied by the
+/// policy; `is_new_edge` and `baselined` are computed by [`post_process`] and
+/// default to `false` when a raw finding is parsed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Finding {
+    #[serde(default)]
+    pub severity: Severity,
+    pub message: String,
+    /// Importer side of the dependency edge this finding concerns, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// Imported side of the dependency edge this finding concerns, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
+    /// Baseline fingerprint of this finding, if it has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fingerprint: Option<String>,
+
+    /// Computed: the finding concerns an edge introduced by the change set and
+    /// is not baselined (ADR-003).
+    #[serde(default)]
+    pub is_new_edge: bool,
+    /// Computed: the finding's fingerprint is in the baseline cohort, so it is
+    /// suppressed from save-time output (ADR-003).
+    #[serde(default)]
+    pub baselined: bool,
+}
+
+/// Knobs governing the exit-code policy.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PostProcessOptions {
+    /// Opt-in stricter mode: a non-baselined warning blocks (exit 1). Off by
+    /// default per ADR-002. Wired to the `--fail-on-warnings` CLI flag
+    /// (POLENG-007).
+    pub fail_on_warnings: bool,
+}
+
+/// The post-processed evaluation: annotated findings plus the process exit
+/// code derived from ADR-002 / ADR-003.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EvalReport {
+    pub findings: Vec<Finding>,
+    pub exit_code: i32,
+}
+
+#[derive(Debug, Error)]
+pub enum ResultError {
+    #[error("policy result is not a findings array: {0}")]
+    Shape(String),
+    #[error("could not parse findings: {0}")]
+    Parse(String),
+}
+
+/// Apply ADR-002 / ADR-003 post-processing to a raw policy result.
+///
+/// `raw` is expected to be a JSON array of finding objects (Rego sets and
+/// arrays both serialise to arrays) or `null`/absent for "no findings". Any
+/// other shape is a policy authoring error and returns [`ResultError::Shape`].
+pub fn post_process(
+    raw: &serde_json::Value,
+    input: &PolicyInput,
+    opts: PostProcessOptions,
+) -> Result<EvalReport, ResultError> {
+    let mut findings: Vec<Finding> = match raw {
+        serde_json::Value::Null => Vec::new(),
+        serde_json::Value::Array(_) => {
+            serde_json::from_value(raw.clone()).map_err(|e| ResultError::Parse(e.to_string()))?
+        }
+        other => return Err(ResultError::Shape(format!("expected array, got {other}"))),
+    };
+
+    annotate(&mut findings, input);
+    let exit_code = exit_code(&findings, opts);
+    Ok(EvalReport {
+        findings,
+        exit_code,
+    })
+}
+
+/// Set the computed `baselined` and `is_new_edge` flags on each finding.
+fn annotate(findings: &mut [Finding], input: &PolicyInput) {
+    for finding in findings {
+        finding.baselined = finding
+            .fingerprint
+            .as_ref()
+            .is_some_and(|fp| input.baseline.findings.iter().any(|b| &b.fingerprint == fp));
+
+        finding.is_new_edge = match (&finding.from, &finding.to) {
+            (Some(from), Some(to)) => {
+                !finding.baselined
+                    && input
+                        .diff
+                        .new_edges
+                        .iter()
+                        .any(|edge| &edge.from == from && &edge.to == to)
+            }
+            _ => false,
+        };
+    }
+}
+
+/// ADR-002: exit 0 for warnings, non-zero only for errors; baselined findings
+/// (ADR-003) are suppressed and never contribute.
+fn exit_code(findings: &[Finding], opts: PostProcessOptions) -> i32 {
+    let has_error = findings.iter().any(|f| f.severity == Severity::Error);
+    let has_active_warning = findings
+        .iter()
+        .any(|f| f.severity == Severity::Warning && !f.baselined);
+
+    i32::from(has_error || (has_active_warning && opts.fail_on_warnings))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::input::{Baseline, BaselineFinding, DependencyEdge, Diff};
+    use serde_json::json;
+
+    fn input_with_baseline_and_new_edge() -> PolicyInput {
+        PolicyInput {
+            diff: Diff {
+                changed_files: vec![],
+                new_edges: vec![DependencyEdge {
+                    from: "src/app.rs".into(),
+                    to: "src/net.rs".into(),
+                }],
+            },
+            baseline: Baseline {
+                findings: vec![BaselineFinding {
+                    rule_id: "r".into(),
+                    file_path: "src/legacy.rs".into(),
+                    fingerprint: "f00d".into(),
+                }],
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn severity_defaults_to_warning() {
+        let f: Finding = serde_json::from_value(json!({"message": "x"})).expect("parse");
+        assert_eq!(f.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn null_result_is_empty_and_passes() {
+        let report = post_process(
+            &json!(null),
+            &PolicyInput::default(),
+            PostProcessOptions::default(),
+        )
+        .expect("post_process");
+        assert!(report.findings.is_empty());
+        assert_eq!(report.exit_code, 0);
+    }
+
+    #[test]
+    fn non_array_result_is_a_shape_error() {
+        let err = post_process(
+            &json!({"message": "oops"}),
+            &PolicyInput::default(),
+            PostProcessOptions::default(),
+        )
+        .expect_err("shape");
+        assert!(matches!(err, ResultError::Shape(_)));
+    }
+
+    #[test]
+    fn warnings_do_not_block_by_default_but_do_with_fail_on_warnings() {
+        let raw = json!([{ "message": "new edge" }]);
+        let input = PolicyInput::default();
+
+        let lenient = post_process(&raw, &input, PostProcessOptions::default()).expect("lenient");
+        assert_eq!(lenient.exit_code, 0);
+
+        let strict = post_process(
+            &raw,
+            &input,
+            PostProcessOptions {
+                fail_on_warnings: true,
+            },
+        )
+        .expect("strict");
+        assert_eq!(strict.exit_code, 1);
+    }
+
+    #[test]
+    fn errors_always_block() {
+        let raw = json!([{ "severity": "error", "message": "schema failure" }]);
+        let report =
+            post_process(&raw, &PolicyInput::default(), PostProcessOptions::default()).expect("pp");
+        assert_eq!(report.exit_code, 1);
+    }
+
+    #[test]
+    fn baselined_warning_is_suppressed_even_under_fail_on_warnings() {
+        let raw = json!([{ "message": "legacy", "fingerprint": "f00d" }]);
+        let report = post_process(
+            &raw,
+            &input_with_baseline_and_new_edge(),
+            PostProcessOptions {
+                fail_on_warnings: true,
+            },
+        )
+        .expect("pp");
+        assert!(report.findings[0].baselined);
+        assert!(!report.findings[0].is_new_edge);
+        assert_eq!(report.exit_code, 0, "baselined finding must not block");
+    }
+
+    #[test]
+    fn new_edge_finding_is_annotated() {
+        let raw = json!([{ "message": "app -> net", "from": "src/app.rs", "to": "src/net.rs" }]);
+        let report = post_process(
+            &raw,
+            &input_with_baseline_and_new_edge(),
+            PostProcessOptions::default(),
+        )
+        .expect("pp");
+        assert!(report.findings[0].is_new_edge);
+        assert!(!report.findings[0].baselined);
+    }
+
+    /// End-to-end: a policy emits a findings set, and `evaluate_findings`
+    /// annotates and exit-codes it under both lenient and strict options.
+    #[test]
+    fn evaluate_findings_end_to_end() {
+        use crate::{Engine, EngineConfig};
+
+        const POLICY: &str = r#"package arch
+import rego.v1
+
+findings contains f if {
+    some edge in input.diff.new_edges
+    f := {
+        "message": sprintf("new edge %s -> %s", [edge.from, edge.to]),
+        "from": edge.from,
+        "to": edge.to,
+    }
+}
+"#;
+        let input = input_with_baseline_and_new_edge();
+
+        let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+        engine.add_policy("arch.rego", POLICY).expect("add_policy");
+
+        let lenient = engine
+            .evaluate_findings(&input, "data.arch.findings", PostProcessOptions::default())
+            .expect("lenient");
+        assert_eq!(lenient.findings.len(), 1);
+        assert!(lenient.findings[0].is_new_edge);
+        assert_eq!(lenient.exit_code, 0);
+
+        let strict = engine
+            .evaluate_findings(
+                &input,
+                "data.arch.findings",
+                PostProcessOptions {
+                    fail_on_warnings: true,
+                },
+            )
+            .expect("strict");
+        assert_eq!(strict.exit_code, 1);
+    }
+}

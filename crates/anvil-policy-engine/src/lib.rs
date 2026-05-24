@@ -15,9 +15,11 @@ use thiserror::Error;
 pub mod builtins;
 pub mod determinism;
 pub mod input;
+pub mod result;
 
 pub use determinism::{Builtin, BuiltinError, DeterminismClass};
 pub use input::PolicyInput;
+pub use result::{EvalReport, Finding, PostProcessOptions, ResultError, Severity};
 
 /// Configuration for an [`Engine`].
 #[derive(Debug, Clone, Default)]
@@ -53,6 +55,8 @@ pub enum EngineError {
         "refused to register impure builtin `{0}`; set EngineConfig::allow_impure_builtins to opt in"
     )]
     ImpureBuiltinRejected(String),
+    #[error("result post-processing failed: {0}")]
+    PostProcess(#[from] ResultError),
 }
 
 pub struct Engine {
@@ -171,6 +175,23 @@ impl Engine {
         };
 
         Ok(EvalResult { value })
+    }
+
+    /// Evaluate a findings query and apply ADR-002 / ADR-003 post-processing
+    /// (POLENG-005): annotate each finding with `is_new_edge` / `baselined` and
+    /// compute the process exit code. `query` should resolve to an array of
+    /// finding objects (or be absent for "no findings").
+    pub fn evaluate_findings(
+        &mut self,
+        input: &PolicyInput,
+        query: &str,
+        opts: PostProcessOptions,
+    ) -> Result<EvalReport, EngineError> {
+        let raw = self
+            .eval(input, query)?
+            .value
+            .unwrap_or(serde_json::Value::Null);
+        Ok(result::post_process(&raw, input, opts)?)
     }
 }
 
