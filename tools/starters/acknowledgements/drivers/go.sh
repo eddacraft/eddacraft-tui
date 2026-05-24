@@ -36,6 +36,16 @@ fi
 config_json="$1"
 output_path="$2"
 
+# ── Tool preflight ───────────────────────────────────────────────────
+# Each driver checks its own deps so direct invocation (tests, scripts)
+# gives the same actionable error rather than a `command not found`.
+# jq is checked first because the block-config-json parse below needs it
+# — without this guard a missing jq dies with a generic `set -e` error.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "drivers/go.sh: jq not installed (required to parse the block-config-json argument)" >&2
+  exit 1
+fi
+
 # ── Required + optional block keys ───────────────────────────────────
 module_path="$(printf '%s' "$config_json" | jq -er '.module_path // empty')" || {
   echo "drivers/go.sh: block is missing required key 'module_path'" >&2
@@ -47,13 +57,6 @@ go_allow_path="$(printf '%s' "$config_json" | jq -er '.go_allow_path // empty')"
 }
 template_path="$(printf '%s' "$config_json" | jq -r '.template_path // empty')"
 
-# ── Tool preflight ───────────────────────────────────────────────────
-# Each driver checks its own deps so direct invocation (tests, scripts)
-# gives the same actionable error rather than a `command not found`.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "drivers/go.sh: jq not installed (required to parse the block-config-json argument)" >&2
-  exit 1
-fi
 if ! command -v go >/dev/null 2>&1; then
   echo "drivers/go.sh: go not installed (required to resolve the module graph)" >&2
   exit 1

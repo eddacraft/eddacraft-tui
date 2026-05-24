@@ -14,12 +14,14 @@ on:
       - 'tools/starters/acknowledgements/**'
       - 'licences.toml'
       - 'licences.node-allow.txt'
+      - 'licences.go-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
   pull_request:
     paths:
       - 'tools/starters/acknowledgements/**'
       - 'licences.toml'
       - 'licences.node-allow.txt'
+      - 'licences.go-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
 
 permissions:
