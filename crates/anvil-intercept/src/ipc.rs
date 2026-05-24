@@ -3088,6 +3088,68 @@ fn verify_lineage_claim(
     }
 }
 
+/// MLP2-074 (PR #1895 review): re-derive the child's `pid_starttime`
+/// server-side on Linux instead of trusting the launcher's wire
+/// value. Mirrors the trust-boundary defence
+/// [`verify_lineage_claim`] applies on the register path — the
+/// launcher claim is advisory; the authoritative value is the one
+/// the daemon reads from `/proc/<child_pid>/stat`. Without this
+/// re-derivation a launcher could pin an arbitrary `pid_starttime`
+/// against a real child pid and evade either MLP-014's PID-reuse
+/// defence or the MLP2-025 lineage walk (the walk reads
+/// `pid_starttime` live and would see a fresh value that no longer
+/// matches the index).
+///
+/// On non-Linux platforms the daemon has no portable
+/// `pid_starttime` reader yet (the spec calls for `proc_pidinfo` on
+/// macOS and `GetProcessTimes` on Windows), so we forward the
+/// client-supplied value as advisory — matches the existing
+/// non-Linux branch of `verify_lineage_claim`.
+///
+/// Returns the trusted value on success, or a human-readable
+/// rejection string on Linux when `pid_starttime(child_pid)` cannot
+/// be read (e.g. the child exited between the launcher's spawn and
+/// the daemon's read — fail-closed: the index would otherwise be
+/// keyed on an attacker-chosen value).
+fn verify_report_process_starttime(
+    child_pid: u32,
+    advisory_starttime: u64,
+    _peer_pid: u32,
+) -> Result<u64, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let pid_starttime =
+            anvil_attribution::process::pid_starttime(child_pid).map_err(|err| {
+                format!(
+                    "session.report_process rejected: cannot read pid_starttime \
+                     for child pid={child_pid}: {err} (MLP2-074 / PR #1895)"
+                )
+            })?;
+        if advisory_starttime != pid_starttime {
+            // Client claim is advisory; the daemon's read wins.
+            // Log at debug so an operator chasing a discrepancy
+            // has a breadcrumb without flooding warn-level output
+            // on benign clock-tick rounding.
+            tracing::debug!(
+                target: "anvil_intercept::ipc",
+                claim_pid_starttime = advisory_starttime,
+                daemon_pid_starttime = pid_starttime,
+                child_pid,
+                "session.report_process pid_starttime claim differs from daemon read; trusting daemon",
+            );
+        }
+        Ok(pid_starttime)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // No portable server-side reader on this platform yet.
+        // Forward the launcher's advisory value. Matches the
+        // non-Linux branch of `verify_lineage_claim`.
+        let _ = child_pid;
+        Ok(advisory_starttime)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
 #[allow(clippy::too_many_lines)] // MLP2-074 adds the ReportProcess arm; this is the canonical per-variant dispatch table and inlining keeps the routing visible at one glance.
@@ -3163,8 +3225,23 @@ fn dispatch_command<D: SessionDispatcher>(
                         .to_owned(),
                 );
             };
+            // PR #1895 review: mirror MLP2-070's
+            // `verify_lineage_claim` Linux behaviour — the
+            // launcher-supplied `pid_starttime` is advisory; the
+            // authoritative value is the one the daemon reads from
+            // `/proc/<child_pid>/stat`. Trusting the wire value
+            // would let a malicious launcher pin a chosen
+            // pid_starttime against a real child pid and either
+            // smuggle the anchor past PID-reuse defence or evade
+            // future lineage lookups by mis-matching the value
+            // `cross_check_env_tag` reads at write time. On
+            // non-Linux the daemon has no portable starttime
+            // reader yet (same caveat as MLP2-070), so the wire
+            // value is forwarded as advisory.
+            let trusted_starttime =
+                verify_report_process_starttime(*pid, *pid_starttime, peer_pid)?;
             dispatcher
-                .report_process(session_id, *pid, *pid_starttime, peer_pid)
+                .report_process(session_id, *pid, trusted_starttime, peer_pid)
                 .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
@@ -3862,8 +3939,11 @@ mod tests {
 
     /// `dispatch_command` routes a `ReportProcess` frame to the
     /// dispatcher with the launcher's peer pid and the child's
-    /// `(pid, pid_starttime)` from the wire body. Returns
-    /// `{"ok": true}` on success.
+    /// `(pid, pid_starttime)`. The child pid is a real running
+    /// process (this test's own pid) so the Linux server-side
+    /// `pid_starttime` re-derivation (PR #1895 review) finds a
+    /// readable `/proc/<pid>/stat`; we assert the dispatcher
+    /// receives the daemon-read value, not the wire-supplied one.
     #[cfg(unix)]
     #[test]
     fn dispatch_command_report_process_forwards_peer_and_child_anchor() {
@@ -3872,10 +3952,15 @@ mod tests {
         let recorder = Arc::new(RecordingDispatcher::default());
         let dispatcher = Arc::new(Arc::clone(&recorder));
         let peer_pid = std::process::id();
+        // Use the current process as the "child" so the daemon's
+        // `/proc/<pid>/stat` re-derivation succeeds on Linux. On
+        // non-Linux the wire value is forwarded unchanged.
+        let fake_child_pid = std::process::id();
+        let advisory_starttime = 1_700_100_000;
         let command = IpcCommand::ReportProcess {
             session_id: SessionId::new("sess-rp"),
-            pid: 5151,
-            pid_starttime: 1_700_100_000,
+            pid: fake_child_pid,
+            pid_starttime: advisory_starttime,
         };
         let result = dispatch_command(&command, &dispatcher, Some(peer_pid), None)
             .expect("report_process must dispatch ok");
@@ -3892,12 +3977,116 @@ mod tests {
                 },
             ] => {
                 assert_eq!(id, "sess-rp");
-                assert_eq!(*child_pid, 5151);
-                assert_eq!(*child_pid_starttime, 1_700_100_000);
+                assert_eq!(*child_pid, fake_child_pid);
                 assert_eq!(*forwarded_peer, peer_pid);
+                #[cfg(target_os = "linux")]
+                {
+                    let real = anvil_attribution::process::pid_starttime(fake_child_pid)
+                        .expect("self pid_starttime must succeed on Linux");
+                    assert_eq!(
+                        *child_pid_starttime, real,
+                        "Linux dispatch must forward the daemon-read starttime, not the wire value",
+                    );
+                    assert_ne!(
+                        *child_pid_starttime, advisory_starttime,
+                        "wire value was deliberately wrong; daemon-read must win",
+                    );
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    assert_eq!(
+                        *child_pid_starttime, advisory_starttime,
+                        "non-Linux dispatch forwards the launcher's advisory starttime",
+                    );
+                }
             }
             other => panic!("expected single ReportProcess call, got {other:?}"),
         }
+    }
+
+    /// PR #1895 review: on Linux the daemon re-derives the child's
+    /// `pid_starttime` from `/proc/<child_pid>/stat` and ignores
+    /// the launcher's claim — mirrors MLP2-070's
+    /// `verify_lineage_claim` behaviour for the register-side
+    /// lineage anchor. Pinned so a future refactor cannot
+    /// silently downgrade this trust-boundary defence.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_report_process_overrides_client_pid_starttime_on_linux() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let child_pid = std::process::id();
+        let real_starttime = anvil_attribution::process::pid_starttime(child_pid)
+            .expect("pid_starttime for self must succeed on Linux");
+        // A clearly-wrong claim: one tick off from the truth. The
+        // daemon must read the real value and forward that.
+        let lying_starttime = real_starttime.wrapping_add(1);
+        assert_ne!(lying_starttime, real_starttime, "test fixture sanity");
+
+        let command = IpcCommand::ReportProcess {
+            session_id: SessionId::new("sess-override"),
+            pid: child_pid,
+            pid_starttime: lying_starttime,
+        };
+        dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("dispatch must succeed when child pid_starttime is readable");
+
+        let calls = recorder.calls();
+        match calls.as_slice() {
+            [
+                RecordedCall::ReportProcess {
+                    child_pid_starttime,
+                    ..
+                },
+            ] => {
+                assert_eq!(
+                    *child_pid_starttime, real_starttime,
+                    "pid_starttime forwarded to dispatcher must be the daemon-read value",
+                );
+            }
+            other => panic!("expected single ReportProcess call, got {other:?}"),
+        }
+    }
+
+    /// PR #1895 review: on Linux, if the daemon cannot read
+    /// `/proc/<child_pid>/stat` (e.g. the child exited between the
+    /// launcher's spawn and the daemon's read), the dispatch
+    /// fails closed rather than silently committing an
+    /// attacker-chosen starttime to the lineage index. The error
+    /// names the failure mode so an operator can chase a benign
+    /// race.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_report_process_fails_closed_when_child_pid_starttime_unreadable_on_linux() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        // A pid that almost certainly does not exist. `u32::MAX`
+        // is well above the kernel's `pid_max` (default 4_194_304,
+        // explicit cap 2^22 on 64-bit); the `/proc/<pid>/stat`
+        // read returns ENOENT.
+        let nonexistent_pid: u32 = u32::MAX;
+        let command = IpcCommand::ReportProcess {
+            session_id: SessionId::new("sess-gone"),
+            pid: nonexistent_pid,
+            pid_starttime: 1_700_100_000,
+        };
+        let err = dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect_err("dispatch must fail closed when /proc read fails");
+        assert!(
+            err.contains("cannot read pid_starttime"),
+            "error must name the read failure, got: {err}",
+        );
+        assert!(
+            recorder.calls().is_empty(),
+            "dispatcher.report_process must not be invoked when starttime is unreadable; calls={:?}",
+            recorder.calls(),
+        );
     }
 
     /// `dispatch_command` rejects `ReportProcess` when `peer_pid` is

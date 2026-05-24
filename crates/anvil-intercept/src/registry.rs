@@ -177,6 +177,32 @@ pub enum RegistryError {
         expected: Option<u32>,
         actual: u32,
     },
+
+    /// MLP2-074 (PR #1895 review): `session.report_process` was
+    /// called with a child `(pid, pid_starttime)` pair that is
+    /// already mapped in `by_pid_lineage` to a *different* session.
+    /// Re-narrowing to an already-claimed anchor would silently
+    /// overwrite the existing mapping and let one session hijack
+    /// lineage lookups for another (the launcher's wire body is
+    /// trusted only against its own session — `child_pid` is NOT
+    /// constrained to match `peer_pid`). The collision is checked
+    /// before any mutation so the registry stays consistent on
+    /// rejection.
+    ///
+    /// Note: re-narrowing to the SAME pair this session already
+    /// owns is idempotent and returns `Ok` — only cross-session
+    /// collisions trip this variant.
+    #[error(
+        "session {session:?} lineage anchor collision: \
+         (pid={child_pid}, pid_starttime={child_pid_starttime}) \
+         already claimed by session {existing:?}"
+    )]
+    LineageAnchorCollision {
+        session: SessionId,
+        existing: SessionId,
+        child_pid: u32,
+        child_pid_starttime: u64,
+    },
 }
 
 impl PartialEq for RegistryError {
@@ -218,6 +244,25 @@ impl PartialEq for RegistryError {
                     actual: b_actual,
                 },
             ) => a_sid == b_sid && a_expected == b_expected && a_actual == b_actual,
+            (
+                Self::LineageAnchorCollision {
+                    session: lhs_session,
+                    existing: lhs_existing,
+                    child_pid: lhs_pid,
+                    child_pid_starttime: lhs_start,
+                },
+                Self::LineageAnchorCollision {
+                    session: rhs_session,
+                    existing: rhs_existing,
+                    child_pid: rhs_pid,
+                    child_pid_starttime: rhs_start,
+                },
+            ) => {
+                lhs_session == rhs_session
+                    && lhs_existing == rhs_existing
+                    && lhs_pid == rhs_pid
+                    && lhs_start == rhs_start
+            }
             (
                 Self::SessionCapExceeded {
                     worktree: a_wt,
@@ -767,29 +812,61 @@ impl SessionRegistry {
         peer_pid: u32,
     ) -> Result<SessionRecord, RegistryError> {
         let mut inner = self.lock();
-        let entry = inner
-            .sessions
-            .get_mut(id)
-            .ok_or_else(|| RegistryError::UnknownSession(id.clone()))?;
+        // All validity checks run BEFORE we touch `entry.record` so
+        // a rejection leaves both the record and the lineage index
+        // untouched (PR #1895 review). Look up the session
+        // immutably first to grab the launcher anchor we need for
+        // both the ownership check and the lineage-index remove,
+        // then take a mutable borrow only when we have committed
+        // to the mutation.
+        let (launcher_pid_opt, launcher_starttime) = {
+            let entry = inner
+                .sessions
+                .get(id)
+                .ok_or_else(|| RegistryError::UnknownSession(id.clone()))?;
+            (entry.record.pid, entry.record.started_at_unix)
+        };
 
-        let launcher_pid = entry.record.pid;
-        if launcher_pid != Some(peer_pid) {
+        if launcher_pid_opt != Some(peer_pid) {
             return Err(RegistryError::PeerOwnershipMismatch {
                 session: id.clone(),
-                expected: launcher_pid,
+                expected: launcher_pid_opt,
                 actual: peer_pid,
             });
         }
-        let launcher_starttime = entry.record.started_at_unix;
+        // Per the check above, `launcher_pid_opt` is `Some(peer_pid)`.
+        let launcher_pid = peer_pid;
+
+        // Cross-session collision defence (PR #1895 review): the
+        // launcher supplies `child_pid` / `child_pid_starttime` on
+        // the wire, and `child_pid` is NOT constrained to equal
+        // `peer_pid`. A malicious or buggy launcher could submit a
+        // pair already mapped to another session and silently
+        // overwrite that session's lineage anchor. Refuse the
+        // mutation if the index already maps to a different
+        // session; re-narrowing to the SAME (pid, pid_starttime)
+        // pair this session already owns is idempotent and falls
+        // through to the swap below.
+        if let Some(existing) = inner.by_pid_lineage.get(&(child_pid, child_pid_starttime))
+            && existing != id
+        {
+            return Err(RegistryError::LineageAnchorCollision {
+                session: id.clone(),
+                existing: existing.clone(),
+                child_pid,
+                child_pid_starttime,
+            });
+        }
+
+        // Validity confirmed — now mutate.
+        let entry = inner
+            .sessions
+            .get_mut(id)
+            .expect("session presence proven by the immutable lookup above");
         entry.record.pid = Some(child_pid);
         entry.record.started_at_unix = child_pid_starttime;
         let updated = entry.record.clone();
 
-        // `launcher_pid` is `Some(peer_pid)` per the ownership check
-        // above; the legacy register path never reaches here because
-        // it leaves `record.pid` as `None` and trips the mismatch
-        // branch first. The remove is therefore unconditional.
-        let launcher_pid = peer_pid;
         inner
             .by_pid_lineage
             .remove(&(launcher_pid, launcher_starttime));
@@ -2420,6 +2497,159 @@ mod tests {
             .update_lineage_anchor(&sid("ghost"), 1, 1, 1)
             .expect_err("ghost session id");
         assert_eq!(err, RegistryError::UnknownSession(sid("ghost")));
+    }
+
+    /// PR #1895 review: a cross-session collision on the child
+    /// anchor must be rejected with the typed error rather than
+    /// silently overwriting the victim's lineage index entry.
+    /// The launcher controls `child_pid` on the wire (not
+    /// constrained to `peer_pid`), so without this defence a
+    /// malicious or buggy launcher could hijack lineage lookups
+    /// for an unrelated session.
+    #[test]
+    fn update_lineage_anchor_rejects_cross_session_collision() {
+        let registry = SessionRegistry::new();
+        let wt_victim = make_worktree();
+        let wt_attacker = make_worktree();
+        let victim_launcher_pid: u32 = 1111;
+        let victim_launcher_starttime: u64 = 1_700_002_000;
+        let victim_child_pid: u32 = 2222;
+        let victim_child_starttime: u64 = 1_700_002_100;
+        let attacker_launcher_pid: u32 = 3333;
+        let attacker_launcher_starttime: u64 = 1_700_002_200;
+
+        // Victim narrows its anchor onto its child.
+        let issued_v = tag("anvil-run", "victim", victim_launcher_starttime);
+        registry
+            .register_with_lineage(
+                &sid("victim"),
+                wt_victim.path(),
+                None,
+                Some(&issued_v),
+                victim_launcher_pid,
+                victim_launcher_starttime,
+                Instant::now(),
+            )
+            .expect("register victim");
+        registry
+            .update_lineage_anchor(
+                &sid("victim"),
+                victim_child_pid,
+                victim_child_starttime,
+                victim_launcher_pid,
+            )
+            .expect("victim narrows to its own child");
+
+        // Attacker registers, then tries to narrow onto the
+        // victim's child anchor.
+        let issued_a = tag("anvil-run", "attacker", attacker_launcher_starttime);
+        registry
+            .register_with_lineage(
+                &sid("attacker"),
+                wt_attacker.path(),
+                None,
+                Some(&issued_a),
+                attacker_launcher_pid,
+                attacker_launcher_starttime,
+                Instant::now(),
+            )
+            .expect("register attacker");
+        let err = registry
+            .update_lineage_anchor(
+                &sid("attacker"),
+                victim_child_pid,
+                victim_child_starttime,
+                attacker_launcher_pid,
+            )
+            .expect_err("attacker must not steal victim's anchor");
+        assert_eq!(
+            err,
+            RegistryError::LineageAnchorCollision {
+                session: sid("attacker"),
+                existing: sid("victim"),
+                child_pid: victim_child_pid,
+                child_pid_starttime: victim_child_starttime,
+            }
+        );
+
+        // Victim's anchor still intact; attacker record still on
+        // its launcher anchor (the swap never ran).
+        let inner = registry.lock();
+        assert_eq!(
+            inner
+                .by_pid_lineage
+                .get(&(victim_child_pid, victim_child_starttime)),
+            Some(&sid("victim")),
+            "victim's child anchor must be preserved",
+        );
+        let attacker_record = &inner
+            .sessions
+            .get(&sid("attacker"))
+            .expect("attacker still registered")
+            .record;
+        assert_eq!(attacker_record.pid, Some(attacker_launcher_pid));
+        assert_eq!(
+            attacker_record.started_at_unix, attacker_launcher_starttime,
+            "attacker record must be unchanged after rejection",
+        );
+        assert_eq!(
+            inner
+                .by_pid_lineage
+                .get(&(attacker_launcher_pid, attacker_launcher_starttime)),
+            Some(&sid("attacker")),
+            "attacker's launcher anchor must remain because the swap never ran",
+        );
+    }
+
+    /// PR #1895 review: re-narrowing to the same
+    /// `(child_pid, child_pid_starttime)` pair this session
+    /// already owns is idempotent — the index already maps to
+    /// `self`, so the collision check passes through and the
+    /// swap runs harmlessly. Pin this so a future tightening of
+    /// the collision rule does not break legitimate launchers
+    /// that retry on a transient IPC error.
+    #[test]
+    fn update_lineage_anchor_idempotent_for_same_session() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let launcher_pid: u32 = 4242;
+        let launcher_starttime: u64 = 1_700_003_000;
+        let child_pid: u32 = 5151;
+        let child_starttime: u64 = 1_700_003_100;
+        let issued = tag("anvil-run", "launcher", launcher_starttime);
+
+        registry
+            .register_with_lineage(
+                &sid("retry"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                launcher_starttime,
+                Instant::now(),
+            )
+            .expect("register");
+        registry
+            .update_lineage_anchor(&sid("retry"), child_pid, child_starttime, launcher_pid)
+            .expect("first narrowing");
+
+        // Second call with the same anchor — the index already
+        // maps `(child_pid, child_starttime) -> sid("retry")`.
+        // `record.pid` is now `child_pid` after the first swap,
+        // so the peer-ownership check expects the peer to
+        // present `child_pid` rather than the original launcher
+        // pid. Real launchers see this on retry over the same
+        // authenticated peer socket; the test forwards
+        // `child_pid` as `peer_pid` to model that.
+        registry
+            .update_lineage_anchor(&sid("retry"), child_pid, child_starttime, child_pid)
+            .expect("idempotent retry");
+
+        let inner = registry.lock();
+        assert_eq!(
+            inner.by_pid_lineage.get(&(child_pid, child_starttime)),
+            Some(&sid("retry")),
+        );
     }
 
     // MLP2-057: unregister hook fires the daemon's cache-invalidation
