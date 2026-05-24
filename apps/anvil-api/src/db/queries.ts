@@ -774,7 +774,13 @@ export async function findWaitlistBySource(
 }
 
 // ---------------------------------------------------------------------------
-// send-migration snapshots (ADMINCLIH-001)
+// Broadcast snapshots (EMAIL-002 — generalisation of the ADMINCLIH-001
+// send-migration snapshot table). `template`, `template_props`,
+// `audience_key`, and `audience_params` were added so /admin/broadcast can
+// store the full preview state alongside the recipient set. The
+// /admin/send-migration handler keeps working as a back-compat shim
+// (EMAIL-006) that supplies waitlist-migration values for the new
+// columns.
 // ---------------------------------------------------------------------------
 
 export interface SnapshotRecipient {
@@ -782,9 +788,12 @@ export interface SnapshotRecipient {
   name: string | null;
 }
 
-export interface SendMigrationSnapshot {
+export interface BroadcastSnapshot {
   token: string;
-  source: string;
+  template: string;
+  template_props: Record<string, unknown>;
+  audience_key: string;
+  audience_params: Record<string, unknown>;
   recipients: SnapshotRecipient[];
   created_by_actor: string;
   created_at: string;
@@ -796,19 +805,25 @@ const SnapshotRecipientsSchema = z.array(
   z.object({ email: z.string(), name: z.union([z.string(), z.null()]) })
 );
 
-function parseSnapshotRow(row: Record<string, unknown>): SendMigrationSnapshot {
-  const recipientsRaw = row['recipients'];
+function parseJsonField(raw: unknown): unknown {
   // Neon returns JSONB as either an object or a string depending on driver
-  // version; normalise both to the array shape we wrote in.
-  const recipientsValue =
-    typeof recipientsRaw === 'string' ? JSON.parse(recipientsRaw) : recipientsRaw;
-  const recipients = SnapshotRecipientsSchema.parse(recipientsValue);
+  // version; normalise to the JS shape we wrote in.
+  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+}
+
+function parseSnapshotRow(row: Record<string, unknown>): BroadcastSnapshot {
+  const recipients = SnapshotRecipientsSchema.parse(parseJsonField(row['recipients']));
+  const templateProps = parseJsonField(row['template_props']) as Record<string, unknown>;
+  const audienceParams = parseJsonField(row['audience_params']) as Record<string, unknown>;
   const createdAt = row['created_at'];
   const expiresAt = row['expires_at'];
   const consumedAt = row['consumed_at'];
   return {
     token: String(row['token']),
-    source: String(row['source']),
+    template: String(row['template']),
+    template_props: templateProps,
+    audience_key: String(row['audience_key']),
+    audience_params: audienceParams,
     recipients,
     created_by_actor: String(row['created_by_actor']),
     created_at: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
@@ -822,37 +837,44 @@ function parseSnapshotRow(row: Record<string, unknown>): SendMigrationSnapshot {
   };
 }
 
-export async function insertSendMigrationSnapshot(
+export async function insertBroadcastSnapshot(
   sql: NeonClient,
   params: {
     token: string;
-    source: string;
+    template: string;
+    templateProps: Record<string, unknown>;
+    audienceKey: string;
+    audienceParams: Record<string, unknown>;
     recipients: SnapshotRecipient[];
     createdByActor: string;
     ttlSeconds: number;
   }
-): Promise<SendMigrationSnapshot> {
+): Promise<BroadcastSnapshot> {
   // Lazy reap: any snapshot past a day old is uninteresting and exists
   // only to consume index space. Best-effort — a failure here must not
   // block the primary insert.
   try {
     await sql`
-      DELETE FROM send_migration_snapshots
+      DELETE FROM send_broadcast_snapshots
       WHERE expires_at < now() - interval '1 day'
     `;
   } catch (err) {
     // Swallow: reap is opportunistic. The row will get reaped by a
     // later successful sweep.
-    console.warn('send_migration_snapshots reap failed', err);
+    console.warn('send_broadcast_snapshots reap failed', err);
   }
 
   const r = rows(
     await sql`
-    INSERT INTO send_migration_snapshots
-      (token, source, recipients, created_by_actor, expires_at)
+    INSERT INTO send_broadcast_snapshots
+      (token, template, template_props, audience_key, audience_params,
+       recipients, created_by_actor, expires_at)
     VALUES (
       ${params.token},
-      ${params.source},
+      ${params.template},
+      ${JSON.stringify(params.templateProps)}::jsonb,
+      ${params.audienceKey},
+      ${JSON.stringify(params.audienceParams)}::jsonb,
       ${JSON.stringify(params.recipients)}::jsonb,
       ${params.createdByActor},
       now() + make_interval(secs => ${params.ttlSeconds})
@@ -861,7 +883,7 @@ export async function insertSendMigrationSnapshot(
   `
   );
   if (!r[0]) {
-    throw new Error('insertSendMigrationSnapshot: INSERT returned no row');
+    throw new Error('insertBroadcastSnapshot: INSERT returned no row');
   }
   return parseSnapshotRow(r[0]);
 }
@@ -874,13 +896,13 @@ export async function insertSendMigrationSnapshot(
  * the failure surface is uniform (`preview_token_missing`) and the
  * server never confirms a token's existence to a non-owner.
  */
-export async function findSendMigrationSnapshot(
+export async function findBroadcastSnapshot(
   sql: NeonClient,
   params: { token: string; actor: string }
-): Promise<SendMigrationSnapshot | null> {
+): Promise<BroadcastSnapshot | null> {
   const r = rows(
     await sql`
-    SELECT * FROM send_migration_snapshots
+    SELECT * FROM send_broadcast_snapshots
     WHERE token = ${params.token}
       AND created_by_actor = ${params.actor}
     LIMIT 1
@@ -894,16 +916,16 @@ export async function findSendMigrationSnapshot(
  * Atomically consume a snapshot: set consumed_at iff the token exists,
  * belongs to the caller, has not been consumed, and has not expired.
  * Returns the snapshot row on success; returns null on any failure so
- * the caller can refetch (see findSendMigrationSnapshot) to produce a
+ * the caller can refetch (see findBroadcastSnapshot) to produce a
  * specific error code.
  */
-export async function consumeSendMigrationSnapshot(
+export async function consumeBroadcastSnapshot(
   sql: NeonClient,
   params: { token: string; actor: string }
-): Promise<SendMigrationSnapshot | null> {
+): Promise<BroadcastSnapshot | null> {
   const r = rows(
     await sql`
-    UPDATE send_migration_snapshots
+    UPDATE send_broadcast_snapshots
     SET consumed_at = now()
     WHERE token = ${params.token}
       AND created_by_actor = ${params.actor}

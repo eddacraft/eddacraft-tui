@@ -86,6 +86,25 @@ CREATE TABLE refresh_tokens (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
+-- Snapshot table for the broadcast preview/send contract (EMAIL-002,
+-- generalised from the ADMINCLIH-001 send-migration table by migration
+-- 013). The dry-run handler inserts a row; the real-send handler
+-- atomically consumes it and compares the recorded recipient set
+-- against a fresh resolver run to detect cohort drift. Rows live for
+-- the TTL (10 minutes) then are lazily reaped by the same handler.
+CREATE TABLE send_broadcast_snapshots (
+  token             text PRIMARY KEY,
+  template          text NOT NULL,
+  template_props    jsonb NOT NULL,
+  audience_key      text NOT NULL,
+  audience_params   jsonb NOT NULL,
+  recipients        jsonb NOT NULL,
+  created_by_actor  text NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  expires_at        timestamptz NOT NULL,
+  consumed_at       timestamptz
+);
+
 -- Indexes
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
@@ -111,6 +130,8 @@ CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 CREATE INDEX idx_refresh_tokens_family_id ON refresh_tokens(family_id);
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+CREATE INDEX idx_send_broadcast_snapshots_expires_at
+  ON send_broadcast_snapshots(expires_at);
 
 -- Auto-update updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at()

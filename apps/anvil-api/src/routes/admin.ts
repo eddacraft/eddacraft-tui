@@ -16,9 +16,9 @@ import {
   findWaitlistPaginated,
   findAuditEntries,
   findRecentAuditForEmail,
-  insertSendMigrationSnapshot,
-  consumeSendMigrationSnapshot,
-  findSendMigrationSnapshot,
+  insertBroadcastSnapshot,
+  consumeBroadcastSnapshot,
+  findBroadcastSnapshot,
   findActiveScopesForUser,
   type AuthMethod,
   type SnapshotRecipient,
@@ -649,9 +649,17 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     }));
 
     const token = randomBytes(16).toString('hex');
-    const snapshot = await insertSendMigrationSnapshot(sql, {
+    // /admin/send-migration is now a back-compat surface over the
+    // generalised broadcast snapshot table. Until the EMAIL-006 shim
+    // lands, supply the waitlist-migration template + waitlist:source
+    // audience values inline so the row carries the same semantics as
+    // a future /admin/broadcast call.
+    const snapshot = await insertBroadcastSnapshot(sql, {
       token,
-      source,
+      template: 'waitlist-migration',
+      templateProps: {},
+      audienceKey: 'waitlist:source',
+      audienceParams: { source },
       recipients,
       createdByActor: actor,
       ttlSeconds: SEND_MIGRATION_SNAPSHOT_TTL_SECONDS,
@@ -677,14 +685,14 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
     );
   }
 
-  const consumed = await consumeSendMigrationSnapshot(sql, { token: previewToken, actor });
+  const consumed = await consumeBroadcastSnapshot(sql, { token: previewToken, actor });
 
   if (!consumed) {
     // The atomic consume failed; figure out which distinct reason so the
     // CLI can surface a tailored recovery message. The find is scoped
     // to (token, actor) so a non-owner caller falls into the `missing`
     // branch and never learns that the token exists.
-    const existing = await findSendMigrationSnapshot(sql, { token: previewToken, actor });
+    const existing = await findBroadcastSnapshot(sql, { token: previewToken, actor });
     if (!existing) {
       return c.json(
         {
@@ -716,8 +724,9 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   // The snapshot row is the source of truth for both `source` and the
   // recipient set — the request's `source` field is redundant on the
   // real-send path and a mismatch would otherwise produce a
-  // false-positive drift check against the wrong cohort.
-  const snapshotSource = consumed.source;
+  // false-positive drift check against the wrong cohort. Under the
+  // generalised snapshot schema, `source` lives inside audience_params.
+  const snapshotSource = String(consumed.audience_params['source']);
 
   // Refetch the current cohort and compare to the snapshot. Use the
   // snapshot size (not the request limit) so the fresh query returns

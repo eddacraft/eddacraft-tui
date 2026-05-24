@@ -49,9 +49,9 @@ vi.mock('../db/queries.js', () => ({
   findWaitlistPaginated: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findAuditEntries: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   findRecentAuditForEmail: vi.fn().mockResolvedValue([]),
-  insertSendMigrationSnapshot: vi.fn(),
-  findSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
-  consumeSendMigrationSnapshot: vi.fn().mockResolvedValue(null),
+  insertBroadcastSnapshot: vi.fn(),
+  findBroadcastSnapshot: vi.fn().mockResolvedValue(null),
+  consumeBroadcastSnapshot: vi.fn().mockResolvedValue(null),
   findAdminKeyByHash: vi.fn().mockResolvedValue(null),
   findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
 }));
@@ -86,9 +86,9 @@ import {
   findUnapprovedWaitlistEntries,
   insertAuditLog,
   findWaitlistBySource,
-  insertSendMigrationSnapshot,
-  findSendMigrationSnapshot,
-  consumeSendMigrationSnapshot,
+  insertBroadcastSnapshot,
+  findBroadcastSnapshot,
+  consumeBroadcastSnapshot,
   findAdminKeyByHash,
   findActiveScopesForUser,
 } from '../db/queries.js';
@@ -1271,7 +1271,7 @@ describe('admin endpoints', () => {
 
       expect(res.status).toBe(401);
       expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
-      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
 
     it('rejects invalid source via Zod with 400', async () => {
@@ -1284,7 +1284,7 @@ describe('admin endpoints', () => {
 
       expect(res.status).toBe(400);
       expect(vi.mocked(findWaitlistBySource)).not.toHaveBeenCalled();
-      expect(vi.mocked(insertSendMigrationSnapshot)).not.toHaveBeenCalled();
+      expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
 
     it('rejects limit above 100 via Zod with 400', async () => {
@@ -1313,9 +1313,12 @@ describe('admin endpoints', () => {
 
     it('passes the caller-supplied limit through to findWaitlistBySource on dry-run', async () => {
       vi.mocked(findWaitlistBySource).mockResolvedValue([]);
-      vi.mocked(insertSendMigrationSnapshot).mockResolvedValue({
+      vi.mocked(insertBroadcastSnapshot).mockResolvedValue({
         token: 'tk',
-        source: 'import',
+        template: 'waitlist-migration',
+        template_props: {},
+        audience_key: 'waitlist:source',
+        audience_params: { source: 'import' },
         recipients: [],
         created_by_actor: 'shared-key@anvil',
         created_at: '2026-04-17T09:00:00Z',
@@ -1344,7 +1347,10 @@ describe('admin endpoints', () => {
     function makeSnapshot(overrides: Partial<Record<string, unknown>> = {}) {
       return {
         token: 'snap-token-abc',
-        source: 'import',
+        template: 'waitlist-migration',
+        template_props: {},
+        audience_key: 'waitlist:source',
+        audience_params: { source: 'import' },
         recipients: importedRecipients,
         created_by_actor: 'josh@arkahna.io',
         created_at: '2026-04-17T09:00:00Z',
@@ -1357,7 +1363,7 @@ describe('admin endpoints', () => {
     describe('dry-run', () => {
       it('returns previewToken plus the recipient snapshot', async () => {
         vi.mocked(findWaitlistBySource).mockResolvedValue(importedRecipients);
-        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(makeSnapshot());
+        vi.mocked(insertBroadcastSnapshot).mockResolvedValue(makeSnapshot());
 
         const res = await request(
           'POST',
@@ -1375,9 +1381,12 @@ describe('admin endpoints', () => {
         expect(body.previewToken).toBe('snap-token-abc');
         expect(body.expiresAt).toBe('2026-04-17T09:10:00Z');
 
-        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        const insertCall = vi.mocked(insertBroadcastSnapshot).mock.calls[0]?.[1];
         expect(insertCall).toMatchObject({
-          source: 'import',
+          template: 'waitlist-migration',
+          templateProps: {},
+          audienceKey: 'waitlist:source',
+          audienceParams: { source: 'import' },
           recipients: importedRecipients,
           createdByActor: 'shared-key@anvil',
           ttlSeconds: 600,
@@ -1388,7 +1397,7 @@ describe('admin endpoints', () => {
 
       it('binds the snapshot to the sentinel and ignores X-Admin-Actor on shared-key auth', async () => {
         vi.mocked(findWaitlistBySource).mockResolvedValue([]);
-        vi.mocked(insertSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(insertBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({ created_by_actor: 'shared-key@anvil', recipients: [] })
         );
 
@@ -1405,7 +1414,7 @@ describe('admin endpoints', () => {
         });
 
         expect(res.status).toBe(200);
-        const insertCall = vi.mocked(insertSendMigrationSnapshot).mock.calls[0]?.[1];
+        const insertCall = vi.mocked(insertBroadcastSnapshot).mock.calls[0]?.[1];
         expect(insertCall?.createdByActor).toBe('shared-key@anvil');
       });
     });
@@ -1422,12 +1431,12 @@ describe('admin endpoints', () => {
         expect(res.status).toBe(400);
         const body = await res.json();
         expect(body.code).toBe('preview_token_required');
-        expect(vi.mocked(consumeSendMigrationSnapshot)).not.toHaveBeenCalled();
+        expect(vi.mocked(consumeBroadcastSnapshot)).not.toHaveBeenCalled();
       });
 
       it('returns 410 preview_token_missing when the token is unknown', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(null);
+        vi.mocked(findBroadcastSnapshot).mockResolvedValue(null);
 
         const res = await request(
           'POST',
@@ -1445,8 +1454,8 @@ describe('admin endpoints', () => {
         // The find is scoped to (token, actor) in the DB layer, so a
         // caller who is not the creator receives `missing` — the server
         // must never confirm to a non-owner that the token exists.
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(null);
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(null);
+        vi.mocked(findBroadcastSnapshot).mockResolvedValue(null);
 
         const res = await request(
           'POST',
@@ -1460,7 +1469,7 @@ describe('admin endpoints', () => {
         expect(body.code).toBe('preview_token_missing');
         // Find was called with the caller's actor, not with any
         // foreign actor — the server does not widen the search.
-        expect(vi.mocked(findSendMigrationSnapshot)).toHaveBeenCalledWith(
+        expect(vi.mocked(findBroadcastSnapshot)).toHaveBeenCalledWith(
           expect.anything(),
           expect.objectContaining({
             token: 'snap-token-abc',
@@ -1470,8 +1479,8 @@ describe('admin endpoints', () => {
       });
 
       it('returns 410 preview_token_consumed when the token was already used', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(null);
+        vi.mocked(findBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({
             created_by_actor: 'admin',
             consumed_at: '2026-04-17T09:05:00Z',
@@ -1491,8 +1500,8 @@ describe('admin endpoints', () => {
       });
 
       it('returns 410 preview_token_expired when the token is past TTL', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(null);
+        vi.mocked(findBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({
             created_by_actor: 'admin',
             consumed_at: null,
@@ -1513,7 +1522,7 @@ describe('admin endpoints', () => {
       });
 
       it('returns 409 cohort_drift with added/removed when the cohort changed', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({
             created_by_actor: 'admin',
             recipients: [
@@ -1553,10 +1562,8 @@ describe('admin endpoints', () => {
           created_by_actor: 'admin',
           recipients: importedRecipients,
         });
-        vi.mocked(consumeSendMigrationSnapshot)
-          .mockResolvedValueOnce(snap)
-          .mockResolvedValueOnce(null);
-        vi.mocked(findSendMigrationSnapshot).mockResolvedValueOnce(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValueOnce(snap).mockResolvedValueOnce(null);
+        vi.mocked(findBroadcastSnapshot).mockResolvedValueOnce(
           makeSnapshot({
             created_by_actor: 'admin',
             recipients: importedRecipients,
@@ -1587,7 +1594,7 @@ describe('admin endpoints', () => {
       });
 
       it('sends to the snapshot recipients on the golden path', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({
             created_by_actor: 'admin',
             recipients: importedRecipients,
@@ -1627,7 +1634,7 @@ describe('admin endpoints', () => {
       });
 
       it('records partial failures without aborting the send', async () => {
-        vi.mocked(consumeSendMigrationSnapshot).mockResolvedValue(
+        vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
           makeSnapshot({
             created_by_actor: 'admin',
             recipients: importedRecipients,

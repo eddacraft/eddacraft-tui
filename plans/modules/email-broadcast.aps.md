@@ -237,24 +237,36 @@ in the same change.
 
 ### EMAIL-002 — Generalise snapshot table to broadcasts
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Rename `send_migration_snapshots` to
   `send_broadcast_snapshots` and add `template`, `template_props`,
   `audience_key`, `audience_params`. Update the query surface
-  (`insertSendMigrationSnapshot`, `findSendMigrationSnapshot`,
-  `consumeSendMigrationSnapshot`) to read and write the new columns
-  while keeping its existing call sites compiling.
+  (`insert*`, `find*`, `consume*BroadcastSnapshot`) to read and write
+  the new columns while keeping the existing `/admin/send-migration`
+  call site working unchanged.
 - **Expected Outcome:** Migration 013 applies cleanly against a database
   populated by 006. Existing `/admin/send-migration` integration tests
   still pass against the renamed table without behavioural change.
-- **Validation:** `pnpm --filter @anvil/api test admin send-migration`
+- **Validation:** `pnpm exec vitest --run src/__tests__/admin.test.ts`
 - **Files:** `apps/anvil-api/src/db/migrations/013-broadcast-snapshots.sql`
   (new), `apps/anvil-api/src/db/queries.ts`,
-  `apps/anvil-api/src/db/schema.sql` (mirror the migration so fresh
-  installs match — same pattern as the migration 010 index mirror at
-  `schema.sql:92`).
+  `apps/anvil-api/src/db/schema.sql` (broadcast-snapshots table +
+  expires_at index now mirrored; the original 006 table was never
+  mirrored at all, so this also closes a pre-existing fresh-install
+  gap), `apps/anvil-api/src/routes/admin.ts` (uses the new function
+  names + supplies waitlist-migration defaults inline pending the
+  EMAIL-006 shim), `apps/anvil-api/src/__tests__/admin.test.ts`
+  (mocks updated to the new function names + snapshot fixture
+  widened).
+- **Notes:** Landed 2026-05-24. Renamed `SendMigrationSnapshot` →
+  `BroadcastSnapshot`, `insertSendMigrationSnapshot` →
+  `insertBroadcastSnapshot` (same for find/consume). The
+  `send-migration` real-send path now reads `consumed.audience_params.source`
+  in place of `consumed.source`. admin.test.ts 85/85 green; migrate
+  runner picks up 013 via filename-ordered readdir, no manifest edit
+  required.
 - **changeType:** internal
 - **releaseIntent:** never
 - **releaseScope:** none
