@@ -417,7 +417,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          # Match root package.json's `engines.node` (>=22.13.0).
+          node-version: '22'
       # ATTRIB-015: Anvil's own `node-devtools` attribution block in
       # `attribution.toml` points the Node driver at
       # `tools/dev/package.json`. The driver needs `license-checker`
@@ -425,10 +426,18 @@ jobs:
       # a devDep. `tools/dev` is excluded from `pnpm-workspace.yaml`
       # (pnpm hoisting otherwise resolves a `glob` major that's
       # incompatible with license-checker@25.0.1's `read-package-json`
-      # transitive), so we `npm install` it directly. Subsequent steps
+      # transitive), so we `npm ci` it directly. Subsequent steps
       # prepend its `node_modules/.bin` to PATH.
+      #
+      # --ignore-scripts skips lifecycle scripts (notably Playwright's
+      # postinstall browser download — hundreds of MB we don't need
+      # for attribution). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD belt-and-
+      # braces in case a future dep's postinstall slips past
+      # --ignore-scripts.
       - name: Install tools/dev devtools (for ATTRIB-015 Node attribution)
-        run: cd tools/dev && npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: cd tools/dev && npm ci --no-audit --no-fund --ignore-scripts
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
           export PATH="$GITHUB_WORKSPACE/tools/dev/node_modules/.bin:$PATH"
