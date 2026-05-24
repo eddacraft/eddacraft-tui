@@ -104,8 +104,11 @@ if ! printf '%s' "$out" | grep -q 'fixture-dep'; then
   echo "  output: $out" >&2
   exit 1
 fi
-if ! printf '%s' "$out" | grep -qiE 'MIT|not in allow|disallowed|rejected'; then
-  echo "fail scenario 1: error did not indicate the offending licence" >&2
+# Require the offending licence name specifically — not a generic status
+# word like "rejected" (which appears in the driver's header regardless),
+# so this assertion actually proves the licence was surfaced.
+if ! printf '%s' "$out" | grep -qE 'MIT'; then
+  echo "fail scenario 1: error did not name the offending licence (MIT)" >&2
   echo "  output: $out" >&2
   exit 1
 fi

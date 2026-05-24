@@ -118,6 +118,17 @@ if ! printf '%s' "$block_body" | grep -qE 'fixture-dep.*1\.0\.0.*MIT'; then
   echo "body: $block_body" >&2
   exit 1
 fi
+# The driver contract: pip-licenses self-excludes its own tool chain, so
+# the block must list the consumer's deps only. Assert the attribution
+# tooling is NOT attributed (catches a regression that drops the
+# self-exclusion, e.g. via --with-system).
+for tool in pip-licenses prettytable wcwidth; do
+  if printf '%s' "$block_body" | grep -qi -- "$tool"; then
+    echo "fail: rendered block attributed the pip-licenses tool chain ('$tool')" >&2
+    echo "body: $block_body" >&2
+    exit 1
+  fi
+done
 if ! grep -q 'Hand-curated preface' "$fixture_root/ACKNOWLEDGEMENTS.md"; then
   echo "fail: preface was clobbered" >&2
   exit 1

@@ -317,8 +317,8 @@ render_node_fragment() {
 # ATTRIB-013: render a single comma-joined SPDX list for the Go driver's
 # `go-licenses check --allowed_licenses` argument. Same one-line,
 # about = true contract as the Node fragment; only the separator differs
-# (go-licenses takes a comma-separated list, license-checker a
-# semicolon-separated one).
+# (go-licenses takes a comma-separated list, while license-checker and
+# pip-licenses take semicolon-separated ones).
 render_go_fragment() {
   local spdx_list=""
   while IFS=$'\t' read -r spdx about_v deny_v note; do

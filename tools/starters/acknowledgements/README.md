@@ -479,9 +479,21 @@ package's Trove classifiers / metadata, which are **not always exact SPDX
 identifiers** (e.g. a package may report `BSD License` rather than
 `BSD-3-Clause`, or `MIT License` rather than `MIT`). The allow-list expanded
 from `licences.toml` is SPDX, so a mismatch can cause a false strict failure.
-Options: add the classifier-style name to `licences.toml`, or have the consumer
-normalise their dependencies' metadata. `pip-licenses --partial-match` (not
-enabled by the kit) loosens matching if you accept the fuzz.
+
+Do **not** work around this by adding classifier-style names (`BSD License`,
+`MIT License`) to `licences.toml`: the `spdx` field there also feeds
+`about.toml` (cargo-about) and `deny.toml` (cargo-deny), which require valid
+SPDX identifiers — a non-SPDX value breaks those consumers. Safe options
+instead:
+
+- normalise the offending package's metadata (or pin a version that publishes a
+  modern SPDX `License-Expression`);
+- enable `pip-licenses --partial-match` (not enabled by the kit) so `MIT`
+  matches `MIT License`, if you accept the looser matching;
+- ignore the package in your venv composition if it is not actually shipped.
+
+A Python-specific SPDX-alias mechanism in the expander is a possible future
+enhancement; today the kit keeps `licences.toml` strictly SPDX.
 
 CI provisioning (per your existing Python toolchain), e.g.:
 
