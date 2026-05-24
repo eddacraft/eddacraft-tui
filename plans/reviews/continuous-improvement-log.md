@@ -149,3 +149,35 @@ a backlog. Promote repeated friction or executable follow-up work to
   SCA proposal.
 - **Follow-up:** SCA module is Proposed, gated on Anvil's graph layer
   ingesting a dependency graph — re-open when the graphs are firing.
+
+### 2026-05-25 — claude
+
+- **Task:** Ship MLP2-051i (cap MCP `query_protection_claim` IPC
+  timeout at 500 ms) via /dev-workflow.
+- **Outcome:** PR #1923 opened; one timing test + one constant-equality
+  test; full workspace cargo test + clippy + fmt clean.
+- **Worked:** TDD red-then-green via the missing `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT`
+  symbol forced the test to compile against the not-yet-written
+  constant — cheapest possible "red" without contrived runtime
+  fixtures. Council `mini` (general + adversarial) caught a real
+  silent-drift risk between the MCP and activation 500 ms constants;
+  pinned them with a runtime equality test rather than a brittle
+  prose comment.
+- **Failed:** First-pass `eprintln!` formatting matched the existing
+  surrounding multi-line style, which the new
+  `clippy::unnecessary_trailing_comma` lint then rejected once
+  `rustfmt` collapsed the call onto one line. The cycle was
+  fmt-apply → clippy-fail → strip trailing comma → re-verify; would
+  have shown up in CI but cheaper to catch locally.
+- **Friction:** Adversarial reviewer flagged the pre-write
+  `scan_buffer` path (`request_daemon_diagnostics` /
+  `read_capped_response_line`) as still vulnerable to a drip-attack
+  the activation lane closed in MLP2-051f. Genuinely out of scope
+  for MLP2-051i but the original code comment framing implied the
+  split was a complete fix rather than a deliberate scope cut.
+  Reworded the comment.
+- **Improvement:** none — Council mini caught it pre-push; no
+  systemic gap.
+- **Follow-up:** File the `scan_buffer` wall-clock-deadline
+  hardening as a new MLP2 task (candidate MLP2-051k). Run
+  /addressing-pr-reviews on #1923 after CI + Copilot settle.
