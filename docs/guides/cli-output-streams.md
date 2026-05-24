@@ -1,12 +1,12 @@
 # CLI Output Stream Policy
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                         |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | CLAR  | Live   | Last reviewed 2026-05-25 against `crates/anvil-cli/src/output/` and `crates/anvil-kernel-types/src/diagnostic.rs` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                          |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | CLAR  | Live   | Last reviewed 2026-05-25 against `crates/anvil-cli/src/output/` and `crates/anvil-kernel-types/src/diagnostics.rs` |
 
-| Upstream                                                                                            | Downstream                                                   |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `crates/anvil-cli/src/output/`, `crates/anvil-kernel-types/src/diagnostic.rs`, `docs/public/anvil/` | CLI commands, MCP tools, public release docs, `CHANGELOG.md` |
+| Upstream                                                                                             | Downstream                                                   |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `crates/anvil-cli/src/output/`, `crates/anvil-kernel-types/src/diagnostics.rs`, `docs/public/anvil/` | CLI commands, MCP tools, public release docs, `CHANGELOG.md` |
 
 All Anvil CLI commands follow a strict stdout/stderr split so that piped output
 is always machine-parseable. This policy applies to both the Rust binary
