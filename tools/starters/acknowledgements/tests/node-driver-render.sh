@@ -131,21 +131,22 @@ if grep -A1 'BEGIN AUTO-GENERATED node' "$project/ACKNOWLEDGEMENTS.md" \
   exit 1
 fi
 
-# Block must mention both fixture packages by name@version.
+# Block must mention both fixture packages, each on a line that
+# also carries the package's version + licence.
 block_body="$(awk '/BEGIN AUTO-GENERATED node/,/END AUTO-GENERATED node/' \
               "$project/ACKNOWLEDGEMENTS.md")"
-if ! printf '%s' "$block_body" | grep -q 'fake-a@1.0.0'; then
-  echo "fail: rendered block missing fake-a@1.0.0 (body: $block_body)" >&2
+if ! printf '%s' "$block_body" | grep -qE 'fake-a.*1\.0\.0.*MIT'; then
+  echo "fail: rendered block missing fake-a/1.0.0/MIT row (body: $block_body)" >&2
   exit 1
 fi
-if ! printf '%s' "$block_body" | grep -q 'fake-b@2.0.0'; then
-  echo "fail: rendered block missing fake-b@2.0.0 (body: $block_body)" >&2
+if ! printf '%s' "$block_body" | grep -qE 'fake-b.*2\.0\.0.*Apache-2\.0'; then
+  echo "fail: rendered block missing fake-b/2.0.0/Apache-2.0 row (body: $block_body)" >&2
   exit 1
 fi
 
-# Determinism: fake-a must appear before fake-b (sorted ascending).
-a_line=$(printf '%s' "$block_body" | grep -n 'fake-a@1.0.0' | head -1 | cut -d: -f1)
-b_line=$(printf '%s' "$block_body" | grep -n 'fake-b@2.0.0' | head -1 | cut -d: -f1)
+# Determinism: fake-a row must appear before fake-b row (sorted ascending).
+a_line=$(printf '%s' "$block_body" | grep -nE 'fake-a.*1\.0\.0' | head -1 | cut -d: -f1)
+b_line=$(printf '%s' "$block_body" | grep -nE 'fake-b.*2\.0\.0' | head -1 | cut -d: -f1)
 if [ -z "$a_line" ] || [ -z "$b_line" ] || [ "$a_line" -ge "$b_line" ]; then
   echo "fail: render not sorted ascending (a_line=$a_line b_line=$b_line)" >&2
   exit 1

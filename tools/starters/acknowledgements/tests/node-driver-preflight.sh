@@ -41,6 +41,21 @@ trap 'rm -rf "$fixture_root"' EXIT
 allow_list="$fixture_root/licences.node-allow.txt"
 printf 'MIT;Apache-2.0\n' >"$allow_list"
 
+# Stub license-checker so scenarios 2 + 3 (which exercise file/state
+# preflight errors, not tool-missing errors) get past the
+# tools-first preflight. Scenario 4 uses a separate PATH that omits
+# this stub. The stub never actually executes — those scenarios all
+# fail at a file check before any render.
+stub_bin_dir="$fixture_root/stub-bin"
+mkdir -p "$stub_bin_dir"
+cat >"$stub_bin_dir/license-checker" <<'STUB'
+#!/usr/bin/env bash
+echo "stub license-checker invoked — preflight tests should not reach render" >&2
+exit 99
+STUB
+chmod +x "$stub_bin_dir/license-checker"
+export PATH="$stub_bin_dir:$PATH"
+
 # ── Scenario 1: wrong argv count ─────────────────────────────────────
 exit1=0
 out1="$("$DRIVER" 2>&1 >/dev/null)" || exit1=$?
