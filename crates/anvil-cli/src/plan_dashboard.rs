@@ -452,6 +452,7 @@ fn dependency_references_completed(dependency: &str, completed_ids: &[String]) -
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_raw_string_hashes)]
 mod tests {
     use std::fs;
 
