@@ -3,9 +3,9 @@
 `eddacraft-tui` uses the [`animate`](https://crates.io/crates/animate) crate to
 smooth transitions on `ProgressBar` and `ParallelProgress`. Animation is opt-in
 at the frame level: the library tracks targets and eases toward them, but your
-event loop has to advance the clock and trigger redraws. Without that wiring
-the widgets still render correctly, they just snap to the latest value instead
-of animating.
+event loop has to advance the clock and trigger redraws. Without that wiring the
+widgets still render correctly, they just snap to the latest value instead of
+animating.
 
 ## Required wiring
 
@@ -51,8 +51,8 @@ Ratatui only draws when you call `terminal.draw`. If your app blocks on input
 during an animation it will skip frames and the transition will look choppy or
 incomplete. A common pattern:
 
-- Poll input with a short timeout (e.g. 16 ms ≈ 60 fps) while
-  `is_animating()` is true.
+- Poll input with a short timeout (e.g. 16 ms ≈ 60 fps) while `is_animating()`
+  is true.
 - Block indefinitely on input when it returns false.
 
 This keeps the main loop responsive without burning CPU when nothing is moving.
@@ -66,5 +66,5 @@ The prelude re-exports the two functions the host application needs:
 - `is_animating() -> bool` — returns `true` while any animated value is still
   transitioning.
 
-Internal widget state (easing curve, duration, interpolation) is not part of
-the public API and may change between minor versions.
+Internal widget state (easing curve, duration, interpolation) is not part of the
+public API and may change between minor versions.

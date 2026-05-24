@@ -1,16 +1,17 @@
 # eddacraft-tui
 
-Shared Ratatui component library for open-source TUIs that follow the eddacraft design system.
+Shared Ratatui component library for open-source TUIs that follow the eddacraft
+design system.
 
 ## Modules
 
 - **`theme/`** — eddacraft Terminal Standard colour palette, `Theme` trait,
   semantic `Role` tokens, and brand theming
-- **`keyboard/`** — key binding definitions, action mapping, and
-  introspectable `Binding` table
+- **`keyboard/`** — key binding definitions, action mapping, and introspectable
+  `Binding` table
 - **`widgets/`** — reusable TUI widgets (see [Widgets](#widgets) below)
-- **`pretext/`** — two-phase prepare/layout text engine for streaming AI
-  output and dynamic reflow
+- **`pretext/`** — two-phase prepare/layout text engine for streaming AI output
+  and dynamic reflow
 - **`surface.rs`** — base `Surface` trait for TUI screens
 - **`shell.rs`** — shared shell chrome renderer
 
@@ -47,7 +48,8 @@ let forge_spinner = Spinner::new(&theme).anvil().label("Forging...");
 // render_shell(frame, area, ShellBranding::Anvil, "anvil", "Watch", "[q] quit", &theme, env!("CARGO_PKG_VERSION"));
 ```
 
-`ParallelProgress` also uses the branded `anvil` spinner automatically for running checks.
+`ParallelProgress` also uses the branded `anvil` spinner automatically for
+running checks.
 
 `render_shell` supports reusable shell marks for open-source apps:
 
@@ -65,7 +67,8 @@ event loop must call `animate_tick` each frame for the transition to play — se
 The `widgets/` module ships a curated component set. Highlights:
 
 - **Inputs** — `TextInput`, `Editor`, `Select`, `Confirm`
-- **Status** — `Spinner`, `ProgressBar`, `ParallelProgress`, `StatusBadge`, `StatusBar`
+- **Status** — `Spinner`, `ProgressBar`, `ParallelProgress`, `StatusBadge`,
+  `StatusBar`
 - **Layout** — `Container`, `Divider`, `Header`
 - **Data** — `DataTable` (sortable, themed `▲`/`▼` indicators), `Tree`
   (expand/collapse via `TreeState`), `LogPanel`
@@ -73,8 +76,8 @@ The `widgets/` module ships a curated component set. Highlights:
   `Modal` and `Toast`/`ToastStack` as ready-made consumers
 - **Chrome** — `HelpBar` auto-renders key hints from
   `KeyHandler::default_bindings()`, so help text stays in sync with the keymap
-- **Text reflow** — `PretextWidget` + `PretextState` for cached two-phase
-  layout (see [Pretext layout](#pretext-layout) below)
+- **Text reflow** — `PretextWidget` + `PretextState` for cached two-phase layout
+  (see [Pretext layout](#pretext-layout) below)
 - **Wrappers** — `Hideable`, `Disableable`, `Padded` decorate any
   `Widget`/`StatefulWidget` without bloating each widget's API
 
@@ -97,10 +100,10 @@ eddacraft-tui = { version = "0.2", features = ["image", "big-text"] }
 ## Pretext layout
 
 `pretext` is a two-phase text layout engine inspired by Cheng Lou's
-[Pretext](https://github.com/chenglou/pretext) library for the browser.
-Measure word widths once with `unicode-width`, cache the layout per
-container width, and re-run only on resize — eliminating reflow stutter
-for streaming AI output and animated layouts.
+[Pretext](https://github.com/chenglou/pretext) library for the browser. Measure
+word widths once with `unicode-width`, cache the layout per container width, and
+re-run only on resize — eliminating reflow stutter for streaming AI output and
+animated layouts.
 
 ```rust,ignore
 use eddacraft_tui::prelude::*;
@@ -121,10 +124,10 @@ state.set_exclusions(vec![ExclusionZone::circle(40, 8, 5)]);
 ```
 
 The widget itself is zero-sized — all caching lives on `PretextState`. At
-unchanged container width subsequent renders skip layout entirely; the
-cache is invalidated by a width change, by any text mutation
-(`set_text`, `set_styled_text`, `append`, `append_styled`), by
-`set_exclusions`, or by an explicit `invalidate_layout()` call.
+unchanged container width subsequent renders skip layout entirely; the cache is
+invalidated by a width change, by any text mutation (`set_text`,
+`set_styled_text`, `append`, `append_styled`), by `set_exclusions`, or by an
+explicit `invalidate_layout()` call.
 
 ## Documentation
 
@@ -142,13 +145,13 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 ## Acknowledgements
 
 Smooth progress and spinner animations are powered by
-[`vyfor/animate`](https://github.com/vyfor/animate), a minimal animation
-engine for Ratatui.
+[`vyfor/animate`](https://github.com/vyfor/animate), a minimal animation engine
+for Ratatui.
 
-The `pretext` module ports the layout engine and widget originally
-prototyped in [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui),
-itself inspired by Cheng Lou's [Pretext](https://github.com/chenglou/pretext)
-for the browser.
+The `pretext` module ports the layout engine and widget originally prototyped in
+[`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui), itself
+inspired by Cheng Lou's [Pretext](https://github.com/chenglou/pretext) for the
+browser.
 
 ## Licence
 
