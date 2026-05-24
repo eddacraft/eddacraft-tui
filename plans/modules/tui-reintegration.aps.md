@@ -7,7 +7,8 @@
 | ---- | ---------- | ----------- | -------- |
 | TUIR | joshuaboys | In Progress | 5/8      |
 
-**Last reviewed:** 2026-05-23 (TUIR-007)
+**Last reviewed:** 2026-05-24 (TUIR-004 workflow lands; Ready Checklist
+items resolved by TUIR-003 / TUIR-007 marked off in this PR)
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -908,8 +909,11 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
 - [x] Existing public tag policy confirmed (D-TUIR-011) — old
       unprefixed `v0.x.y` tags remain on mirror untouched, new tags
       use `eddacraft-tui-v*` prefix. ✓ Tags + SHAs captured in baseline.
-- [ ] `crates/eddacraft-tui/MIRROR-README.md` draft reviewed before
-      TUIR-007 implementation begins.
+- [x] `crates/eddacraft-tui/MIRROR-README.md` draft reviewed before
+      TUIR-007 implementation begins. ✓ Landed via TUIR-007 (PR #1886) —
+      banner explains read-only mirror role, points consumers at the
+      crates.io release, and references the auto-close PR-redirect
+      workflow on the mirror.
 - [x] `LICENSE` file identified in the public source for verbatim copy
       during TUIR-002. ✓ Apache-2.0, 11.2K, confirmed verbatim-copyable.
       (Standalone repo has no `NOTICE` file as of 2026-05-22 — do not
@@ -932,8 +936,13 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       first-party consumers (`anvil-cli`, `anvil-tui`, `workspace-hack`)
       with exact manifest lines + `eddacraft-skills` recorded with the
       operator-driven check note.
-- [ ] `cargo hakari` invocation confirmed in the workspace-hack
-      regeneration step of TUIR-003.
+- [x] `cargo hakari` invocation confirmed in the workspace-hack
+      regeneration step of TUIR-003. ✓ TUIR-003 (PR #1879) regenerated
+      `crates/workspace-hack/Cargo.toml` with `cargo hakari generate`;
+      the pre-migration `eddacraft-tui = { version = "0.2", ... }`
+      entry is absent from the regenerated file (path crates need no
+      hakari aggregation), and `grep -c eddacraft-tui
+      crates/workspace-hack/Cargo.toml` returns 0.
 - [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
       against `eddacraft-tui`'s dependency graph.
 - [ ] Rollback path documented at two layers:
@@ -945,5 +954,8 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       resume standalone publishing, document that public mirror
       history rewrite is not reversible (forensics via
       `pre-canonical-archive`).
-- [ ] `docs/policies/eddacraft-tui-mirror.md` draft reviewed before
-      TUIR-007 implementation begins.
+- [x] `docs/policies/eddacraft-tui-mirror.md` draft reviewed before
+      TUIR-007 implementation begins. ✓ Landed via TUIR-007 (PR #1886) —
+      policy doc carries the Backport / Conflict Policy section
+      (ratifying D-TUIR-009) plus the Mirror history rewrite
+      sub-section (ratifying D-TUIR-020).

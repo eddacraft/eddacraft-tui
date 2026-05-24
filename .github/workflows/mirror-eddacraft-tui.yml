@@ -1,0 +1,172 @@
+# Mirror the `eddacraft-tui` crate to its public sibling repo.
+#
+# TUIR-004 (module: tui-reintegration). The canonical source lives at
+# `crates/eddacraft-tui/` in this repository. This workflow extracts that
+# subdirectory as its own repo via `git subtree split` and force-pushes it
+# to `eddacraft/eddacraft-tui:main`.
+#
+# Pre-push transformation:
+#   - `MIRROR-README.md` is prepended onto `README.md` so the public repo
+#     reads with a "this is a mirror" banner up front. The MIRROR-README
+#     file itself is then removed from the staged tree (D-TUIR-012).
+#
+# The mirror is intentionally **flat-rooted** (the crate's files at the
+# public repo's top level, no wrapping subdirectory), per D-TUIR-004.
+# External consumers depend on the crates.io release, not on git `main`
+# (D-TUIR-008). Release tags (`eddacraft-tui-v*`) are pushed by the
+# separate publish workflow (TUIR-005), NOT by this mirror — this
+# workflow only force-pushes `main`, so existing tags on the mirror
+# (including pre-cutover `v0.x.y` tags per D-TUIR-011) are never
+# overwritten by the mirror job (D-TUIR-009).
+#
+# Auth: fine-grained PAT scoped to `eddacraft/eddacraft-tui` with
+# `Contents: Read and write`, stored in the repo secret
+# `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`. Deploy keys are disabled at the
+# eddacraft org level, so SSH is not an option; HTTPS + token via
+# `http.extraheader` Basic auth is the supported path. URL-embedded
+# `x-access-token:${TOKEN}@github.com` form is brittle to stray bytes
+# in the secret and fails as `CURLE_URL_MALFORMAT` (ATTRIB-011
+# precedent).
+#
+# Runner: `ubuntu-latest` is required. `git subtree split` shells out to
+# `dirname`, and uutils coreutils 0.2.2 mis-handles multi-segment
+# prefixes (returns `a/b` for `a/b/c/.`). GitHub Actions `ubuntu-latest`
+# ships GNU coreutils and is unaffected. Local reproduction on uutils
+# boxes requires the `/tmp/gnu-shim/dirname` PATH shim documented in
+# the release runbook.
+#
+# See plans/modules/tui-reintegration.aps.md (D-TUIR-004, D-TUIR-009,
+# D-TUIR-012) and the ATTRIB-011 precedent
+# (.github/workflows/mirror-acknowledgements-starter.yml).
+
+name: Mirror — eddacraft-tui crate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/eddacraft-tui/**'
+      - '.github/workflows/mirror-eddacraft-tui.yml'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you force-resyncing? (logged on the mirror commit)'
+        required: false
+        default: 'manual resync'
+
+concurrency:
+  group: mirror-eddacraft-tui
+  cancel-in-progress: true
+
+# Least-privilege GITHUB_TOKEN: this workflow does not touch the anvil-001
+# repo's GitHub state — all writes go to the mirror via
+# EDDACRAFT_TUI_MIRROR_PUSH_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Force-push subtree to eddacraft/eddacraft-tui
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # workflow_dispatch runs on whatever ref the operator selects in the
+      # UI. The mirror is documented as tracking canonical `main`; reject
+      # any other ref so a stray dispatch from a feature branch / tag
+      # can't silently force-push the wrong tree to the public repo.
+      - name: Guard — only mirror from refs/heads/main
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::mirror workflow refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed)"
+            exit 1
+          fi
+
+      - name: Checkout (full history — subtree split needs it)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name  'anvil-mirror-bot'
+          git config --global user.email 'anvil-mirror-bot@users.noreply.github.com'
+
+      - name: Sanity-check mirror push token
+        env:
+          EDDACRAFT_TUI_MIRROR_PUSH_TOKEN: ${{ secrets.EDDACRAFT_TUI_MIRROR_PUSH_TOKEN }}
+        run: |
+          if [ -z "${EDDACRAFT_TUI_MIRROR_PUSH_TOKEN}" ]; then
+            echo '::error::secret EDDACRAFT_TUI_MIRROR_PUSH_TOKEN is empty — wire the fine-grained PAT before re-running'
+            exit 1
+          fi
+
+      - name: Swap MIRROR-README onto README (on a throwaway commit)
+        env:
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
+        run: |
+          set -euo pipefail
+          CRATE_DIR=crates/eddacraft-tui
+          if [ ! -f "${CRATE_DIR}/MIRROR-README.md" ]; then
+            echo "::error::${CRATE_DIR}/MIRROR-README.md missing — the public framing header is required"
+            exit 1
+          fi
+          if [ ! -f "${CRATE_DIR}/README.md" ]; then
+            echo "::error::${CRATE_DIR}/README.md missing — cannot prepend banner without a README"
+            exit 1
+          fi
+          tmp="$(mktemp)"
+          cat "${CRATE_DIR}/MIRROR-README.md" "${CRATE_DIR}/README.md" > "${tmp}"
+          mv "${tmp}" "${CRATE_DIR}/README.md"
+          rm "${CRATE_DIR}/MIRROR-README.md"
+          git add "${CRATE_DIR}/README.md" "${CRATE_DIR}/MIRROR-README.md"
+          msg='chore(mirror): prepend public README header [skip ci]'
+          if [ -n "${DISPATCH_REASON:-}" ]; then
+            msg=$(printf '%s\n\nmanual dispatch reason: %s\n' "${msg}" "${DISPATCH_REASON}")
+          fi
+          git commit -m "${msg}" --allow-empty
+
+      - name: Subtree split
+        run: |
+          set -euo pipefail
+          git subtree split \
+            --prefix=crates/eddacraft-tui \
+            -b _mirror_split
+
+      - name: Force-push to mirror repo
+        env:
+          EDDACRAFT_TUI_MIRROR_PUSH_TOKEN: ${{ secrets.EDDACRAFT_TUI_MIRROR_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Authenticate via an HTTP Basic header instead of embedding the
+          # token in the URL. The URL-embedded form is fragile: a single
+          # stray byte in the secret (trailing newline, control char) makes
+          # libcurl reject the entire URL with "Malformed input to a URL
+          # function" before it can even talk to GitHub. Sending an explicit
+          # Authorization header sidesteps URL parsing entirely.
+          basic=$(printf '%s' "x-access-token:${EDDACRAFT_TUI_MIRROR_PUSH_TOKEN}" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
+              push --force \
+              https://github.com/eddacraft/eddacraft-tui.git \
+              _mirror_split:main
+
+      - name: Summary
+        if: always()
+        env:
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
+        run: |
+          {
+            echo '## Mirror result'
+            echo
+            echo 'Source commit (anvil-001 main):    `'"${GITHUB_SHA}"'`'
+            echo 'Mirror target:                     `eddacraft/eddacraft-tui:main`'
+            echo 'Trigger:                           `'"${GITHUB_EVENT_NAME}"'`'
+            if [ -n "${DISPATCH_REASON:-}" ]; then
+              echo 'Dispatch reason:                   `'"${DISPATCH_REASON}"'`'
+            fi
+            echo
+            echo 'Verify with:'
+            echo
+            echo '    gh api repos/eddacraft/eddacraft-tui/commits/main --jq .sha'
+          } >> "${GITHUB_STEP_SUMMARY}"

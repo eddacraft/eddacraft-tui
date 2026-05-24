@@ -53,6 +53,7 @@ fixture enforces both directions.
 | `homebrew-bump.yml`                   | Publish               | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke | DISTRIB      |
 | `labeler.yml`                         | Auxiliary (PR labels) | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                       | CICD         |
 | `mirror-acknowledgements-starter.yml` | Auxiliary (mirror)    | `push` to `main` (kit + workflow paths) plus `workflow_dispatch` — `git subtree split` + force-push to public `eddacraft/acknowledgements-starter` mirror                             | ATTRIB       |
+| `mirror-eddacraft-tui.yml`            | Auxiliary (mirror)    | `push` to `main` (crate + workflow paths) plus `workflow_dispatch` — `git subtree split` + force-push to public `eddacraft/eddacraft-tui` mirror                                      | TUIR         |
 
 ### PR vs Integration push contract
 
@@ -243,6 +244,25 @@ at the eddacraft org level. The mirror repo is read-only by policy — canonical
 edits land here, the workflow force-pushes the subtree split. See
 `plans/modules/attribution-pipeline-v3.aps.md` (ATTRIB-011) and
 `plans/execution/ATTRIB-011.steps.md`.
+
+### `mirror-eddacraft-tui.yml`
+
+TUIR-004. Mirrors `crates/eddacraft-tui/` to its public sibling repo
+`eddacraft/eddacraft-tui` (the historical canonical home for the crate). Same
+shape as `mirror-acknowledgements-starter.yml`: `push` to `main` with crate +
+workflow path filters, plus `workflow_dispatch` for manual force-resync, a
+ref-guard refusing anything other than `refs/heads/main`, and pre-push
+prepending of `MIRROR-README.md` onto `README.md` (D-TUIR-012). Authenticates
+via `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN` (fine-grained PAT scoped to
+`eddacraft/eddacraft-tui`, `Contents: Read and write`) using `http.extraheader`
+Basic auth, not URL-embedded credentials (the embedded form fails as
+`CURLE_URL_MALFORMAT` on a single stray byte in the secret). The mirror is
+read-only by policy and force-pushes `main` only — release tags
+(`eddacraft-tui-v*`) are pushed by the separate publish workflow (TUIR-005), so
+existing tags on the mirror (including pre-cutover unprefixed `v0.x.y` tags per
+D-TUIR-011) are never overwritten by the mirror job (D-TUIR-009). See
+`plans/modules/tui-reintegration.aps.md` (D-TUIR-004, D-TUIR-009, D-TUIR-012)
+and `docs/policies/eddacraft-tui-mirror.md`.
 
 ## Local testing
 
