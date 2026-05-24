@@ -1,5 +1,13 @@
 # Worktree Policy
 
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                  |
+| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPMODEL | Live   | Last reviewed 2026-05-25 against `docs/guides/branching-strategy.md` and Worktrunk-managed branch workflow |
+
+| Upstream                                                                      | Downstream                                         |
+| ----------------------------------------------------------------------------- | -------------------------------------------------- |
+| `docs/guides/branching-strategy.md`, `docs/guides/agent-surface-inventory.md` | `AGENTS.md`, `CLAUDE.md`, `wt switch`, `wt remove` |
+
 ## Overview
 
 Use Worktrunk (`wt`) to manage Git worktrees as lightweight execution spaces for

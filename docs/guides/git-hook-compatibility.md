@@ -1,5 +1,13 @@
 # Git Hook Compatibility Policy
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                      |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | GHOOK | Live   | Last reviewed 2026-05-25 against `plans/archive/modules/git-config-hooks.aps.md` and Git 2.54 config-hooks API |
+
+| Upstream                                                                                                                                       | Downstream                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `plans/archive/modules/git-config-hooks.aps.md`, `crates/anvil-cli/src/commands/hooks.rs`, `crates/anvil-tui/src/surfaces/onboarding/hooks.rs` | `docs/public/anvil/tutorials/ci.md`, `docs/public/anvil/guides/agent-harness.md`, hook-related CLI/TUI guidance |
+
 This document is the compatibility baseline and rollout policy for Git 2.54
 native config-based hooks across this repository, Anvil's CLI/TUI surfaces, and
 the published product. It is the artefact produced by `GHOOK-001` (see

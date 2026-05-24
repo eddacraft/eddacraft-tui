@@ -379,7 +379,11 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-009: Backfill metadata on existing live documentation
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Authorisation:** Promoted from Proposed on 2026-05-25 after DOCGOV-008
+  completed and the operator requested DOCGOV-009 Task 1. Metadata backfill is
+  authorised after rubric sign-off on 2026-05-25; default owner rules are
+  accepted, with `@aneki` (`aneki@eddacraft.ai`) as backup/admin owner.
 - **Intent:** Apply the DOCGOV-002 taxonomy and metadata convention to live
   documents that predate it, so the entire active doc set declares type,
   authority, owner, status, freshness, and upstream/downstream references on
@@ -388,12 +392,14 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   paths) carry the canonical metadata block; the
   `docs/governance/docs-check.baseline.json` baseline shrinks as backfills
   land; tags resolve against the approved catalogue rather than ad-hoc usage.
-  Dead docs identified during backfill are routed to DOCGOV-008 rather than
-  rewritten in place.
-- **Validation:** `pnpm docs:check && pnpm format:check`
-- **Dependencies:** DOCGOV-002, DOCGOV-005
+  Dead docs identified during backfill are routed to DOCGOV-008 archival review
+  rather than rewritten in place.
+- **Validation:** `pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+- **Dependencies:** DOCGOV-002, DOCGOV-005, DOCGOV-008
 - **Files:** `docs/**`, `docs/governance/docs-check.baseline.json`,
   `docs/governance/tags-catalogue.md`,
+  `plans/execution/DOCGOV-009.steps.md`,
+  `plans/execution/DOCGOV-009.rubric.md`,
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
 - **Coordinates with:** DOCGOV-008 (route dead docs to archive instead of
   backfilling), DOCGOV-010 (provides the authority/type tags that drive

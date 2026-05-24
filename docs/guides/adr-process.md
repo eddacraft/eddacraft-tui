@@ -1,5 +1,13 @@
 # ADR Process
 
+| Type  | Authority     | Owner  | Status | Freshness                                                                                              |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-25 against `scripts/docs/adr-integrity.sh` and `plans/decisions/DECISION-LOG.md` |
+
+| Upstream                                                                                              | Downstream                                                                   |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `plans/decisions/adr-template.md`, `plans/decisions/DECISION-LOG.md`, `scripts/docs/adr-integrity.sh` | `AGENTS.md`, `plans/decisions/`, `pnpm adr:check`, `pnpm test:adr-integrity` |
+
 Architecture Decision Records (ADRs) capture significant technical decisions
 with their context and consequences. They live in `plans/decisions/` and are
 numbered sequentially.

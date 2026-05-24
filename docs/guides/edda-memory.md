@@ -1,5 +1,13 @@
 # Edda Memory Management
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                             |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-05-25 against `crates/anvil-cli/src/commands/edda.rs` and `packages/edda-stack/src/edda/README.md` |
+
+| Upstream                                                                                                                                                            | Downstream                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `packages/edda-stack/src/contracts/edda-memory.ts`, `packages/edda-stack/src/edda/`, `crates/anvil-cli/src/commands/edda.rs`, `plans/modules/rust-cli-tier3.aps.md` | `anvil edda` CLI workflows, RCLI3 planning |
+
 This guide explains what Edda memories are, how they are created, and how to
 manage them using the Anvil CLI.
 

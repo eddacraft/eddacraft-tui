@@ -1,5 +1,13 @@
 # Stack Migration Guide
 
+| Type  | Authority     | Owner  | Status | Freshness                                                                                                           |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | @aneki | Live   | Last reviewed 2026-05-25 against `packages/edda-stack/src/contracts/` and `packages/edda-stack/src/edda/migration/` |
+
+| Upstream                                                                                                                                                                             | Downstream                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `packages/edda-stack/src/contracts/`, `packages/edda-stack/src/edda/migration/`, `packages/edda-stack/src/contracts/type-mappings.ts`, `packages/edda-stack/src/testing/validators/` | Edda Stack schema changes, migration reviews, provenance testing |
+
 > How to coordinate schema changes across the Edda Stack layers.
 
 ## Overview

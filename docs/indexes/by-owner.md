@@ -20,6 +20,7 @@
 | [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)            | `docs/runbooks/anvil-hook-coexistence.md`    | Runbook  | Authoritative | @aneki | Live   |
 | [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md` | As-built | Derived       | @aneki | Live   |
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                    | `docs/runbooks/release-signing.md`           | Runbook  | Authoritative | @aneki | Live   |
+| [Stack Migration Guide](../../docs/guides/stack-migration.md)                                   | `docs/guides/stack-migration.md`             | Guide    | Authoritative | @aneki | Live   |
 | [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                  | `docs/runbooks/anvil-witness-chain.md`       | Runbook  | Authoritative | @aneki | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)  | `docs/runbooks/eddacraft-tui-release.md`     | Runbook  | Authoritative | @aneki | Live   |
@@ -31,11 +32,31 @@
 | [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md) | Live   |
 | [Resource Budget — anvil watch](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`    | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md) | Live   |
 
+## ARCHCFG
+
+| Document                                                                                | Path                                          | Type  | Authority | Owner   | Status |
+| --------------------------------------------------------------------------------------- | --------------------------------------------- | ----- | --------- | ------- | ------ |
+| [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md) | `docs/guides/custom-architecture-policies.md` | Guide | Advisory  | ARCHCFG | Live   |
+
 ## CIB
 
-| Document                                                       | Path                         | Type    | Authority     | Owner | Status |
-| -------------------------------------------------------------- | ---------------------------- | ------- | ------------- | ----- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md) | `docs/runbooks/admin-cli.md` | Runbook | Authoritative | CIB   | Live   |
+| Document                                                                | Path                                     | Type    | Authority     | Owner | Status |
+| ----------------------------------------------------------------------- | ---------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)          | `docs/runbooks/admin-cli.md`             | Runbook | Authoritative | CIB   | Live   |
+| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md) | `docs/guides/agent-surface-inventory.md` | Guide   | Authoritative | CIB   | Live   |
+
+## CLAR
+
+| Document                                                            | Path                                | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----- | ------ |
+| [CLI Output Stream Policy](../../docs/guides/cli-output-streams.md) | `docs/guides/cli-output-streams.md` | Guide | Authoritative | CLAR  | Live   |
+
+## CMDSH
+
+| Document                                                                                    | Path                                          | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Command Safety Configuration Reference](../../docs/guides/command-safety-configuration.md) | `docs/guides/command-safety-configuration.md` | Guide | Authoritative | CMDSH | Live   |
+| [Command Safety Validation](../../docs/guides/command-safety.md)                            | `docs/guides/command-safety.md`               | Guide | Authoritative | CMDSH | Live   |
 
 ## DISTRIB (plans/modules/distribution-and-update.aps.md)
 
@@ -47,6 +68,7 @@
 
 | Document                                                                       | Path                                      | Type   | Authority     | Owner  | Status |
 | ------------------------------------------------------------------------------ | ----------------------------------------- | ------ | ------------- | ------ | ------ |
+| [ADR Process](../../docs/guides/adr-process.md)                                | `docs/guides/adr-process.md`              | Guide  | Authoritative | DOCGOV | Live   |
 | [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`           | Guide  | Derived       | DOCGOV | Live   |
 | [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCGOV | Live   |
 | [Development Guides](../../docs/guides/README.md)                              | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
@@ -55,11 +77,32 @@
 | [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md`    | Guide  | Advisory      | DOCGOV | Live   |
 
+## FLAGCAT
+
+| Document                                                                | Path                                     | Type  | Authority     | Owner   | Status |
+| ----------------------------------------------------------------------- | ---------------------------------------- | ----- | ------------- | ------- | ------ |
+| [Feature Flag Governance](../../docs/guides/feature-flag-governance.md) | `docs/guides/feature-flag-governance.md` | Guide | Authoritative | FLAGCAT | Live   |
+| [Feature Flag Inventory](../../docs/guides/feature-flag-inventory.md)   | `docs/guides/feature-flag-inventory.md`  | Guide | Derived       | FLAGCAT | Live   |
+| [Feature Flag Reference](../../docs/guides/feature-flag-reference.md)   | `docs/guides/feature-flag-reference.md`  | Guide | Authoritative | FLAGCAT | Live   |
+
+## GHOOK
+
+| Document                                                                     | Path                                    | Type  | Authority     | Owner | Status |
+| ---------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Git Hook Compatibility Policy](../../docs/guides/git-hook-compatibility.md) | `docs/guides/git-hook-compatibility.md` | Guide | Authoritative | GHOOK | Live   |
+
+## GV2
+
+| Document                                                                                                              | Path                                                    | Type  | Authority | Owner | Status |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- | --------- | ----- | ------ |
+| [Entire's Branch-as-Sidecar Pattern for Session Storage](../../docs/architecture/references/entire-branch-sidecar.md) | `docs/architecture/references/entire-branch-sidecar.md` | Guide | Advisory  | GV2   | Live   |
+
 ## KERN
 
-| Document                                                                                                   | Path                                              | Type | Authority | Owner | Status |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---- | --------- | ----- | ------ |
-| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec | Derived   | KERN  | Live   |
+| Document                                                                                                   | Path                                              | Type  | Authority     | Owner | Status |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec  | Derived       | KERN  | Live   |
+| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`              | Guide | Authoritative | KERN  | Live   |
 
 ## MODULE-CODE
 
@@ -73,11 +116,43 @@
 | ---------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
 | [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
+## OBS
+
+| Document                                                                    | Path                                    | Type    | Authority     | Owner | Status |
+| --------------------------------------------------------------------------- | --------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Observability Triage Runbook](../../docs/runbooks/observability-triage.md) | `docs/runbooks/observability-triage.md` | Runbook | Authoritative | OBS   | Live   |
+
+## OPAG
+
+| Document                                                            | Path                                | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----- | ------ |
+| [OPA Policy Testing Guide](../../docs/guides/opa-policy-testing.md) | `docs/guides/opa-policy-testing.md` | Guide | Authoritative | OPAG  | Live   |
+
+## OPENSPEC
+
+| Document                                                                                          | Path                                     | Type  | Authority | Owner    | Status |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----- | --------- | -------- | ------ |
+| [Adapter Implementation & Developer Workflow Guide](../../docs/guides/adapters/workflow-guide.md) | `docs/guides/adapters/workflow-guide.md` | Guide | Advisory  | OPENSPEC | Live   |
+
+## OPMODEL
+
+| Document                                                      | Path                                | Type  | Authority     | Owner   | Status |
+| ------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ------- | ------ |
+| [Branching Strategy](../../docs/guides/branching-strategy.md) | `docs/guides/branching-strategy.md` | Guide | Authoritative | OPMODEL | Live   |
+| [Worktree Policy](../../docs/guides/worktree-policy.md)       | `docs/guides/worktree-policy.md`    | Guide | Authoritative | OPMODEL | Live   |
+
 ## POLENG (plans/modules/policy-engine.aps.md)
 
 | Document                                                                      | Path                            | Type | Authority     | Owner                                       | Status |
 | ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | ------------------------------------------- | ------ |
 | [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/modules/policy-engine.aps.md) | Draft  |
+
+## RCLI3
+
+| Document                                                                 | Path                              | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------------ | --------------------------------- | ----- | ------------- | ----- | ------ |
+| [Edda Memory Management](../../docs/guides/edda-memory.md)               | `docs/guides/edda-memory.md`      | Guide | Authoritative | RCLI3 | Live   |
+| [Ember Candidate Review Workflow](../../docs/guides/ember-candidates.md) | `docs/guides/ember-candidates.md` | Guide | Authoritative | RCLI3 | Live   |
 
 ## RELORCH
 
@@ -103,6 +178,12 @@
 | Document                                                            | Path                                  | Type  | Authority     | Owner | Status |
 | ------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ----- | ------ |
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md) | `docs/guides/anvil-rule-authoring.md` | Guide | Authoritative | SCAN  | Live   |
+
+## TEST
+
+| Document                                               | Path                     | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------ | ------------------------ | ----- | ------------- | ----- | ------ |
+| [Testing Best Practices](../../docs/guides/testing.md) | `docs/guides/testing.md` | Guide | Authoritative | TEST  | Live   |
 
 ## TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
 

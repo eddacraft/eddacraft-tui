@@ -1,5 +1,13 @@
 # Custom Architecture Policies Guide
 
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                  |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-05-25 against `plans/modules/architecture-config-validation.aps.md` and `crates/anvil-cli/src/commands/architecture.rs` |
+
+| Upstream                                                                                                                           | Downstream                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `plans/modules/architecture-config-validation.aps.md`, `crates/anvil-cli/src/commands/architecture.rs`, `.anvil/architecture.yaml` | Architecture-policy users, `anvil architecture`, public docs |
+
 Define and enforce your own architectural boundaries without writing any Rego.
 
 ## Quick Start

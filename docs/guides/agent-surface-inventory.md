@@ -1,5 +1,13 @@
 # Agent Surface Inventory
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                 |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
+| Guide | Authoritative | CIB   | Live   | Last reviewed 2026-05-25 against `AGENTS.md`, `.claude/`, `.opencode/`, and CIB-002 scope |
+
+| Upstream                                                                                    | Downstream                                               |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `AGENTS.md`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.opencode/skills/` | `docs/guides/documentation-governance.md`, agent routing |
+
 Authoritative inventory of the skills, agents, and commands the anvil workflow
 depends on. Each entry names a canonical source so drift between the inventory,
 `.claude/` and `.opencode/`, and external skill repositories is detectable.

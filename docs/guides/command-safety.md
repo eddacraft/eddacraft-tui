@@ -1,5 +1,13 @@
 # Command Safety Validation
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                            |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-05-25 against `crates/anvil-checks/tests/command_safety_validation.rs` and `plans/archive/modules/command-safety-surfaces.aps.md` |
+
+| Upstream                                                                                                                                                                     | Downstream                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `plans/archive/modules/command-safety-surfaces.aps.md`, `plans/specs/2026-04-21-command-safety-surfaces-design.md`, `crates/anvil-checks/tests/command_safety_validation.rs` | `docs/guides/command-safety-configuration.md`, `anvil gate`, `anvil check` |
+
 Anvil's Command Safety check prevents data loss from destructive shell commands
 in plans by validating git and filesystem operations before execution.
 

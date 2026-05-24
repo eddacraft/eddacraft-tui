@@ -1,5 +1,13 @@
 # Testing Best Practices
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                      |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-05-25 against `AGENTS.md` and current TypeScript/Rust test command surfaces |
+
+| Upstream                                                                                                                         | Downstream                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `AGENTS.md`, `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml` | `docs/guides/README.md`, `pnpm test`, `cargo test --workspace` |
+
 This guide covers testing conventions and best practices for the Anvil monorepo.
 TypeScript packages use **Vitest**; Rust crates use **cargo test** with
 **insta** (snapshot testing) and **criterion** (benchmarks).

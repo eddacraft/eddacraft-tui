@@ -1,5 +1,13 @@
 # Entire's Branch-as-Sidecar Pattern for Session Storage
 
+| Type  | Authority | Owner | Status | Freshness                                                                                                              |
+| ----- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | GV2   | Live   | Last reviewed 2026-05-25 against `plans/modules/graph-v2-foundation.aps.md` and external Entire architecture reference |
+
+| Upstream                                                                                                                   | Downstream                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| External Entire architecture reference, `plans/modules/graph-v2-foundation.aps.md`, `plans/modules/usage-analytics.aps.md` | Graph/provenance planning, Kindling session-storage ideas, future sidecar/checkpoint designs |
+
 **Source:** [entireio/cli](https://github.com/entireio/cli) — MIT, ~4.2k stars
 
 **Primary reference:**

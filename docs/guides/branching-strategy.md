@@ -1,5 +1,13 @@
 # Branching Strategy
 
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                               |
+| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPMODEL | Live   | Last reviewed 2026-05-25 against `plans/specs/2026-05-09-plan-build-release-operating-model.md` and OPMODEL-012 cutover |
+
+| Upstream                                                                             | Downstream                                                          |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `plans/specs/2026-05-09-plan-build-release-operating-model.md`, `plans/aps-rules.md` | `AGENTS.md`, `docs/guides/worktree-policy.md`, `wt switch --create` |
+
 ## Overview
 
 `main` is the only permanent product branch. Normal work branches from `main`

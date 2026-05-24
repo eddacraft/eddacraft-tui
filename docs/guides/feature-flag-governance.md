@@ -1,5 +1,13 @@
 # Feature Flag Governance
 
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                           |
+| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-05-25 against `plans/modules/feature-flag-catalogue.aps.md` and `crates/anvil-kernel-types/src/feature_flags.rs` |
+
+| Upstream                                                                                                                                                        | Downstream                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `plans/modules/feature-flag-catalogue.aps.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md` |
+
 This guide defines the operational rules for creating, rolling out, promoting,
 disabling, and retiring feature flags in Anvil.
 

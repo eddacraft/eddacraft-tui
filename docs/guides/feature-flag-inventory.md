@@ -1,5 +1,13 @@
 # Feature Flag Inventory
 
+| Type  | Authority | Owner   | Status | Freshness                                                                                                       |
+| ----- | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-05-25 against `plans/modules/feature-flag-catalogue.aps.md` and FLAGM/FLAGS archived modules |
+
+| Upstream                                                                                                                                                                                           | Downstream                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `plans/archive/modules/feature-flagging.aps.md`, `plans/archive/modules/feature-flag-migration.aps.md`, `plans/modules/feature-flag-catalogue.aps.md`, source flag definitions listed in the table | Feature-flag migration audits, `feature-flag-reference.md` |
+
 This document classifies existing feature-flag-like controls in Anvil and maps
 them onto the shared flagging model defined in `FLAGS`.
 

@@ -1,5 +1,13 @@
 # Ember Candidate Review Workflow
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                   |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-05-25 against `packages/edda-stack/src/ember/` and `packages/edda-stack/src/contracts/ember-proposal.ts` |
+
+| Upstream                                                                                                                                                                              | Downstream                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `packages/edda-stack/src/ember/`, `packages/edda-stack/src/contracts/ember-proposal.ts`, `packages/edda-stack/src/contracts/proposal-types.ts`, `plans/modules/rust-cli-tier3.aps.md` | `anvil ember` CLI workflows, RCLI3 planning |
+
 This guide explains what Ember candidates are, how they are generated, and how
 to review, promote, or dismiss them using the Anvil CLI.
 

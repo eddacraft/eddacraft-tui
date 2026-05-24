@@ -1,5 +1,13 @@
 # Command Safety Configuration Reference
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                     |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-05-25 against `docs/guides/command-safety.md` and `crates/anvil-checks/tests/command_safety_validation.rs` |
+
+| Upstream                                                                                              | Downstream                      |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `docs/guides/command-safety.md`, `crates/anvil-checks/tests/command_safety_validation.rs`, `.anvilrc` | `anvil gate`, `anvil check`, CI |
+
 Configure Command Safety validation via `.anvilrc` in your project root.
 
 ## Configuration Schema

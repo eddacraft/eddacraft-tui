@@ -1,5 +1,13 @@
 # Adapter Implementation & Developer Workflow Guide
 
+| Type  | Authority | Owner    | Status | Freshness                                                                                              |
+| ----- | --------- | -------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| Guide | Advisory  | OPENSPEC | Live   | Last reviewed 2026-05-25 against `packages/adapters/src/` and `plans/modules/open-spec-adapter.aps.md` |
+
+| Upstream                                                                                                                                                              | Downstream                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `packages/adapters/src/`, `packages/adapters/src/speckit/format-adapter.ts`, `packages/adapters/src/bmad/format-adapter.ts`, `plans/modules/open-spec-adapter.aps.md` | Adapter implementation work, adapter tests, APS import/export planning |
+
 ## Table of Contents
 
 1. [Overview](#overview)

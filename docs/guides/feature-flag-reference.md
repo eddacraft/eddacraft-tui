@@ -1,5 +1,13 @@
 # Feature Flag Reference
 
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                    |
+| ----- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-05-25 against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` and `docs/guides/feature-flag-governance.md` |
+
+| Upstream                                                                                                                                                                                             | Downstream                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `docs/guides/feature-flag-governance.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/runtime/src/feature-flags/`, `plans/modules/feature-flag-catalogue.aps.md` | Feature-flag authors, resolver integrations, `feature-flag-inventory.md` |
+
 Quick reference for defining, resolving, and operating feature flags in Anvil.
 Covers the shared flagging contract used across TypeScript and Rust surfaces.
 

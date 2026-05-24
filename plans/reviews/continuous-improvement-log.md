@@ -201,3 +201,47 @@ a backlog. Promote repeated friction or executable follow-up work to
   existing post-merge / release-council exceptions.
 - **Follow-up:** Resolve EMAIL-010 / GH #1926 before relying on
   preview-token-only broadcast sends.
+
+### 2026-05-25 — opencode
+
+- **Task:** Start DOCGOV-009 Task 1 in a new Worktrunk worktree.
+- **Outcome:** Promoted DOCGOV-009 to In Progress and drafted the owner/freshness
+  rubric without editing live docs.
+- **Worked:** Keeping Task 1 as a sign-off gate prevented metadata backfill from
+  starting before owner defaults were explicit.
+- **Failed:** Nothing substantive.
+- **Friction:** Worktree setup happened after initial APS reads because the
+  operator clarified the workspace requirement mid-task.
+- **Improvement:** For APS execution prompts that imply implementation, confirm
+  worktree placement before the first repository edit.
+- **Follow-up:** none
+
+### 2026-05-25 — opencode
+
+- **Task:** Continue DOCGOV-009 Task 2 high-authority guide metadata backfill.
+- **Outcome:** Backfilled five additional guide metadata blocks, refreshed
+  indexes, and passed the docs validation gate.
+- **Worked:** Deferring `docs/guides/eddacraft-autonomy-constitution.md` to Task
+  4 avoided guessing on draft-operational authority.
+- **Failed:** Nothing substantive.
+- **Friction:** Formatter wrapping is required after hand-authored metadata tables
+  with long source-path cells.
+- **Improvement:** Run `pnpm format` before the final validation gate for each
+  metadata batch instead of waiting for `format:check` to fail.
+- **Follow-up:** none
+
+### 2026-05-25 — opencode
+
+- **Task:** Continue DOCGOV-009 Task 2 across remaining guide, architecture, and
+  low-risk runbook metadata backfill.
+- **Outcome:** Backfilled additional clear surfaces while routing unsettled owner,
+  stale, and as-built path-heavy documents to later judgement/fix batches.
+- **Worked:** Checking inline backtick usage before governing a runbook prevented
+  new as-built/source-path validation noise.
+- **Failed:** Nothing substantive.
+- **Friction:** As-built and runbook docs require different batching from ordinary
+  guides because body code spans can become validation inputs once metadata is
+  added.
+- **Improvement:** Pre-screen runbook/as-built candidates with a code-span search
+  before assigning `Runbook` or `As-built` type metadata.
+- **Follow-up:** none

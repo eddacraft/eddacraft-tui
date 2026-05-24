@@ -30,11 +30,11 @@
 
 - Create: `plans/execution/DOCGOV-009.rubric.md` (working artefact; archived or deleted at task close)
 
-- [ ] Define owner mapping: how to choose `Owner` when a doc has no obvious APS module. Default rubric: prefer APS module ID for active work; fall back to team handle (`@aneki`, `RELORCH`, `DOCGOV`, etc.); use `Docs governance` only for derived/generated surfaces.
-- [ ] Define freshness mapping per `Type`, restating the rules in `docs/guides/documentation-governance.md:115-126` with concrete example anchors per directory (e.g. `docs/runbooks/release-signing.md` → "Last reviewed YYYY-MM-DD against `scripts/release/sign-artefacts.sh` and `v0.7.1-beta`").
-- [ ] Define authority mapping per surface (`Authoritative` for primary sources, `Derived` for indexes / generated, `Advisory` for guides without enforcement, `Historical` for never-archive content kept in active paths).
-- [ ] Resolve ambiguous cases by listing them; ambiguous docs go into Task 4 (judgement bucket) rather than the high-authority sweep.
-- [ ] Hand the rubric to the operator for sign-off before any backfill writes start.
+- [x] Define owner mapping: how to choose `Owner` when a doc has no obvious APS module. Default rubric: prefer APS module ID for active work; fall back to team handle (`@aneki`, `RELORCH`, `DOCGOV`, etc.); use `Docs governance` only for derived/generated surfaces.
+- [x] Define freshness mapping per `Type`, restating the rules in `docs/guides/documentation-governance.md:115-126` with concrete example anchors per directory (e.g. `docs/runbooks/release-signing.md` → "Last reviewed YYYY-MM-DD against `scripts/release/sign-artefacts.sh` and `v0.7.1-beta`").
+- [x] Define authority mapping per surface (`Authoritative` for primary sources, `Derived` for indexes / generated, `Advisory` for guides without enforcement, `Historical` for never-archive content kept in active paths).
+- [x] Resolve ambiguous cases by listing them; ambiguous docs go into Task 4 (judgement bucket) rather than the high-authority sweep.
+- [x] Hand the rubric to the operator for sign-off before any backfill writes start.
 
 ### Task 2: Backfill High-Authority Surfaces
 
@@ -50,6 +50,60 @@
 - [ ] Add or move any `**Tags:**` line so it sits below the relationships table and uses only catalogue values from `docs/governance/tags-catalogue.md`. Unknown tags either become catalogue additions (in the same change, with rationale) or get dropped.
 - [ ] After each batch of ~10 files, run `pnpm docs:check` and confirm the baseline has shrunk without introducing new findings. Do not run `--update-baseline` per-batch; that happens once per task.
 - [ ] At task end: `pnpm docs:check:update-baseline`, `pnpm docs:index`, `pnpm docs:check`, `pnpm format:check`. Record per-surface baseline delta in DOCGOV-009 task notes.
+
+**Task 2 batch notes:**
+
+- 2026-05-25 batch 1 backfilled five high-authority guides:
+  `docs/guides/adr-process.md`, `docs/guides/branching-strategy.md`,
+  `docs/guides/worktree-policy.md`,
+  `docs/guides/feature-flag-governance.md`, and `docs/guides/testing.md`.
+  `pnpm docs:check` initially failed only because generated indexes were stale;
+  `pnpm docs:index && pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+  then passed. Baseline update intentionally deferred until Task 2 closeout.
+- 2026-05-25 batch 2 backfilled five more high-authority guides:
+  `docs/guides/agent-surface-inventory.md`,
+  `docs/guides/cli-output-streams.md`, `docs/guides/command-safety.md`,
+  `docs/guides/command-safety-configuration.md`, and
+  `docs/guides/custom-architecture-policies.md`. Generated indexes were
+  refreshed, and
+  `pnpm docs:index && pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+  passed after formatting. Baseline update intentionally deferred until Task 2
+  closeout.
+- 2026-05-25 batch 3 backfilled five high-authority guides:
+  `docs/guides/edda-memory.md`,
+  `docs/guides/feature-flag-inventory.md`,
+  `docs/guides/feature-flag-reference.md`,
+  `docs/guides/git-hook-compatibility.md`, and
+  `docs/guides/opa-policy-testing.md`. Generated indexes were refreshed.
+  `pnpm docs:check && pnpm docs:index:check && pnpm format:check` passed after
+  applying `pnpm format`. `docs/guides/eddacraft-autonomy-constitution.md` was
+  left for Task 4 judgement because its draft-operational status needs owner and
+  authority confirmation rather than a high-authority sweep guess. Baseline
+  update intentionally deferred until Task 2 closeout.
+- 2026-05-25 batch 4 backfilled three remaining clear guide surfaces:
+  `docs/guides/adapters/workflow-guide.md`,
+  `docs/guides/ember-candidates.md`, and `docs/guides/stack-migration.md`.
+  Generated indexes were refreshed, and
+  `pnpm docs:check && pnpm docs:index:check && pnpm format:check` passed.
+  `docs/guides/anchor-rescoring-process.md` was left for Task 4 judgement
+  because the guide itself states that it has no permanent named owner. Baseline
+  update intentionally deferred until Task 2 closeout.
+- 2026-05-25 batch 5 backfilled two clear non-as-built architecture references:
+  `docs/architecture/quality-model.md` and
+  `docs/architecture/references/entire-branch-sidecar.md`. Generated indexes
+  were refreshed, and
+  `pnpm format && pnpm docs:index && pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+  passed. Stale or superseded-looking architecture specs and PocketFlow
+  references were left for Task 4 judgement rather than assigned authority during
+  the high-authority sweep. Baseline update intentionally deferred until Task 2
+  closeout.
+- 2026-05-25 batch 6 backfilled one low-risk runbook:
+  `docs/runbooks/observability-triage.md`. The inline severity labels were
+  changed from backtick-wrapped code spans to plain text so the governed runbook
+  does not introduce source-path validation noise. Generated indexes were
+  refreshed, and
+  `pnpm format && pnpm docs:index && pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+  passed. Baseline update intentionally deferred until Task 2 closeout.
 
 ### Task 3: Backfill Public Documentation
 

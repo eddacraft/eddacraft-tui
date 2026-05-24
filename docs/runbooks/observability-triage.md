@@ -1,5 +1,13 @@
 # Observability Triage Runbook
 
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                           |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | OBS   | Live   | Command review 2026-05-25 against the health/waitlist probes below, `docs/observability/namespace-registry.md`, and `plans/modules/observability-foundation.aps.md` |
+
+| Upstream                                                                                                                                    | Downstream                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Health/waitlist probe commands in this runbook, `docs/observability/namespace-registry.md`, `plans/modules/observability-foundation.aps.md` | Incident triage, post-deploy checks, release support |
+
 ## Purpose
 
 Provide a standard first-15-minutes triage flow for incidents using Anvil
@@ -42,7 +50,7 @@ curl -sS https://<site-host>/api/waitlist \
 - Timestamp window
 - Affected endpoints
 - Error signature(s)
-- Current severity (`sev1` / `sev2` / `sev3`)
+- Current severity (sev1 / sev2 / sev3)
 - Suspected owner domain (API/DB/Email/Frontend)
 
 ### 4) Stabilise, then diagnose

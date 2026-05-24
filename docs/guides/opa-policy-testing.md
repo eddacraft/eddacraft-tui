@@ -1,5 +1,13 @@
 # OPA Policy Testing Guide
 
+| Type  | Authority     | Owner | Status | Freshness                                                                                                         |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-05-25 against `packages/anvil/policy/src/policy-loader.ts` and `policies/fixtures/` test packs |
+
+| Upstream                                                                                                                                                        | Downstream                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `packages/anvil/policy/src/policy-loader.ts`, `packages/anvil/policy/src/opa-executor.ts`, `policies/fixtures/`, `plans/modules/opa-agent-orchestration.aps.md` | Policy authors, OPA fixture tests, gate policy execution |
+
 How to write, test, and ship OPA/Rego policies for Anvil's gate. This guide
 covers the canonical fixture layout, the `*_test.rego` convention, the CI
 toolchain, and the minimum set of tests every policy pack should ship.
