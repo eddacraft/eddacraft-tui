@@ -60,7 +60,7 @@ cat >"$project/package.json" <<'EOF'
     "fake-gpl": "file:./packages/fake-gpl"
   },
   "devDependencies": {
-    "license-checker": "^25.0.1"
+    "license-checker": "25.0.1"
   }
 }
 EOF

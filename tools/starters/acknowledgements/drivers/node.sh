@@ -10,7 +10,7 @@
 #     "manifest_path":   "absolute path to package.json",
 #     "node_allow_path": "absolute path to licences.node-allow.txt",
 #     "prod_only":       true (default) | false,
-#     "exclude":         "comma-separated package@version list" (optional)
+#     "exclude":         "semicolon-separated package@version list" (optional)
 #   }
 #
 # Driver-author contract (kept here for reviewer convenience — same
@@ -47,9 +47,10 @@ node_allow_path="$(printf '%s' "$config_json" | jq -er '.node_allow_path // empt
 # setting `prod_only = false` explicitly — that's the ATTRIB-015
 # Anvil-devtools path).
 prod_only="$(printf '%s' "$config_json" | jq -r '.prod_only // true')"
-# `exclude` is forwarded raw to license-checker --excludePackages;
-# license-checker expects semicolon-separated `package@version`
-# entries. Consumers using globs would need a future driver extension.
+# `exclude` is forwarded raw to license-checker --excludePackages,
+# which expects semicolon-separated `package@version` entries
+# (consistent with --onlyAllow). Consumers using globs would need a
+# future driver extension.
 exclude="$(printf '%s' "$config_json" | jq -r '.exclude // empty')"
 
 # ── Preflight ────────────────────────────────────────────────────────

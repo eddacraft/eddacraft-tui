@@ -74,7 +74,7 @@ cat >"$project/package.json" <<'EOF'
     "fake-b": "file:./packages/fake-b"
   },
   "devDependencies": {
-    "license-checker": "^25.0.1"
+    "license-checker": "25.0.1"
   }
 }
 EOF
