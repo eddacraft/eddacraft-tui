@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 66/86 |
+| MLP2 | @aneki | In Progress | 67/86 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -4091,7 +4091,27 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-070: Re-derive lineage anchor inside the daemon IPC handler
 
-- **Status:** In Progress
+- **Status:** Released/Shipped via `v0.7.0-beta` (PR
+  [#1805](https://github.com/eddacraft/anvil-001/pull/1805) merged
+  2026-05-21 at `c8193511`; non-Linux advisory follow-up at
+  `fefb6e8c`). Both commits in `v0.7.0-beta` and `v0.7.1-beta` tags.
+  All Expected Outcomes met: `verify_lineage_claim`
+  (`crates/anvil-intercept/src/ipc.rs:2982`) re-derives `pid` from
+  the connection's authenticated peer and `pid_starttime` from
+  `/proc/<peer_pid>/stat` on Linux; rejects when peer credentials
+  are absent or when `claim.pid != peer_pid`; forwards the
+  client-supplied `pid_starttime` as advisory on non-Linux per the
+  documented platform trade-off. `dispatch_command`
+  (`crates/anvil-intercept/src/ipc.rs:3074`) calls the verifier
+  before `dispatcher.register(...)`, so the only prod call site of
+  `register_with_lineage` (`crates/anvil-intercept/src/registry.rs:1112`)
+  receives daemon-derived values. Pinned by
+  `dispatch_command_register_lineage_rejects_pid_mismatch`,
+  `dispatch_command_register_lineage_requires_peer_credentials`,
+  `dispatch_command_register_lineage_overrides_client_pid_starttime`
+  (Linux), and
+  `dispatch_command_register_lineage_forwards_advisory_starttime_on_non_linux`.
+  Closes DeepSec [#1674](https://github.com/eddacraft/anvil-001/issues/1674).
 - **Intent:** `SessionRegistry::register_with_lineage`
   (`crates/anvil-intercept/src/registry.rs:526-553`) admits
   `daemon_issued_tag`, `pid`, and `pid_starttime` from its caller.
@@ -4284,10 +4304,10 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
-| P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
+| P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 1/2 (MLP2-070 Released/Shipped via `v0.7.0-beta` — PR [#1805](https://github.com/eddacraft/anvil-001/pull/1805); MLP2-071 Phase 1 Merged, Phase 2 pending) |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
 | R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 1/1 (Merged — PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)) |
-| **Total** | **81** | **63/81** |
+| **Total** | **81** | **64/81** |
 
 ## Recommended landing order
 
