@@ -356,7 +356,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-013: Go ecosystem driver
 
-- **Status:** Pending
+- **Status:** Merged via PR #1929 (`feat/attrib-013-go-driver`)
 - **Intent:** Add a Go driver so consumers can attribute Go module dependencies via the same dispatcher.
 - **Expected Outcome:**
   - `drivers/go.sh` shells `go-licenses report` against a binary import path, emits deterministic markdown using a Go template under `templates/go-licenses.tmpl`.
@@ -366,6 +366,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
   - `go.mod` `replace` directives honoured natively — no special handling needed for monorepo internal modules.
 - **Validation:** Go fixture binary with one external dep round-trips through the driver. `--check` reports drift when a fixture dependency's licence changes. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
 - **Dependencies:** ATTRIB-008; ATTRIB-006 expander emits Go-shaped fragment.
+- **Shipped:** PR #1929 (`feat/attrib-013-go-driver`). `drivers/go.sh` shells `go-licenses report` against a `module_path` (package/binary dir), finds the enclosing `go.mod`, runs from the module root, and `--ignore`s the project's own main module (`go list -m`). Strict gate via `go-licenses check --allowed_licenses`; render carries module import path + SPDX licence only (no source URL — go-licenses resolves URLs over the network, which would break `--check` determinism); `templates/go-licenses.tmpl` emits rows and the driver sorts + headers them. `expand-licences.sh` emits a comma-joined Go fragment into `licences.go-allow.txt` (same optional-presence shape as the Node fragment); Anvil ships a dormant populated root `licences.go-allow.txt` (no Go block in `attribution.toml`). Fixture tests (network-free, local-`replace` Go module): `go-driver-preflight.sh` 5/5, `go-driver-render.sh` 3/3, `go-driver-strict.sh` 2/2; `licences-drift.sh` gains a Go-fragment scenario (6 total). `acknowledgements-kit.yml` installs pinned `go-licenses@v1.6.0` and runs the three Go tests. Verified locally: 10/10 kit tests, `expand-licences --check` + `generate-acknowledgements --check` exit 0. Not yet in a published release record (status `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-014: Python ecosystem driver
 
