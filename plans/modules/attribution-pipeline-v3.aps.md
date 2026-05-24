@@ -301,7 +301,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-008: Multi-block dispatcher + driver-per-ecosystem architecture
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1888 (`a2001a9d` · 2026-05-24)
 - **Execution plan:** `plans/execution/ATTRIB-008.steps.md` (kicked off 2026-05-24 on `feat/attrib-008-dispatcher-drivers`).
 - **Intent:** Refactor the generator from "one cargo-about call, one block" into a dispatcher that reads a `[[blocks]]` array from `attribution.toml` and routes each block to an ecosystem-specific driver script.
 - **Expected Outcome:**
@@ -313,6 +313,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
   - README documents the dispatcher contract, the block schema, and the driver-author contract (preflight + render + strict-license + deterministic-output expectations).
 - **Validation:** Two-block fixture (Rust + a stub ecosystem) round-trips through partial regeneration without touching the other block. Anvil's existing single-block flow continues to pass `--check` clean post-refactor. Mirror to `eddacraft/acknowledgements-starter` builds cleanly; `eddacraft-tui` consumer regenerates byte-identically.
 - **Dependencies:** None (keystone for ATTRIB-012/013/014/015).
+- **Shipped:** PR #1888 merged 2026-05-24 at commit `a2001a9d`. Repo state verified 2026-05-24: `tools/starters/acknowledgements/generate-acknowledgements.sh` (547 lines) is the dispatcher; `tools/starters/acknowledgements/drivers/rust.sh` (92 lines) carries the extracted Rust driver; `tools/starters/acknowledgements/README.md` (427 lines) documents the dispatcher contract + block schema + driver-author contract. Fixture tests green (`tests/dispatcher-schema-validation.sh` 5/5, `tests/dispatcher-two-block.sh` 3/3 — partial-regeneration + per-block atomic write + flat-`[rust]` back-compat all covered). Anvil's real workspace `generate-acknowledgements.sh --check` exits 0 against the live `attribution.toml`. Mirror workflow run [26347531626](https://github.com/eddacraft/anvil-001/actions/runs/26347531626) succeeded on the merge commit; `eddacraft-tui` downstream byte-identicality has not been re-verified post-merge (deferred to ATTRIB-009 round-trip). Not yet in a published release record (release-narrative status remains `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-009: Port the kit back into `little-termi`
 
