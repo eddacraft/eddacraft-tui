@@ -91,6 +91,36 @@ spdx = "MPL-2.0"
 about = true
 deny = true
 
+# ATTRIB-015: added 2026-05-25 to cover the Node devtools graph's
+# permissive-licence surface. None of these are Cargo dependencies
+# today; they reach `about.toml.accepted` for completeness (cargo-about
+# uses the merged allow-list and will not trip on them) and
+# `deny.toml.[licenses].allow` so cargo-deny stays aligned.
+
+[[licences]]
+spdx = "BlueOak-1.0.0"
+about = true
+deny = true
+note = "ATTRIB-015. npm Inc relicensed `minimatch` (and a small family of related glob packages) under BlueOak-1.0.0 — OSI-approved, OSI permissive. Pulled in transitively by every Node devtool that walks paths."
+
+[[licences]]
+spdx = "0BSD"
+about = true
+deny = true
+note = "ATTRIB-015. Microsoft `tslib` (TypeScript runtime helpers) ships under the Zero-clause BSD licence — equivalent to public domain dedication."
+
+[[licences]]
+spdx = "Python-2.0"
+about = true
+deny = true
+note = "ATTRIB-015. Python Software Foundation licence. `argparse@2.0.x` (JS port of Python's argparse) ships under it as a courtesy nod to the original; OSI-approved permissive."
+
+[[licences]]
+spdx = "CC-BY-3.0"
+about = true
+deny = true
+note = "ATTRIB-015. Creative Commons Attribution 3.0 — used for non-code data files (SPDX exception lists in `spdx-exceptions`, also surfaced via the compound `MIT AND CC-BY-3.0` expression on `spdx-license-ids`). license-checker itself pulls these in transitively; the attribution tool ends up attributing its own data layer."
+
 # --- About-only: cargo-about needs this but cargo-deny does not ---
 
 [[licences]]

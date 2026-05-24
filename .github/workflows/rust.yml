@@ -418,8 +418,20 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+      # ATTRIB-015: Anvil's own `node-devtools` attribution block in
+      # `attribution.toml` points the Node driver at
+      # `tools/dev/package.json`. The driver needs `license-checker`
+      # on PATH, and the curated `tools/dev` manifest declares it as
+      # a devDep. `tools/dev` is excluded from `pnpm-workspace.yaml`
+      # (pnpm hoisting otherwise resolves a `glob` major that's
+      # incompatible with license-checker@25.0.1's `read-package-json`
+      # transitive), so we `npm install` it directly. Subsequent steps
+      # prepend its `node_modules/.bin` to PATH.
+      - name: Install tools/dev devtools (for ATTRIB-015 Node attribution)
+        run: cd tools/dev && npm ci --no-audit --no-fund
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
+          export PATH="$GITHUB_WORKSPACE/tools/dev/node_modules/.bin:$PATH"
           if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
             echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'tools/starters/acknowledgements/generate-acknowledgements.sh' locally and commit."
             exit 1

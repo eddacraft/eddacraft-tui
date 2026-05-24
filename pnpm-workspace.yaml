@@ -28,6 +28,15 @@ packages:
   - tools/*
   # nxrust now resolves from npm; keep the historical vendored copy out of the workspace.
   - '!tools/nx-rust'
+  # ATTRIB-015 devtools manifest. Excluded from the pnpm-workspace so
+  # `npm install` inside `tools/dev` produces an isolated `license-checker`
+  # dependency tree — pnpm workspace hoisting otherwise resolves a `glob`
+  # major that's incompatible with `license-checker@25.0.1`'s
+  # `read-package-json` transitive (`TypeError: glob is not a function`).
+  # The acknowledgements freshness CI job + `generate-acknowledgements.sh`
+  # both `(cd tools/dev && npm install)` then prepend
+  # `tools/dev/node_modules/.bin` to `PATH` before invoking the driver.
+  - '!tools/dev'
   # Native binding crates that ship as npm packages (Rust source lives in
   # the cargo workspace; pnpm picks them up here for `pnpm --filter` access).
   - crates/anvil-checks-napi

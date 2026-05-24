@@ -23,6 +23,23 @@ accepted = [
   "CC0-1.0",
   "Zlib",
   "MPL-2.0",
+  # ATTRIB-015. npm Inc relicensed `minimatch` (and a small family of related 
+  # glob packages) under BlueOak-1.0.0 — OSI-approved, OSI permissive. Pulled 
+  # in transitively by every Node devtool that walks paths.
+  "BlueOak-1.0.0",
+  # ATTRIB-015. Microsoft `tslib` (TypeScript runtime helpers) ships under the 
+  # Zero-clause BSD licence — equivalent to public domain dedication.
+  "0BSD",
+  # ATTRIB-015. Python Software Foundation licence. `argparse@2.0.x` (JS port 
+  # of Python's argparse) ships under it as a courtesy nod to the original; 
+  # OSI-approved permissive.
+  "Python-2.0",
+  # ATTRIB-015. Creative Commons Attribution 3.0 — used for non-code data 
+  # files (SPDX exception lists in `spdx-exceptions`, also surfaced via the 
+  # compound `MIT AND CC-BY-3.0` expression on `spdx-license-ids`). 
+  # license-checker itself pulls these in transitively; the attribution tool 
+  # ends up attributing its own data layer.
+  "CC-BY-3.0",
   # Accepted for the `ring` crate only — activated via the `ring` workaround 
   # in about.toml. ring is not currently a runtime dep (rustls defaults to 
   # aws-lc-rs in this workspace), but it's in Cargo.lock behind optional 

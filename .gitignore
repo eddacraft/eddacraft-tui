@@ -15,6 +15,12 @@ packages/anvil/core/patterns/
 # dependencies
 node_modules
 package-lock.json
+# ATTRIB-015 exception: tools/dev is isolated from the pnpm-workspace
+# (license-checker@25.0.1 hoisting incompat) and installed via npm.
+# Its lock file is checked in for reproducible Node attribution
+# output — without it, license-checker's transitive can shift between
+# runs and trip the acknowledgements freshness gate.
+!tools/dev/package-lock.json
 
 # IDEs and editors
 /.idea

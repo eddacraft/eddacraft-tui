@@ -8,7 +8,13 @@
 target_path = "ACKNOWLEDGEMENTS.md"
 fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 
-[rust]
+# ATTRIB-008 dispatcher schema. ATTRIB-015 migrated from the flat
+# `[rust]` back-compat shim to the canonical `[[blocks]]` form when
+# the second block (`node-devtools`) landed.
+
+[[blocks]]
+name = "rust"
+ecosystem = "rust"
 # Scoped to crates/anvil-cli so cargo-about walks only the shipping
 # `anvil` binary's runtime dependency graph. Dev-deps (insta, criterion,
 # wiremock, ...) are not linked into the shipped binary and are excluded
@@ -16,3 +22,19 @@ fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
 manifest_path = "crates/anvil-cli/Cargo.toml"
 template_path = "about.hbs"
 config_path = "about.toml"
+
+[[blocks]]
+name = "node-devtools"
+ecosystem = "node"
+# ATTRIB-015. Curated devtools manifest at tools/dev/package.json
+# declaring 8 build/test/lint tools (nx, husky, oxlint, oxfmt, vitest,
+# @playwright/test, typescript, markdownlint-cli). Per the spec's
+# open-question decision (line 358-363), root package.json with
+# prod_only=false produced 2034 transitive packages including
+# proprietary Nx Powerpack + Copilot CLI; the curated minimum gives
+# 231 packages with no proprietary noise. Key dev deps and tools
+# beyond this curated minimum live in the hand-curated `## Thanks`
+# section of ACKNOWLEDGEMENTS.md.
+manifest_path = "tools/dev/package.json"
+node_allow_path = "licences.node-allow.txt"
+prod_only = false

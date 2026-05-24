@@ -1,0 +1,18 @@
+{
+  "name": "@eddacraft/anvil-devtools",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "ATTRIB-015 curated devtools manifest. Surfaces the build/test/lint tools that fire during CI for ATTRIBution via tools/starters/acknowledgements/drivers/node.sh. Key dev deps and tools beyond this curated minimum live in the hand-curated `## Thanks` section of ACKNOWLEDGEMENTS.md.",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "husky": "^9.1.7",
+    "license-checker": "25.0.1",
+    "markdownlint-cli": "^0.48.0",
+    "nx": "^22.7.2",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.7"
+  }
+}
