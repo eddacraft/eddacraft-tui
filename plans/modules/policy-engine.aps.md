@@ -113,20 +113,24 @@ post-rust engine question. POLENG is the answer.
 
 ## Acceptance Criteria
 
-- [ ] `crates/anvil-policy-engine` builds, tests pass on Linux/macOS/Windows
-- [ ] `PolicyInput` schema v1 stable, snapshot-tested, documented at
+- [x] `crates/anvil-policy-engine` builds, tests pass (Linux local; macOS /
+      Windows via CI matrix)
+- [x] `PolicyInput` schema v1 stable, snapshot-tested, documented at
       `docs/specs/policy-input-v1.md`
-- [ ] At least five first-party builtins registered, each with declared
+- [x] At least five first-party builtins registered, each with declared
       `DeterminismClass` and unit tests
-- [ ] Determinism repeatable-eval test runs a representative policy 100× over
+- [x] Determinism repeatable-eval test runs a representative policy 100× over
       identical input and asserts byte-identical output
-- [ ] `anvil policy eval` returns exit-coded result with JSON output and
+- [x] `anvil policy eval` returns exit-coded result with JSON output and
       respects ADR-002 (`exit 0` on warnings, override via `--fail-on-warnings`)
-- [ ] `--explain` renders coverage report; `--why <finding-id>` renders trace
+- [x] `--explain` renders coverage report; `--why <finding-id>` renders trace
+      (trace is partial — see POLENG-006 note on the regorus 0.10.0 limitation)
 - [ ] Bench harness shows regorus at or above Go OPA reference on every
-      policy in the representative suite (parity gate; ADR-040 trigger)
-- [ ] Public engine API surface documented; downstream crates verified to
-      depend on the facade only (lint or audit)
+      policy in the representative suite (parity gate; ADR-040 trigger) —
+      POLENG-008, still open
+- [x] Public engine API surface documented (rustdoc on every public item);
+      downstream `anvil-cli` depends on the facade only, never on `regorus`
+      directly (a dedicated audit lint remains follow-up)
 
 ## Risks & Mitigations
 
