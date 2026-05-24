@@ -197,5 +197,17 @@ mod tests {
         state.handle_key(Action::Character('r'));
 
         assert!(state.rescan_requested);
+        assert!(state.should_quit());
+    }
+
+    #[test]
+    fn filter_mode_allows_q_search_text() {
+        let mut state = sample_state();
+
+        state.handle_key(Action::Character('/'));
+        state.handle_key(Action::Quit);
+
+        assert_eq!(state.filter_query, "q");
+        assert!(!state.should_quit());
     }
 }

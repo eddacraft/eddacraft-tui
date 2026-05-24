@@ -38,8 +38,14 @@ fn run_dashboard(global: &GlobalArgs) -> anyhow::Result<()> {
     } else if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_summary(&snapshot);
     } else {
-        let state = PlanDashboardState::new(to_tui_snapshot(&snapshot));
-        let _state = tui::run_surface(state)?;
+        loop {
+            let snapshot = plan_dashboard::build_plan_status_snapshot(&root)?;
+            let state = PlanDashboardState::new(to_tui_snapshot(&snapshot));
+            let state = tui::run_surface(state)?;
+            if !state.rescan_requested {
+                break;
+            }
+        }
     }
 
     Ok(())

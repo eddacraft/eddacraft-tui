@@ -52,15 +52,15 @@ fixture parsing, cargo unit tests.
 - Modify: `plans/index.aps.md`
 - Reference: `plans/specs/2026-05-24-aps-tui-dashboard.md`
 
-- [ ] Add `APSCAN-011: Add APS TUI dashboard` with `Status: Ready`.
-- [ ] Set expected outcome to a read-only `anvil plan dashboard` that builds a
+- [x] Add `APSCAN-011: Add APS TUI dashboard` with `Status: Ready`.
+- [x] Set expected outcome to a read-only `anvil plan dashboard` that builds a
       local `PlanStatusSnapshot`, renders active work, and flags APS-only
       reconciliation hints.
-- [ ] Set validation to:
+- [x] Set validation to:
       `cargo test -p eddacraft-anvil plan_dashboard && cargo test -p eddacraft-anvil-tui plan_dashboard && pnpm format:check && pnpm docs:check`.
-- [ ] Update APSCAN count from `1/10` to `1/11` in the module header and index.
-- [ ] Run `pnpm docs:check` and verify the APS surface reports no new errors.
-- [ ] Commit: `docs(apscan): add APS TUI dashboard work item`.
+- [x] Update APSCAN count from `1/10` to `1/11` in the module header and index.
+- [x] Run `pnpm docs:check` and verify the APS surface reports no new errors.
+- [x] Commit: `docs(apscan): add APS TUI dashboard work item`.
 
 ### Task 2: Add Local APS Snapshot Builder
 
@@ -69,26 +69,26 @@ fixture parsing, cargo unit tests.
 - Create: `crates/anvil-cli/src/plan_dashboard.rs`
 - Modify: `crates/anvil-cli/src/main.rs`
 
-- [ ] Write failing tests in `crates/anvil-cli/src/plan_dashboard.rs` using
+- [x] Write failing tests in `crates/anvil-cli/src/plan_dashboard.rs` using
       temporary fixture directories for:
       `loads_index_modules`, `detects_index_module_count_mismatch`,
       `detects_missing_module_path`, `detects_open_item_without_validation`, and
       `leaves_enrichments_empty`.
-- [ ] Run `cargo test -p eddacraft-anvil plan_dashboard --lib` and verify the new
+- [x] Run `cargo test -p eddacraft-anvil plan_dashboard --lib` and verify the new
       tests fail to compile or fail because the builder is not implemented.
-- [ ] Define `PlanStatusSnapshot`, `ModuleSummary`, `WorkItemSummary`,
+- [x] Define `PlanStatusSnapshot`, `ModuleSummary`, `WorkItemSummary`,
       `PlanWarning`, and `PlanEnrichment` in `plan_dashboard.rs`.
-- [ ] Implement `build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot>`.
-- [ ] Parse `plans/index.aps.md` tables narrowly: module path, scope, status,
+- [x] Implement `build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot>`.
+- [x] Parse `plans/index.aps.md` tables narrowly: module path, scope, status,
       progress, and containing section heading.
-- [ ] Parse active module files narrowly: H1 title, header owner/status/progress,
+- [x] Parse active module files narrowly: H1 title, header owner/status/progress,
       `### ID: title` work item headings, status lines, validation lines,
       dependencies lines, and files lines.
-- [ ] Implement advisory warnings for count mismatch, missing module path,
+- [x] Implement advisory warnings for count mismatch, missing module path,
       in-progress-with-all-items-done, merged-prose-with-open-status, missing
       validation, completed dependency on blocked item, and no ready next item.
-- [ ] Run `cargo test -p eddacraft-anvil plan_dashboard --lib` and verify it passes.
-- [ ] Commit: `feat(apscan): build APS dashboard snapshot`.
+- [x] Run `cargo test -p eddacraft-anvil plan_dashboard --lib` and verify it passes.
+- [x] Commit: `feat(apscan): build APS dashboard snapshot`.
 
 ### Task 3: Wire `anvil plan dashboard` CLI
 
@@ -98,21 +98,21 @@ fixture parsing, cargo unit tests.
 - Modify: `crates/anvil-cli/src/commands/mod.rs`
 - Modify: `crates/anvil-cli/src/main.rs`
 
-- [ ] Write failing CLI tests in `crates/anvil-cli/src/main.rs` for
+- [x] Write failing CLI tests in `crates/anvil-cli/src/main.rs` for
       `parse_command(&["plan", "dashboard"])`, canonical command name `plan`,
       and unauthenticated access classification matching local planning commands.
-- [ ] Run `cargo test -p eddacraft-anvil plan_command --lib` and verify the tests
+- [x] Run `cargo test -p eddacraft-anvil plan_command --lib` and verify the tests
       fail because the command is not wired.
-- [ ] Add `pub mod plan;` to `commands/mod.rs`.
-- [ ] Add `Commands::Plan(commands::plan::PlanArgs)` to the top-level clap enum.
-- [ ] Add dispatch for `Commands::Plan(args)` in the existing command runner.
-- [ ] Add command-name mapping and auth/interactive classification entries.
-- [ ] Implement `PlanArgs` with subcommand `Dashboard(DashboardArgs)`.
-- [ ] In `DashboardArgs`, support `--json` only if it can print
+- [x] Add `pub mod plan;` to `commands/mod.rs`.
+- [x] Add `Commands::Plan(commands::plan::PlanArgs)` to the top-level clap enum.
+- [x] Add dispatch for `Commands::Plan(args)` in the existing command runner.
+- [x] Add command-name mapping and auth/interactive classification entries.
+- [x] Implement `PlanArgs` with subcommand `Dashboard(DashboardArgs)`.
+- [x] In `DashboardArgs`, support `--json` only if it can print
       `PlanStatusSnapshot` without launching the TUI; otherwise leave JSON out of
       v1 and make `--no-tui` print a concise non-interactive summary.
-- [ ] Run `cargo test -p eddacraft-anvil plan_command --lib` and verify it passes.
-- [ ] Commit: `feat(cli): add plan dashboard command`.
+- [x] Run `cargo test -p eddacraft-anvil plan_command --lib` and verify it passes.
+- [x] Commit: `feat(cli): add plan dashboard command`.
 
 ### Task 4: Render APS Dashboard Surface
 
@@ -122,27 +122,27 @@ fixture parsing, cargo unit tests.
 - Create: `crates/anvil-tui/src/surfaces/plan_dashboard/render.rs`
 - Modify: `crates/anvil-tui/src/surfaces/mod.rs`
 
-- [ ] Write failing Ratatui test-backend tests for:
+- [x] Write failing Ratatui test-backend tests for:
       `renders_summary_counts`, `renders_module_rows`, `renders_warning_marker`,
       and `collapses_on_narrow_terminal`.
-- [ ] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify the
+- [x] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify the
       tests fail because the surface does not exist.
-- [ ] Define the TUI-facing snapshot structs or re-export compatible structs from
+- [x] Define the TUI-facing snapshot structs or re-export compatible structs from
       the CLI snapshot boundary if crate layering permits it. If layering does
       not permit it, keep duplicate serialisable view structs in `anvil-tui` and
       convert in `commands/plan.rs`.
 - [ ] Render a title line with branch/SHA when present.
-- [ ] Render summary counts for `In Progress`, `Ready`, `Blocked`, and warning
+- [x] Render summary counts for `In Progress`, `Ready`, `Blocked`, and warning
       count.
 - [ ] Render release-focus rows first when section metadata identifies current
       release rows; otherwise show all in-progress rows.
-- [ ] Render module table with scope, progress, status, and warning marker.
+- [x] Render module table with scope, progress, status, and warning marker.
 - [ ] Render detail pane with incomplete work items, warnings, validation, and
       dependencies.
-- [ ] Render footer keybindings.
-- [ ] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify it
+- [x] Render footer keybindings.
+- [x] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify it
       passes.
-- [ ] Commit: `feat(tui): render APS work dashboard`.
+- [x] Commit: `feat(tui): render APS work dashboard`.
 
 ### Task 5: Add Interaction And CLI Launch
 
@@ -152,19 +152,19 @@ fixture parsing, cargo unit tests.
 - Modify: `crates/anvil-tui/src/surfaces/plan_dashboard/mod.rs`
 - Modify: `crates/anvil-cli/src/commands/plan.rs`
 
-- [ ] Write failing tests for selection movement, filter text, detail toggle,
+- [x] Write failing tests for selection movement, filter text, detail toggle,
       rescan request, help toggle, and quit action.
-- [ ] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify the
+- [x] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and verify the
       interaction tests fail.
-- [ ] Implement dashboard state transitions for `Up`, `Down`, `/`, `Enter`, `r`,
+- [x] Implement dashboard state transitions for `Up`, `Down`, `/`, `Enter`, `r`,
       `?`, `q`, and `Esc`.
-- [ ] Implement a CLI launch path that builds the snapshot, enters the existing
+- [x] Implement a CLI launch path that builds the snapshot, enters the existing
       TUI shell, and handles rescan requests by rebuilding from disk.
-- [ ] Make non-TTY or `--no-tui` mode print a deterministic text summary rather
+- [x] Make non-TTY or `--no-tui` mode print a deterministic text summary rather
       than attempting raw-mode terminal launch.
-- [ ] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and
+- [x] Run `cargo test -p eddacraft-anvil-tui plan_dashboard --lib` and
       `cargo test -p eddacraft-anvil plan_dashboard --lib` and verify both pass.
-- [ ] Commit: `feat(tui): add APS dashboard navigation`.
+- [x] Commit: `feat(tui): add APS dashboard navigation`.
 
 ### Task 6: Validate And Close Out
 
@@ -174,10 +174,10 @@ fixture parsing, cargo unit tests.
 - Modify: `plans/index.aps.md`
 - Modify: `plans/execution/2026-05-24-aps-tui-dashboard.md`
 
-- [ ] Run `cargo test -p eddacraft-anvil plan_dashboard`.
-- [ ] Run `cargo test -p eddacraft-anvil-tui plan_dashboard`.
+- [x] Run `cargo test -p eddacraft-anvil plan_dashboard`.
+- [x] Run `cargo test -p eddacraft-anvil-tui plan_dashboard`.
 - [ ] Run `pnpm format:check`.
-- [ ] Run `pnpm docs:check`.
+- [x] Run `pnpm docs:check`.
 - [ ] Run `pnpm lint:check` if Rust-only changes do not make it redundant in the
       current CI classification.
 - [ ] Mark `APSCAN-011` complete only after validation is green.

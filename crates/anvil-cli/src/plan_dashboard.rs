@@ -186,6 +186,7 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
 
 fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
     let mut section = None;
+    let mut headers: Vec<String> = Vec::new();
     let mut modules = Vec::new();
 
     for line in index.lines() {
@@ -197,33 +198,103 @@ fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
             continue;
         }
 
-        if !line.trim_start().starts_with('|') || !line.contains("](.") {
+        if !line.trim_start().starts_with('|') {
             continue;
         }
 
         let cells = table_cells(line);
-        if cells.len() < 4 || cells[0].eq_ignore_ascii_case("module") {
+        if cells.iter().all(|cell| cell.chars().all(|c| c == '-')) {
+            continue;
+        }
+        if cells
+            .first()
+            .is_some_and(|cell| cell.eq_ignore_ascii_case("module"))
+        {
+            headers = cells.iter().map(|cell| normalise_header(cell)).collect();
+            continue;
+        }
+        if cells.len() < 2 || !line.contains("](.") {
             continue;
         }
 
-        let Some((title, path)) = parse_markdown_link(&cells[0]) else {
+        let module_index = header_index(&headers, "module").unwrap_or(0);
+        let Some(module_cell) = cells.get(module_index) else {
             continue;
         };
 
-        let (done, total) = parse_progress(&cells[3]);
+        let Some((title, path)) = parse_markdown_link(module_cell) else {
+            continue;
+        };
+        let relative_path = path.trim_start_matches("./");
+        if !relative_path.starts_with("modules/") {
+            continue;
+        };
+
+        let progress_index =
+            header_index(&headers, "progress").or_else(|| header_index(&headers, "esttasks"));
+        let status_index = header_index(&headers, "status");
+        let notes_index =
+            header_index(&headers, "notes").or_else(|| header_index(&headers, "dependencies"));
+        let notes = notes_index.and_then(|index| cells.get(index).cloned());
+        let status = status_index
+            .and_then(|index| cells.get(index).cloned())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                notes
+                    .as_deref()
+                    .and_then(infer_status)
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
+        let (done, total) = progress_index
+            .and_then(|index| cells.get(index))
+            .map(|value| parse_progress(value))
+            .unwrap_or((None, None));
+
         modules.push(ModuleSummary {
-            scope: cells.get(1).cloned().unwrap_or_default(),
+            scope: header_index(&headers, "scope")
+                .and_then(|index| cells.get(index).cloned())
+                .unwrap_or_default(),
             title,
-            path: PathBuf::from(path.trim_start_matches("./")),
-            status: cells.get(2).cloned().unwrap_or_default(),
+            path: PathBuf::from(relative_path),
+            status,
             done,
             total,
             section: section.clone(),
-            notes: cells.get(4).cloned(),
+            notes,
         });
     }
 
     modules
+}
+
+fn normalise_header(value: &str) -> String {
+    value
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
+fn header_index(headers: &[String], name: &str) -> Option<usize> {
+    headers.iter().position(|header| header == name)
+}
+
+fn infer_status(value: &str) -> Option<&'static str> {
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("in progress") {
+        Some("In Progress")
+    } else if lower.contains("ready") {
+        Some("Ready")
+    } else if lower.contains("blocked") {
+        Some("Blocked")
+    } else if lower.contains("complete") || lower.contains("archived") {
+        Some("Complete")
+    } else if lower.contains("draft") {
+        Some("Draft")
+    } else {
+        None
+    }
 }
 
 fn parse_work_items(module: &str, contents: &str) -> Vec<WorkItemSummary> {
@@ -307,7 +378,15 @@ fn parse_markdown_link(value: &str) -> Option<(String, String)> {
 
 fn parse_progress(value: &str) -> (Option<usize>, Option<usize>) {
     let Some((left, right)) = value.split_once('/') else {
-        return (None, None);
+        return (
+            None,
+            value
+                .chars()
+                .filter(char::is_ascii_digit)
+                .collect::<String>()
+                .parse()
+                .ok(),
+        );
     };
 
     let done = left
@@ -412,6 +491,47 @@ mod tests {
         assert_eq!(snapshot.modules[0].total, Some(2));
         assert_eq!(snapshot.work_items.len(), 2);
         assert!(snapshot.enrichments.is_empty());
+    }
+
+    #[test]
+    fn loads_est_tasks_index_tables() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+| Module | Scope | Est. Tasks | Dependencies |
+| ------ | ----- | ---------- | ------------ |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | 1/2 | Migration work — **In Progress**. |
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert_eq!(snapshot.modules.len(), 1);
+        assert_eq!(snapshot.modules[0].status, "In Progress");
+        assert_eq!(snapshot.modules[0].done, Some(1));
+        assert_eq!(snapshot.modules[0].total, Some(2));
+    }
+
+    #[test]
+    fn skips_archived_index_modules() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [old](./archive/modules/old.aps.md) | OLD | Complete | 1/1 | Historical. |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 1/2 | Active. |
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert_eq!(snapshot.modules.len(), 1);
+        assert_eq!(snapshot.modules[0].scope, "APSCAN");
     }
 
     #[test]

@@ -232,7 +232,7 @@ Migrate in waves:
 
 ### APSCAN-011: Add APS TUI dashboard
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Provide a read-only terminal dashboard for active APS work so
   operators and agents can see in-progress modules, ready work, blocked work, and
   local reconciliation hints without manually reading the APS index and every

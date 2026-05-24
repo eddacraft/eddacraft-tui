@@ -25,6 +25,7 @@ impl PlanDashboardState {
             }
             Action::Character('r') => {
                 self.rescan_requested = true;
+                self.should_quit = true;
             }
             Action::Quit | Action::Back => {
                 self.should_quit = true;
@@ -52,7 +53,8 @@ impl PlanDashboardState {
                 self.selected_module = 0;
             }
             Action::Quit => {
-                self.should_quit = true;
+                self.filter_query.push('q');
+                self.selected_module = 0;
             }
             _ => {}
         }
