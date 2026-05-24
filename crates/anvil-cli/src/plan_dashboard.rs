@@ -118,7 +118,10 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
             });
         }
 
-        if total > 0 && done < total && !parsed_items.iter().any(|item| is_ready(&item.status)) {
+        if module.status.eq_ignore_ascii_case("in progress")
+            && done < total
+            && !parsed_items.iter().any(|item| is_ready(&item.status))
+        {
             warnings.push(PlanWarning {
                 kind: PlanWarningKind::NoReadyNextItem,
                 module: Some(module.scope.clone()),
@@ -152,11 +155,12 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
                 });
             }
 
-            if item.status.eq_ignore_ascii_case("blocked")
+            if status_token(&item.status) == "blocked"
+                && !item.dependencies.is_empty()
                 && item
                     .dependencies
                     .iter()
-                    .any(|dependency| completed_ids.iter().any(|id| dependency.contains(id)))
+                    .all(|dependency| dependency_references_completed(dependency, &completed_ids))
             {
                 warnings.push(PlanWarning {
                     kind: PlanWarningKind::BlockedDependencyComplete,
@@ -415,7 +419,7 @@ fn split_inline_list(value: &str) -> Vec<String> {
 
 pub(crate) fn is_done_status(status: &str) -> bool {
     matches!(
-        status.to_ascii_lowercase().as_str(),
+        status_token(status).as_str(),
         "done" | "complete" | "completed" | "merged" | "released" | "released/shipped" | "archived"
     )
 }
@@ -425,7 +429,26 @@ fn is_done(status: &str) -> bool {
 }
 
 fn is_ready(status: &str) -> bool {
-    matches!(status.to_ascii_lowercase().as_str(), "ready" | "open")
+    matches!(status_token(status).as_str(), "ready" | "open")
+}
+
+fn status_token(status: &str) -> String {
+    let lower = status.trim().to_ascii_lowercase();
+    if lower.starts_with("released/shipped") {
+        return "released/shipped".to_string();
+    }
+
+    lower
+        .split(|ch: char| ch.is_whitespace() || matches!(ch, '(' | '-' | '—' | ':'))
+        .next()
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn dependency_references_completed(dependency: &str, completed_ids: &[String]) -> bool {
+    dependency
+        .split(|ch: char| !ch.is_ascii_alphanumeric() && ch != '-')
+        .any(|token| completed_ids.iter().any(|id| token == id))
 }
 
 #[cfg(test)]
@@ -646,5 +669,80 @@ mod tests {
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
 
         assert!(snapshot.enrichments.is_empty());
+    }
+
+    #[test]
+    fn terminal_status_with_prose_is_done() {
+        let repo = fixture_repo();
+        write(
+            repo.path()
+                .join("plans/modules/aps-canonical-alignment.aps.md"),
+            r#"# APS Canonical Alignment
+
+| ID | Owner | Status | Progress |
+| -- | ----- | ------ | -------- |
+| APSCAN | — | In Progress | 2/2 |
+
+## Work Items
+
+### APSCAN-001: Merged item
+
+- **Status:** Merged via PR #1900
+
+### APSCAN-002: Released item
+
+- **Status:** Released/Shipped via v0.7.1-beta
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(!snapshot.warnings.iter().any(|warning| {
+            warning.kind == PlanWarningKind::MissingValidation
+                || warning.kind == PlanWarningKind::NoReadyNextItem
+        }));
+    }
+
+    #[test]
+    fn completed_module_without_ready_item_is_not_stale() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | Complete | 2/2 | Done. |
+"#,
+        );
+        write(
+            repo.path()
+                .join("plans/modules/aps-canonical-alignment.aps.md"),
+            r#"# APS Canonical Alignment
+
+| ID | Owner | Status | Progress |
+| -- | ----- | ------ | -------- |
+| APSCAN | — | Complete | 2/2 |
+
+## Work Items
+
+### APSCAN-001: Done item
+
+- **Status:** Done
+
+### APSCAN-002: Done item
+
+- **Status:** Complete
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(
+            !snapshot
+                .warnings
+                .iter()
+                .any(|warning| warning.kind == PlanWarningKind::NoReadyNextItem)
+        );
     }
 }

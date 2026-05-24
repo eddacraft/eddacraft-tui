@@ -319,7 +319,7 @@ fn module_detail_lines<'a>(
         .snapshot
         .work_items
         .iter()
-        .filter(|item| item.id.starts_with(scope))
+        .filter(|item| item.module == scope)
     {
         lines.push(Line::from(vec![
             Span::styled(format!("{} ", item.id), Style::default().fg(theme.fg())),
@@ -341,7 +341,7 @@ fn module_detail_lines<'a>(
         .snapshot
         .warnings
         .iter()
-        .filter(|warning| warning.target.starts_with(scope))
+        .filter(|warning| warning.module.as_deref() == Some(scope))
     {
         lines.push(Line::from(vec![
             Span::styled("! ", Style::default().fg(theme.error())),

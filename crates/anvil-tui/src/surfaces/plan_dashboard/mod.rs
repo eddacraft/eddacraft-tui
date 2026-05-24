@@ -30,6 +30,7 @@ pub struct PlanModuleRow {
 pub struct PlanWorkItemRow {
     pub id: String,
     pub title: String,
+    pub module: String,
     pub status: String,
     pub validation: Option<String>,
 }
@@ -37,6 +38,7 @@ pub struct PlanWorkItemRow {
 #[derive(Debug, Clone)]
 pub struct PlanWarningRow {
     pub target: String,
+    pub module: Option<String>,
     pub message: String,
 }
 
@@ -132,11 +134,13 @@ pub(crate) fn sample_state() -> PlanDashboardState {
         work_items: vec![PlanWorkItemRow {
             id: "APSCAN-011".to_string(),
             title: "Add APS TUI dashboard".to_string(),
+            module: "APSCAN".to_string(),
             status: "Ready".to_string(),
             validation: Some("cargo test -p eddacraft-anvil plan_dashboard".to_string()),
         }],
         warnings: vec![PlanWarningRow {
             target: "DOCGOV".to_string(),
+            module: Some("DOCGOV".to_string()),
             message: "needs reconcile".to_string(),
         }],
         branch: Some("feat/apscan-aps-tui-dashboard".to_string()),
@@ -210,5 +214,39 @@ mod tests {
 
         assert_eq!(state.filter_query, "q");
         assert!(!state.should_quit());
+    }
+
+    #[test]
+    fn selected_detail_uses_exact_module_not_prefix() {
+        let mut state = sample_state();
+        state.snapshot.modules.insert(
+            0,
+            PlanModuleRow {
+                scope: "APS".to_string(),
+                progress: "0/1".to_string(),
+                status: "In Progress".to_string(),
+                note: "prefix collision".to_string(),
+                has_warning: false,
+            },
+        );
+        state.snapshot.work_items.push(PlanWorkItemRow {
+            id: "APSCAN-999".to_string(),
+            title: "Should not appear for APS".to_string(),
+            module: "APSCAN".to_string(),
+            status: "Ready".to_string(),
+            validation: None,
+        });
+
+        state.selected_module = 0;
+
+        let selected = state.selected_module_scope().unwrap();
+        let visible: Vec<_> = state
+            .snapshot
+            .work_items
+            .iter()
+            .filter(|item| item.module == selected)
+            .collect();
+
+        assert!(visible.is_empty());
     }
 }

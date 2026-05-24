@@ -115,6 +115,7 @@ fn to_tui_snapshot(snapshot: &plan_dashboard::PlanStatusSnapshot) -> PlanDashboa
             .map(|item| PlanWorkItemRow {
                 id: item.id.clone(),
                 title: item.title.clone(),
+                module: item.module.clone(),
                 status: item.status.clone(),
                 validation: item.validation.clone(),
             })
@@ -128,6 +129,7 @@ fn to_tui_snapshot(snapshot: &plan_dashboard::PlanStatusSnapshot) -> PlanDashboa
                     .clone()
                     .or_else(|| warning.module.clone())
                     .unwrap_or_else(|| "plans".to_string()),
+                module: warning.module.clone(),
                 message: warning.message.clone(),
             })
             .collect(),
