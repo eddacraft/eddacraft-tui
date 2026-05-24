@@ -50,8 +50,8 @@ allow = [
   "Zlib",
   "MPL-2.0",
   # ATTRIB-015. npm Inc relicensed `minimatch` (and a small family of related 
-  # glob packages) under BlueOak-1.0.0 — OSI-approved, OSI permissive. Pulled 
-  # in transitively by every Node devtool that walks paths.
+  # glob packages) under BlueOak-1.0.0 — OSI-approved, OSI permissive. 
+  # Pulled in transitively by every Node devtool that walks paths.
   "BlueOak-1.0.0",
   # ATTRIB-015. Microsoft `tslib` (TypeScript runtime helpers) ships under the 
   # Zero-clause BSD licence — equivalent to public domain dedication.
