@@ -49,3 +49,26 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Mandatory closeout rules need explicit no-write exceptions,
   and skill inventories should be checked against the filesystem when touched.
 - **Follow-up:** none
+
+### 2026-05-25 — claude
+
+- **Task:** Ship MLP2-051g (`anvil start --verify --why` verbose
+  tier-evidence flag) via /dev-workflow.
+- **Outcome:** PR #1909 opened; 7 new pinned tests; full workspace
+  cargo test + clippy + fmt clean.
+- **Worked:** APS Truth Gate caught that the spec's design was
+  already fully locked by `plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
+  §"Council Verdicts" item 9, so no brainstorming or planning-council
+  pass was needed before code. The MLP2-070 "validate prod wire-up
+  before branching" check also ran clean (no stealth implementation).
+- **Failed:** Initial `render_human_verbose` missed `McpTier::NotDetected`
+  — the match was non-exhaustive and rustc caught it. Cheap.
+- **Friction:** `cargo check -p eddacraft-anvil-cli` failed with
+  "did not match any packages" because the crate name in
+  `crates/anvil-cli/Cargo.toml` is `eddacraft-anvil`, not
+  `eddacraft-anvil-cli`. The directory/crate-name divergence trips
+  every fresh session.
+- **Improvement:** none — the divergence is a one-off learnt-once
+  fact; not worth a CIB entry.
+- **Follow-up:** Run /addressing-pr-reviews on #1909 after CI + Copilot
+  settle.
