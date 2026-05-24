@@ -29,8 +29,8 @@ APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → 
 
 Use this skill whenever the user asks to:
 
-- implement, fix, refactor, test, debug, review, release, or document anything in
-  this repository
+- implement, fix, refactor, test, debug, review, release, or document anything
+  in this repository
 - edit `.opencode/`, `.claude/`, `AGENTS.md`, `docs/**`, `plans/**`, source,
   tests, workflows, scripts, or package/crate metadata
 - continue an existing branch, address PR comments, investigate CI, or prepare a
@@ -38,8 +38,8 @@ Use this skill whenever the user asks to:
 - make a process, agent, skill, workflow, or repository-maintenance change
 
 Do not wait for the user to say "use dev-workflow". If the task touches the
-repository lifecycle, load this skill first, then route to the specific skill for
-the current stage.
+repository lifecycle, load this skill first, then route to the specific skill
+for the current stage.
 
 ## Surface inventory
 
@@ -50,7 +50,7 @@ from the agent runtime (OpenCode native skills, Claude Code globals, or
 
 | Surface                        | Repo-local                                                                                                                                                   | Global / external                                                                                                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skills (`.opencode/skills/`)   | `dev-workflow` (this skill), `addressing-pr-reviews`, `planning-workflow`, `aps-planning`, `test-driven-development`                                         | Other OpenCode-native skills loaded on demand via the `skill` tool                                                                                                                                                                                       |
+| Skills (`.opencode/skills/`)   | `dev-workflow` (this skill), `addressing-pr-reviews`, `planning-workflow`, `aps-planning`, `test-driven-development`                                         | Other OpenCode-native skills loaded on demand via the `skill` tool                                                                                                                                                                                      |
 | Skills (`.claude/skills/`)     | `dev-workflow`, `addressing-pr-reviews`, `planning-council`, `release`, `dependabot` (symlink)                                                               | `planning-workflow`, `aps-planning`, `test-driven-development`, `brainstorming`, `writing-plans`, `using-git-worktrees`, `systematic-debugging`, `verification-before-completion`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
 | Agents (`.claude/agents/`)     | `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead`, `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach` | `debugger`, `autonomous`, others                                                                                                                                                                                                                        |
 | Commands (`.claude/commands/`) | `/council` (see [`.claude/commands/council.md`](../../../.claude/commands/council.md)), `/plan`, `/release`, others                                          | `/test`, `/debug`, `/delegate`, `/commit`                                                                                                                                                                                                               |
@@ -198,8 +198,8 @@ only when the user explicitly asks
 task
 
 **Before final response on non-trivial work:** → append a compact
-continuous-improvement note to `plans/reviews/continuous-improvement-log.md` → if
-writes are explicitly forbidden, skip the edit and report that skip → promote
+continuous-improvement note to `plans/reviews/continuous-improvement-log.md` →
+if writes are explicitly forbidden, skip the edit and report that skip → promote
 only concrete follow-up work to `CIB-NNN` if it has an observable outcome and
 validation path
 
