@@ -113,7 +113,7 @@ Migrate in waves:
 
 ### APSCAN-002: Split portable APS rules from Anvil project context
 
-- **Status:** Done
+- **Status:** Merged
 - **Intent:** Let `plans/aps-rules.md` track canonical APS guidance while Anvil's
   Worktrunk, Council, release, and lifecycle extensions remain explicit local
   context.
@@ -130,7 +130,9 @@ Migrate in waves:
   `anvil-plan-spec/scaffold/plans/aps-rules-v2.md` confirmed the portable
   sections retain the canonical shape while forwarding anchors preserve existing
   Anvil links. Validation passed locally with `pnpm docs:check` and `pnpm
-  aps:drift --json`.
+  aps:drift --json`. Merged 2026-05-24 via PR
+  [#1918](https://github.com/eddacraft/anvil-001/pull/1918) at
+  `64403295dbc67173f4e4715bf9d2844d9aba95f2`.
 - **Confidence:** medium
 
 ### APSCAN-003: Add canonical aliases to Anvil APS parser and validator
