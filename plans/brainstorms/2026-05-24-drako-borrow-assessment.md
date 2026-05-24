@@ -6,7 +6,9 @@ proposed by Morgan (agent). **Outcome: decline code adoption; borrow
 two concrete deliverables (SARIF export + agent-BOM framing) and one
 narrative framing (baseline as "current posture vs new regression").
 Reject step 6 of the proposed ladder (runtime enforcement) on the
-same scope-guard grounds that declined Proxilion / PIC on 2026-05-22.**
+same scope-guard grounds that declined Proxilion / PIC on 2026-05-22.
+Borrows filed as CIB-014 (SARIF), CIB-015 (anvil bom triage),
+CIB-016 (baseline phrasing) on 2026-05-24.**
 **Source:** https://github.com/DrakoLabs/drako
 
 ---
@@ -200,24 +202,33 @@ coherence spec or the wow-start docs.
    licensing, framework-specific rules, and the runtime rung
    fails scope-guard on prior precedent.
 
-2. **Adopt three borrows**, scoped tightly:
+2. **Adopt three borrows**, scoped tightly. All three filed under
+   `continuous-improvement-backlog` on 2026-05-24:
 
-   - **Borrow A (SARIF export):** file a new APS work item
-     (working title `SARIFOUT-001`) for `--format sarif` on
-     `anvil check` / `anvil gate` / `anvil audit`. Pin SARIF
-     subset in the spec. Slot into the next planning wave after
-     `v0.7.0-beta` cuts.
-   - **Borrow B (`anvil bom`):** file a brainstorm follow-up under
-     `plans/brainstorms/` named
-     `2026-MM-DD-anvil-bom-surface.md` that scope-guards each
-     slice (agents / MCP servers / policy refs / credential refs /
-     controlled actions) **individually** against whether it
-     feeds enforcement or witness enrichment. Do **not** file an
-     APS module yet — the design needs the scope-guard pass first.
-   - **Borrow C (baseline framing):** non-APS docs change. Land
-     in the wow-start copy + `anvil baseline` / `anvil check`
-     output text. Owner: whoever next touches the wow-start
-     surface. Trivial.
+   - **Borrow A (SARIF export):** filed as
+     [CIB-014](../modules/continuous-improvement-backlog.aps.md#cib-014-sarif-output-for-anvil-check-anvil-gate-anvil-audit).
+     `--format sarif` on `anvil check` / `anvil gate` / `anvil
+     audit`, pinned to the GitHub Code Scanning subset of SARIF
+     2.1.0 (results + rules + locations + suppressions). Slot into
+     the next planning wave after `v0.7.0-beta` cuts. Coordinates
+     with CIB-008 / CIB-009 (dispatcher consistency must land
+     first so SARIF doesn't mirror a known bug). Promotable to a
+     dedicated module if scope grows.
+   - **Borrow B (`anvil bom`):** filed as
+     [CIB-015](../modules/continuous-improvement-backlog.aps.md#cib-015-triage-anvil-bom-surface-before-filing-as-aps)
+     — **triage-only**. The CIB authorises a brainstorm follow-up
+     at `plans/brainstorms/YYYY-MM-DD-anvil-bom-surface.md` that
+     scope-guards each slice (agents / MCP servers / policy refs /
+     credential refs / controlled actions) individually against
+     whether it feeds enforcement or witness enrichment. No APS
+     module is filed yet; the brainstorm closes this CIB by either
+     filing follow-up APS items (likely under AGOV) or recording a
+     decline.
+   - **Borrow C (baseline framing):** filed as
+     [CIB-016](../modules/continuous-improvement-backlog.aps.md#cib-016-name-current-posture-vs-new-regression-in-baseline-output).
+     Docs / output-string change in `anvil baseline`, `anvil
+     check`, and wow-start tutorial copy. No behaviour change.
+     Lowest-risk of the three borrows.
 
 3. **No dependency on Drako.** No Python import, no rule import,
    no SARIF schema fork (use the upstream SARIF 2.1.0 schema

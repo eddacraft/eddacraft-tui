@@ -273,7 +273,7 @@ Codebase-maintenance and code-review-backlog are retained for history.
 
 | Module                                                                      | Scope | Status      | Progress           |
 | --------------------------------------------------------------------------- | ----- | ----------- | ------------------ |
-| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 8/13 (CIB-013 done 2026-05-24 — dev-workflow now requires compact continuous-improvement session notes; CIB-011 PR #1818 `acc4db6f`, CIB-012 PR #1813 `ce0bd32b`) |
+| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 8/16 (CIB-013 done 2026-05-24 — dev-workflow now requires compact continuous-improvement session notes; CIB-011 PR #1818 `acc4db6f`, CIB-012 PR #1813 `ce0bd32b`; CIB-014/-015/-016 added 2026-05-24 from the Drako borrow assessment — SARIF export, `anvil bom` triage, baseline-posture phrasing) |
 | [clawpatch-pre-tag-v0.7.0-beta](./modules/clawpatch-pre-tag-v0.7.0-beta.aps.md) | CLAWP | In Progress | 12/64 (CLAWP-001 PR #1732, CLAWP-008 PR #1765, CLAWP-011 PR #1791, CLAWP-012 PR #1772, CLAWP-013 PR #1788, CLAWP-014 PR #1786, CLAWP-015 PR #1783, CLAWP-021 PR #1764, CLAWP-022 PR #1770, CLAWP-028 PR #1763, CLAWP-029 PR #1789, CLAWP-030 commit `9253d9f3` in PR #1732) |
 | [codebase-maintenance](./archive/modules/codebase-maintenance.aps.md)       | MAINT | Complete    | 11/11 (1 deferred) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md)         | CRB   | Complete    | 29/29              |

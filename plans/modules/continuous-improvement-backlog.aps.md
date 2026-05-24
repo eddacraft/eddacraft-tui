@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 8/13     |
+| CIB | —     | In Progress | 8/16     |
 
 ## Purpose
 
@@ -496,3 +496,114 @@ archive.
   `.claude/skills/dev-workflow/SKILL.md`,
   `plans/reviews/continuous-improvement-log.md`.
 - **Confidence:** high
+
+### CIB-014: SARIF output for `anvil check` / `anvil gate` / `anvil audit`
+
+- **Status:** Draft
+- **Intent:** Make Anvil findings consumable by GitHub Code Scanning
+  and the standard SARIF tool ecosystem (Sonar, DefectDojo, security
+  dashboards) without bespoke adapters. Findings already exist; this
+  is a pure additive output mode.
+- **Expected Outcome:** `--format sarif` (or `--output sarif`) on
+  `anvil check`, `anvil gate`, and `anvil audit` emits SARIF 2.1.0
+  conforming to the `results[]` + `rules[]` + `locations[]` subset
+  (the parts GitHub Code Scanning ingests). Baseline-suppressed
+  findings render under SARIF `suppressions[]` (§3.35) so reviewers
+  can see what was deliberately accepted at baseline time. The
+  supported SARIF subset is pinned in the spec so the maintenance
+  surface stays bounded; full SARIF 2.1.0 conformance is **not** the
+  goal. Existing JSON / human output modes are unchanged.
+- **Validation:** Fixture tests that emit SARIF from each of the
+  three commands and validate against the SARIF 2.1.0 JSON Schema;
+  round-trip smoke test that uploads the emitted SARIF to a GitHub
+  Code Scanning sandbox repo and confirms findings render. `pnpm
+  format:check` for any in-repo doc touched.
+- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
+  §4 Borrow A — single highest-leverage borrow from the Drako
+  ladder. Drako cited as parallel evolution, not dependency.
+- **Files:** `crates/anvil-cli/src/commands/check.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-cli/src/commands/audit.rs`,
+  `crates/anvil-cli/src/output/` (likely new `sarif.rs` module
+  alongside the existing emitters).
+- **Coordinates with:** CIB-008 / CIB-009 (`anvil check` / `audit`
+  dispatcher consistency — SARIF output must reflect the same
+  finding set as JSON output, so both should be in their target
+  state before SARIF lands or the SARIF will mirror the bug);
+  COMPLY (compliance-reporting) — SARIF is upstream of framework
+  mapping, not a substitute for it.
+- **Out of Scope:** Full SARIF 2.1.0 conformance (only the GitHub
+  Code Scanning subset). Framework-mapped compliance evidence
+  (lives in COMPLY). Runtime / proxy enforcement (out per
+  `docs/vision/anvil-scope-guard.md` and the 2026-05-22 Proxilion
+  decline).
+- **Confidence:** high — well-scoped output mode, deterministic
+  findings already exist, standard schema, low blast radius.
+
+### CIB-015: Triage `anvil bom` surface before filing as APS
+
+- **Status:** Draft
+- **Intent:** Decide whether `anvil bom` belongs as a first-class
+  command and, if so, in which existing module (likely AGOV or
+  ADOPT) — before any APS module is filed. The Drako borrow
+  assessment explicitly deferred APS filing pending a scope-guard
+  pass on each slice (agents / MCP servers / policy refs /
+  credential refs / controlled actions) individually.
+- **Expected Outcome:** A brainstorm doc at
+  `plans/brainstorms/YYYY-MM-DD-anvil-bom-surface.md` that:
+  (a) lists the candidate BOM slices, (b) for each slice runs the
+  scope-guard decision framework (does it feed enforcement or
+  witness enrichment? if no → reject), (c) names the slot for the
+  surviving slices (AGOV-NNN addition, ADOPT-007, or new module),
+  (d) decides whether the BOM is a view over the witness chain or
+  a separate collector (per the assessment §8 open question).
+  Triage outcome closes this CIB and either files the followup
+  APS item(s) or records the decline.
+- **Validation:** Brainstorm doc exists; scope-guard decision is
+  recorded per slice; either a new APS task ID is filed
+  (under AGOV or elsewhere) or this CIB closes with a "decline"
+  decision and a one-line rationale.
+- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
+  §4 Borrow B + §8 open questions. Existing partial coverage:
+  `detect_agents.rs` (5-tool inventory, ADOPT-003 Merged),
+  `anvil mcp-config` (MCP server config), AGOV-007 (capability
+  declaration model).
+- **Coordinates with:** AGOV-007 (capability declaration upstream),
+  ADOPT-003 (AI tool auto-detect — Merged), MLP2-071 (cross-session
+  attribution — possible consumer of BOM data for witness
+  enrichment).
+- **Out of Scope:** Building the surface. This CIB is triage-only.
+  Implementation begins after the brainstorm closes with a
+  surviving slice list and a slot decision.
+- **Confidence:** medium — the scoping decision is real and
+  consequential; rushing it risks scope drift into generic asset
+  management, exactly the failure mode the Drako assessment §6
+  flagged.
+
+### CIB-016: Name "current posture vs new regression" in baseline output
+
+- **Status:** Draft
+- **Intent:** `anvil baseline` + `cutoff_commit` already
+  distinguish first-scan posture from new regressions mechanically.
+  The UX doesn't name that distinction. Adding the phrasing turns
+  a hidden invariant into a teachable principle.
+- **Expected Outcome:** First scan on an established repo reads
+  "current posture — N findings, baselined as-is." Subsequent
+  scans read "new regressions — M findings since baseline." Maps
+  onto Anvil's stated "warnings over blocks; new edges only"
+  principle (per `.claude/rules/architecture.md`). Wording lands
+  in `anvil baseline`, `anvil check` (when run against a baselined
+  repo), and the wow-start tutorial copy.
+- **Validation:** Manual cross-check that the three surfaces emit
+  the new phrasing; `pnpm format:check`; CLI snapshot tests on
+  baseline/check output updated to the new wording.
+- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
+  §4 Borrow C — pure framing borrow, no code mechanics change.
+- **Files:** `crates/anvil-cli/src/commands/baseline.rs`,
+  `crates/anvil-cli/src/commands/check.rs`,
+  wow-start tutorial copy (location TBD at implementation time).
+- **Coordinates with:** ADOPT (wow-start surface, Merged 6/6),
+  CIB-010 (`anvil watch` first-scan public-api-expansion wall —
+  same first-scan-vs-steady-state class of UX gap).
+- **Confidence:** high — docs / output-string change; no behaviour
+  change. Lowest-risk of the three Drako borrows.
