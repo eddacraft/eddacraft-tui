@@ -341,7 +341,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-012: Node ecosystem driver
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1903 (`6f9c1ab5` · 2026-05-24)
 - **Execution plan:** `plans/execution/ATTRIB-012.steps.md` (kicked off 2026-05-24 on `feat/attrib-012-node-driver`).
 - **Intent:** Add a Node/JS driver so consumers can attribute pnpm / npm dependencies via the same `[[blocks]]` dispatcher.
 - **Expected Outcome:**
@@ -352,6 +352,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
   - README gains a monorepo guidance section with worked pnpm-workspace examples covering the "one block per shipping `package.json`" pattern and the workspace-wide escape hatch.
 - **Validation:** Two-package fixture (built dynamically under `mktemp` per the kit's other tests — `file:./packages/*` deps so no network beyond the per-test `npm install` of pinned `license-checker@25.0.1`) round-trips through the driver in `tests/node-driver-render.sh`. `--check` reports drift when a fixture dependency's licence changes. `tests/node-driver-strict.sh` triggers a non-zero exit when a disallowed-licence package is introduced and leaves the on-disk target byte-identical. `tests/node-driver-preflight.sh` covers missing `node_modules`, missing `license-checker`, missing `manifest_path`, and wrong-argv-count error paths.
 - **Dependencies:** ATTRIB-008 (dispatcher must exist first — landed via PR #1888); ATTRIB-006 (allow-list expander must emit a Node-shaped fragment — extended in this PR).
+- **Shipped:** PR #1903 merged 2026-05-24 at commit `6f9c1ab5`. Repo state verified 2026-05-25: `tools/starters/acknowledgements/drivers/node.sh` (168 lines) is the Node driver; `tools/starters/acknowledgements/licences.node-allow.txt.template` ships the marker scaffolding for new consumers; Anvil's own `licences.node-allow.txt` at project root carries the populated 13 SPDX entries (dormant until ATTRIB-015 declares a node block). Fixture tests green: `tests/node-driver-preflight.sh` 4/4 (wrong argv count + missing `manifest_path` + missing `node_modules` with installer hint + missing `license-checker` via controlled PATH); `tests/node-driver-render.sh` 3/3 (two-package `file:./packages/*` round-trip + idempotent + `--check` exit 0); `tests/node-driver-strict.sh` 2/2 (disallowed-licence rejection naming the offending `fake-gpl` + on-disk target byte-identicality across the strict-gate failure). `expand-licences.sh --check` exit 0 against the live `licences.toml` (Node fragment expander emits silently when `licences.node-allow.txt` is present); real-workspace `generate-acknowledgements.sh --check` exit 0. First production run of the new `acknowledgements-kit.yml` workflow (run [26363350501](https://github.com/eddacraft/anvil-001/actions/runs/26363350501)) succeeded on the merge commit. Not yet in a published release record (release-narrative status remains `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-013: Go ecosystem driver
 
