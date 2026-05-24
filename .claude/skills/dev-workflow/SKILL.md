@@ -126,9 +126,11 @@ If a referenced skill or agent is missing locally, it is expected to be globally
     running.
 16. **Write a continuous-improvement note.** Before the final response on any
     non-trivial task, append one compact entry to
-    `plans/reviews/continuous-improvement-log.md`. Keep it factual and short;
-    raw observations belong in the log, recurring or executable improvements
-    should be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
+    `plans/reviews/continuous-improvement-log.md`. If the user or task contract
+    explicitly forbids writes, do not edit the log; say the CI note was skipped
+    because the task was read-only. Keep entries factual and short; raw
+    observations belong in the log, recurring or executable improvements should
+    be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
 
 ## Decision Points
 
@@ -178,7 +180,8 @@ the remaining blocker
 
 **Before final response on non-trivial work:**
 → append a compact continuous-improvement note to
-`plans/reviews/continuous-improvement-log.md` → promote only concrete follow-up
+`plans/reviews/continuous-improvement-log.md` → if writes are explicitly
+forbidden, skip the edit and report that skip → promote only concrete follow-up
 work to `CIB-NNN` if it has an observable outcome and validation path
 
 ## Continuous Improvement Closeout
@@ -207,6 +210,8 @@ Rules:
 - Keep command output out of the log unless the exact command is the lesson.
 - Promote repeated friction or executable fixes to the CIB APS module; do not
   let the log become a second backlog.
+- Respect explicit read-only/no-write task contracts; in that case, mention the
+  skipped CI note in the final response instead of editing the log.
 
 ## APS Status Lifecycle
 

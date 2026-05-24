@@ -29,3 +29,13 @@ friction: The Claude skill description was much less explicit than the OpenCode 
 improvement: Keep mandatory skill triggers concrete in frontmatter and repeat the trigger contract near the top of the skill body.
 follow-up: Watch whether Claude still skips dev-workflow after restart; if yes, add a global skill or command-level reminder outside this repo-local copy.
 </ci-log>
+
+<ci-log date="2026-05-24" agent="opencode">
+task: Prepare PR for dev-workflow continuous-improvement closeout.
+outcome: Quick Council caught a read-only-task edge case before PR publication.
+worked: Running a scoped Council pass before opening the PR found a workflow-rule conflict that normal markdown validation would not catch.
+failed: Initial wording made the CI note mandatory even when a task explicitly forbids writes.
+friction: The OpenCode skill surface inventory had drifted from the repo-local `.opencode/skills/` directories.
+improvement: Mandatory closeout rules need explicit no-write exceptions, and skill inventories should be checked against the filesystem when touched.
+follow-up: none
+</ci-log>

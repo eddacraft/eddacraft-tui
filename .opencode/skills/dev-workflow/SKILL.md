@@ -50,7 +50,7 @@ from the agent runtime (OpenCode native skills, Claude Code globals, or
 
 | Surface                        | Repo-local                                                                                                                                                   | Global / external                                                                                                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skills (`.opencode/skills/`)   | `dev-workflow` (this skill), `addressing-pr-reviews`                                                                                                         | OpenCode-native skills loaded on demand via the `skill` tool, including `planning-workflow`, `aps-planning`, and `test-driven-development`                                                                                                              |
+| Skills (`.opencode/skills/`)   | `dev-workflow` (this skill), `addressing-pr-reviews`, `planning-workflow`, `aps-planning`, `test-driven-development`                                         | Other OpenCode-native skills loaded on demand via the `skill` tool                                                                                                                                                                                       |
 | Skills (`.claude/skills/`)     | `dev-workflow`, `addressing-pr-reviews`, `planning-council`, `release`, `dependabot` (symlink)                                                               | `planning-workflow`, `aps-planning`, `test-driven-development`, `brainstorming`, `writing-plans`, `using-git-worktrees`, `systematic-debugging`, `verification-before-completion`, `finishing-a-branch`, `parallel-agents`, `council`, `commit`, others |
 | Agents (`.claude/agents/`)     | `council-reviewer`, `adversarial-reviewer`, `kernel-maintainer`, `operations-reviewer`, `pragmatic-lead`, `anvil-plan-spec`, `plan-synthesizer`, `tdd-coach` | `debugger`, `autonomous`, others                                                                                                                                                                                                                        |
 | Commands (`.claude/commands/`) | `/council` (see [`.claude/commands/council.md`](../../../.claude/commands/council.md)), `/plan`, `/release`, others                                          | `/test`, `/debug`, `/delegate`, `/commit`                                                                                                                                                                                                               |
@@ -150,9 +150,11 @@ item for producing the definitive inventory.
     running.
 16. **Write a continuous-improvement note.** Before the final response on any
     non-trivial task, append one compact entry to
-    `plans/reviews/continuous-improvement-log.md`. Keep it factual and short;
-    raw observations belong in the log, recurring or executable improvements
-    should be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
+    `plans/reviews/continuous-improvement-log.md`. If the user or task contract
+    explicitly forbids writes, do not edit the log; say the CI note was skipped
+    because the task was read-only. Keep entries factual and short; raw
+    observations belong in the log, recurring or executable improvements should
+    be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
 
 ## Decision Points
 
@@ -196,9 +198,10 @@ only when the user explicitly asks
 task
 
 **Before final response on non-trivial work:** → append a compact
-continuous-improvement note to `plans/reviews/continuous-improvement-log.md` →
-promote only concrete follow-up work to `CIB-NNN` if it has an observable outcome
-and validation path
+continuous-improvement note to `plans/reviews/continuous-improvement-log.md` → if
+writes are explicitly forbidden, skip the edit and report that skip → promote
+only concrete follow-up work to `CIB-NNN` if it has an observable outcome and
+validation path
 
 ## Continuous Improvement Closeout
 
@@ -226,6 +229,8 @@ Rules:
 - Keep command output out of the log unless the exact command is the lesson.
 - Promote repeated friction or executable fixes to the CIB APS module; do not
   let the log become a second backlog.
+- Respect explicit read-only/no-write task contracts; in that case, mention the
+  skipped CI note in the final response instead of editing the log.
 
 ## APS Status Lifecycle
 
