@@ -198,9 +198,9 @@ echo "ok scenario 4: hand-edit inside Node markers → --check detects drift"
 #
 # This scenario stands up an isolated fixture with a long em-dash note and
 # asserts:
-#   a. no emitted note line exceeds 75 code points;
-#   b. concatenating the note lines with single spaces reproduces the note
-#      (no word is split, no word is dropped);
+#   a. no emitted note line exceeds 75 code points and every word survives;
+#   b. the output matches a byte-exact golden (em dashes intact, no trailing
+#      whitespace, exact code-point wrap boundaries);
 #   c. regeneration is idempotent (--check passes after a clean expand);
 #   d. output is byte-identical when a *poisoned* `fold` is first on PATH
 #      — proving the wrap no longer shells out to `fold` at all.
@@ -290,6 +290,24 @@ if words_out != expected_note.split():
     sys.exit(1)
 print(f"ok scenario 5a: note wrapped to {len(lines)} lines, all <=75 code points, words intact")
 PY
+
+# (b) byte-exact golden. The `.split()` check above proves words survive
+# but tolerates whitespace changes; this pins the precise output bytes —
+# em dashes intact, no trailing whitespace, the exact code-point wrap
+# boundaries — so any change to the wrap (whitespace handling, width,
+# a reintroduced byte-counting wrap) is caught, not just word loss.
+s5_golden="$s5_dir/note.golden"
+cat >"$s5_golden" <<'EOF'
+  # OpenSSL appears here for the ring crate workaround — pulled in transitively
+  # via the TLS stack — and is retained for cargo-about compatibility across
+  # targets.
+EOF
+if ! diff -u "$s5_golden" <(printf '%s\n' "${s5_note_lines[@]}") >/dev/null; then
+  echo "FAIL scenario 5b: wrapped note bytes differ from the pinned golden." >&2
+  diff -u "$s5_golden" <(printf '%s\n' "${s5_note_lines[@]}") >&2 || true
+  exit 1
+fi
+echo "ok scenario 5b: wrapped note matches the byte-exact golden"
 
 # (c) idempotence: --check passes immediately after the clean expand.
 if ! (cd "$s5_dir" && "$EXPANDER" --check) >/dev/null 2>&1; then
