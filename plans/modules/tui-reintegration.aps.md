@@ -5,13 +5,13 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 5/8      |
+| TUIR | joshuaboys | In Progress | 6/8      |
 
-**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow in flight via
-PR #1894 (status flip from `open` to `Merged ... via PR #1894` defers
-to the final pre-merge commit per the TUIR-002/003/006/007 pattern, so
-the work-item count below stays 5/8 until merge). Ready Checklist
-items resolved by TUIR-003 / TUIR-007 are marked off in the same PR.
+**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow `Merged
+2026-05-24 via PR #1894`; module progress ticks 5/8 → 6/8. The
+deferred status flip was missed at PR #1894 merge time (the planned
+final pre-merge commit never landed) and is reconciled here, matching
+the ATTRIB-008 / PR #1893 post-merge reconcile precedent.
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -725,7 +725,7 @@ zero hits (no version pins remain on first-party crates).
 
 ### TUIR-004: Mirror `crates/eddacraft-tui/` to the public repo
 
-- **Status:** open
+- **Status:** Merged 2026-05-24 via PR #1894
 
 **Prerequisite:** TUIR-007 (`CONTRIBUTING.md` mirror-aware update)
 MUST land before this workflow runs even once against
