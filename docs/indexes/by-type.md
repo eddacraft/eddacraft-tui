@@ -47,20 +47,21 @@
 
 ## Runbook
 
-| Document                                                                                | Path                                           | Type    | Authority     | Owner           | Status |
-| --------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | --------------- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                          | `docs/runbooks/admin-cli.md`                   | Runbook | Authoritative | CIB             | Live   |
-| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                    | `docs/runbooks/anvil-adoption.md`              | Runbook | Authoritative | @aneki          | Live   |
-| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)               | `docs/runbooks/anvil-air-gapped.md`            | Runbook | Authoritative | @aneki          | Live   |
-| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                         | `docs/runbooks/release-runbook.md`             | Runbook | Authoritative | RELORCH         | Live   |
-| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)  | `docs/runbooks/homebrew-publish.md`            | Runbook | Authoritative | @aneki          | Live   |
-| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)    | `docs/runbooks/anvil-hook-coexistence.md`      | Runbook | Authoritative | @aneki          | Live   |
-| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)            | `docs/runbooks/release-signing.md`             | Runbook | Authoritative | @aneki          | Live   |
-| [Runbook Template](../../docs/guides/runbook-template.md)                               | `docs/guides/runbook-template.md`              | Runbook | Authoritative | MODULE-CODE     | Draft  |
-| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)          | `docs/runbooks/anvil-witness-chain.md`         | Runbook | Authoritative | @aneki          | Live   |
-| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                        | `docs/runbooks/anvil-run.md`                   | Runbook | Authoritative | @aneki          | Live   |
-| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)    | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
-| [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md) | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
+| Document                                                                                       | Path                                           | Type    | Authority     | Owner           | Status |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | --------------- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                 | `docs/runbooks/admin-cli.md`                   | Runbook | Authoritative | CIB             | Live   |
+| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                           | `docs/runbooks/anvil-adoption.md`              | Runbook | Authoritative | @aneki          | Live   |
+| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                      | `docs/runbooks/anvil-air-gapped.md`            | Runbook | Authoritative | @aneki          | Live   |
+| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                                | `docs/runbooks/release-runbook.md`             | Runbook | Authoritative | RELORCH         | Live   |
+| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)         | `docs/runbooks/homebrew-publish.md`            | Runbook | Authoritative | @aneki          | Live   |
+| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)           | `docs/runbooks/anvil-hook-coexistence.md`      | Runbook | Authoritative | @aneki          | Live   |
+| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                   | `docs/runbooks/release-signing.md`             | Runbook | Authoritative | @aneki          | Live   |
+| [Runbook Template](../../docs/guides/runbook-template.md)                                      | `docs/guides/runbook-template.md`              | Runbook | Authoritative | MODULE-CODE     | Draft  |
+| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                 | `docs/runbooks/anvil-witness-chain.md`         | Runbook | Authoritative | @aneki          | Live   |
+| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                               | `docs/runbooks/anvil-run.md`                   | Runbook | Authoritative | @aneki          | Live   |
+| [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md) | `docs/runbooks/eddacraft-tui-release.md`       | Runbook | Authoritative | @aneki          | Live   |
+| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)           | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
+| [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md)        | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
 
 ## Spec
 

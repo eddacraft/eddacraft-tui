@@ -1,0 +1,288 @@
+# Publish `eddacraft-tui` to crates.io from canonical source.
+#
+# TUIR-005 (module: tui-reintegration). Triggered by pushing a tag of
+# the form `eddacraft-tui-vX.Y.Z` to anvil-001 `main`. Validates the
+# crate against the D-TUIR-007 publish-side gates, runs `cargo publish`
+# using the publish-only token scoped to the `eddacraft-tui` crate, and
+# then propagates the tag (append-only) to the public mirror at
+# `eddacraft/eddacraft-tui` so external consumers can pin to it.
+#
+# Tag format is prefixed (`eddacraft-tui-v…`) per D-TUIR-002 — the
+# Anvil monorepo ships multiple crates with independent semver and an
+# unprefixed `vX.Y.Z` would collide with Anvil product tags.
+#
+# Auth — three secrets are required, all least-privilege:
+#   - `CRATES_IO_EDDACRAFT_TUI_TOKEN` — crates.io API token, scope
+#     `publish-update` on the `eddacraft-tui` crate only. Crate
+#     ownership on crates.io is unchanged; only the publish surface
+#     moves (D-TUIR-005). The previous `CARGO_REGISTRY_TOKEN` on
+#     `eddacraft/eddacraft-tui` is slated for revocation after the
+#     first successful publish from canonical source (TUIR-008
+#     verifies).
+#   - `EDDACRAFT_MIRROR_BOT_APP_ID` and
+#     `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` — back the
+#     `eddacraft-mirror-bot` GitHub App (org-owned by `eddacraft`,
+#     installed on `eddacraft/eddacraft-tui` only, permissions
+#     `Contents: Read and write` + `Metadata: Read`). The workflow
+#     mints a short-lived installation token at runtime via
+#     `actions/create-github-app-token` and uses it as the password
+#     in an `http.extraheader` Basic auth header for the tag push to
+#     the mirror. URL-embedded `x-access-token:${TOKEN}@github.com`
+#     form is fragile to stray bytes (`CURLE_URL_MALFORMAT`).
+#
+# Tag propagation is append-only:
+#   - The push to the mirror is a single tag refspec (`refs/tags/<tag>`)
+#     WITHOUT `--force`. If the tag already exists on the mirror, the
+#     push is rejected — that is the intended D-TUIR-009 / D-TUIR-011
+#     guarantee that existing tags (including pre-cutover unprefixed
+#     `v0.x.y` tags) are never overwritten.
+#   - No `--mirror` flag, no wildcard refspec. Any future edit widening
+#     the refspec must be reviewed against D-TUIR-009 / D-TUIR-011.
+#
+# Versioning: crate semver is independent of Anvil product releases
+# (D-TUIR-006). An Anvil release MUST NOT bump this crate's version
+# automatically, and a crate release MUST NOT imply an Anvil product
+# release. Version bumps land in their own PR with the corresponding
+# CHANGELOG.md entry under `crates/eddacraft-tui/`.
+#
+# Runbook: docs/runbooks/eddacraft-tui-release.md documents the cut
+# procedure, verification, rollback, and token rotation for both
+# secrets named above.
+#
+# See plans/modules/tui-reintegration.aps.md (D-TUIR-002, D-TUIR-005,
+# D-TUIR-006, D-TUIR-007, D-TUIR-009, D-TUIR-011) and the standalone
+# repo's `release.yml` (eddacraft/eddacraft-tui) as the immediate
+# predecessor being replaced.
+
+name: Publish — eddacraft-tui crate
+
+on:
+  push:
+    tags:
+      - 'eddacraft-tui-v[0-9]+.[0-9]+.[0-9]+'
+      - 'eddacraft-tui-v[0-9]+.[0-9]+.[0-9]+-*'
+
+concurrency:
+  group: publish-eddacraft-tui-${{ github.ref }}
+  cancel-in-progress: false
+
+# Least-privilege GITHUB_TOKEN. The crates.io publish uses
+# CRATES_IO_EDDACRAFT_TUI_TOKEN; the mirror tag push uses
+# EDDACRAFT_TUI_MIRROR_PUSH_TOKEN. The default GITHUB_TOKEN is only
+# needed by the `gh release create` step at the end.
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Validate + publish + propagate tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # GITHUB_REF is controlled by repo write access; tag names are
+      # constrained by the on.push.tags pattern above.
+      GIT_REF: ${{ github.ref }}
+    steps:
+      # The tag must point at a commit on `main`. The `on.push.tags`
+      # filter does not constrain which ref the tag's commit lies on, so
+      # a tag created from a feature branch would still trigger here.
+      # Reject those before any state-mutating step runs.
+      - name: Guard — only publish tags reachable from main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GIT_REF#refs/tags/}"
+          # Resolve the tag's commit SHA and verify it is reachable from
+          # `origin/main` on this repo. `gh api compare/main...<sha>`
+          # returns status `behind` or `identical` if the commit is on
+          # main's history.
+          SHA="${GITHUB_SHA}"
+          STATUS=$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq '.status' 2>/dev/null || echo 'unknown')
+          case "${STATUS}" in
+            behind|identical)
+              echo "Tag ${TAG} (sha ${SHA}) is reachable from main (${STATUS}) — OK"
+              ;;
+            *)
+              echo "::error::Tag ${TAG} points at ${SHA}, which is not reachable from main (status: ${STATUS}). Refusing to publish from a non-main commit."
+              exit 1
+              ;;
+          esac
+
+      - name: Sanity-check publish secrets
+        env:
+          CRATES_IO_EDDACRAFT_TUI_TOKEN: ${{ secrets.CRATES_IO_EDDACRAFT_TUI_TOKEN }}
+          APP_ID: ${{ secrets.EDDACRAFT_MIRROR_BOT_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.EDDACRAFT_MIRROR_BOT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRATES_IO_EDDACRAFT_TUI_TOKEN}" ]; then
+            echo '::error::secret CRATES_IO_EDDACRAFT_TUI_TOKEN is empty — wire the publish-only token before re-running'
+            exit 1
+          fi
+          if [ -z "${APP_ID}" ]; then
+            echo '::error::secret EDDACRAFT_MIRROR_BOT_APP_ID is empty — wire the App credentials before re-running'
+            exit 1
+          fi
+          if [ -z "${PRIVATE_KEY}" ]; then
+            echo '::error::secret EDDACRAFT_MIRROR_BOT_PRIVATE_KEY is empty — wire the App credentials before re-running'
+            exit 1
+          fi
+
+      - name: Checkout (tag commit, full history for mirror push)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: publish-eddacraft-tui
+
+      - name: Verify tag version matches Cargo.toml
+        run: |
+          set -euo pipefail
+          TAG="${GIT_REF#refs/tags/eddacraft-tui-v}"
+          # `cargo pkgid -p eddacraft-tui` emits `<url>#<name>@<version>`
+          # (or `…#<version>` on older cargo); the version always lives
+          # after the final `@` or `#`.
+          PKGID=$(cargo pkgid -p eddacraft-tui)
+          MANIFEST="${PKGID##*@}"
+          MANIFEST="${MANIFEST##*#}"
+          if [ "${TAG}" != "${MANIFEST}" ]; then
+            echo "::error::Tag eddacraft-tui-v${TAG} does not match crates/eddacraft-tui/Cargo.toml version ${MANIFEST}"
+            exit 1
+          fi
+          echo "Tag eddacraft-tui-v${TAG} matches Cargo.toml version ${MANIFEST}"
+
+      # D-TUIR-007 publish-side gates. The same gates run on `pull_request`
+      # via `rust.yml`, but the tag commit may be older than that PR by
+      # the time the tag is pushed, and the publish surface is the
+      # last chance to catch a regression before the crate hits
+      # crates.io (where a bad version can only be `cargo yank`'d, not
+      # un-published). Re-run them here as the authoritative gate.
+      - name: cargo fmt --all --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test -p eddacraft-tui --all-features
+        run: cargo test -p eddacraft-tui --all-features
+
+      - name: cargo test -p eddacraft-tui --no-default-features
+        run: cargo test -p eddacraft-tui --no-default-features
+
+      - name: cargo doc --no-deps -p eddacraft-tui
+        env:
+          RUSTDOCFLAGS: '-D warnings'
+        run: cargo doc --no-deps -p eddacraft-tui
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@65851e10cd6c377f11a60e600abc07cb08643468 # v2.79.3
+        with:
+          tool: cargo-deny@0.19.4
+
+      - name: cargo deny check
+        run: cargo deny check
+
+      - name: cargo publish --dry-run -p eddacraft-tui --all-features
+        run: cargo publish --dry-run -p eddacraft-tui --all-features --allow-dirty
+
+      - name: Package list drift gate
+        run: |
+          set -euo pipefail
+          BASELINE='plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt'
+          if [ ! -f "${BASELINE}" ]; then
+            echo "::error::baseline file ${BASELINE} missing — refusing to publish without a drift gate"
+            exit 1
+          fi
+          ACTUAL=$(mktemp)
+          cargo package --list -p eddacraft-tui --allow-dirty > "${ACTUAL}"
+          if ! diff -u "${BASELINE}" "${ACTUAL}"; then
+            echo "::error::package-list drift detected against ${BASELINE} — review the diff above and either update the baseline (in its own PR) or revert the unintended addition / removal"
+            exit 1
+          fi
+          rm -f "${ACTUAL}"
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_EDDACRAFT_TUI_TOKEN }}
+        # `cargo publish --all-features` mirrors the standalone repo's
+        # convention so the artifact uploaded to crates.io matches what
+        # docs.rs builds (D-TUIR-005).
+        #
+        # On second run for the same version, cargo publish fails with
+        # "already uploaded" — that is the intended safety net for
+        # workflow_dispatch re-runs of a partial failure where the
+        # publish step itself succeeded but a later step failed.
+        run: cargo publish -p eddacraft-tui --all-features
+
+      - name: Mint eddacraft-mirror-bot installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.EDDACRAFT_MIRROR_BOT_APP_ID }}
+          private-key: ${{ secrets.EDDACRAFT_MIRROR_BOT_PRIVATE_KEY }}
+          owner: eddacraft
+          repositories: eddacraft-tui
+
+      - name: Propagate tag to mirror (append-only)
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GIT_REF#refs/tags/}"
+          # Auth via http.extraheader Basic auth — URL-embedded
+          # `x-access-token:${TOKEN}@github.com` form is fragile to
+          # stray bytes in the credential (CURLE_URL_MALFORMAT).
+          #
+          # Refspec is scoped to a single tag, no --force, no --mirror.
+          # If the tag already exists on the mirror, the push is
+          # rejected — that is the intended D-TUIR-009 / D-TUIR-011
+          # guarantee (existing tags are never overwritten).
+          basic=$(printf '%s' "x-access-token:${APP_TOKEN}" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
+              push \
+              https://github.com/eddacraft/eddacraft-tui.git \
+              "refs/tags/${TAG}:refs/tags/${TAG}"
+
+      - name: Create GitHub Release on anvil-001
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GIT_REF#refs/tags/}"
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes "Published from canonical source at \`crates/eddacraft-tui/\`. See [\`crates/eddacraft-tui/CHANGELOG.md\`](https://github.com/${GITHUB_REPOSITORY}/blob/main/crates/eddacraft-tui/CHANGELOG.md) for release notes."
+
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          TAG="${GIT_REF#refs/tags/}"
+          {
+            echo '## Publish result'
+            echo
+            echo 'Tag:                                  `'"${TAG}"'`'
+            echo 'Tag commit (anvil-001):               `'"${GITHUB_SHA}"'`'
+            echo 'crates.io target:                     `eddacraft-tui`'
+            echo 'Mirror tag target:                    `eddacraft/eddacraft-tui:refs/tags/'"${TAG}"'`'
+            echo 'GitHub Release target:                `'"${GITHUB_REPOSITORY}/releases/tag/${TAG}"'`'
+            echo 'Job outcome:                          `'"${JOB_STATUS}"'`'
+            echo
+            echo 'Verify with:'
+            echo
+            echo '    cargo search eddacraft-tui                              # crates.io advertised version'
+            echo '    gh api repos/eddacraft/eddacraft-tui/git/refs/tags      # mirror tag list'
+            echo '    gh release view '"${TAG}"'                           # GitHub Release on anvil-001'
+          } >> "${GITHUB_STEP_SUMMARY}"

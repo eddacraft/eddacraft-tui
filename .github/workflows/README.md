@@ -50,6 +50,7 @@ fixture enforces both directions.
 | `release-readiness.yml`               | Release candidate     | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials                                                                                                                                              | RELORCH      |
 | `release.yml`                         | Publish               | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification                                                                                                                                                | RELORCH      |
 | `release-sign-artefacts.yml`          | Publish               | `release: published` plus `workflow_dispatch` — signs `*-installer.{sh,ps1}` with minisign, uploads `.minisig` back                                                                                                                                       | DISTRIB      |
+| `publish-eddacraft-tui.yml`           | Publish               | `push: tags: ['eddacraft-tui-v*']` — validate against D-TUIR-007 publish-side gates, `cargo publish` to crates.io, propagate the tag (append-only) to `eddacraft/eddacraft-tui` mirror, then `gh release create` on anvil-001                             | TUIR         |
 | `homebrew-bump.yml`                   | Publish               | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke                                                                     | DISTRIB      |
 | `labeler.yml`                         | Auxiliary (PR labels) | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                                                                                           | CICD         |
 | `mirror-acknowledgements-starter.yml` | Auxiliary (mirror)    | `push` to `main` (kit + workflow paths) plus `workflow_dispatch` — `git subtree split` + force-push to public `eddacraft/acknowledgements-starter` mirror                                                                                                 | ATTRIB       |
@@ -218,6 +219,32 @@ GitHub Release. Triggers on `release: published` (also dispatchable). Refuses to
 run when `vars.ANVIL_MINISIGN_PUBLIC_KEY` is empty or still equals the committed
 dev fallback. See ADR-045 and DISTRIB-001.
 
+### `publish-eddacraft-tui.yml`
+
+TUIR-005. Publishes the `eddacraft-tui` crate to crates.io from canonical source
+at `crates/eddacraft-tui/`, then propagates the release tag (append-only) to the
+public mirror at `eddacraft/eddacraft-tui` and cuts a GitHub Release on
+anvil-001. Triggers on
+`push: tags: ['eddacraft-tui-v[0-9]+.[0-9]+.[0-9]+', 'eddacraft-tui-v[0-9]+.[0-9]+.[0-9]+-*']`
+(prefixed semver per D-TUIR-002 — the Anvil monorepo ships multiple crates with
+independent semver and unprefixed `v…` would collide with Anvil product tags). A
+ref-reachability guard refuses tags pointing at commits not on `main`. The full
+D-TUIR-007 publish-side gate matrix runs as the authoritative pre-publish check
+(`fmt --check`, `clippy -D warnings`, all-features + no-default-features test,
+`doc --no-deps`, `cargo-deny`, `publish --dry-run`, and a byte-diff of
+`cargo package --list` against the TUIR-001 baseline at
+`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`).
+Authenticates via three secrets: `CRATES_IO_EDDACRAFT_TUI_TOKEN` (crates.io
+publish-only, scoped to the `eddacraft-tui` crate) plus
+`EDDACRAFT_MIRROR_BOT_APP_ID` + `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` (the
+`eddacraft-mirror-bot` GitHub App, same App used by `mirror-eddacraft-tui.yml` —
+minted into a short-lived installation token per run). Tag push to the mirror
+uses `http.extraheader` Basic auth with a single tag refspec — no `--force`, no
+`--mirror`, so existing tags on the mirror (including pre-cutover `v0.x.y` tags
+per D-TUIR-011) are never overwritten (D-TUIR-009). See
+`docs/runbooks/eddacraft-tui-release.md` for the operator cut procedure,
+verification, rollback, and App-key rotation steps.
+
 ### `homebrew-bump.yml`
 
 Three-job workflow that backs the Homebrew distribution path: `dry-run` runs the
@@ -254,16 +281,20 @@ shape as `mirror-acknowledgements-starter.yml`: `push` to `main` with crate +
 workflow path filters, plus `workflow_dispatch` for manual force-resync, a
 ref-guard refusing anything other than `refs/heads/main`, and pre-push
 prepending of `MIRROR-README.md` onto `README.md` (D-TUIR-012). Authenticates
-via `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN` (fine-grained PAT scoped to
-`eddacraft/eddacraft-tui`, `Contents: Read and write`) using `http.extraheader`
-Basic auth, not URL-embedded credentials (the embedded form fails as
-`CURLE_URL_MALFORMAT` on a single stray byte in the secret). The mirror is
-read-only by policy and force-pushes `main` only — release tags
-(`eddacraft-tui-v*`) are pushed by the separate publish workflow (TUIR-005), so
-existing tags on the mirror (including pre-cutover unprefixed `v0.x.y` tags per
-D-TUIR-011) are never overwritten by the mirror job (D-TUIR-009). See
-`plans/modules/tui-reintegration.aps.md` (D-TUIR-004, D-TUIR-009, D-TUIR-012)
-and `docs/policies/eddacraft-tui-mirror.md`.
+via the `eddacraft-mirror-bot` GitHub App (org-owned, installed on
+`eddacraft/eddacraft-tui` only, permissions `Contents: Read and write` +
+`Metadata: Read`) — the workflow mints a short-lived installation token at
+runtime via `actions/create-github-app-token` using the
+`EDDACRAFT_MIRROR_BOT_APP_ID` + `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` repo secrets
+and uses it as the password in an `http.extraheader` Basic auth header.
+URL-embedded credentials fail as `CURLE_URL_MALFORMAT` on a single stray byte.
+The mirror is read-only by policy and force-pushes `main` only — release tags
+(`eddacraft-tui-v*`) are pushed by the separate publish workflow
+(`publish-eddacraft-tui.yml`), so existing tags on the mirror (including
+pre-cutover unprefixed `v0.x.y` tags per D-TUIR-011) are never overwritten by
+the mirror job (D-TUIR-009). See `plans/modules/tui-reintegration.aps.md`
+(D-TUIR-004, D-TUIR-009, D-TUIR-012) and
+`docs/policies/eddacraft-tui-mirror.md`.
 
 ## Local testing
 

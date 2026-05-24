@@ -19,13 +19,23 @@
 # (including pre-cutover `v0.x.y` tags per D-TUIR-011) are never
 # overwritten by the mirror job (D-TUIR-009).
 #
-# Auth: fine-grained PAT scoped to `eddacraft/eddacraft-tui` with
-# `Contents: Read and write`, stored in the repo secret
-# `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`. Deploy keys are disabled at the
-# eddacraft org level, so SSH is not an option; HTTPS + token via
-# `http.extraheader` Basic auth is the supported path. URL-embedded
-# `x-access-token:${TOKEN}@github.com` form is brittle to stray bytes
-# in the secret and fails as `CURLE_URL_MALFORMAT` (ATTRIB-011
+# Auth: the `eddacraft-mirror-bot` GitHub App (org-owned by
+# `eddacraft`, installed on `eddacraft/eddacraft-tui` only,
+# permissions `Contents: Read and write` + `Metadata: Read`). The
+# workflow mints a short-lived installation token at runtime via
+# `actions/create-github-app-token`, then uses it as the password in
+# an `http.extraheader` Basic auth header against
+# `https://github.com/eddacraft/eddacraft-tui.git`. Two repo secrets
+# back the App:
+#   - `EDDACRAFT_MIRROR_BOT_APP_ID` — numeric App ID.
+#   - `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` — PEM-format private key.
+# The previous `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN` PAT is no longer
+# referenced and can be deleted from anvil-001 repo secrets after the
+# first successful App-auth run.
+#
+# URL-embedded `x-access-token:${TOKEN}@github.com` form is fragile
+# to stray bytes in the credential (CURLE_URL_MALFORMAT); the
+# Basic-header form sidesteps URL parsing entirely (ATTRIB-011
 # precedent).
 #
 # Runner: `ubuntu-latest` is required. `git subtree split` shells out to
@@ -65,8 +75,8 @@ concurrency:
   cancel-in-progress: true
 
 # Least-privilege GITHUB_TOKEN: this workflow does not touch the anvil-001
-# repo's GitHub state — all writes go to the mirror via
-# EDDACRAFT_TUI_MIRROR_PUSH_TOKEN.
+# repo's GitHub state — all writes go to the mirror via the
+# eddacraft-mirror-bot App installation token (minted per run).
 permissions:
   contents: read
 
@@ -89,24 +99,43 @@ jobs:
           fi
 
       - name: Checkout (full history — subtree split needs it)
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
+      # Git identity for the throwaway banner-swap commit. The App
+      # installation token authenticates the push, but `git commit`
+      # still needs a local identity. Use the eddacraft-mirror-bot
+      # bot-account form so the commit author on the mirror matches
+      # the App that produced it.
       - name: Configure git identity
         run: |
-          git config --global user.name  'anvil-mirror-bot'
-          git config --global user.email 'anvil-mirror-bot@users.noreply.github.com'
+          git config --global user.name  'eddacraft-mirror-bot[bot]'
+          git config --global user.email 'eddacraft-mirror-bot[bot]@users.noreply.github.com'
 
-      - name: Sanity-check mirror push token
+      - name: Sanity-check App credentials
         env:
-          EDDACRAFT_TUI_MIRROR_PUSH_TOKEN: ${{ secrets.EDDACRAFT_TUI_MIRROR_PUSH_TOKEN }}
+          APP_ID: ${{ secrets.EDDACRAFT_MIRROR_BOT_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.EDDACRAFT_MIRROR_BOT_PRIVATE_KEY }}
         run: |
-          if [ -z "${EDDACRAFT_TUI_MIRROR_PUSH_TOKEN}" ]; then
-            echo '::error::secret EDDACRAFT_TUI_MIRROR_PUSH_TOKEN is empty — wire the fine-grained PAT before re-running'
+          if [ -z "${APP_ID}" ]; then
+            echo '::error::secret EDDACRAFT_MIRROR_BOT_APP_ID is empty — wire the App credentials before re-running'
             exit 1
           fi
+          if [ -z "${PRIVATE_KEY}" ]; then
+            echo '::error::secret EDDACRAFT_MIRROR_BOT_PRIVATE_KEY is empty — wire the App credentials before re-running'
+            exit 1
+          fi
+
+      - name: Mint eddacraft-mirror-bot installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.EDDACRAFT_MIRROR_BOT_APP_ID }}
+          private-key: ${{ secrets.EDDACRAFT_MIRROR_BOT_PRIVATE_KEY }}
+          owner: eddacraft
+          repositories: eddacraft-tui
 
       - name: Swap MIRROR-README onto README (on a throwaway commit)
         env:
@@ -161,22 +190,22 @@ jobs:
 
       - name: Force-push to mirror repo
         env:
-          EDDACRAFT_TUI_MIRROR_PUSH_TOKEN: ${{ secrets.EDDACRAFT_TUI_MIRROR_PUSH_TOKEN }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           # Authenticate via an HTTP Basic header instead of embedding the
           # token in the URL. The URL-embedded form is fragile: a single
-          # stray byte in the secret (trailing newline, control char) makes
-          # libcurl reject the entire URL with "Malformed input to a URL
-          # function" before it can even talk to GitHub. Sending an explicit
-          # Authorization header sidesteps URL parsing entirely.
+          # stray byte in the credential (trailing newline, control char)
+          # makes libcurl reject the entire URL with "Malformed input to a
+          # URL function" before it can even talk to GitHub. Sending an
+          # explicit Authorization header sidesteps URL parsing entirely.
           #
           # Refspec is scoped to `_mirror_split:main` only — no `--tags`,
           # no `--mirror`, no wildcard. This is the single line that
           # enforces D-TUIR-009 / D-TUIR-011 (existing mirror tags are
           # never overwritten by this workflow). Any future edit that
           # widens the refspec MUST be reviewed against those decisions.
-          basic=$(printf '%s' "x-access-token:${EDDACRAFT_TUI_MIRROR_PUSH_TOKEN}" | base64 -w0)
+          basic=$(printf '%s' "x-access-token:${APP_TOKEN}" | base64 -w0)
           git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
               push --force \
               https://github.com/eddacraft/eddacraft-tui.git \

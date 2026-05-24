@@ -22,6 +22,7 @@
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                    | `docs/runbooks/release-signing.md`           | Runbook  | Authoritative | @aneki | Live   |
 | [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                  | `docs/runbooks/anvil-witness-chain.md`       | Runbook  | Authoritative | @aneki | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
+| [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)  | `docs/runbooks/eddacraft-tui-release.md`     | Runbook  | Authoritative | @aneki | Live   |
 
 ## ADOPT (plans/modules/adoption-friction.aps.md)
 

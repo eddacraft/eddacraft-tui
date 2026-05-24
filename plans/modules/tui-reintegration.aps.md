@@ -5,13 +5,15 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 6/8      |
+| TUIR | joshuaboys | In Progress | 7/8      |
 
-**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow `Merged`
-2026-05-24 via PR #1894; module progress ticks 5/8 → 6/8. The
-deferred status flip was missed at PR #1894 merge time (the planned
-final pre-merge commit never landed) and is reconciled here, matching
-the ATTRIB-008 / PR #1893 post-merge reconcile precedent.
+**Last reviewed:** 2026-05-25 — TUIR-005 publish workflow + release
+runbook land via PR #1919; module progress ticks 6/8 → 7/8. The
+`mirror-eddacraft-tui.yml` workflow (TUIR-004) is migrated to the
+new `eddacraft-mirror-bot` GitHub App in the same PR so both adjacent
+mirror auth paths converge on the org-owned credential. Status flip
+lands in the initial PR commit (no deferred-flip pattern, learned
+from PR #1894 → #1900 reconcile).
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -768,20 +770,51 @@ and is not modified by the run.
 
 ### TUIR-005: Wire the crates.io publish workflow from canonical source
 
-- **Status:** open
+- **Status:** Merged 2026-05-25 via PR #1919
 
 **Intent:** Add a publish workflow that releases `eddacraft-tui` to
 crates.io from `anvil-001` canonical source, independent of Anvil
 product releases.
 
 **Outcome:** `.github/workflows/publish-eddacraft-tui.yml` triggers on
-`eddacraft-tui-v*` tags pushed to `anvil-001`, runs the standard test
-matrix, runs `cargo publish` with the crates.io token, then waits for
-the mirror job to propagate the tag. `docs/runbooks/eddacraft-tui-release.md`
-documents the cut.
+`eddacraft-tui-v[0-9]+.[0-9]+.[0-9]+` tags (prefixed semver per
+D-TUIR-002), enforces a ref-reachability guard refusing tags not on
+`main`, verifies the tag version matches `crates/eddacraft-tui/Cargo.toml`,
+re-runs the full D-TUIR-007 publish-side gate matrix
+(`fmt --all --check`, workspace clippy with `-D warnings`,
+`-p eddacraft-tui` test under `--all-features` AND
+`--no-default-features`, `cargo doc --no-deps` with
+`RUSTDOCFLAGS=-D warnings`, `cargo deny check`, `cargo publish
+--dry-run --all-features`, and a byte-diff of `cargo package --list`
+against the TUIR-001 baseline at
+`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`),
+runs `cargo publish --all-features` using
+`CRATES_IO_EDDACRAFT_TUI_TOKEN` (crates.io publish-only token scoped
+to the `eddacraft-tui` crate), propagates the tag (append-only,
+single tag refspec, no `--force`, no `--mirror`) to
+`eddacraft/eddacraft-tui` via the `eddacraft-mirror-bot` GitHub App
+(short-lived installation token minted at runtime via
+`actions/create-github-app-token@v3.2.0`), then creates a GitHub
+Release on anvil-001. `docs/runbooks/eddacraft-tui-release.md`
+documents the cut, verification, rollback, and App private-key
+rotation. The `mirror-eddacraft-tui.yml` workflow (TUIR-004) is
+migrated to the same App in the same PR so both adjacent mirror auth
+paths converge on the org-owned credential; the legacy
+`EDDACRAFT_TUI_MIRROR_PUSH_TOKEN` PAT becomes dead weight and is
+slated for deletion after the first successful App-auth run (runbook
+documents the retirement step).
 
-**Validation:** Dry-run publish against a release candidate tag; runbook
-walkthrough captured on PR.
+**Validation:**
+- `yamllint` on both modified workflows passes (warnings inherited
+  from `rust.yml` SHA-pin comment style and the `on:` truthy form);
+- `bash scripts/ci/workflow-contracts.test.sh` passes after the
+  README contract-map row + per-file section update;
+- `node scripts/aps/drift-check.mjs` returns no drift;
+- `node scripts/docs/docs-check.mjs` returns 7/7 surfaces pass;
+- `oxfmt --check` clean on touched markdown;
+- live publish validation deferred to TUIR-008's E2E pass (requires
+  cutting a real `eddacraft-tui-v0.2.3` tag, which is an operator
+  action and the closing step of the migration).
 
 **changeType:** internal
 **releaseIntent:** never
@@ -897,14 +930,24 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       dates and SHAs.
 - [x] First post-migration crate version pinned (`0.2.3` per D-TUIR-005)
       and recorded in the baseline spec. ✓
-- [ ] Mirror PAT scope agreed (fine-grained, `eddacraft/eddacraft-tui`
-      only, `Contents: Read and write`) and stored in `anvil-001` repo
-      secrets as `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN`.
-- [ ] crates.io publish token (least-privilege, scoped to
+- [x] Mirror push credential wired. ✓ Superseded by the
+      `eddacraft-mirror-bot` GitHub App (org-owned by `eddacraft`,
+      installed on `eddacraft/eddacraft-tui` only, permissions
+      `Contents: Read and write` + `Metadata: Read`). Backed by repo
+      secrets `EDDACRAFT_MIRROR_BOT_APP_ID` +
+      `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` on anvil-001. The earlier
+      `EDDACRAFT_TUI_MIRROR_PUSH_TOKEN` PAT is no longer referenced
+      by any workflow and is slated for deletion after the first
+      successful App-auth run (runbook documents the retirement
+      step).
+- [x] crates.io publish token (least-privilege, scoped to
       `eddacraft-tui` crate) generated by current crate owner and
       stored in `anvil-001` repo secrets as
-      `CRATES_IO_EDDACRAFT_TUI_TOKEN`. Previous token usage on the
-      public mirror identified for revocation in TUIR-008.
+      `CRATES_IO_EDDACRAFT_TUI_TOKEN`. ✓ Stored 2026-05-24T16:04Z.
+      Previous token (`CARGO_REGISTRY_TOKEN` on
+      `eddacraft/eddacraft-tui` repo secrets, set 2026-04-10) is the
+      one slated for revocation in TUIR-008 after the first
+      successful publish from canonical source.
 - [ ] History-rewrite acknowledged: cutover force-push to
       `eddacraft/eddacraft-tui:main` is one-shot and irreversible;
       `pre-canonical-archive` preservation step (D-TUIR-010) drafted
