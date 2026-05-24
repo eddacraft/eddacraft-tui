@@ -1,5 +1,13 @@
 # Anvil APS Project Context
 
+| Type  | Authority     | Owner  | Status | Freshness                                                                            |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
+| Guide | Authoritative | APSCAN | Live   | Last reviewed 2026-05-24 against `plans/modules/aps-canonical-alignment.aps.md` |
+
+| Upstream                                                  | Downstream                                      |
+| --------------------------------------------------------- | ----------------------------------------------- |
+| `plans/aps-rules.md`, `AGENTS.md`, `docs/guides/documentation-governance.md` | `AGENTS.md`, `plans/aps-rules.md`, agents using APS |
+
 This file records Anvil-specific planning, execution, release, and documentation
 rules that deliberately sit outside portable APS guidance. Keep
 [`plans/aps-rules.md`](aps-rules.md) close to the canonical APS scaffold and put

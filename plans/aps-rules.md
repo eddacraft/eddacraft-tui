@@ -247,7 +247,7 @@ Work items use the module's ID prefix and a zero-padded sequence:
 ```text
 plans/
 ├── aps-rules.md                  # APS-managed agent guidance
-├── project-context.md            # Project-specific context (user-owned)
+├── project-context.md            # Anvil-owned project context
 ├── index.aps.md                  # Root plan
 ├── issues.md                     # Development-time discoveries, optional
 ├── modules/                      # Active module specs
