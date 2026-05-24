@@ -7,20 +7,14 @@ import {
   WaitlistConfirmation,
   WaitlistMigration,
 } from '@eddacraft/transactional';
+import type { z } from 'zod';
+import type { releaseAnnouncementPropsSchema } from './email-registry.js';
 
-export type ReleaseAnnouncementSendProps = Partial<{
-  version: string;
-  theme: string;
-  intro: string;
-  highlights: Array<{ title: string; body: string }>;
-  releaseUrl: string;
-  upgradeCommands: Array<{ label: string; command: string }>;
-  firstInvocationNote: { state: string; recovery: string; rationale: string };
-  migrationUrl: string;
-  knownGaps: Array<{ title: string; body: string; trackingUrl?: string }>;
-  boringWeekAsk: { durationLabel: string; participantCount: string; replyInstruction: string };
-  feedbackEmail: string;
-}>;
+// Derive from the registry's strict schema so adding or removing a
+// validated prop only requires one edit. `import type` keeps this a
+// type-only dependency and avoids a runtime import cycle with
+// email-registry.ts (which imports sendReleaseAnnouncement from here).
+export type ReleaseAnnouncementSendProps = z.infer<typeof releaseAnnouncementPropsSchema>;
 
 let client: Resend | null = null;
 
@@ -33,8 +27,12 @@ function getResendClient(): Resend | null {
   return client;
 }
 
-const FROM_ADDRESS = 'Josh at eddacraft <anvil@updates.eddacraft.ai>';
-const REPLY_TO = 'josh@eddacraft.ai';
+// Env-overridable so staging / preview deploys can route mail to a
+// non-prod sender without a code change. The hardcoded defaults are
+// the prod values used today.
+const FROM_ADDRESS =
+  process.env['EMAIL_FROM_ADDRESS'] ?? 'Josh at eddacraft <anvil@updates.eddacraft.ai>';
+const REPLY_TO = process.env['EMAIL_REPLY_TO'] ?? 'josh@eddacraft.ai';
 
 export interface EmailDeliveryResult {
   sent: boolean;

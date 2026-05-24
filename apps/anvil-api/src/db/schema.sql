@@ -98,7 +98,11 @@ CREATE TABLE refresh_tokens (
 -- against a fresh resolver run to detect cohort drift. Rows live for
 -- the TTL (10 minutes) then are lazily reaped by the same handler.
 CREATE TABLE send_broadcast_snapshots (
-  token             text PRIMARY KEY,
+  -- SHA-256(raw token), produced by lib/token.ts:hashToken with the
+  -- TOKEN_PEPPER env var. Mirrors the access_tokens / refresh_tokens
+  -- at-rest hashing convention. The raw token is returned to the
+  -- operator only once, by insertBroadcastSnapshot.
+  token_hash        text PRIMARY KEY,
   template          text NOT NULL,
   template_props    jsonb NOT NULL,
   audience_key      text NOT NULL,
@@ -107,6 +111,9 @@ CREATE TABLE send_broadcast_snapshots (
   created_by_actor  text NOT NULL,
   created_at        timestamptz NOT NULL DEFAULT now(),
   expires_at        timestamptz NOT NULL,
+  -- NULL = unconsumed; set once on real-send (consume-once invariant
+  -- enforced atomically by consumeBroadcastSnapshot's UPDATE ... WHERE
+  -- consumed_at IS NULL).
   consumed_at       timestamptz
 );
 

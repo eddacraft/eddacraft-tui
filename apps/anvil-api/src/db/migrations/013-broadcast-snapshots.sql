@@ -14,6 +14,11 @@
 -- statement uses IF EXISTS / IF NOT EXISTS guards so a fresh-schema run
 -- becomes a no-op without ALTER TABLE errors.
 
+-- Bound the ALTER TABLE lock-acquisition window so a deploy applying
+-- this migration during in-flight /admin/broadcast traffic fails fast
+-- rather than queuing behind a long-held lock.
+SET LOCAL lock_timeout = '30s';
+
 ALTER TABLE IF EXISTS send_migration_snapshots RENAME TO send_broadcast_snapshots;
 
 ALTER INDEX IF EXISTS idx_send_migration_snapshots_expires_at

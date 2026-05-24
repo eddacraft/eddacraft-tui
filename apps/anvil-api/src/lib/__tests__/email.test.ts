@@ -106,6 +106,26 @@ describe('sendWaitlistConfirmation', () => {
     );
   });
 
+  it('honours EMAIL_FROM_ADDRESS and EMAIL_REPLY_TO env overrides', async () => {
+    process.env['RESEND_API_KEY'] = 'resend_test_key';
+    process.env['EMAIL_FROM_ADDRESS'] = 'Anvil Staging <noreply@staging.example>';
+    process.env['EMAIL_REPLY_TO'] = 'ops@staging.example';
+    emailMocks.send.mockResolvedValue({ error: null });
+    const { sendWaitlistConfirmation } = await loadEmailModule();
+
+    await sendWaitlistConfirmation('person@example.com');
+
+    expect(emailMocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'Anvil Staging <noreply@staging.example>',
+        replyTo: 'ops@staging.example',
+      })
+    );
+
+    delete process.env['EMAIL_FROM_ADDRESS'];
+    delete process.env['EMAIL_REPLY_TO'];
+  });
+
   it('returns provider_error when Resend reports a delivery error', async () => {
     process.env['RESEND_API_KEY'] = 'resend_test_key';
     emailMocks.send.mockResolvedValue({ error: { message: 'Provider unavailable' } });

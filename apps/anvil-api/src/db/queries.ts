@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { NeonClient } from './client.js';
+import { hashToken } from '../lib/token.js';
 
 const IdSchema = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
 
@@ -789,11 +790,18 @@ export interface SnapshotRecipient {
 }
 
 export interface BroadcastSnapshot {
+  // Raw token on `insertBroadcastSnapshot`'s return (so the route can
+  // return it to the operator); SHA-256 hash on `findBroadcastSnapshot` /
+  // `consumeBroadcastSnapshot` returns (whatever the DB stored). The
+  // route doesn't read `token` post-consume, so this asymmetry is safe;
+  // any future code that needs the raw token after consume cannot
+  // recover it from the DB and must thread it through from the
+  // request body.
   token: string;
   template: string;
   template_props: Record<string, unknown>;
   audience_key: string;
-  audience_params: Record<string, unknown>;
+  audience_params: Record<string, string>;
   recipients: SnapshotRecipient[];
   created_by_actor: string;
   created_at: string;
@@ -811,15 +819,26 @@ function parseJsonField(raw: unknown): unknown {
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
+// Belt-and-braces: even though insertBroadcastSnapshot only writes
+// Record<string, string> for audience_params, parse-on-read enforces
+// the type contract from the DB side too, so a future caller that
+// bypasses the route schema and writes non-string values gets caught
+// at consume time rather than blowing up the SQL parameter binding
+// downstream in resolveAudience.
+const AudienceParamsSchema = z.record(z.string(), z.string());
+
 function parseSnapshotRow(row: Record<string, unknown>): BroadcastSnapshot {
   const recipients = SnapshotRecipientsSchema.parse(parseJsonField(row['recipients']));
   const templateProps = parseJsonField(row['template_props']) as Record<string, unknown>;
-  const audienceParams = parseJsonField(row['audience_params']) as Record<string, unknown>;
+  const audienceParams = AudienceParamsSchema.parse(parseJsonField(row['audience_params']));
   const createdAt = row['created_at'];
   const expiresAt = row['expires_at'];
   const consumedAt = row['consumed_at'];
   return {
-    token: String(row['token']),
+    // Returned value is the hashed key from the DB on find/consume.
+    // insertBroadcastSnapshot overrides this with the raw token before
+    // returning to its caller.
+    token: String(row['token_hash']),
     template: String(row['template']),
     template_props: templateProps,
     audience_key: String(row['audience_key']),
@@ -844,7 +863,12 @@ export async function insertBroadcastSnapshot(
     template: string;
     templateProps: Record<string, unknown>;
     audienceKey: string;
-    audienceParams: Record<string, unknown>;
+    // Tightened from Record<string, unknown>: the route schema only
+    // ever validates Record<string, string>, the resolver only reads
+    // strings, and parseSnapshotRow enforces string values on read.
+    // Making this match the runtime contract closes a defensive gap
+    // where a future caller could write non-string values.
+    audienceParams: Record<string, string>;
     recipients: SnapshotRecipient[];
     createdByActor: string;
     ttlSeconds: number;
@@ -852,25 +876,36 @@ export async function insertBroadcastSnapshot(
 ): Promise<BroadcastSnapshot> {
   // Lazy reap: any snapshot past a day old is uninteresting and exists
   // only to consume index space. Best-effort — a failure here must not
-  // block the primary insert.
+  // block the primary insert. The row count is logged so on-call can
+  // baseline snapshot-table growth from the function logs.
   try {
-    await sql`
+    const reapResult = await sql`
       DELETE FROM send_broadcast_snapshots
       WHERE expires_at < now() - interval '1 day'
+      RETURNING token_hash
     `;
+    const rowsDeleted = Array.isArray(reapResult) ? reapResult.length : 0;
+    if (rowsDeleted > 0) {
+      console.log('send_broadcast_snapshots reap deleted rows', { rowsDeleted });
+    }
   } catch (err) {
     // Swallow: reap is opportunistic. The row will get reaped by a
     // later successful sweep.
-    console.warn('send_broadcast_snapshots reap failed', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('send_broadcast_snapshots reap failed:', message);
   }
+
+  // SHA-256 the bearer token before storage. Raw token is returned only
+  // once, from this function. Mirrors access_tokens / refresh_tokens.
+  const tokenHash = hashToken(params.token);
 
   const r = rows(
     await sql`
     INSERT INTO send_broadcast_snapshots
-      (token, template, template_props, audience_key, audience_params,
+      (token_hash, template, template_props, audience_key, audience_params,
        recipients, created_by_actor, expires_at)
     VALUES (
-      ${params.token},
+      ${tokenHash},
       ${params.template},
       ${JSON.stringify(params.templateProps)}::jsonb,
       ${params.audienceKey},
@@ -885,7 +920,11 @@ export async function insertBroadcastSnapshot(
   if (!r[0]) {
     throw new Error('insertBroadcastSnapshot: INSERT returned no row');
   }
-  return parseSnapshotRow(r[0]);
+  // Override the parsed `token` (which is the hash) with the raw token
+  // so the caller can return it to the operator. Any future code that
+  // needs the raw post-consume must thread it through from the
+  // request — the DB no longer holds it.
+  return { ...parseSnapshotRow(r[0]), token: params.token };
 }
 
 /**
@@ -900,10 +939,11 @@ export async function findBroadcastSnapshot(
   sql: NeonClient,
   params: { token: string; actor: string }
 ): Promise<BroadcastSnapshot | null> {
+  const tokenHash = hashToken(params.token);
   const r = rows(
     await sql`
     SELECT * FROM send_broadcast_snapshots
-    WHERE token = ${params.token}
+    WHERE token_hash = ${tokenHash}
       AND created_by_actor = ${params.actor}
     LIMIT 1
   `
@@ -923,11 +963,12 @@ export async function consumeBroadcastSnapshot(
   sql: NeonClient,
   params: { token: string; actor: string }
 ): Promise<BroadcastSnapshot | null> {
+  const tokenHash = hashToken(params.token);
   const r = rows(
     await sql`
     UPDATE send_broadcast_snapshots
     SET consumed_at = now()
-    WHERE token = ${params.token}
+    WHERE token_hash = ${tokenHash}
       AND created_by_actor = ${params.actor}
       AND consumed_at IS NULL
       AND expires_at > now()

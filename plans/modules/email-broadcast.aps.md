@@ -509,6 +509,63 @@ in the same change.
   operator to 8 after applying severity-pushback (see Phase 6 for
   the deferred 31).
 
+### EMAIL-008 — Council review remediation (Wave 2 — defensive hardening + observability)
+
+- **Status:** Done
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Land the Wave 1 (defensive hardening) and high-value
+  Wave 2 (observability + ops) items from the Phase 6 backlog
+  below. Eight items in one slice; rest deferred.
+- **Expected Outcome:** Broadcast snapshot tokens are hashed at rest
+  matching the access_tokens / refresh_tokens convention; the snapshot
+  insert path can no longer be passed non-string audience params;
+  request bodies can no longer smuggle megabyte JSONB blobs; migration
+  013 fails fast under lock contention; reap activity surfaces in
+  function logs; staging deploys can override the from/reply
+  addresses; release-announcement props type stays in sync with the
+  registry schema.
+- **Validation:** `pnpm exec vitest --run`
+- **Files:**
+  - `apps/anvil-api/src/db/migrations/014-broadcast-snapshot-token-hash.sql`
+    (new) — RENAME `token` → `token_hash`.
+  - `apps/anvil-api/src/db/schema.sql` — table now declares
+    `token_hash` PRIMARY KEY with comments on the at-rest hashing
+    convention and the `consumed_at` consume-once invariant.
+  - `apps/anvil-api/src/db/migrations/013-broadcast-snapshots.sql` —
+    added `SET LOCAL lock_timeout = '30s'` so the ALTER TABLE chain
+    fails fast rather than queueing behind a long-held lock.
+  - `apps/anvil-api/src/db/queries.ts` — `insertBroadcastSnapshot`
+    now SHA-256s the token via `lib/token.ts:hashToken` (which
+    applies the TOKEN_PEPPER), stores hash, returns raw to caller.
+    `findBroadcastSnapshot` / `consumeBroadcastSnapshot` hash on
+    lookup. `audienceParams` parameter tightened from
+    `Record<string, unknown>` to `Record<string, string>`. New
+    `AudienceParamsSchema` zod check enforces the same constraint
+    on read so a future caller bypassing the route schema gets
+    caught at consume time. Reap now `RETURNING token_hash` and
+    logs row count via `console.log` when > 0.
+  - `apps/anvil-api/src/routes/admin-schemas.ts` —
+    `broadcastSchema.audienceParams` caps per-value at 1024 chars +
+    16 keys total; `templateProps` caps per-key at 64 chars + 64
+    keys total. Envelope guards on top of the per-template
+    propsSchema.
+  - `apps/anvil-api/src/lib/email.ts` — `FROM_ADDRESS` and
+    `REPLY_TO` now read from `EMAIL_FROM_ADDRESS` /
+    `EMAIL_REPLY_TO` env vars with the prod values as defaults.
+    `ReleaseAnnouncementSendProps` now `z.infer`s from
+    `releaseAnnouncementPropsSchema` via type-only import (avoids
+    runtime cycle).
+  - Tests: added FROM_ADDRESS env override, audienceParams /
+    templateProps cap rejections.
+- **Notes:** Landed 2026-05-24. 4 new tests; full anvil-api suite
+  401/401 across 20 files (was 397/397); typecheck clean.
+  Pre-existing snapshot rows from before migration 014 become
+  unusable (their raw value stored in token_hash won't match
+  SHA-256(client-token)) — bounded by the 10-min TTL and the reap
+  loop. Operators mid-preview at deploy time must re-run --dry-run
+  after deploy completes; documented in the migration comment.
+
 ## Phase 6 — Council Follow-Ups (Not Tasked Yet)
 
 The full council review on 2026-05-24 surfaced 39 findings. 8 landed
@@ -516,36 +573,23 @@ in EMAIL-007 above; the remaining 31 are catalogued here for later
 attention. Pulled in batches of 5–10 once an operator pressure point
 surfaces.
 
-### Wave 1 — Defensive hardening (when next broadcast scope tightens)
+### Wave 1 — Defensive hardening
 
-- **Hash snapshot token at rest.** Store `sha256(token)` as the
-  PRIMARY KEY of `send_broadcast_snapshots`, return raw token only
-  from `insertBroadcastSnapshot`, hash on lookup in
-  `findBroadcastSnapshot` / `consumeBroadcastSnapshot`. Mirrors the
-  `access_tokens` / `refresh_tokens` pattern. Severity: MINOR for
-  consistency, not exploitability (consume endpoint requires
-  `adminAuth`). ~30 lines.
-- **`audience_params` cast at function boundary.** Tighten
-  `insertBroadcastSnapshot`'s `audienceParams` parameter from
-  `Record<string, unknown>` to `Record<string, string>`. Parse
-  `consumed.audience_params` through `z.record(z.string(), z.string())`
-  at the top of `executeBroadcastFromSnapshot` as belt-and-braces.
-- **JSONB write surface caps.** Add max-key-count and max-value-size
-  to `broadcastSchema.audienceParams` and `broadcastSchema.templateProps`.
-  Currently uncapped — admin actor could write megabyte-scale blobs
-  into the snapshot table.
+_Wave 1 completed under EMAIL-008 (2026-05-24): token hash at rest,
+audience_params boundary tightening, JSONB size caps._
+
 - **`z.enum(AUDIENCE_KEYS)` / `z.enum(TEMPLATE_KEYS)`** in
-  `broadcastSchema` instead of `z.string().min(1)`. Eliminates the
-  drift risk between AUDIENCE_KEYS constant and the schema.
+  `broadcastSchema` instead of `z.string().min(1)`. Trade-off:
+  cleaner type narrowing vs. losing the specific `template_unknown`
+  / `audience_unknown` error codes (zod would return a generic
+  validation error). Deferred because the specific codes are
+  better operator UX.
 
 ### Wave 2 — Observability and operations
 
-- **Migration 013 `lock_timeout`.** Set `SET lock_timeout = '30s'`
-  before the ALTER TABLE chain. Theoretical at current row count;
-  best practice.
-- **Reap DELETE structured logging.** Log row-count deleted at INFO
-  on success, ERROR on failure. Currently `console.warn` with no
-  count, so snapshot-table growth is invisible.
+_Wave 2 partial under EMAIL-008 (2026-05-24): migration 013
+lock_timeout, reap row-count logging, FROM_ADDRESS env override._
+
 - **Structured logging in `lib/email.ts`.** Replace the
   `console.warn` / `console.error` calls with structured payloads
   carrying correlation ID, template name, Resend error code, and
@@ -566,9 +610,6 @@ surfaces.
 - **Audit log namespace documentation.** `migration.email.*` and
   `broadcast.email.*` action names coexist; operators querying need
   both. Document the taxonomy in the audit-log schema comment.
-- **`FROM_ADDRESS` / `REPLY_TO` env-configurable.** Currently
-  hardcoded module constants — fine for a single operator, will bite
-  the first staging/preview deploy that wants a different sender.
 
 ### Wave 3 — Compliance and deliverability
 
@@ -611,9 +652,6 @@ surfaces.
   gap inline in the resolver.
 - **`consumed_at` column comment** in `schema.sql` describing the
   consume-once invariant.
-- **`ReleaseAnnouncementSendProps` via `z.infer`.** Derive the type
-  in `lib/email.ts` from `releaseAnnouncementPropsSchema` instead of
-  hand-maintaining a parallel `Partial<{...}>`.
 - **Operator CLI wrapper.** The current two-curl flow (preview, copy
   token, real-send) is error-prone. Phase 3 admin-CLI work picks
   this up.

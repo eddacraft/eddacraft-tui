@@ -186,6 +186,58 @@ describe('POST /admin/broadcast', () => {
       expect((await res.json()).code).toBe('template_props_invalid');
       expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
+
+    it('rejects audienceParams with > 16 keys', async () => {
+      const tooMany: Record<string, string> = {};
+      for (let i = 0; i < 17; i++) tooMany[`k${i}`] = 'v';
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          audienceParams: tooMany,
+          dryRun: true,
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+      expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects audienceParams with an oversized value', async () => {
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          audienceParams: { source: 'x'.repeat(1100) },
+          dryRun: true,
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+      expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
+    });
+
+    it('rejects templateProps with > 64 keys', async () => {
+      const tooMany: Record<string, unknown> = {};
+      for (let i = 0; i < 65; i++) tooMany[`k${i}`] = 'v';
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          templateProps: tooMany,
+          dryRun: true,
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+      expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
+    });
   });
 
   describe('dry-run', () => {

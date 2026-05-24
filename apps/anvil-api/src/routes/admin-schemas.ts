@@ -77,8 +77,23 @@ export const driftDiffSchema = z.object({
 export const broadcastSchema = z.object({
   template: z.string().min(1).max(64),
   audience: z.string().min(1).max(64),
-  audienceParams: z.record(z.string(), z.string()).optional().default({}),
-  templateProps: z.record(z.string(), z.unknown()).optional().default({}),
+  // Caps prevent megabyte-scale templateProps blobs from being
+  // persisted into the snapshot table. Per-template propsSchema
+  // does the structural validation; these are envelope guards.
+  audienceParams: z
+    .record(z.string().max(64), z.string().max(1024))
+    .refine((o) => Object.keys(o).length <= 16, {
+      message: 'audienceParams may not have more than 16 keys',
+    })
+    .optional()
+    .default({}),
+  templateProps: z
+    .record(z.string().max(64), z.unknown())
+    .refine((o) => Object.keys(o).length <= 64, {
+      message: 'templateProps may not have more than 64 keys',
+    })
+    .optional()
+    .default({}),
   limit: z.number().int().min(1).max(80).default(80),
   dryRun: z.boolean().default(false),
   previewToken: z.string().min(1).max(128).optional(),
