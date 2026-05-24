@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { AudienceRow } from './broadcast-audiences.js';
-import type { EmailDeliveryResult } from './email.js';
-import { sendWaitlistMigration } from './email.js';
+import type { EmailDeliveryResult, ReleaseAnnouncementSendProps } from './email.js';
+import { sendReleaseAnnouncement, sendWaitlistMigration } from './email.js';
 
 const emptyPropsSchema = z.object({}).strict();
 
@@ -85,9 +85,11 @@ export const EMAIL_REGISTRY: Record<TemplateKey, EmailTemplateEntry> = {
   'release-announcement': {
     kind: 'broadcast',
     propsSchema: releaseAnnouncementPropsSchema,
-    sender: async () => {
-      throw new Error('sendReleaseAnnouncement not yet implemented (EMAIL-004)');
-    },
+    // The discriminated union widens props to z.infer<ZodTypeAny> = unknown
+    // at this call site; propsSchema.parse() at the /admin/broadcast boundary
+    // guarantees the shape so the cast is safe.
+    sender: (row, props) =>
+      sendReleaseAnnouncement(row.email, props as ReleaseAnnouncementSendProps),
   },
   'waitlist-migration': {
     kind: 'broadcast',

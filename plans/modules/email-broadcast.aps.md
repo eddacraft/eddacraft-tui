@@ -310,7 +310,7 @@ in the same change.
 
 ### EMAIL-004 — `sendReleaseAnnouncement` helper
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Add `sendReleaseAnnouncement(email, props)` to
@@ -322,10 +322,28 @@ in the same change.
   `ReleaseAnnouncement` with operator-supplied props and ships it via
   Resend, with the same delivery semantics and error shape as the other
   senders.
-- **Validation:** `pnpm --filter @anvil/api test email`
+- **Validation:** `pnpm exec vitest --run src/lib/__tests__/email.test.ts`
 - **Files:** `apps/anvil-api/src/lib/email.ts`,
-  `packages/transactional/emails/release-announcement.tsx` (no edits —
-  the template already ships defaults for v0.7.0-beta).
+  `apps/anvil-api/src/lib/email-registry.ts` (placeholder sender swapped
+  for the real call), `apps/anvil-api/src/lib/__tests__/email.test.ts`
+  (new sendReleaseAnnouncement describe block, mocks widened to
+  include ReleaseAnnouncement + V070_DEFAULTS),
+  `apps/anvil-api/src/lib/__tests__/email-registry.test.ts` (placeholder
+  throw test replaced with forwarding assertion),
+  `packages/transactional/emails/release-announcement.tsx` (V070_DEFAULTS
+  promoted from a private const to an export), `packages/transactional/emails/index.ts`
+  (re-export V070_DEFAULTS).
+- **Notes:** Landed 2026-05-24. Subject derivation mirrors the
+  template's V070-defaults-when-both-missing rule so an operator
+  sending the v0.7.0 broadcast with empty templateProps gets a
+  matching subject. Spread order in the sender puts operator props
+  first then overrides email + unsubscribeMailto — belt-and-braces
+  with the email-registry strict schema. The registry sender uses a
+  documented `as ReleaseAnnouncementSendProps` cast because the
+  discriminated union widens `z.infer<ZodTypeAny>` to `unknown`;
+  propsSchema.parse() at the /admin/broadcast boundary guarantees the
+  shape. 11 new sendReleaseAnnouncement tests; full anvil-api suite
+  363/363 green; typecheck clean.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** none (`apps/anvil-api` is not part of the release tag

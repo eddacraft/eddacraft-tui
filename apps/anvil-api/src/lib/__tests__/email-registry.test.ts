@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const senderMocks = vi.hoisted(() => ({
   sendWaitlistMigration: vi.fn(),
+  sendReleaseAnnouncement: vi.fn(),
   sendBetaInvite: vi.fn(),
   sendOtpCode: vi.fn(),
   sendWaitlistConfirmation: vi.fn(),
@@ -138,12 +139,34 @@ describe('broadcast senders', () => {
     vi.clearAllMocks();
   });
 
-  it('release-announcement sender throws — sendReleaseAnnouncement pending EMAIL-004', async () => {
+  it('release-announcement sender forwards row email + props to sendReleaseAnnouncement', async () => {
+    senderMocks.sendReleaseAnnouncement.mockResolvedValueOnce({ sent: true });
     const entry = EMAIL_REGISTRY['release-announcement'];
     if (entry.kind !== 'broadcast') throw new Error('expected broadcast kind');
-    await expect(
-      entry.sender({ email: 'a@x.com', name: 'Alice', user_id: 'u-1' }, {})
-    ).rejects.toThrow(/EMAIL-004/);
+
+    await entry.sender(
+      { email: 'a@x.com', name: 'Alice', user_id: 'u-1' },
+      { version: 'v0.8.0-beta', theme: 'Test' }
+    );
+
+    expect(senderMocks.sendReleaseAnnouncement).toHaveBeenCalledWith('a@x.com', {
+      version: 'v0.8.0-beta',
+      theme: 'Test',
+    });
+  });
+
+  it('release-announcement sender does not pull row.name into props (template has no name field)', async () => {
+    senderMocks.sendReleaseAnnouncement.mockResolvedValueOnce({ sent: true });
+    const entry = EMAIL_REGISTRY['release-announcement'];
+    if (entry.kind !== 'broadcast') throw new Error('expected broadcast kind');
+
+    await entry.sender({ email: 'a@x.com', name: 'Alice', user_id: 'u-1' }, {});
+
+    const callProps = senderMocks.sendReleaseAnnouncement.mock.calls.at(-1)?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(callProps).not.toHaveProperty('name');
   });
 
   it('waitlist-migration sender forwards row email + name to sendWaitlistMigration', async () => {

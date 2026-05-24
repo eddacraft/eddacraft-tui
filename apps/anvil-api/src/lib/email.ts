@@ -2,9 +2,25 @@ import { Resend } from 'resend';
 import {
   BetaInvite,
   OtpCode,
+  ReleaseAnnouncement,
+  V070_DEFAULTS,
   WaitlistConfirmation,
   WaitlistMigration,
 } from '@eddacraft/transactional';
+
+export type ReleaseAnnouncementSendProps = Partial<{
+  version: string;
+  theme: string;
+  intro: string;
+  highlights: Array<{ title: string; body: string }>;
+  releaseUrl: string;
+  upgradeCommands: Array<{ label: string; command: string }>;
+  firstInvocationNote: { state: string; recovery: string; rationale: string };
+  migrationUrl: string;
+  knownGaps: Array<{ title: string; body: string; trackingUrl?: string }>;
+  boringWeekAsk: { durationLabel: string; participantCount: string; replyInstruction: string };
+  feedbackEmail: string;
+}>;
 
 let client: Resend | null = null;
 
@@ -242,6 +258,69 @@ export async function sendBetaInvite(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Unexpected beta invite email delivery error:', message);
+    return { sent: false, code: 'unexpected_error', message };
+  }
+}
+
+export async function sendReleaseAnnouncement(
+  email: string,
+  props: ReleaseAnnouncementSendProps
+): Promise<EmailDeliveryResult> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn('RESEND_API_KEY not configured — skipping release-announcement email');
+    return { sent: false, code: 'resend_not_configured', message: 'Resend is not configured' };
+  }
+
+  const subject = encodeURIComponent('Unsubscribe');
+  const body = encodeURIComponent(`Please remove ${email} from release announcements.`);
+  const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=${subject}&body=${body}`;
+
+  // Subject derivation mirrors the template's V070_DEFAULTS-when-both-missing
+  // rule (release-announcement.tsx): if the operator supplies neither version
+  // nor theme, render the v0.7.0 release; if they supply at least one, the
+  // template uses a blank canvas and we trust them to have supplied both.
+  const useDefaults = !props.version && !props.theme;
+  const version = useDefaults ? V070_DEFAULTS.version : (props.version ?? '');
+  const theme = useDefaults ? V070_DEFAULTS.theme : (props.theme ?? '');
+  const emailSubject = `Anvil ${version} — ${theme}`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      replyTo: REPLY_TO,
+      to: email,
+      subject: emailSubject,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeMailto}>`,
+      },
+      // Spread props first, then override with sender-controlled fields so an
+      // operator cannot smuggle a different email or unsubscribeMailto through
+      // templateProps. The email-registry strict schema rejects them at the
+      // /admin/broadcast boundary; this is belt-and-braces at the sender.
+      react: ReleaseAnnouncement({ ...props, email, unsubscribeMailto }),
+      text: `Anvil ${version} — ${theme}
+
+A new Anvil release is live. Full notes and upgrade commands are in the rendered email body; if you can't see HTML, the release notes URL is:
+
+${props.releaseUrl ?? (useDefaults ? V070_DEFAULTS.releaseUrl : '')}
+
+To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}
+
+— Josh
+anvil :: eddacraft.ai`,
+      tags: [{ name: 'category', value: 'release-announcement' }],
+    });
+
+    if (error) {
+      console.error('Failed to send release announcement email:', error.message);
+      return { sent: false, code: 'provider_error', message: error.message };
+    }
+
+    return { sent: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Unexpected release-announcement delivery error:', message);
     return { sent: false, code: 'unexpected_error', message };
   }
 }
