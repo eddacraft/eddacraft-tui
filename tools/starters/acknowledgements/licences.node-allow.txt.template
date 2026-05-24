@@ -1,0 +1,10 @@
+# ATTRIB-012: SPDX allow-list consumed by `drivers/node.sh` via
+# `license-checker --onlyAllow`. One line, semicolon-joined.
+#
+# Generated from `licences.toml` — do not edit between the BEGIN/END
+# markers. To change the allow-list, update `licences.toml` and rerun
+# `tools/starters/acknowledgements/expand-licences.sh`.
+#
+# Source: `licences.toml` ([[licences]] entries where about = true)
+# BEGIN AUTO-GENERATED FROM licences.toml — node-allow
+# END AUTO-GENERATED FROM licences.toml — node-allow
