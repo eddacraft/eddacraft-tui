@@ -8,6 +8,16 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+### Changed
+
+- `anvil watch` now runs code-quality checks (`anvil check` over the
+  working-tree changes) on each save by default. Previously a bare `anvil watch`
+  watched architecture and dependency edges only and ran no code-quality scan,
+  while the dashboard still read as "100% pass" — protection it was not
+  providing ([#1913](https://github.com/eddacraft/anvil-001/issues/1913)). Run
+  `anvil watch --action none` to restore the architecture/dependency-only watch.
+  `anvil start --watch` is unchanged (remains architecture-only).
+
 ## [0.7.1-beta] — 2026-05-22 — Activation Diagnostic Honesty (Boring Week Patch 1)
 
 `v0.7.1-beta` is the first Boring-Week patch tag on the `v0.7.0-beta`

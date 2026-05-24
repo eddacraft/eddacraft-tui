@@ -350,7 +350,9 @@ anvil watch --debounce 500               # Custom debounce (ms, default: 300)
 anvil watch --exclude "vendor/**,tmp/**" # Exclude matching glob paths
 anvil watch --patterns "**/*.ts,**/*.rs" # Limit the watch loop to matching globs
 anvil watch --file src/api/              # Scope to specific path
-anvil watch --action gate                # Run gate on each change
+anvil watch                              # Run code-quality checks on each change (default)
+anvil watch --action gate                # Run gate on each change instead
+anvil watch --action none                # Architecture/dependency watch only, no code scan
 ```
 
 | Flag         | Short | Default | Description                                                                         |
@@ -362,7 +364,7 @@ anvil watch --action gate                # Run gate on each change
 | `--exclude`  |       | —       | Comma-separated glob patterns to exclude from watch events                          |
 | `--patterns` |       | —       | Comma-separated glob patterns to include in watch events                            |
 | `--file`     | `-f`  | —       | Scope watch to a specific file or directory                                         |
-| `--action`   | `-a`  | —       | Action to run on change: `gate` or `check`                                          |
+| `--action`   | `-a`  | `check` | Action to run on change: `check` (default), `gate`, or `none` (architecture-only)   |
 
 Bare names match only that exact path. To exclude a directory's contents, use a
 glob such as `vendor/**` rather than `vendor`.

@@ -21,8 +21,9 @@ pub struct WatchArgs {
     #[arg(long, short = 'f')]
     file: Option<String>,
 
-    /// Action to run on change: gate, check
-    #[arg(long, short)]
+    /// Action to run on each change: check (default), gate, or none for an
+    /// architecture/dependency-only watch with no code-quality scan.
+    #[arg(long, short = 'a')]
     action: Option<String>,
 
     /// Watch planning documents
@@ -57,12 +58,18 @@ impl WatchArgs {
     /// Build the args used by `anvil start --watch` to enter the
     /// watch fallback (LAUNCH-011). Scopes the watcher to the
     /// workspace root (no `--file` override) and accepts the
-    /// `FileFilter` denylist as the only scope filter — same default
-    /// shape as bare `anvil watch`.
+    /// `FileFilter` denylist as the only scope filter.
+    ///
+    /// `action: none` keeps this path architecture/dependency-only. GH #1913
+    /// changed bare `anvil watch` to run `check` by default, but the LAUNCH-011
+    /// fallback is a lightweight save-time watcher whose honesty contract
+    /// claims `state: watching` — it must not silently start spawning per-save
+    /// `anvil check` runs. Users who want code-quality scanning run
+    /// `anvil watch` directly.
     pub fn fallback_for_repo() -> Self {
         Self {
             file: None,
-            action: None,
+            action: Some("none".to_string()),
             plans: false,
             source: false,
             all: false,
@@ -360,11 +367,21 @@ fn print_tui_startup_message(mode: WatchOutputMode) {
     );
 }
 
-/// Validate the `--action` argument.
-fn validate_action(action: Option<&str>) -> Result<Option<&str>> {
+/// Resolve the on-change action (GH #1913).
+///
+/// Bare `anvil watch` (no `--action`) now defaults to `check` so save-time
+/// code-quality scanning (AP-*/GS-*) runs by default — previously the absent
+/// case watched architecture/dependency edges only and ran no code checks,
+/// which read as protection it was not providing. `--action none` restores the
+/// architecture-only watch for users who want just that.
+fn resolve_action(action: Option<&str>) -> Result<Option<&str>> {
     match action {
-        Some("gate" | "check") | None => Ok(action),
-        Some(other) => bail!("Unsupported action: {other}. Supported: gate, check"),
+        None | Some("check") => Ok(Some("check")),
+        Some("gate") => Ok(Some("gate")),
+        Some("none") => Ok(None),
+        Some(other) => {
+            bail!("Unsupported action: {other}. Supported: check, gate, none (architecture-only)")
+        }
     }
 }
 
@@ -423,6 +440,14 @@ fn build_action_command(
 ) -> std::process::Command {
     let mut cmd = std::process::Command::new(exe);
     cmd.arg(action);
+    // `anvil check` requires an explicit file scope or it exits with
+    // "No files specified" — so a bare `check` dispatch would fail every
+    // cycle and never scan. Scope it to the working-tree changes (the file
+    // just saved is part of that set), mirroring what `anvil gate` does
+    // internally via git status. `gate` self-scopes, so it needs no flag.
+    if action == "check" {
+        cmd.arg("--changed");
+    }
     if json {
         cmd.arg("--json");
     }
@@ -832,7 +857,7 @@ impl ActionDispatcher {
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = crate::util::workspace_root()?;
-    let action = validate_action(args.action.as_deref())?;
+    let action = resolve_action(args.action.as_deref())?;
 
     // LAUNCH-002: --action is now allowed in TUI mode. The dispatcher forces
     // --no-tui on the child and discards child stdio so two Ratatui sessions
@@ -1294,15 +1319,36 @@ mod tests {
     }
 
     #[test]
-    fn validate_action_accepts_gate_and_check() {
-        assert!(validate_action(Some("gate")).is_ok());
-        assert!(validate_action(Some("check")).is_ok());
-        assert!(validate_action(None).is_ok());
+    fn resolve_action_defaults_to_check_when_absent() {
+        // GH #1913: bare `anvil watch` now runs the code-quality scanners by
+        // default instead of silently watching architecture only.
+        assert_eq!(resolve_action(None).unwrap(), Some("check"));
     }
 
     #[test]
-    fn validate_action_rejects_unknown() {
-        assert!(validate_action(Some("deploy")).is_err());
+    fn resolve_action_accepts_gate_and_check() {
+        assert_eq!(resolve_action(Some("gate")).unwrap(), Some("gate"));
+        assert_eq!(resolve_action(Some("check")).unwrap(), Some("check"));
+    }
+
+    #[test]
+    fn resolve_action_none_opts_out_to_architecture_only() {
+        // The explicit opt-out restores the pre-#1913 architecture-only watch.
+        assert_eq!(resolve_action(Some("none")).unwrap(), None);
+    }
+
+    #[test]
+    fn resolve_action_rejects_unknown() {
+        assert!(resolve_action(Some("deploy")).is_err());
+    }
+
+    #[test]
+    fn start_watch_fallback_stays_architecture_only() {
+        // GH #1913: bare `anvil watch` runs `check`, but the `anvil start
+        // --watch` fallback must remain architecture-only (it claims
+        // `state: watching` and must not silently spawn per-save checks).
+        let args = WatchArgs::fallback_for_repo();
+        assert_eq!(resolve_action(args.action.as_deref()).unwrap(), None);
     }
 
     #[test]
@@ -1426,19 +1472,39 @@ mod tests {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/project");
 
+        // `gate` self-scopes (git status) so it needs no file flag.
         let cmd = build_action_command(&exe, "gate", &ws, false, false, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(args, vec![std::ffi::OsStr::new("gate")]);
 
+        // `check` MUST carry a file scope (`--changed`) or it bails with
+        // "No files specified" and never scans (GH #1913 / council F-001).
         let cmd = build_action_command(&exe, "check", &ws, true, true, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
             vec![
                 std::ffi::OsStr::new("check"),
+                std::ffi::OsStr::new("--changed"),
                 std::ffi::OsStr::new("--json"),
                 std::ffi::OsStr::new("--no-tui"),
             ]
+        );
+    }
+
+    #[test]
+    fn build_action_command_scopes_check_to_changed_even_plain() {
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let cmd = build_action_command(&exe, "check", &ws, false, false, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsStr::new("check"),
+                std::ffi::OsStr::new("--changed")
+            ],
+            "bare check dispatch must include --changed so it actually scans"
         );
     }
 
