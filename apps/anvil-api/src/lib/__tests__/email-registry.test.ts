@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const senderMocks = vi.hoisted(() => ({
   sendWaitlistMigration: vi.fn(),
@@ -9,6 +9,10 @@ const senderMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../email.js', () => senderMocks);
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 import {
   EMAIL_REGISTRY,

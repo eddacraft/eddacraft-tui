@@ -77,12 +77,16 @@ describe('resolveAudience', () => {
       expect(RECENT_ACTIVITY_DAYS).toBe(30);
     });
 
-    it('returns distinct users even if multiple refresh tokens match', async () => {
+    it('uses EXISTS rather than JOIN+DISTINCT (Postgres rejects DISTINCT + ORDER BY on a non-selected column)', async () => {
       const sql = mockSql([{ email: 'a@x.com', name: 'Alice', user_id: 'u-1' }]);
       const rows = await resolveAudience(sql, 'beta:active-recent', { limit: 100 });
       expect(rows).toHaveLength(1);
       const q = lastQuery(sql);
-      expect(q).toMatch(/SELECT\s+DISTINCT/i);
+      // Same pattern as beta:active-idle but without `NOT` — keeps the
+      // pair symmetric and avoids the DISTINCT+ORDER-BY runtime error.
+      expect(q).toMatch(/\bEXISTS\b/i);
+      expect(q).not.toMatch(/\bNOT\s+EXISTS\b/i);
+      expect(q).not.toMatch(/SELECT\s+DISTINCT/i);
     });
   });
 

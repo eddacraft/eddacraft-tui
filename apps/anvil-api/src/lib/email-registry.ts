@@ -5,20 +5,24 @@ import { sendReleaseAnnouncement, sendWaitlistMigration } from './email.js';
 
 const emptyPropsSchema = z.object({}).strict();
 
+// Per-field length caps prevent a 20-element array (the outer cap) of
+// arbitrarily large strings from accumulating to megabyte-scale JSONB
+// payloads in the snapshot row + audit log. Limits are generous vs.
+// V070_DEFAULTS sizes (titles ≤ ~80 chars, bodies ≤ ~400 chars).
 const releaseHighlightSchema = z.object({
-  title: z.string(),
-  body: z.string(),
+  title: z.string().max(256),
+  body: z.string().max(2048),
 });
 
 const upgradeCommandSchema = z.object({
-  label: z.string(),
-  command: z.string(),
+  label: z.string().max(64),
+  command: z.string().max(512),
 });
 
 const firstInvocationNoteSchema = z.object({
-  state: z.string(),
-  recovery: z.string(),
-  rationale: z.string(),
+  state: z.string().max(64),
+  recovery: z.string().max(512),
+  rationale: z.string().max(2048),
 });
 
 // URL fields are constrained to https:// (no javascript:, no data:, no http://)
@@ -66,15 +70,15 @@ const httpsUrlSchema = z
   });
 
 const knownGapSchema = z.object({
-  title: z.string(),
-  body: z.string(),
+  title: z.string().max(256),
+  body: z.string().max(2048),
   trackingUrl: httpsUrlSchema.optional(),
 });
 
 const boringWeekAskSchema = z.object({
-  durationLabel: z.string(),
-  participantCount: z.string(),
-  replyInstruction: z.string(),
+  durationLabel: z.string().max(64),
+  participantCount: z.string().max(64),
+  replyInstruction: z.string().max(512),
 });
 
 // `email` and `unsubscribeMailto` are intentionally excluded: the first

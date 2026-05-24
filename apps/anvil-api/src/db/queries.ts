@@ -886,7 +886,10 @@ export async function insertBroadcastSnapshot(
     `;
     const rowsDeleted = Array.isArray(reapResult) ? reapResult.length : 0;
     if (rowsDeleted > 0) {
-      console.log('send_broadcast_snapshots reap deleted rows', { rowsDeleted });
+      // console.warn rather than console.log: the project's lint rule
+      // restricts console use to warn/error. Reap activity is operational
+      // signal worth surfacing even though it's not an error condition.
+      console.warn('send_broadcast_snapshots reap deleted rows', { rowsDeleted });
     }
   } catch (err) {
     // Swallow: reap is opportunistic. The row will get reaped by a

@@ -44,7 +44,10 @@ export const revokeSchema = z
 export const migrationSchema = z.object({
   source: z.enum(['import', 'website', 'manual']).default('import'),
   dryRun: z.boolean().default(false),
-  limit: z.number().int().min(1).max(100).default(20),
+  // Aligned with broadcastSchema's cap (was 100). /admin/send-migration
+  // is now a shim over the same executeBroadcastFromSnapshot loop, so
+  // the same Vercel-timeout + Resend-p99 derivation applies.
+  limit: z.number().int().min(1).max(80).default(20),
   // previewToken is required for real-sends but the handler enforces
   // that conditionally (with a specific 400 error code), so the schema
   // keeps it optional to avoid a generic zod error collapsing the two

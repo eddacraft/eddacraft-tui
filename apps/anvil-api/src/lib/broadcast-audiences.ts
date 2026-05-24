@@ -81,13 +81,22 @@ async function resolveBetaActiveRecent(
   sql: NeonClient,
   { limit }: AudienceParams
 ): Promise<AudienceRow[]> {
+  // `EXISTS` rather than `JOIN ... DISTINCT`: Postgres requires
+  // `ORDER BY` columns to appear in the SELECT list under
+  // `SELECT DISTINCT`, so the JOIN form would fail at runtime
+  // because we order by `bu.created_at` without selecting it.
+  // EXISTS is symmetric with `resolveBetaActiveIdle` (just NOT
+  // EXISTS there) and avoids the DISTINCT requirement entirely.
   const r = await sql`
-    SELECT DISTINCT bu.email, bu.name, bu.id AS user_id
+    SELECT bu.email, bu.name, bu.id AS user_id
     FROM beta_users bu
-    JOIN refresh_tokens rt ON rt.user_id = bu.id
     WHERE bu.status = 'active'
-      AND rt.revoked_at IS NULL
-      AND rt.created_at > now() - (${RECENT_ACTIVITY_DAYS}::int * INTERVAL '1 day')
+      AND EXISTS (
+        SELECT 1 FROM refresh_tokens rt
+        WHERE rt.user_id = bu.id
+          AND rt.revoked_at IS NULL
+          AND rt.created_at > now() - (${RECENT_ACTIVITY_DAYS}::int * INTERVAL '1 day')
+      )
     ORDER BY bu.created_at ASC
     LIMIT ${limit}
   `;

@@ -1055,7 +1055,10 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
     c.req.valid('json');
 
   // ---- Validate template ---------------------------------------------------
-  if (!(template in EMAIL_REGISTRY)) {
+  // `Object.hasOwn` rather than the `in` operator: `in` matches inherited
+  // properties (e.g. `toString`, `__proto__`), letting `template: 'toString'`
+  // pass this guard and then index the registry to a non-template value.
+  if (!Object.hasOwn(EMAIL_REGISTRY, template)) {
     return c.json({ code: 'template_unknown', error: `unknown template: ${template}` }, 400);
   }
   const entry = EMAIL_REGISTRY[template as TemplateKey];

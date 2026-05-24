@@ -1298,7 +1298,7 @@ describe('admin endpoints', () => {
       expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
     });
 
-    it('rejects limit above 100 via Zod with 400', async () => {
+    it('rejects limit above 80 via Zod with 400 (aligned with broadcastSchema)', async () => {
       const res = await request(
         'POST',
         '/admin/send-migration',
