@@ -101,7 +101,7 @@
 - [x] Run `pnpm docs:index` to regenerate generated indexes against the post-archive corpus.
 - [x] Run `pnpm docs:check:update-baseline` to capture the combined baseline shrink from Tasks 3–5.
 - [x] Confirm `pnpm docs:check` reports 0 new errors and the baseline has shrunk; record the delta (per-surface counts before/after) in the DOCGOV-008 task body.
-- [ ] Mark DOCGOV-008 complete only after `pnpm docs:check && pnpm docs:index:check && pnpm format:check && pnpm lint:check && pnpm test:docs-check` pass.
-- [ ] Update `plans/index.aps.md` DOCGOV progress counter (8/10) and module narrative.
+- [x] Mark DOCGOV-008 complete only after `pnpm docs:check && pnpm docs:index:check && pnpm format:check && pnpm lint:check && pnpm test:docs-check` pass.
+- [x] Update `plans/index.aps.md` DOCGOV progress counter (8/10) and module narrative.
 
-**Closeout note:** This branch completes Tasks 1–5 and regenerates the baseline / indexes for Task 6. Local closeout validation passed with `pnpm docs:check`, `pnpm docs:index:check`, `pnpm format:check`, `pnpm lint:check`, and `pnpm test:docs-check`. DOCGOV-008 remains `In Progress` until PR CI passes; the final status/count update stays unchecked until then.
+**Closeout note:** This branch completed Tasks 1–6 and regenerated the baseline / indexes for Task 6. Fresh closeout validation passed on 2026-05-24 with `pnpm docs:check && pnpm docs:index:check && pnpm format:check && pnpm lint:check && pnpm test:docs-check`. DOCGOV-008 is now closed in APS; DOCGOV-009 is unblocked.

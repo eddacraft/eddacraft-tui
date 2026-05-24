@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 7/10     |
+| DOCGOV | —     | In Progress | 8/10     |
 
 ## Purpose
 
@@ -339,8 +339,8 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-008: Migrate stale entrypoints and archive dead docs
 
-- **Status:** In Progress
-- **Execution plan:** [`plans/execution/DOCGOV-008.steps.md`](../execution/DOCGOV-008.steps.md); audit evidence + closeout delta at [`plans/execution/DOCGOV-008.audit.md`](../execution/DOCGOV-008.audit.md). All 6 tasks complete locally on `docs/docgov-008-archive-dead-docs` (release-runbook relocation via Option A; 19 archive moves; 20 files moved out-of-repo to `~/Projects/anvil-gtm-wip/`; entrypoint relinks; baseline `metadata` shrank 179 → 140). Final closeout remains In Progress until PR opens and CI passes.
+- **Status:** Complete
+- **Execution plan:** [`plans/execution/DOCGOV-008.steps.md`](../execution/DOCGOV-008.steps.md); audit evidence + closeout delta at [`plans/execution/DOCGOV-008.audit.md`](../execution/DOCGOV-008.audit.md). All 6 tasks completed on `docs/docgov-008-archive-dead-docs` (release-runbook relocation via Option A; 19 archive moves; 20 files moved out-of-repo to `~/Projects/anvil-gtm-wip/`; entrypoint relinks; baseline `metadata` shrank 179 → 140). PR [#1892](https://github.com/eddacraft/anvil-001/pull/1892) closed after the branch reached `main` at `14a40a78`; fresh closeout validation passed on 2026-05-24.
 - **Intent:** Reduce ambiguity by fixing stale onboarding links, archiving
   dead operational docs out of active paths, and resolving the long-standing
   release-runbook migration exception — done before the live-doc backfill /
@@ -368,6 +368,13 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 - **Coordinates with:** DOCGOV-009 (run archive first so backfill skips
   dead docs), DOCGOV-010 (archive moves complete before live reorg so the
   same doc isn't shuffled twice)
+- **Closeout:** Validation passed with
+  `pnpm docs:check && pnpm docs:index:check && pnpm format:check && pnpm lint:check && pnpm test:docs-check`
+  on 2026-05-24. `pnpm docs:check` reported 7/7 surfaces passing under the
+  refreshed baseline; `pnpm docs:index:check` reported 0 errors / 0 warnings;
+  format, lint, Rust clippy/fmt-check, and docs-check fixture tests passed. One
+  pre-existing ESLint warning remains in
+  `crates/anvil-checks-napi/index.d.ts` as non-blocking lint output.
 - **Confidence:** medium
 
 ### DOCGOV-009: Backfill metadata on existing live documentation
