@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 7/12     |
+| CIB | —     | In Progress | 8/13     |
 
 ## Purpose
 
@@ -476,3 +476,23 @@ archive.
 - **Validation:** CLI test that invokes `anvil check --staged` (without
   `--changed`) and asserts non-error exit + correct behaviour.
 - **Confidence:** high — trivial clap change.
+
+### CIB-013: Add agent continuous-improvement closeout to dev-workflow
+
+- **Status:** Done
+- **Intent:** Make continuous improvement part of the normal agent lifecycle
+  instead of relying on manual tmux reconstruction after sessions finish.
+- **Expected Outcome:** Repo-local OpenCode and Claude `dev-workflow` skills
+  explicitly trigger for all Anvil development/docs/config/review/release work,
+  require a compact session-learning note before final response on non-trivial
+  tasks, and point agents at a shared evidence log rather than a second backlog.
+- **Validation:** Manual diff of `.opencode/skills/dev-workflow/SKILL.md`,
+  `.claude/skills/dev-workflow/SKILL.md`, and
+  `plans/reviews/continuous-improvement-log.md`; `git diff --check`.
+- **Identified From:** User report 2026-05-24 that Claude agents regularly skip
+  `dev-workflow` unless invoked manually, plus discussion about lightweight
+  continuous-improvement logging.
+- **Files:** `.opencode/skills/dev-workflow/SKILL.md`,
+  `.claude/skills/dev-workflow/SKILL.md`,
+  `plans/reviews/continuous-improvement-log.md`.
+- **Confidence:** high

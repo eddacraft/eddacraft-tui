@@ -1,10 +1,11 @@
 ---
 name: dev-workflow
 description:
-  Use at the start of any development task to route to the correct skill, agent,
-  and command for each lifecycle stage in this repo. Covers the full APS →
-  branch → code → council → PR → cleanup loop, tuned to anvil's main-first
-  cutover and risk-tiered Council tiers.
+  MANDATORY for any Anvil development, docs, config, planning, PR, review,
+  debugging, release, or repository-maintenance task. Use before touching files,
+  running implementation commands, committing, opening PRs, or declaring work
+  complete. Routes to the correct skill, agent, and command for the full APS →
+  branch → code → council → PR → cleanup → continuous-improvement loop.
 ---
 
 # Dev Workflow
@@ -16,12 +17,29 @@ This is the Anvil vendored variant of the neutral EddaCraft skill at
 aligned with the neutral source, but preserve Anvil-specific APS, Worktrunk,
 main-first, Council, and release-closeout rules here.
 
-Routing layer for the development lifecycle. Every task follows this sequence —
-do not skip stages.
+Routing layer for the development lifecycle. Invoke this skill first for every
+non-trivial Anvil task, including documentation/configuration changes and review
+remediation. Every task follows this sequence — do not skip stages.
 
 ```
-APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped
+APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped → CI note
 ```
+
+## Trigger Contract
+
+Use this skill whenever the user asks to:
+
+- implement, fix, refactor, test, debug, review, release, or document anything in
+  this repository
+- edit `.opencode/`, `.claude/`, `AGENTS.md`, `docs/**`, `plans/**`, source,
+  tests, workflows, scripts, or package/crate metadata
+- continue an existing branch, address PR comments, investigate CI, or prepare a
+  commit/PR
+- make a process, agent, skill, workflow, or repository-maintenance change
+
+Do not wait for the user to say "use dev-workflow". If the task touches the
+repository lifecycle, load this skill first, then route to the specific skill for
+the current stage.
 
 ## Surface inventory
 
@@ -130,6 +148,11 @@ item for producing the definitive inventory.
     (often invalid `decision` values like `"allow"` / `"ask"` in the legacy
     schema) that may be silently allowing or blocking commands. Do not just keep
     running.
+16. **Write a continuous-improvement note.** Before the final response on any
+    non-trivial task, append one compact entry to
+    `plans/reviews/continuous-improvement-log.md`. Keep it factual and short;
+    raw observations belong in the log, recurring or executable improvements
+    should be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
 
 ## Decision Points
 
@@ -172,6 +195,38 @@ only when the user explicitly asks
 **Multiple independent tasks:** → `parallel-agents` to dispatch subagents per
 task
 
+**Before final response on non-trivial work:** → append a compact
+continuous-improvement note to `plans/reviews/continuous-improvement-log.md` →
+promote only concrete follow-up work to `CIB-NNN` if it has an observable outcome
+and validation path
+
+## Continuous Improvement Closeout
+
+Append exactly one lightweight note per non-trivial session or meaningful failed
+attempt. Do not write long retrospectives. Prefer this XML-ish shape because it
+is quick for agents, readable in diffs, and easy to search:
+
+```md
+<ci-log date="YYYY-MM-DD" agent="opencode|claude|other">
+task:
+outcome:
+worked:
+failed:
+friction:
+improvement:
+follow-up:
+</ci-log>
+```
+
+Rules:
+
+- If there is no useful learning, write `improvement: none` rather than forcing
+  a suggestion.
+- Do not include secrets, private tokens, or raw environment dumps.
+- Keep command output out of the log unless the exact command is the lesson.
+- Promote repeated friction or executable fixes to the CIB APS module; do not
+  let the log become a second backlog.
+
 ## APS Status Lifecycle
 
 ```
@@ -190,6 +245,9 @@ auto-advances post-merge states when release evidence is recorded.
 - Worktree policy: `docs/guides/worktree-policy.md`
 - APS rules: `plans/aps-rules.md`
 - Post-merge template: `plans/reviews/post-merge/TEMPLATE.md`
+- Continuous-improvement log: `plans/reviews/continuous-improvement-log.md`
+- Continuous-improvement backlog:
+  `plans/modules/continuous-improvement-backlog.aps.md`
 - Council command (repo-local):
   [`.claude/commands/council.md`](../../../.claude/commands/council.md)
 - Parallel Claude version of this skill:

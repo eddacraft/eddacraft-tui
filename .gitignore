@@ -176,6 +176,7 @@ review/
 # Lint tooling already excludes the whole `plans/` tree via .markdownlintignore
 # and .prettierignore, so nothing tracked here is in scope for format/lint.
 plans/reviews/*
+!plans/reviews/continuous-improvement-log.md
 !plans/reviews/post-merge/
 !plans/reviews/release-council/
 
