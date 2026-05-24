@@ -7,8 +7,9 @@
 
 ## Pre-release checklist
 
-1. All checks pass locally (`cargo fmt --check`, `clippy`, `test`, `publish --dry-run`)
-   CI runs automatically on PRs targeting main, not on dev pushes.
+1. All checks pass locally (`cargo fmt --check`, `clippy`, `test`,
+   `publish --dry-run`) CI runs automatically on PRs targeting main, not on dev
+   pushes.
 2. Update version in `Cargo.toml`
 3. Update snapshot tests if the version string appears in rendered output:
    ```sh
@@ -28,9 +29,9 @@ git tag v0.1.0-rc.0
 git push origin v0.1.0-rc.0
 ```
 
-Pre-release tags (`v0.1.0-rc.0`, `v0.1.0-beta.1`, etc.) do **not** trigger
-the release workflow. The CI job still runs `cargo publish --dry-run` to
-validate packaging.
+Pre-release tags (`v0.1.0-rc.0`, `v0.1.0-beta.1`, etc.) do **not** trigger the
+release workflow. The CI job still runs `cargo publish --dry-run` to validate
+packaging.
 
 ## Release
 
@@ -74,10 +75,11 @@ Triggered by pushing an exact semver tag (`vX.Y.Z`) to any branch:
 
 - **Tag/manifest mismatch**: The workflow verifies the tag matches `Cargo.toml`.
   If it fails, delete the tag, fix the version, and re-tag.
-- **Snapshot test failure**: Run `INSTA_UPDATE=always cargo test` and commit
-  the updated snapshot files.
+- **Snapshot test failure**: Run `INSTA_UPDATE=always cargo test` and commit the
+  updated snapshot files.
 - **Pre-release tag triggered release**: Should not happen with current config.
-  The release workflow uses GitHub Actions filter pattern `v[0-9]+.[0-9]+.[0-9]+`
-  where `+` means "one or more of the preceding character" (GitHub's extended
-  glob syntax, not regex). This matches exact `vX.Y.Z` tags only — suffixes
-  like `-rc.0` are excluded because there is no trailing wildcard.
+  The release workflow uses GitHub Actions filter pattern
+  `v[0-9]+.[0-9]+.[0-9]+` where `+` means "one or more of the preceding
+  character" (GitHub's extended glob syntax, not regex). This matches exact
+  `vX.Y.Z` tags only — suffixes like `-rc.0` are excluded because there is no
+  trailing wildcard.
