@@ -7,8 +7,8 @@
 | ---- | ---------- | ----------- | -------- |
 | TUIR | joshuaboys | In Progress | 6/8      |
 
-**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow `Merged
-2026-05-24 via PR #1894`; module progress ticks 5/8 → 6/8. The
+**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow `Merged`
+2026-05-24 via PR #1894; module progress ticks 5/8 → 6/8. The
 deferred status flip was missed at PR #1894 merge time (the planned
 final pre-merge commit never landed) and is reconciled here, matching
 the ATTRIB-008 / PR #1893 post-merge reconcile precedent.
