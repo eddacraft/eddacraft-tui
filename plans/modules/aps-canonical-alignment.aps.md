@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 1/10     |
+| APSCAN | —     | In Progress | 1/11     |
 
 ## Purpose
 
@@ -111,7 +111,7 @@ Migrate in waves:
 
 ### APSCAN-002: Split portable APS rules from Anvil project context
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Let `plans/aps-rules.md` track canonical APS guidance while Anvil's
   Worktrunk, Council, release, and lifecycle extensions remain explicit local
   context.
@@ -228,4 +228,30 @@ Migrate in waves:
 - **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`, `scripts/docs/**`,
   `scripts/aps/**`
 - **Dependencies:** APSCAN-001, APSCAN-002, APSCAN-003, APSCAN-006, APSCAN-009
+- **Confidence:** medium
+
+### APSCAN-011: Add APS TUI dashboard
+
+- **Status:** Ready
+- **Intent:** Provide a read-only terminal dashboard for active APS work so
+  operators and agents can see in-progress modules, ready work, blocked work, and
+  local reconciliation hints without manually reading the APS index and every
+  module file.
+- **Expected Outcome:** `anvil plan dashboard` builds a local-only
+  `PlanStatusSnapshot`, renders active APS state in a Ratatui dashboard, flags
+  APS-only consistency issues, and keeps an empty v1 enrichment seam for future
+  GitHub/CI annotations.
+- **Validation:** `cargo test -p eddacraft-anvil plan_dashboard && cargo test -p
+  eddacraft-anvil-tui plan_dashboard && pnpm format:check && pnpm docs:check`
+- **Files:** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-cli/src/commands/mod.rs`,
+  `crates/anvil-cli/src/commands/plan.rs`,
+  `crates/anvil-cli/src/plan_dashboard.rs`,
+  `crates/anvil-tui/src/surfaces/mod.rs`,
+  `crates/anvil-tui/src/surfaces/plan_dashboard/mod.rs`,
+  `crates/anvil-tui/src/surfaces/plan_dashboard/render.rs`,
+  `crates/anvil-tui/src/surfaces/plan_dashboard/event_adapter.rs`
+- **Dependencies:** APSCAN-001
+- **Spec:** `plans/specs/2026-05-24-aps-tui-dashboard.md`
+- **Execution Plan:** `plans/execution/2026-05-24-aps-tui-dashboard.md`
 - **Confidence:** medium

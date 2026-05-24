@@ -9,6 +9,7 @@ mod insights;
 mod l4_engine;
 mod mcp;
 mod output;
+mod plan_dashboard;
 mod services;
 mod tui;
 mod update_hint;
@@ -173,6 +174,8 @@ enum Commands {
     McpConfig(commands::mcp_config::McpConfigArgs),
     /// Manage and serve MCP integrations.
     Mcp(commands::mcp::McpArgs),
+    /// Inspect APS planning state.
+    Plan(commands::plan::PlanArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -249,6 +252,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
         Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
+        Commands::Plan(_) => "plan",
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -862,6 +866,7 @@ fn main() -> ExitCode {
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
         Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
+        Commands::Plan(args) => commands::plan::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
@@ -1138,6 +1143,19 @@ mod tests {
     #[test]
     fn bypass_auth_validate() {
         assert!(!requires_auth(&parse_command(&["validate", "plan.aps.md"])));
+    }
+
+    #[test]
+    fn bypass_auth_plan_dashboard() {
+        assert!(!requires_auth(&parse_command(&["plan", "dashboard"])));
+    }
+
+    #[test]
+    fn canonical_name_plan_dashboard() {
+        assert_eq!(
+            command_canonical_name(&parse_command(&["plan", "dashboard"])),
+            "plan"
+        );
     }
 
     #[test]

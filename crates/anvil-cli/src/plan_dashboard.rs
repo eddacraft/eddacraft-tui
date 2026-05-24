@@ -1,0 +1,495 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use serde::Serialize;
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PlanStatusSnapshot {
+    pub repo_root: PathBuf,
+    pub modules: Vec<ModuleSummary>,
+    pub work_items: Vec<WorkItemSummary>,
+    pub warnings: Vec<PlanWarning>,
+    pub enrichments: Vec<PlanEnrichment>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ModuleSummary {
+    pub scope: String,
+    pub title: String,
+    pub path: PathBuf,
+    pub status: String,
+    pub done: Option<usize>,
+    pub total: Option<usize>,
+    pub section: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkItemSummary {
+    pub id: String,
+    pub title: String,
+    pub module: String,
+    pub status: String,
+    pub validation: Option<String>,
+    pub dependencies: Vec<String>,
+    pub files: Vec<String>,
+    #[serde(skip)]
+    pub(crate) body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PlanWarning {
+    pub kind: PlanWarningKind,
+    pub module: Option<String>,
+    pub work_item: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum PlanWarningKind {
+    ProgressMismatch,
+    MissingModulePath,
+    MissingValidation,
+    InProgressAllDone,
+    MergedProseOpenStatus,
+    BlockedDependencyComplete,
+    NoReadyNextItem,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct PlanEnrichment;
+
+pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot> {
+    let index_path = repo_root.join("plans/index.aps.md");
+    let index = fs::read_to_string(&index_path)
+        .with_context(|| format!("failed to read {}", index_path.display()))?;
+
+    let mut modules = parse_index_modules(&index);
+    let mut work_items = Vec::new();
+    let mut warnings = Vec::new();
+
+    for module in &modules {
+        let module_path = repo_root.join("plans").join(&module.path);
+        let Ok(contents) = fs::read_to_string(&module_path) else {
+            warnings.push(PlanWarning {
+                kind: PlanWarningKind::MissingModulePath,
+                module: Some(module.scope.clone()),
+                work_item: None,
+                message: format!("module path is missing: {}", module.path.display()),
+            });
+            continue;
+        };
+
+        let parsed_items = parse_work_items(&module.scope, &contents);
+        let done = parsed_items
+            .iter()
+            .filter(|item| is_done(&item.status))
+            .count();
+        let total = parsed_items.len();
+
+        if total > 0
+            && (module.done.is_some_and(|module_done| module_done != done)
+                || module
+                    .total
+                    .is_some_and(|module_total| module_total != total))
+        {
+            warnings.push(PlanWarning {
+                kind: PlanWarningKind::ProgressMismatch,
+                module: Some(module.scope.clone()),
+                work_item: None,
+                message: format!(
+                    "index progress is {}/{}, parsed module progress is {}/{}",
+                    module.done.unwrap_or_default(),
+                    module.total.unwrap_or_default(),
+                    done,
+                    total
+                ),
+            });
+        }
+
+        if total > 0 && done == total && module.status.eq_ignore_ascii_case("in progress") {
+            warnings.push(PlanWarning {
+                kind: PlanWarningKind::InProgressAllDone,
+                module: Some(module.scope.clone()),
+                work_item: None,
+                message: "module is in progress but every parsed work item is done".to_string(),
+            });
+        }
+
+        if total > 0 && !parsed_items.iter().any(|item| is_ready(&item.status)) {
+            warnings.push(PlanWarning {
+                kind: PlanWarningKind::NoReadyNextItem,
+                module: Some(module.scope.clone()),
+                work_item: None,
+                message: "module has active work but no ready next item".to_string(),
+            });
+        }
+
+        let completed_ids: Vec<_> = parsed_items
+            .iter()
+            .filter(|item| is_done(&item.status))
+            .map(|item| item.id.clone())
+            .collect();
+
+        for item in &parsed_items {
+            if !is_done(&item.status) && item.validation.is_none() {
+                warnings.push(PlanWarning {
+                    kind: PlanWarningKind::MissingValidation,
+                    module: Some(module.scope.clone()),
+                    work_item: Some(item.id.clone()),
+                    message: "open work item has no validation command".to_string(),
+                });
+            }
+
+            if !is_done(&item.status) && item.body.to_ascii_lowercase().contains("merged") {
+                warnings.push(PlanWarning {
+                    kind: PlanWarningKind::MergedProseOpenStatus,
+                    module: Some(module.scope.clone()),
+                    work_item: Some(item.id.clone()),
+                    message: "work item mentions merged state but is still open".to_string(),
+                });
+            }
+
+            if item.status.eq_ignore_ascii_case("blocked")
+                && item
+                    .dependencies
+                    .iter()
+                    .any(|dependency| completed_ids.iter().any(|id| dependency.contains(id)))
+            {
+                warnings.push(PlanWarning {
+                    kind: PlanWarningKind::BlockedDependencyComplete,
+                    module: Some(module.scope.clone()),
+                    work_item: Some(item.id.clone()),
+                    message: "blocked item depends on a completed item".to_string(),
+                });
+            }
+        }
+
+        work_items.extend(parsed_items);
+    }
+
+    // Keep the future enrichment seam explicit but empty in the APS-only v1.
+    let enrichments = Vec::new();
+
+    // Stable row order helps tests and later non-interactive renderers.
+    modules.sort_by(|left, right| left.scope.cmp(&right.scope));
+
+    Ok(PlanStatusSnapshot {
+        repo_root: repo_root.to_path_buf(),
+        modules,
+        work_items,
+        warnings,
+        enrichments,
+    })
+}
+
+fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
+    let mut section = None;
+    let mut modules = Vec::new();
+
+    for line in index.lines() {
+        if let Some(heading) = line
+            .strip_prefix("### ")
+            .or_else(|| line.strip_prefix("## "))
+        {
+            section = Some(heading.trim().to_string());
+            continue;
+        }
+
+        if !line.trim_start().starts_with('|') || !line.contains("](.") {
+            continue;
+        }
+
+        let cells = table_cells(line);
+        if cells.len() < 4 || cells[0].eq_ignore_ascii_case("module") {
+            continue;
+        }
+
+        let Some((title, path)) = parse_markdown_link(&cells[0]) else {
+            continue;
+        };
+
+        let (done, total) = parse_progress(&cells[3]);
+        modules.push(ModuleSummary {
+            scope: cells.get(1).cloned().unwrap_or_default(),
+            title,
+            path: PathBuf::from(path.trim_start_matches("./")),
+            status: cells.get(2).cloned().unwrap_or_default(),
+            done,
+            total,
+            section: section.clone(),
+            notes: cells.get(4).cloned(),
+        });
+    }
+
+    modules
+}
+
+fn parse_work_items(module: &str, contents: &str) -> Vec<WorkItemSummary> {
+    let mut items = Vec::new();
+    let mut current: Option<WorkItemSummary> = None;
+
+    for line in contents.lines() {
+        if let Some(rest) = line.strip_prefix("### ")
+            && let Some((id, title)) = rest.split_once(':')
+        {
+            if let Some(item) = current.take() {
+                items.push(item);
+            }
+            current = Some(WorkItemSummary {
+                id: id.trim().to_string(),
+                title: title.trim().to_string(),
+                module: module.to_string(),
+                status: "open".to_string(),
+                validation: None,
+                dependencies: Vec::new(),
+                files: Vec::new(),
+                body: String::new(),
+            });
+            continue;
+        }
+
+        let Some(item) = current.as_mut() else {
+            continue;
+        };
+
+        item.body.push_str(line);
+        item.body.push('\n');
+
+        if let Some(value) = parse_field(line, "Status") {
+            item.status = value;
+        } else if let Some(value) = parse_field(line, "Validation") {
+            item.validation = Some(value);
+        } else if let Some(value) = parse_field(line, "Dependencies") {
+            item.dependencies = split_inline_list(&value);
+        } else if let Some(value) = parse_field(line, "Files") {
+            item.files = split_inline_list(&value);
+        }
+    }
+
+    if let Some(item) = current {
+        items.push(item);
+    }
+
+    items
+}
+
+fn parse_field(line: &str, name: &str) -> Option<String> {
+    let trimmed = line.trim().trim_start_matches('-').trim();
+    let bold_prefix = format!("**{name}:**");
+    let plain_prefix = format!("{name}:");
+
+    trimmed
+        .strip_prefix(&bold_prefix)
+        .or_else(|| trimmed.strip_prefix(&plain_prefix))
+        .map(|value| value.trim().trim_matches('`').to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn table_cells(line: &str) -> Vec<String> {
+    line.trim_matches('|')
+        .split('|')
+        .map(|cell| cell.trim().to_string())
+        .collect()
+}
+
+fn parse_markdown_link(value: &str) -> Option<(String, String)> {
+    let label_start = value.find('[')? + 1;
+    let label_end = value[label_start..].find(']')? + label_start;
+    let path_start = value[label_end..].find('(')? + label_end + 1;
+    let path_end = value[path_start..].find(')')? + path_start;
+    Some((
+        value[label_start..label_end].to_string(),
+        value[path_start..path_end].to_string(),
+    ))
+}
+
+fn parse_progress(value: &str) -> (Option<usize>, Option<usize>) {
+    let Some((left, right)) = value.split_once('/') else {
+        return (None, None);
+    };
+
+    let done = left
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .ok();
+    let total = right
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .ok();
+    (done, total)
+}
+
+fn split_inline_list(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn is_done(status: &str) -> bool {
+    matches!(
+        status.to_ascii_lowercase().as_str(),
+        "done" | "complete" | "completed" | "merged" | "released" | "released/shipped" | "archived"
+    )
+}
+
+fn is_ready(status: &str) -> bool {
+    matches!(status.to_ascii_lowercase().as_str(), "ready" | "open")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    fn write(path: impl AsRef<std::path::Path>, contents: &str) {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, contents).unwrap();
+    }
+
+    fn fixture_repo() -> tempfile::TempDir {
+        let dir = tempdir().unwrap();
+        write(
+            dir.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+## Engineering Platform
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 1/2 | Active APS migration work. |
+"#,
+        );
+        write(
+            dir.path()
+                .join("plans/modules/aps-canonical-alignment.aps.md"),
+            r#"# APS Canonical Alignment
+
+| ID | Owner | Status | Progress |
+| -- | ----- | ------ | -------- |
+| APSCAN | — | In Progress | 1/2 |
+
+## Work Items
+
+### APSCAN-001: Done item
+
+- **Status:** Done
+- **Validation:** `pnpm test:aps-active-lint`
+
+### APSCAN-002: Ready item
+
+- **Status:** Ready
+- **Validation:** `pnpm docs:check`
+- **Dependencies:** APSCAN-001
+"#,
+        );
+        dir
+    }
+
+    #[test]
+    fn loads_index_modules() {
+        let repo = fixture_repo();
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert_eq!(snapshot.modules.len(), 1);
+        assert_eq!(snapshot.modules[0].scope, "APSCAN");
+        assert_eq!(snapshot.modules[0].done, Some(1));
+        assert_eq!(snapshot.modules[0].total, Some(2));
+        assert_eq!(snapshot.work_items.len(), 2);
+        assert!(snapshot.enrichments.is_empty());
+    }
+
+    #[test]
+    fn detects_index_module_count_mismatch() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 0/2 | Active APS migration work. |
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(snapshot.warnings.iter().any(|warning| {
+            warning.module.as_deref() == Some("APSCAN")
+                && warning.kind == PlanWarningKind::ProgressMismatch
+        }));
+    }
+
+    #[test]
+    fn detects_missing_module_path() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r#"# Test Plan
+
+| Module | Scope | Status | Progress | Notes |
+| ------ | ----- | ------ | -------- | ----- |
+| [missing](./modules/missing.aps.md) | MISS | In Progress | 0/1 | Missing. |
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(snapshot.warnings.iter().any(|warning| {
+            warning.module.as_deref() == Some("MISS")
+                && warning.kind == PlanWarningKind::MissingModulePath
+        }));
+    }
+
+    #[test]
+    fn detects_open_item_without_validation() {
+        let repo = fixture_repo();
+        write(
+            repo.path()
+                .join("plans/modules/aps-canonical-alignment.aps.md"),
+            r#"# APS Canonical Alignment
+
+| ID | Owner | Status | Progress |
+| -- | ----- | ------ | -------- |
+| APSCAN | — | In Progress | 0/1 |
+
+## Work Items
+
+### APSCAN-002: Ready item
+
+- **Status:** Ready
+"#,
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(snapshot.warnings.iter().any(|warning| {
+            warning.work_item.as_deref() == Some("APSCAN-002")
+                && warning.kind == PlanWarningKind::MissingValidation
+        }));
+    }
+
+    #[test]
+    fn leaves_enrichments_empty() {
+        let repo = fixture_repo();
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(snapshot.enrichments.is_empty());
+    }
+}

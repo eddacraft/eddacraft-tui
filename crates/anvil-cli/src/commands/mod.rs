@@ -27,6 +27,7 @@ pub mod mcp;
 pub mod mcp_config;
 pub mod migrate;
 pub mod new;
+pub mod plan;
 pub mod policy;
 pub mod protection_claim_section;
 pub mod start;
