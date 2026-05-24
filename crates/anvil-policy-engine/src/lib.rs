@@ -2,25 +2,21 @@
 //!
 //! Downstream crates depend on this facade, never on `regorus` directly,
 //! so the engine choice stays swappable without a fan-out refactor.
-//! Schema, builtins, determinism, post-processing, coverage/trace, CLI,
-//! and bench harness land in POLENG-002..-008.
+//! Builtins, determinism, post-processing, coverage/trace, CLI, and bench
+//! harness land in POLENG-003..-008; the `PolicyInput` v1 schema (POLENG-002)
+//! lives in [`input`].
 
 use regorus::{Engine as RegorusEngine, Value as RegorusValue};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+pub mod input;
+
+pub use input::PolicyInput;
 
 /// Configuration for an [`Engine`]. Empty in the skeleton; populated by
 /// later POLENG tasks (determinism opt-ins, builtin allow-list, etc.).
 #[derive(Debug, Clone, Default)]
 pub struct EngineConfig {}
-
-/// Versioned input data document policies receive at eval time.
-///
-/// Skeleton placeholder — POLENG-002 owns the v1 schema and snapshot
-/// tests. Today the document is empty; `Engine::eval` still threads it
-/// through so the API shape is stable for downstream crates.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct PolicyInput {}
 
 /// Result of a single evaluation.
 ///

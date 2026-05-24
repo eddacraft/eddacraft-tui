@@ -1,0 +1,53 @@
+---
+source: crates/anvil-policy-engine/src/input.rs
+expression: json
+---
+{
+  "schema_version": "v1",
+  "repo_state": {
+    "files": [
+      "src/app.rs",
+      "src/db.rs"
+    ],
+    "edges": [
+      {
+        "from": "src/app.rs",
+        "to": "src/db.rs"
+      }
+    ]
+  },
+  "plans": [
+    {
+      "path": "plans/modules/policy-engine.aps.md",
+      "id": "POLENG",
+      "status": "In Progress"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "040",
+      "title": "Adopt regorus as the Anvil Policy Engine",
+      "status": "Accepted"
+    }
+  ],
+  "diff": {
+    "changed_files": [
+      "src/app.rs"
+    ],
+    "new_edges": [
+      {
+        "from": "src/app.rs",
+        "to": "src/db.rs"
+      }
+    ]
+  },
+  "baseline": {
+    "findings": [
+      {
+        "rule_id": "anti-pattern:guardrail-suppression",
+        "file_path": "src/legacy.rs",
+        "fingerprint": "f00dcafe12345678"
+      }
+    ]
+  }
+}

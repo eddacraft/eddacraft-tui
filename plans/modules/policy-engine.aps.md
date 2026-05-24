@@ -3,15 +3,16 @@
 
 # Policy Engine
 
-| ID     | Owner | Priority | Status |
-| ------ | ----- | -------- | ------ |
-| POLENG | —     | high     | Ready  |
+| ID     | Owner | Priority | Status      |
+| ------ | ----- | -------- | ----------- |
+| POLENG | —     | high     | In Progress |
 
-**Last reviewed:** 2026-05-13
+**Last reviewed:** 2026-05-25
 
 > Module promoted to Ready 2026-05-13 once ADR-040 reached Accepted.
-> POLENG-001 is authorised for execution. POLENG-002..-008 remain
-> non-executable until their listed dependencies close (the parser
+> POLENG-001 merged 2026-05-12 (PR #1485), so POLENG-002, POLENG-004, and
+> POLENG-006 (which depend only on POLENG-001) are now executable; the
+> remaining tasks unlock as their in-module dependencies close (the parser
 > evaluates executability per-task, not per-module).
 
 > ADR-040 picks `regorus` as the embedded Rust policy engine. This module
@@ -142,7 +143,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-001: Engine facade crate skeleton
 
-- **Status:** In Progress (2026-05-13)
+- **Status:** Merged 2026-05-12 via PR #1485
 - **Intent:** Establish `crates/anvil-policy-engine` over `regorus` with the
   minimal facade types so downstream work can begin
 - **Expected Outcome:** Crate added to the workspace; `Engine`,
@@ -157,6 +158,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-002: PolicyInput v1 schema
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Pin the input data document policies receive — repo state,
   plan files, decisions, diff, baseline cohort — as a versioned, stable
   contract

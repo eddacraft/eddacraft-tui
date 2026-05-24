@@ -1445,6 +1445,7 @@ dependencies = [
 name = "eddacraft-anvil-policy-engine"
 version = "0.7.1-beta"
 dependencies = [
+ "insta",
  "regorus",
  "serde",
  "serde_json",
