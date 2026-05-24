@@ -4,8 +4,10 @@ These conventions apply to all agents working in this project.
 
 ## Planning — Anvil Plan Spec (APS)
 
-All multi-step work MUST use APS format. Read `plans/aps-rules.md` for the full
-spec before writing or modifying any `.aps.md` file.
+All multi-step work MUST use APS format. Read `plans/aps-rules.md` for portable
+APS rules and `plans/project-context.md` for Anvil-specific workflow, release,
+and documentation-governance context before writing or modifying any `.aps.md`
+file.
 
 ### Single source of truth
 
@@ -20,7 +22,7 @@ confusion.
 - **Modules:** `plans/modules/<module>.aps.md` (active),
   `plans/archive/modules/` (completed)
 - **Work item IDs:** `PREFIX-NNN` (3-digit zero-padded)
-- **Statuses:** Draft → Proposed → Ready → In Progress → Complete
+- **Statuses:** Proposed → Ready → In Progress → Done → Blocked
 - **Wave-based** parallel execution for independent work items
 - **UK English** spelling in all plan text
 
@@ -33,12 +35,15 @@ Agents MUST update APS state as they work — do not leave this for later:
    or table row) in the module file
 3. **After completing a work item:** update the done/total count in the module
    file's header table
-4. **After all active items done:** update module status to **Complete**
+4. **After all active items done:** update schema status to **Done**; use
+   **Complete** only as lifecycle prose when closeout/archive evidence supports
+   it
 5. **Update `plans/index.aps.md`** whenever a module's count or status changes
 6. **Archive completed modules:** `git mv` to `plans/archive/modules/` and
    update the path in `index.aps.md`
 
-Reference spec: <https://github.com/eddacraft/anvil-plan-spec>
+Reference spec: <https://github.com/eddacraft/anvil-plan-spec> Project context:
+[`plans/project-context.md`](plans/project-context.md)
 
 ## Architecture and Design Decisions
 
@@ -212,8 +217,8 @@ APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → clea
 | Address review | —                       | `addressing-pr-reviews`             |
 | Verify         | cleanup agent (cron)    | `verification-before-completion`    |
 
-Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` ·
-`docs/guides/worktree-policy.md` ·
+Reference: `plans/aps-rules.md` · `plans/project-context.md` ·
+`docs/guides/branching-strategy.md` · `docs/guides/worktree-policy.md` ·
 [`docs/guides/agent-surface-inventory.md`](docs/guides/agent-surface-inventory.md)
 — authoritative list of which skills and agents are repo-local vs global.
 
@@ -225,7 +230,8 @@ Reference: `plans/aps-rules.md` · `docs/guides/branching-strategy.md` ·
 ## Feature Flags
 
 When introducing or modifying feature flags, follow the governance rules in
-`docs/guides/feature-flag-governance.md` and `plans/aps-rules.md`. Key points:
+`docs/guides/feature-flag-governance.md` and `plans/project-context.md`. Key
+points:
 
 - Every flag needs `createdFor` linking to an APS work item
 - `rollout` flags must have a sunset date (`expiryOrReviewDate`)

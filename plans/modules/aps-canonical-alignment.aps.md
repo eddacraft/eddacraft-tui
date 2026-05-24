@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 2/11     |
+| APSCAN | —     | In Progress | 3/11     |
 
 ## Purpose
 
@@ -45,7 +45,9 @@ lifecycle semantics.
 
 - [`anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) — canonical
   APS repository, currently reviewed at `v0.3.0`.
-- `plans/aps-rules.md` — current Anvil APS authoring and execution guidance.
+- `plans/aps-rules.md` — portable APS authoring and execution guidance.
+- `plans/project-context.md` — Anvil-specific workflow, release, and closeout
+  context.
 - `plans/index.aps.md` and `plans/modules/*.aps.md` — active plan authority.
 - `packages/aps/**` — Anvil's local APS parser, validator, state, and template
   implementation.
@@ -111,7 +113,7 @@ Migrate in waves:
 
 ### APSCAN-002: Split portable APS rules from Anvil project context
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Let `plans/aps-rules.md` track canonical APS guidance while Anvil's
   Worktrunk, Council, release, and lifecycle extensions remain explicit local
   context.
@@ -119,8 +121,16 @@ Migrate in waves:
   and Anvil-specific rules live in a project-owned context surface linked from
   agent guidance.
 - **Validation:** Manual diff against `anvil-plan-spec/scaffold/plans/aps-rules-v2.md`;
-  `pnpm docs:check`
+  `pnpm docs:check`; `pnpm aps:drift --json`
 - **Files:** `plans/aps-rules.md`, `plans/project-context.md`, `AGENTS.md`
+- **Closeout:** `plans/aps-rules.md` now keeps the portable APS guidance close
+  to the canonical scaffold, `plans/project-context.md` owns Anvil-specific
+  workflow/release/documentation context, and `AGENTS.md` links agents to both
+  surfaces. Manual comparison against
+  `anvil-plan-spec/scaffold/plans/aps-rules-v2.md` confirmed the portable
+  sections retain the canonical shape while forwarding anchors preserve existing
+  Anvil links. Validation passed locally with `pnpm docs:check` and `pnpm
+  aps:drift --json`.
 - **Confidence:** medium
 
 ### APSCAN-003: Add canonical aliases to Anvil APS parser and validator
