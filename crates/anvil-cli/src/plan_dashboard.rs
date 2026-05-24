@@ -60,6 +60,7 @@ pub enum PlanWarningKind {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct PlanEnrichment;
 
+#[allow(clippy::too_many_lines)]
 pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot> {
     let index_path = repo_root.join("plans/index.aps.md");
     let index = fs::read_to_string(&index_path)
@@ -228,7 +229,7 @@ fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
         let relative_path = path.trim_start_matches("./");
         if !relative_path.starts_with("modules/") {
             continue;
-        };
+        }
 
         let progress_index =
             header_index(&headers, "progress").or_else(|| header_index(&headers, "esttasks"));
@@ -248,8 +249,7 @@ fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
             .unwrap_or_else(|| "Unknown".to_string());
         let (done, total) = progress_index
             .and_then(|index| cells.get(index))
-            .map(|value| parse_progress(value))
-            .unwrap_or((None, None));
+            .map_or((None, None), |value| parse_progress(value));
 
         modules.push(ModuleSummary {
             scope: header_index(&headers, "scope")
@@ -271,7 +271,7 @@ fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
 fn normalise_header(value: &str) -> String {
     value
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .collect::<String>()
         .to_ascii_lowercase()
 }
@@ -444,19 +444,19 @@ mod tests {
         let dir = tempdir().unwrap();
         write(
             dir.path().join("plans/index.aps.md"),
-            r#"# Test Plan
+            r"# Test Plan
 
 ## Engineering Platform
 
 | Module | Scope | Status | Progress | Notes |
 | ------ | ----- | ------ | -------- | ----- |
 | [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 1/2 | Active APS migration work. |
-"#,
+",
         );
         write(
             dir.path()
                 .join("plans/modules/aps-canonical-alignment.aps.md"),
-            r#"# APS Canonical Alignment
+            r"# APS Canonical Alignment
 
 | ID | Owner | Status | Progress |
 | -- | ----- | ------ | -------- |
@@ -474,7 +474,7 @@ mod tests {
 - **Status:** Ready
 - **Validation:** `pnpm docs:check`
 - **Dependencies:** APSCAN-001
-"#,
+",
         );
         dir
     }
@@ -498,12 +498,12 @@ mod tests {
         let repo = fixture_repo();
         write(
             repo.path().join("plans/index.aps.md"),
-            r#"# Test Plan
+            r"# Test Plan
 
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | 1/2 | Migration work — **In Progress**. |
-"#,
+",
         );
 
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
@@ -519,13 +519,13 @@ mod tests {
         let repo = fixture_repo();
         write(
             repo.path().join("plans/index.aps.md"),
-            r#"# Test Plan
+            r"# Test Plan
 
 | Module | Scope | Status | Progress | Notes |
 | ------ | ----- | ------ | -------- | ----- |
 | [old](./archive/modules/old.aps.md) | OLD | Complete | 1/1 | Historical. |
 | [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 1/2 | Active. |
-"#,
+",
         );
 
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
@@ -539,12 +539,12 @@ mod tests {
         let repo = fixture_repo();
         write(
             repo.path().join("plans/index.aps.md"),
-            r#"# Test Plan
+            r"# Test Plan
 
 | Module | Scope | Status | Progress | Notes |
 | ------ | ----- | ------ | -------- | ----- |
 | [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | In Progress | 0/2 | Active APS migration work. |
-"#,
+",
         );
 
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
@@ -560,12 +560,12 @@ mod tests {
         let repo = fixture_repo();
         write(
             repo.path().join("plans/index.aps.md"),
-            r#"# Test Plan
+            r"# Test Plan
 
 | Module | Scope | Status | Progress | Notes |
 | ------ | ----- | ------ | -------- | ----- |
 | [missing](./modules/missing.aps.md) | MISS | In Progress | 0/1 | Missing. |
-"#,
+",
         );
 
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
@@ -582,7 +582,7 @@ mod tests {
         write(
             repo.path()
                 .join("plans/modules/aps-canonical-alignment.aps.md"),
-            r#"# APS Canonical Alignment
+            r"# APS Canonical Alignment
 
 | ID | Owner | Status | Progress |
 | -- | ----- | ------ | -------- |
@@ -593,7 +593,7 @@ mod tests {
 ### APSCAN-002: Ready item
 
 - **Status:** Ready
-"#,
+",
         );
 
         let snapshot = build_plan_status_snapshot(repo.path()).unwrap();

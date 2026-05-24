@@ -458,7 +458,7 @@ mod tests {
     fn renders_warning_marker() {
         let rendered = render_to_string(100, 24);
 
-        assert!(rendered.contains("!"));
+        assert!(rendered.contains('!'));
         assert!(rendered.contains("needs reconcile"));
     }
 

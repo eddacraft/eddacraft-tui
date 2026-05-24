@@ -40,6 +40,7 @@ pub struct PlanWarningRow {
     pub message: String,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct PlanDashboardState {
     pub snapshot: PlanDashboardSnapshot,
     pub selected_module: usize,
@@ -88,11 +89,11 @@ impl PlanDashboardState {
 }
 
 impl Surface for PlanDashboardState {
-    fn surface_name(&self) -> &str {
+    fn surface_name(&self) -> &'static str {
         "Plan Dashboard"
     }
 
-    fn help_text(&self) -> &str {
+    fn help_text(&self) -> &'static str {
         "j/k navigate  ? help  q quit"
     }
 
