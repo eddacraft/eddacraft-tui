@@ -30,10 +30,12 @@ pub struct StatusArgs {
     pub verify: bool,
     /// MLP2-051g — print per-tier activation evidence to **stderr**
     /// alongside the normal verdict on stdout. Mirrors the same flag
-    /// on `anvil start`. Only meaningful with `--verify`; on the full
-    /// `anvil status` surface the verbose block is suppressed because
-    /// the TUI / `--json` paths have their own diagnostic surfaces.
-    #[arg(long)]
+    /// on `anvil start`. Only meaningful with `--verify` (the TUI /
+    /// `--json` paths have their own diagnostic surfaces) — clap
+    /// enforces the pairing so `anvil status --why` without
+    /// `--verify` errors at parse time rather than silently
+    /// no-op'ing (review feedback on PR #1909).
+    #[arg(long, requires = "verify")]
     pub why: bool,
 }
 

@@ -340,7 +340,7 @@ pub fn render_human_verbose(d: &ActivationDiagnostic) -> String {
         daemon_evidence_label(d.daemon_attestation),
     );
 
-    let _ = writeln!(out, "  why: {}", why_summary(d.daemon_attestation));
+    let _ = writeln!(out, "  why: {}", why_summary(d));
 
     out
 }
@@ -391,6 +391,15 @@ fn handshake_evidence(tier: McpTier) -> &'static str {
 /// MLP2-051f documents at the daemon-evidence tracing site so a
 /// support engineer chasing the trace finds the same wording in the
 /// runbook.
+///
+/// Command-name policy: copy here MUST only reference subcommands
+/// `anvil intercept` actually ships today (`start --foreground`,
+/// `status`, `unblock`). `anvil intercept recover` does NOT exist
+/// (PR #1909 review caught a draft that named it). The
+/// `AllSurfacesQuarantined` recovery path is `stop the daemon and
+/// restart with --foreground`, matching the existing
+/// `render_human` repair hint that the council corrected on PR
+/// #1848.
 fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
     use super::daemon_evidence::DaemonAttestation;
     match att {
@@ -399,7 +408,7 @@ fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'st
         DaemonAttestation::Unenforced => "running but this worktree is not registered",
         DaemonAttestation::StaleHeartbeat => "running but heartbeat is stale",
         DaemonAttestation::AllSurfacesQuarantined => {
-            "running but every surface is quarantined (recover via `anvil intercept recover`)"
+            "running but every surface is quarantined (stop and restart with `anvil intercept start --foreground` to clear fence state)"
         }
         DaemonAttestation::Warming => "running but transient — wait briefly and re-run",
         DaemonAttestation::NoParticipatingSurface => {
@@ -412,23 +421,94 @@ fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'st
 /// One-line "what is missing?" summary. Lets the operator skim the
 /// verbose block and find the actionable next step without re-reading
 /// every tier line.
-fn why_summary(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
+///
+/// Dispatch on [`super::state::ProtectionState`] first — the daemon
+/// attestation is only the load-bearing signal for
+/// `ReadyRestartRequired`. For other states (`NeedsAction` because
+/// config is missing; `Watching` because the user opted into the
+/// fallback; `Unsupported` because the language profile is not yet
+/// covered; `Error` because activation failed) the missing piece is
+/// elsewhere and a daemon-only `why:` line would misdirect
+/// remediation. PR #1909 review.
+fn why_summary(d: &ActivationDiagnostic) -> &'static str {
+    match d.protection_state() {
+        ProtectionState::Protecting => {
+            "no missing piece — daemon attests this worktree and MCP is live"
+        }
+        ProtectionState::Error => {
+            "activation errored — see `last_error` and re-run after fixing the cause"
+        }
+        ProtectionState::Unsupported => {
+            "this repo's detected languages are not yet covered by anvil — no remediation in this release"
+        }
+        ProtectionState::Watching => {
+            "save-time watch fallback is running; for pre-write coverage start the intercept daemon (`anvil intercept start --foreground`) and restart your editor"
+        }
+        ProtectionState::NeedsAction => why_summary_for_needs_action(d),
+        ProtectionState::ReadyRestartRequired => why_summary_for_attestation(d.daemon_attestation),
+    }
+}
+
+/// `NeedsAction` branch of [`why_summary`] — the missing piece is in
+/// the config / install layer, NOT the daemon. Walks the highest MCP
+/// tier alongside [`super::diagnostic::ConfigStatus`] so the copy
+/// names the layer the operator needs to touch next.
+fn why_summary_for_needs_action(d: &ActivationDiagnostic) -> &'static str {
+    use super::diagnostic::ConfigStatus;
+    match d.config {
+        ConfigStatus::Invalid => {
+            "fix `.anvilrc` (or `.anvil.<ext>`) — see `last_error` for the parse failure, then re-run `anvil start --verify`"
+        }
+        ConfigStatus::Absent => {
+            "run `anvil init` to write a default config, then `anvil start` to install the MCP entries"
+        }
+        ConfigStatus::Valid => match d.highest_mcp_tier() {
+            None | Some(McpTier::NotDetected | McpTier::ConfigAbsent) => {
+                "run `anvil start` to install MCP entries for the detected editor clients, then restart your editor"
+            }
+            Some(McpTier::ConfigPresent) => {
+                "MCP entry is installed — restart your editor so the handshake completes, then re-run `anvil start --verify`"
+            }
+            Some(McpTier::ServerStartable) => {
+                "the MCP server spawns but the editor wiring is not yet confirmed — restart your editor and re-run `anvil start --verify`"
+            }
+            // RestartRequired / RestartHandshakeVerified / LiveValidation
+            // cannot occur under NeedsAction (they would have promoted to
+            // ReadyRestartRequired / Protecting upstream). Fall back to a
+            // safe diagnostic — never panic, but the matcher exhaustively
+            // covers the reachable cases above.
+            Some(_) => {
+                "activation is in an intermediate state — re-run `anvil start --verify` to refresh the diagnostic"
+            }
+        },
+    }
+}
+
+/// `ReadyRestartRequired` branch of [`why_summary`] — the missing
+/// piece is daemon-side, so the [`super::daemon_evidence::DaemonAttestation`]
+/// drives the copy. Pre-PR #1909-review this was the only summary
+/// path; it now only fires when `protection_state()` actually maps
+/// to `ReadyRestartRequired`.
+///
+/// Command-name policy: same as [`daemon_evidence_label`] — only
+/// reference subcommands `anvil intercept` actually ships today.
+fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
     use super::daemon_evidence::DaemonAttestation;
     match att {
         DaemonAttestation::NotProbed => {
             "restart your editor so the MCP handshake completes; the daemon will be probed afterwards"
         }
         DaemonAttestation::Unreachable => {
-            "start the intercept daemon (`anvil intercept start`) so pre-write validation can attach"
+            "start the intercept daemon (`anvil intercept start --foreground`) so pre-write validation can attach"
         }
         DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
             "daemon is running but this worktree is not registered — see `anvil intercept status`"
         }
         DaemonAttestation::StaleHeartbeat => {
-            "daemon heartbeat is stale — check `anvil intercept status` for the live session set"
+            "daemon heartbeat is stale — stop and restart it with `anvil intercept start --foreground`"
         }
         DaemonAttestation::AllSurfacesQuarantined => {
-            "every surface is quarantined — run `anvil intercept recover`"
+            "every surface is quarantined — stop and restart the daemon with `anvil intercept start --foreground` to clear fence state"
         }
         DaemonAttestation::Warming => {
             "daemon is starting up — wait briefly and re-run `anvil start --verify`"
@@ -1431,15 +1511,24 @@ mod tests {
 
     #[test]
     fn verbose_render_why_summary_names_missing_piece_per_attestation() {
-        // Each attestation maps to a distinct "what's missing?"
-        // remediation copy so an operator skimming the verbose
-        // block finds the next step without re-reading every tier
-        // line. Pinned so a future tightening of one branch does
-        // not silently collapse two branches' copy.
+        // Each attestation under `ReadyRestartRequired` maps to a
+        // distinct "what's missing?" remediation copy so an operator
+        // skimming the verbose block finds the next step without
+        // re-reading every tier line. Pinned so a future tightening
+        // of one branch does not silently collapse two branches'
+        // copy.
+        //
+        // Command-name policy (PR #1909 review): copy MUST only
+        // reference subcommands `anvil intercept` actually ships
+        // today — `start --foreground`, `status`, `unblock`. The
+        // earlier draft of this test pinned `anvil intercept recover`
+        // and bare `anvil intercept start`; both were non-existent
+        // / broken invocations the council had already corrected on
+        // PR #1848. The test now pins the corrected commands.
         let expected: &[(super::super::daemon_evidence::DaemonAttestation, &str)] = &[
             (
                 super::super::daemon_evidence::DaemonAttestation::Unreachable,
-                "anvil intercept start",
+                "anvil intercept start --foreground",
             ),
             (
                 super::super::daemon_evidence::DaemonAttestation::Unenforced,
@@ -1447,7 +1536,11 @@ mod tests {
             ),
             (
                 super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
-                "anvil intercept recover",
+                "anvil intercept start --foreground",
+            ),
+            (
+                super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
+                "anvil intercept start --foreground",
             ),
         ];
         for (att, needle) in expected {
@@ -1458,5 +1551,143 @@ mod tests {
                 "attestation {att:?} verbose render must name `{needle}`, got:\n{h}"
             );
         }
+    }
+
+    /// PR #1909 review (finding 2): `anvil intercept recover` does
+    /// NOT exist as a subcommand today. Confirm no code path in the
+    /// verbose renderer emits it; the recovery path is `stop and
+    /// restart with anvil intercept start --foreground`.
+    #[test]
+    fn verbose_render_never_names_nonexistent_intercept_recover() {
+        let attestations = [
+            super::super::daemon_evidence::DaemonAttestation::NotProbed,
+            super::super::daemon_evidence::DaemonAttestation::Unreachable,
+            super::super::daemon_evidence::DaemonAttestation::Unenforced,
+            super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
+            super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
+            super::super::daemon_evidence::DaemonAttestation::Warming,
+            super::super::daemon_evidence::DaemonAttestation::NoParticipatingSurface,
+            super::super::daemon_evidence::DaemonAttestation::Promoted,
+        ];
+        for att in attestations {
+            let d = handshake_verified_diag(att);
+            let h = render_human_verbose(&d);
+            assert!(
+                !h.contains("anvil intercept recover"),
+                "attestation {att:?} verbose render must not name the \
+                 nonexistent `anvil intercept recover` subcommand, got:\n{h}"
+            );
+        }
+    }
+
+    /// PR #1909 review (finding 3): `anvil intercept start` without
+    /// `--foreground` bails today (backgrounded launch arrives with
+    /// INTD-002). Every render path that names `anvil intercept
+    /// start` must include `--foreground` so operators don't hit an
+    /// immediate error.
+    #[test]
+    fn verbose_render_intercept_start_hints_always_include_foreground() {
+        let attestations = [
+            super::super::daemon_evidence::DaemonAttestation::NotProbed,
+            super::super::daemon_evidence::DaemonAttestation::Unreachable,
+            super::super::daemon_evidence::DaemonAttestation::Unenforced,
+            super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
+            super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
+            super::super::daemon_evidence::DaemonAttestation::Warming,
+            super::super::daemon_evidence::DaemonAttestation::NoParticipatingSurface,
+            super::super::daemon_evidence::DaemonAttestation::Promoted,
+        ];
+        for att in attestations {
+            let d = handshake_verified_diag(att);
+            let h = render_human_verbose(&d);
+            // Use the whole verbose block: if any line mentions
+            // `anvil intercept start`, the same line MUST include
+            // `--foreground` (the bare form bails on launch).
+            for line in h.lines() {
+                if line.contains("anvil intercept start") {
+                    assert!(
+                        line.contains("--foreground"),
+                        "attestation {att:?} verbose render names bare `anvil intercept start` \
+                         (no `--foreground`) — that invocation bails. Line:\n{line}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// PR #1909 review (finding 4): the `why:` summary must derive
+    /// from `protection_state()`, NOT solely from
+    /// `daemon_attestation`. For `NeedsAction` (e.g. config absent),
+    /// `daemon_attestation` is typically `NotProbed`, so a
+    /// daemon-only summary would tell the user to restart their
+    /// editor when the actual missing piece is `anvil init` / MCP
+    /// install. Pinned so a future refactor cannot silently
+    /// regress to the daemon-only dispatch.
+    #[test]
+    fn verbose_render_why_summary_dispatches_on_protection_state_not_only_daemon() {
+        use super::super::diagnostic::ConfigStatus;
+
+        // `NeedsAction` with absent config → `anvil init` is the
+        // missing piece, NOT an editor restart. The
+        // `daemon_attestation` here is the default `NotProbed`, which
+        // the pre-fix code would have used to suggest a restart.
+        let mut needs_action_no_config = empty();
+        needs_action_no_config.config = ConfigStatus::Absent;
+        let h = render_human_verbose(&needs_action_no_config);
+        let why_line = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("why:"))
+            .unwrap_or_else(|| panic!("verbose render must include a `why:` line, got:\n{h}"));
+        assert!(
+            why_line.contains("anvil init"),
+            "NeedsAction (no config) why: must name `anvil init`, got: {why_line}"
+        );
+        assert!(
+            !why_line.contains("restart your editor"),
+            "NeedsAction (no config) why: must NOT tell the user to restart the editor \
+             — the missing piece is config, not the MCP handshake. Got: {why_line}"
+        );
+
+        // `Protecting` → no missing piece. Pre-fix the daemon-only
+        // dispatch would have surfaced whatever attestation copy
+        // happened to be set (probably `Promoted`, but the branch
+        // structure was misleading).
+        let h_protecting = render_human_verbose(&protecting());
+        let why_protecting = h_protecting
+            .lines()
+            .find(|l| l.trim_start().starts_with("why:"))
+            .expect("protecting render has a why: line");
+        assert!(
+            why_protecting.to_lowercase().contains("no missing piece"),
+            "Protecting why: must say `no missing piece`, got: {why_protecting}"
+        );
+
+        // `Unsupported` → coverage gap; no remediation in this
+        // release. Pre-fix this fell through to the daemon-only
+        // dispatch.
+        let h_unsup = render_human_verbose(&unsupported());
+        let why_unsup = h_unsup
+            .lines()
+            .find(|l| l.trim_start().starts_with("why:"))
+            .expect("unsupported render has a why: line");
+        assert!(
+            why_unsup.to_lowercase().contains("not yet covered"),
+            "Unsupported why: must surface the coverage gap, got: {why_unsup}"
+        );
+
+        // `ReadyRestartRequired` still routes through the daemon
+        // attestation — that's the one state where the attestation
+        // is the load-bearing signal.
+        let h_rrr = render_human_verbose(&handshake_verified_diag(
+            super::super::daemon_evidence::DaemonAttestation::Unreachable,
+        ));
+        let why_rrr = h_rrr
+            .lines()
+            .find(|l| l.trim_start().starts_with("why:"))
+            .expect("ready_restart_required render has a why: line");
+        assert!(
+            why_rrr.contains("anvil intercept start --foreground"),
+            "ReadyRestartRequired + Unreachable why: must name `anvil intercept start --foreground`, got: {why_rrr}"
+        );
     }
 }

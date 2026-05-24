@@ -271,7 +271,13 @@ impl ActivationDiagnostic {
         ProtectionState::NeedsAction
     }
 
-    fn highest_mcp_tier(&self) -> Option<McpTier> {
+    /// `pub(crate)` so the verbose renderer (MLP2-051g) can dispatch
+    /// the "what's missing?" copy on the strongest tier any client
+    /// has reached, without duplicating the `.values().map().max()`
+    /// reduction at the call site. Visibility is intentionally
+    /// crate-local — external consumers should keep going through
+    /// [`Self::protection_state`] / [`Self::mcp_pre_write_wired_or_live`].
+    pub(crate) fn highest_mcp_tier(&self) -> Option<McpTier> {
         self.mcp.values().map(|r| r.tier).max()
     }
 
