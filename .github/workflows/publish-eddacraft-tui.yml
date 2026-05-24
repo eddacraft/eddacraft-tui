@@ -67,9 +67,12 @@ concurrency:
   cancel-in-progress: false
 
 # Least-privilege GITHUB_TOKEN. The crates.io publish uses
-# CRATES_IO_EDDACRAFT_TUI_TOKEN; the mirror tag push uses
-# EDDACRAFT_TUI_MIRROR_PUSH_TOKEN. The default GITHUB_TOKEN is only
-# needed by the `gh release create` step at the end.
+# CRATES_IO_EDDACRAFT_TUI_TOKEN; the mirror tag push uses a
+# short-lived installation token minted at runtime from the
+# eddacraft-mirror-bot App (`EDDACRAFT_MIRROR_BOT_APP_ID` +
+# `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY`). The default GITHUB_TOKEN is
+# only needed by the `gh release create` step at the end, which
+# requires `contents: write` on this repo.
 permissions:
   contents: write
 

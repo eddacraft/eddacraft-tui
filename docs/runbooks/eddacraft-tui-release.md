@@ -149,7 +149,11 @@ The crate is on crates.io and cannot be un-published, only yanked. Decide:
   # One-shot installation token via gh + jwt + the App private key.
   # See docs.github.com authentication-as-a-github-app for the JWT
   # signing helper; in a pinch a fresh workflow_dispatch is faster.
-  basic=$(printf '%s' "x-access-token:${INSTALL_TOKEN}" | base64 -w0)
+  #
+  # `base64 -w0` is GNU-only and fails on macOS/BSD base64 (no -w
+  # flag). The `tr -d '\n'` form strips the line-wrap on either
+  # implementation, so this snippet is portable across Linux + macOS.
+  basic=$(printf '%s' "x-access-token:${INSTALL_TOKEN}" | base64 | tr -d '\n')
   git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
       push \
       https://github.com/eddacraft/eddacraft-tui.git \
