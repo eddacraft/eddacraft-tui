@@ -191,6 +191,56 @@ END { flush() }
 # style each consumer already uses. Inline comments before an entry
 # carry the licences.toml `note`.
 
+# ATTRIB-016: deterministic note wrapping. Replaces `fold -s -w 75`,
+# which wraps on **byte** count: a note containing multi-byte UTF-8 (an
+# em dash is 3 bytes) breaks at a different word boundary across coreutils
+# implementations — GNU vs uutils vs BusyBox vs uutils versions — so the
+# locally-generated comment lines differ byte-for-byte from what CI
+# regenerates and `--check` reports drift the author can't see locally
+# (bit PR #1911, fixed by regenerating with a matching `fold` in
+# `898554a6`). This wraps on whitespace at <=75 Unicode code points per
+# line, computed in byte mode (LC_ALL=C, discounting UTF-8 continuation
+# bytes 0x80-0xBF), so the output is identical regardless of which `fold`
+# — or none — is on PATH. Code points, not display columns: licence notes
+# are Latin prose with the occasional em dash, never wide CJK.
+cp_len() {
+  # Code-point length of $1: strip UTF-8 continuation bytes (0x80-0xBF)
+  # and count the remaining bytes. Byte mode (LC_ALL=C) makes both the
+  # bracket-range match and ${#...} operate on bytes deterministically.
+  local LC_ALL=C
+  local s="$1" stripped
+  stripped="${s//[$'\x80'-$'\xbf']/}"
+  printf '%s' "${#stripped}"
+}
+
+wrap_note() {
+  # Emit $1 as `  # `-prefixed comment lines, wrapped on whitespace at
+  # <=75 code points per line. No dependency on `fold`.
+  local note="$1"
+  local -i width=75 lw ww
+  local line="" word
+  local -a words
+  local LC_ALL=C
+  # Split on whitespace. Runs of internal spaces collapse to one — the
+  # licences.toml schema is single-space prose, so this is lossless here.
+  read -ra words <<<"$note"
+  for word in "${words[@]}"; do
+    ww=$(cp_len "$word")
+    if [ -z "$line" ]; then
+      line="$word"
+      lw=$ww
+    elif [ $((lw + 1 + ww)) -le "$width" ]; then
+      line="$line $word"
+      lw=$((lw + 1 + ww))
+    else
+      printf '  # %s\n' "$line"
+      line="$word"
+      lw=$ww
+    fi
+  done
+  [ -n "$line" ] && printf '  # %s\n' "$line"
+}
+
 render_fragment() {
   # $1: column to filter on ("about" or "deny")
   # $2: array name for the header comment (e.g. "about.toml.accepted")
@@ -218,9 +268,10 @@ render_fragment() {
       continue
     fi
     if [ -n "$note" ]; then
-      # Wrap long notes at ~75 chars on whitespace so the consumer
-      # file stays readable.
-      echo "$note" | fold -s -w 75 | sed 's/^/  # /'
+      # Wrap long notes at <=75 code points on whitespace so the
+      # consumer file stays readable. Deterministic across coreutils
+      # implementations — see wrap_note / ATTRIB-016.
+      wrap_note "$note"
     fi
     echo "  \"$spdx\","
   done <"$parsed_entries"

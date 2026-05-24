@@ -187,5 +187,142 @@ if ! grep -q "Bogus-9.9" <<<"$output_s4"; then
 fi
 echo "ok scenario 4: hand-edit inside Node markers → --check detects drift"
 
+# --- Scenario 5: deterministic note wrapping (ATTRIB-016) -------------------
+#
+# The expander wraps long `note` fields into `#`-prefixed comment lines.
+# It must wrap on **code points**, not bytes, and must not depend on any
+# external `fold`: `fold` counts bytes, so a note containing multi-byte
+# UTF-8 (em dashes are 3 bytes) wraps at a different word boundary across
+# coreutils implementations, producing spurious `--check` drift between a
+# contributor's local `fold` and CI's (bit PR #1911, fixed in `898554a6`).
+#
+# This scenario stands up an isolated fixture with a long em-dash note and
+# asserts:
+#   a. no emitted note line exceeds 75 code points;
+#   b. concatenating the note lines with single spaces reproduces the note
+#      (no word is split, no word is dropped);
+#   c. regeneration is idempotent (--check passes after a clean expand);
+#   d. output is byte-identical when a *poisoned* `fold` is first on PATH
+#      — proving the wrap no longer shells out to `fold` at all.
+
+s5_dir="$(mktemp -d)"
+trap 'rm -rf "$fixture_dir" "$s5_dir"' EXIT
+
+# A note with two em dashes, long enough to wrap to multiple lines, and
+# positioned so a byte-counting wrap (em dash = 3 bytes) would break at a
+# different word than a code-point-counting wrap.
+s5_note="OpenSSL appears here for the ring crate workaround — pulled in transitively via the TLS stack — and is retained for cargo-about compatibility across targets."
+
+cat >"$s5_dir/licences.toml" <<EOF
+[[licences]]
+spdx = "MIT"
+about = true
+deny = true
+
+[[licences]]
+spdx = "OpenSSL"
+about = true
+deny = false
+note = "$s5_note"
+EOF
+
+cat >"$s5_dir/about.toml" <<'EOF'
+accepted = [
+  # BEGIN AUTO-GENERATED FROM licences.toml — accepted
+  # END AUTO-GENERATED FROM licences.toml — accepted
+]
+EOF
+
+cat >"$s5_dir/deny.toml" <<'EOF'
+[licenses]
+allow = [
+  # BEGIN AUTO-GENERATED FROM licences.toml — allow
+  # END AUTO-GENERATED FROM licences.toml — allow
+]
+EOF
+
+(cd "$s5_dir" && "$EXPANDER") >/dev/null
+
+# Extract the wrapped note lines: comment lines between the markers that
+# are not the four generated-header lines. The note is the only entry
+# carrying a comment, so every `  # `-prefixed line that isn't a header
+# belongs to the wrapped note.
+mapfile -t s5_note_lines < <(
+  awk '
+    /BEGIN AUTO-GENERATED FROM licences.toml — accepted/ { inblock=1; next }
+    /END AUTO-GENERATED FROM licences.toml — accepted/   { inblock=0 }
+    inblock && /^  # / {
+      if ($0 ~ /Generated from licences\.toml/) next
+      if ($0 ~ /Update licences\.toml/)         next
+      if ($0 ~ /^  #$/)                          next
+      if ($0 ~ /Source: licences\.toml/)         next
+      print
+    }
+  ' "$s5_dir/about.toml"
+)
+
+if [ "${#s5_note_lines[@]}" -lt 2 ]; then
+  echo "FAIL scenario 5: expected the long note to wrap to >=2 lines, got ${#s5_note_lines[@]}:" >&2
+  printf '    %s\n' "${s5_note_lines[@]}" >&2
+  exit 1
+fi
+
+# Assertions (a) width and (b) word-integrity, checked in python3 where
+# len() counts code points. The note lines are passed via a file (argv),
+# not stdin — the heredoc already occupies python's stdin.
+printf '%s\n' "${s5_note_lines[@]}" >"$s5_dir/note-lines.txt"
+python3 - "$s5_dir/note-lines.txt" "$s5_note" <<'PY'
+import sys
+lines_path, expected_note = sys.argv[1], sys.argv[2]
+with open(lines_path, encoding="utf-8") as f:
+    lines = [ln.rstrip("\n") for ln in f if ln.strip()]
+words_out = []
+for ln in lines:
+    assert ln.startswith("  # "), f"line missing comment prefix: {ln!r}"
+    body = ln[4:]
+    cp = len(body)
+    assert cp <= 75, f"note line exceeds 75 code points ({cp}): {body!r}"
+    words_out.extend(body.split())
+if words_out != expected_note.split():
+    print("FAIL scenario 5: wrapped note does not reconstruct the original.", file=sys.stderr)
+    print(f"  expected words: {expected_note.split()}", file=sys.stderr)
+    print(f"  got words:      {words_out}", file=sys.stderr)
+    sys.exit(1)
+print(f"ok scenario 5a: note wrapped to {len(lines)} lines, all <=75 code points, words intact")
+PY
+
+# (c) idempotence: --check passes immediately after the clean expand.
+if ! (cd "$s5_dir" && "$EXPANDER" --check) >/dev/null 2>&1; then
+  echo "FAIL scenario 5c: --check reports drift right after a clean expand of the em-dash note" >&2
+  (cd "$s5_dir" && "$EXPANDER" --check) >&2 || true
+  exit 1
+fi
+echo "ok scenario 5c: em-dash note expand is idempotent under --check"
+
+# (d) fold-independence: put a poisoned `fold` first on PATH. If the
+# expander still shells out to `fold`, the note comments become garbage
+# and about.toml changes. A fold-free wrap is unaffected.
+mkdir -p "$s5_dir/poison-bin"
+cat >"$s5_dir/poison-bin/fold" <<'EOF'
+#!/usr/bin/env bash
+# Poisoned fold: any caller gets obviously-wrong output so a regression
+# that reintroduces `fold` for note wrapping is caught.
+echo "POISONED-FOLD-OUTPUT-SHOULD-NEVER-APPEAR"
+EOF
+chmod +x "$s5_dir/poison-bin/fold"
+
+s5_clean="$(cat "$s5_dir/about.toml")"
+(cd "$s5_dir" && PATH="$s5_dir/poison-bin:$PATH" "$EXPANDER") >/dev/null
+s5_poisoned="$(cat "$s5_dir/about.toml")"
+
+if [ "$s5_clean" != "$s5_poisoned" ]; then
+  echo "FAIL scenario 5d: about.toml changed when a poisoned 'fold' was on PATH." >&2
+  echo "    The note wrap still depends on the external 'fold' binary —" >&2
+  echo "    that is exactly the byte-vs-column drift ATTRIB-016 removes." >&2
+  diff <(printf '%s' "$s5_clean") <(printf '%s' "$s5_poisoned") >&2 || true
+  exit 1
+fi
+echo "ok scenario 5d: note wrap is independent of the 'fold' binary on PATH"
+
 echo ""
-echo "ATTRIB-006/-012 drift test passed: all four scenarios green."
+echo "ATTRIB-006/-012/-016 drift test passed: all five scenarios green."
