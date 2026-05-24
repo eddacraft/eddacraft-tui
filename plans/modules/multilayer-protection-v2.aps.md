@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 65/86 |
+| MLP2 | @aneki | In Progress | 66/86 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -4286,7 +4286,7 @@ to redesign once GV2-001..-023 land.
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 0/2 |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
-| R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 1/1 (Complete) |
+| R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 1/1 (Merged — PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)) |
 | **Total** | **81** | **63/81** |
 
 ## Recommended landing order
