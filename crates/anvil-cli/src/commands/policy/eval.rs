@@ -70,19 +70,6 @@ struct EvalOutput {
     trace: Option<Trace>,
 }
 
-/// Human-readable kind of a JSON value, for the non-findings diagnostic.
-fn value_kind(value: Option<&serde_json::Value>) -> &'static str {
-    match value {
-        None => "no result (undefined)",
-        Some(serde_json::Value::Null) => "null",
-        Some(serde_json::Value::Bool(_)) => "a boolean",
-        Some(serde_json::Value::Number(_)) => "a number",
-        Some(serde_json::Value::String(_)) => "a string",
-        Some(serde_json::Value::Array(_)) => "an array",
-        Some(serde_json::Value::Object(_)) => "an object",
-    }
-}
-
 pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     let policy_display = args.policy.display().to_string();
     let policy_source = fs::read_to_string(&args.policy)
@@ -115,40 +102,33 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         .eval(&input, &args.query)
         .with_context(|| format!("evaluating query `{}`", args.query))?;
 
-    // Apply findings post-processing only when the query resolves to a
-    // findings-shaped result (array or absent); otherwise surface the raw value.
+    // Decide between findings semantics and a raw value by *shape*, via
+    // `post_process` (a findings array parses; anything else does not). This
+    // keeps legitimate non-findings queries (`data.pkg.list`, a scalar, an
+    // object) working as raw-value evaluations instead of erroring.
     let raw_value = result.value.clone();
-    let post_processable = matches!(
-        raw_value,
-        None | Some(serde_json::Value::Null | serde_json::Value::Array(_))
-    );
-
-    // A non-array result from a query the user is gating on is a policy
-    // authoring error; fail loudly rather than silently passing (exit 0).
-    if !post_processable && args.fail_on_warnings {
-        anyhow::bail!(
-            "query `{}` returned {}, not a findings array; --fail-on-warnings requires a findings query",
-            args.query,
-            value_kind(raw_value.as_ref()),
-        );
-    }
-
-    let (findings, exit_code, value) = if post_processable {
-        let raw = raw_value.unwrap_or(serde_json::Value::Null);
-        let report = anvil_policy_engine::result::post_process(
-            &raw,
-            &input,
-            PostProcessOptions {
-                fail_on_warnings: args.fail_on_warnings,
-            },
-        )
-        .context("post-processing findings")?;
-        // `findings` is canonical; drop the raw array so the report does not
-        // carry the same data twice.
-        (report.findings, report.exit_code, None)
-    } else {
-        (Vec::new(), 0, raw_value)
+    let raw_for_pp = raw_value.clone().unwrap_or(serde_json::Value::Null);
+    let opts = PostProcessOptions {
+        fail_on_warnings: args.fail_on_warnings,
     };
+
+    let (findings, exit_code, value) =
+        match anvil_policy_engine::result::post_process(&raw_for_pp, &input, opts) {
+            // Findings-shaped: `findings` is canonical, so drop the raw array.
+            Ok(report) => (report.findings, report.exit_code, None),
+            // Not findings-shaped, but the user is gating on it — fail loudly
+            // rather than silently passing (exit 0) on a non-findings query.
+            Err(err) if args.fail_on_warnings => {
+                return Err(err).with_context(|| {
+                    format!(
+                        "query `{}` is not a findings query; --fail-on-warnings needs one",
+                        args.query
+                    )
+                });
+            }
+            // Not findings-shaped: surface the raw value, no gating.
+            Err(_) => (Vec::new(), 0, raw_value),
+        };
 
     // Validate --why against the findings actually produced.
     if let Some(idx) = args.why

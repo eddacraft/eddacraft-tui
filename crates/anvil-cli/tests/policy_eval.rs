@@ -114,6 +114,23 @@ fn findings_block_under_fail_on_warnings() {
 }
 
 #[test]
+fn non_findings_array_query_is_shown_as_raw_value() {
+    // A query that legitimately returns an array of non-findings (e.g. a list)
+    // must surface as the raw value, not error or misreport as findings.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "list.rego",
+        "package l\nimport rego.v1\nitems := [\"a\", \"b\"]\n",
+    );
+
+    let (json, code) = eval(dir.path(), &[&policy, "--query", "data.l.items"]);
+    assert_eq!(code, 0);
+    assert_eq!(json["value"], serde_json::json!(["a", "b"]));
+    assert_eq!(json["findings"].as_array().unwrap().len(), 0);
+}
+
+#[test]
 fn why_focuses_a_finding_and_includes_trace() {
     let dir = tempfile::tempdir().unwrap();
     let policy = write(dir.path(), "arch.rego", FINDINGS_POLICY);

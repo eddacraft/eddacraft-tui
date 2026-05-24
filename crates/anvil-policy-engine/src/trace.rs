@@ -34,7 +34,14 @@ impl Trace {
             bindings: results
                 .result
                 .iter()
-                .map(|qr| serde_json::to_value(&qr.bindings).unwrap_or(serde_json::Value::Null))
+                .map(|qr| {
+                    // Serialising a `regorus::Value` is infallible in practice;
+                    // if it ever fails, surface a visible sentinel rather than
+                    // silently dropping the binding to `null`.
+                    serde_json::to_value(&qr.bindings).unwrap_or_else(
+                        |e| serde_json::json!({ "__trace_serialization_error__": e.to_string() }),
+                    )
+                })
                 .collect(),
         }
     }
