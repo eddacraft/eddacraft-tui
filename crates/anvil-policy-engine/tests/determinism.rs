@@ -70,12 +70,17 @@ fn repeatable_eval_is_byte_identical_over_100_runs() {
         }
     }
 
-    // Sanity: the policy actually produced a decision (not an empty/undefined
-    // result that would make the determinism check vacuous).
+    // Sanity: the policy actually produced a decision over *both* edges (not an
+    // empty/undefined result, and not a single-edge result that would make the
+    // determinism check pass vacuously).
     let decision = baseline.expect("at least one run");
     assert!(decision.contains("\"file_count\":3"), "got: {decision}");
     assert!(
         decision.contains("new edge a.rs -> c.rs"),
         "got: {decision}"
+    );
+    assert!(
+        decision.contains("new edge b.rs -> c.rs"),
+        "both new edges must appear: {decision}"
     );
 }

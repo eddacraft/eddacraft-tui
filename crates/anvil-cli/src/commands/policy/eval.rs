@@ -39,10 +39,11 @@ pub struct EvalArgs {
     #[arg(long)]
     explain: bool,
 
-    /// Render the evaluation trace, optionally naming the finding (0-based
-    /// index) to focus on.
-    #[arg(long, value_name = "FINDING")]
-    why: Option<String>,
+    /// Explain a finding by its 0-based index: render the evaluation trace and
+    /// highlight that finding. (Per-finding trace is limited by the engine —
+    /// see POLENG-006 — so the trace shown is the query-level trace.)
+    #[arg(long, value_name = "INDEX")]
+    why: Option<usize>,
 
     /// Treat warnings as blocking: exit non-zero on any non-baselined warning.
     #[arg(long)]
@@ -53,14 +54,33 @@ pub struct EvalArgs {
 struct EvalOutput {
     policy: String,
     query: String,
+    /// The raw query result. Present only for non-findings queries; for a
+    /// findings query the canonical representation is `findings`, so the raw
+    /// array is not duplicated here.
     #[serde(skip_serializing_if = "Option::is_none")]
     value: Option<serde_json::Value>,
     findings: Vec<Finding>,
     exit_code: i32,
+    /// The finding index `--why` focused on, echoed for JSON consumers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    why: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     coverage: Option<Coverage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     trace: Option<Trace>,
+}
+
+/// Human-readable kind of a JSON value, for the non-findings diagnostic.
+fn value_kind(value: Option<&serde_json::Value>) -> &'static str {
+    match value {
+        None => "no result (undefined)",
+        Some(serde_json::Value::Null) => "null",
+        Some(serde_json::Value::Bool(_)) => "a boolean",
+        Some(serde_json::Value::Number(_)) => "a number",
+        Some(serde_json::Value::String(_)) => "a string",
+        Some(serde_json::Value::Array(_)) => "an array",
+        Some(serde_json::Value::Object(_)) => "an object",
+    }
 }
 
 pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
@@ -97,13 +117,24 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
 
     // Apply findings post-processing only when the query resolves to a
     // findings-shaped result (array or absent); otherwise surface the raw value.
-    let value = result.value.clone();
+    let raw_value = result.value.clone();
     let post_processable = matches!(
-        value,
+        raw_value,
         None | Some(serde_json::Value::Null | serde_json::Value::Array(_))
     );
-    let (findings, exit_code) = if post_processable {
-        let raw = value.clone().unwrap_or(serde_json::Value::Null);
+
+    // A non-array result from a query the user is gating on is a policy
+    // authoring error; fail loudly rather than silently passing (exit 0).
+    if !post_processable && args.fail_on_warnings {
+        anyhow::bail!(
+            "query `{}` returned {}, not a findings array; --fail-on-warnings requires a findings query",
+            args.query,
+            value_kind(raw_value.as_ref()),
+        );
+    }
+
+    let (findings, exit_code, value) = if post_processable {
+        let raw = raw_value.unwrap_or(serde_json::Value::Null);
         let report = anvil_policy_engine::result::post_process(
             &raw,
             &input,
@@ -112,10 +143,22 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
             },
         )
         .context("post-processing findings")?;
-        (report.findings, report.exit_code)
+        // `findings` is canonical; drop the raw array so the report does not
+        // carry the same data twice.
+        (report.findings, report.exit_code, None)
     } else {
-        (Vec::new(), 0)
+        (Vec::new(), 0, raw_value)
     };
+
+    // Validate --why against the findings actually produced.
+    if let Some(idx) = args.why
+        && idx >= findings.len()
+    {
+        anyhow::bail!(
+            "--why {idx}: no finding at that index ({} finding(s) produced)",
+            findings.len(),
+        );
+    }
 
     let coverage = result.coverage().cloned();
     let trace = result.trace().cloned();
@@ -126,6 +169,7 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         value,
         findings,
         exit_code,
+        why: args.why,
         coverage,
         trace,
     };
@@ -133,7 +177,7 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     if global.json {
         crate::output::json::print(&output)?;
     } else {
-        render_plain(&output, args.why.as_deref());
+        render_plain(&output);
     }
 
     // ADR-002: exit non-zero only when the engine says so. The report is
@@ -144,21 +188,23 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     Ok(())
 }
 
-fn render_plain(output: &EvalOutput, why: Option<&str>) {
-    crate::output::plain::blank();
-    crate::output::plain::section("Policy evaluation");
-    crate::output::plain::label("policy", &output.policy);
-    crate::output::plain::label("query", &output.query);
+fn render_plain(output: &EvalOutput) {
+    use crate::output::plain;
+
+    plain::blank();
+    plain::section("Policy evaluation");
+    plain::label("policy", &output.policy);
+    plain::label("query", &output.query);
 
     if let Some(value) = &output.value {
         let rendered = serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string());
-        crate::output::plain::label("result", rendered);
+        plain::label("result", rendered);
     }
 
     if output.findings.is_empty() {
-        crate::output::plain::info("no findings");
+        plain::info("no findings");
     } else {
-        crate::output::plain::section("Findings");
+        plain::section("Findings");
         for (idx, finding) in output.findings.iter().enumerate() {
             let tag = if finding.baselined {
                 "baselined"
@@ -167,8 +213,10 @@ fn render_plain(output: &EvalOutput, why: Option<&str>) {
             } else {
                 "active"
             };
+            // Mark the finding `--why` focused on.
+            let marker = if output.why == Some(idx) { '>' } else { ' ' };
             println!(
-                "  [{idx}] {sev:?} ({tag}) {msg}",
+                "  {marker} [{idx}] {sev} ({tag}) {msg}",
                 sev = finding.severity,
                 msg = finding.message
             );
@@ -176,17 +224,17 @@ fn render_plain(output: &EvalOutput, why: Option<&str>) {
     }
 
     if let Some(coverage) = &output.coverage {
-        crate::output::plain::blank();
+        plain::blank();
         print!("{}", coverage.explain());
     }
     if let Some(trace) = &output.trace {
-        crate::output::plain::blank();
-        if let Some(focus) = why {
-            crate::output::plain::label("why", focus);
+        plain::blank();
+        if let Some(idx) = output.why {
+            plain::label("why", format!("finding [{idx}]"));
         }
         print!("{}", trace.explain());
     }
 
-    crate::output::plain::blank();
-    crate::output::plain::label("exit code", output.exit_code);
+    plain::blank();
+    plain::label("exit code", output.exit_code);
 }

@@ -31,6 +31,17 @@ pub enum Severity {
     Error,
 }
 
+impl std::fmt::Display for Severity {
+    /// Matches the serde wire form (`warning` / `error`) so plain and JSON
+    /// output agree.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Warning => "warning",
+            Self::Error => "error",
+        })
+    }
+}
+
 /// A single policy finding. The first block of fields is supplied by the
 /// policy; `is_new_edge` and `baselined` are computed by [`post_process`] and
 /// default to `false` when a raw finding is parsed.
@@ -133,14 +144,14 @@ fn annotate(findings: &mut [Finding], input: &PolicyInput) {
 }
 
 /// ADR-002: exit 0 for warnings, non-zero only for errors; baselined findings
-/// (ADR-003) are suppressed and never contribute.
+/// (ADR-003) are suppressed and never contribute — including errors, so a
+/// historical hard finding that was baselined does not re-block every run.
 fn exit_code(findings: &[Finding], opts: PostProcessOptions) -> i32 {
-    let has_error = findings.iter().any(|f| f.severity == Severity::Error);
-    let has_active_warning = findings
-        .iter()
-        .any(|f| f.severity == Severity::Warning && !f.baselined);
+    let active = || findings.iter().filter(|f| !f.baselined);
+    let has_error = active().any(|f| f.severity == Severity::Error);
+    let has_warning = active().any(|f| f.severity == Severity::Warning);
 
-    i32::from(has_error || (has_active_warning && opts.fail_on_warnings))
+    i32::from(has_error || (has_warning && opts.fail_on_warnings))
 }
 
 #[cfg(test)]
@@ -223,6 +234,29 @@ mod tests {
         let report =
             post_process(&raw, &PolicyInput::default(), PostProcessOptions::default()).expect("pp");
         assert_eq!(report.exit_code, 1);
+    }
+
+    #[test]
+    fn baselined_error_is_suppressed_like_a_baselined_warning() {
+        // A historical hard finding that has been baselined must not re-block
+        // every run (ADR-003): baselined findings are suppressed regardless of
+        // severity.
+        let raw =
+            json!([{ "severity": "error", "message": "legacy schema", "fingerprint": "f00d" }]);
+        let report = post_process(
+            &raw,
+            &input_with_baseline_and_new_edge(),
+            PostProcessOptions::default(),
+        )
+        .expect("pp");
+        assert!(report.findings[0].baselined);
+        assert_eq!(report.exit_code, 0, "baselined error must not block");
+    }
+
+    #[test]
+    fn severity_displays_lowercase_matching_json() {
+        assert_eq!(Severity::Warning.to_string(), "warning");
+        assert_eq!(Severity::Error.to_string(), "error");
     }
 
     #[test]

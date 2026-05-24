@@ -114,6 +114,94 @@ fn findings_block_under_fail_on_warnings() {
 }
 
 #[test]
+fn why_focuses_a_finding_and_includes_trace() {
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(dir.path(), "arch.rego", FINDINGS_POLICY);
+    let input = write(
+        dir.path(),
+        "input.json",
+        r#"{ "diff": { "new_edges": [{ "from": "a.rs", "to": "b.rs" }] } }"#,
+    );
+
+    let (json, code) = eval(
+        dir.path(),
+        &[
+            &policy,
+            "--query",
+            "data.arch.findings",
+            "--input",
+            &input,
+            "--why",
+            "0",
+        ],
+    );
+    assert_eq!(code, 0);
+    assert_eq!(json["why"], 0);
+    assert!(
+        json["trace"].is_object(),
+        "expected trace in output: {json}"
+    );
+}
+
+#[test]
+fn why_out_of_range_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "greet.rego",
+        "package t\nimport rego.v1\ngreeting := \"hi\"\n",
+    );
+    // No findings from this query, so index 0 is out of range.
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .args([
+            "policy",
+            "eval",
+            &policy,
+            "--query",
+            "data.t.greeting",
+            "--why",
+            "0",
+        ])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("invoke anvil");
+    assert!(!output.status.success(), "out-of-range --why must fail");
+}
+
+#[test]
+fn non_array_findings_query_errors_under_fail_on_warnings() {
+    let dir = tempfile::tempdir().unwrap();
+    // `findings := true` is a scalar, not a findings set — a policy bug.
+    let policy = write(
+        dir.path(),
+        "bad.rego",
+        "package arch\nimport rego.v1\nfindings := true\n",
+    );
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .args([
+            "policy",
+            "eval",
+            &policy,
+            "--query",
+            "data.arch.findings",
+            "--fail-on-warnings",
+        ])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("invoke anvil");
+    assert!(
+        !output.status.success(),
+        "a non-array result must not silently pass a gate"
+    );
+}
+
+#[test]
 fn explain_includes_coverage() {
     let dir = tempfile::tempdir().unwrap();
     let policy = write(

@@ -97,6 +97,8 @@ post-rust engine question. POLENG is the answer.
 - `anvil_policy_engine::PolicyInput` — versioned input data document
 - `anvil_policy_engine::Builtin` trait + `DeterminismClass` enum
 - `anvil_policy_engine::{Coverage, Trace, EvalResult, Severity}`
+- `anvil_policy_engine::{EvalReport, Finding, PostProcessOptions}` — findings
+  post-processing surface (POLENG-005)
 - CLI surface — `anvil policy eval` and flags
 
 **Coordinates with:**

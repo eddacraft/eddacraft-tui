@@ -26,6 +26,10 @@ pub use result::{EvalReport, Finding, PostProcessOptions, ResultError, Severity}
 pub use trace::Trace;
 
 /// Configuration for an [`Engine`].
+///
+/// Construct with struct-update syntax over [`Default`] so call sites stay
+/// source-compatible as fields are added:
+/// `EngineConfig { collect_coverage: true, ..Default::default() }`.
 #[derive(Debug, Clone, Default)]
 pub struct EngineConfig {
     /// Allow registering [`DeterminismClass::Impure`] builtins. Off by
@@ -48,9 +52,11 @@ pub struct EngineConfig {
 /// separately (e.g. an unknown rule reference vs. a rule that returned
 /// `null` explicitly).
 ///
-/// `coverage` and `trace` are populated only when the corresponding
-/// [`EngineConfig`] flag is set; access them via [`EvalResult::coverage`] and
-/// [`EvalResult::trace`].
+/// `value` is the raw query result and is always meaningful, so it is a public
+/// field. `coverage` and `trace` are opt-in observability — populated only when
+/// the corresponding [`EngineConfig`] flag is set — so they are exposed via the
+/// [`EvalResult::coverage`] / [`EvalResult::trace`] accessors that return
+/// `Option<&_>`, keeping the "may be absent" contract in the type.
 #[derive(Debug, Clone)]
 pub struct EvalResult {
     pub value: Option<serde_json::Value>,
@@ -144,7 +150,16 @@ impl Engine {
                         let out = builtin
                             .call(&input, &json_args)
                             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-                        Ok(RegorusValue::from(out))
+                        // `RegorusValue::from(serde_json::Value)` silently maps
+                        // a non-representable value to `Undefined`; convert
+                        // explicitly so a builtin bug surfaces as an error
+                        // instead of a phantom `undefined` in the policy.
+                        serde_json::from_value::<RegorusValue>(out).map_err(|e| {
+                            anyhow::Error::msg(format!(
+                                "builtin `{}` produced a value regorus cannot represent: {e}",
+                                builtin.name()
+                            ))
+                        })
                     },
                 ),
             )
@@ -231,6 +246,11 @@ impl Engine {
     /// (POLENG-005): annotate each finding with `is_new_edge` / `baselined` and
     /// compute the process exit code. `query` should resolve to an array of
     /// finding objects (or be absent for "no findings").
+    ///
+    /// This is a convenience that discards the [`EvalResult`] — so any
+    /// collected coverage/trace is lost. If you need findings *and*
+    /// coverage/trace, call [`Engine::eval`] and pass `EvalResult::value` to
+    /// [`result::post_process`] yourself (this is what the CLI does).
     pub fn evaluate_findings(
         &mut self,
         input: &PolicyInput,
