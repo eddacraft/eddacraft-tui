@@ -3327,7 +3327,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051i: `query_protection_claim` timeout parity with activation budget
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Both `SocketDaemonValidationClient::query_protection_claim`
   (Unix) and `WindowsPipeDaemonValidationClient::query_protection_claim`
   (Windows, MLP2-075) call `query_daemon_status_at` /

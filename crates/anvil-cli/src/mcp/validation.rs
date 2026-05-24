@@ -27,6 +27,26 @@ pub(crate) const INPUT_RULE_ID: &str = "mcp-validate-write-input";
 pub(crate) const PRE_WRITE_MODE: &str = "pre-write";
 #[cfg(unix)]
 const DAEMON_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+/// MLP2-051i: wall-clock budget for the MCP shim's protection-claim
+/// snapshot fetch. Pinned to the activation diagnostic's 500 ms cap
+/// (`crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT`)
+/// by the runtime test `mcp_protection_claim_timeout_matches_activation_budget`
+/// so a wedged daemon cannot stall `validate_write` for the 2 s default
+/// carried by `query_daemon_status_at`.
+///
+/// Scope is intentionally narrow: the pre-write `scan_buffer` path
+/// (`request_daemon_diagnostics`) keeps the longer `DAEMON_REQUEST_TIMEOUT`
+/// as its own budget. That path's drip-attack resistance is tracked
+/// separately — closing this MCP claim fetch is not equivalent to
+/// closing the `scan_buffer` read loop.
+///
+/// `#[cfg(any(unix, windows))]` matches the union of the two consumer
+/// `query_protection_claim` impls below; if a non-unix non-windows
+/// target is ever added, prune the gate (or the constant moves with
+/// the impls).
+#[cfg(any(unix, windows))]
+pub(crate) const MCP_PROTECTION_CLAIM_QUERY_TIMEOUT: std::time::Duration =
+    std::time::Duration::from_millis(500);
 #[cfg(any(unix, test))]
 const DAEMON_RESPONSE_LINE_BYTES: u64 = 1 << 20;
 #[cfg(unix)]
@@ -272,14 +292,20 @@ impl DaemonValidationClient for WindowsPipeDaemonValidationClient {
         // failure. A stale / missing snapshot maps to `None`, which
         // causes the MCP shim to omit the field instead of
         // synthesising a misleading "unprotected" claim.
-        let snapshot = crate::commands::intercept::query_daemon_status_windows_at(&self.pipe_name)
-            .map_err(|err| {
-                eprintln!(
-                    "anvil-mcp: protection_claim query_status failed (omitting field): {err}",
-                );
-                err
-            })
-            .ok()?;
+        //
+        // MLP2-051i: the explicit `_with_timeout` form pins the
+        // 500 ms `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` budget so a
+        // wedged daemon cannot stretch `validate_write` to the 2 s
+        // default carried by the parameterless `query_daemon_status_windows_at`.
+        let snapshot = crate::commands::intercept::query_daemon_status_windows_at_with_timeout(
+            &self.pipe_name,
+            MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
+        )
+        .map_err(|err| {
+            eprintln!("anvil-mcp: protection_claim query_status failed (omitting field): {err}");
+            err
+        })
+        .ok()?;
         Some(build_protection_claim_from_wire(&snapshot, workspace_root))
     }
 }
@@ -304,14 +330,20 @@ impl DaemonValidationClient for SocketDaemonValidationClient {
         // failure. A stale / missing snapshot maps to `None`, which
         // causes the MCP shim to omit the field instead of synthesising
         // a misleading "unprotected" claim.
-        let snapshot = crate::commands::intercept::query_daemon_status_at(&self.socket_path)
-            .map_err(|err| {
-                eprintln!(
-                    "anvil-mcp: protection_claim query_status failed (omitting field): {err}",
-                );
-                err
-            })
-            .ok()?;
+        //
+        // MLP2-051i: the explicit `_with_timeout` form pins the
+        // 500 ms `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` budget so a
+        // wedged daemon cannot stretch `validate_write` to the 2 s
+        // default carried by the parameterless `query_daemon_status_at`.
+        let snapshot = crate::commands::intercept::query_daemon_status_at_with_timeout(
+            &self.socket_path,
+            MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
+        )
+        .map_err(|err| {
+            eprintln!("anvil-mcp: protection_claim query_status failed (omitting field): {err}");
+            err
+        })
+        .ok()?;
         Some(build_protection_claim_from_wire(&snapshot, workspace_root))
     }
 }
@@ -835,6 +867,104 @@ mod tests {
             relative_path: "src/secret.ts",
             content: "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
         }
+    }
+
+    /// MLP2-051i: pin the MCP timeout to the activation budget so a
+    /// future edit to one constant cannot silently diverge from the
+    /// other. Compile-time pinning would require `Duration::as_millis`
+    /// in `const` context (stabilised after this crate's MSRV), so the
+    /// guard is a runtime equality test rather than `const _: () =
+    /// assert!(...)`.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn mcp_protection_claim_timeout_matches_activation_budget() {
+        use super::MCP_PROTECTION_CLAIM_QUERY_TIMEOUT;
+        use crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT;
+        assert_eq!(
+            MCP_PROTECTION_CLAIM_QUERY_TIMEOUT, ACTIVATION_DAEMON_QUERY_TIMEOUT,
+            "MLP2-051i: MCP protection-claim query budget must mirror activation budget; a divergence \
+             permits the MCP shim to inherit a 2 s stall the activation lane no longer allows.",
+        );
+    }
+
+    /// MLP2-051i: the MCP `query_protection_claim` Unix path must
+    /// inherit the same 500 ms budget the activation diagnostic uses
+    /// (MLP2-051f) so a wedged daemon cannot stall MCP `validate_write`
+    /// for the full 2 s `query_daemon_status_at` default. Mirrors
+    /// `activation_query_aborts_within_budget_against_hung_daemon` in
+    /// `crate::activation::daemon_evidence`, but exercises the MCP
+    /// client surface so a regression in the `_with_timeout` wire-up
+    /// is caught here, not just on the activation lane.
+    ///
+    /// The accepted server stream is held alive (via the `stop_rx`
+    /// channel) until after the client times out, so the client never
+    /// observes an EOF — the read path must exit on its own budget.
+    ///
+    /// `#[cfg(target_os = "linux")]` mirrors the gate on the activation
+    /// equivalent: macOS CI is not gated and `UnixStream` timeout
+    /// reliability on Darwin under load is not part of the coverage
+    /// contract here. The production code at `SocketDaemonValidationClient::query_protection_claim`
+    /// still ships on all `cfg(unix)` targets; a macOS-specific
+    /// regression would surface via the runtime parity test above
+    /// (constant-equality, not timing) plus operator report rather
+    /// than this timing assertion.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mcp_query_protection_claim_aborts_within_budget_against_hung_daemon() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+
+        use super::{
+            DaemonValidationClient as _, LocalDaemonValidationClient,
+            MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
+        };
+
+        let runtime_dir = tempdir().expect("runtime tempdir");
+        std::fs::set_permissions(runtime_dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("runtime dir perms");
+        let socket = runtime_dir.path().join("intercept.sock");
+        let listener = UnixListener::bind(&socket).expect("hung-daemon listener binds");
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
+            .expect("socket perms");
+
+        let (stop_tx, stop_rx) = mpsc::channel::<()>();
+        let handle = std::thread::spawn(move || {
+            // Accept exactly one connection and hold the stream in
+            // scope until `stop_rx` recv returns. This keeps the
+            // accepted side open so the client read blocks until its
+            // own timeout fires (rather than seeing EOF from a closed
+            // peer, which would return None for the wrong reason).
+            let (_stream, _) = listener.accept().expect("hung-daemon accepts");
+            let _ = stop_rx.recv();
+        });
+
+        let workspace_root = runtime_dir.path().join("workspace");
+        let client = LocalDaemonValidationClient::with_socket_path(socket);
+
+        let started = Instant::now();
+        let result = client.query_protection_claim(&workspace_root);
+        let elapsed = started.elapsed();
+
+        // No-over-claim posture preserved: a timed-out fetch omits
+        // the field rather than synthesising a misleading state.
+        assert!(
+            result.is_none(),
+            "hung daemon must surface as None, got {result:?}",
+        );
+        // 200 ms slack tolerates loaded CI workers; the spec's strict
+        // bound is `timeout + 100 ms`, but a CI runner under load can
+        // burn 100 ms on scheduling alone. The contract under test is
+        // "no 2 s blow-up", not "exactly 500 ms".
+        let slack = Duration::from_millis(200);
+        assert!(
+            elapsed <= MCP_PROTECTION_CLAIM_QUERY_TIMEOUT + slack,
+            "MCP query_protection_claim exceeded budget: elapsed = {elapsed:?}, budget = {MCP_PROTECTION_CLAIM_QUERY_TIMEOUT:?}",
+        );
+
+        // Release the held server stream so the listener thread can
+        // exit cleanly.
+        let _ = stop_tx.send(());
+        let _ = handle.join();
     }
 
     /// MLP2-075: end-to-end proof that the Windows path returns

@@ -118,7 +118,11 @@ pub enum DaemonAttestation {
 /// to spend on a one-time daemon probe. Decoupled from the 2 s
 /// [`crate::commands::intercept::query_daemon_status`] default so a
 /// hung daemon does not stretch `--verify` by ~2 s on every run.
-pub(super) const ACTIVATION_DAEMON_QUERY_TIMEOUT: Duration = Duration::from_millis(500);
+// `pub(crate)` (not `pub(super)`) so the MCP shim's
+// `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` can pin its budget against this
+// constant via a runtime equality test, removing the silent-drift risk
+// of two independently-defined 500 ms constants (MLP2-051i council).
+pub(crate) const ACTIVATION_DAEMON_QUERY_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// MLP2-051f: max staleness on the daemon attestation we will trust
 /// for a live-validation promotion.
