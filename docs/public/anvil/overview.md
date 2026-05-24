@@ -186,7 +186,7 @@ For the full explanation of checks, findings, and gates, see
 anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. See the
 [beta testing guide](/anvil/beta-testing-guide) for what to expect. If you're
 upgrading from `0.6.x`, read the
-[v0.6.x → v0.7.0-beta migration note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.x-to-v0.7.0-beta-migration.md)
+[0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta)
 first, then apply the `0.7.1-beta` patch notes.
 
 ### v0.7.x-beta operator surfaces

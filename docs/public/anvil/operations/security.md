@@ -20,8 +20,8 @@ cross-UID surface, no TLS, and no signed manifests in v1. For the four HIGH
 trade-offs the release council surfaced inside that boundary — allowlist
 file-mode verification, unsalted SHA-256 redaction hash, spec-only §4.4
 redaction filter for non-`validate_write` MCP tools, and the Linux PID-reuse
-TOCTOU window / macOS fence-on-uncertainty interrupt ladder — see the
-[v0.6.0-beta security note](https://github.com/eddacraft/anvil-001/blob/main/docs/archive/runbooks/v0.6.0-beta-security-note.md).
+TOCTOU window / macOS fence-on-uncertainty interrupt ladder — were documented in
+the historical `v0.6.0-beta` release security note.
 
 :::
 
