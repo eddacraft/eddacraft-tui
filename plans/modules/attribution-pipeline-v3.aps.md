@@ -382,7 +382,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-015: Anvil adopts a Node devtools attribution block
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1911 (`101ee6fd` · 2026-05-24)
 - **Execution plan:** `plans/execution/ATTRIB-015.steps.md` (kicked off 2026-05-25 on `feat/attrib-015-node-devtools`).
 - **Intent:** Exercise the Node driver in Anvil's own `ACKNOWLEDGEMENTS.md` to attribute the JS/TS dev tooling the repo continues to depend on (linters, formatters, Nx, kindling integration, build scripts).
 - **Expected Outcome:**
@@ -392,6 +392,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
   - Release runbook (ATTRIB-010) reflects the second block in its pre-release `--check` callout.
 - **Validation:** `tools/starters/acknowledgements/generate-acknowledgements.sh --check` exits 0 against both blocks in a clean working tree. Introducing a new dev dep triggers drift; removing one triggers drift; both resolve cleanly via a single re-run of the generator.
 - **Dependencies:** ATTRIB-012 (Node driver must exist).
+- **Shipped:** PR #1911 merged 2026-05-24 at commit `101ee6fd`. Repo state verified 2026-05-25: `attribution.toml` migrated from the flat `[rust]` shim to `[[blocks]]` with a `node-devtools` entry (`ecosystem = "node"`, `manifest_path = "tools/dev/package.json"`, `prod_only = false`); `tools/dev/package.json` + `tools/dev/package-lock.json` ship the curated 9-dep devtools manifest (8 build/test/lint tools + license-checker), excluded from `pnpm-workspace.yaml` via `!tools/dev` to dodge the pnpm-hoisting/`glob` incompat with `license-checker@25.0.1`; `ACKNOWLEDGEMENTS.md` carries the populated `node-devtools` block (282 attributed packages). Scope decision (spec open question line 358-363): **curated minimal** — root `prod_only=false` produced 2034 transitive packages including proprietary Nx Powerpack + Copilot CLI; curated gives 282 with no proprietary noise. Four permissive licences added to `licences.toml` (`BlueOak-1.0.0`, `0BSD`, `Python-2.0`, `CC-BY-3.0`) and propagated through `about.toml` / `deny.toml` / `licences.node-allow.txt`. `acknowledgements-diff` job extended with `(cd tools/dev && npm ci --ignore-scripts)` + PATH prepend; Node version bumped 20 → 22 to match `engines.node`. First production run of the new `acknowledgements-kit.yml` workflow on the merge commit (run [26369276266](https://github.com/eddacraft/anvil-001/actions/runs/26369276266)) succeeded. Not yet in a published release record (release-narrative status remains `Merged`, not `Released/Shipped`).
 
 ## Risks
 
