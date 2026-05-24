@@ -7,9 +7,12 @@
 //! [`determinism`]. Concrete builtins, post-processing, coverage/trace,
 //! CLI, and the bench harness land in POLENG-003 and POLENG-005..-008.
 
+use std::sync::{Arc, RwLock};
+
 use regorus::{Engine as RegorusEngine, Value as RegorusValue};
 use thiserror::Error;
 
+pub mod builtins;
 pub mod determinism;
 pub mod input;
 
@@ -55,6 +58,10 @@ pub enum EngineError {
 pub struct Engine {
     inner: RegorusEngine,
     config: EngineConfig,
+    /// The input document for the current evaluation, shared with builtin
+    /// closures so a data-source builtin (e.g. `anvil.repo_state()`) can read
+    /// it. Refreshed at the start of every [`Engine::eval`].
+    context: Arc<RwLock<PolicyInput>>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -68,6 +75,7 @@ impl Engine {
         Ok(Self {
             inner: RegorusEngine::new(),
             config,
+            context: Arc::new(RwLock::new(PolicyInput::default())),
         })
     }
 
@@ -79,18 +87,17 @@ impl Engine {
     /// [`EngineConfig::allow_impure_builtins`]. Builtins speak
     /// [`serde_json::Value`]; the engine bridges to and from `regorus::Value`
     /// at the call boundary so implementors never depend on `regorus`.
-    pub fn register_builtin(
-        &mut self,
-        builtin: std::sync::Arc<dyn Builtin>,
-    ) -> Result<(), EngineError> {
+    pub fn register_builtin(&mut self, builtin: Arc<dyn Builtin>) -> Result<(), EngineError> {
         let name = builtin.name().to_string();
         let arity = builtin.arity();
         if builtin.determinism() == DeterminismClass::Impure && !self.config.allow_impure_builtins {
             return Err(EngineError::ImpureBuiltinRejected(name));
         }
         // `builtin` is moved into the extension closure, which `regorus` keeps
-        // for the engine's lifetime; the closure bridges `regorus::Value` to
-        // and from `serde_json::Value` so the builtin never touches `regorus`.
+        // for the engine's lifetime; the closure reads the shared input
+        // context and bridges `regorus::Value` to/from `serde_json::Value` so
+        // the builtin never touches `regorus`.
+        let context = Arc::clone(&self.context);
         self.inner
             .add_extension(
                 name,
@@ -101,8 +108,11 @@ impl Engine {
                             .iter()
                             .map(serde_json::to_value)
                             .collect::<Result<_, _>>()?;
+                        let input = context
+                            .read()
+                            .map_err(|_| anyhow::Error::msg("policy input lock poisoned"))?;
                         let out = builtin
-                            .call(&json_args)
+                            .call(&input, &json_args)
                             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
                         Ok(RegorusValue::from(out))
                     },
@@ -135,6 +145,13 @@ impl Engine {
         self.inner
             .set_input_json(&input_json)
             .map_err(|e| EngineError::Input(e.to_string()))?;
+
+        // Refresh the shared context builtins read from. Cloning keeps the
+        // borrow self-contained; `input` documents are small policy fixtures.
+        *self
+            .context
+            .write()
+            .map_err(|_| EngineError::Input("policy input lock poisoned".into()))? = input.clone();
 
         let results = self
             .inner

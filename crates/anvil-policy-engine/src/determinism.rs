@@ -50,6 +50,12 @@ pub enum BuiltinError {
 
 /// A first-party builtin exposed to Rego policies.
 ///
+/// A builtin is a pure function of the current [`crate::PolicyInput`] and its
+/// JSON-valued arguments — which is exactly what [`DeterminismClass::Pure`]
+/// means. The engine threads the input document into every call, so a
+/// zero-argument data source such as `anvil.repo_state()` can read repo state
+/// without the policy passing it in.
+///
 /// Builtins speak [`serde_json::Value`], never `regorus::Value`, so
 /// implementors depend only on this facade (ADR-040 D-1); the engine bridges
 /// the two value representations at registration time.
@@ -68,8 +74,13 @@ pub trait Builtin: Send + Sync {
     /// Determinism classification — see [`DeterminismClass`].
     fn determinism(&self) -> DeterminismClass;
 
-    /// Evaluate the builtin against JSON-valued arguments.
-    fn call(&self, args: &[serde_json::Value]) -> Result<serde_json::Value, BuiltinError>;
+    /// Evaluate the builtin against the current input document and the
+    /// JSON-valued arguments supplied by the policy.
+    fn call(
+        &self,
+        input: &crate::PolicyInput,
+        args: &[serde_json::Value],
+    ) -> Result<serde_json::Value, BuiltinError>;
 }
 
 #[cfg(test)]
@@ -90,7 +101,11 @@ mod tests {
         fn determinism(&self) -> DeterminismClass {
             DeterminismClass::Pure
         }
-        fn call(&self, args: &[serde_json::Value]) -> Result<serde_json::Value, BuiltinError> {
+        fn call(
+            &self,
+            _input: &PolicyInput,
+            args: &[serde_json::Value],
+        ) -> Result<serde_json::Value, BuiltinError> {
             Ok(args[0].clone())
         }
     }
@@ -107,7 +122,11 @@ mod tests {
         fn determinism(&self) -> DeterminismClass {
             DeterminismClass::Impure
         }
-        fn call(&self, _args: &[serde_json::Value]) -> Result<serde_json::Value, BuiltinError> {
+        fn call(
+            &self,
+            _input: &PolicyInput,
+            _args: &[serde_json::Value],
+        ) -> Result<serde_json::Value, BuiltinError> {
             Ok(serde_json::json!("now"))
         }
     }

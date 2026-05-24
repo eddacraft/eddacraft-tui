@@ -176,6 +176,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-003: First-party builtins surface v1
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Expose Anvil's data sources as deterministic, audited Rego
   builtins so policy authors can query plan and repo state declaratively
 - **Expected Outcome:** `anvil.repo_state()`, `anvil.plan(path)`,
