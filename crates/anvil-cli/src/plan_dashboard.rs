@@ -70,7 +70,7 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
     let mut work_items = Vec::new();
     let mut warnings = Vec::new();
 
-    for module in &modules {
+    for module in &mut modules {
         let module_path = repo_root.join("plans").join(&module.path);
         let Ok(contents) = fs::read_to_string(&module_path) else {
             warnings.push(PlanWarning {
@@ -81,6 +81,16 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
             });
             continue;
         };
+
+        if let Some(header) = parse_module_header(&module.scope, &contents) {
+            if module.status.is_empty() || module.status == "Unknown" {
+                module.status = header.status;
+            }
+            if module.done.is_none() {
+                module.done = header.done;
+                module.total = header.total;
+            }
+        }
 
         let parsed_items = parse_work_items(&module.scope, &contents);
         let done = parsed_items
@@ -299,6 +309,60 @@ fn infer_status(value: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+#[derive(Debug)]
+struct ModuleHeader {
+    status: String,
+    done: Option<usize>,
+    total: Option<usize>,
+}
+
+fn parse_module_header(scope: &str, contents: &str) -> Option<ModuleHeader> {
+    let mut headers: Vec<String> = Vec::new();
+
+    for line in contents.lines() {
+        if !line.trim_start().starts_with('|') {
+            if !headers.is_empty() {
+                break;
+            }
+            continue;
+        }
+
+        let cells = table_cells(line);
+        if cells.iter().all(|cell| cell.chars().all(|c| c == '-')) {
+            continue;
+        }
+        if cells
+            .first()
+            .is_some_and(|cell| cell.eq_ignore_ascii_case("id"))
+        {
+            headers = cells.iter().map(|cell| normalise_header(cell)).collect();
+            continue;
+        }
+
+        let Some(id_index) = header_index(&headers, "id") else {
+            continue;
+        };
+        if cells.get(id_index).is_none_or(|cell| cell != scope) {
+            continue;
+        }
+
+        let (done, total) = header_index(&headers, "progress")
+            .and_then(|index| cells.get(index))
+            .map_or((None, None), |value| parse_progress(value));
+
+        return Some(ModuleHeader {
+            status: header_index(&headers, "status")
+                .and_then(|index| cells.get(index))
+                .cloned()
+                .unwrap_or_default(),
+            done,
+            total,
+        });
+    }
+
+    None
 }
 
 fn parse_work_items(module: &str, contents: &str) -> Vec<WorkItemSummary> {
@@ -531,6 +595,27 @@ mod tests {
 | Module | Scope | Est. Tasks | Dependencies |
 | ------ | ----- | ---------- | ------------ |
 | [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | 1/2 | Migration work — **In Progress**. |
+",
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert_eq!(snapshot.modules.len(), 1);
+        assert_eq!(snapshot.modules[0].status, "In Progress");
+        assert_eq!(snapshot.modules[0].done, Some(1));
+        assert_eq!(snapshot.modules[0].total, Some(2));
+    }
+
+    #[test]
+    fn falls_back_to_module_header_for_estimated_task_index_rows() {
+        let repo = fixture_repo();
+        write(
+            repo.path().join("plans/index.aps.md"),
+            r"# Test Plan
+
+| Module | Scope | Est. Tasks | Dependencies |
+| ------ | ----- | ---------- | ------------ |
+| [aps-canonical-alignment](./modules/aps-canonical-alignment.aps.md) | APSCAN | 2 | architecture-safety |
 ",
         );
 
