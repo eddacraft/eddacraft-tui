@@ -138,34 +138,33 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 285 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 317 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
 
 ```
-# MIT License
+    MIT License
 
-Copyright (c) 2020 Stephen M. Coakley
-Copyright (c) The Ratatui Developers
+    Copyright (c) Microsoft Corporation.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE
 
 ```
 
@@ -225,7 +224,7 @@ authorization of the copyright holder.
 
 ## Licence: Apache License 2.0
 
-Used by 10 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 12 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -466,7 +465,7 @@ Used by 6 crates. See the inventory table at the bottom of this file for the com
 
 ## Licence: BSD 3-Clause "New" or "Revised" License
 
-Used by 2 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 3 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -586,6 +585,36 @@ For these and/or other purposes and motivations, and without any expectation of 
      c. Affirmer disclaims responsibility for clearing rights of other persons that may apply to the Work or any use thereof, including without limitation any person's Copyright and Related Rights in the Work. Further, Affirmer disclaims responsibility for obtaining any necessary consents, permissions or other rights required for any use of the Work.
 
      d. Affirmer understands and acknowledges that Creative Commons is not a party to this document and has no duty or obligation with respect to this CC0 or use of the Work. 
+```
+
+</details>
+
+## Licence: MIT No Attribution
+
+Used by 1 crate. See the inventory table at the bottom of this file for the complete list.
+
+<details>
+<summary>Licence text</summary>
+
+```
+MIT No Attribution
+
+Copyright 2024 Scallop Ye
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 </details>
@@ -988,13 +1017,16 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `moxcms` | 0.8.1 | Apache License 2.0 | https://github.com/awxkee/moxcms.git |
 | `pxfm` | 0.1.29 | Apache License 2.0 | https://github.com/awxkee/pxfm |
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
+| `unicode-general-category` | 1.1.0 | Apache License 2.0 | https://github.com/yeslogic/unicode-general-category |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
+| `regorus` | 0.10.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
 | `aws-lc-sys` | 0.41.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
 | `aws-lc-sys` | 0.41.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
+| `regorus` | 0.10.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
 | `notify` | 8.2.0 | Creative Commons Zero v1.0 Universal | https://github.com/notify-rs/notify.git |
 | `untrusted` | 0.9.0 | ISC License | https://github.com/briansmith/untrusted |
 | `inotify-sys` | 0.1.5 | ISC License | https://github.com/hannobraun/inotify-sys |
@@ -1002,6 +1034,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rustls-webpki` | 0.103.13 | ISC License | https://github.com/rustls/webpki |
 | `aws-lc-rs` | 1.17.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `aws-lc-sys` | 0.41.0 | ISC License | https://github.com/aws/aws-lc-rs |
+| `msvc_spectre_libs` | 0.1.3 | MIT License | https://github.com/microsoft/rust_msvc_spectre_libs |
 | `instability` | 0.3.12 | MIT License | https://github.com/ratatui/instability |
 | `lazy_static` | 1.5.0 | MIT License | https://github.com/rust-lang-nursery/lazy-static.rs |
 | `rayon-core` | 1.13.0 | MIT License | https://github.com/rayon-rs/rayon |
@@ -1021,9 +1054,16 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `errno` | 0.3.14 | MIT License | https://github.com/lambda-fairy/rust-errno |
 | `mime` | 0.3.17 | MIT License | https://github.com/hyperium/mime |
 | `bitflags` | 2.11.1 | MIT License | https://github.com/bitflags/bitflags |
+| `fraction` | 0.15.4 | MIT License | https://github.com/dnsl48/fraction.git |
 | `glob` | 0.3.3 | MIT License | https://github.com/rust-lang/glob |
 | `log` | 0.4.29 | MIT License | https://github.com/rust-lang/log |
+| `num-bigint` | 0.4.6 | MIT License | https://github.com/rust-num/num-bigint |
+| `num-complex` | 0.4.6 | MIT License | https://github.com/rust-num/num-complex |
+| `num-integer` | 0.1.46 | MIT License | https://github.com/rust-num/num-integer |
+| `num-iter` | 0.1.45 | MIT License | https://github.com/rust-num/num-iter |
+| `num-rational` | 0.4.2 | MIT License | https://github.com/rust-num/num-rational |
 | `num-traits` | 0.2.19 | MIT License | https://github.com/rust-num/num-traits |
+| `num` | 0.4.3 | MIT License | https://github.com/rust-num/num |
 | `regex-automata` | 0.4.14 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.10 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.12.3 | MIT License | https://github.com/rust-lang/regex |
@@ -1039,6 +1079,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-segmentation` | 1.13.2 | MIT License | https://github.com/unicode-rs/unicode-segmentation |
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
+| `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
@@ -1074,6 +1115,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
 | `memoffset` | 0.9.1 | MIT License | https://github.com/Gilnaa/memoffset |
 | `stable_deref_trait` | 1.2.1 | MIT License | https://github.com/storyyeller/stable_deref_trait |
+| `bytecount` | 0.6.9 | MIT License | https://github.com/llogiq/bytecount |
 | `h2` | 0.4.14 | MIT License | https://github.com/hyperium/h2 |
 | `http` | 1.4.0 | MIT License | https://github.com/hyperium/http |
 | `tokio-rustls` | 0.26.4 | MIT License | https://github.com/rustls/tokio-rustls |
@@ -1084,6 +1126,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `digest` | 0.11.3 | MIT License | https://github.com/RustCrypto/traits |
 | `bytes` | 1.11.1 | MIT License | https://github.com/tokio-rs/bytes |
 | `smallvec` | 1.15.1 | MIT License | https://github.com/servo/rust-smallvec |
+| `ahash` | 0.8.12 | MIT License | https://github.com/tkaitchuck/ahash |
 | `want` | 0.3.1 | MIT License | https://github.com/seanmonstar/want |
 | `dirs-sys` | 0.5.0 | MIT License | https://github.com/dirs-dev/dirs-sys-rs |
 | `dirs` | 6.0.0 | MIT License | https://github.com/soc/dirs-rs |
@@ -1093,6 +1136,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rand_core` | 0.10.1 | MIT License | https://github.com/rust-random/rand_core |
 | `getrandom` | 0.4.2 | MIT License | https://github.com/rust-random/getrandom |
 | `unicode-truncate` | 2.0.1 | MIT License | https://github.com/Aetf/unicode-truncate |
+| `postcard` | 1.1.3 | MIT License | https://github.com/jamesmunns/postcard |
 | `slab` | 0.4.12 | MIT License | https://github.com/tokio-rs/slab |
 | `sharded-slab` | 0.1.7 | MIT License | https://github.com/hawkw/sharded-slab |
 | `matchers` | 0.2.0 | MIT License | https://github.com/hawkw/matchers |
@@ -1122,6 +1166,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rustls-pki-types` | 1.14.1 | MIT License | https://github.com/rustls/pki-types |
 | `powerfmt` | 0.2.0 | MIT License | https://github.com/jhpratt/powerfmt |
 | `notify-types` | 2.1.0 | MIT License | https://github.com/notify-rs/notify.git |
+| `bit-set` | 0.8.0 | MIT License | https://github.com/contain-rs/bit-set |
+| `bit-vec` | 0.8.0 | MIT License | https://github.com/contain-rs/bit-vec |
 | `hyper-util` | 0.1.20 | MIT License | https://github.com/hyperium/hyper-util |
 | `ratatui-macros` | 0.7.0 | MIT License | https://github.com/ratatui/ratatui |
 | `deranged` | 0.5.8 | MIT License | https://github.com/jhpratt/deranged |
@@ -1166,30 +1212,41 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `bytemuck_derive` | 1.10.2 | MIT License | https://github.com/Lokathor/bytemuck |
 | `strum` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
 | `strum_macros` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
+| `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
+| `jsonschema` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.0 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
+| `outref` | 0.5.2 | MIT License | https://github.com/Nugine/outref |
 | `demand` | 2.0.1 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
+| `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `animate-core` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `animate-macros` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `animate` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.0 | MIT License | https://github.com/axodotdev/axoupdater |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
+| `chrono-tz` | 0.10.4 | MIT License | https://github.com/chronotope/chrono-tz |
 | `chrono` | 0.4.44 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
+| `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
 | `objc2-encode` | 4.1.0 | MIT License | https://github.com/madsmtm/objc2 |
 | `objc2` | 0.6.4 | MIT License | https://github.com/madsmtm/objc2 |
 | `ratatui-core` | 0.1.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui-crossterm` | 0.1.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
+| `regorus` | 0.10.0 | MIT License | https://github.com/microsoft/regorus |
+| `siphasher` | 1.0.3 | MIT License | https://github.com/jedisct1/rust-siphash |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
+| `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
+| `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `windows-collections` | 0.2.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.62.2 | MIT License | https://github.com/microsoft/windows-rs |
@@ -1240,6 +1297,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `pin-project-lite` | 0.2.17 | MIT License | https://github.com/taiki-e/pin-project-lite |
 | `proc-macro2` | 1.0.106 | MIT License | https://github.com/dtolnay/proc-macro2 |
 | `quote` | 1.0.45 | MIT License | https://github.com/dtolnay/quote |
+| `ref-cast-impl` | 1.0.25 | MIT License | https://github.com/dtolnay/ref-cast |
+| `ref-cast` | 1.0.25 | MIT License | https://github.com/dtolnay/ref-cast |
 | `rustix` | 1.1.4 | MIT License | https://github.com/bytecodealliance/rustix |
 | `rustversion` | 1.0.22 | MIT License | https://github.com/dtolnay/rustversion |
 | `semver` | 1.0.28 | MIT License | https://github.com/dtolnay/semver |
@@ -1257,8 +1316,12 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
 | `winnow` | 1.0.3 | MIT License | https://github.com/winnow-rs/winnow |
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
+| `fancy-regex` | 0.17.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
+| `spin` | 0.10.0 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.0 | MIT License | https://github.com/paholg/typenum |
+| `phf` | 0.12.1 | MIT License | https://github.com/rust-phf/rust-phf |
+| `phf_shared` | 0.12.1 | MIT License | https://github.com/rust-phf/rust-phf |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |
@@ -1273,6 +1336,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fsevent-sys` | 4.1.0 | MIT License | https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys |
 | `security-framework-sys` | 2.17.0 | MIT License | https://github.com/kornelski/rust-security-framework |
 | `security-framework` | 3.7.0 | MIT License | https://github.com/kornelski/rust-security-framework |
+| `data-encoding` | 2.11.0 | MIT License | https://github.com/ia0/data-encoding |
 | `aws-lc-sys` | 0.41.0 | MIT License | https://github.com/aws/aws-lc-rs |
 | `kasuari` | 0.4.12 | MIT License | https://github.com/ratatui/kasuari |
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
@@ -1287,6 +1351,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `crossbeam-deque` | 0.8.6 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-epoch` | 0.9.18 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | 0.8.21 | MIT License | https://github.com/crossbeam-rs/crossbeam |
+| `borrow-or-share` | 0.2.4 | MIT No Attribution | https://github.com/yescallop/borrow-or-share |
 | `option-ext` | 0.2.0 | Mozilla Public License 2.0 | https://github.com/soc/option-ext.git |
 | `unicode-ident` | 1.0.24 | Unicode License v3 | https://github.com/dtolnay/unicode-ident |
 | `icu_collections` | 2.2.0 | Unicode License v3 | https://github.com/unicode-org/icu4x |
@@ -1324,286 +1389,13 @@ section above; this block focuses on the build-time runtime surface.
 <!-- BEGIN AUTO-GENERATED node-devtools -->
 | Package | Version | License | Repository |
 |---|---|---|---|
-| @emnapi/core | 1.4.5 | MIT | https://github.com/toyobayashi/emnapi |
-| @emnapi/runtime | 1.4.5 | MIT | https://github.com/toyobayashi/emnapi |
-| @emnapi/wasi-threads | 1.0.4 | MIT | https://github.com/toyobayashi/emnapi |
-| @jest/diff-sequences | 30.0.1 | MIT | https://github.com/jestjs/jest |
-| @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
-| @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
-| @nx/nx-linux-x64-gnu | 22.7.3 | MIT | https://github.com/nrwl/nx |
-| @oxc-project/types | 0.132.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxfmt/binding-linux-x64-gnu | 0.51.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxlint/binding-linux-x64-gnu | 1.66.0 | MIT | https://github.com/oxc-project/oxc |
 | @playwright/test | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
-| @rolldown/binding-linux-x64-gnu | 1.0.2 | MIT | https://github.com/rolldown/rolldown |
-| @rolldown/pluginutils | 1.0.1 | MIT | https://github.com/rolldown/plugins |
-| @standard-schema/spec | 1.1.0 | MIT | https://github.com/standard-schema/standard-schema |
-| @tybys/wasm-util | 0.9.0 | MIT | https://github.com/toyobayashi/wasm-util |
-| @types/chai | 5.2.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/debug | 4.1.13 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/deep-eql | 4.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/estree | 1.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/katex | 0.16.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/ms | 2.1.0 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @types/unist | 2.0.11 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @vitest/expect | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/mocker | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/pretty-format | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/runner | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/snapshot | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/spy | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/utils | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| @yarnpkg/lockfile | 1.1.0 | BSD-2-Clause | https://github.com/yarnpkg/yarn/blob/master/packages/lockfile |
-| @zkochan/js-yaml | 0.0.7 | MIT | https://github.com/nodeca/js-yaml |
-| abbrev | 1.1.1 | ISC | https://github.com/isaacs/abbrev-js |
-| ansi-colors | 4.1.3 | MIT | https://github.com/doowb/ansi-colors |
-| ansi-regex | 5.0.1 | MIT | https://github.com/chalk/ansi-regex |
-| ansi-regex | 6.2.2 | MIT | https://github.com/chalk/ansi-regex |
-| ansi-styles | 3.2.1 | MIT | https://github.com/chalk/ansi-styles |
-| ansi-styles | 4.3.0 | MIT | https://github.com/chalk/ansi-styles |
-| argparse | 2.0.1 | Python-2.0 | https://github.com/nodeca/argparse |
-| array-find-index | 1.0.2 | MIT | https://github.com/sindresorhus/array-find-index |
-| asap | 2.0.6 | MIT | https://github.com/kriskowal/asap |
-| assertion-error | 2.0.1 | MIT | https://github.com/chaijs/assertion-error |
-| asynckit | 0.4.0 | MIT | https://github.com/alexindigo/asynckit |
-| axios | 1.16.0 | MIT | https://github.com/axios/axios |
-| balanced-match | 1.0.2 | MIT | https://github.com/juliangruber/balanced-match |
-| balanced-match | 4.0.3 | MIT | https://github.com/juliangruber/balanced-match |
-| balanced-match | 4.0.4 | MIT | https://github.com/juliangruber/balanced-match |
-| base64-js | 1.5.1 | MIT | https://github.com/beatgammit/base64-js |
-| bl | 4.1.0 | MIT | https://github.com/rvagg/bl |
-| brace-expansion | 1.1.14 | MIT | https://github.com/juliangruber/brace-expansion |
-| brace-expansion | 5.0.5 | MIT | https://github.com/juliangruber/brace-expansion |
-| brace-expansion | 5.0.6 | MIT | https://github.com/juliangruber/brace-expansion |
-| buffer | 5.7.1 | MIT | https://github.com/feross/buffer |
-| call-bind-apply-helpers | 1.0.2 | MIT | https://github.com/ljharb/call-bind-apply-helpers |
-| chai | 6.2.2 | MIT | https://github.com/chaijs/chai |
-| chalk | 2.4.2 | MIT | https://github.com/chalk/chalk |
-| chalk | 4.1.2 | MIT | https://github.com/chalk/chalk |
-| character-entities-legacy | 3.0.0 | MIT | https://github.com/wooorm/character-entities-legacy |
-| character-entities | 2.0.2 | MIT | https://github.com/wooorm/character-entities |
-| character-reference-invalid | 2.0.1 | MIT | https://github.com/wooorm/character-reference-invalid |
-| cli-cursor | 3.1.0 | MIT | https://github.com/sindresorhus/cli-cursor |
-| cli-spinners | 2.6.1 | MIT | https://github.com/sindresorhus/cli-spinners |
-| cliui | 8.0.1 | ISC | https://github.com/yargs/cliui |
-| clone | 1.0.4 | MIT | https://github.com/pvorb/node-clone |
-| color-convert | 1.9.3 | MIT | https://github.com/Qix-/color-convert |
-| color-convert | 2.0.1 | MIT | https://github.com/Qix-/color-convert |
-| color-name | 1.1.3 | MIT | https://github.com/dfcreative/color-name |
-| color-name | 1.1.4 | MIT | https://github.com/colorjs/color-name |
-| combined-stream | 1.0.8 | MIT | https://github.com/felixge/node-combined-stream |
-| commander | 14.0.3 | MIT | https://github.com/tj/commander.js |
-| commander | 8.3.0 | MIT | https://github.com/tj/commander.js |
-| concat-map | 0.0.1 | MIT | https://github.com/substack/node-concat-map |
-| convert-source-map | 2.0.0 | MIT | https://github.com/thlorenz/convert-source-map |
-| debug | 3.2.7 | MIT | https://github.com/visionmedia/debug |
-| debug | 4.4.3 | MIT | https://github.com/debug-js/debug |
-| debuglog | 1.0.1 | MIT | https://github.com/sam-github/node-debuglog |
-| decode-named-character-reference | 1.3.0 | MIT | https://github.com/wooorm/decode-named-character-reference |
-| deep-extend | 0.6.0 | MIT | https://github.com/unclechu/node-deep-extend |
-| defaults | 1.0.4 | MIT | https://github.com/sindresorhus/node-defaults |
-| define-lazy-prop | 2.0.0 | MIT | https://github.com/sindresorhus/define-lazy-prop |
-| delayed-stream | 1.0.0 | MIT | https://github.com/felixge/node-delayed-stream |
-| dequal | 2.0.3 | MIT | https://github.com/lukeed/dequal |
-| detect-libc | 2.1.2 | Apache-2.0 | https://github.com/lovell/detect-libc |
-| devlop | 1.1.0 | MIT | https://github.com/wooorm/devlop |
-| dezalgo | 1.0.4 | ISC | https://github.com/npm/dezalgo |
-| dotenv-expand | 12.0.3 | BSD-2-Clause | https://github.com/motdotla/dotenv-expand |
-| dotenv | 16.4.7 | BSD-2-Clause | https://github.com/motdotla/dotenv |
-| dunder-proto | 1.0.1 | MIT | https://github.com/es-shims/dunder-proto |
-| ejs | 5.0.1 | Apache-2.0 | https://github.com/mde/ejs |
-| emoji-regex | 8.0.0 | MIT | https://github.com/mathiasbynens/emoji-regex |
-| end-of-stream | 1.4.5 | MIT | https://github.com/mafintosh/end-of-stream |
-| enquirer | 2.3.6 | MIT | https://github.com/enquirer/enquirer |
-| entities | 4.5.0 | BSD-2-Clause | https://github.com/fb55/entities |
-| es-define-property | 1.0.1 | MIT | https://github.com/ljharb/es-define-property |
-| es-errors | 1.3.0 | MIT | https://github.com/ljharb/es-errors |
-| es-module-lexer | 2.1.0 | MIT | https://github.com/guybedford/es-module-lexer |
-| es-object-atoms | 1.1.1 | MIT | https://github.com/ljharb/es-object-atoms |
-| es-set-tostringtag | 2.1.0 | MIT | https://github.com/es-shims/es-set-tostringtag |
-| escalade | 3.2.0 | MIT | https://github.com/lukeed/escalade |
-| escape-string-regexp | 1.0.5 | MIT | https://github.com/sindresorhus/escape-string-regexp |
-| estree-walker | 3.0.3 | MIT | https://github.com/Rich-Harris/estree-walker |
-| expect-type | 1.3.0 | Apache-2.0 | https://github.com/mmkal/expect-type |
-| fdir | 6.5.0 | MIT | https://github.com/thecodrr/fdir |
-| figures | 3.2.0 | MIT | https://github.com/sindresorhus/figures |
-| flat | 5.0.2 | BSD-3-Clause | https://github.com/hughsk/flat |
-| follow-redirects | 1.16.0 | MIT | https://github.com/follow-redirects/follow-redirects |
-| form-data | 4.0.5 | MIT | https://github.com/form-data/form-data |
-| fs-constants | 1.0.0 | MIT | https://github.com/mafintosh/fs-constants |
-| fs.realpath | 1.0.0 | ISC | https://github.com/isaacs/fs.realpath |
-| function-bind | 1.1.2 | MIT | https://github.com/Raynos/function-bind |
-| get-caller-file | 2.0.5 | ISC | https://github.com/stefanpenner/get-caller-file |
-| get-east-asian-width | 1.6.0 | MIT | https://github.com/sindresorhus/get-east-asian-width |
-| get-intrinsic | 1.3.0 | MIT | https://github.com/ljharb/get-intrinsic |
-| get-proto | 1.0.1 | MIT | https://github.com/ljharb/get-proto |
-| glob | 7.2.3 | ISC | https://github.com/isaacs/node-glob |
-| gopd | 1.2.0 | MIT | https://github.com/ljharb/gopd |
-| graceful-fs | 4.2.11 | ISC | https://github.com/isaacs/node-graceful-fs |
-| has-flag | 3.0.0 | MIT | https://github.com/sindresorhus/has-flag |
-| has-flag | 4.0.0 | MIT | https://github.com/sindresorhus/has-flag |
-| has-symbols | 1.1.0 | MIT | https://github.com/inspect-js/has-symbols |
-| has-tostringtag | 1.0.2 | MIT | https://github.com/inspect-js/has-tostringtag |
-| hasown | 2.0.2 | MIT | https://github.com/inspect-js/hasOwn |
-| hasown | 2.0.3 | MIT | https://github.com/inspect-js/hasOwn |
-| hosted-git-info | 2.8.9 | ISC | https://github.com/npm/hosted-git-info |
 | husky | 9.1.7 | MIT | https://github.com/typicode/husky |
-| ieee754 | 1.2.1 | BSD-3-Clause | https://github.com/feross/ieee754 |
-| ignore | 7.0.5 | MIT | https://github.com/kaelzhang/node-ignore |
-| inflight | 1.0.6 | ISC | https://github.com/npm/inflight |
-| inherits | 2.0.4 | ISC | https://github.com/isaacs/inherits |
-| ini | 4.1.3 | ISC | https://github.com/npm/ini |
-| is-alphabetical | 2.0.1 | MIT | https://github.com/wooorm/is-alphabetical |
-| is-alphanumerical | 2.0.1 | MIT | https://github.com/wooorm/is-alphanumerical |
-| is-core-module | 2.16.2 | MIT | https://github.com/inspect-js/is-core-module |
-| is-decimal | 2.0.1 | MIT | https://github.com/wooorm/is-decimal |
-| is-docker | 2.2.1 | MIT | https://github.com/sindresorhus/is-docker |
-| is-fullwidth-code-point | 3.0.0 | MIT | https://github.com/sindresorhus/is-fullwidth-code-point |
-| is-hexadecimal | 2.0.1 | MIT | https://github.com/wooorm/is-hexadecimal |
-| is-interactive | 1.0.0 | MIT | https://github.com/sindresorhus/is-interactive |
-| is-unicode-supported | 0.1.0 | MIT | https://github.com/sindresorhus/is-unicode-supported |
-| is-wsl | 2.2.0 | MIT | https://github.com/sindresorhus/is-wsl |
-| js-yaml | 4.1.1 | MIT | https://github.com/nodeca/js-yaml |
-| json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors |
-| json5 | 2.2.3 | MIT | https://github.com/json5/json5 |
-| jsonc-parser | 3.2.0 | MIT | https://github.com/microsoft/node-jsonc-parser |
-| jsonc-parser | 3.3.1 | MIT | https://github.com/microsoft/node-jsonc-parser |
-| jsonpointer | 5.0.1 | MIT | https://github.com/janl/node-jsonpointer |
-| katex | 0.16.47 | MIT | https://github.com/KaTeX/KaTeX |
 | license-checker | 25.0.1 | BSD-3-Clause | https://github.com/davglass/license-checker |
-| lightningcss-linux-x64-gnu | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
-| lightningcss | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
-| lines-and-columns | 2.0.3 | MIT | https://github.com/eventualbuddha/lines-and-columns |
-| linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
-| log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
-| magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
-| markdown-it | 14.1.1 | MIT | https://github.com/markdown-it/markdown-it |
 | markdownlint-cli | 0.48.0 | MIT | https://github.com/igorshubovych/markdownlint-cli |
-| markdownlint | 0.40.0 | MIT | https://github.com/DavidAnson/markdownlint |
-| math-intrinsics | 1.1.0 | MIT | https://github.com/es-shims/math-intrinsics |
-| mdurl | 2.0.0 | MIT | https://github.com/markdown-it/mdurl |
-| micromark-core-commonmark | 2.0.3 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark |
-| micromark-extension-directive | 4.0.0 | MIT | https://github.com/micromark/micromark-extension-directive |
-| micromark-extension-gfm-autolink-literal | 2.1.0 | MIT | https://github.com/micromark/micromark-extension-gfm-autolink-literal |
-| micromark-extension-gfm-footnote | 2.1.0 | MIT | https://github.com/micromark/micromark-extension-gfm-footnote |
-| micromark-extension-gfm-table | 2.1.1 | MIT | https://github.com/micromark/micromark-extension-gfm-table |
-| micromark-extension-math | 3.1.0 | MIT | https://github.com/micromark/micromark-extension-math |
-| micromark-factory-destination | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-destination |
-| micromark-factory-label | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-label |
-| micromark-factory-space | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space |
-| micromark-factory-title | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-title |
-| micromark-factory-whitespace | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-whitespace |
-| micromark-util-character | 2.1.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-character |
-| micromark-util-chunked | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-chunked |
-| micromark-util-classify-character | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character |
-| micromark-util-combine-extensions | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-combine-extensions |
-| micromark-util-decode-numeric-character-reference | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-numeric-character-reference |
-| micromark-util-encode | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-encode |
-| micromark-util-html-tag-name | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-html-tag-name |
-| micromark-util-normalize-identifier | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-normalize-identifier |
-| micromark-util-resolve-all | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-resolve-all |
-| micromark-util-sanitize-uri | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri |
-| micromark-util-subtokenize | 2.1.0 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-subtokenize |
-| micromark-util-symbol | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol |
-| micromark-util-types | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types |
-| micromark | 4.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark |
-| mime-db | 1.52.0 | MIT | https://github.com/jshttp/mime-db |
-| mime-types | 2.1.35 | MIT | https://github.com/jshttp/mime-types |
-| mimic-fn | 2.1.0 | MIT | https://github.com/sindresorhus/mimic-fn |
-| minimatch | 10.2.5 | BlueOak-1.0.0 | https://github.com/isaacs/minimatch |
-| minimatch | 3.1.5 | ISC | https://github.com/isaacs/minimatch |
-| minimist | 1.2.8 | MIT | https://github.com/minimistjs/minimist |
-| mkdirp | 0.5.6 | MIT | https://github.com/substack/node-mkdirp |
-| ms | 2.1.3 | MIT | https://github.com/vercel/ms |
-| nanoid | 3.3.12 | MIT | https://github.com/ai/nanoid |
-| nopt | 4.0.3 | ISC | https://github.com/npm/nopt |
-| normalize-package-data | 2.5.0 | BSD-2-Clause | https://github.com/npm/normalize-package-data |
-| npm-normalize-package-bin | 1.0.1 | ISC | https://github.com/npm/npm-normalize-package-bin |
-| npm-run-path | 4.0.1 | MIT | https://github.com/sindresorhus/npm-run-path |
 | nx | 22.7.3 | MIT | https://github.com/nrwl/nx |
-| obug | 2.1.1 | MIT | https://github.com/sxzz/obug |
-| once | 1.4.0 | ISC | https://github.com/isaacs/once |
-| onetime | 5.1.2 | MIT | https://github.com/sindresorhus/onetime |
-| open | 8.4.2 | MIT | https://github.com/sindresorhus/open |
-| ora | 5.3.0 | MIT | https://github.com/sindresorhus/ora |
-| os-homedir | 1.0.2 | MIT | https://github.com/sindresorhus/os-homedir |
-| os-tmpdir | 1.0.2 | MIT | https://github.com/sindresorhus/os-tmpdir |
-| osenv | 0.1.5 | ISC | https://github.com/npm/osenv |
 | oxfmt | 0.51.0 | MIT | https://github.com/oxc-project/oxc |
 | oxlint | 1.66.0 | MIT | https://github.com/oxc-project/oxc |
-| parse-entities | 4.0.2 | MIT | https://github.com/wooorm/parse-entities |
-| path-is-absolute | 1.0.1 | MIT | https://github.com/sindresorhus/path-is-absolute |
-| path-key | 3.1.1 | MIT | https://github.com/sindresorhus/path-key |
-| path-parse | 1.0.7 | MIT | https://github.com/jbgutierrez/path-parse |
-| pathe | 2.0.3 | MIT | https://github.com/unjs/pathe |
-| picocolors | 1.1.1 | ISC | https://github.com/alexeyraspopov/picocolors |
-| picomatch | 4.0.4 | MIT | https://github.com/micromatch/picomatch |
-| playwright-core | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
-| playwright | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
-| postcss | 8.5.15 | MIT | https://github.com/postcss/postcss |
-| proxy-from-env | 2.1.0 | MIT | https://github.com/Rob--W/proxy-from-env |
-| punycode.js | 2.3.1 | MIT | https://github.com/mathiasbynens/punycode.js |
-| read-installed | 4.0.3 | ISC | https://github.com/isaacs/read-installed |
-| read-package-json | 2.1.2 | ISC | https://github.com/npm/read-package-json |
-| readable-stream | 3.6.2 | MIT | https://github.com/nodejs/readable-stream |
-| readdir-scoped-modules | 1.1.0 | ISC | https://github.com/npm/readdir-scoped-modules |
-| require-directory | 2.1.1 | MIT | https://github.com/troygoode/node-require-directory |
-| resolve.exports | 2.0.3 | MIT | https://github.com/lukeed/resolve.exports |
-| resolve | 1.22.12 | MIT | https://github.com/browserify/resolve |
-| restore-cursor | 3.1.0 | MIT | https://github.com/sindresorhus/restore-cursor |
-| rolldown | 1.0.2 | MIT | https://github.com/rolldown/rolldown |
-| run-con | 1.3.2 | (BSD-2-Clause OR MIT OR Apache-2.0) | https://github.com/goatandsheep/rc |
-| safe-buffer | 5.2.1 | MIT | https://github.com/feross/safe-buffer |
-| semver | 5.7.2 | ISC | https://github.com/npm/node-semver |
-| semver | 7.7.4 | ISC | https://github.com/npm/node-semver |
-| siginfo | 2.0.0 | ISC | https://github.com/emilbayes/siginfo |
-| signal-exit | 3.0.7 | ISC | https://github.com/tapjs/signal-exit |
-| slide | 1.1.6 | ISC | https://github.com/isaacs/slide-flow-control |
-| smol-toml | 1.6.1 | BSD-3-Clause | https://github.com/squirrelchat/smol-toml |
-| source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js |
-| spdx-compare | 1.0.0 | MIT | https://github.com/kemitchell/spdx-compare.js |
-| spdx-correct | 3.2.0 | Apache-2.0 | https://github.com/jslicense/spdx-correct.js |
-| spdx-exceptions | 2.5.0 | CC-BY-3.0 | https://github.com/kemitchell/spdx-exceptions.json |
-| spdx-expression-parse | 3.0.1 | MIT | https://github.com/jslicense/spdx-expression-parse.js |
-| spdx-license-ids | 3.0.23 | CC0-1.0 | https://github.com/jslicense/spdx-license-ids |
-| spdx-ranges | 2.1.1 | (MIT AND CC-BY-3.0) | https://github.com/kemitchell/spdx-ranges.js |
-| spdx-satisfies | 4.0.1 | MIT | https://github.com/kemitchell/spdx-satisfies.js |
-| stackback | 0.0.2 | MIT | https://github.com/shtylman/node-stackback |
-| std-env | 4.1.0 | MIT | https://github.com/unjs/std-env |
-| string-width | 4.2.3 | MIT | https://github.com/sindresorhus/string-width |
-| string-width | 8.1.0 | MIT | https://github.com/sindresorhus/string-width |
-| string_decoder | 1.3.0 | MIT | https://github.com/nodejs/string_decoder |
-| strip-ansi | 6.0.1 | MIT | https://github.com/chalk/strip-ansi |
-| strip-ansi | 7.2.0 | MIT | https://github.com/chalk/strip-ansi |
-| strip-bom | 3.0.0 | MIT | https://github.com/sindresorhus/strip-bom |
-| strip-json-comments | 3.1.1 | MIT | https://github.com/sindresorhus/strip-json-comments |
-| supports-color | 5.5.0 | MIT | https://github.com/chalk/supports-color |
-| supports-color | 7.2.0 | MIT | https://github.com/chalk/supports-color |
-| supports-preserve-symlinks-flag | 1.0.0 | MIT | https://github.com/inspect-js/node-supports-preserve-symlinks-flag |
-| tar-stream | 2.2.0 | MIT | https://github.com/mafintosh/tar-stream |
-| tinybench | 2.9.0 | MIT | https://github.com/tinylibs/tinybench |
-| tinyexec | 1.2.2 | MIT | https://github.com/tinylibs/tinyexec |
-| tinyglobby | 0.2.16 | MIT | https://github.com/SuperchupuDev/tinyglobby |
-| tinypool | 2.1.0 | MIT | https://github.com/tinylibs/tinypool |
-| tinyrainbow | 3.1.0 | MIT | https://github.com/tinylibs/tinyrainbow |
-| tmp | 0.2.4 | MIT | https://github.com/raszi/node-tmp |
-| tree-kill | 1.2.2 | MIT | https://github.com/pkrumins/node-tree-kill |
-| treeify | 1.1.0 | MIT | https://github.com/notatestuser/treeify |
-| tsconfig-paths | 4.2.0 | MIT | https://github.com/dividab/tsconfig-paths |
-| tslib | 2.8.1 | 0BSD | https://github.com/Microsoft/tslib |
 | typescript | 6.0.3 | Apache-2.0 | https://github.com/microsoft/TypeScript |
-| uc.micro | 2.1.0 | MIT | https://github.com/markdown-it/uc.micro |
-| util-deprecate | 1.0.2 | MIT | https://github.com/TooTallNate/util-deprecate |
-| util-extend | 1.0.3 | MIT | https://github.com/isaacs/util-extend |
-| validate-npm-package-license | 3.0.4 | Apache-2.0 | https://github.com/kemitchell/validate-npm-package-license.js |
-| vite | 8.0.14 | MIT | https://github.com/vitejs/vite |
 | vitest | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
-| wcwidth | 1.0.1 | MIT | https://github.com/timoxley/wcwidth |
-| why-is-node-running | 2.3.0 | MIT | https://github.com/mafintosh/why-is-node-running |
-| wrap-ansi | 7.0.0 | MIT | https://github.com/chalk/wrap-ansi |
-| wrappy | 1.0.2 | ISC | https://github.com/npm/wrappy |
-| y18n | 5.0.8 | ISC | https://github.com/yargs/y18n |
-| yaml | 2.8.0 | ISC | https://github.com/eemeli/yaml |
-| yargs-parser | 21.1.1 | ISC | https://github.com/yargs/yargs-parser |
-| yargs | 17.7.2 | MIT | https://github.com/yargs/yargs |
 <!-- END AUTO-GENERATED node-devtools -->

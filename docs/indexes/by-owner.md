@@ -73,6 +73,12 @@
 | ---------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
 | [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
+## POLENG (plans/modules/policy-engine.aps.md)
+
+| Document                                                                      | Path                            | Type | Authority     | Owner                                       | Status |
+| ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | ------------------------------------------- | ------ |
+| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/modules/policy-engine.aps.md) | Draft  |
+
 ## RELORCH
 
 | Document                                                        | Path                               | Type    | Authority     | Owner   | Status |

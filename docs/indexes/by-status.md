@@ -14,6 +14,7 @@
 
 | Document                                                                                  | Path                                      | Type     | Authority     | Owner                                             | Status |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------- | -------- | ------------- | ------------------------------------------------- | ------ |
+| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md)             | `docs/specs/policy-input-v1.md`           | Spec     | Authoritative | POLENG (plans/modules/policy-engine.aps.md)       | Draft  |
 | [Runbook Template](../../docs/guides/runbook-template.md)                                 | `docs/guides/runbook-template.md`         | Runbook  | Authoritative | MODULE-CODE                                       | Draft  |
 | [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md`     | Spec     | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Draft  |
 | [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)              | `docs/architecture/_as-built-template.md` | As-built | Derived       | MODULE-CODE (link to plans/modules/...)           | Draft  |

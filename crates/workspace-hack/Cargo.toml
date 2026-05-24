@@ -16,7 +16,6 @@ description = "Internal workspace-hack crate — feature-unification only, no pu
 ### BEGIN HAKARI SECTION
 [dependencies]
 aho-corasick = { version = "1" }
-anyhow = { version = "1" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["derive", "extern_crate_alloc", "min_const_generics"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -30,7 +29,6 @@ futures-core = { version = "0.3" }
 futures-sink = { version = "0.3" }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 globset = { version = "0.4", features = ["simd-accel"] }
-idna = { version = "1" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2", features = ["serde"] }
 itertools = { version = "0.14" }
@@ -38,7 +36,6 @@ lru = { version = "0.16" }
 memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }
-percent-encoding = { version = "2" }
 rand = { version = "0.10" }
 regex = { version = "1" }
 regex-automata = { version = "0.4", default-features = false, features = ["dfa", "hybrid", "meta", "nfa", "perf", "std", "unicode"] }
@@ -55,7 +52,6 @@ uuid = { version = "1", features = ["fast-rng", "v4", "v7"] }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [build-dependencies]
-anyhow = { version = "1" }
 indexmap = { version = "2", features = ["serde"] }
 memchr = { version = "2" }
 proc-macro2 = { version = "1" }
