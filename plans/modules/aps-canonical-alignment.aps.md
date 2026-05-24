@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 1/11     |
+| APSCAN | —     | In Progress | 2/11     |
 
 ## Purpose
 
@@ -232,7 +232,7 @@ Migrate in waves:
 
 ### APSCAN-011: Add APS TUI dashboard
 
-- **Status:** In Progress
+- **Status:** Merged via PR #1906 (`4c6e1e2a`)
 - **Intent:** Provide a read-only terminal dashboard for active APS work so
   operators and agents can see in-progress modules, ready work, blocked work, and
   local reconciliation hints without manually reading the APS index and every
@@ -254,4 +254,7 @@ Migrate in waves:
 - **Dependencies:** APSCAN-001
 - **Spec:** `plans/specs/2026-05-24-aps-tui-dashboard.md`
 - **Execution Plan:** `plans/execution/2026-05-24-aps-tui-dashboard.md`
+- **Closeout:** PR #1906 merged 2026-05-24 at `4c6e1e2a`. Local and CI
+  validation covered CLI snapshot parsing, TUI rendering/state tests,
+  formatter, docs lint, APS drift, and workspace clippy.
 - **Confidence:** medium
