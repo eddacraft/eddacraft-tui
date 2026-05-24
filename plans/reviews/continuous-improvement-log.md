@@ -72,3 +72,37 @@ a backlog. Promote repeated friction or executable follow-up work to
   fact; not worth a CIB entry.
 - **Follow-up:** Run /addressing-pr-reviews on #1909 after CI + Copilot
   settle.
+
+### 2026-05-25 — claude
+
+- **Task:** Finish as much of POLENG as possible via /dev-workflow
+  (autonomous goal). Implemented POLENG-002..007 on one branch.
+- **Outcome:** 8 commits, one PR pending; engine facade (input schema,
+  determinism contract + Builtin trait, builtins, ADR-002/003
+  post-processing, coverage/trace) + `anvil policy eval` CLI. Workspace
+  cargo test + clippy + fmt + oxfmt clean. POLENG-008 left as a separate
+  follow-up (open).
+- **Worked:** Batching the engine-core tasks on one branch (multi-item
+  PR, matching the `feat/mlp2-014-019-059-*` precedent) avoided five
+  merge-wait cycles; the in-module dependency chain collapsed into
+  numeric order with 004 done before 003 so the `Builtin` trait existed
+  before the concrete builtins. Mini-council (kernel + adversarial +
+  code-reviewer) earned its keep.
+- **Failed:** Mini-council caught a CRITICAL I'd have shipped — baselined
+  `Error` findings still drove exit 1 because `exit_code` only guarded
+  `!baselined` for warnings; my ADR-003 reading was warning-centric. Also
+  `RegorusValue::from(serde_json::Value)` silently maps unrepresentable
+  values to `Undefined`; the bridge now uses `from_value` and errors.
+- **Friction:** regorus 0.10.0 exposes line coverage but **no** structured
+  rule-firing trace through its public API (the internal `traces` buffer
+  has no `Engine` getter), so POLENG-006's trace is the query-bindings
+  surface only — documented on the task, not faked. The `eddacraft-anvil`
+  vs `eddacraft-anvil-cli` crate-name divergence bit again (see prior
+  entry) — `-p eddacraft-anvil`.
+- **Improvement:** For a facade trait downstream crates implement, fix the
+  value currency (serde_json vs engine-native) up front: `Builtin::call`
+  had to gain an `&PolicyInput` ctx param in POLENG-003, churning the
+  trait committed in POLENG-004.
+- **Follow-up:** POLENG-008 (bench parity vs Go OPA) — executable locally
+  (opa 0.60.0 + go 1.26.3 present) but a separate PR and a potential
+  ADR-040-revisit trigger. Run /addressing-pr-reviews after the PR opens.
