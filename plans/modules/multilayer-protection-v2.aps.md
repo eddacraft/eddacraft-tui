@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 67/86 |
+| MLP2 | @aneki | In Progress | 68/86 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -3235,7 +3235,19 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051g: `anvil start --verify --why` verbose tier-evidence flag
 
-- **Status:** In Progress (branch `feat/mlp2-051g-verify-why`)
+- **Status:** Merged 2026-05-25 via PR [#1909](https://github.com/eddacraft/anvil-001/pull/1909)
+  (rebase-merge — feat at `6bcf3f8f`, copilot-review hardening at
+  `03e6a73f` covering four review findings: clap `requires = "verify"`
+  on `StatusArgs::why`, drop nonexistent `anvil intercept recover`,
+  ensure all `anvil intercept start` hints include `--foreground`, and
+  dispatch `why_summary` on `protection_state()` instead of solely
+  `daemon_attestation`). Ships the `--why` flag on `anvil start` and
+  `anvil status --verify` per `plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
+  §"Council Verdicts" item 9; closes acceptance criterion #3 of
+  GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831).
+  10 pinned tests in `crates/anvil-cli/src/activation/render.rs::tests`
+  cover the renderer, the stdout-parity contract, the security guard,
+  and each PR-review regression.
 - **Intent:** When `anvil start --verify` (or `anvil status --verify`)
   stalls at `ready_restart_required`, the user has no way to see what
   the activation surface actually found at each tier. Add a `--why`
