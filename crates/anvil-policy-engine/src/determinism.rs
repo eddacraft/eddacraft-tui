@@ -160,6 +160,7 @@ mod tests {
     fn impure_builtin_allowed_when_opted_in() {
         let mut engine = Engine::new(EngineConfig {
             allow_impure_builtins: true,
+            ..Default::default()
         })
         .expect("engine");
         engine

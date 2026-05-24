@@ -11,7 +11,8 @@ name = "anvil_policy_engine"
 
 [dependencies]
 anyhow = { workspace = true }
-regorus = { workspace = true }
+# `coverage` enables get_coverage_report (POLENG-006); not in regorus defaults.
+regorus = { workspace = true, features = ["coverage"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

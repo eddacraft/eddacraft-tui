@@ -228,6 +228,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-006: Coverage and trace as first-class result fields
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Expose line-level coverage and rule-firing trace on every
   evaluation so OPAE's debugger and POLFED federation reporting build on a
   shared substrate
@@ -241,6 +242,15 @@ post-rust engine question. POLENG is the answer.
 - **Dependencies:** POLENG-001
 - **Confidence:** medium (regorus exposes coverage natively but needs shaping
   to the facade contract)
+- **Note (2026-05-25):** Coverage is delivered in full (covered/uncovered lines
+  per file, rendered by `--explain`). Trace is **partial by upstream
+  constraint:** regorus 0.10.0 exposes no structured rule-firing-order trace
+  through its public API — the internal `traces` buffer only gathers explicit
+  `trace()` strings and has no `Engine` getter. `EvalResult::trace()` therefore
+  captures the query variable bindings regorus *does* surface, and `Trace` is
+  shaped so a richer rule-firing trace can populate it without an API break.
+  Full trace is follow-up work gated on an upstream regorus capability (or a
+  vendored evaluator hook); flagged for OPAE's debugger consumer.
 
 ### POLENG-007: CLI surface — `anvil policy eval`
 

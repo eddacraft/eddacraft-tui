@@ -13,13 +13,17 @@ use regorus::{Engine as RegorusEngine, Value as RegorusValue};
 use thiserror::Error;
 
 pub mod builtins;
+pub mod coverage;
 pub mod determinism;
 pub mod input;
 pub mod result;
+pub mod trace;
 
+pub use coverage::{Coverage, FileCoverage};
 pub use determinism::{Builtin, BuiltinError, DeterminismClass};
 pub use input::PolicyInput;
 pub use result::{EvalReport, Finding, PostProcessOptions, ResultError, Severity};
+pub use trace::Trace;
 
 /// Configuration for an [`Engine`].
 #[derive(Debug, Clone, Default)]
@@ -28,6 +32,12 @@ pub struct EngineConfig {
     /// default: an impure builtin forfeits the determinism guarantee
     /// (POLENG-004), so opting in is an explicit, auditable choice.
     pub allow_impure_builtins: bool,
+    /// Collect line coverage and expose it on [`EvalResult::coverage`]. Off by
+    /// default (it adds per-eval bookkeeping); the CLI's `--explain` enables it.
+    pub collect_coverage: bool,
+    /// Collect the evaluation trace and expose it on [`EvalResult::trace`]. Off
+    /// by default; the CLI's `--why` enables it.
+    pub collect_trace: bool,
 }
 
 /// Result of a single evaluation.
@@ -38,11 +48,27 @@ pub struct EngineConfig {
 /// separately (e.g. an unknown rule reference vs. a rule that returned
 /// `null` explicitly).
 ///
-/// Coverage and trace become first-class fields in POLENG-006; result
-/// post-processing (severity, new-edge annotation) lands in POLENG-005.
+/// `coverage` and `trace` are populated only when the corresponding
+/// [`EngineConfig`] flag is set; access them via [`EvalResult::coverage`] and
+/// [`EvalResult::trace`].
 #[derive(Debug, Clone)]
 pub struct EvalResult {
     pub value: Option<serde_json::Value>,
+    coverage: Option<Coverage>,
+    trace: Option<Trace>,
+}
+
+impl EvalResult {
+    /// Line coverage for this evaluation, when [`EngineConfig::collect_coverage`]
+    /// was set.
+    pub fn coverage(&self) -> Option<&Coverage> {
+        self.coverage.as_ref()
+    }
+
+    /// Evaluation trace, when [`EngineConfig::collect_trace`] was set.
+    pub fn trace(&self) -> Option<&Trace> {
+        self.trace.as_ref()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -157,9 +183,15 @@ impl Engine {
             .write()
             .map_err(|_| EngineError::Input("policy input lock poisoned".into()))? = input.clone();
 
+        if self.config.collect_coverage {
+            self.inner.set_enable_coverage(true);
+            // Reset so coverage reflects only this evaluation.
+            self.inner.clear_coverage_data();
+        }
+
         let results = self
             .inner
-            .eval_query(query.to_string(), false)
+            .eval_query(query.to_string(), self.config.collect_trace)
             .map_err(|e| EngineError::Regorus(e.to_string()))?;
 
         let value = match results.result.first().and_then(|qr| qr.expressions.first()) {
@@ -174,7 +206,25 @@ impl Engine {
             ),
         };
 
-        Ok(EvalResult { value })
+        let coverage = if self.config.collect_coverage {
+            let report = self
+                .inner
+                .get_coverage_report()
+                .map_err(|e| EngineError::Regorus(e.to_string()))?;
+            Some(Coverage::from_regorus(&report))
+        } else {
+            None
+        };
+        let trace = self
+            .config
+            .collect_trace
+            .then(|| Trace::from_results(&results));
+
+        Ok(EvalResult {
+            value,
+            coverage,
+            trace,
+        })
     }
 
     /// Evaluate a findings query and apply ADR-002 / ADR-003 post-processing
