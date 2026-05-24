@@ -52,7 +52,8 @@ fixture parsing, cargo unit tests.
 - Modify: `plans/index.aps.md`
 - Reference: `plans/specs/2026-05-24-aps-tui-dashboard.md`
 
-- [x] Add `APSCAN-011: Add APS TUI dashboard` with `Status: Ready`.
+- [x] Add `APSCAN-011: Add APS TUI dashboard` and mark it `Status: In Progress`
+      before implementation.
 - [x] Set expected outcome to a read-only `anvil plan dashboard` that builds a
       local `PlanStatusSnapshot`, renders active work, and flags APS-only
       reconciliation hints.

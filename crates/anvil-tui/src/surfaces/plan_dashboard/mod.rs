@@ -94,7 +94,7 @@ impl Surface for PlanDashboardState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  ? help  q quit"
+        "j/k navigate  enter details  / filter  r rescan  esc/q back/quit  ? help"
     }
 
     fn handle_key(&mut self, action: Action) {

@@ -1,4 +1,6 @@
 use std::io::IsTerminal;
+use std::path::Path;
+use std::process::Command;
 
 use clap::{Args, Subcommand};
 
@@ -31,11 +33,12 @@ pub fn run(args: &PlanArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
 fn run_dashboard(global: &GlobalArgs) -> anyhow::Result<()> {
     let root = util::workspace_root()?;
-    let snapshot = plan_dashboard::build_plan_status_snapshot(&root)?;
 
     if global.json {
+        let snapshot = plan_dashboard::build_plan_status_snapshot(&root)?;
         println!("{}", serde_json::to_string_pretty(&snapshot)?);
     } else if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
+        let snapshot = plan_dashboard::build_plan_status_snapshot(&root)?;
         print_summary(&snapshot);
     } else {
         loop {
@@ -59,7 +62,7 @@ fn print_summary(snapshot: &plan_dashboard::PlanStatusSnapshot) {
         snapshot
             .work_items
             .iter()
-            .filter(|item| !is_done_status(&item.status))
+            .filter(|item| !plan_dashboard::is_done_status(&item.status))
             .count()
     );
     println!("Warnings: {}", snapshot.warnings.len());
@@ -108,7 +111,7 @@ fn to_tui_snapshot(snapshot: &plan_dashboard::PlanStatusSnapshot) -> PlanDashboa
         work_items: snapshot
             .work_items
             .iter()
-            .filter(|item| !is_done_status(&item.status))
+            .filter(|item| !plan_dashboard::is_done_status(&item.status))
             .map(|item| PlanWorkItemRow {
                 id: item.id.clone(),
                 title: item.title.clone(),
@@ -128,16 +131,24 @@ fn to_tui_snapshot(snapshot: &plan_dashboard::PlanStatusSnapshot) -> PlanDashboa
                 message: warning.message.clone(),
             })
             .collect(),
-        branch: None,
-        sha: None,
+        branch: git_output(&snapshot.repo_root, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .filter(|branch| branch != "HEAD"),
+        sha: git_output(&snapshot.repo_root, &["rev-parse", "--short", "HEAD"]),
     }
 }
 
-fn is_done_status(status: &str) -> bool {
-    matches!(
-        status.to_ascii_lowercase().as_str(),
-        "complete" | "completed" | "done" | "merged" | "released/shipped"
-    )
+fn git_output(repo_root: &Path, args: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    (!value.is_empty()).then_some(value)
 }
 
 #[cfg(test)]
@@ -160,16 +171,28 @@ mod tests {
                 section: None,
                 notes: None,
             }],
-            work_items: vec![plan_dashboard::WorkItemSummary {
-                id: "APSCAN-011".to_string(),
-                title: "Add APS TUI dashboard".to_string(),
-                module: "APSCAN".to_string(),
-                status: "Ready".to_string(),
-                validation: Some("cargo test".to_string()),
-                dependencies: Vec::new(),
-                files: Vec::new(),
-                body: String::new(),
-            }],
+            work_items: vec![
+                plan_dashboard::WorkItemSummary {
+                    id: "APSCAN-011".to_string(),
+                    title: "Add APS TUI dashboard".to_string(),
+                    module: "APSCAN".to_string(),
+                    status: "Ready".to_string(),
+                    validation: Some("cargo test".to_string()),
+                    dependencies: Vec::new(),
+                    files: Vec::new(),
+                    body: String::new(),
+                },
+                plan_dashboard::WorkItemSummary {
+                    id: "APSCAN-010".to_string(),
+                    title: "Archived item".to_string(),
+                    module: "APSCAN".to_string(),
+                    status: "Archived".to_string(),
+                    validation: None,
+                    dependencies: Vec::new(),
+                    files: Vec::new(),
+                    body: String::new(),
+                },
+            ],
             warnings: vec![plan_dashboard::PlanWarning {
                 kind: plan_dashboard::PlanWarningKind::MissingValidation,
                 module: Some("APSCAN".to_string()),
@@ -184,6 +207,7 @@ mod tests {
         assert!(tui_snapshot.modules[0].has_warning);
         assert_eq!(tui_snapshot.modules[0].progress, "1/11");
         assert_eq!(tui_snapshot.work_items[0].id, "APSCAN-011");
+        assert_eq!(tui_snapshot.work_items.len(), 1);
         assert_eq!(tui_snapshot.warnings[0].target, "APSCAN-011");
     }
 }

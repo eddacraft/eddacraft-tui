@@ -118,7 +118,7 @@ pub fn build_plan_status_snapshot(repo_root: &Path) -> Result<PlanStatusSnapshot
             });
         }
 
-        if total > 0 && !parsed_items.iter().any(|item| is_ready(&item.status)) {
+        if total > 0 && done < total && !parsed_items.iter().any(|item| is_ready(&item.status)) {
             warnings.push(PlanWarning {
                 kind: PlanWarningKind::NoReadyNextItem,
                 module: Some(module.scope.clone()),
@@ -413,11 +413,15 @@ fn split_inline_list(value: &str) -> Vec<String> {
         .collect()
 }
 
-fn is_done(status: &str) -> bool {
+pub(crate) fn is_done_status(status: &str) -> bool {
     matches!(
         status.to_ascii_lowercase().as_str(),
         "done" | "complete" | "completed" | "merged" | "released" | "released/shipped" | "archived"
     )
+}
+
+fn is_done(status: &str) -> bool {
+    is_done_status(status)
 }
 
 fn is_ready(status: &str) -> bool {
@@ -602,6 +606,37 @@ mod tests {
             warning.work_item.as_deref() == Some("APSCAN-002")
                 && warning.kind == PlanWarningKind::MissingValidation
         }));
+    }
+
+    #[test]
+    fn completed_modules_do_not_warn_without_ready_items() {
+        let repo = fixture_repo();
+        write(
+            repo.path()
+                .join("plans/modules/aps-canonical-alignment.aps.md"),
+            r"# APS Canonical Alignment
+
+| ID | Owner | Status | Progress |
+| -- | ----- | ------ | -------- |
+| APSCAN | - | Complete | 1/1 |
+
+## Work Items
+
+### APSCAN-001: Done item
+
+- **Status:** Done
+- **Validation:** `cargo test`
+",
+        );
+
+        let snapshot = build_plan_status_snapshot(repo.path()).unwrap();
+
+        assert!(
+            !snapshot
+                .warnings
+                .iter()
+                .any(|warning| warning.kind == PlanWarningKind::NoReadyNextItem)
+        );
     }
 
     #[test]
