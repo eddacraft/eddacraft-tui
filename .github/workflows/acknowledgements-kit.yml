@@ -15,6 +15,7 @@ on:
       - 'licences.toml'
       - 'licences.node-allow.txt'
       - 'licences.go-allow.txt'
+      - 'licences.python-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
   pull_request:
     paths:
@@ -22,6 +23,7 @@ on:
       - 'licences.toml'
       - 'licences.node-allow.txt'
       - 'licences.go-allow.txt'
+      - 'licences.python-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
 
 permissions:
@@ -41,6 +43,9 @@ env:
   # Pinned go-licenses version exercised by the kit's Go tests. Bump
   # deliberately when go-licenses ships a CLI-surface or classifier change.
   GO_LICENSES_VERSION: '1.6.0'
+  # Pinned pip-licenses version installed into the kit's Python test
+  # venvs. Bump deliberately when pip-licenses ships a CLI-surface change.
+  PIP_LICENSES_VERSION: '5.5.5'
 
 jobs:
   kit-self-tests:
@@ -72,6 +77,14 @@ jobs:
         run: |
           go install github.com/google/go-licenses@v${GO_LICENSES_VERSION}
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Python driver tests build their own per-test venv and install the
+      # pinned pip-licenses into it; they need a seeded `python3` with
+      # `venv` + `pip`. Pin a stable CPython for deterministic behaviour.
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
 
       # ATTRIB-008 dispatcher contract — schema validation paths.
       - name: Dispatcher schema-validation test
@@ -107,9 +120,20 @@ jobs:
       - name: Go driver strict test
         run: bash tools/starters/acknowledgements/tests/go-driver-strict.sh
 
-      # ATTRIB-006 (+ ATTRIB-012 Node fragment, ATTRIB-013 Go fragment):
-      # the canonical licences.toml must stay in sync with every consumer
-      # file it expands into (about.toml, deny.toml,
-      # licences.node-allow.txt, licences.go-allow.txt).
+      # ATTRIB-014 Python driver tests. Preflight stubs its own venv;
+      # render + strict build a per-test venv, install the pinned
+      # pip-licenses + a local fixture package, and exercise the driver.
+      - name: Python driver preflight test
+        run: bash tools/starters/acknowledgements/tests/python-driver-preflight.sh
+      - name: Python driver render test
+        run: bash tools/starters/acknowledgements/tests/python-driver-render.sh
+      - name: Python driver strict test
+        run: bash tools/starters/acknowledgements/tests/python-driver-strict.sh
+
+      # ATTRIB-006 (+ ATTRIB-012 Node, ATTRIB-013 Go, ATTRIB-014 Python
+      # fragments): the canonical licences.toml must stay in sync with
+      # every consumer file it expands into (about.toml, deny.toml,
+      # licences.node-allow.txt, licences.go-allow.txt,
+      # licences.python-allow.txt).
       - name: Licences single-source drift check
         run: bash tools/starters/acknowledgements/expand-licences.sh --check

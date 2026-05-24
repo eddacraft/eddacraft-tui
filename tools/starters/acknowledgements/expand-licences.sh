@@ -87,6 +87,7 @@ about_toml="$project_root/about.toml"
 deny_toml="$project_root/deny.toml"
 node_allow_txt="$project_root/licences.node-allow.txt"
 go_allow_txt="$project_root/licences.go-allow.txt"
+python_allow_txt="$project_root/licences.python-allow.txt"
 
 if [ ! -f "$about_toml" ]; then
   echo "error: $about_toml is missing" >&2
@@ -113,6 +114,12 @@ fi
 emit_go_fragment=false
 if [ -f "$go_allow_txt" ]; then
   emit_go_fragment=true
+fi
+# `licences.python-allow.txt` is optional on the same back-compat terms
+# (ATTRIB-014): present only for consumers that ship a Python block.
+emit_python_fragment=false
+if [ -f "$python_allow_txt" ]; then
+  emit_python_fragment=true
 fi
 
 # --- Parse licences.toml -----------------------------------------------------
@@ -327,16 +334,36 @@ render_go_fragment() {
   echo "$spdx_list"
 }
 
+# ATTRIB-014: render a single semicolon-joined SPDX list for the Python
+# driver's `pip-licenses --allow-only` argument (semicolon-separated,
+# same shape as the Node fragment; only the consumer file differs).
+render_python_fragment() {
+  local spdx_list=""
+  while IFS=$'\t' read -r spdx about_v deny_v note; do
+    if [ "$about_v" != "true" ]; then
+      continue
+    fi
+    if [ -z "$spdx_list" ]; then
+      spdx_list="$spdx"
+    else
+      spdx_list="$spdx_list;$spdx"
+    fi
+  done <"$parsed_entries"
+  echo "$spdx_list"
+}
+
 about_fragment="$(mktemp)"
 deny_fragment="$(mktemp)"
 node_allow_fragment="$(mktemp)"
 go_allow_fragment="$(mktemp)"
-trap 'rm -f "$parsed_entries" "$about_fragment" "$deny_fragment" "$node_allow_fragment" "$go_allow_fragment"' EXIT
+python_allow_fragment="$(mktemp)"
+trap 'rm -f "$parsed_entries" "$about_fragment" "$deny_fragment" "$node_allow_fragment" "$go_allow_fragment" "$python_allow_fragment"' EXIT
 
 render_fragment about about.toml.accepted >"$about_fragment"
 render_fragment deny  "deny.toml.[licenses].allow" >"$deny_fragment"
 render_node_fragment >"$node_allow_fragment"
 render_go_fragment >"$go_allow_fragment"
+render_python_fragment >"$python_allow_fragment"
 
 # --- Splice into consumer files ---------------------------------------------
 
@@ -348,6 +375,8 @@ MARKER_BEGIN_NODE_ALLOW="# BEGIN AUTO-GENERATED FROM licences.toml — node-allo
 MARKER_END_NODE_ALLOW="# END AUTO-GENERATED FROM licences.toml — node-allow"
 MARKER_BEGIN_GO_ALLOW="# BEGIN AUTO-GENERATED FROM licences.toml — go-allow"
 MARKER_END_GO_ALLOW="# END AUTO-GENERATED FROM licences.toml — go-allow"
+MARKER_BEGIN_PYTHON_ALLOW="# BEGIN AUTO-GENERATED FROM licences.toml — python-allow"
+MARKER_END_PYTHON_ALLOW="# END AUTO-GENERATED FROM licences.toml — python-allow"
 
 splice() {
   # $1: target file path
@@ -408,6 +437,9 @@ fi
 if [ "$emit_go_fragment" = "true" ]; then
   splice "$go_allow_txt" "$MARKER_BEGIN_GO_ALLOW" "$MARKER_END_GO_ALLOW" "$go_allow_fragment" || drift=1
 fi
+if [ "$emit_python_fragment" = "true" ]; then
+  splice "$python_allow_txt" "$MARKER_BEGIN_PYTHON_ALLOW" "$MARKER_END_PYTHON_ALLOW" "$python_allow_fragment" || drift=1
+fi
 
 if [ "$drift" -ne 0 ]; then
   echo "" >&2
@@ -422,6 +454,9 @@ if [ "$mode" = "write" ]; then
   fi
   if [ "$emit_go_fragment" = "true" ]; then
     expanded="$expanded, licences.go-allow.txt (go-allow)"
+  fi
+  if [ "$emit_python_fragment" = "true" ]; then
+    expanded="$expanded, licences.python-allow.txt (python-allow)"
   fi
   echo "ok: licences.toml expanded into $expanded"
 fi

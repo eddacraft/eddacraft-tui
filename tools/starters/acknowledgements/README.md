@@ -10,10 +10,11 @@ between, and below the markers is preserved verbatim.
 Shipped drivers: Rust
 ([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008),
 Node ([`license-checker`](https://github.com/davglass/license-checker),
-ATTRIB-012), and Go ([`go-licenses`](https://github.com/google/go-licenses),
-ATTRIB-013). Python (`pip-licenses`) is queued under ATTRIB-014. Existing
-consumers with a legacy flat `[rust]` config keep working unchanged via a
-back-compat shim (see "Configuration reference" below).
+ATTRIB-012), Go ([`go-licenses`](https://github.com/google/go-licenses),
+ATTRIB-013), and Python
+([`pip-licenses`](https://github.com/raimon49/pip-licenses), ATTRIB-014).
+Existing consumers with a legacy flat `[rust]` config keep working unchanged via
+a back-compat shim (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -21,21 +22,22 @@ edits required.
 
 ## What ships in this kit
 
-| File                               | Purpose                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `generate-acknowledgements.sh`     | Dispatcher: parses config, loops blocks, invokes drivers, splices output          |
-| `drivers/`                         | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`; Python under ATTRIB-014) |
-| `expand-licences.sh`               | ATTRIB-006 single-source allow-list expander                                      |
-| `attribution.toml.example`         | Annotated template for the consumer-side config                                   |
-| `about.toml.template`              | cargo-about config template (licence allow-list etc)                              |
-| `about.hbs.template`               | cargo-about handlebars render template                                            |
-| `templates/go-licenses.tmpl`       | go-licenses report template for the Go driver (rows only; driver sorts)           |
-| `licences.node-allow.txt.template` | Marker scaffolding for the Node driver's allow-list file                          |
-| `licences.go-allow.txt.template`   | Marker scaffolding for the Go driver's allow-list file                            |
-| `ACKNOWLEDGEMENTS.md.template`     | Bootstrap target file with markers in place                                       |
-| `ci-freshness.yml.snippet`         | GitHub Actions freshness-gate job                                                 |
-| `tests/`                           | Self-tests pinning the kit's invariants                                           |
-| `README.md`                        | This file (the marker-splice contract)                                            |
+| File                                 | Purpose                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| `generate-acknowledgements.sh`       | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
+| `drivers/`                           | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`, `python.sh`)    |
+| `expand-licences.sh`                 | ATTRIB-006 single-source allow-list expander                             |
+| `attribution.toml.example`           | Annotated template for the consumer-side config                          |
+| `about.toml.template`                | cargo-about config template (licence allow-list etc)                     |
+| `about.hbs.template`                 | cargo-about handlebars render template                                   |
+| `templates/go-licenses.tmpl`         | go-licenses report template for the Go driver (rows only; driver sorts)  |
+| `licences.node-allow.txt.template`   | Marker scaffolding for the Node driver's allow-list file                 |
+| `licences.go-allow.txt.template`     | Marker scaffolding for the Go driver's allow-list file                   |
+| `licences.python-allow.txt.template` | Marker scaffolding for the Python driver's allow-list file               |
+| `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with markers in place                              |
+| `ci-freshness.yml.snippet`           | GitHub Actions freshness-gate job                                        |
+| `tests/`                             | Self-tests pinning the kit's invariants                                  |
+| `README.md`                          | This file (the marker-splice contract)                                   |
 
 ## Adoption checklist (downstream consumer)
 
@@ -443,6 +445,49 @@ populated (run `go mod download` first):
 ```bash
 go install github.com/google/go-licenses@latest
 go mod download
+```
+
+### `ecosystem = "python"` (ATTRIB-014)
+
+| Key                 | Required | Description                                                                                                                                                                                                                            |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `venv_path`         | yes      | A consumer-supplied **pre-built** virtualenv. The kit ships no installer opinions (no uv/poetry/pdm) — build the venv with your own toolchain, install your runtime deps **and `pip-licenses`** into it, then point `venv_path` at it. |
+| `python_allow_path` | yes      | `licences.python-allow.txt` — single semicolon-joined SPDX list between the kit's BEGIN/END markers. Auto-populated by `expand-licences.sh` from `licences.toml`.                                                                      |
+
+Worked example:
+
+```toml
+[[blocks]]
+name              = "python"
+ecosystem         = "python"
+venv_path         = ".venv"
+python_allow_path = "licences.python-allow.txt"
+```
+
+The driver runs the venv's own `pip-licenses`, so the attribution reflects
+exactly the consumer's environment. `pip-licenses` self-excludes its own
+dependency chain (pip-licenses/prettytable/wcwidth/…), so a venv that contains
+only your runtime deps + pip-licenses renders just your dependencies. Render is
+deterministic (`pip-licenses --format markdown --order name`).
+
+Strict-licence gate: `pip-licenses --allow-only "<semicolon-joined SPDX list>"`
+runs before render; one disallowed dep exits non-zero, names the offending
+package, and leaves the on-disk target byte-identical.
+
+**Licence-name caveat.** `pip-licenses` reports licence names derived from each
+package's Trove classifiers / metadata, which are **not always exact SPDX
+identifiers** (e.g. a package may report `BSD License` rather than
+`BSD-3-Clause`, or `MIT License` rather than `MIT`). The allow-list expanded
+from `licences.toml` is SPDX, so a mismatch can cause a false strict failure.
+Options: add the classifier-style name to `licences.toml`, or have the consumer
+normalise their dependencies' metadata. `pip-licenses --partial-match` (not
+enabled by the kit) loosens matching if you accept the fuzz.
+
+CI provisioning (per your existing Python toolchain), e.g.:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt pip-licenses
 ```
 
 ## Monorepo guidance

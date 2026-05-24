@@ -4,9 +4,9 @@
 # deny.toml).
 #
 # The test stands up a self-contained fixture (a licences.toml plus
-# stub about.toml, deny.toml, licences.node-allow.txt, and
-# licences.go-allow.txt with the BEGIN/END markers) and walks these
-# scenarios:
+# stub about.toml, deny.toml, licences.node-allow.txt, licences.go-allow.txt,
+# and licences.python-allow.txt with the BEGIN/END markers) and walks
+# these scenarios:
 #
 #   1. Files match licences.toml → --check exits 0.
 #   2. Add a licence to licences.toml without re-expanding → --check
@@ -20,6 +20,9 @@
 #   6. Hand-edit licences.go-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
 #      (ATTRIB-013 Go-fragment drift detection.)
+#   7. Hand-edit licences.python-allow.txt inside the markers →
+#      --check exits non-zero and the diff names the hand-edit.
+#      (ATTRIB-014 Python-fragment drift detection.)
 #
 # Local invocation:
 #   tools/starters/acknowledgements/tests/licences-drift.sh
@@ -84,6 +87,14 @@ EOF
 cat >"$fixture_dir/licences.go-allow.txt" <<'EOF'
 # BEGIN AUTO-GENERATED FROM licences.toml — go-allow
 # END AUTO-GENERATED FROM licences.toml — go-allow
+EOF
+
+# ATTRIB-014: stub licences.python-allow.txt — same optional-presence
+# contract. The Python fragment is one semicolon-joined SPDX line
+# consumed by drivers/python.sh via pip-licenses --allow-only.
+cat >"$fixture_dir/licences.python-allow.txt" <<'EOF'
+# BEGIN AUTO-GENERATED FROM licences.toml — python-allow
+# END AUTO-GENERATED FROM licences.toml — python-allow
 EOF
 
 # --- Scenario 1: clean expand, then --check should pass --------------------
@@ -391,5 +402,39 @@ if ! grep -q "Bogus-7.7" <<<"$output_s6"; then
 fi
 echo "ok scenario 6: hand-edit inside Go markers → --check detects drift"
 
+# --- Scenario 7: hand-edit licences.python-allow.txt inside markers --------
+# ATTRIB-014 Python-fragment drift detection. The Python fragment is a
+# single semicolon-joined SPDX line; inject a bogus SPDX above END.
+(cd "$fixture_dir" && "$EXPANDER") >/dev/null
+python3 - "$fixture_dir/licences.python-allow.txt" <<'PY'
+import sys, pathlib
+p = pathlib.Path(sys.argv[1])
+text = p.read_text()
+marker = "# END AUTO-GENERATED FROM licences.toml — python-allow"
+text = text.replace(marker, "Bogus-8.8\n" + marker, 1)
+p.write_text(text)
+PY
+
+set +e
+output_s7="$(cd "$fixture_dir" && "$EXPANDER" --check 2>&1)"
+exit_s7=$?
+set -e
+
+if [ "$exit_s7" -eq 0 ]; then
+  echo "FAIL scenario 7: hand-edited Bogus-8.8 into licences.python-allow.txt" >&2
+  echo "    but --check exited 0. Hand-edits inside the Python markers must be" >&2
+  echo "    detected as drift (ATTRIB-014 single-source guarantee)." >&2
+  exit 1
+fi
+if ! grep -q "Bogus-8.8" <<<"$output_s7"; then
+  echo "FAIL scenario 7: drift detected (exit $exit_s7) but the diff did not" >&2
+  echo "    name the offending entry." >&2
+  echo "----- output -----" >&2
+  echo "$output_s7" >&2
+  echo "------------------" >&2
+  exit 1
+fi
+echo "ok scenario 7: hand-edit inside Python markers → --check detects drift"
+
 echo ""
-echo "ATTRIB-006/-012/-013/-016 drift test passed: all six scenarios green."
+echo "ATTRIB-006/-012/-013/-014/-016 drift test passed: all seven scenarios green."

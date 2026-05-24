@@ -103,7 +103,9 @@ fi
 # `licences.node-allow.txt` carries comment lines (#...) outside the
 # markers + the marker lines themselves + one data line between the
 # markers. license-checker --onlyAllow takes that data line verbatim.
-allow_line="$(grep -v '^#' "$node_allow_path" | grep -v '^[[:space:]]*$' | head -1)"
+# `|| true`: grep exits 1 on an all-comment/blank file (no data line),
+# which under set -e/pipefail would abort before the emptiness check.
+allow_line="$(grep -v '^#' "$node_allow_path" | grep -v '^[[:space:]]*$' | head -1 || true)"
 if [ -z "$allow_line" ]; then
   echo "drivers/node.sh: $node_allow_path is empty between the BEGIN/END markers." >&2
   echo "  run tools/starters/acknowledgements/expand-licences.sh to populate it." >&2

@@ -128,7 +128,9 @@ fi
 # ── Read allow-list (one comma-joined SPDX line) ─────────────────────
 # `licences.go-allow.txt` carries the marker lines + one data line
 # between them. go-licenses --allowed_licenses takes that line verbatim.
-allow_line="$(grep -v '^#' "$go_allow_path" | grep -v '^[[:space:]]*$' | head -1)"
+# `|| true`: grep exits 1 on an all-comment/blank file (no data line),
+# which under set -e/pipefail would abort before the emptiness check.
+allow_line="$(grep -v '^#' "$go_allow_path" | grep -v '^[[:space:]]*$' | head -1 || true)"
 if [ -z "$allow_line" ]; then
   echo "drivers/go.sh: $go_allow_path is empty between the BEGIN/END markers." >&2
   echo "  run tools/starters/acknowledgements/expand-licences.sh to populate it." >&2

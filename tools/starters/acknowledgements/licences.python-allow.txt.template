@@ -1,0 +1,14 @@
+# ATTRIB-014: SPDX allow-list consumed by `drivers/python.sh` via
+# `pip-licenses --allow-only`. One line, semicolon-joined.
+#
+# Generated from `licences.toml` — do not edit between the BEGIN/END
+# markers. To change the allow-list, update `licences.toml` and rerun
+# `tools/starters/acknowledgements/expand-licences.sh`.
+#
+# Note: pip-licenses reports classifier-derived licence names, which are
+# not always exact SPDX identifiers. See the kit README's Python section
+# for the matching caveat.
+#
+# Source: `licences.toml` ([[licences]] entries where about = true)
+# BEGIN AUTO-GENERATED FROM licences.toml — python-allow
+# END AUTO-GENERATED FROM licences.toml — python-allow
