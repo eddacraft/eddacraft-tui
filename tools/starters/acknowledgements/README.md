@@ -8,11 +8,12 @@ markdown file (typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above,
 between, and below the markers is preserved verbatim.
 
 Shipped drivers: Rust
-([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008) and
+([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008),
 Node ([`license-checker`](https://github.com/davglass/license-checker),
-ATTRIB-012). Go (`go-licenses`) and Python (`pip-licenses`) are queued under
-ATTRIB-013/014. Existing consumers with a legacy flat `[rust]` config keep
-working unchanged via a back-compat shim (see "Configuration reference" below).
+ATTRIB-012), and Go ([`go-licenses`](https://github.com/google/go-licenses),
+ATTRIB-013). Python (`pip-licenses`) is queued under ATTRIB-014. Existing
+consumers with a legacy flat `[rust]` config keep working unchanged via a
+back-compat shim (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -20,19 +21,21 @@ edits required.
 
 ## What ships in this kit
 
-| File                               | Purpose                                                                  |
-| ---------------------------------- | ------------------------------------------------------------------------ |
-| `generate-acknowledgements.sh`     | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
-| `drivers/`                         | Ecosystem driver scripts (`rust.sh`, `node.sh`; more under ATTRIB-013+)  |
-| `expand-licences.sh`               | ATTRIB-006 single-source allow-list expander                             |
-| `attribution.toml.example`         | Annotated template for the consumer-side config                          |
-| `about.toml.template`              | cargo-about config template (licence allow-list etc)                     |
-| `about.hbs.template`               | cargo-about handlebars render template                                   |
-| `licences.node-allow.txt.template` | Marker scaffolding for the Node driver's allow-list file                 |
-| `ACKNOWLEDGEMENTS.md.template`     | Bootstrap target file with markers in place                              |
-| `ci-freshness.yml.snippet`         | GitHub Actions freshness-gate job                                        |
-| `tests/`                           | Self-tests pinning the kit's invariants                                  |
-| `README.md`                        | This file (the marker-splice contract)                                   |
+| File                               | Purpose                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `generate-acknowledgements.sh`     | Dispatcher: parses config, loops blocks, invokes drivers, splices output          |
+| `drivers/`                         | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`; Python under ATTRIB-014) |
+| `expand-licences.sh`               | ATTRIB-006 single-source allow-list expander                                      |
+| `attribution.toml.example`         | Annotated template for the consumer-side config                                   |
+| `about.toml.template`              | cargo-about config template (licence allow-list etc)                              |
+| `about.hbs.template`               | cargo-about handlebars render template                                            |
+| `templates/go-licenses.tmpl`       | go-licenses report template for the Go driver (rows only; driver sorts)           |
+| `licences.node-allow.txt.template` | Marker scaffolding for the Node driver's allow-list file                          |
+| `licences.go-allow.txt.template`   | Marker scaffolding for the Go driver's allow-list file                            |
+| `ACKNOWLEDGEMENTS.md.template`     | Bootstrap target file with markers in place                                       |
+| `ci-freshness.yml.snippet`         | GitHub Actions freshness-gate job                                                 |
+| `tests/`                           | Self-tests pinning the kit's invariants                                           |
+| `README.md`                        | This file (the marker-splice contract)                                            |
 
 ## Adoption checklist (downstream consumer)
 
@@ -401,6 +404,45 @@ The driver requires `license-checker` on `PATH`. Install per-project:
 ```bash
 npm install --save-dev license-checker
 # or globally: npm install -g license-checker
+```
+
+### `ecosystem = "go"` (ATTRIB-013)
+
+| Key             | Required | Description                                                                                                                                                         |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `module_path`   | yes      | Directory of the package/binary to walk (e.g. `cmd/anvil`). The driver finds the enclosing `go.mod` and runs `go-licenses` from that module root.                   |
+| `go_allow_path` | yes      | `licences.go-allow.txt` — single comma-joined SPDX list between the kit's BEGIN/END markers. Auto-populated by `expand-licences.sh` from `licences.toml`.           |
+| `template_path` | no       | go-licenses report template emitting `\| module \| licence \|` rows (no header — the driver sorts and adds it). Defaults to the kit's `templates/go-licenses.tmpl`. |
+
+Worked example:
+
+```toml
+[[blocks]]
+name          = "go"
+ecosystem     = "go"
+module_path   = "cmd/anvil"
+go_allow_path = "licences.go-allow.txt"
+```
+
+Strict-licence gate:
+`go-licenses check --allowed_licenses "<comma-joined SPDX list>"` runs before
+render; one disallowed dep exits non-zero, names the offending library in
+stderr, and leaves the on-disk target byte-identical. The project's own main
+module (from `go list -m`) is `--ignore`d so it is never attributed to itself.
+`go.mod` `replace` directives are honoured natively, so internal monorepo
+modules need no special handling.
+
+The rendered block carries the module import path + SPDX licence only — no
+source URL. go-licenses resolves the URL over the network, which would make
+`--check` non-deterministic across online/offline environments; the Go import
+path is itself the canonical source location.
+
+The driver requires `go` and `go-licenses` on `PATH`, and the module cache
+populated (run `go mod download` first):
+
+```bash
+go install github.com/google/go-licenses@latest
+go mod download
 ```
 
 ## Monorepo guidance

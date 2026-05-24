@@ -36,6 +36,9 @@ env:
   # Pinned license-checker version exercised by the kit's Node tests.
   # Bump deliberately when license-checker ships a CLI-surface change.
   LICENSE_CHECKER_VERSION: '25.0.1'
+  # Pinned go-licenses version exercised by the kit's Go tests. Bump
+  # deliberately when go-licenses ships a CLI-surface or classifier change.
+  GO_LICENSES_VERSION: '1.6.0'
 
 jobs:
   kit-self-tests:
@@ -59,6 +62,14 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+
+      # Go driver tests need go-licenses (the render + strict tests build
+      # a network-free local-`replace` Go module fixture). ubuntu-latest
+      # ships Go; install the pinned go-licenses and expose GOPATH/bin.
+      - name: Install go-licenses
+        run: |
+          go install github.com/google/go-licenses@v${GO_LICENSES_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # ATTRIB-008 dispatcher contract — schema validation paths.
       - name: Dispatcher schema-validation test
@@ -84,8 +95,19 @@ jobs:
       - name: Node driver strict test
         run: bash tools/starters/acknowledgements/tests/node-driver-strict.sh
 
-      # ATTRIB-006 (+ ATTRIB-012 Node fragment): the canonical
-      # licences.toml must stay in sync with every consumer file it
-      # expands into (about.toml, deny.toml, licences.node-allow.txt).
+      # ATTRIB-013 Go driver tests. Preflight stubs its own tools;
+      # render + strict build a network-free local-`replace` fixture and
+      # exercise the installed go-licenses.
+      - name: Go driver preflight test
+        run: bash tools/starters/acknowledgements/tests/go-driver-preflight.sh
+      - name: Go driver render test
+        run: bash tools/starters/acknowledgements/tests/go-driver-render.sh
+      - name: Go driver strict test
+        run: bash tools/starters/acknowledgements/tests/go-driver-strict.sh
+
+      # ATTRIB-006 (+ ATTRIB-012 Node fragment, ATTRIB-013 Go fragment):
+      # the canonical licences.toml must stay in sync with every consumer
+      # file it expands into (about.toml, deny.toml,
+      # licences.node-allow.txt, licences.go-allow.txt).
       - name: Licences single-source drift check
         run: bash tools/starters/acknowledgements/expand-licences.sh --check

@@ -1,0 +1,13 @@
+{{- /*
+  ATTRIB-013: go-licenses report template for the Go ecosystem driver.
+
+  Emits one markdown table ROW per third-party library:
+      | <module import path> | <SPDX licence> |
+  The driver (drivers/go.sh) sorts these rows for deterministic output
+  and prepends the table header — do NOT add a header here, or it would
+  be sorted into the body. The licence URL is intentionally omitted:
+  go-licenses resolves it over the network, which would make --check
+  non-deterministic across online/offline environments.
+*/ -}}
+{{range .}}| {{.Name}} | {{.LicenseName}} |
+{{end -}}

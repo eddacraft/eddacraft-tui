@@ -86,6 +86,7 @@ project_root="$(cd "$(dirname "$config_path")" && pwd)"
 about_toml="$project_root/about.toml"
 deny_toml="$project_root/deny.toml"
 node_allow_txt="$project_root/licences.node-allow.txt"
+go_allow_txt="$project_root/licences.go-allow.txt"
 
 if [ ! -f "$about_toml" ]; then
   echo "error: $about_toml is missing" >&2
@@ -105,6 +106,13 @@ fi
 emit_node_fragment=false
 if [ -f "$node_allow_txt" ]; then
   emit_node_fragment=true
+fi
+# `licences.go-allow.txt` is optional on the same back-compat terms as
+# the Node fragment (ATTRIB-013): present only for consumers that ship
+# a Go attribution block.
+emit_go_fragment=false
+if [ -f "$go_allow_txt" ]; then
+  emit_go_fragment=true
 fi
 
 # --- Parse licences.toml -----------------------------------------------------
@@ -299,14 +307,36 @@ render_node_fragment() {
   echo "$spdx_list"
 }
 
+# ATTRIB-013: render a single comma-joined SPDX list for the Go driver's
+# `go-licenses check --allowed_licenses` argument. Same one-line,
+# about = true contract as the Node fragment; only the separator differs
+# (go-licenses takes a comma-separated list, license-checker a
+# semicolon-separated one).
+render_go_fragment() {
+  local spdx_list=""
+  while IFS=$'\t' read -r spdx about_v deny_v note; do
+    if [ "$about_v" != "true" ]; then
+      continue
+    fi
+    if [ -z "$spdx_list" ]; then
+      spdx_list="$spdx"
+    else
+      spdx_list="$spdx_list,$spdx"
+    fi
+  done <"$parsed_entries"
+  echo "$spdx_list"
+}
+
 about_fragment="$(mktemp)"
 deny_fragment="$(mktemp)"
 node_allow_fragment="$(mktemp)"
-trap 'rm -f "$parsed_entries" "$about_fragment" "$deny_fragment" "$node_allow_fragment"' EXIT
+go_allow_fragment="$(mktemp)"
+trap 'rm -f "$parsed_entries" "$about_fragment" "$deny_fragment" "$node_allow_fragment" "$go_allow_fragment"' EXIT
 
 render_fragment about about.toml.accepted >"$about_fragment"
 render_fragment deny  "deny.toml.[licenses].allow" >"$deny_fragment"
 render_node_fragment >"$node_allow_fragment"
+render_go_fragment >"$go_allow_fragment"
 
 # --- Splice into consumer files ---------------------------------------------
 
@@ -316,6 +346,8 @@ MARKER_BEGIN_DENY="# BEGIN AUTO-GENERATED FROM licences.toml — allow"
 MARKER_END_DENY="# END AUTO-GENERATED FROM licences.toml — allow"
 MARKER_BEGIN_NODE_ALLOW="# BEGIN AUTO-GENERATED FROM licences.toml — node-allow"
 MARKER_END_NODE_ALLOW="# END AUTO-GENERATED FROM licences.toml — node-allow"
+MARKER_BEGIN_GO_ALLOW="# BEGIN AUTO-GENERATED FROM licences.toml — go-allow"
+MARKER_END_GO_ALLOW="# END AUTO-GENERATED FROM licences.toml — go-allow"
 
 splice() {
   # $1: target file path
@@ -373,6 +405,9 @@ splice "$deny_toml"  "$MARKER_BEGIN_DENY"  "$MARKER_END_DENY"  "$deny_fragment" 
 if [ "$emit_node_fragment" = "true" ]; then
   splice "$node_allow_txt" "$MARKER_BEGIN_NODE_ALLOW" "$MARKER_END_NODE_ALLOW" "$node_allow_fragment" || drift=1
 fi
+if [ "$emit_go_fragment" = "true" ]; then
+  splice "$go_allow_txt" "$MARKER_BEGIN_GO_ALLOW" "$MARKER_END_GO_ALLOW" "$go_allow_fragment" || drift=1
+fi
 
 if [ "$drift" -ne 0 ]; then
   echo "" >&2
@@ -381,9 +416,12 @@ if [ "$drift" -ne 0 ]; then
 fi
 
 if [ "$mode" = "write" ]; then
+  expanded="about.toml (accepted), deny.toml (allow)"
   if [ "$emit_node_fragment" = "true" ]; then
-    echo "ok: licences.toml expanded into about.toml (accepted), deny.toml (allow), and licences.node-allow.txt (node-allow)"
-  else
-    echo "ok: licences.toml expanded into about.toml (accepted) and deny.toml (allow)"
+    expanded="$expanded, licences.node-allow.txt (node-allow)"
   fi
+  if [ "$emit_go_fragment" = "true" ]; then
+    expanded="$expanded, licences.go-allow.txt (go-allow)"
+  fi
+  echo "ok: licences.toml expanded into $expanded"
 fi
