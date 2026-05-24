@@ -896,20 +896,12 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
     // detection below always reads the ORIGINAL `lines`. Non-source artifacts
     // (PR bodies, commit messages, agent output) are prose — never masked.
     //
-    // Masking is only built when this artifact will actually run a
-    // code-scoped rule — masking is O(file) work, so skipping it when no
-    // such rule is configured keeps the common prose / non-code-rule path
-    // allocation-free (council ALLOC-001).
-    let needs_mask = is_source
-        && prepared_patterns
-            .iter()
-            .any(|prepared| rule_is_code_scoped(&prepared.pattern.id));
-    let masked_lines: Vec<String> = if needs_mask {
-        super::mask::mask_non_code_lines(&lines)
-    } else {
-        Vec::new()
-    };
-    let masked_view: Vec<&str> = masked_lines.iter().map(String::as_str).collect();
+    // The masked view is built lazily and cached: the O(file) masking cost is
+    // paid only when a code-scoped rule actually reaches the scan for THIS
+    // artifact — i.e. after it passes `pattern_runs_on_artifact` + extension +
+    // allowlist filtering below. A `.py` source where AP-003/GS-001 are
+    // extension-filtered out never builds the mask (council ALLOC-001).
+    let masked_lines: std::cell::OnceCell<Vec<String>> = std::cell::OnceCell::new();
     let mut warnings = Vec::new();
 
     for prepared in &prepared_patterns {
@@ -943,7 +935,10 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
         // GS-001's `.has()/.set()` map-guard lookback). For code-scoped
         // rules that context is the masked view by design — a guard that
         // only appears inside a comment must not suppress a real finding.
+        let masked_view;
         let rule_lines: &[&str] = if is_source && rule_is_code_scoped(&prepared.pattern.id) {
+            let owned = masked_lines.get_or_init(|| super::mask::mask_non_code_lines(&lines));
+            masked_view = owned.iter().map(String::as_str).collect::<Vec<&str>>();
             &masked_view
         } else {
             &lines

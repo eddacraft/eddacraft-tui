@@ -257,8 +257,11 @@ fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
                     regex_in_class = false;
                 } else if c == '/' && !regex_in_class {
                     state = S::Code;
-                    // A regex literal is a value, so a following `/` divides.
-                    prev_sig = Some('/');
+                    // A regex literal is a value: a following `/` is division,
+                    // not a new regex (`/a/ / 2`). Record a value-like token
+                    // (`)`) rather than `/` — `/` would re-arm `regex_allowed`
+                    // and mis-lex the divisor as a regex, masking real code.
+                    prev_sig = Some(')');
                 }
             }
         }
@@ -397,6 +400,17 @@ mod tests {
         // After a value, `/` is division; the rest of the line stays code.
         let line = "const ratio = total / count; const v: any = 1;";
         assert_eq!(mask_one(line), line);
+    }
+
+    #[test]
+    fn division_after_regex_literal_is_not_treated_as_regex() {
+        // `/a/ / count` — the `/` after the regex literal is division, not a
+        // new regex. The divisor and the real `: any` tail must survive
+        // (regression guard for the post-regex `prev_sig` value-token fix).
+        let line = "const r = /a/ / count; const v: any = 1;";
+        let out = mask_one(line);
+        assert!(out.contains("count"), "divisor must survive: {out}");
+        assert_eq!(out.find(": any"), line.find(": any"), "got: {out}");
     }
 
     #[test]
