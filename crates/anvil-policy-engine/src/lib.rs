@@ -1,22 +1,29 @@
-//! Anvil policy engine facade — POLENG-001 skeleton (ADR-040).
+//! Anvil policy engine facade — over `regorus` (ADR-040).
 //!
 //! Downstream crates depend on this facade, never on `regorus` directly,
 //! so the engine choice stays swappable without a fan-out refactor.
-//! Builtins, determinism, post-processing, coverage/trace, CLI, and bench
-//! harness land in POLENG-003..-008; the `PolicyInput` v1 schema (POLENG-002)
-//! lives in [`input`].
+//! The `PolicyInput` v1 schema (POLENG-002) lives in [`input`]; the
+//! determinism contract and the [`Builtin`] trait (POLENG-004) live in
+//! [`determinism`]. Concrete builtins, post-processing, coverage/trace,
+//! CLI, and the bench harness land in POLENG-003 and POLENG-005..-008.
 
 use regorus::{Engine as RegorusEngine, Value as RegorusValue};
 use thiserror::Error;
 
+pub mod determinism;
 pub mod input;
 
+pub use determinism::{Builtin, BuiltinError, DeterminismClass};
 pub use input::PolicyInput;
 
-/// Configuration for an [`Engine`]. Empty in the skeleton; populated by
-/// later POLENG tasks (determinism opt-ins, builtin allow-list, etc.).
+/// Configuration for an [`Engine`].
 #[derive(Debug, Clone, Default)]
-pub struct EngineConfig {}
+pub struct EngineConfig {
+    /// Allow registering [`DeterminismClass::Impure`] builtins. Off by
+    /// default: an impure builtin forfeits the determinism guarantee
+    /// (POLENG-004), so opting in is an explicit, auditable choice.
+    pub allow_impure_builtins: bool,
+}
 
 /// Result of a single evaluation.
 ///
@@ -39,10 +46,15 @@ pub enum EngineError {
     Regorus(String),
     #[error("invalid policy input: {0}")]
     Input(String),
+    #[error(
+        "refused to register impure builtin `{0}`; set EngineConfig::allow_impure_builtins to opt in"
+    )]
+    ImpureBuiltinRejected(String),
 }
 
 pub struct Engine {
     inner: RegorusEngine,
+    config: EngineConfig,
 }
 
 impl std::fmt::Debug for Engine {
@@ -52,17 +64,59 @@ impl std::fmt::Debug for Engine {
 }
 
 impl Engine {
-    pub fn new(_config: EngineConfig) -> Result<Self, EngineError> {
+    pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         Ok(Self {
             inner: RegorusEngine::new(),
+            config,
         })
+    }
+
+    /// Register a first-party [`Builtin`] under its Rego call path.
+    ///
+    /// Enforces the determinism contract (POLENG-004): a
+    /// [`DeterminismClass::Impure`] builtin is rejected with
+    /// [`EngineError::ImpureBuiltinRejected`] unless the engine was built with
+    /// [`EngineConfig::allow_impure_builtins`]. Builtins speak
+    /// [`serde_json::Value`]; the engine bridges to and from `regorus::Value`
+    /// at the call boundary so implementors never depend on `regorus`.
+    pub fn register_builtin(
+        &mut self,
+        builtin: std::sync::Arc<dyn Builtin>,
+    ) -> Result<(), EngineError> {
+        let name = builtin.name().to_string();
+        let arity = builtin.arity();
+        if builtin.determinism() == DeterminismClass::Impure && !self.config.allow_impure_builtins {
+            return Err(EngineError::ImpureBuiltinRejected(name));
+        }
+        // `builtin` is moved into the extension closure, which `regorus` keeps
+        // for the engine's lifetime; the closure bridges `regorus::Value` to
+        // and from `serde_json::Value` so the builtin never touches `regorus`.
+        self.inner
+            .add_extension(
+                name,
+                arity,
+                Box::new(
+                    move |args: Vec<RegorusValue>| -> anyhow::Result<RegorusValue> {
+                        let json_args: Vec<serde_json::Value> = args
+                            .iter()
+                            .map(serde_json::to_value)
+                            .collect::<Result<_, _>>()?;
+                        let out = builtin
+                            .call(&json_args)
+                            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+                        Ok(RegorusValue::from(out))
+                    },
+                ),
+            )
+            .map_err(|e| EngineError::Regorus(e.to_string()))?;
+        Ok(())
     }
 
     /// Register a Rego policy module with the engine.
     ///
-    /// Loading model is provisional — POLENG-002 fixes the public shape
-    /// (path-based discovery vs. explicit register). Treat this signature
-    /// as unstable until POLENG-002 lands.
+    /// The loading model (explicit register vs. path-based discovery) is still
+    /// provisional and may gain variants when the CLI surface lands
+    /// (POLENG-007); the existing signature stays source-compatible.
     pub fn add_policy(
         &mut self,
         path: impl Into<String>,

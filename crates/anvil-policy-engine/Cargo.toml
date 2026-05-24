@@ -10,6 +10,7 @@ description = "Anvil policy engine — facade over regorus (ADR-040)"
 name = "anvil_policy_engine"
 
 [dependencies]
+anyhow = { workspace = true }
 regorus = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

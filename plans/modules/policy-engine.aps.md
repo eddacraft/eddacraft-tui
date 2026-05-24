@@ -190,6 +190,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-004: Determinism contract enforcement
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Guarantee that no policy can observe a clock, the network, or
   the filesystem except through audited builtins
 - **Expected Outcome:** `Builtin` trait requires explicit `DeterminismClass`
@@ -202,6 +203,11 @@ post-rust engine question. POLENG is the answer.
   `crates/anvil-policy-engine/tests/determinism.rs`
 - **Dependencies:** POLENG-001
 - **Confidence:** medium
+- **Note (2026-05-25):** The "block undeclared builtins" requirement is met by
+  the type system, not a separate clippy lint: `Builtin::determinism` is a
+  required trait method, so a builtin that omits its class does not compile —
+  a strictly stronger guarantee than a lint that could be silenced. The impure
+  opt-in lives on `EngineConfig::allow_impure_builtins`.
 - **Risks:** hidden non-determinism in regorus internals — needs an upstream
   audit before this task closes
 
