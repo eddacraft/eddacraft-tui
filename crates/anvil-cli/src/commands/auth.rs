@@ -31,6 +31,10 @@ pub enum AuthCommand {
     /// Exchange the stored refresh token for a fresh licence without
     /// re-running the device-code flow. Useful when the JWT has lapsed
     /// but the refresh token is still valid (it's good for 90 days).
+    // NB: the "90 days" in the help text above mirrors `REFRESH_WINDOW_DAYS`
+    // (and `docs/architecture/auth-as-built.md`). clap help is a literal
+    // doc-comment so it can't interpolate the constant — if the refresh
+    // window changes, update all three sites together.
     Refresh,
 }
 
@@ -53,9 +57,10 @@ struct WhoamiData {
 ///
 /// This is a client-side mirror of the server's refresh-token lifetime, not a
 /// value read from the refresh response (which carries only the access-token
-/// expiry). Keep in sync with `docs/architecture/auth-as-built.md`
-/// (§"7-day access / 90-day refresh"); if the server window changes, this
-/// constant and that doc must move together.
+/// expiry). Three sites encode this window and must move together if the
+/// server changes it: this constant, the `AuthCommand::Refresh` `--help`
+/// doc-comment ("good for 90 days"), and `docs/architecture/auth-as-built.md`
+/// (§"7-day access / 90-day refresh").
 const REFRESH_WINDOW_DAYS: u32 = 90;
 
 #[derive(Debug, Serialize)]
