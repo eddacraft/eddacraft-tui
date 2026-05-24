@@ -3327,7 +3327,16 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051i: `query_protection_claim` timeout parity with activation budget
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-24 via PR [#1923](https://github.com/eddacraft/anvil-001/pull/1923)
+  — both `SocketDaemonValidationClient::query_protection_claim` (Unix) and
+  `WindowsPipeDaemonValidationClient::query_protection_claim` (Windows) now call
+  the `_with_timeout` variants with the new `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT =
+  500 ms` constant, matching the activation-lane budget.
+  `ACTIVATION_DAEMON_QUERY_TIMEOUT` promoted `pub(super)` → `pub(crate)` so a new
+  constant-equality test (`mcp_protection_claim_timeout_matches_activation_budget`)
+  prevents the two budgets from diverging silently. Hung-daemon timing test added
+  (`mcp_query_protection_claim_aborts_within_budget_against_hung_daemon`, Linux
+  only, mirrors MLP2-051f's activation lane test).
 - **Intent:** Both `SocketDaemonValidationClient::query_protection_claim`
   (Unix) and `WindowsPipeDaemonValidationClient::query_protection_claim`
   (Windows, MLP2-075) call `query_daemon_status_at` /

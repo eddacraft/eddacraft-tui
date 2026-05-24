@@ -964,7 +964,9 @@ mod tests {
         // Release the held server stream so the listener thread can
         // exit cleanly.
         let _ = stop_tx.send(());
-        let _ = handle.join();
+        handle
+            .join()
+            .expect("hung-daemon fixture thread should not panic");
     }
 
     /// MLP2-075: end-to-end proof that the Windows path returns
