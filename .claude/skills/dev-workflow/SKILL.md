@@ -17,7 +17,7 @@ non-trivial Anvil task, including documentation/configuration changes and review
 remediation. Every task follows this sequence — do not skip stages.
 
 ```
-APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped → CI note
+APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped → continuous-improvement note
 ```
 
 ## Trigger Contract
@@ -187,19 +187,19 @@ work to `CIB-NNN` if it has an observable outcome and validation path
 ## Continuous Improvement Closeout
 
 Append exactly one lightweight note per non-trivial session or meaningful failed
-attempt. Do not write long retrospectives. Prefer this XML-ish shape because it
-is quick for agents, readable in diffs, and easy to search:
+attempt. Do not write long retrospectives. Prefer this compact Markdown shape
+because it is quick for agents, renders visibly, and is easy to search:
 
 ```md
-<ci-log date="YYYY-MM-DD" agent="opencode|claude|other">
-task:
-outcome:
-worked:
-failed:
-friction:
-improvement:
-follow-up:
-</ci-log>
+### YYYY-MM-DD — opencode|claude|other
+
+- **Task:** ...
+- **Outcome:** ...
+- **Worked:** ...
+- **Failed:** ...
+- **Friction:** ...
+- **Improvement:** ...
+- **Follow-up:** ...
 ```
 
 Rules:
