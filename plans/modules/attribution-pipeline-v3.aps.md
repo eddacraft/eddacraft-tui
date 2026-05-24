@@ -370,7 +370,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-014: Python ecosystem driver
 
-- **Status:** Pending
+- **Status:** Merged via PR #1932 (`feat/attrib-014-python-driver`)
 - **Intent:** Add a Python driver so consumers can attribute Python dependencies via the same dispatcher.
 - **Expected Outcome:**
   - `drivers/python.sh` shells `pip-licenses` against a consumer-supplied pre-built virtualenv, emits deterministic markdown sorted by package name.
@@ -380,6 +380,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
   - Kit ships no `uv` / `poetry` / `pdm` opinions — consumer wires their preferred installer in CI per their existing Python toolchain.
 - **Validation:** Python fixture with a pre-built venv and one external dep round-trips through the driver. Missing-venv case produces the actionable error rather than an empty block. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
 - **Dependencies:** ATTRIB-008; ATTRIB-006 expander emits Python-shaped fragment.
+- **Shipped:** PR #1932 (`feat/attrib-014-python-driver`). `drivers/python.sh` runs the consumer-supplied venv's own `pip-licenses` (`venv_path` + `python_allow_path`); kit ships no installer opinions. Strict gate `pip-licenses --allow-only` (semicolon-joined) chosen over the spec's `--fail-on` (allow-list semantics match the about=true set); render `--format markdown --order name`. pip-licenses self-excludes its own tool chain, so the block lists only the consumer's deps; an empty venv (only the tool) produces the actionable "no installed dependencies" error. `expand-licences.sh` emits a semicolon-joined `licences.python-allow.txt` fragment (same optional-presence shape as Node/Go); Anvil ships a dormant populated root `licences.python-allow.txt`. README documents the licence-name caveat (pip-licenses reports classifier-derived names, not always exact SPDX). Also hardened `drivers/go.sh`/`node.sh` allow-line extraction (`|| true`) against a `set -e`/`pipefail` silent-abort on an unexpanded allow-list. Tests: `python-driver-preflight.sh` 5/5, `python-driver-render.sh` 3/3, `python-driver-strict.sh` 2/2 (local fixture package + pip-licenses); `licences-drift.sh` now 7 scenarios. `acknowledgements-kit.yml` provisions Python 3.12 + pinned pip-licenses 5.5.5. Verified locally: 13/13 kit tests, `expand-licences --check` + `generate-acknowledgements --check` exit 0. Not yet in a published release record (status `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-015: Anvil adopts a Node devtools attribution block
 
