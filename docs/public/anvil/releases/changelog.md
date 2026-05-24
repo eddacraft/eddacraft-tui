@@ -415,8 +415,8 @@ breaking changes; the upgrade is drop-in for existing installs.
 - **Fences persist across daemon restart by design** — an interrupted
   enforcement decision is no longer silently undone after a daemon crash,
   restart, or reboot. Recovery procedure and the deferred `anvil intercept stop`
-  / `unblock` CLI subcommands are documented in the
-  `v0.6.0-beta` operator guidance.
+  / `unblock` CLI subcommands are documented in the `v0.6.0-beta` operator
+  guidance.
 - **macOS interrupt path is fence-first this release** — on macOS the interrupt
   ladder falls through to fence-on-uncertainty rather than running the full
   SIGINT → SIGTERM → SIGKILL sequence. Recovery procedure is documented in the

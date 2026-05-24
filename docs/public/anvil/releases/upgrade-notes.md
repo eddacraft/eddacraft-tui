@@ -91,9 +91,8 @@ wrapped agent launch share a single typed `ProtectionClaim` rendered on
 `anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
 MCP-tool response (when the daemon is reachable; the Windows MCP shim still
 reports `daemonStatus: not-wired` and omits `protection_claim`), and the
-TypeScript driver-client. Most of the surface delta is additive; the
-[0.7.0-beta upgrade notes](#upgrading-to-070-beta) are the public operator
-reference.
+TypeScript driver-client. Most of the surface delta is additive; this section is
+the public operator reference.
 
 ```bash
 # Upgrade via the installer (Homebrew-aware)
