@@ -254,14 +254,26 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-007: CLI surface — `anvil policy eval`
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Wire the engine into `crates/anvil-cli` so developers and CI
   can evaluate policies from the shell with structured output
 - **Expected Outcome:** `anvil policy eval <policy> [--input <path>] [--explain] [--why <finding-id>] [--fail-on-warnings]` produces JSON result + exit code; output uses the shared AIGUARD diagnostic envelope; `--explain` renders coverage; `--why` renders trace for a specific finding
-- **Validation:** `cargo test -p eddacraft-anvil-cli --test policy_eval`
-- **Files:** `crates/anvil-cli/src/commands/policy/eval.rs`
+- **Validation:** `cargo test -p eddacraft-anvil --test policy_eval` (the CLI
+  package is `eddacraft-anvil`, not `eddacraft-anvil-cli`)
+- **Files:** `crates/anvil-cli/src/commands/policy/eval.rs` (added under the
+  existing `policy` command group, which became `policy/mod.rs`)
 - **Dependencies:** POLENG-001, POLENG-005, POLENG-006
 - **Coordinates with:** AIGUARD diagnostic envelope
 - **Confidence:** medium
+- **Note (2026-05-25):** Implemented as a subcommand of the existing
+  licence-gated `policy` group (so `eval` inherits the gate; tests use the
+  suite-wide `ANVIL_DEV=1` bypass). No "AIGUARD diagnostic envelope" type
+  exists in the CLI yet — output uses the established `crate::output::json`
+  envelope and `EXIT_OK`/`EXIT_ERROR` codes; aligning on a shared AIGUARD
+  envelope is deferred to when that surface lands. Added a `--query` flag
+  (not in the original sketch) because the command needs to know which rule to
+  evaluate; it defaults to `data`. `--why` enables trace but is limited by the
+  POLENG-006 regorus trace constraint.
 
 ### POLENG-008: Bench harness — parity gate vs. Go OPA reference
 

@@ -39,7 +39,9 @@ pub struct DependencyEdge {
 /// known files and the dependency edges between them.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RepoState {
+    #[serde(default)]
     pub files: Vec<String>,
+    #[serde(default)]
     pub edges: Vec<DependencyEdge>,
 }
 
@@ -69,7 +71,9 @@ pub struct DecisionEntry {
 /// ADR-003 ("new edges only") — policies warn on these, not on the baseline.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diff {
+    #[serde(default)]
     pub changed_files: Vec<String>,
+    #[serde(default)]
     pub new_edges: Vec<DependencyEdge>,
 }
 
@@ -87,6 +91,7 @@ pub struct BaselineFinding {
 /// change set under evaluation.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Baseline {
+    #[serde(default)]
     pub findings: Vec<BaselineFinding>,
 }
 
@@ -95,13 +100,23 @@ pub struct Baseline {
 /// Serialises to a stable JSON object consumed by `regorus` as the policy
 /// `input`. A defaulted `PolicyInput` is valid and produces a fully-populated
 /// (but empty) object, so policies never have to guard against missing keys.
+///
+/// Every field is `#[serde(default)]` so a hand-written or partial input
+/// document (e.g. `anvil policy eval --input`) can omit sections it does not
+/// care about; serialisation still emits every field (the snapshot contract).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyInput {
+    #[serde(default)]
     pub schema_version: SchemaVersion,
+    #[serde(default)]
     pub repo_state: RepoState,
+    #[serde(default)]
     pub plans: Vec<PlanFile>,
+    #[serde(default)]
     pub decisions: Vec<DecisionEntry>,
+    #[serde(default)]
     pub diff: Diff,
+    #[serde(default)]
     pub baseline: Baseline,
 }
 

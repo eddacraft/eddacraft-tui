@@ -4,6 +4,8 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
+mod eval;
+
 #[derive(Debug, Args)]
 pub struct PolicyArgs {
     #[command(subcommand)]
@@ -12,6 +14,8 @@ pub struct PolicyArgs {
 
 #[derive(Debug, clap::Subcommand)]
 enum PolicyCommand {
+    /// Evaluate a Rego policy against an input document (POLENG)
+    Eval(eval::EvalArgs),
     /// List available policies
     List {
         /// Filter by category
@@ -137,6 +141,7 @@ fn policy_catalogue() -> Vec<PolicyEntry> {
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
+        PolicyCommand::Eval(eval_args) => return eval::run(eval_args, global),
         PolicyCommand::List { category, enabled } => {
             let mut policies = policy_catalogue();
             if let Some(cat) = category {
