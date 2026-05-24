@@ -1,4 +1,5 @@
 pub mod check;
+pub(crate) mod mask;
 pub mod patterns;
 pub mod registry_loader;
 pub mod scanner;

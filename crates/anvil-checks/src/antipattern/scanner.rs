@@ -797,6 +797,20 @@ fn gs001_is_guarded_map_get(
     false
 }
 
+/// GH #1914: rules whose detection only makes sense in executable code — a
+/// match inside a comment or string literal is always a false positive, so
+/// the scanner runs them against a comment/string-masked view of the source.
+///
+/// Deliberately a small opt-in allowlist rather than the default: most other
+/// rules legitimately target comments (AP-001 `// eslint-disable`, AP-004/-005
+/// `@ts-ignore` / `@ts-expect-error`, DD-* `// TODO|HACK`) or prose (RL-*),
+/// and masking would silence them. Extending this set — or promoting it to a
+/// `lexical_scope` field on the compiled registry so each rule declares its
+/// own scope — is tracked as a follow-up on #1914.
+fn rule_is_code_scoped(rule_id: &str) -> bool {
+    matches!(rule_id, "AP-003" | "GS-001")
+}
+
 fn find_match_columns(
     prepared: &PreparedPattern,
     line: &str,
@@ -870,6 +884,32 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
     let prepared_patterns = prepared_patterns_for(&scan_options);
     let lines = artifact.content.split('\n').collect::<Vec<_>>();
     let is_source = artifact.kind == ArtifactKind::Source;
+    // GH #1914: for code-construct rules (see `rule_is_code_scoped`), mask
+    // comment + string spans in source artifacts so the rule does not match
+    // `!` / `any` / etc. that appear inside comments or string literals. The
+    // masker preserves byte offsets, so match columns stay accurate.
+    //
+    // Masking is OPT-IN per rule, not global: many rules deliberately target
+    // comments (AP-001 `// eslint-disable`, AP-004/-005 `@ts-ignore`, DD-*
+    // `// TODO|HACK`) or prose (RL-*), and must keep seeing the raw text.
+    // Suppression directives also live *inside* comments, so suppression
+    // detection below always reads the ORIGINAL `lines`. Non-source artifacts
+    // (PR bodies, commit messages, agent output) are prose — never masked.
+    //
+    // Masking is only built when this artifact will actually run a
+    // code-scoped rule — masking is O(file) work, so skipping it when no
+    // such rule is configured keeps the common prose / non-code-rule path
+    // allocation-free (council ALLOC-001).
+    let needs_mask = is_source
+        && prepared_patterns
+            .iter()
+            .any(|prepared| rule_is_code_scoped(&prepared.pattern.id));
+    let masked_lines: Vec<String> = if needs_mask {
+        super::mask::mask_non_code_lines(&lines)
+    } else {
+        Vec::new()
+    };
+    let masked_view: Vec<&str> = masked_lines.iter().map(String::as_str).collect();
     let mut warnings = Vec::new();
 
     for prepared in &prepared_patterns {
@@ -897,9 +937,22 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
             }
         }
 
-        for (line_index, line) in lines.iter().enumerate() {
+        // Choose the line view for this rule: masked (comments/strings
+        // blanked) for code-construct rules on source, raw otherwise. The
+        // same view feeds `find_match_columns`'s multi-line context (e.g.
+        // GS-001's `.has()/.set()` map-guard lookback). For code-scoped
+        // rules that context is the masked view by design — a guard that
+        // only appears inside a comment must not suppress a real finding.
+        let rule_lines: &[&str] = if is_source && rule_is_code_scoped(&prepared.pattern.id) {
+            &masked_view
+        } else {
+            &lines
+        };
+
+        for line_index in 0..rule_lines.len() {
             let line_number = line_index + 1;
-            let columns = find_match_columns(prepared, line, &lines, line_index);
+            let columns =
+                find_match_columns(prepared, rule_lines[line_index], rule_lines, line_index);
             for column in columns {
                 let suppressed = if is_source {
                     suppression_for_line(&lines, line_number, &prepared.pattern.id)
@@ -1174,6 +1227,152 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert!(result.warnings[0].suppressed.is_some());
+    }
+
+    // GH #1914: code-construct rules (AP-003, GS-001) must not fire on
+    // `!` / `any` that appear inside comments or string literals. The
+    // scanner runs these rules against a comment/string-masked view.
+
+    #[test]
+    fn gs001_does_not_fire_on_bang_inside_string_literal() {
+        // Reported false positive: user-facing copy like "Account created!".
+        let content = r#"setSuccess("Account created! Please check your email");"#;
+        let result = scan_file("src/AuthForms.tsx", content, None);
+        assert!(
+            result.warnings.iter().all(|w| w.id != "GS-001"),
+            "GS-001 must not fire inside a string literal: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn gs001_does_not_fire_on_bang_inside_line_comment() {
+        // Reported false positive: "// NOTE: ... they stay as both!".
+        let content =
+            "const members = both; // NOTE: keep members and syndicates, they stay as both!";
+        let result = scan_file("src/route.ts", content, None);
+        assert!(
+            result.warnings.iter().all(|w| w.id != "GS-001"),
+            "GS-001 must not fire inside a comment: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn ap003_does_not_fire_on_any_inside_comment() {
+        // `as any` inside a comment is prose, not a real cast.
+        let content = "// the value may be cast as any legacy shape here\nconst x = 1;";
+        let result = scan_file("src/util.ts", content, None);
+        assert!(
+            result.warnings.iter().all(|w| w.id != "AP-003"),
+            "AP-003 must not fire inside a comment: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn ap003_does_not_fire_on_any_inside_string_literal() {
+        let content = r#"const label = "accepts any value";"#;
+        let result = scan_file("src/util.ts", content, None);
+        assert!(
+            result.warnings.iter().all(|w| w.id != "AP-003"),
+            "AP-003 must not fire inside a string: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn gs001_still_fires_on_real_non_null_assertion() {
+        let content = "const name = user!.profile.name;";
+        let result = scan_file("src/real.ts", content, None);
+        assert!(
+            result.warnings.iter().any(|w| w.id == "GS-001"),
+            "GS-001 must still fire on a real non-null assertion: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn ap003_still_fires_after_a_masked_string_on_same_line() {
+        // Column-accuracy guard: a masked string earlier on the line must
+        // not shift the real `: any` match off its true byte column.
+        let content = r#"log("done!"); const v: any = compute();"#;
+        let result = scan_file("src/real.ts", content, None);
+        let ap003: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-003")
+            .collect();
+        assert_eq!(
+            ap003.len(),
+            1,
+            "expected exactly one AP-003: {:?}",
+            result.warnings
+        );
+        assert_eq!(
+            ap003[0].location.column.expect("column"),
+            content.find(": any").expect("offset"),
+            "AP-003 reported at the wrong column after a masked string"
+        );
+    }
+
+    #[test]
+    fn ap003_still_fires_after_regex_literal() {
+        // Regex literals must not mis-trigger comment/string masking that
+        // would swallow the real `: any` later on the line (adversarial
+        // F-1/F-2 false-negative guard).
+        let content = r#"const re = /["']\/\//; const v: any = 1;"#;
+        let result = scan_file("src/real.ts", content, None);
+        assert!(
+            result.warnings.iter().any(|w| w.id == "AP-003"),
+            "AP-003 must still fire after a regex literal: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn gs001_does_not_fire_on_bang_inside_regex_literal() {
+        let content = "const re = /user![A-Z]/;";
+        let result = scan_file("src/real.ts", content, None);
+        assert!(
+            result.warnings.iter().all(|w| w.id != "GS-001"),
+            "GS-001 must not fire on `!` inside a regex literal: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn ap003_template_literal_text_is_a_known_tradeoff() {
+        // KNOWN-TRADEOFF (GH #1914): template-literal TEXT is left unmasked
+        // so `${…}` interpolation code keeps being scanned. A consequence is
+        // that `as any` in template prose still fires. This test pins the
+        // deliberate behaviour so a future change to mask backtick text is a
+        // conscious decision, not a silent regression.
+        let content = "const msg = `cast as any value`;";
+        let result = scan_file("src/real.ts", content, None);
+        assert!(
+            result.warnings.iter().any(|w| w.id == "AP-003"),
+            "template-literal text trade-off changed: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn gs001_guard_inside_comment_does_not_suppress() {
+        // A `.has(k)` guard that only appears in a comment must not suppress
+        // a real `map.get(k)!` — the code-scoped rule sees masked context
+        // (CORRECTNESS-001), so the commented guard is invisible.
+        let content =
+            "const m = new Map();\n// m.has(k) was checked elsewhere\nconst v = m.get(k)!;";
+        let result = scan_file("src/real.ts", content, None);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.id == "GS-001" && w.location.line == 3),
+            "GS-001 must fire when the guard is only in a comment: {:?}",
+            result.warnings
+        );
     }
 
     // v0.5.0 ESLint-disable awareness — an explicit
