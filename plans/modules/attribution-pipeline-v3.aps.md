@@ -382,7 +382,8 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-015: Anvil adopts a Node devtools attribution block
 
-- **Status:** Pending
+- **Status:** In Progress
+- **Execution plan:** `plans/execution/ATTRIB-015.steps.md` (kicked off 2026-05-25 on `feat/attrib-015-node-devtools`).
 - **Intent:** Exercise the Node driver in Anvil's own `ACKNOWLEDGEMENTS.md` to attribute the JS/TS dev tooling the repo continues to depend on (linters, formatters, Nx, kindling integration, build scripts).
 - **Expected Outcome:**
   - `attribution.toml` grows a `[[blocks]] node-devtools` entry pointed at a dev-tooling `package.json` (root `package.json` or a curated devtools manifest — decide during implementation based on what gives the cleanest attribution).
