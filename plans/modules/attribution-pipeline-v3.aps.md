@@ -341,16 +341,17 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-012: Node ecosystem driver
 
-- **Status:** Pending
+- **Status:** In Progress
+- **Execution plan:** `plans/execution/ATTRIB-012.steps.md` (kicked off 2026-05-24 on `feat/attrib-012-node-driver`).
 - **Intent:** Add a Node/JS driver so consumers can attribute pnpm / npm dependencies via the same `[[blocks]]` dispatcher.
 - **Expected Outcome:**
   - `drivers/node.sh` shells `license-checker` against a single `package.json`, emits deterministic markdown sorted by package name.
   - `[[blocks]]` entry with `ecosystem = "node"` carries `manifest_path` (which `package.json` to walk), `prod_only` (default `true`), optional `exclude` globs for internal `@workspace/*` deps that pnpm hoists into the graph.
   - Preflight verifies `license-checker` is installed and `node_modules` is populated; missing state fails with an actionable error rather than producing an empty block.
-  - Strict-license enforcement via `license-checker --failOn` matched against the canonical `licences.toml` allow-list (extends ATTRIB-006's expander to emit a Node-shaped fragment).
+  - Strict-license enforcement via `license-checker --onlyAllow` (kickoff decision — see execution plan; the spec's open question on `--failOn` vs `--onlyAllow` resolved against the live `license-checker@25.0.1` CLI surface, semicolon-separated) matched against the canonical `licences.toml` allow-list (extends ATTRIB-006's expander to emit a Node-shaped fragment `licences.node-allow.txt`).
   - README gains a monorepo guidance section with worked pnpm-workspace examples covering the "one block per shipping `package.json`" pattern and the workspace-wide escape hatch.
-- **Validation:** Two-package pnpm fixture under `tests/` round-trips through the driver. `--check` reports drift when a fixture dependency's licence changes. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced.
-- **Dependencies:** ATTRIB-008 (dispatcher must exist first); ATTRIB-006 (allow-list expander must emit a Node-shaped fragment).
+- **Validation:** Two-package fixture under `tests/fixtures/node-two-pkg/` round-trips through the driver. `--check` reports drift when a fixture dependency's licence changes. Strict-license fixture triggers a non-zero exit when a disallowed licence is introduced. Preflight fixtures cover missing `node_modules` and missing `license-checker`.
+- **Dependencies:** ATTRIB-008 (dispatcher must exist first — landed via PR #1888); ATTRIB-006 (allow-list expander must emit a Node-shaped fragment — extended in this PR).
 
 ### ATTRIB-013: Go ecosystem driver
 
