@@ -345,7 +345,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | [docs-auth-gating](./archive/modules/docs-auth-gating.aps.md)         | DOCSAUTH  | Complete | 7/7      | BAUTH, IAC   |
 | [admin-cli](./archive/modules/admin-cli.aps.md)                       | ADMINCLI  | Complete | 13/13    | BAUTH        |
 | [admin-cli-hardening](./archive/modules/admin-cli-hardening.aps.md)   | ADMINCLIH | Complete | 4/4      | ADMINCLI     |
-| [email-broadcast](./modules/email-broadcast.aps.md)                   | EMAIL     | In Progress | 2/6      | ADMINCLIH    |
+| [email-broadcast](./modules/email-broadcast.aps.md)                   | EMAIL     | In Progress | 3/6      | ADMINCLIH    |
 
 **Design specs:**
 

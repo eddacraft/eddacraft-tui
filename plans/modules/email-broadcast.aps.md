@@ -277,7 +277,7 @@ in the same change.
 
 ### EMAIL-003 — Email template registry with kind discrimination
 
-- **Status:** Ready
+- **Status:** Done
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Introduce `lib/email-registry.ts` mapping template names
@@ -290,9 +290,19 @@ in the same change.
 - **Expected Outcome:** Importers can resolve a template's
   `propsSchema` and `sender` by key without `switch` statements scattered
   across routes. Template `kind` is exhaustively enumerable in tests.
-- **Validation:** `pnpm --filter @anvil/api test email-registry`
+- **Validation:** `pnpm exec vitest --run src/lib/__tests__/email-registry.test.ts`
 - **Files:** `apps/anvil-api/src/lib/email-registry.ts` (new),
   `apps/anvil-api/src/lib/__tests__/email-registry.test.ts` (new).
+- **Notes:** Landed 2026-05-24. Discriminated union: broadcast entries
+  carry `{ kind, propsSchema, sender }`, transactional entries carry
+  `{ kind, propsSchema }` (no sender — `/admin/send-test` in Phase 3
+  will need its own dispatch since the existing transactional senders
+  have heterogeneous positional signatures). Strict schemas reject
+  `email` / `unsubscribeMailto` from operator-supplied props since
+  those are recipient/send-time concerns. `release-announcement` sender
+  is a placeholder that throws until EMAIL-004 wires the real
+  `sendReleaseAnnouncement`. 26/26 tests green; combined run with
+  EMAIL-001/-002 still 144/144.
 - **changeType:** internal
 - **releaseIntent:** never
 - **releaseScope:** none
