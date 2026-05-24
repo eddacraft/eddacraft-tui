@@ -11,7 +11,8 @@
 //! are advised to rerun the latest installer rather than pointing at
 //! a missing subcommand.
 
-use std::path::Path;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 use clap::Args;
 use serde::Serialize;
@@ -93,6 +94,20 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let install_method = detect_install_method();
     let upgrade_command = upgrade_command_for(install_method);
 
+    // GH #1920: detect other `anvil` binaries on PATH besides the one
+    // running now. Multiple installs (e.g. cargo-dist `~/.eddacraft/bin`
+    // vs Scoop `~/scoop/shims`) can co-exist; `scoop update` then reports
+    // success while a stale copy earlier in PATH keeps winning, so `anvil`
+    // runs old code with no signal. Listing the extras turns that silent
+    // wrong-version into a one-line diagnosis.
+    let shadow_paths: Vec<String> = find_shadowing_anvil_binaries(
+        std::env::var_os("PATH").as_deref(),
+        std::env::current_exe().ok().as_deref(),
+    )
+    .into_iter()
+    .map(|p| p.display().to_string())
+    .collect();
+
     let latest = if args.offline {
         None
     } else {
@@ -135,6 +150,7 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             install_method: install_method.label(),
             upgrade_command,
             advisories: advisories.json_shape(),
+            shadowed_by: &shadow_paths,
         };
         let out = serde_json::to_string_pretty(&payload)?;
         println!("{out}");
@@ -145,10 +161,113 @@ pub fn run(args: &VersionArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             update_available,
             install_method,
             &advisories,
+            &shadow_paths,
         );
     }
 
     Ok(())
+}
+
+/// GH #1920: find `anvil` executables on `PATH` other than the running one.
+///
+/// On Windows especially, the cargo-dist installer (`~/.eddacraft/bin`) and
+/// Scoop (`~/scoop/shims`) install to different directories that can both be
+/// on `PATH`. After `scoop update`, the Scoop copy is fresh but a stale
+/// cargo-dist copy earlier in `PATH` keeps resolving — so `anvil` runs the
+/// old binary while `scoop` reports the new version. This enumerates the
+/// other copies so the version surface can warn about the shadowing.
+///
+/// Pure over its inputs (the `PATH` value and the running exe path) so it is
+/// unit-testable without touching the process environment.
+///
+/// Reports at most one binary **per PATH directory**, excluding the directory
+/// the running binary lives in. This is deliberate: a single install can drop
+/// several wrappers in one directory (a Scoop shims dir holds `anvil.exe`,
+/// `anvil.cmd`, and `anvil.ps1` for the *same* install), so counting files
+/// would flag one install as shadowing itself. Distinct PATH directories each
+/// holding an `anvil` is the real "more than one install" signal. The
+/// reported path is the on-disk wrapper location — for shim-based installers
+/// it is the shim, not the underlying binary; `where`/`which -a` disambiguate.
+fn find_shadowing_anvil_binaries(
+    path_var: Option<&OsStr>,
+    current_exe: Option<&Path>,
+) -> Vec<PathBuf> {
+    let Some(path_var) = path_var else {
+        return Vec::new();
+    };
+    // Without knowing which binary is running we cannot tell a shadow from
+    // the real one — don't guess and risk flagging the running install.
+    let Some(current_exe) = current_exe else {
+        return Vec::new();
+    };
+    let current_canon = std::fs::canonicalize(current_exe).ok();
+    let current_dir = current_canon
+        .as_deref()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf);
+
+    let exe_names: &[&str] = if cfg!(windows) {
+        &["anvil.exe", "anvil.cmd", "anvil.bat", "anvil.ps1"]
+    } else {
+        &["anvil"]
+    };
+
+    let mut found = Vec::new();
+    let mut seen_dirs = std::collections::HashSet::new();
+    for dir in std::env::split_paths(path_var) {
+        // Canonicalise the directory so repeated / symlinked PATH entries and
+        // the running binary's own directory are recognised regardless of
+        // spelling. A directory that cannot be canonicalised does not exist —
+        // skip it.
+        let Ok(canon_dir) = std::fs::canonicalize(&dir) else {
+            continue;
+        };
+        if current_dir.as_ref() == Some(&canon_dir) {
+            continue; // the running install's directory
+        }
+        if !seen_dirs.insert(canon_dir) {
+            continue; // already inspected this directory under another spelling
+        }
+        for name in exe_names {
+            let candidate = dir.join(name);
+            let Ok(canon) = std::fs::canonicalize(&candidate) else {
+                continue; // missing / transient
+            };
+            if current_canon.as_deref() == Some(canon.as_path()) {
+                continue; // the running binary reached via another PATH entry
+            }
+            if !is_executable_file(&canon) {
+                continue;
+            }
+            found.push(candidate);
+            break; // one entry per directory
+        }
+    }
+    found
+}
+
+/// True when `path` is a regular file the current platform would execute.
+/// On Unix this requires an execute bit; on other platforms a regular file
+/// is sufficient (Windows keys execution off the extension, already filtered
+/// by the candidate name list).
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    meta.is_file() && has_execute_permission(&meta)
+}
+
+#[cfg(unix)]
+fn has_execute_permission(meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt as _;
+    meta.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn has_execute_permission(_meta: &std::fs::Metadata) -> bool {
+    // Windows keys execution off the file extension, already constrained by
+    // the candidate name list.
+    true
 }
 
 /// Outcome of the `--check` advisory probe.
@@ -218,6 +337,11 @@ struct VersionJson<'a> {
     /// was passed; otherwise `checked` is false and consumers should
     /// treat `items` as "unknown" rather than "none".
     advisories: AdvisoryJson<'a>,
+    /// GH #1920: other `anvil` executables found on `PATH` besides the
+    /// running one. Empty in the common single-install case. When
+    /// non-empty, `PATH` order — not the install method shown above —
+    /// decides which binary a fresh shell runs.
+    shadowed_by: &'a [String],
 }
 
 #[derive(Serialize)]
@@ -233,6 +357,7 @@ fn print_human(
     update_available: bool,
     install_method: InstallMethod,
     advisories: &AdvisoryProbe,
+    shadowed_by: &[String],
 ) {
     println!("anvil {current}");
     match latest {
@@ -271,6 +396,25 @@ fn print_human(
                 }
             }
         }
+    }
+    if !shadowed_by.is_empty() {
+        // GH #1920: more than one `anvil` is on PATH. PATH order — not the
+        // install method above — decides which one a fresh shell runs, so a
+        // per-manager update (e.g. `scoop update`) can succeed while a stale
+        // copy keeps winning. Name the extras and point at the resolver.
+        println!();
+        println!(
+            "Warning: {} other `anvil` executable(s) found on PATH besides the one running now:",
+            shadowed_by.len()
+        );
+        for path in shadowed_by {
+            println!("  - {path}");
+        }
+        println!(
+            "PATH order decides which runs; a per-manager update may not change it. \
+             Inspect with `where anvil` (Windows) or `which -a anvil` (Unix) and \
+             remove the stale install or fix PATH order."
+        );
     }
 }
 
@@ -752,6 +896,102 @@ mod tests {
 
     fn cmp(a: &str, b: &str) -> std::cmp::Ordering {
         parse_version(a).unwrap().cmp(&parse_version(b).unwrap())
+    }
+
+    // --- GH #1920: PATH-shadow detection ---
+
+    fn anvil_exe_name() -> &'static str {
+        if cfg!(windows) { "anvil.exe" } else { "anvil" }
+    }
+
+    /// Create a file the platform will treat as an executable (exec bit on
+    /// Unix; any regular file on Windows).
+    fn write_exe(path: &Path) {
+        std::fs::write(path, b"x").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mut perms = std::fs::metadata(path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(path, perms).unwrap();
+        }
+    }
+
+    #[test]
+    fn shadow_detection_finds_other_anvil_on_path() {
+        let d1 = tempfile::tempdir().unwrap();
+        let d2 = tempfile::tempdir().unwrap();
+        let running = d1.path().join(anvil_exe_name());
+        let other = d2.path().join(anvil_exe_name());
+        write_exe(&running);
+        write_exe(&other);
+
+        let path = std::env::join_paths([d1.path(), d2.path()]).unwrap();
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), Some(&running));
+        assert_eq!(found.len(), 1, "found: {found:?}");
+        assert_eq!(
+            std::fs::canonicalize(&found[0]).unwrap(),
+            std::fs::canonicalize(&other).unwrap()
+        );
+    }
+
+    #[test]
+    fn shadow_detection_excludes_the_running_binarys_directory() {
+        let d = tempfile::tempdir().unwrap();
+        let running = d.path().join(anvil_exe_name());
+        write_exe(&running);
+
+        let path = std::env::join_paths([d.path()]).unwrap();
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), Some(&running));
+        assert!(found.is_empty(), "found: {found:?}");
+    }
+
+    #[test]
+    fn shadow_detection_empty_without_path() {
+        let d = tempfile::tempdir().unwrap();
+        let running = d.path().join(anvil_exe_name());
+        write_exe(&running);
+        assert!(find_shadowing_anvil_binaries(None, Some(&running)).is_empty());
+    }
+
+    #[test]
+    fn shadow_detection_empty_when_current_exe_unknown() {
+        // Cannot distinguish the running install from shadows without knowing
+        // which binary is running — must not flag everything.
+        let d = tempfile::tempdir().unwrap();
+        write_exe(&d.path().join(anvil_exe_name()));
+        let path = std::env::join_paths([d.path()]).unwrap();
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), None);
+        assert!(found.is_empty(), "found: {found:?}");
+    }
+
+    #[test]
+    fn shadow_detection_dedups_repeated_dirs() {
+        let d1 = tempfile::tempdir().unwrap();
+        let d2 = tempfile::tempdir().unwrap();
+        let running = d1.path().join(anvil_exe_name());
+        write_exe(&running);
+        write_exe(&d2.path().join(anvil_exe_name()));
+
+        // d2 listed twice must not double-count the same directory.
+        let path = std::env::join_paths([d2.path(), d1.path(), d2.path()]).unwrap();
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), Some(&running));
+        assert_eq!(found.len(), 1, "found: {found:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shadow_detection_skips_non_executable_file() {
+        let d1 = tempfile::tempdir().unwrap();
+        let d2 = tempfile::tempdir().unwrap();
+        let running = d1.path().join(anvil_exe_name());
+        write_exe(&running);
+        // A non-executable `anvil` file the shell would never run.
+        std::fs::write(d2.path().join(anvil_exe_name()), b"not exec").unwrap();
+
+        let path = std::env::join_paths([d1.path(), d2.path()]).unwrap();
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), Some(&running));
+        assert!(found.is_empty(), "found: {found:?}");
     }
 
     #[test]
