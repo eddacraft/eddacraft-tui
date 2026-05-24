@@ -44,12 +44,48 @@ struct WhoamiData {
     licence_gate: Option<String>,
 }
 
+/// The licence model issues short-lived access tokens (JWTs) backed by a
+/// long-lived refresh token. The refresh token is valid for this many days;
+/// `anvil auth refresh` exchanges it for a fresh access token (and rotates
+/// the refresh token) without a full device-flow re-login. Surfaced in the
+/// refresh output so a healthy refresh is not mistaken for a short-lived-only
+/// session (GH #1921).
+///
+/// This is a client-side mirror of the server's refresh-token lifetime, not a
+/// value read from the refresh response (which carries only the access-token
+/// expiry). Keep in sync with `docs/architecture/auth-as-built.md`
+/// (§"7-day access / 90-day refresh"); if the server window changes, this
+/// constant and that doc must move together.
+const REFRESH_WINDOW_DAYS: u32 = 90;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RefreshData {
     refreshed: bool,
     email: Option<String>,
     expires_at: Option<String>,
+}
+
+/// Render the human-readable lines for a successful `anvil auth refresh`.
+///
+/// Shows the new access-token expiry AND the refresh window. Before GH
+/// #1921 the output printed only a bare `Expires: <~7d>` line, which
+/// contradicted the `--help` text advertising a 90-day window and made a
+/// correct refresh look like it only bought 7 days.
+fn format_refresh_human(data: &RefreshData) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::from("Session refreshed\n");
+    if let Some(email) = &data.email {
+        let _ = writeln!(out, "  Email:          {email}");
+    }
+    if let Some(expires) = &data.expires_at {
+        let _ = writeln!(out, "  Access expires: {expires}");
+    }
+    let _ = writeln!(
+        out,
+        "  You can refresh without re-login for up to {REFRESH_WINDOW_DAYS} days."
+    );
+    out
 }
 
 pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
@@ -84,13 +120,7 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
             if global.json {
                 crate::output::json::print(&data)?;
             } else {
-                println!("Session refreshed");
-                if let Some(email) = &data.email {
-                    println!("  Email:   {email}");
-                }
-                if let Some(expires) = &data.expires_at {
-                    println!("  Expires: {expires}");
-                }
+                print!("{}", format_refresh_human(&data));
             }
             Ok(())
         }
@@ -264,6 +294,66 @@ mod tests {
         // Refresh takes no flags; surface that as a parse error so a typo
         // like `anvil auth refresh --otp` doesn't silently fall through.
         assert!(Wrapper::try_parse_from(["test", "refresh", "--otp"]).is_err());
+    }
+
+    #[test]
+    fn refresh_human_output_surfaces_access_expiry_and_refresh_window() {
+        // GH #1921: a correct refresh buys a short-lived access token but
+        // renews the long-lived refresh window. The output must surface
+        // BOTH so a healthy refresh is not mistaken for a 7-day-only
+        // session — the `--help` text already advertises the 90-day
+        // window, and a bare `Expires: <7d>` line contradicted it.
+        let data = RefreshData {
+            refreshed: true,
+            email: Some("user@example.com".to_string()),
+            expires_at: Some("2026-06-01T00:00:00Z".to_string()),
+        };
+        let out = format_refresh_human(&data);
+        assert!(out.contains("Session refreshed"), "got: {out}");
+        assert!(out.contains("user@example.com"), "got: {out}");
+        assert!(
+            out.contains("2026-06-01T00:00:00Z"),
+            "access expiry must still be shown, got: {out}"
+        );
+        assert!(
+            out.contains(&REFRESH_WINDOW_DAYS.to_string()),
+            "the 90-day refresh window must be surfaced, got: {out}"
+        );
+        assert!(
+            out.to_lowercase().contains("without re-login"),
+            "must explain you can refresh without re-login, got: {out}"
+        );
+    }
+
+    #[test]
+    fn refresh_human_output_omits_email_line_when_absent() {
+        let data = RefreshData {
+            refreshed: true,
+            email: None,
+            expires_at: Some("2026-06-01T00:00:00Z".to_string()),
+        };
+        let out = format_refresh_human(&data);
+        assert!(!out.contains("Email:"), "got: {out}");
+        assert!(out.contains("Session refreshed"), "got: {out}");
+    }
+
+    #[test]
+    fn refresh_human_output_handles_missing_access_expiry() {
+        // The server response is the only source of the access expiry; if
+        // it is absent we must not fabricate a date. The 90-day refresh
+        // window is a known client-side constant, so that line still shows.
+        let data = RefreshData {
+            refreshed: true,
+            email: Some("user@example.com".to_string()),
+            expires_at: None,
+        };
+        let out = format_refresh_human(&data);
+        assert!(out.contains("Session refreshed"), "got: {out}");
+        assert!(!out.contains("Access expires:"), "got: {out}");
+        assert!(
+            out.contains(&REFRESH_WINDOW_DAYS.to_string()),
+            "refresh window line must still render, got: {out}"
+        );
     }
 
     // --- Top-level alias tests ---
