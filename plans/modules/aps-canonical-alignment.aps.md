@@ -241,8 +241,11 @@ Migrate in waves:
   `PlanStatusSnapshot`, renders active APS state in a Ratatui dashboard, flags
   APS-only consistency issues, and keeps an empty v1 enrichment seam for future
   GitHub/CI annotations.
-- **Validation:** `cargo test -p eddacraft-anvil plan_dashboard && cargo test -p
-  eddacraft-anvil-tui plan_dashboard && pnpm format:check && pnpm docs:check`
+- **Validation:** `cargo test -p eddacraft-anvil plan_dashboard --bin anvil`,
+  `cargo test -p eddacraft-anvil-tui plan_dashboard --lib`, `cargo test -p
+  eddacraft-anvil tui_snapshot --bin anvil`, `cargo fmt --check`, `pnpm
+  format:check`, `pnpm docs:check`, `pnpm aps:drift --json`, and `cargo clippy
+  --workspace --all-targets -- -D warnings`
 - **Files:** `crates/anvil-cli/src/main.rs`,
   `crates/anvil-cli/src/commands/mod.rs`,
   `crates/anvil-cli/src/commands/plan.rs`,
@@ -254,7 +257,5 @@ Migrate in waves:
 - **Dependencies:** APSCAN-001
 - **Spec:** `plans/specs/2026-05-24-aps-tui-dashboard.md`
 - **Execution Plan:** `plans/execution/2026-05-24-aps-tui-dashboard.md`
-- **Closeout:** PR #1906 merged 2026-05-24 at `4c6e1e2a`. Local and CI
-  validation covered CLI snapshot parsing, TUI rendering/state tests,
-  formatter, docs lint, APS drift, and workspace clippy.
+- **Closeout:** PR #1906 merged 2026-05-24 at `4c6e1e2a`.
 - **Confidence:** medium
