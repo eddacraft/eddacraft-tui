@@ -7,8 +7,11 @@
 | ---- | ---------- | ----------- | -------- |
 | TUIR | joshuaboys | In Progress | 5/8      |
 
-**Last reviewed:** 2026-05-24 (TUIR-004 workflow lands; Ready Checklist
-items resolved by TUIR-003 / TUIR-007 marked off in this PR)
+**Last reviewed:** 2026-05-24 — TUIR-004 mirror workflow in flight via
+PR #1894 (status flip from `open` to `Merged ... via PR #1894` defers
+to the final pre-merge commit per the TUIR-002/003/006/007 pattern, so
+the work-item count below stays 5/8 until merge). Ready Checklist
+items resolved by TUIR-003 / TUIR-007 are marked off in the same PR.
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -941,8 +944,12 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       `crates/workspace-hack/Cargo.toml` with `cargo hakari generate`;
       the pre-migration `eddacraft-tui = { version = "0.2", ... }`
       entry is absent from the regenerated file (path crates need no
-      hakari aggregation), and `grep -c eddacraft-tui
-      crates/workspace-hack/Cargo.toml` returns 0.
+      hakari aggregation). Verify with `grep -Fq 'eddacraft-tui'
+      crates/workspace-hack/Cargo.toml` — expected to exit 1 (no
+      matches). The earlier `grep -c` form prints `0` to stdout but
+      also exits 1, so the count-only form looks like success on
+      stdout while failing the exit-status check; use `grep -Fq` for
+      script use.
 - [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
       against `eddacraft-tui`'s dependency graph.
 - [ ] Rollback path documented at two layers:

@@ -35,8 +35,14 @@
 # boxes requires the `/tmp/gnu-shim/dirname` PATH shim documented in
 # the release runbook.
 #
+# Drift check: D-TUIR-018 specifies a separate `mirror-drift-check.yml`
+# daily job that diffs the canonical subtree against the live mirror
+# tree. That workflow is a documented follow-up and is NOT yet
+# deployed — on-call operators investigating a suspected drift today
+# need to run the diff manually until that workflow lands.
+#
 # See plans/modules/tui-reintegration.aps.md (D-TUIR-004, D-TUIR-009,
-# D-TUIR-012) and the ATTRIB-011 precedent
+# D-TUIR-012, D-TUIR-018) and the ATTRIB-011 precedent
 # (.github/workflows/mirror-acknowledgements-starter.yml).
 
 name: Mirror — eddacraft-tui crate
@@ -133,6 +139,25 @@ jobs:
           git subtree split \
             --prefix=crates/eddacraft-tui \
             -b _mirror_split
+          # Non-empty assertion. `git subtree split` can produce an empty
+          # branch if the prefix gets renamed / removed in a future
+          # refactor and the workflow's `paths:` filter is not updated in
+          # the same commit. Force-pushing an empty tree to the mirror
+          # would silently wipe the public repo. Fail loudly instead so
+          # the operator notices.
+          if ! git rev-parse --verify --quiet _mirror_split >/dev/null; then
+            echo '::error::subtree split did not produce _mirror_split branch'
+            exit 1
+          fi
+          commit_count=$(git rev-list --count _mirror_split)
+          if [ "${commit_count}" -eq 0 ]; then
+            echo '::error::_mirror_split is empty — refusing to push (would wipe the public mirror)'
+            exit 1
+          fi
+          if [ -z "$(git ls-tree _mirror_split)" ]; then
+            echo '::error::_mirror_split has no tree content — refusing to push (would wipe the public mirror)'
+            exit 1
+          fi
 
       - name: Force-push to mirror repo
         env:
@@ -145,6 +170,12 @@ jobs:
           # libcurl reject the entire URL with "Malformed input to a URL
           # function" before it can even talk to GitHub. Sending an explicit
           # Authorization header sidesteps URL parsing entirely.
+          #
+          # Refspec is scoped to `_mirror_split:main` only — no `--tags`,
+          # no `--mirror`, no wildcard. This is the single line that
+          # enforces D-TUIR-009 / D-TUIR-011 (existing mirror tags are
+          # never overwritten by this workflow). Any future edit that
+          # widens the refspec MUST be reviewed against those decisions.
           basic=$(printf '%s' "x-access-token:${EDDACRAFT_TUI_MIRROR_PUSH_TOKEN}" | base64 -w0)
           git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
               push --force \
@@ -155,15 +186,25 @@ jobs:
         if: always()
         env:
           DISPATCH_REASON: ${{ github.event.inputs.reason }}
+          JOB_STATUS: ${{ job.status }}
         run: |
+          # Sanitize the dispatch reason before embedding it in the
+          # markdown step summary. The reason flows in from a workflow
+          # dispatch input and could contain backticks (which would
+          # terminate the inline code span and break the markdown) or
+          # newlines / `#` characters (which could inject headings into
+          # the summary). Strip backticks and CR/LF; replace any
+          # remaining `#` with `H` so embedded headings can't form.
+          reason_sanitized=$(printf '%s' "${DISPATCH_REASON:-}" | tr -d '`\r\n' | tr '#' 'H')
           {
             echo '## Mirror result'
             echo
             echo 'Source commit (anvil-001 main):    `'"${GITHUB_SHA}"'`'
             echo 'Mirror target:                     `eddacraft/eddacraft-tui:main`'
             echo 'Trigger:                           `'"${GITHUB_EVENT_NAME}"'`'
-            if [ -n "${DISPATCH_REASON:-}" ]; then
-              echo 'Dispatch reason:                   `'"${DISPATCH_REASON}"'`'
+            echo 'Job outcome:                       `'"${JOB_STATUS}"'`'
+            if [ -n "${reason_sanitized}" ]; then
+              echo 'Dispatch reason:                   `'"${reason_sanitized}"'`'
             fi
             echo
             echo 'Verify with:'
