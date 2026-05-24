@@ -1043,6 +1043,13 @@
     "docs/runbooks/v0.7.0-beta-release-runbook.md": [
       "source path does not exist: \"intd-012-windows-evidence.md\" (body reference \"intd-012-windows-evidence.md\")",
       "source path does not exist: \"plans/reviews/cleanup-log.md\" (body reference \"plans/reviews/cleanup-log.md\")"
+    ],
+    "docs/runbooks/release-runbook.md": [
+      "source path does not exist: \"about.toml.accepted\" (body reference \"about.toml.accepted\")",
+      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
+      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
+      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
     ]
   }
 }
