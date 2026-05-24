@@ -4095,16 +4095,17 @@ to redesign once GV2-001..-023 land.
   [#1805](https://github.com/eddacraft/anvil-001/pull/1805) merged
   2026-05-21 at `c8193511`; non-Linux advisory follow-up at
   `fefb6e8c`). Both commits in `v0.7.0-beta` and `v0.7.1-beta` tags.
-  All Expected Outcomes met: `verify_lineage_claim`
-  (`crates/anvil-intercept/src/ipc.rs:2982`) re-derives `pid` from
-  the connection's authenticated peer and `pid_starttime` from
+  All Expected Outcomes met: `verify_lineage_claim` in
+  `crates/anvil-intercept/src/ipc.rs` re-derives `pid` from the
+  connection's authenticated peer and `pid_starttime` from
   `/proc/<peer_pid>/stat` on Linux; rejects when peer credentials
   are absent or when `claim.pid != peer_pid`; forwards the
   client-supplied `pid_starttime` as advisory on non-Linux per the
-  documented platform trade-off. `dispatch_command`
-  (`crates/anvil-intercept/src/ipc.rs:3074`) calls the verifier
-  before `dispatcher.register(...)`, so the only prod call site of
-  `register_with_lineage` (`crates/anvil-intercept/src/registry.rs:1112`)
+  documented platform trade-off. The `dispatch_command`
+  `IpcCommand::RegisterSession` arm in the same file calls the
+  verifier before `dispatcher.register(...)`, so the only prod call
+  site of `register_with_lineage` (the `SessionDispatcher` impl on
+  `SessionRegistry` in `crates/anvil-intercept/src/registry.rs`)
   receives daemon-derived values. Pinned by
   `dispatch_command_register_lineage_rejects_pid_mismatch`,
   `dispatch_command_register_lineage_requires_peer_credentials`,

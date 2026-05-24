@@ -121,7 +121,11 @@ current counts (Group P added 2026-05-20 took the total to 78; Group Q added
 MLP2-068 was reconciled to Merged after implementation commit `d54a5f86`,
 advancing Group O to 1/2; MLP2-069 was promoted and completed on 2026-05-22
 as a small observability-hygiene follow-up ahead of the next hotfix, advancing
-MLP2 to 67/83. It does not gate `v0.7.0-beta`. Earlier 2026-05-17/18 reconciliation closed MLP2-025 umbrella,
+MLP2 to 65/83 **(historical snapshot as of 2026-05-22; the current
+total advanced to /86 when MLP2-051g/i/j were filed Draft later the
+same day, and the done-count has since advanced past 65 — see the
+N1b row + module-table row below for live counts)**. It does not
+gate `v0.7.0-beta`. Earlier 2026-05-17/18 reconciliation closed MLP2-025 umbrella,
 split MLP2-051 into umbrella + 051a..051e, filed Group O (MLP2-068..069), and
 closed Group K, Group L, and Group M. MLP2-016 and MLP2-048 are re-closed after
 the full MLP/MLP2 Council audit reopened them.
