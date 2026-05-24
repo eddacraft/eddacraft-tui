@@ -291,6 +291,40 @@ describe('POST /admin/broadcast', () => {
         expect.objectContaining({ limit: 42 })
       );
     });
+
+    it('rejects limit > 80 via zod with 400 (synchronous loop survival cap)', async () => {
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          limit: 1000,
+          dryRun: true,
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+      expect(resolveAudienceMock).not.toHaveBeenCalled();
+    });
+
+    it('defaults limit to 80 when omitted', async () => {
+      resolveAudienceMock.mockResolvedValueOnce([]);
+      vi.mocked(insertBroadcastSnapshot).mockResolvedValueOnce(makeSnapshot({ recipients: [] }));
+
+      await request(
+        'POST',
+        '/admin/broadcast',
+        { template: 'release-announcement', audience: 'beta:active', dryRun: true },
+        ADMIN_KEY
+      );
+
+      expect(resolveAudienceMock).toHaveBeenCalledWith(
+        expect.anything(),
+        'beta:active',
+        expect.objectContaining({ limit: 80 })
+      );
+    });
   });
 
   describe('real-send', () => {
@@ -412,6 +446,175 @@ describe('POST /admin/broadcast', () => {
       expect(body.code).toBe('cohort_drift');
       expect(body.added).toEqual(['charlie@example.com']);
       expect(body.removed).toEqual(['bob@example.com']);
+    });
+
+    it('returns 409 cohort_drift when the cohort GREW beyond snapshot size (freshLimit+1)', async () => {
+      // Snapshot has 2 recipients (alice, bob). Cohort now has 3 (a new
+      // dave joined between dry-run and real-send). freshLimit+1=3 so
+      // resolveAudience returns 3 rows, computeCohortDrift flags dave
+      // as `added`. Without the +1, the resolver would return just the
+      // snapshot's 2 rows and drift would not be detected.
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(makeSnapshot());
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+        { email: 'bob@example.com', name: null, user_id: 'u-2' },
+        { email: 'dave@example.com', name: 'Dave', user_id: 'u-4' },
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.code).toBe('cohort_drift');
+      expect(body.added).toEqual(['dave@example.com']);
+      expect(body.removed).toEqual([]);
+
+      // Confirm the re-resolve used freshLimit + 1 = 3, not the
+      // snapshot size 2.
+      const audienceCall = resolveAudienceMock.mock.calls.at(-1);
+      expect(audienceCall?.[2]).toMatchObject({ limit: 3 });
+    });
+
+    it('returns 400 template_kind_not_broadcastable when snapshot audience_key is unknown', async () => {
+      // Simulate a snapshot whose audience_key was removed from
+      // AUDIENCE_KEYS between snapshot and consume (or written
+      // directly to the DB). Without the guard, executeBroadcastFromSnapshot's
+      // switch returns undefined → TypeError → 500.
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
+        makeSnapshot({ audience_key: 'beta:ghost-audience' })
+      );
+
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe('template_kind_not_broadcastable');
+    });
+
+    it('writes broadcast.email.dispatch_started before the loop, broadcast.email.sent after', async () => {
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
+        makeSnapshot({ recipients: [{ email: 'alice@example.com', name: 'Alice' }] })
+      );
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+      ]);
+      vi.mocked(sendReleaseAnnouncement).mockResolvedValue({ sent: true });
+
+      await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+
+      const actions = vi.mocked(insertAuditLog).mock.calls.map((c) => c[1]);
+      expect(actions).toEqual(['broadcast.email.dispatch_started', 'broadcast.email.sent']);
+    });
+
+    it('writes broadcast.email.blocked with reason=cohort_drift on drift', async () => {
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(makeSnapshot());
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+        // bob removed
+      ]);
+
+      await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+
+      const auditCalls = vi.mocked(insertAuditLog).mock.calls;
+      const actions = auditCalls.map((c) => c[1]);
+      expect(actions).toContain('broadcast.email.dispatch_started');
+      expect(actions).toContain('broadcast.email.blocked');
+      expect(actions).not.toContain('broadcast.email.sent');
+      const blocked = auditCalls.find((c) => c[1] === 'broadcast.email.blocked');
+      expect(blocked?.[3]).toMatchObject({ reason: 'cohort_drift' });
+    });
+
+    it('writes broadcast.email.blocked with reason=invalid_template when registry mutated', async () => {
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
+        makeSnapshot({ audience_key: 'beta:ghost-audience' })
+      );
+
+      await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+
+      const auditCalls = vi.mocked(insertAuditLog).mock.calls;
+      const blocked = auditCalls.find((c) => c[1] === 'broadcast.email.blocked');
+      expect(blocked?.[3]).toMatchObject({ reason: 'invalid_template' });
+    });
+
+    it('keeps the batch going when a sender throws (per-recipient try/catch)', async () => {
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(makeSnapshot());
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+        { email: 'bob@example.com', name: null, user_id: 'u-2' },
+      ]);
+      vi.mocked(sendReleaseAnnouncement)
+        .mockResolvedValueOnce({ sent: true })
+        .mockRejectedValueOnce(new Error('Resend SDK crashed'));
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          template: 'release-announcement',
+          audience: 'beta:active',
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+        },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.sent).toBe(1);
+      expect(body.failed).toBe(1);
+      expect(body.results[1]).toMatchObject({
+        email: 'bob@example.com',
+        sent: false,
+        error: 'Resend SDK crashed',
+      });
     });
 
     it('on clean send, iterates snapshot rows and returns sent/failed counts', async () => {

@@ -21,10 +21,23 @@ const firstInvocationNoteSchema = z.object({
   rationale: z.string(),
 });
 
+// URL fields are constrained to https:// (no javascript:, no data:, no http://)
+// and capped at 2048 bytes. These render into <Link href={...}> in the
+// release-announcement template; an admin actor (or compromised admin key)
+// who can shape templateProps would otherwise have a high-trust phishing
+// vector under the from-address's valid SPF/DKIM/DMARC.
+const httpsUrlSchema = z
+  .string()
+  .url()
+  .max(2048)
+  .refine((s) => s.startsWith('https://'), {
+    message: 'must be an https:// URL',
+  });
+
 const knownGapSchema = z.object({
   title: z.string(),
   body: z.string(),
-  trackingUrl: z.string().optional(),
+  trackingUrl: httpsUrlSchema.optional(),
 });
 
 const boringWeekAskSchema = z.object({
@@ -39,17 +52,17 @@ const boringWeekAskSchema = z.object({
 // template prop.
 export const releaseAnnouncementPropsSchema = z
   .object({
-    version: z.string().optional(),
-    theme: z.string().optional(),
-    intro: z.string().optional(),
+    version: z.string().max(64).optional(),
+    theme: z.string().max(256).optional(),
+    intro: z.string().max(4096).optional(),
     highlights: z.array(releaseHighlightSchema).optional(),
-    releaseUrl: z.string().optional(),
+    releaseUrl: httpsUrlSchema.optional(),
     upgradeCommands: z.array(upgradeCommandSchema).optional(),
     firstInvocationNote: firstInvocationNoteSchema.optional(),
-    migrationUrl: z.string().optional(),
+    migrationUrl: httpsUrlSchema.optional(),
     knownGaps: z.array(knownGapSchema).optional(),
     boringWeekAsk: boringWeekAskSchema.optional(),
-    feedbackEmail: z.string().optional(),
+    feedbackEmail: z.string().email().max(254).optional(),
   })
   .strict();
 

@@ -38,7 +38,12 @@ import {
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
-import { AUDIENCE_KEYS, type AudienceKey, resolveAudience } from '../lib/broadcast-audiences.js';
+import {
+  AUDIENCE_KEYS,
+  type AudienceKey,
+  type AudienceRow,
+  resolveAudience,
+} from '../lib/broadcast-audiences.js';
 import { EMAIL_REGISTRY, type TemplateKey } from '../lib/email-registry.js';
 import { isUniqueViolation, isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
 
@@ -646,9 +651,12 @@ type BroadcastSendOutcome =
  * `results[]` without aborting the batch.
  *
  * `invalid_template` is a defensive branch: snapshots are only created
- * for broadcast templates, but the registry could change between
- * snapshot and consume (e.g. template removed mid-flight). Callers
- * translate it to an HTTP response.
+ * for broadcast templates with audiences in AUDIENCE_KEYS, but the
+ * registry / audience set could change between snapshot and consume
+ * (template removed mid-flight, or DB written directly). Callers
+ * translate it to an HTTP response. The same outcome covers an unknown
+ * audience_key so the consume side never throws a TypeError off the end
+ * of the resolveAudience switch.
  */
 async function executeBroadcastFromSnapshot(
   sql: NeonClient,
@@ -658,10 +666,17 @@ async function executeBroadcastFromSnapshot(
   if (!entry || entry.kind !== 'broadcast') {
     return { type: 'invalid_template' };
   }
+  if (!(AUDIENCE_KEYS as readonly string[]).includes(consumed.audience_key)) {
+    return { type: 'invalid_template' };
+  }
 
-  // freshLimit matches the snapshot's recipient count so a tighter or
-  // looser request limit doesn't produce false-positive drift.
-  const freshLimit = Math.max(consumed.recipients.length, 1);
+  // freshLimit = snapshot size + 1 so cohort GROWTH (a new active user
+  // joined between snapshot and consume) surfaces as a single extra row
+  // and trips computeCohortDrift's `added` path. Without the +1, a
+  // grown cohort would return exactly snapshot-size rows and look
+  // identical. We only need to detect that drift exists — the operator
+  // re-previews to see the full diff.
+  const freshLimit = Math.max(consumed.recipients.length, 1) + 1;
   const currentRows = await resolveAudience(sql, consumed.audience_key as AudienceKey, {
     limit: freshLimit,
     params: consumed.audience_params as Record<string, string>,
@@ -677,12 +692,24 @@ async function executeBroadcastFromSnapshot(
 
   const results: BroadcastSendResult[] = [];
   for (const row of consumed.recipients) {
-    const delivery = await entry.sender(
-      // SnapshotRecipient doesn't store user_id; sender contract takes
-      // an AudienceRow. Pass null — current senders only use email + name.
-      { email: row.email, name: row.name, user_id: null },
-      consumed.template_props
-    );
+    // Per-recipient try/catch so an unhandled SDK throw doesn't abort
+    // the batch and strand the remaining recipients with a consumed
+    // snapshot and no audit row. The senders already return
+    // {sent: false} for caught errors; this is belt-and-braces for
+    // future SDK regressions.
+    let delivery: { sent: boolean; code?: string; message?: string };
+    try {
+      delivery = await entry.sender(
+        // SnapshotRecipient doesn't store user_id; sender contract takes
+        // an AudienceRow. Pass null — current senders only use email + name.
+        { email: row.email, name: row.name, user_id: null } satisfies AudienceRow,
+        consumed.template_props
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Broadcast sender threw — continuing batch:', message);
+      delivery = { sent: false, code: 'sender_threw', message };
+    }
     results.push({
       email: row.email,
       sent: delivery.sent,
@@ -817,26 +844,63 @@ admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => 
   // The snapshot row is the source of truth for both `source` and the
   // recipient set — the request's `source` field is redundant on the
   // real-send path. Under the generalised schema, source lives inside
-  // audience_params.
-  const snapshotSource = String(consumed.audience_params['source']);
+  // audience_params. Fall back to '' rather than String(undefined) so
+  // a malformed snapshot doesn't leak the literal 'undefined' into the
+  // audit log + response.
+  const snapshotSourceValue = consumed.audience_params['source'];
+  const snapshotSource = typeof snapshotSourceValue === 'string' ? snapshotSourceValue : '';
+
+  // Audit the dispatch BEFORE the send loop runs (see broadcast handler
+  // for rationale). Legacy event name kept for the migration surface.
+  await insertAuditLog(
+    sql,
+    'migration.email.dispatch_started',
+    actor,
+    {
+      source: snapshotSource,
+      recipientCount: consumed.recipients.length,
+      previewToken,
+    },
+    authMethod
+  );
 
   const outcome = await executeBroadcastFromSnapshot(sql, consumed);
   if (outcome.type === 'invalid_template') {
     // Should be impossible — snapshots are only created above with
-    // template='waitlist-migration', which is a registered broadcast
-    // template. Surface as 500-equivalent (treat as drift since the
-    // operator must re-preview).
+    // template='waitlist-migration' + audience='waitlist:source', both
+    // registered. If this branch fires, the registry / audience set
+    // mutated between snapshot and consume. Match /admin/broadcast's
+    // code so a client distinguishes this from cohort drift (which
+    // would re-preview-loop on retry).
+    await insertAuditLog(
+      sql,
+      'migration.email.blocked',
+      actor,
+      { reason: 'invalid_template', source: snapshotSource, previewToken },
+      authMethod
+    );
     return c.json(
       {
-        code: 'cohort_drift',
-        error: 'snapshot template is no longer broadcastable; re-run with --dry-run',
-        added: [],
-        removed: [],
+        code: 'template_kind_not_broadcastable',
+        error: 'snapshot is no longer broadcastable; registry or audience set changed',
       },
-      409
+      400
     );
   }
   if (outcome.type === 'drift') {
+    await insertAuditLog(
+      sql,
+      'migration.email.blocked',
+      actor,
+      {
+        reason: 'cohort_drift',
+        source: snapshotSource,
+        added: outcome.added,
+        removed: outcome.removed,
+        previewToken,
+      },
+      authMethod
+    );
     return c.json(
       {
         code: 'cohort_drift',
@@ -1100,11 +1164,43 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
   }
 
   // ---- Real-send: snapshot is source of truth ------------------------------
+  // Audit the dispatch BEFORE the send loop runs so a mid-loop timeout
+  // / crash still leaves a forensic record: at minimum we know template,
+  // audience, and recipient count even if `broadcast.email.sent` (the
+  // completion row below) never fires.
+  await insertAuditLog(
+    sql,
+    'broadcast.email.dispatch_started',
+    actor,
+    {
+      template: consumed.template,
+      audience: consumed.audience_key,
+      audienceParams: consumed.audience_params,
+      recipientCount: consumed.recipients.length,
+      previewToken,
+    },
+    authMethod
+  );
+
   const outcome = await executeBroadcastFromSnapshot(sql, consumed);
   if (outcome.type === 'invalid_template') {
     // Should be impossible — snapshots are only created above for
-    // broadcast templates — but defend in case the registry changed
-    // between snapshot and consume (e.g. a template was removed mid-flight).
+    // broadcast templates with audiences in AUDIENCE_KEYS — but defend
+    // in case the registry or audience set changed between snapshot
+    // and consume. The snapshot is already consumed (state change),
+    // so emit an audit row so the operator can find the orphaned send.
+    await insertAuditLog(
+      sql,
+      'broadcast.email.blocked',
+      actor,
+      {
+        reason: 'invalid_template',
+        template: consumed.template,
+        audience: consumed.audience_key,
+        previewToken,
+      },
+      authMethod
+    );
     return c.json(
       {
         code: 'template_kind_not_broadcastable',
@@ -1114,6 +1210,21 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
     );
   }
   if (outcome.type === 'drift') {
+    await insertAuditLog(
+      sql,
+      'broadcast.email.blocked',
+      actor,
+      {
+        reason: 'cohort_drift',
+        template: consumed.template,
+        audience: consumed.audience_key,
+        audienceParams: consumed.audience_params,
+        added: outcome.added,
+        removed: outcome.removed,
+        previewToken,
+      },
+      authMethod
+    );
     return c.json(
       {
         code: 'cohort_drift',

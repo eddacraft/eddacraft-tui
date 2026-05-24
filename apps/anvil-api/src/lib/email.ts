@@ -276,13 +276,13 @@ export async function sendReleaseAnnouncement(
   const body = encodeURIComponent(`Please remove ${email} from release announcements.`);
   const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=${subject}&body=${body}`;
 
-  // Subject derivation mirrors the template's V070_DEFAULTS-when-both-missing
-  // rule (release-announcement.tsx): if the operator supplies neither version
-  // nor theme, render the v0.7.0 release; if they supply at least one, the
-  // template uses a blank canvas and we trust them to have supplied both.
-  const useDefaults = !props.version && !props.theme;
-  const version = useDefaults ? V070_DEFAULTS.version : (props.version ?? '');
-  const theme = useDefaults ? V070_DEFAULTS.theme : (props.theme ?? '');
+  // Subject derivation: fall back to V070_DEFAULTS per-field rather than
+  // all-or-nothing. A partial supply (e.g. `version: 'v0.8.0-beta'` with no
+  // theme) previously produced `Anvil v0.8.0-beta — ` with an empty theme
+  // half. Per-field fallback keeps the subject readable when the operator
+  // overrides only one identifier.
+  const version = props.version ?? V070_DEFAULTS.version;
+  const theme = props.theme ?? V070_DEFAULTS.theme;
   const emailSubject = `Anvil ${version} — ${theme}`;
 
   try {
@@ -303,7 +303,7 @@ export async function sendReleaseAnnouncement(
 
 A new Anvil release is live. Full notes and upgrade commands are in the rendered email body; if you can't see HTML, the release notes URL is:
 
-${props.releaseUrl ?? (useDefaults ? V070_DEFAULTS.releaseUrl : '')}
+${props.releaseUrl ?? V070_DEFAULTS.releaseUrl}
 
 To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}
 

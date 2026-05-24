@@ -67,12 +67,19 @@ export const driftDiffSchema = z.object({
 // EMAIL_REGISTRY and AUDIENCE_KEYS so unknown values yield specific
 // `template_unknown` / `audience_unknown` codes instead of a generic
 // zod enum mismatch.
+//
+// `limit` is capped at 80 — derived from Vercel Pro default 60s timeout,
+// Resend p99 ~500ms, ~50ms per-iteration overhead, plus a 5s response /
+// 3s cold-start budget. The synchronous send loop can survive 80
+// recipients with margin. Raising the cap requires either bounded
+// concurrency in the loop OR moving to a job-queue dispatch — both
+// deferred to the EMAIL Phase 6 hardening slice.
 export const broadcastSchema = z.object({
   template: z.string().min(1).max(64),
   audience: z.string().min(1).max(64),
   audienceParams: z.record(z.string(), z.string()).optional().default({}),
   templateProps: z.record(z.string(), z.unknown()).optional().default({}),
-  limit: z.number().int().min(1).max(5000).default(1000),
+  limit: z.number().int().min(1).max(80).default(80),
   dryRun: z.boolean().default(false),
   previewToken: z.string().min(1).max(128).optional(),
 });

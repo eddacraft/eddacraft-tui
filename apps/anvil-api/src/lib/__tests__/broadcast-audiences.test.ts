@@ -158,6 +158,13 @@ describe('resolveAudience', () => {
       expect(q).toContain('revoked_at IS NULL');
       expect(q).toContain('expires_at');
     });
+
+    it('excludes service accounts (any access_token with is_edict=true)', async () => {
+      const sql = mockSql([]);
+      await resolveAudience(sql, 'waitlist:approved-no-token', { limit: 100 });
+      const q = lastQuery(sql);
+      expect(q).toContain('is_edict = true');
+    });
   });
 
   describe('hard exclusions', () => {

@@ -87,6 +87,34 @@ describe('propsSchema — release-announcement', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects releaseUrl that is not https://', () => {
+    expect(schema.safeParse({ releaseUrl: 'http://example.com' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'javascript:alert(1)' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'data:text/html,<script>' }).success).toBe(false);
+    expect(schema.safeParse({ releaseUrl: 'https://example.com/v0.7.0' }).success).toBe(true);
+  });
+
+  it('rejects migrationUrl that is not https://', () => {
+    expect(schema.safeParse({ migrationUrl: 'http://example.com' }).success).toBe(false);
+    expect(schema.safeParse({ migrationUrl: 'https://example.com/migrate' }).success).toBe(true);
+  });
+
+  it('rejects knownGaps[].trackingUrl that is not https://', () => {
+    expect(
+      schema.safeParse({ knownGaps: [{ title: 't', body: 'b', trackingUrl: 'http://x.com' }] })
+        .success
+    ).toBe(false);
+    expect(
+      schema.safeParse({ knownGaps: [{ title: 't', body: 'b', trackingUrl: 'https://x.com' }] })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects feedbackEmail that is not a valid email', () => {
+    expect(schema.safeParse({ feedbackEmail: 'not-an-email' }).success).toBe(false);
+    expect(schema.safeParse({ feedbackEmail: 'a@b.co' }).success).toBe(true);
+  });
+
   it('rejects email — it must come from the recipient row, not operator props', () => {
     const result = schema.safeParse({ email: 'a@x.com' });
     expect(result.success).toBe(false);

@@ -153,10 +153,20 @@ async function resolveWaitlistApprovedNoToken(
   sql: NeonClient,
   { limit }: AudienceParams
 ): Promise<AudienceRow[]> {
+  // Exclude service accounts: any user who has ever had an edict token
+  // is a CI/automation account, not a human beta tester. A revoked or
+  // expired edict still marks them as not-a-human so they don't receive
+  // 're-activate your account' nudges intended for users who never
+  // claimed their invite.
   const r = await sql`
     SELECT bu.email, bu.name, bu.id AS user_id
     FROM beta_users bu
     WHERE bu.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM access_tokens at
+        WHERE at.user_id = bu.id
+          AND at.is_edict = true
+      )
       AND NOT EXISTS (
         SELECT 1 FROM access_tokens at
         WHERE at.user_id = bu.id

@@ -30,11 +30,16 @@ CREATE TABLE access_tokens (
 
 -- Audit log for all admin actions
 CREATE TABLE audit_log (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  action     text NOT NULL,
-  actor      text NOT NULL,
-  metadata   jsonb NOT NULL DEFAULT '{}',
-  created_at timestamptz NOT NULL DEFAULT now()
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  action      text NOT NULL,
+  actor       text NOT NULL,
+  metadata    jsonb NOT NULL DEFAULT '{}',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  -- Mirrors migration 009-audit-log-auth-method.sql so fresh-install
+  -- environments (CI, ephemeral preview deployments, disaster recovery)
+  -- have the column from row zero. Per ADMINCLIH dual-auth rollout.
+  auth_method text NOT NULL DEFAULT 'shared'
+              CHECK (auth_method IN ('shared', 'per_operator'))
 );
 
 -- Waitlist table
@@ -120,6 +125,8 @@ CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor);
 CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX idx_audit_log_metadata_email_lower ON audit_log (LOWER((metadata->>'email')));
+-- Mirrors migration 009-audit-log-auth-method.sql.
+CREATE INDEX idx_audit_log_auth_method ON audit_log(auth_method);
 CREATE INDEX idx_device_codes_user_code ON device_codes(user_code);
 CREATE INDEX idx_device_codes_poll_token ON device_codes(poll_token);
 CREATE INDEX idx_device_codes_user_id ON device_codes(user_id);

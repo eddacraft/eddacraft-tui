@@ -1564,8 +1564,17 @@ describe('admin endpoints', () => {
         expect(body.removed).toEqual(['bob@example.com']);
         // Must NOT have sent any emails on a drift rejection.
         expect(vi.mocked(sendWaitlistMigration)).not.toHaveBeenCalled();
-        // And must NOT write an audit log for a send that never happened.
-        expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalled();
+        // Must NOT write a `migration.email.sent` audit entry — but the
+        // snapshot has been consumed (state change), so we DO write a
+        // `migration.email.dispatch_started` (before the loop ran) and
+        // a `migration.email.blocked` (with reason=cohort_drift).
+        const auditCalls = vi.mocked(insertAuditLog).mock.calls;
+        const actions = auditCalls.map((call) => call[1]);
+        expect(actions).not.toContain('migration.email.sent');
+        expect(actions).toContain('migration.email.dispatch_started');
+        expect(actions).toContain('migration.email.blocked');
+        const blockedCall = auditCalls.find((call) => call[1] === 'migration.email.blocked');
+        expect(blockedCall?.[3]).toMatchObject({ reason: 'cohort_drift' });
       });
 
       it('rejects a second real-send with the same token as preview_token_consumed', async () => {

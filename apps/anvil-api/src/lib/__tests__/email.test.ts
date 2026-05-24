@@ -228,6 +228,34 @@ describe('sendReleaseAnnouncement', () => {
     );
   });
 
+  it('falls back to V070_DEFAULTS theme when only version is supplied', async () => {
+    process.env['RESEND_API_KEY'] = 'resend_test_key';
+    emailMocks.send.mockResolvedValue({ error: null });
+    const { sendReleaseAnnouncement } = await loadEmailModule();
+
+    await sendReleaseAnnouncement('person@example.com', { version: 'v0.8.0-beta' });
+
+    expect(emailMocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Anvil v0.8.0-beta — Daemon-Working End-to-End Protection',
+      })
+    );
+  });
+
+  it('falls back to V070_DEFAULTS version when only theme is supplied', async () => {
+    process.env['RESEND_API_KEY'] = 'resend_test_key';
+    emailMocks.send.mockResolvedValue({ error: null });
+    const { sendReleaseAnnouncement } = await loadEmailModule();
+
+    await sendReleaseAnnouncement('person@example.com', { theme: 'Custom Theme' });
+
+    expect(emailMocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Anvil v0.7.0-beta — Custom Theme',
+      })
+    );
+  });
+
   it('passes through props to the ReleaseAnnouncement template alongside email + unsubscribeMailto', async () => {
     process.env['RESEND_API_KEY'] = 'resend_test_key';
     emailMocks.send.mockResolvedValue({ error: null });

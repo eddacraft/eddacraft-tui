@@ -435,24 +435,204 @@ in the same change.
   addresses; admin-CLI behaviour otherwise unchanged. Full anvil-api
   suite 382/382 across 20 files; typecheck clean.
 
-## Future Phases (Not Tasked Yet)
+### EMAIL-007 — Council review remediation (Wave 1)
 
-The following items were on the original menu but are deliberately not
-tasked in this module. Each becomes a task when its phase opens:
+- **Status:** Done
+- **Priority:** Medium
+- **Confidence:** High
+- **Intent:** Address the eight load-bearing findings from the full
+  council review of EMAIL-001..006 (2026-05-24). The eight were
+  selected from the council's 39 findings as the items the operator
+  defends as must-fix; the remaining 31 are catalogued in Phase 6
+  below for later attention.
+- **Expected Outcome:** v0.7.0-beta release-announcement can be sent
+  through `/admin/broadcast` without (a) breaking fresh-install paths,
+  (b) producing a phishing-link surface via unvalidated URL props,
+  (c) emailing service accounts or stale-token users, (d) silently
+  missing cohort growth in drift detection, (e) crashing on a stale
+  audience_key after consume, (f) running past the Vercel function
+  timeout, (g) leaving a consumed snapshot with no audit trail, or
+  (h) producing a malformed subject when only `version` or only
+  `theme` is supplied.
+- **Validation:** `pnpm exec vitest --run`
+- **Files:**
+  - `apps/anvil-api/src/db/schema.sql` — added `auth_method` column +
+    index to `audit_log` mirroring migration 009 (fresh installs were
+    breaking on the first `insertAuditLog`).
+  - `apps/anvil-api/src/db/migrations/013-broadcast-snapshots.sql` —
+    `IF EXISTS` / `IF NOT EXISTS` guards on every statement plus a
+    `DO $$ ... $$` block around the source-column backfill so the
+    migration is idempotent on schema-first fresh installs.
+  - `apps/anvil-api/src/lib/broadcast-audiences.ts` — `waitlist:approved-no-token`
+    excludes service accounts via `NOT EXISTS (... WHERE at.is_edict =
+    true)`. Otherwise revoked/expired edict tokens would surface
+    service accounts in the audience receiving 're-activate' emails
+    intended for human users.
+  - `apps/anvil-api/src/lib/email-registry.ts` — `httpsUrlSchema`
+    helper constrains `releaseUrl`, `migrationUrl`, and
+    `knownGaps[].trackingUrl` to `https://`-only URLs ≤ 2048 chars.
+    `feedbackEmail` now uses `z.string().email().max(254)`. Closes
+    the trusted-domain phishing vector.
+  - `apps/anvil-api/src/lib/email.ts` — `sendReleaseAnnouncement`
+    subject derivation switched from all-or-nothing
+    `useDefaults` to per-field `props.X ?? V070_DEFAULTS.X`. Plain
+    text body's releaseUrl fallback simplified to match.
+  - `apps/anvil-api/src/routes/admin-schemas.ts` — `broadcastSchema.limit`
+    capped at 80 (down from 5000) with default 80. Derivation in the
+    schema comment: Vercel Pro 60 s default, Resend p99 500 ms,
+    ~50 ms per-iteration overhead, 5 s response + 3 s cold-start
+    budget → 80 recipients with margin. Raising the cap requires
+    bounded concurrency or job-queue dispatch — both deferred to
+    Phase 6.
+  - `apps/anvil-api/src/routes/admin.ts` —
+    `executeBroadcastFromSnapshot` validates `consumed.audience_key`
+    against `AUDIENCE_KEYS` before `resolveAudience` (the switch had
+    no default arm; a stale key would throw TypeError after the token
+    was already consumed). `freshLimit` bumped to `snapshot_size + 1`
+    so cohort growth surfaces as drift's `added` rather than being
+    silently invisible. Per-recipient try/catch added inside the
+    send loop so an SDK throw doesn't strand recipients with a
+    consumed snapshot. Both `/admin/broadcast` and `/admin/send-migration`
+    now write a `*.dispatch_started` audit row BEFORE the loop runs
+    (recovery anchor if the function dies mid-loop) and a
+    `*.blocked` audit row on the drift / invalid_template branches
+    (consumed-token-with-no-send is itself a state change worth
+    recording). `/admin/send-migration` now returns 400
+    `template_kind_not_broadcastable` (matching `/admin/broadcast`)
+    instead of 409 `cohort_drift` with empty arrays, fixing a
+    client-re-preview infinite-loop bug. `snapshotSource` null guard
+    prevents the literal string `"undefined"` leaking into the audit
+    log and response.
+- **Notes:** Landed 2026-05-24. 15 new tests; full anvil-api suite
+  397/397 across 20 files (was 382/382); typecheck clean. Council
+  review verdict was BLOCK on 13 must-fix items, downgraded by the
+  operator to 8 after applying severity-pushback (see Phase 6 for
+  the deferred 31).
+
+## Phase 6 — Council Follow-Ups (Not Tasked Yet)
+
+The full council review on 2026-05-24 surfaced 39 findings. 8 landed
+in EMAIL-007 above; the remaining 31 are catalogued here for later
+attention. Pulled in batches of 5–10 once an operator pressure point
+surfaces.
+
+### Wave 1 — Defensive hardening (when next broadcast scope tightens)
+
+- **Hash snapshot token at rest.** Store `sha256(token)` as the
+  PRIMARY KEY of `send_broadcast_snapshots`, return raw token only
+  from `insertBroadcastSnapshot`, hash on lookup in
+  `findBroadcastSnapshot` / `consumeBroadcastSnapshot`. Mirrors the
+  `access_tokens` / `refresh_tokens` pattern. Severity: MINOR for
+  consistency, not exploitability (consume endpoint requires
+  `adminAuth`). ~30 lines.
+- **`audience_params` cast at function boundary.** Tighten
+  `insertBroadcastSnapshot`'s `audienceParams` parameter from
+  `Record<string, unknown>` to `Record<string, string>`. Parse
+  `consumed.audience_params` through `z.record(z.string(), z.string())`
+  at the top of `executeBroadcastFromSnapshot` as belt-and-braces.
+- **JSONB write surface caps.** Add max-key-count and max-value-size
+  to `broadcastSchema.audienceParams` and `broadcastSchema.templateProps`.
+  Currently uncapped — admin actor could write megabyte-scale blobs
+  into the snapshot table.
+- **`z.enum(AUDIENCE_KEYS)` / `z.enum(TEMPLATE_KEYS)`** in
+  `broadcastSchema` instead of `z.string().min(1)`. Eliminates the
+  drift risk between AUDIENCE_KEYS constant and the schema.
+
+### Wave 2 — Observability and operations
+
+- **Migration 013 `lock_timeout`.** Set `SET lock_timeout = '30s'`
+  before the ALTER TABLE chain. Theoretical at current row count;
+  best practice.
+- **Reap DELETE structured logging.** Log row-count deleted at INFO
+  on success, ERROR on failure. Currently `console.warn` with no
+  count, so snapshot-table growth is invisible.
+- **Structured logging in `lib/email.ts`.** Replace the
+  `console.warn` / `console.error` calls with structured payloads
+  carrying correlation ID, template name, Resend error code, and
+  snapshot token. Currently a 200-recipient failure produces 200
+  identical lines with no triage path.
+- **Rate-limiter cluster-wide store.** Documented limitation in
+  `admin-rate-limit.ts` — per-process counter on Vercel = `5 × N`
+  burst across `N` warm instances. Move to shared store before
+  scaling beyond single warm function. Document in runbook
+  meanwhile.
+- **Rate-limiter dry-run vs send split.** Operator iterating on
+  previews burns the same budget as a real send. Split to
+  `scope: 'broadcast:dry'` (looser) and `scope: 'broadcast:send'`
+  (tighter).
+- **`broadcast_id` for idempotency.** Surface the `previewToken` (or
+  a separate dispatch UUID) in the broadcast response so an operator
+  can correlate to Resend's dashboard if the HTTP response is lost.
+- **Audit log namespace documentation.** `migration.email.*` and
+  `broadcast.email.*` action names coexist; operators querying need
+  both. Document the taxonomy in the audit-log schema comment.
+- **`FROM_ADDRESS` / `REPLY_TO` env-configurable.** Currently
+  hardcoded module constants — fine for a single operator, will bite
+  the first staging/preview deploy that wants a different sender.
+
+### Wave 3 — Compliance and deliverability
+
+- **Suppression table + LEFT JOIN.** Persist Resend bounce/complaint
+  events into a `suppressed_emails` table; every audience resolver
+  joins against it and excludes matches. Honours the unsubscribe
+  promise the rendered emails make. Originally pitched as MUST FIX
+  by security-analyst; downgraded to ACCEPT-RISK by the operator
+  given closed-beta scale + manual triage. Revisit when:
+  (a) broadcast cadence exceeds quarterly, or (b) recipient base
+  exceeds low hundreds, or (c) Gmail spam-folder rate exceeds 0.1%
+  on a release-announcement send.
+- **Suppression env-flag gate.** If the above is deferred, add
+  `process.env.ADMIN_BROADCAST_ENABLED === 'true'` gate to the
+  broadcast dispatch path. Council-debate landed on GATE-WITH-FLAG
+  as the right control; operator pushed back as bureaucracy. Listed
+  here so the next person revisiting compliance has the lever
+  documented.
+- **Per-recipient send-result audit detail.** The aggregate `sent` /
+  `failed` audit metadata loses per-recipient attribution. Persist
+  the full `results[]` array (already present in the response body)
+  into the audit row's JSONB column so failed addresses can be
+  recovered after a client-side log loss.
+
+### Wave 4 — Semantic + UX polish
+
+- **`waitlist:pending` rename.** Resolver returns "no `beta_users`
+  row exists" — superset of the label "pending". Rename to
+  `waitlist:not-invited` or `waitlist:no-beta-account`. NIT, churn.
+- **`excluded_count` in dry-run response.** Suspended/banned waitlist
+  users sit in a reachability gap. Surface the count of excluded
+  rows so the operator sees the shortfall.
+- **Drift name-change documentation.** `computeCohortDrift` compares
+  email only; a `name` change between snapshot and consume produces
+  stale personalisation invisibly. Document as accepted, or store
+  `user_id` in `SnapshotRecipient` for a stricter check.
+- **`now()` boundary documentation.** Time-windowed segmentation
+  (`beta:active-recent` vs `beta:active-idle`) evaluates `now()`
+  separately at snapshot vs consume. Document the inherent boundary
+  gap inline in the resolver.
+- **`consumed_at` column comment** in `schema.sql` describing the
+  consume-once invariant.
+- **`ReleaseAnnouncementSendProps` via `z.infer`.** Derive the type
+  in `lib/email.ts` from `releaseAnnouncementPropsSchema` instead of
+  hand-maintaining a parallel `Partial<{...}>`.
+- **Operator CLI wrapper.** The current two-curl flow (preview, copy
+  token, real-send) is error-prone. Phase 3 admin-CLI work picks
+  this up.
+- **`email-registry` sender-coupling watch.** Low-priority at five
+  templates; if the registry grows, consider extracting sender
+  registration into a separate index.
+
+### Wave 5 — Original menu items (unchanged)
 
 - **Phase 3 — Operator safety.** `POST /admin/send-test` for
-  single-recipient render-and-mail of any registered template; built on
-  the registry already in place.
-- **Phase 4 — Deliverability.** `POST /admin/email/webhook/resend` for
-  Resend bounce / complaint webhooks, `suppressions` table populated by
-  the webhook, suppression check wired through the resolver
-  hard-exclusion hook from EMAIL-001.
+  single-recipient render-and-mail of any registered template.
+- **Phase 4 — Deliverability.** `POST /admin/email/webhook/resend`
+  for Resend bounce / complaint webhooks (feeds Wave 3 suppression
+  table).
 - **Phase 5 — Recovery and reconcile.** `POST /admin/invite/resend`,
-  `POST /admin/otp/resend`, `POST /admin/audience/reconcile` for Resend
-  Contacts drift repair.
+  `POST /admin/otp/resend`, `POST /admin/audience/reconcile`.
 
-Each phase opens by adding its tasks here, advancing the module status to
-`In Progress` if not already, and re-running readiness checks.
+Each wave opens by adding its tasks here, advancing the module status
+to `In Progress` if not already, and re-running readiness checks.
 
 ## Open Questions
 
