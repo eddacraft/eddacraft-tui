@@ -9,14 +9,10 @@
 //!   the `anvil-intercept` daemon, and any future Rust binary.
 //! - [`init_tracing`] installs a `tracing-subscriber` JSON formatter,
 //!   an `EnvFilter` honouring `RUST_LOG` and `ANVIL_LOG`, and a
-//!   sensible per-binary default directive. **No redaction layer is
-//!   wired in TRACE-001** — see below.
-//! - [`redaction`] holds an **advisory-only** deny-list of sensitive
-//!   field names. The runtime subscriber installed by [`init_tracing`]
-//!   does NOT consult it; secret-bearing span attributes will appear in
-//!   plain text in JSON output. TRACE-003 wires the actual layer
-//!   against this same constant table (DA-OBS-004 risk acceptance per
-//!   ADR-035 R1).
+//!   sensible per-binary default directive.
+//! - [`redaction`] holds the default deny-list of sensitive field names
+//!   and the JSON field formatter used by [`init_tracing`] to replace
+//!   matching span/event values with the canonical redaction marker.
 //!
 //! Per ADR-035 spans are **never** source-of-truth; consumers that need
 //! durable governance facts go through Kindling, and live state belongs
@@ -147,8 +143,8 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
         .with_level(true)
         .with_ansi(false)
         .json()
-        .with_current_span(true)
-        .with_span_list(false);
+        .fmt_fields(redaction::RedactingJsonFields)
+        .event_format(redaction::RedactingJsonEventFormatter::default());
 
     match std::env::var(TRACE_SINK_ENV).ok().as_deref() {
         None | Some("") => {

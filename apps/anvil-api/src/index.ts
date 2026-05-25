@@ -10,6 +10,7 @@ import { admin } from './routes/admin.js';
 import { waitlist } from './routes/waitlist.js';
 import { cron } from './routes/cron.js';
 import { rateLimiter } from './middleware/rate-limit.js';
+import { traceContext } from './middleware/trace-context.js';
 import { getClient } from './db/client.js';
 import { verifySigningKey, verifyVerifyingKey } from './lib/licence.js';
 
@@ -64,7 +65,7 @@ app.use(
   cors({
     origin: (origin) => matchOrigin(origin) ?? '',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Waitlist-Admin-Token'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Waitlist-Admin-Token', 'traceparent'],
     // Short preflight cache: a longer TTL means an API outage poisons
     // browsers for the full TTL after recovery (a failed preflight gets
     // remembered as "no preflight allowed").
@@ -72,6 +73,7 @@ app.use(
   })
 );
 
+app.use('*', traceContext);
 app.use('*', rateLimiter());
 
 app.get('/health', async (c) => {

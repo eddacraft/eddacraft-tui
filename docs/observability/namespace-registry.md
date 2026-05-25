@@ -114,15 +114,17 @@ same attribute name across both.
 
 ## Known Gaps
 
-- **Redaction is NOT active.** `SENSITIVE_FIELDS` is a future deny-list, not an
-  enforced subscriber layer. Span attributes named `password`, `token`,
-  `api_key` etc. will appear in plain text in JSON log output until TRACE-003
-  wires the layer. Producers MUST NOT emit secret-bearing values into spans
-  before TRACE-003 ships. Reviewed pre-launch under ADR-035 R1 risk acceptance.
-- **Day-one limitation:** dashboard cannot join traces across producers until
-  TS-side `traceparent` parsing lands (tracked under TRACE-002).
-- **Secret-redaction across binary boundaries** is not yet hardened on the
-  tracing pipe. Tracked under TRACE-003; closed when both TRACE-003 and INTD-015
-  land. Until then, treat `notification.context` payloads as potentially
-  secret-bearing (DA-OBS-004 risk acceptance, see
+- **Tracing redaction is active for the Rust JSON formatter.**
+  `SENSITIVE_FIELDS` is now enforced for span and event attributes written
+  through `init_tracing`, so fields named `password`, `token`, `api_key`,
+  `notification.context`, etc. are replaced with `<redacted>` before stderr or
+  local file output.
+- **Dashboard limitation:** the TypeScript `traceparent` parser exists, but the
+  dashboard cannot join traces across producers until a concrete live-feed
+  consumer wires it in (tracked under TRACE-002).
+- **Secret-redaction across binary boundaries** is not yet fully hardened on the
+  tracing pipe. Tracked under TRACE-003; closed when INTD-015 and EXPORT
+  sampled-exporter policy land. Until then, treat `notification.context`
+  payloads as potentially secret-bearing outside the Rust tracing formatter
+  (DA-OBS-004 risk acceptance, see
   [ADR-035](../../plans/decisions/035-three-pipe-observability-rule.md)).

@@ -25,6 +25,7 @@
       "@eddacraft/anvil-core": ["./packages/anvil/core/dist/index.d.ts"],
       "@eddacraft/anvil-core/*": ["./packages/anvil/core/dist/*/index.d.ts"],
       "@eddacraft/anvil-contracts": ["./packages/anvil/contracts/dist/index.d.ts"],
+      "@eddacraft/anvil-observability": ["./packages/anvil/observability/dist/index.d.ts"],
       "@eddacraft/anvil-ports": ["./packages/anvil/ports/dist/index.d.ts"],
       "@eddacraft/anvil-runtime": ["./packages/anvil/runtime/dist/index.d.ts"],
       "@eddacraft/anvil-runtime/*": ["./packages/anvil/runtime/dist/*/index.d.ts"],

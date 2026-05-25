@@ -35,6 +35,9 @@
       "path": "../../packages/anvil/contracts"
     },
     {
+      "path": "../../packages/anvil/observability"
+    },
+    {
       "path": "../../packages/anvil/runtime"
     }
   ]

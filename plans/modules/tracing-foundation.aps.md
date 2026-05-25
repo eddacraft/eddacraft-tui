@@ -161,8 +161,11 @@ This module is **Ready** when:
 
 > Status: In Progress. TRACE-001 Complete 2026-04-30. TRACE-004 Complete
 > 2026-05-11 via PR #1435.
-> TRACE-002 (TS mirror) and TRACE-003 (redaction
-> hardening) stay Draft as post-launch hardening.
+> TRACE-002 authorised by operator request on 2026-05-25. A partial slice
+> landed the reusable TS mirror and `anvil-api` ingress, then blocked on
+> concrete dashboard live-feed consumer ownership. TRACE-003 also received
+> a partial Rust tracing-formatter redaction slice, then blocked on INTD-015 /
+> EXPORT-owned event and sampled-exporter policy.
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
 
@@ -220,6 +223,15 @@ This module is **Ready** when:
 
 ### TRACE-002: TypeScript `@anvil/observability` mirror
 
+> **Status update (2026-05-25):** Blocked after partial implementation.
+> Operator request "complete as much of TRACE as you can before getting
+> blocked" authorised lifting this post-launch item out of Draft. Completed
+> slice: new `@eddacraft/anvil-observability` package with Rust-compatible
+> `traceparent` parse/format/envelope helpers, plus `anvil-api` request ingress
+> middleware. Remaining blocker: no concrete dashboard live-feed consumer
+> surface exists in this repo to wire the notification join or smoke-test the
+> joined dashboard view without fabricating a surface.
+
 - **Intent:** `anvil-api` and the dashboard parse `traceparent` and join
   traces across producers without re-implementing the propagation logic.
 - **Expected Outcome:** A `@anvil/observability` TS package mirrors the
@@ -233,15 +245,27 @@ This module is **Ready** when:
 - **Coordinates with:** TRACE-003 — TS-side consumer inherits the
   DA-OBS-004 redaction gap; treat `notification.context` as potentially
   secret-bearing until INTD-015 and TRACE-003 both land.
-- **Validation:** TBD when picked up — at minimum a TS unit test that
-  parses a Rust-emitted `traceparent` and a smoke test that the
-  dashboard renders the joined view.
+- **Validation:** Partial slice passed 2026-05-25:
+  `pnpm --filter @eddacraft/anvil-observability build`,
+  `pnpm --filter @eddacraft/anvil-observability test`,
+  `pnpm --filter @eddacraft/anvil-observability typecheck`,
+  `pnpm --filter @eddacraft/anvil-api test -- trace-context`, and
+  `pnpm --filter @eddacraft/anvil-api typecheck`. Full task still needs a
+  dashboard joined-view smoke test once that surface exists.
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Blocked
 
 ---
 
 ### TRACE-003: Redaction-layer hardening across binary boundaries
+
+> **Status update (2026-05-25):** Blocked after partial implementation.
+> Completed slice: Rust `init_tracing` now uses redacting JSON field and event
+> formatters that replace sensitive attributes (`SENSITIVE_FIELDS`) with
+> `<redacted>` before stderr or local file-sink output, including exact
+> `notification.context` aliases. The namespace registry reflects the narrowed
+> remaining gap. Remaining blockers: shared INTD-015 notification redaction
+> policy and sampled-exporter refusal/handling under EXPORT's sink decision.
 
 - **Intent:** Close the DA-OBS-004 risk-accepted gap on the tracing pipe
   so secret-bearing fields cannot transit spans even before the first
@@ -258,11 +282,12 @@ This module is **Ready** when:
   Known Gaps section as the closed-out side of the DA-OBS-004 risk.
 - **Coordinates with:** INTD-015 (queued redaction hardening on the
   notification envelope).
-- **Validation:** TBD when picked up — at minimum a unit test that a
-  span attribute matching the deny-list is replaced with a redaction
-  marker before formatting.
+- **Validation:** Partial slice passed 2026-05-25:
+  `cargo test -p eddacraft-anvil-observability` and `cargo fmt --check`.
+  Full task still needs validation for INTD-015 policy parity and sampled
+  exporter behaviour once INTD-015 / EXPORT provide those contracts.
 - **Confidence:** low — depends on INTD-015's shape and EXPORT's sink.
-- **Status:** Draft
+- **Status:** Blocked
 
 ---
 

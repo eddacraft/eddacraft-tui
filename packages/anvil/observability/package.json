@@ -1,0 +1,35 @@
+{
+  "name": "@eddacraft/anvil-observability",
+  "version": "0.6.2-beta",
+  "description": "TypeScript trace context helpers for Anvil observability surfaces",
+  "license": "PROPRIETARY",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "anvil",
+    "observability",
+    "traceparent",
+    "w3c-trace-context"
+  ]
+}

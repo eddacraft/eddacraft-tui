@@ -396,13 +396,16 @@ APS under [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md).
 Pre-launch scope is **TRACE-001 + TRACE-004**: subscriber init, W3C
 `traceparent` propagation, namespace registry stub, INTD-014 fixture update,
 call-path instrumentation for the daemon / CLI paths shipped so far, and a
-local hardened file sink. TRACE-002 (TS mirror), TRACE-003 (redaction
-hardening), kernel-surface breadth, and production sink choice remain
-post-launch / EXPORT follow-up scope.
+local hardened file sink. TRACE-002 is partially implemented as of 2026-05-25
+(TS mirror package + `anvil-api` ingress) and blocked on a concrete dashboard
+live-feed consumer for the joined-view smoke test. TRACE-003 has a partial Rust
+tracing-formatter redaction slice and is blocked on INTD-015 / EXPORT-owned
+policy parity and sampled-exporter behaviour. Kernel-surface breadth and production sink choice
+remain post-launch / EXPORT follow-up scope.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 2/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-004 Complete 2026-05-11 via PR #1435 — call-path instrumentation + `traceparent` correlation fields + local hardened file sink; OTLP/exporter-backed parent propagation and walkthrough deferred to EXPORT; TRACE-002 / TRACE-003 remain post-launch |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 2/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-004 Complete 2026-05-11 via PR #1435 — call-path instrumentation + `traceparent` correlation fields + local hardened file sink; TRACE-002 partial 2026-05-25 (TS mirror package + `anvil-api` ingress) blocked on concrete dashboard live-feed consumer; TRACE-003 partial 2026-05-25 (Rust tracing-formatter redaction) blocked on INTD-015 / EXPORT-owned policy parity and sampled-exporter behaviour; OTLP/exporter-backed parent propagation and walkthrough deferred to EXPORT |
 | [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
 
 > **Precondition resolved 2026-04-30:** LAUNCH-003's open

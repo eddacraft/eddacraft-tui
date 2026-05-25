@@ -71,6 +71,9 @@
     },
     {
       "path": "./packages/docs-meta"
+    },
+    {
+      "path": "./packages/anvil/observability"
     }
   ]
 }
