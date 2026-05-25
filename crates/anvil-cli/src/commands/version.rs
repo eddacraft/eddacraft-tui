@@ -197,14 +197,18 @@ fn find_shadowing_anvil_binaries(
     };
     // Without knowing which binary is running we cannot tell a shadow from
     // the real one — don't guess and risk flagging the running install.
+    // This also covers the case where `current_exe` is given but cannot be
+    // canonicalised (deleted, /proc unavailable, permissions): without a
+    // canonical form we can exclude neither the running binary nor its
+    // directory, so every PATH copy — including the real one — would look
+    // like a shadow. Bail rather than emit a false warning.
     let Some(current_exe) = current_exe else {
         return Vec::new();
     };
-    let current_canon = std::fs::canonicalize(current_exe).ok();
-    let current_dir = current_canon
-        .as_deref()
-        .and_then(Path::parent)
-        .map(Path::to_path_buf);
+    let Ok(current_canon) = std::fs::canonicalize(current_exe) else {
+        return Vec::new();
+    };
+    let current_dir = current_canon.parent().map(Path::to_path_buf);
 
     let exe_names: &[&str] = if cfg!(windows) {
         &["anvil.exe", "anvil.cmd", "anvil.bat", "anvil.ps1"]
@@ -217,8 +221,9 @@ fn find_shadowing_anvil_binaries(
     for dir in std::env::split_paths(path_var) {
         // Canonicalise the directory so repeated / symlinked PATH entries and
         // the running binary's own directory are recognised regardless of
-        // spelling. A directory that cannot be canonicalised does not exist —
-        // skip it.
+        // spelling. A directory we cannot canonicalise (missing, unreadable,
+        // or an invalid path) cannot hold a usable shadow we can name — skip
+        // it.
         let Ok(canon_dir) = std::fs::canonicalize(&dir) else {
             continue;
         };
@@ -233,7 +238,7 @@ fn find_shadowing_anvil_binaries(
             let Ok(canon) = std::fs::canonicalize(&candidate) else {
                 continue; // missing / transient
             };
-            if current_canon.as_deref() == Some(canon.as_path()) {
+            if canon == current_canon {
                 continue; // the running binary reached via another PATH entry
             }
             if !is_executable_file(&canon) {
@@ -412,8 +417,8 @@ fn print_human(
         }
         println!(
             "PATH order decides which runs; a per-manager update may not change it. \
-             Inspect with `where anvil` (Windows) or `which -a anvil` (Unix) and \
-             remove the stale install or fix PATH order."
+             Inspect with `where.exe anvil` or `Get-Command anvil -All` (Windows) or \
+             `which -a anvil` (Unix), then remove the stale install or fix PATH order."
         );
     }
 }
@@ -962,6 +967,19 @@ mod tests {
         write_exe(&d.path().join(anvil_exe_name()));
         let path = std::env::join_paths([d.path()]).unwrap();
         let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), None);
+        assert!(found.is_empty(), "found: {found:?}");
+    }
+
+    #[test]
+    fn shadow_detection_empty_when_current_exe_uncanonicalisable() {
+        // If the running exe path cannot be canonicalised (deleted, etc.),
+        // we cannot exclude the running install — bail rather than flag the
+        // real binary as a shadow.
+        let d = tempfile::tempdir().unwrap();
+        write_exe(&d.path().join(anvil_exe_name()));
+        let path = std::env::join_paths([d.path()]).unwrap();
+        let missing = d.path().join("does-not-exist").join(anvil_exe_name());
+        let found = find_shadowing_anvil_binaries(Some(path.as_os_str()), Some(&missing));
         assert!(found.is_empty(), "found: {found:?}");
     }
 
