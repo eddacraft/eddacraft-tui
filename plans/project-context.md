@@ -117,6 +117,44 @@ Active modules live under `plans/modules/`. Completed modules move to
 `plans/archive/modules/` with `git mv`; update the index path in the same
 change.
 
+## Progress Counters
+
+Active modules carry a manual progress counter (`Done/Total`) in two places:
+
+1. The module header table (`| MODULE | — | Status | X/Y |`).
+2. The module's row in `plans/index.aps.md`.
+
+`scripts/aps/drift-check.mjs` reconciles the manual count against the
+status-derived count using `DONE_PATTERNS` (canonical `Done`/`Complete` plus
+the Anvil extensions `Merged`/`Released/Shipped` — see
+[`#project-status-extensions`](#project-status-extensions)) and emits
+`aps-progress-mismatch` (module header) or `aps-index-progress-mismatch`
+(index row) as advisory warnings when the numbers diverge.
+
+Rules:
+
+1. **Existing modules with a counter** keep the counter and bump both the
+   header and the index row in the same commit that flips a work item's
+   `Status:` to a terminal value. Treat the bump as part of the closeout, not
+   a deferred reconcile.
+2. **New modules MAY omit the counter** when status-derived progress is
+   enough (the drift-check only fires when both `progressDone` and
+   `progressTotal` are non-null in the header). Omitting opts out of both
+   `aps-progress-mismatch` and `aps-index-progress-mismatch`.
+3. **Parallel PRs that each close a work item** in the same module should
+   either (a) coordinate so only one PR bumps the counter, or (b) defer the
+   bump to a single reconcile commit landing after the wave, to avoid
+   merge-conflict churn on the counter row. APSCAN-005/-006/-007/-008 used
+   option (b); the APSCAN-009 closeout commit did the single reconcile.
+4. **Counter casing matches the canonical/extension status casing**
+   (`Done`/`Merged`/`Released/Shipped`/`Complete` exactly); the drift-check
+   match is case-sensitive.
+5. **Released/Shipped without release-record evidence** triggers
+   `shipped-aps-without-release-record` (advisory). It is a real signal: the
+   work was tagged Released/Shipped but the release-record file does not list
+   the item. Resolve by either updating the release record or downgrading the
+   status to `Merged` (if the item is not actually in a tagged release).
+
 ## Execution Plans (`plans/execution/`)
 
 Action plans live under `plans/execution/`. Anvil follows the canonical

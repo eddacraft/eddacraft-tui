@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 4/11     |
+| APSCAN | —     | In Progress | 9/11     |
 
 ## Purpose
 
@@ -256,16 +256,26 @@ Migrate in waves:
 
 ### APSCAN-009: Reconcile progress counters with canonical status
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-25 via PR #1950
 - **Intent:** Keep Anvil's useful progress summaries without making manual counts
   conflict with canonical status-driven tooling.
 - **Expected Outcome:** New modules either avoid manual counters or have a clear
   drift rule; existing counter checks recognise canonical completion stamps.
-- **Validation:** `pnpm aps:drift --json` reports no counter false positives for
-  migrated modules.
-- **Files:** `scripts/aps/drift-check.mjs`, `plans/modules/*.aps.md`,
-  `plans/index.aps.md`
+- **Validation:** `pnpm aps:drift --json` reports no APSCAN counter false
+  positives after the bump (`aps-progress-mismatch` for APSCAN now resolved;
+  pre-existing `shipped-aps-without-release-record` warnings unmasked by
+  APSCAN-006 prefix-match fix are tracked separately and not regressions).
+- **Files:** `plans/modules/aps-canonical-alignment.aps.md`,
+  `plans/index.aps.md`, `plans/project-context.md`
 - **Dependencies:** APSCAN-003, APSCAN-006
+- **Closeout:** Counter recognition was completed by APSCAN-006's drift-check
+  fix (DONE_PATTERNS prefix-match for `Done`/`Complete`/`Merged`/
+  `Released/Shipped`; the same prefix-match landed for the release-record
+  alignment checks). This work item reconciles the APSCAN module's own header
+  + index counter (4/11 → 9/11 after APSCAN-005/-006/-007/-008/-009 closeouts)
+  and documents the manual-counter convention in `plans/project-context.md`
+  (existing modules keep counters; new modules may omit and rely on drift-check
+  for derived progress).
 - **Confidence:** medium
 
 ### APSCAN-010: Run active-module migration wave and closeout
