@@ -11,8 +11,29 @@ use eddacraft_tui::theme::Theme;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 
-/// The binary's own version, from the workspace `Cargo.toml`.
+/// The version rendered in the shell watermark.
+///
+/// Production uses the binary's own `CARGO_PKG_VERSION`. **Test builds use a
+/// fixed placeholder** so the committed shell snapshots stay version-agnostic
+/// across release bumps (CIB-020): a `chore(release): prepare vX` bump must not
+/// require re-accepting every shell snapshot. `production_watermark_uses_cargo_pkg_version`
+/// below guards both sides of the seam — it asserts the real
+/// `CARGO_PKG_VERSION` (what the `cfg(not(test))` arm embeds) is well-formed
+/// and pins the placeholder to `X.Y.Z`. It does not render the production
+/// version through the chrome; the one-line `cfg(not(test))` wiring is correct
+/// by inspection, and the render path is exercised — with the placeholder — by
+/// the snapshot tests, which therefore read `vX.Y.Z`.
+///
+/// The placeholder is intentionally shorter than a real semver, so these
+/// snapshots do not exercise the footer's width-dependent padding/truncation.
+/// That layout path lives in the library (`eddacraft_tui::shell` computes
+/// `watermark.width()`) and is covered there by `uses_passed_version_in_footer`,
+/// which passes a realistic-width version — so no anvil-tui-side coverage is
+/// lost by pinning the placeholder.
+#[cfg(not(test))]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(test)]
+const VERSION: &str = "X.Y.Z";
 
 /// Horizontal gutter between shell chrome and surface content, in cells.
 /// Surfaces use this via `inset_content` so they don't hug the left/right
@@ -146,17 +167,29 @@ mod tests {
     }
 
     #[test]
-    fn version_matches_workspace() {
-        let watermark = format!("v{VERSION}");
-        assert!(
-            watermark.starts_with('v'),
-            "watermark should start with 'v': {watermark}"
-        );
-        let after_v = &watermark[1..];
+    fn production_watermark_uses_cargo_pkg_version() {
+        // Production renders `CARGO_PKG_VERSION`; snapshot tests render the
+        // `VERSION` placeholder so snapshots don't churn on release bumps
+        // (CIB-020). This test runs under `cfg(test)`, so it does NOT render
+        // the production version through the chrome — it guards the string the
+        // production arm embeds and pins the placeholder the test arm renders.
+
+        // 1. The version string the `cfg(not(test))` arm embeds is well-formed.
+        let real = format!("v{}", env!("CARGO_PKG_VERSION"));
+        let after_v = &real[1..];
         let leading_digit = after_v.chars().next().is_some_and(|c| c.is_ascii_digit());
         assert!(
-            leading_digit && after_v.contains('.'),
-            "expected `v<major>.<minor>…` shape, got: {watermark}"
+            real.starts_with('v') && leading_digit && after_v.contains('.'),
+            "expected `v<major>.<minor>…` shape, got: {real}"
+        );
+
+        // 2. The snapshot placeholder is the deliberate, non-numeric marker — so
+        //    a snapshot showing `vX.Y.Z` is intentional, not a stale real
+        //    version. Keeping it visually distinct from any semver is the whole
+        //    point of option 2; pin it so a change forces re-accepting snapshots.
+        assert_eq!(
+            VERSION, "X.Y.Z",
+            "snapshot watermark placeholder changed; re-accept the committed snapshots"
         );
     }
 }

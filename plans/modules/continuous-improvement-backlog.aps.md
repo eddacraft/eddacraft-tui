@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 8/20     |
+| CIB | —     | In Progress | 9/20     |
 
 ## Purpose
 
@@ -667,7 +667,7 @@ archive.
 
 ### CIB-020: Release-prep must refresh version-embedding TUI snapshots
 
-- **Status:** Draft
+- **Status:** Merged 2026-05-25 via PR #1961
 - **Intent:** `chore(release): prepare vX` bumps the workspace version in
   `Cargo.toml` but does not refresh the anvil-tui snapshots that embed
   `env!("CARGO_PKG_VERSION")` in the shell chrome, so ~36 snapshot tests go red
@@ -696,3 +696,15 @@ archive.
   surface.
 - **Confidence:** medium — option 1 is trivial; option 2 needs a small
   test-render seam in shell.rs but is the cleaner long-term fix.
+- **Resolution:** Option 2 (version-agnostic snapshots). `crates/anvil-tui/src/shell.rs`
+  now defines `VERSION` as `env!("CARGO_PKG_VERSION")` under `#[cfg(not(test))]`
+  and a fixed `"X.Y.Z"` placeholder under `#[cfg(test)]`, so every shell snapshot
+  renders the watermark as `vX.Y.Z` regardless of the workspace version. The
+  former `version_matches_workspace` test is replaced by
+  `production_watermark_uses_cargo_pkg_version`, which asserts (a) the real
+  `CARGO_PKG_VERSION` is well-formed and (b) the test placeholder is the
+  deliberate `X.Y.Z` marker (not a stale real version). 38 committed snapshots
+  re-accepted with the placeholder; the coupling between release-prep and the TUI
+  snapshot sweep is removed entirely. Validation: bumping `[workspace.package]
+  version` to `9.9.9-bumptest` left `cargo test -p eddacraft-anvil-tui` green
+  (607/0) with zero snapshot churn.

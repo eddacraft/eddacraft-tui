@@ -338,3 +338,28 @@ a backlog. Promote repeated friction or executable follow-up work to
   (c) reconcile the unmasked `shipped-aps-without-release-record` findings
   per module owner (likely tracked under each affected module's release
   evidence, not APSCAN).
+
+### 2026-05-25 — claude
+
+- **Task:** Implement CIB-020 — make the anvil-tui shell-chrome version
+  watermark version-agnostic so release bumps don't invalidate ~38 snapshots.
+- **Outcome:** PR #1961. `VERSION` split into `cfg(not(test))` =
+  `CARGO_PKG_VERSION` and `cfg(test)` = `"X.Y.Z"` placeholder; 38 snapshots
+  re-accepted (footer-line-only diffs); `version_matches_workspace` replaced
+  by `production_watermark_uses_cargo_pkg_version`. Tests 607/0.
+- **Worked:** A one-line-ish `cfg(test)` const seam fixed all 38 snapshots at
+  once — far cheaper than per-surface edits or insta regex filters (the
+  watermark is rendered char-by-char with `[fg:…]` markers, so filters are
+  unworkable). The "simulate a version bump → green with zero churn"
+  validation directly proved the CIB acceptance criterion.
+- **Failed:** none.
+- **Friction:** The footer width/truncation path is only covered at the
+  `eddacraft-tui` library layer; the shorter placeholder hides it from the
+  anvil-tui snapshot surface. Closed by a doc-comment cross-reference (council
+  minor finding), but layout-coverage visibility across the wrapper/library
+  boundary is a recurring soft spot.
+- **Improvement:** When a placeholder is deliberately unrepresentative
+  (shorter version, fixed clock, stub id), note in-place which test at which
+  layer still exercises the realistic path, so the gap stays visible.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot settle; cleanup
+  worktree after merge.
