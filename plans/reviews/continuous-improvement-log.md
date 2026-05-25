@@ -363,3 +363,17 @@ a backlog. Promote repeated friction or executable follow-up work to
   layer still exercises the realistic path, so the gap stays visible.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot settle; cleanup
   worktree after merge.
+
+### 2026-05-25 — opencode
+
+- **Task:** Reconcile DOCGOV-009 after PR #1927 merged.
+- **Outcome:** Confirmed merge evidence and prepared APS status/count updates on a
+  standalone bookkeeping branch.
+- **Worked:** Keeping merge bookkeeping separate avoids reopening the already merged
+  metadata backfill PR.
+- **Failed:** Nothing substantive.
+- **Friction:** Post-merge APS status updates still require an explicit follow-up
+  commit/PR because the merged implementation branch is gone remotely.
+- **Improvement:** Treat post-merge APS advancement as a first-class bookkeeping PR
+  step when a module status changes after merge.
+- **Follow-up:** Merge the bookkeeping PR after CI and review pass.

@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 8/10     |
+| DOCGOV | —     | In Progress | 9/10     |
 
 ## Purpose
 
@@ -379,11 +379,13 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-009: Backfill metadata on existing live documentation
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Authorisation:** Promoted from Proposed on 2026-05-25 after DOCGOV-008
   completed and the operator requested DOCGOV-009 Task 1. Metadata backfill is
   authorised after rubric sign-off on 2026-05-25; default owner rules are
-  accepted, with `@aneki` (`aneki@eddacraft.ai`) as backup/admin owner.
+  accepted, with `@aneki` (`aneki@eddacraft.ai`) as backup/admin owner. Merged
+  2026-05-25 via PR [#1927](https://github.com/eddacraft/anvil-001/pull/1927)
+  at `02fc92f5`.
 - **Intent:** Apply the DOCGOV-002 taxonomy and metadata convention to live
   documents that predate it, so the entire active doc set declares type,
   authority, owner, status, freshness, and upstream/downstream references on
