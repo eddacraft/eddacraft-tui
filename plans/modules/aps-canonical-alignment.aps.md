@@ -319,8 +319,7 @@ Migrate in waves:
   APSCAN-005 (preserving blame via `git mv`). The migration touched zero
   archive content. No follow-up incompatibilities filed; remaining legacy
   active modules will migrate per the touched-during-work rule. APSCAN module
-  counter bumped 9/11 → 11/11 (Complete) and the module marked Done in the
-  header.
+  counter bumped 9/11 → 11/11 and the module status marked Done in the header.
 - **Confidence:** medium
 
 ### APSCAN-011: Add APS TUI dashboard
