@@ -7,9 +7,9 @@
 //! a builtin cannot be written — let alone registered — without declaring its
 //! class, and [`crate::Engine::register_builtin`] rejects an
 //! [`DeterminismClass::Impure`] builtin unless the engine was explicitly
-//! configured to allow one. The end-to-end `repeatable_eval` integration test
-//! exercises the runtime guarantee (a representative policy evaluated 100×
-//! yields identical bytes).
+//! configured to allow one. The `repeatable_eval_is_byte_identical_over_100_runs`
+//! integration test (`tests/determinism.rs`) exercises the runtime guarantee (a
+//! representative policy evaluated 100× yields identical bytes).
 //!
 //! ## Scope — what this does *not* cover (POLENG-009)
 //!
