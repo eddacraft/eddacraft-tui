@@ -262,3 +262,44 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Pre-screen runbook/as-built candidates with a code-span search
   before assigning `Runbook` or `As-built` type metadata.
 - **Follow-up:** none
+
+### 2026-05-25 — claude
+
+- **Task:** Ship MLP2-047 (pre-push end-to-end subprocess integration
+  tests) via /dev-workflow.
+- **Outcome:** Two Linux-gated subprocess smoke tests in
+  `crates/anvil-cli/tests/pre_push_subprocess.rs` covering the
+  `load_policy → Ok(None)` and `MLP2-020 VersionFloor → BelowFloor`
+  ADR-038 stages end-to-end. Both green; full workspace cargo fmt +
+  clippy + pnpm format:check + pnpm lint:check clean.
+- **Worked:** Tracing the production stderr line backwards through
+  `render_verdict` → `ErrorClass::EmbeddedFailed` arm caught the
+  fixture bug before I went hunting in `load_policy`. The
+  `RUST_LOG=trace` env-var probe against the binary showed only
+  `cli command parsed` — the load_policy `Err(_)` arm at hook.rs:412
+  silently discards the underlying anyhow chain, so the trace was
+  useless for narrowing.
+- **Failed:** First version-floor fixture used
+  `required_anvil_version: '>=99.0.0'` modelled on the docstring at
+  `anvil-l4/src/lib.rs:48` (`required_anvil_version: ">=0.6.0"`).
+  `RequiredAnvilVersion::parse` uses `semver::Version::parse` (EXACT
+  semver only, NOT `semver::VersionReq`), so any range prefix
+  parses as `InvalidFloor` and routes through `EmbeddedFailed`. Fix:
+  bare `'99.0.0'`. Docstring is misleading.
+- **Friction:** `cargo test --workspace` developed sporadic failures
+  (20+ tests in doctor + mcp::tools across two test binaries) after
+  the new test file landed; 0 failures on the same workspace with the
+  test stashed; tests pass deterministically in isolation. Pre-
+  existing race in tests that mutate process-global cwd via
+  `std::env::set_current_dir` — `CWD_GUARD` in doctor.rs serialises
+  within one test module but doesn't synchronise across modules /
+  binaries; the new subprocess-spawning tests add scheduling pressure
+  that surfaces the race.
+- **Improvement:** Promote the doctor/mcp cwd-race to a CIB candidate
+  — `with_tempdir_as_cwd` plus the bare `set_current_dir` calls in
+  `mcp/tools/validate_write.rs` need a workspace-wide mutex or a
+  refactor that threads cwd explicitly. The anvil-l4 docstring
+  showing `>=0.6.0` as a `required_anvil_version` value is also worth
+  fixing — exact semver only.
+- **Follow-up:** File CIB-NNN for the cwd-race + docstring fix. Run
+  /addressing-pr-reviews on the new PR after CI + Copilot settle.
