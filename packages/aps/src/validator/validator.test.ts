@@ -20,6 +20,14 @@ describe('validatePlanningDoc', () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it('should validate canonical Work Items and Outcome aliases', async () => {
+      const result = await validatePlanningDoc(join(fixturesDir, 'canonical-work-items.aps.md'));
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.some((w) => w.rule === 'missing-expected-outcome')).toBe(false);
+    });
+
     it('should validate a valid index file with linked modules', async () => {
       const result = await validatePlanningDoc(join(fixturesDir, 'valid-index.aps.md'));
 

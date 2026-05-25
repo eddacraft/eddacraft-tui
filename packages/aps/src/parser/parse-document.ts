@@ -89,7 +89,7 @@ function extractStructure(ast: Root, sourcePath?: string): DocumentStructure {
         }
 
         const sectionTitle = extractPlainText(heading).toLowerCase();
-        if (sectionTitle === 'tasks') {
+        if (sectionTitle === 'tasks' || sectionTitle === 'work items') {
           currentSection = 'tasks';
         } else {
           currentSection = 'root';

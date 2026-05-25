@@ -18,6 +18,27 @@ async function loadFixture(filename: string): Promise<string> {
 
 describe('parseDocument', () => {
   describe('simple plans', () => {
+    it('should parse canonical Work Items section as tasks', async () => {
+      const content = `# Canonical Module
+
+## Work Items
+
+### CANON-001: Canonical work item
+
+**Intent:** Parse canonical work item sections
+**Expected Outcome:** Work item is exposed as a task`;
+
+      const doc = await parseDocument(content, 'canonical-module.aps.md');
+
+      expect(doc.tasks).toHaveLength(1);
+      expect(doc.tasks[0]).toMatchObject({
+        id: 'CANON-001',
+        title: 'Canonical work item',
+        intent: 'Parse canonical work item sections',
+        expectedOutcome: 'Work item is exposed as a task',
+      });
+    });
+
     it('should parse a simple plan with multiple tasks', async () => {
       const content = await loadFixture('simple-plan.aps.md');
       const doc = await parseDocument(content, 'simple-plan.aps.md');

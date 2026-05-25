@@ -157,6 +157,7 @@ function assignField(task: Partial<Task>, key: string, value: string): void {
       break;
 
     case 'ExpectedOutcome':
+    case 'Outcome':
       task.expectedOutcome = value;
       break;
 

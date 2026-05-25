@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 3/11     |
+| APSCAN | —     | In Progress | 4/11     |
 
 ## Purpose
 
@@ -137,7 +137,7 @@ Migrate in waves:
 
 ### APSCAN-003: Add canonical aliases to Anvil APS parser and validator
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Allow active plans to move from legacy Anvil terms to canonical APS
   terms without breaking existing tooling mid-migration.
 - **Expected Outcome:** Anvil tooling accepts `## Work Items`, `Expected Outcome`,
@@ -147,6 +147,12 @@ Migrate in waves:
   validator fixtures covering legacy and canonical forms
 - **Files:** `packages/aps/src/parser/**`, `packages/aps/src/validator/**`,
   `packages/aps/src/**/__fixtures__/**`
+- **Closeout:** Parser and validator compatibility landed for canonical
+  `## Work Items` sections and the temporary `Outcome:` field alias while
+  preserving legacy `## Tasks` and `Expected Outcome:` support. Existing
+  lifecycle completion aliases and active-lint `.actions.md` scope remain in
+  place. Validation passed with `pnpm -F @eddacraft/anvil-aps test` and
+  `pnpm -F @eddacraft/anvil-aps typecheck`.
 - **Confidence:** medium
 
 ### APSCAN-004: Migrate active module headings and required fields

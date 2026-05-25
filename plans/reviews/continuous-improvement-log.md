@@ -20,6 +20,23 @@ a backlog. Promote repeated friction or executable follow-up work to
 
 ## Entries
 
+### 2026-05-25 — opencode
+
+- **Task:** Continue APSCAN parser/validator compatibility work.
+- **Outcome:** APSCAN-003 reached local Done state with parser, validator, tests,
+  package guidance, and APS index reconciliation updated.
+- **Worked:** Red/green tests around `## Work Items` and `Outcome:` gave a small
+  compatibility slice without widening into active-module migration.
+- **Failed:** Full `pnpm test` remained blocked by a copied `better-sqlite3`
+  native binary compiled for a different Node ABI; `pnpm rebuild better-sqlite3`
+  did not repair it.
+- **Friction:** Worktrunk worktree node_modules reuse can leave native addons stale
+  for the active Node version.
+- **Improvement:** Treat native-addon ABI mismatch as environment setup evidence,
+  not product failure, once targeted and typecheck/lint/doc gates are green.
+- **Follow-up:** If this recurs, document the reliable rebuild/install command for
+  `better-sqlite3` in the worktree setup notes.
+
 ### 2026-05-24 — opencode
 
 - **Task:** Add continuous-improvement closeout to repo-local dev-workflow skills.

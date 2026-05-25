@@ -140,8 +140,9 @@ const result = await validatePlanningDoc('plans/modules/my-feature.aps.md');
 There are two parser entry-points; templates differ accordingly:
 
 - **Leaf specs** (`parse-document.ts`) — H1 title, then an optional paragraph of
-  inline `**Field:** value` metadata, then `## Tasks` with H3 task entries. See
-  `templates/leaf-*.md` and `templates/simple-*.md`.
+  inline `**Field:** value` metadata, then `## Tasks` or canonical
+  `## Work Items` with H3 task entries. See `templates/leaf-*.md` and
+  `templates/simple-*.md`.
 - **Index files** (`parse-index.ts`) — H1 title, then `## Modules` with H3
   module entries followed by list-form `- **Field:** value` lines for module
   metadata. See `templates/index-*.md`.
@@ -150,6 +151,8 @@ Parser tolerances worth knowing when authoring or migrating docs:
 
 | Surface              | Canonical tokens                                          | Legacy aliases accepted                                                                                                     | Effect                                              |
 | -------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Leaf section heading | `## Work Items`                                           | `## Tasks`                                                                                                                  | H3 entries parsed as tasks                          |
+| Task field name      | `Expected Outcome:`                                       | temporary `Outcome:` alias                                                                                                  | Parsed as `expectedOutcome`                         |
 | Task field name      | `Validation:`                                             | `Test:`                                                                                                                     | Parsed as `validation`                              |
 | Task field name      | `Non-scope:`                                              | `NonScope:`                                                                                                                 | Parsed as `nonScope`                                |
 | Module `Status:`     | `Proposed` / `Ready` / `In Progress` / `Done` / `Blocked` | `Draft` → `Proposed`; `Complete` → `Done`                                                                                   | Normalised; any other value leaves status unset     |

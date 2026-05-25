@@ -302,7 +302,7 @@ function validateLeafStructure(content: string, filePath: string, issues: Valida
         text += textNode.value;
       });
 
-      if (text.trim().toLowerCase() === 'tasks') {
+      if (isTaskSectionTitle(text)) {
         hasTasksSection = true;
         tasksLineNumber = node.position?.start.line ?? 0;
       }
@@ -325,14 +325,14 @@ function validateLeafStructure(content: string, filePath: string, issues: Valida
   if (!hasTasksSection) {
     issues.push({
       severity: 'error',
-      message: 'Leaf spec must have a "## Tasks" section',
+      message: 'Leaf spec must have a "## Tasks" or "## Work Items" section',
       rule: 'required-sections',
       path: filePath,
     });
   } else if (!hasTaskEntries) {
     issues.push({
       severity: 'warning',
-      message: '"## Tasks" section has no task entries (H3 headings)',
+      message: 'Task section has no task entries (H3 headings)',
       rule: 'required-sections',
       path: filePath,
       lineNumber: tasksLineNumber,
@@ -483,7 +483,7 @@ function validateTaskFormat(
         visit(heading, 'text', (textNode: { value: string }) => {
           text += textNode.value;
         });
-        inTasksSection = text.trim().toLowerCase() === 'tasks';
+        inTasksSection = isTaskSectionTitle(text);
       }
 
       if (heading.depth === 3 && inTasksSection) {
@@ -578,7 +578,8 @@ function validateTaskContent(
   if (
     !skipRules.has('missing-expected-outcome') &&
     !fullContent.includes('Expected Outcome:') &&
-    !fullContent.includes('ExpectedOutcome:')
+    !fullContent.includes('ExpectedOutcome:') &&
+    !fullContent.includes('Outcome:')
   ) {
     issues.push({
       severity: 'warning',
@@ -614,6 +615,11 @@ function validateTaskContent(
       lineNumber: task.line,
     });
   }
+}
+
+function isTaskSectionTitle(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return normalized === 'tasks' || normalized === 'work items';
 }
 
 /**

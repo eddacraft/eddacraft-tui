@@ -170,6 +170,12 @@ describe('parseTaskFields', () => {
     expect(result.expectedOutcome).toBe('User model is created');
   });
 
+  it('should parse Outcome field as temporary alias for Expected Outcome', () => {
+    const para = paragraph([strong('Outcome:'), text(' User model is created')]);
+    const result = parseTaskFields([para], []);
+    expect(result.expectedOutcome).toBe('User model is created');
+  });
+
   it('should parse Validation field', () => {
     const para = fieldParagraph({ Validation: 'pnpm test' });
     const result = parseTaskFields([para], []);
