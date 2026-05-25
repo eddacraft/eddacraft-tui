@@ -137,7 +137,7 @@ Migrate in waves:
 
 ### APSCAN-003: Add canonical aliases to Anvil APS parser and validator
 
-- **Status:** Done
+- **Status:** Merged via PR #1939 (`0086d095`)
 - **Intent:** Allow active plans to move from legacy Anvil terms to canonical APS
   terms without breaking existing tooling mid-migration.
 - **Expected Outcome:** Anvil tooling accepts `## Work Items`, `Expected Outcome`,
@@ -152,7 +152,9 @@ Migrate in waves:
   preserving legacy `## Tasks` and `Expected Outcome:` support. Existing
   lifecycle completion aliases and active-lint `.actions.md` scope remain in
   place. Validation passed with `pnpm -F @eddacraft/anvil-aps test` and
-  `pnpm -F @eddacraft/anvil-aps typecheck`.
+  `pnpm -F @eddacraft/anvil-aps typecheck`. Merged 2026-05-25 via PR
+  [#1939](https://github.com/eddacraft/anvil-001/pull/1939) at
+  `0086d0959847da399682626134c5eea007cf31f5`.
 - **Confidence:** medium
 
 ### APSCAN-004: Migrate active module headings and required fields
