@@ -68,10 +68,15 @@ Rules for using extensions:
 2. **Closeout text** SHOULD prefer `Merged YYYY-MM-DD via PR #N` once integration
    evidence exists, and `Released/Shipped via vX.Y.Z` once release evidence
    exists, so progress counters and downstream tools have a single field to
-   read.
+   read. The drift-check prefix-matches the leading `Merged` /
+   `Released/Shipped` token, so any trailing prose (date, PR ref, version) is
+   accepted for both progress accounting and release-record alignment checks.
 3. **Status casing matters.** Write `Done`, `Merged`, `Released/Shipped`,
-   `Complete` exactly as shown. Lowercase forms parse but trip
-   `scripts/aps/drift-check.mjs` casing checks.
+   `Complete` exactly as shown. Matching in
+   `scripts/aps/drift-check.mjs` is case-sensitive; lowercase variants parse
+   but are silently ignored by the status-keyed drift checks (progress
+   accounting, candidate-record alignment, published-record alignment, and the
+   literal `Complete` validation-evidence check).
 4. **Portable readers** SHOULD treat any non-canonical value as opaque or map it
    to `Done` for progress accounting. `scripts/aps/drift-check.mjs` does the
    latter via the `DONE_PATTERNS` set.

@@ -291,7 +291,11 @@ if (releaseRecordPath) {
   }
   if (releaseRecord.lifecycleState === 'candidate') {
     const recordItems = new Set((releaseRecord.aps?.items ?? []).map((item) => item.id));
-    for (const item of items.filter((entry) => entry.status === 'Merged')) {
+    // Prefix match: real APS text writes `Status: Merged YYYY-MM-DD via PR #N`,
+    // so strict `=== 'Merged'` silently misses every populated closeout.
+    // Mirrors `DONE_PATTERNS`; intentionally distinct from the literal
+    // `Complete` match below (Status Rule 4 narrative validation gate).
+    for (const item of items.filter((entry) => /^Merged\b/.test(entry.status))) {
       if (!recordItems.has(item.id)) {
         addFinding(
           'candidate-missing-merged-aps-item',
@@ -310,7 +314,9 @@ const publishedItems = new Set(
     ? (releaseRecord.aps?.items ?? []).map((item) => item.id)
     : []
 );
-for (const item of items.filter((entry) => entry.status === 'Released/Shipped')) {
+// Prefix match: real APS text writes `Status: Released/Shipped via vX.Y.Z`,
+// so strict `=== 'Released/Shipped'` silently misses every populated closeout.
+for (const item of items.filter((entry) => /^Released\/Shipped\b/.test(entry.status))) {
   if (!publishedItems.has(item.id)) {
     addFinding(
       'shipped-aps-without-release-record',

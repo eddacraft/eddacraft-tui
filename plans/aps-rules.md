@@ -59,8 +59,10 @@ external tooling rely on:
 Projects MAY accept additional **status extensions** as local lifecycle prose
 labels, but any such extensions must be documented in the project's own context
 file and treated as project-owned, not portable APS schema vocabulary. Anvil
-extends the canonical set with `Merged`, `Released/Shipped`, `Complete`, and
-`Archived` lifecycle labels — see
+extends the canonical set with `Merged`, `Released/Shipped`, and `Complete` as
+work-item `Status:` values; `Archived` is module-level prose (a module moved
+to `plans/archive/modules/`) and is NOT used in work-item `Status:` fields.
+See
 [`plans/project-context.md#project-status-extensions`](project-context.md#project-status-extensions)
 for the full mapping and how local tooling reconciles extension labels back to
 canonical `Done` for portability.
