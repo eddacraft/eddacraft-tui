@@ -11,10 +11,10 @@ Shipped drivers: Rust
 ([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008),
 Node ([`license-checker`](https://github.com/davglass/license-checker),
 ATTRIB-012), Go ([`go-licenses`](https://github.com/google/go-licenses),
-ATTRIB-013), and Python
-([`pip-licenses`](https://github.com/raimon49/pip-licenses), ATTRIB-014).
-Existing consumers with a legacy flat `[rust]` config keep working unchanged via
-a back-compat shim (see "Configuration reference" below).
+ATTRIB-013), Python ([`pip-licenses`](https://github.com/raimon49/pip-licenses),
+ATTRIB-014), and bundled binaries (a hand-maintained inventory, no external
+tool, ATTRIB-004). Existing consumers with a legacy flat `[rust]` config keep
+working unchanged via a back-compat shim (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -22,22 +22,23 @@ edits required.
 
 ## What ships in this kit
 
-| File                                 | Purpose                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| `generate-acknowledgements.sh`       | Dispatcher: parses config, loops blocks, invokes drivers, splices output |
-| `drivers/`                           | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`, `python.sh`)    |
-| `expand-licences.sh`                 | ATTRIB-006 single-source allow-list expander                             |
-| `attribution.toml.example`           | Annotated template for the consumer-side config                          |
-| `about.toml.template`                | cargo-about config template (licence allow-list etc)                     |
-| `about.hbs.template`                 | cargo-about handlebars render template                                   |
-| `templates/go-licenses.tmpl`         | go-licenses report template for the Go driver (rows only; driver sorts)  |
-| `licences.node-allow.txt.template`   | Marker scaffolding for the Node driver's allow-list file                 |
-| `licences.go-allow.txt.template`     | Marker scaffolding for the Go driver's allow-list file                   |
-| `licences.python-allow.txt.template` | Marker scaffolding for the Python driver's allow-list file               |
-| `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with markers in place                              |
-| `ci-freshness.yml.snippet`           | GitHub Actions freshness-gate job                                        |
-| `tests/`                             | Self-tests pinning the kit's invariants                                  |
-| `README.md`                          | This file (the marker-splice contract)                                   |
+| File                                 | Purpose                                                                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `generate-acknowledgements.sh`       | Dispatcher: parses config, loops blocks, invokes drivers, splices output                     |
+| `drivers/`                           | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`, `python.sh`, `bundled-binaries.sh`) |
+| `bundled-binaries.toml.example`      | Inventory template for the bundled-binaries driver (non-package-manager binaries)            |
+| `expand-licences.sh`                 | ATTRIB-006 single-source allow-list expander                                                 |
+| `attribution.toml.example`           | Annotated template for the consumer-side config                                              |
+| `about.toml.template`                | cargo-about config template (licence allow-list etc)                                         |
+| `about.hbs.template`                 | cargo-about handlebars render template                                                       |
+| `templates/go-licenses.tmpl`         | go-licenses report template for the Go driver (rows only; driver sorts)                      |
+| `licences.node-allow.txt.template`   | Marker scaffolding for the Node driver's allow-list file                                     |
+| `licences.go-allow.txt.template`     | Marker scaffolding for the Go driver's allow-list file                                       |
+| `licences.python-allow.txt.template` | Marker scaffolding for the Python driver's allow-list file                                   |
+| `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with markers in place                                                  |
+| `ci-freshness.yml.snippet`           | GitHub Actions freshness-gate job                                                            |
+| `tests/`                             | Self-tests pinning the kit's invariants                                                      |
+| `README.md`                          | This file (the marker-splice contract)                                                       |
 
 ## Adoption checklist (downstream consumer)
 
@@ -501,6 +502,43 @@ CI provisioning (per your existing Python toolchain), e.g.:
 python -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt pip-licenses
 ```
+
+### `ecosystem = "bundled-binaries"` (ATTRIB-004)
+
+For third-party **binaries** shipped alongside your project that are **not** a
+package manager's dependencies — OpenSSH, Mosh, FFmpeg, busybox, … The language
+drivers never see these; you attribute them from a hand-maintained inventory.
+
+| Key              | Required | Description                                                                                       |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `inventory_path` | yes      | `bundled-binaries.toml` — an array of `[[binary]]` entries (see `bundled-binaries.toml.example`). |
+
+Inventory entry schema (`name` + `spdx` required; `version`, `source` optional;
+`spdx` is any SPDX expression — no closed enum):
+
+```toml
+[[binary]]
+name    = "OpenSSH"
+version = "9.6p1"
+spdx    = "BSD-3-Clause"
+source  = "https://www.openssh.com/"
+```
+
+Worked example:
+
+```toml
+[[blocks]]
+name           = "binaries"
+ecosystem      = "bundled-binaries"
+inventory_path = "bundled-binaries.toml"
+```
+
+There is **no external tool** — the driver is pure bash/awk over the inventory.
+Its "strict" step is field validation: an entry missing `name` or `spdx` fails
+the gate, named, before render. Render is a deterministic
+`| Binary | Version | License | Source |` table sorted by name. The curator owns
+licence correctness (there is no upstream scanner to cross-check). If you ship
+no bundled binaries, omit the block rather than shipping an empty inventory.
 
 ## Monorepo guidance
 

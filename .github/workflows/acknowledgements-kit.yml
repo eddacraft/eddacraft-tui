@@ -130,6 +130,13 @@ jobs:
       - name: Python driver strict test
         run: bash tools/starters/acknowledgements/tests/python-driver-strict.sh
 
+      # ATTRIB-004 bundled-binaries driver tests. Pure bash/awk over a
+      # hand-maintained inventory — no external tool needed.
+      - name: Bundled-binaries driver preflight test
+        run: bash tools/starters/acknowledgements/tests/bundled-binaries-preflight.sh
+      - name: Bundled-binaries driver render test
+        run: bash tools/starters/acknowledgements/tests/bundled-binaries-render.sh
+
       # ATTRIB-006 (+ ATTRIB-012 Node, ATTRIB-013 Go, ATTRIB-014 Python
       # fragments): the canonical licences.toml must stay in sync with
       # every consumer file it expands into (about.toml, deny.toml,

@@ -1,0 +1,33 @@
+# ATTRIB-004: hand-maintained inventory of third-party BINARIES bundled
+# alongside this project that are NOT a package manager's dependencies
+# (OpenSSH, Mosh, FFmpeg, busybox, …). Package-manager deps are handled
+# by the language drivers (rust/node/go/python); this file covers the
+# binaries those tools never see.
+#
+# Consumed by drivers/bundled-binaries.sh via a [[blocks]] entry:
+#
+#   [[blocks]]
+#   name           = "binaries"
+#   ecosystem      = "bundled-binaries"
+#   inventory_path = "bundled-binaries.toml"
+#
+# Each [[binary]] entry renders one row of a `binaries` markdown block.
+# `name` and `spdx` are REQUIRED; `version` and `source` are optional.
+# `spdx` accepts any SPDX licence expression (no closed enum) — the
+# curator records what the upstream binary actually ships under.
+#
+# Delete the examples below and list your own bundled binaries. If this
+# project bundles none, omit the block from attribution.toml entirely
+# rather than shipping an empty inventory.
+
+[[binary]]
+name    = "OpenSSH"
+version = "9.6p1"
+spdx    = "BSD-3-Clause"
+source  = "https://www.openssh.com/"
+
+[[binary]]
+name    = "FFmpeg"
+version = "7.0"
+spdx    = "LGPL-2.1-or-later"
+source  = "https://ffmpeg.org/"
