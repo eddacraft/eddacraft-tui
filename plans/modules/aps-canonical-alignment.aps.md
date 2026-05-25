@@ -10,7 +10,7 @@ operating-model extensions.
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| APSCAN | —     | In Progress | 9/11     |
+| APSCAN | —     | Done | 11/11    |
 
 ## Purpose
 
@@ -291,16 +291,34 @@ Migrate in waves:
 
 ### APSCAN-010: Run active-module migration wave and closeout
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-25 via PR (this PR)
 - **Intent:** Apply the compatibility rules to the first active-module wave and
   prove the migration path before broader rollout.
 - **Expected Outcome:** A representative batch of active modules validates under
   canonical active-scope lint, Anvil drift checks remain useful, and follow-up
   work is filed for any remaining incompatibilities.
-- **Validation:** Active-scope APS lint; `pnpm aps:drift --json`; `pnpm docs:check`
-- **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`, `scripts/docs/**`,
-  `scripts/aps/**`
+- **Validation:** `pnpm format:check`, `pnpm docs:check` (7/7),
+  `pnpm aps:drift --json` (no new findings beyond the pre-existing MLP2
+  counter advisory and the unmasked `shipped-aps-without-release-record`
+  warnings tracked separately).
+- **Files:** `plans/modules/prompt-attack-regression-packs.aps.md`,
+  `plans/modules/trust-center-automation.aps.md`,
+  `plans/modules/contextual-policy-assertions.aps.md`,
+  `plans/execution/{PATT,TRUST,CPOL}.actions.md` (renamed from `.steps.md`),
+  `plans/modules/aps-canonical-alignment.aps.md`
 - **Dependencies:** APSCAN-001, APSCAN-002, APSCAN-003, APSCAN-006, APSCAN-009
+- **Closeout:** First migration wave applied to three small representative
+  active modules (PATT / TRUST / CPOL) — `## Tasks` → `## Work Items`, added
+  required `Status: Ready` to all nine work items (previously missing on every
+  one), normalised header table formatting, refreshed "Last reviewed" dates,
+  bumped the body text to UK English where the modules had drifted (e.g.
+  `behavior` → `behaviour`, `trust-center` → `trust-centre` in prose), and
+  renamed each linked execution plan from `.steps.md` to `.actions.md` per
+  APSCAN-005 (preserving blame via `git mv`). The migration touched zero
+  archive content. No follow-up incompatibilities filed; remaining legacy
+  active modules will migrate per the touched-during-work rule. APSCAN module
+  counter bumped 9/11 → 11/11 (Complete) and the module marked Done in the
+  header.
 - **Confidence:** medium
 
 ### APSCAN-011: Add APS TUI dashboard
