@@ -2611,7 +2611,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-047: Pre-push end-to-end subprocess integration tests
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Helper coverage is 40+ tests across anvil-hook
   / anvil-l4 / anvil-cli::commands::hook. The run-the-binary
   smoke pass lands here, exercising the actual subprocess
