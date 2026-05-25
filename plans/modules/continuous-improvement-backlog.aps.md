@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 8/19     |
+| CIB | —     | In Progress | 8/20     |
 
 ## Purpose
 
@@ -664,3 +664,35 @@ archive.
 - **Files:** `scripts/bench-vs-go-opa.sh`.
 - **Coordinates with:** POLENG-008; `.github/workflows/poleng-parity.yml`.
 - **Confidence:** high — diagnostics-only script change.
+
+### CIB-020: Release-prep must refresh version-embedding TUI snapshots
+
+- **Status:** Draft
+- **Intent:** `chore(release): prepare vX` bumps the workspace version in
+  `Cargo.toml` but does not refresh the anvil-tui snapshots that embed
+  `env!("CARGO_PKG_VERSION")` in the shell chrome, so ~36 snapshot tests go red
+  on `main` after every release-prep until someone re-runs `cargo insta`. The
+  `v0.7.2-beta` bump (`a259fba9e`) did exactly this, breaking `main`'s TUI tests
+  and any PR that builds anvil-tui (caught + fixed by PR #1959 while landing
+  POLENG-009).
+- **Expected Outcome:** the gap is closed structurally, not by hand each
+  release. Two viable approaches:
+  1. Add a `cargo insta test --accept -p eddacraft-anvil-tui` (then commit) step
+     to the release-prep script after the version bump, so the snapshots travel
+     with the bump.
+  2. Stop embedding `CARGO_PKG_VERSION` in the *committed* snapshots — e.g. have
+     `crates/anvil-tui/src/shell.rs` tests substitute a fixed placeholder
+     version when rendering for snapshots, so the watermark is version-agnostic.
+  Option 2 is the more durable fix (removes the coupling entirely); option 1 is
+  the cheaper interim. Pick one at implementation time.
+- **Validation:** simulate a version bump (edit `[workspace.package] version`),
+  run `cargo test -p eddacraft-anvil-tui`, and confirm the chosen mechanism keeps
+  it green without a manual snapshot sweep.
+- **Identified From:** POLENG-009 rebase (PR #1952) surfaced the stale snapshots;
+  fixed reactively in PR #1959, 2026-05-25.
+- **Files:** the release-prep script under `scripts/release/`, and/or
+  `crates/anvil-tui/src/shell.rs` + its `snapshots/`.
+- **Coordinates with:** RELORCH (release orchestration); the `anvil-tui` snapshot
+  surface.
+- **Confidence:** medium — option 1 is trivial; option 2 needs a small
+  test-render seam in shell.rs but is the cleaner long-term fix.
