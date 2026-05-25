@@ -169,16 +169,25 @@ Migrate in waves:
 
 ### APSCAN-005: Rename active execution plans to action plans
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-25 via PR [#1949](https://github.com/eddacraft/anvil-001/pull/1949)
 - **Intent:** Adopt canonical `.actions.md` naming for active execution plans while
   preserving historical `.steps.md` references.
 - **Expected Outcome:** New execution plans use `plans/execution/*.actions.md`,
   active live references are renamed when touched, and archived `.steps.md` files
   remain historical.
-- **Validation:** Link checks and `pnpm docs:check` pass for renamed active plans.
-- **Files:** `plans/execution/**`, `plans/modules/*.aps.md`, `plans/aps-rules.md`,
-  `plans/project-context.md`
+- **Validation:** `pnpm format:check`, `pnpm docs:check` (7/7),
+  `pnpm aps:drift --json` (no APSCAN regressions). Active-lint infrastructure
+  (`scripts/aps/active-lint.mjs`) already accepts `.actions.md` and excludes
+  `.steps.md`; no script change needed.
+- **Files:** `plans/aps-rules.md`, `plans/project-context.md`
 - **Dependencies:** APSCAN-003
+- **Closeout:** `plans/aps-rules.md` "When Asked to Execute" guidance now names
+  the canonical `.actions.md` suffix and the rename-when-touched policy.
+  `plans/project-context.md` adds an Execution Plans section codifying the four
+  rules — new plans MUST use `.actions.md`; legacy plans rename with `git mv`
+  when touched; no bulk-rename of historical plans; archived plans stay put.
+  No file renames in this PR — the rename-when-touched policy means renames
+  land alongside the work that re-opens each plan, preserving blame history.
 - **Confidence:** medium
 
 ### APSCAN-006: Document status semantics and release metadata extensions
