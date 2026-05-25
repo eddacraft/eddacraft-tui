@@ -1447,6 +1447,7 @@ name = "eddacraft-anvil-policy-engine"
 version = "0.7.1-beta"
 dependencies = [
  "anyhow",
+ "criterion",
  "insta",
  "regorus",
  "serde",

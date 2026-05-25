@@ -1,0 +1,42 @@
+# POLENG-008 parity gate: regorus vs the Go OPA reference (ADR-040 D-1).
+#
+# Advisory sidecar — intentionally NOT in the required-checks ruleset. A red run
+# means regorus measured slower than Go OPA on a representative policy, which is
+# an ADR-040 D-5 trigger (revisit the engine choice), not a routine merge block.
+# It installs the Go OPA reference out of band (not trivially available in CI)
+# and runs scripts/bench-vs-go-opa.sh.
+name: POLENG parity gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'crates/anvil-policy-engine/**'
+      - 'scripts/bench-vs-go-opa.sh'
+      - '.github/workflows/poleng-parity.yml'
+
+permissions:
+  contents: read
+
+env:
+  OPA_VERSION: v0.60.0
+
+jobs:
+  parity:
+    name: regorus vs Go OPA parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Install Go OPA reference
+        run: |
+          curl -fsSL -o /usr/local/bin/opa \
+            "https://openpolicyagent.org/downloads/${OPA_VERSION}/opa_linux_amd64_static"
+          chmod +x /usr/local/bin/opa
+          opa version
+      - name: Run parity gate
+        run: scripts/bench-vs-go-opa.sh 2000

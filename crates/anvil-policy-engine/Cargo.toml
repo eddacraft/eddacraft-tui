@@ -19,7 +19,12 @@ thiserror = { workspace = true }
 workspace-hack.workspace = true
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = { workspace = true }
+
+[[bench]]
+name = "parity"
+harness = false
 
 [lints]
 workspace = true

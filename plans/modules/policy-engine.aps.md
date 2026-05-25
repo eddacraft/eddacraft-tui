@@ -127,9 +127,9 @@ post-rust engine question. POLENG is the answer.
       respects ADR-002 (`exit 0` on warnings, override via `--fail-on-warnings`)
 - [x] `--explain` renders coverage report; `--why <finding-id>` renders trace
       (trace is partial — see POLENG-006 note on the regorus 0.10.0 limitation)
-- [ ] Bench harness shows regorus at or above Go OPA reference on every
+- [x] Bench harness shows regorus at or above Go OPA reference on every
       policy in the representative suite (parity gate; ADR-040 trigger) —
-      POLENG-008, still open
+      PASS, regorus ~3–5× faster (POLENG-008, 2026-05-25)
 - [x] Public engine API surface documented (rustdoc on every public item);
       downstream `anvil-cli` depends on the facade only, never on `regorus`
       directly (a dedicated audit lint remains follow-up)
@@ -283,6 +283,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-008: Bench harness — parity gate vs. Go OPA reference
 
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Validate ADR-040 D-1's parity assumption against Anvil's real
   policy mix before POLENG moves to Ready
 - **Expected Outcome:** Bench suite covers Anvil's representative policies
@@ -300,3 +301,13 @@ post-rust engine question. POLENG is the answer.
 - **Risks:** Go OPA reference is not trivially installable in CI; sidecar
   job needed. Bench mix needs careful curation to be representative without
   becoming a maintenance burden.
+- **Result (2026-05-25):** Gate **PASS** — regorus is at or above Go OPA
+  parity on every representative policy. Measured eval-only median (regorus
+  `eval_rule` vs `opa bench` `rego_query_eval_ns`, Go OPA 0.60.0, local):
+  arch_boundary 84µs vs 261µs (0.32×), baseline_filter 93µs vs 440µs (0.21×),
+  repo_scan 3.4ms vs 12.6ms (0.27×) — regorus ~3–5× faster. ADR-040 D-1 holds;
+  no revisit triggered. Three standard-Rego fixtures (no `anvil.*` builtins so
+  both engines run them) under `crates/anvil-policy-engine/benches/fixtures/`;
+  `examples/parity_harness.rs` measures regorus, `benches/parity.rs` tracks the
+  realistic facade `Engine::eval` via `cargo bench`, and the advisory CI sidecar
+  is `.github/workflows/poleng-parity.yml`.

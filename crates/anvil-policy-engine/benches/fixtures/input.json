@@ -1,0 +1,1223 @@
+{
+  "schema_version": "v1",
+  "repo_state": {
+    "files": [
+      "src/mod0/file0.rs",
+      "src/mod1/file1.rs",
+      "src/mod2/file2.rs",
+      "src/mod3/file3.rs",
+      "src/mod4/file4.rs",
+      "src/mod5/file5.rs",
+      "src/mod6/file6.rs",
+      "src/mod7/file7.rs",
+      "src/mod8/file8.rs",
+      "src/mod9/file9.rs",
+      "src/mod10/file10.rs",
+      "src/mod11/file11.rs",
+      "src/mod0/file12.rs",
+      "src/mod1/file13.rs",
+      "src/mod2/file14.rs",
+      "src/mod3/file15.rs",
+      "src/mod4/file16.rs",
+      "src/mod5/file17.rs",
+      "src/mod6/file18.rs",
+      "src/mod7/file19.rs",
+      "src/mod8/file20.rs",
+      "src/mod9/file21.rs",
+      "src/mod10/file22.rs",
+      "src/mod11/file23.rs",
+      "src/mod0/file24.rs",
+      "src/mod1/file25.rs",
+      "src/mod2/file26.rs",
+      "src/mod3/file27.rs",
+      "src/mod4/file28.rs",
+      "src/mod5/file29.rs",
+      "src/mod6/file30.rs",
+      "src/mod7/file31.rs",
+      "src/mod8/file32.rs",
+      "src/mod9/file33.rs",
+      "src/mod10/file34.rs",
+      "src/mod11/file35.rs",
+      "src/mod0/file36.rs",
+      "src/mod1/file37.rs",
+      "src/mod2/file38.rs",
+      "src/mod3/file39.rs",
+      "src/mod4/file40.rs",
+      "src/mod5/file41.rs",
+      "src/mod6/file42.rs",
+      "src/mod7/file43.rs",
+      "src/mod8/file44.rs",
+      "src/mod9/file45.rs",
+      "src/mod10/file46.rs",
+      "src/mod11/file47.rs",
+      "src/mod0/file48.rs",
+      "src/mod1/file49.rs",
+      "src/mod2/file50.rs",
+      "src/mod3/file51.rs",
+      "src/mod4/file52.rs",
+      "src/mod5/file53.rs",
+      "src/mod6/file54.rs",
+      "src/mod7/file55.rs",
+      "src/mod8/file56.rs",
+      "src/mod9/file57.rs",
+      "src/mod10/file58.rs",
+      "src/mod11/file59.rs",
+      "src/mod0/file60.rs",
+      "src/mod1/file61.rs",
+      "src/mod2/file62.rs",
+      "src/mod3/file63.rs",
+      "src/mod4/file64.rs",
+      "src/mod5/file65.rs",
+      "src/mod6/file66.rs",
+      "src/mod7/file67.rs",
+      "src/mod8/file68.rs",
+      "src/mod9/file69.rs",
+      "src/mod10/file70.rs",
+      "src/mod11/file71.rs",
+      "src/mod0/file72.rs",
+      "src/mod1/file73.rs",
+      "src/mod2/file74.rs",
+      "src/mod3/file75.rs",
+      "src/mod4/file76.rs",
+      "src/mod5/file77.rs",
+      "src/mod6/file78.rs",
+      "src/mod7/file79.rs",
+      "src/mod8/file80.rs",
+      "src/mod9/file81.rs",
+      "src/mod10/file82.rs",
+      "src/mod11/file83.rs",
+      "src/mod0/file84.rs",
+      "src/mod1/file85.rs",
+      "src/mod2/file86.rs",
+      "src/mod3/file87.rs",
+      "src/mod4/file88.rs",
+      "src/mod5/file89.rs",
+      "src/mod6/file90.rs",
+      "src/mod7/file91.rs",
+      "src/mod8/file92.rs",
+      "src/mod9/file93.rs",
+      "src/mod10/file94.rs",
+      "src/mod11/file95.rs",
+      "src/mod0/file96.rs",
+      "src/mod1/file97.rs",
+      "src/mod2/file98.rs",
+      "src/mod3/file99.rs"
+    ],
+    "edges": [
+      {
+        "from": "src/mod0/file0.rs",
+        "to": "src/mod5/file0.rs"
+      },
+      {
+        "from": "src/mod1/file1.rs",
+        "to": "src/mod6/file7.rs"
+      },
+      {
+        "from": "src/mod2/file2.rs",
+        "to": "src/mod7/file14.rs"
+      },
+      {
+        "from": "src/mod3/file3.rs",
+        "to": "src/mod8/file21.rs"
+      },
+      {
+        "from": "src/mod4/file4.rs",
+        "to": "src/mod9/file28.rs"
+      },
+      {
+        "from": "src/mod5/file5.rs",
+        "to": "src/mod10/file35.rs"
+      },
+      {
+        "from": "src/mod6/file6.rs",
+        "to": "src/mod11/file42.rs"
+      },
+      {
+        "from": "src/mod7/file7.rs",
+        "to": "src/mod0/file49.rs"
+      },
+      {
+        "from": "src/mod8/file8.rs",
+        "to": "src/mod1/file56.rs"
+      },
+      {
+        "from": "src/mod9/file9.rs",
+        "to": "src/mod2/file63.rs"
+      },
+      {
+        "from": "src/mod10/file10.rs",
+        "to": "src/mod3/file70.rs"
+      },
+      {
+        "from": "src/mod11/file11.rs",
+        "to": "src/mod4/file77.rs"
+      },
+      {
+        "from": "src/mod0/file12.rs",
+        "to": "src/mod5/file84.rs"
+      },
+      {
+        "from": "src/mod1/file13.rs",
+        "to": "src/mod6/file91.rs"
+      },
+      {
+        "from": "src/mod2/file14.rs",
+        "to": "src/mod7/file98.rs"
+      },
+      {
+        "from": "src/mod3/file15.rs",
+        "to": "src/mod8/file5.rs"
+      },
+      {
+        "from": "src/mod4/file16.rs",
+        "to": "src/mod9/file12.rs"
+      },
+      {
+        "from": "src/mod5/file17.rs",
+        "to": "src/mod10/file19.rs"
+      },
+      {
+        "from": "src/mod6/file18.rs",
+        "to": "src/mod11/file26.rs"
+      },
+      {
+        "from": "src/mod7/file19.rs",
+        "to": "src/mod0/file33.rs"
+      },
+      {
+        "from": "src/mod8/file20.rs",
+        "to": "src/mod1/file40.rs"
+      },
+      {
+        "from": "src/mod9/file21.rs",
+        "to": "src/mod2/file47.rs"
+      },
+      {
+        "from": "src/mod10/file22.rs",
+        "to": "src/mod3/file54.rs"
+      },
+      {
+        "from": "src/mod11/file23.rs",
+        "to": "src/mod4/file61.rs"
+      },
+      {
+        "from": "src/mod0/file24.rs",
+        "to": "src/mod5/file68.rs"
+      },
+      {
+        "from": "src/mod1/file25.rs",
+        "to": "src/mod6/file75.rs"
+      },
+      {
+        "from": "src/mod2/file26.rs",
+        "to": "src/mod7/file82.rs"
+      },
+      {
+        "from": "src/mod3/file27.rs",
+        "to": "src/mod8/file89.rs"
+      },
+      {
+        "from": "src/mod4/file28.rs",
+        "to": "src/mod9/file96.rs"
+      },
+      {
+        "from": "src/mod5/file29.rs",
+        "to": "src/mod10/file3.rs"
+      },
+      {
+        "from": "src/mod6/file30.rs",
+        "to": "src/mod11/file10.rs"
+      },
+      {
+        "from": "src/mod7/file31.rs",
+        "to": "src/mod0/file17.rs"
+      },
+      {
+        "from": "src/mod8/file32.rs",
+        "to": "src/mod1/file24.rs"
+      },
+      {
+        "from": "src/mod9/file33.rs",
+        "to": "src/mod2/file31.rs"
+      },
+      {
+        "from": "src/mod10/file34.rs",
+        "to": "src/mod3/file38.rs"
+      },
+      {
+        "from": "src/mod11/file35.rs",
+        "to": "src/mod4/file45.rs"
+      },
+      {
+        "from": "src/mod0/file36.rs",
+        "to": "src/mod5/file52.rs"
+      },
+      {
+        "from": "src/mod1/file37.rs",
+        "to": "src/mod6/file59.rs"
+      },
+      {
+        "from": "src/mod2/file38.rs",
+        "to": "src/mod7/file66.rs"
+      },
+      {
+        "from": "src/mod3/file39.rs",
+        "to": "src/mod8/file73.rs"
+      },
+      {
+        "from": "src/mod4/file40.rs",
+        "to": "src/mod9/file80.rs"
+      },
+      {
+        "from": "src/mod5/file41.rs",
+        "to": "src/mod10/file87.rs"
+      },
+      {
+        "from": "src/mod6/file42.rs",
+        "to": "src/mod11/file94.rs"
+      },
+      {
+        "from": "src/mod7/file43.rs",
+        "to": "src/mod0/file1.rs"
+      },
+      {
+        "from": "src/mod8/file44.rs",
+        "to": "src/mod1/file8.rs"
+      },
+      {
+        "from": "src/mod9/file45.rs",
+        "to": "src/mod2/file15.rs"
+      },
+      {
+        "from": "src/mod10/file46.rs",
+        "to": "src/mod3/file22.rs"
+      },
+      {
+        "from": "src/mod11/file47.rs",
+        "to": "src/mod4/file29.rs"
+      },
+      {
+        "from": "src/mod0/file48.rs",
+        "to": "src/mod5/file36.rs"
+      },
+      {
+        "from": "src/mod1/file49.rs",
+        "to": "src/mod6/file43.rs"
+      },
+      {
+        "from": "src/mod2/file50.rs",
+        "to": "src/mod7/file50.rs"
+      },
+      {
+        "from": "src/mod3/file51.rs",
+        "to": "src/mod8/file57.rs"
+      },
+      {
+        "from": "src/mod4/file52.rs",
+        "to": "src/mod9/file64.rs"
+      },
+      {
+        "from": "src/mod5/file53.rs",
+        "to": "src/mod10/file71.rs"
+      },
+      {
+        "from": "src/mod6/file54.rs",
+        "to": "src/mod11/file78.rs"
+      },
+      {
+        "from": "src/mod7/file55.rs",
+        "to": "src/mod0/file85.rs"
+      },
+      {
+        "from": "src/mod8/file56.rs",
+        "to": "src/mod1/file92.rs"
+      },
+      {
+        "from": "src/mod9/file57.rs",
+        "to": "src/mod2/file99.rs"
+      },
+      {
+        "from": "src/mod10/file58.rs",
+        "to": "src/mod3/file6.rs"
+      },
+      {
+        "from": "src/mod11/file59.rs",
+        "to": "src/mod4/file13.rs"
+      },
+      {
+        "from": "src/mod0/file60.rs",
+        "to": "src/mod5/file20.rs"
+      },
+      {
+        "from": "src/mod1/file61.rs",
+        "to": "src/mod6/file27.rs"
+      },
+      {
+        "from": "src/mod2/file62.rs",
+        "to": "src/mod7/file34.rs"
+      },
+      {
+        "from": "src/mod3/file63.rs",
+        "to": "src/mod8/file41.rs"
+      },
+      {
+        "from": "src/mod4/file64.rs",
+        "to": "src/mod9/file48.rs"
+      },
+      {
+        "from": "src/mod5/file65.rs",
+        "to": "src/mod10/file55.rs"
+      },
+      {
+        "from": "src/mod6/file66.rs",
+        "to": "src/mod11/file62.rs"
+      },
+      {
+        "from": "src/mod7/file67.rs",
+        "to": "src/mod0/file69.rs"
+      },
+      {
+        "from": "src/mod8/file68.rs",
+        "to": "src/mod1/file76.rs"
+      },
+      {
+        "from": "src/mod9/file69.rs",
+        "to": "src/mod2/file83.rs"
+      },
+      {
+        "from": "src/mod10/file70.rs",
+        "to": "src/mod3/file90.rs"
+      },
+      {
+        "from": "src/mod11/file71.rs",
+        "to": "src/mod4/file97.rs"
+      },
+      {
+        "from": "src/mod0/file72.rs",
+        "to": "src/mod5/file4.rs"
+      },
+      {
+        "from": "src/mod1/file73.rs",
+        "to": "src/mod6/file11.rs"
+      },
+      {
+        "from": "src/mod2/file74.rs",
+        "to": "src/mod7/file18.rs"
+      },
+      {
+        "from": "src/mod3/file75.rs",
+        "to": "src/mod8/file25.rs"
+      },
+      {
+        "from": "src/mod4/file76.rs",
+        "to": "src/mod9/file32.rs"
+      },
+      {
+        "from": "src/mod5/file77.rs",
+        "to": "src/mod10/file39.rs"
+      },
+      {
+        "from": "src/mod6/file78.rs",
+        "to": "src/mod11/file46.rs"
+      },
+      {
+        "from": "src/mod7/file79.rs",
+        "to": "src/mod0/file53.rs"
+      },
+      {
+        "from": "src/mod8/file80.rs",
+        "to": "src/mod1/file60.rs"
+      },
+      {
+        "from": "src/mod9/file81.rs",
+        "to": "src/mod2/file67.rs"
+      },
+      {
+        "from": "src/mod10/file82.rs",
+        "to": "src/mod3/file74.rs"
+      },
+      {
+        "from": "src/mod11/file83.rs",
+        "to": "src/mod4/file81.rs"
+      },
+      {
+        "from": "src/mod0/file84.rs",
+        "to": "src/mod5/file88.rs"
+      },
+      {
+        "from": "src/mod1/file85.rs",
+        "to": "src/mod6/file95.rs"
+      },
+      {
+        "from": "src/mod2/file86.rs",
+        "to": "src/mod7/file2.rs"
+      },
+      {
+        "from": "src/mod3/file87.rs",
+        "to": "src/mod8/file9.rs"
+      },
+      {
+        "from": "src/mod4/file88.rs",
+        "to": "src/mod9/file16.rs"
+      },
+      {
+        "from": "src/mod5/file89.rs",
+        "to": "src/mod10/file23.rs"
+      },
+      {
+        "from": "src/mod6/file90.rs",
+        "to": "src/mod11/file30.rs"
+      },
+      {
+        "from": "src/mod7/file91.rs",
+        "to": "src/mod0/file37.rs"
+      },
+      {
+        "from": "src/mod8/file92.rs",
+        "to": "src/mod1/file44.rs"
+      },
+      {
+        "from": "src/mod9/file93.rs",
+        "to": "src/mod2/file51.rs"
+      },
+      {
+        "from": "src/mod10/file94.rs",
+        "to": "src/mod3/file58.rs"
+      },
+      {
+        "from": "src/mod11/file95.rs",
+        "to": "src/mod4/file65.rs"
+      },
+      {
+        "from": "src/mod0/file96.rs",
+        "to": "src/mod5/file72.rs"
+      },
+      {
+        "from": "src/mod1/file97.rs",
+        "to": "src/mod6/file79.rs"
+      },
+      {
+        "from": "src/mod2/file98.rs",
+        "to": "src/mod7/file86.rs"
+      },
+      {
+        "from": "src/mod3/file99.rs",
+        "to": "src/mod8/file93.rs"
+      },
+      {
+        "from": "src/mod4/file0.rs",
+        "to": "src/mod9/file0.rs"
+      },
+      {
+        "from": "src/mod5/file1.rs",
+        "to": "src/mod10/file7.rs"
+      },
+      {
+        "from": "src/mod6/file2.rs",
+        "to": "src/mod11/file14.rs"
+      },
+      {
+        "from": "src/mod7/file3.rs",
+        "to": "src/mod0/file21.rs"
+      },
+      {
+        "from": "src/mod8/file4.rs",
+        "to": "src/mod1/file28.rs"
+      },
+      {
+        "from": "src/mod9/file5.rs",
+        "to": "src/mod2/file35.rs"
+      },
+      {
+        "from": "src/mod10/file6.rs",
+        "to": "src/mod3/file42.rs"
+      },
+      {
+        "from": "src/mod11/file7.rs",
+        "to": "src/mod4/file49.rs"
+      },
+      {
+        "from": "src/mod0/file8.rs",
+        "to": "src/mod5/file56.rs"
+      },
+      {
+        "from": "src/mod1/file9.rs",
+        "to": "src/mod6/file63.rs"
+      },
+      {
+        "from": "src/mod2/file10.rs",
+        "to": "src/mod7/file70.rs"
+      },
+      {
+        "from": "src/mod3/file11.rs",
+        "to": "src/mod8/file77.rs"
+      },
+      {
+        "from": "src/mod4/file12.rs",
+        "to": "src/mod9/file84.rs"
+      },
+      {
+        "from": "src/mod5/file13.rs",
+        "to": "src/mod10/file91.rs"
+      },
+      {
+        "from": "src/mod6/file14.rs",
+        "to": "src/mod11/file98.rs"
+      },
+      {
+        "from": "src/mod7/file15.rs",
+        "to": "src/mod0/file5.rs"
+      },
+      {
+        "from": "src/mod8/file16.rs",
+        "to": "src/mod1/file12.rs"
+      },
+      {
+        "from": "src/mod9/file17.rs",
+        "to": "src/mod2/file19.rs"
+      },
+      {
+        "from": "src/mod10/file18.rs",
+        "to": "src/mod3/file26.rs"
+      },
+      {
+        "from": "src/mod11/file19.rs",
+        "to": "src/mod4/file33.rs"
+      },
+      {
+        "from": "src/mod0/file20.rs",
+        "to": "src/mod5/file40.rs"
+      },
+      {
+        "from": "src/mod1/file21.rs",
+        "to": "src/mod6/file47.rs"
+      },
+      {
+        "from": "src/mod2/file22.rs",
+        "to": "src/mod7/file54.rs"
+      },
+      {
+        "from": "src/mod3/file23.rs",
+        "to": "src/mod8/file61.rs"
+      },
+      {
+        "from": "src/mod4/file24.rs",
+        "to": "src/mod9/file68.rs"
+      },
+      {
+        "from": "src/mod5/file25.rs",
+        "to": "src/mod10/file75.rs"
+      },
+      {
+        "from": "src/mod6/file26.rs",
+        "to": "src/mod11/file82.rs"
+      },
+      {
+        "from": "src/mod7/file27.rs",
+        "to": "src/mod0/file89.rs"
+      },
+      {
+        "from": "src/mod8/file28.rs",
+        "to": "src/mod1/file96.rs"
+      },
+      {
+        "from": "src/mod9/file29.rs",
+        "to": "src/mod2/file3.rs"
+      },
+      {
+        "from": "src/mod10/file30.rs",
+        "to": "src/mod3/file10.rs"
+      },
+      {
+        "from": "src/mod11/file31.rs",
+        "to": "src/mod4/file17.rs"
+      },
+      {
+        "from": "src/mod0/file32.rs",
+        "to": "src/mod5/file24.rs"
+      },
+      {
+        "from": "src/mod1/file33.rs",
+        "to": "src/mod6/file31.rs"
+      },
+      {
+        "from": "src/mod2/file34.rs",
+        "to": "src/mod7/file38.rs"
+      },
+      {
+        "from": "src/mod3/file35.rs",
+        "to": "src/mod8/file45.rs"
+      },
+      {
+        "from": "src/mod4/file36.rs",
+        "to": "src/mod9/file52.rs"
+      },
+      {
+        "from": "src/mod5/file37.rs",
+        "to": "src/mod10/file59.rs"
+      },
+      {
+        "from": "src/mod6/file38.rs",
+        "to": "src/mod11/file66.rs"
+      },
+      {
+        "from": "src/mod7/file39.rs",
+        "to": "src/mod0/file73.rs"
+      },
+      {
+        "from": "src/mod8/file40.rs",
+        "to": "src/mod1/file80.rs"
+      },
+      {
+        "from": "src/mod9/file41.rs",
+        "to": "src/mod2/file87.rs"
+      },
+      {
+        "from": "src/mod10/file42.rs",
+        "to": "src/mod3/file94.rs"
+      },
+      {
+        "from": "src/mod11/file43.rs",
+        "to": "src/mod4/file1.rs"
+      },
+      {
+        "from": "src/mod0/file44.rs",
+        "to": "src/mod5/file8.rs"
+      },
+      {
+        "from": "src/mod1/file45.rs",
+        "to": "src/mod6/file15.rs"
+      },
+      {
+        "from": "src/mod2/file46.rs",
+        "to": "src/mod7/file22.rs"
+      },
+      {
+        "from": "src/mod3/file47.rs",
+        "to": "src/mod8/file29.rs"
+      },
+      {
+        "from": "src/mod4/file48.rs",
+        "to": "src/mod9/file36.rs"
+      },
+      {
+        "from": "src/mod5/file49.rs",
+        "to": "src/mod10/file43.rs"
+      },
+      {
+        "from": "src/mod6/file50.rs",
+        "to": "src/mod11/file50.rs"
+      },
+      {
+        "from": "src/mod7/file51.rs",
+        "to": "src/mod0/file57.rs"
+      },
+      {
+        "from": "src/mod8/file52.rs",
+        "to": "src/mod1/file64.rs"
+      },
+      {
+        "from": "src/mod9/file53.rs",
+        "to": "src/mod2/file71.rs"
+      },
+      {
+        "from": "src/mod10/file54.rs",
+        "to": "src/mod3/file78.rs"
+      },
+      {
+        "from": "src/mod11/file55.rs",
+        "to": "src/mod4/file85.rs"
+      },
+      {
+        "from": "src/mod0/file56.rs",
+        "to": "src/mod5/file92.rs"
+      },
+      {
+        "from": "src/mod1/file57.rs",
+        "to": "src/mod6/file99.rs"
+      },
+      {
+        "from": "src/mod2/file58.rs",
+        "to": "src/mod7/file6.rs"
+      },
+      {
+        "from": "src/mod3/file59.rs",
+        "to": "src/mod8/file13.rs"
+      },
+      {
+        "from": "src/mod4/file60.rs",
+        "to": "src/mod9/file20.rs"
+      },
+      {
+        "from": "src/mod5/file61.rs",
+        "to": "src/mod10/file27.rs"
+      },
+      {
+        "from": "src/mod6/file62.rs",
+        "to": "src/mod11/file34.rs"
+      },
+      {
+        "from": "src/mod7/file63.rs",
+        "to": "src/mod0/file41.rs"
+      },
+      {
+        "from": "src/mod8/file64.rs",
+        "to": "src/mod1/file48.rs"
+      },
+      {
+        "from": "src/mod9/file65.rs",
+        "to": "src/mod2/file55.rs"
+      },
+      {
+        "from": "src/mod10/file66.rs",
+        "to": "src/mod3/file62.rs"
+      },
+      {
+        "from": "src/mod11/file67.rs",
+        "to": "src/mod4/file69.rs"
+      },
+      {
+        "from": "src/mod0/file68.rs",
+        "to": "src/mod5/file76.rs"
+      },
+      {
+        "from": "src/mod1/file69.rs",
+        "to": "src/mod6/file83.rs"
+      },
+      {
+        "from": "src/mod2/file70.rs",
+        "to": "src/mod7/file90.rs"
+      },
+      {
+        "from": "src/mod3/file71.rs",
+        "to": "src/mod8/file97.rs"
+      },
+      {
+        "from": "src/mod4/file72.rs",
+        "to": "src/mod9/file4.rs"
+      },
+      {
+        "from": "src/mod5/file73.rs",
+        "to": "src/mod10/file11.rs"
+      },
+      {
+        "from": "src/mod6/file74.rs",
+        "to": "src/mod11/file18.rs"
+      },
+      {
+        "from": "src/mod7/file75.rs",
+        "to": "src/mod0/file25.rs"
+      },
+      {
+        "from": "src/mod8/file76.rs",
+        "to": "src/mod1/file32.rs"
+      },
+      {
+        "from": "src/mod9/file77.rs",
+        "to": "src/mod2/file39.rs"
+      },
+      {
+        "from": "src/mod10/file78.rs",
+        "to": "src/mod3/file46.rs"
+      },
+      {
+        "from": "src/mod11/file79.rs",
+        "to": "src/mod4/file53.rs"
+      },
+      {
+        "from": "src/mod0/file80.rs",
+        "to": "src/mod5/file60.rs"
+      },
+      {
+        "from": "src/mod1/file81.rs",
+        "to": "src/mod6/file67.rs"
+      },
+      {
+        "from": "src/mod2/file82.rs",
+        "to": "src/mod7/file74.rs"
+      },
+      {
+        "from": "src/mod3/file83.rs",
+        "to": "src/mod8/file81.rs"
+      },
+      {
+        "from": "src/mod4/file84.rs",
+        "to": "src/mod9/file88.rs"
+      },
+      {
+        "from": "src/mod5/file85.rs",
+        "to": "src/mod10/file95.rs"
+      },
+      {
+        "from": "src/mod6/file86.rs",
+        "to": "src/mod11/file2.rs"
+      },
+      {
+        "from": "src/mod7/file87.rs",
+        "to": "src/mod0/file9.rs"
+      },
+      {
+        "from": "src/mod8/file88.rs",
+        "to": "src/mod1/file16.rs"
+      },
+      {
+        "from": "src/mod9/file89.rs",
+        "to": "src/mod2/file23.rs"
+      },
+      {
+        "from": "src/mod10/file90.rs",
+        "to": "src/mod3/file30.rs"
+      },
+      {
+        "from": "src/mod11/file91.rs",
+        "to": "src/mod4/file37.rs"
+      },
+      {
+        "from": "src/mod0/file92.rs",
+        "to": "src/mod5/file44.rs"
+      },
+      {
+        "from": "src/mod1/file93.rs",
+        "to": "src/mod6/file51.rs"
+      },
+      {
+        "from": "src/mod2/file94.rs",
+        "to": "src/mod7/file58.rs"
+      },
+      {
+        "from": "src/mod3/file95.rs",
+        "to": "src/mod8/file65.rs"
+      },
+      {
+        "from": "src/mod4/file96.rs",
+        "to": "src/mod9/file72.rs"
+      },
+      {
+        "from": "src/mod5/file97.rs",
+        "to": "src/mod10/file79.rs"
+      },
+      {
+        "from": "src/mod6/file98.rs",
+        "to": "src/mod11/file86.rs"
+      },
+      {
+        "from": "src/mod7/file99.rs",
+        "to": "src/mod0/file93.rs"
+      }
+    ]
+  },
+  "plans": [
+    {
+      "path": "plans/modules/policy-engine.aps.md",
+      "id": "POLENG",
+      "status": "In Progress"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "040",
+      "title": "Adopt regorus",
+      "status": "Accepted"
+    }
+  ],
+  "diff": {
+    "changed_files": [
+      "src/mod0/file0.rs",
+      "src/mod1/file1.rs",
+      "src/mod2/file2.rs",
+      "src/mod3/file3.rs",
+      "src/mod4/file4.rs",
+      "src/mod5/file5.rs",
+      "src/mod6/file6.rs",
+      "src/mod7/file7.rs",
+      "src/mod8/file8.rs",
+      "src/mod9/file9.rs",
+      "src/mod10/file10.rs",
+      "src/mod11/file11.rs",
+      "src/mod0/file12.rs",
+      "src/mod1/file13.rs",
+      "src/mod2/file14.rs",
+      "src/mod3/file15.rs",
+      "src/mod4/file16.rs",
+      "src/mod5/file17.rs",
+      "src/mod6/file18.rs",
+      "src/mod7/file19.rs",
+      "src/mod8/file20.rs",
+      "src/mod9/file21.rs",
+      "src/mod10/file22.rs",
+      "src/mod11/file23.rs",
+      "src/mod0/file24.rs",
+      "src/mod1/file25.rs",
+      "src/mod2/file26.rs",
+      "src/mod3/file27.rs",
+      "src/mod4/file28.rs",
+      "src/mod5/file29.rs"
+    ],
+    "new_edges": [
+      {
+        "from": "src/mod0/file0.rs",
+        "to": "src/mod3/file0.rs"
+      },
+      {
+        "from": "src/mod1/file1.rs",
+        "to": "src/mod4/file11.rs"
+      },
+      {
+        "from": "src/mod2/file2.rs",
+        "to": "src/mod5/file22.rs"
+      },
+      {
+        "from": "src/mod3/file3.rs",
+        "to": "src/mod6/file33.rs"
+      },
+      {
+        "from": "src/mod4/file4.rs",
+        "to": "src/mod7/file44.rs"
+      },
+      {
+        "from": "src/mod5/file5.rs",
+        "to": "src/mod8/file55.rs"
+      },
+      {
+        "from": "src/mod6/file6.rs",
+        "to": "src/mod9/file66.rs"
+      },
+      {
+        "from": "src/mod7/file7.rs",
+        "to": "src/mod10/file77.rs"
+      },
+      {
+        "from": "src/mod8/file8.rs",
+        "to": "src/mod11/file88.rs"
+      },
+      {
+        "from": "src/mod9/file9.rs",
+        "to": "src/mod0/file99.rs"
+      },
+      {
+        "from": "src/mod10/file10.rs",
+        "to": "src/mod1/file10.rs"
+      },
+      {
+        "from": "src/mod11/file11.rs",
+        "to": "src/mod2/file21.rs"
+      },
+      {
+        "from": "src/mod0/file12.rs",
+        "to": "src/mod3/file32.rs"
+      },
+      {
+        "from": "src/mod1/file13.rs",
+        "to": "src/mod4/file43.rs"
+      },
+      {
+        "from": "src/mod2/file14.rs",
+        "to": "src/mod5/file54.rs"
+      },
+      {
+        "from": "src/mod3/file15.rs",
+        "to": "src/mod6/file65.rs"
+      },
+      {
+        "from": "src/mod4/file16.rs",
+        "to": "src/mod7/file76.rs"
+      },
+      {
+        "from": "src/mod5/file17.rs",
+        "to": "src/mod8/file87.rs"
+      },
+      {
+        "from": "src/mod6/file18.rs",
+        "to": "src/mod9/file98.rs"
+      },
+      {
+        "from": "src/mod7/file19.rs",
+        "to": "src/mod10/file9.rs"
+      },
+      {
+        "from": "src/mod8/file20.rs",
+        "to": "src/mod11/file20.rs"
+      },
+      {
+        "from": "src/mod9/file21.rs",
+        "to": "src/mod0/file31.rs"
+      },
+      {
+        "from": "src/mod10/file22.rs",
+        "to": "src/mod1/file42.rs"
+      },
+      {
+        "from": "src/mod11/file23.rs",
+        "to": "src/mod2/file53.rs"
+      },
+      {
+        "from": "src/mod0/file24.rs",
+        "to": "src/mod3/file64.rs"
+      },
+      {
+        "from": "src/mod1/file25.rs",
+        "to": "src/mod4/file75.rs"
+      },
+      {
+        "from": "src/mod2/file26.rs",
+        "to": "src/mod5/file86.rs"
+      },
+      {
+        "from": "src/mod3/file27.rs",
+        "to": "src/mod6/file97.rs"
+      },
+      {
+        "from": "src/mod4/file28.rs",
+        "to": "src/mod7/file8.rs"
+      },
+      {
+        "from": "src/mod5/file29.rs",
+        "to": "src/mod8/file19.rs"
+      },
+      {
+        "from": "src/mod6/file30.rs",
+        "to": "src/mod9/file30.rs"
+      },
+      {
+        "from": "src/mod7/file31.rs",
+        "to": "src/mod10/file41.rs"
+      },
+      {
+        "from": "src/mod8/file32.rs",
+        "to": "src/mod11/file52.rs"
+      },
+      {
+        "from": "src/mod9/file33.rs",
+        "to": "src/mod0/file63.rs"
+      },
+      {
+        "from": "src/mod10/file34.rs",
+        "to": "src/mod1/file74.rs"
+      },
+      {
+        "from": "src/mod11/file35.rs",
+        "to": "src/mod2/file85.rs"
+      },
+      {
+        "from": "src/mod0/file36.rs",
+        "to": "src/mod3/file96.rs"
+      },
+      {
+        "from": "src/mod1/file37.rs",
+        "to": "src/mod4/file7.rs"
+      },
+      {
+        "from": "src/mod2/file38.rs",
+        "to": "src/mod5/file18.rs"
+      },
+      {
+        "from": "src/mod3/file39.rs",
+        "to": "src/mod6/file29.rs"
+      }
+    ]
+  },
+  "baseline": {
+    "findings": [
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod0/file0.rs",
+        "fingerprint": "fp0cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod1/file1.rs",
+        "fingerprint": "fp1cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod2/file2.rs",
+        "fingerprint": "fp2cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod3/file3.rs",
+        "fingerprint": "fp3cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod4/file4.rs",
+        "fingerprint": "fp4cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod5/file5.rs",
+        "fingerprint": "fp5cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod6/file6.rs",
+        "fingerprint": "fp6cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod7/file7.rs",
+        "fingerprint": "fp7cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod8/file8.rs",
+        "fingerprint": "fp8cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod9/file9.rs",
+        "fingerprint": "fp9cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod10/file10.rs",
+        "fingerprint": "fp10cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod11/file11.rs",
+        "fingerprint": "fp11cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod0/file12.rs",
+        "fingerprint": "fp12cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod1/file13.rs",
+        "fingerprint": "fp13cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod2/file14.rs",
+        "fingerprint": "fp14cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod3/file15.rs",
+        "fingerprint": "fp15cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod4/file16.rs",
+        "fingerprint": "fp16cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod5/file17.rs",
+        "fingerprint": "fp17cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod6/file18.rs",
+        "fingerprint": "fp18cafef00d"
+      },
+      {
+        "rule_id": "anti-pattern:legacy",
+        "file_path": "src/mod7/file19.rs",
+        "fingerprint": "fp19cafef00d"
+      }
+    ]
+  }
+}
