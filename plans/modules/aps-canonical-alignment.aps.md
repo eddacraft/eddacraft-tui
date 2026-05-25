@@ -157,14 +157,25 @@ Migrate in waves:
 
 ### APSCAN-004: Migrate active module headings and required fields
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-25 via PR (this PR)
 - **Intent:** Move active modules toward canonical `## Work Items` sections and
   required `Intent`, `Expected Outcome`, and `Validation` fields.
 - **Expected Outcome:** Active modules touched during current work use canonical
   section names and field names; historical archive modules remain unchanged.
 - **Validation:** Active-scope APS lint passes after each migrated batch.
-- **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`
+- **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`,
+  `plans/modules/adversarial-testing-catalog.aps.md`,
+  `plans/execution/ATC.actions.md` (renamed from `ATC.steps.md` per APSCAN-005)
 - **Dependencies:** APSCAN-001, APSCAN-003
+- **Closeout:** First active-module migration landed on
+  `adversarial-testing-catalog.aps.md` (ATC) — `## Tasks` → `## Work Items`,
+  added required `Status: Ready` field to ATC-001..004 (previously missing),
+  cleaned up the header table formatting, and renamed the linked execution
+  plan `ATC.steps.md` → `ATC.actions.md` per the APSCAN-005 rename-when-touched
+  policy. Remaining active modules with legacy headings will be migrated as
+  APSCAN-010 sweeps them or as touched during current work. Bulk-migration of
+  untouched active modules is intentionally NOT done here per the
+  "touched during current work" expected outcome.
 - **Confidence:** medium
 
 ### APSCAN-005: Rename active execution plans to action plans
