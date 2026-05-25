@@ -256,7 +256,7 @@ Migrate in waves:
 
 ### APSCAN-009: Reconcile progress counters with canonical status
 
-- **Status:** Merged 2026-05-25 via PR #1950
+- **Status:** Merged 2026-05-25 via PR [#1953](https://github.com/eddacraft/anvil-001/pull/1953)
 - **Intent:** Keep Anvil's useful progress summaries without making manual counts
   conflict with canonical status-driven tooling.
 - **Expected Outcome:** New modules either avoid manual counters or have a clear
