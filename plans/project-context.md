@@ -146,9 +146,11 @@ Rules:
    bump to a single reconcile commit landing after the wave, to avoid
    merge-conflict churn on the counter row. APSCAN-005/-006/-007/-008 used
    option (b); the APSCAN-009 closeout commit did the single reconcile.
-4. **Counter casing matches the canonical/extension status casing**
-   (`Done`/`Merged`/`Released/Shipped`/`Complete` exactly); the drift-check
-   match is case-sensitive.
+4. **Status casing matches the canonical/extension vocabulary**
+   (`Done`/`Merged`/`Released/Shipped`/`Complete` exactly) — `DONE_PATTERNS`
+   in `scripts/aps/drift-check.mjs` is case-sensitive, so lowercase variants
+   are not counted as done. Counter numbers themselves (`X/Y`) have no casing
+   concerns.
 5. **Released/Shipped without release-record evidence** triggers
    `shipped-aps-without-release-record` (advisory). It is a real signal: the
    work was tagged Released/Shipped but the release-record file does not list
