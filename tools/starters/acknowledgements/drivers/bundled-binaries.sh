@@ -75,7 +75,7 @@ records="$(mktemp)"
 parse_err="$(mktemp)"
 trap 'rm -f "$records" "$parse_err"' EXIT
 
-if ! awk '
+if ! LC_ALL=C awk '
   function strip(v) {
     sub(/^[^=]*=[[:space:]]*/, "", v)        # drop "key ="
     if (v ~ /^"/) {
@@ -84,7 +84,7 @@ if ! awk '
       # line basic strings only; escaped quotes are not expected in this
       # schema — names/versions/SPDX/URLs.)
       sub(/^"/, "", v)
-      sub(/".*$/, "", v)
+      sub(/".*$/, "", v)             # NB: a literal \" inside the value is not supported
     } else {
       sub(/[[:space:]]*#.*$/, "", v)         # bare value: drop inline comment
       sub(/[[:space:]]+$/, "", v)            # and trailing whitespace
@@ -101,7 +101,10 @@ if ! awk '
         printf "drivers/bundled-binaries.sh: binary '\''%s'\'' (near line %d) is missing required field '\''spdx'\''\n", name, start > "/dev/stderr"
         rc = 1
       } else {
-        printf "%s\t%s\t%s\t%s\n", name, version, spdx, source
+        # SOH (\001) field separator, not tab: tab is an IFS whitespace
+        # class, so the render`s `IFS=$'\''\001'\'' read` would collapse a
+        # `\t\t` (an omitted optional field) and shift later columns left.
+        printf "%s\001%s\001%s\001%s\n", name, version, spdx, source
       }
     }
     name = ""; version = ""; spdx = ""; source = ""; started = 0
@@ -137,7 +140,7 @@ md_cell() { local s="$1"; printf '%s' "${s//|/\\|}"; }
 {
   echo "| Binary | Version | License | Source |"
   echo "|---|---|---|---|"
-  LC_ALL=C sort "$records" | while IFS=$'\t' read -r name version spdx source; do
+  LC_ALL=C sort "$records" | while IFS=$'\001' read -r name version spdx source; do
     printf '| %s | %s | %s | %s |\n' \
       "$(md_cell "$name")" "$(md_cell "${version:-—}")" \
       "$(md_cell "$spdx")" "$(md_cell "${source:-—}")"

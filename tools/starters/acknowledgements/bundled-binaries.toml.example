@@ -21,13 +21,13 @@
 # rather than shipping an empty inventory.
 
 [[binary]]
-name    = "OpenSSH"
+name = "OpenSSH"
 version = "9.6p1"
-spdx    = "BSD-3-Clause"
-source  = "https://www.openssh.com/"
+spdx = "BSD-3-Clause"
+source = "https://www.openssh.com/"
 
 [[binary]]
-name    = "FFmpeg"
+name = "FFmpeg"
 version = "7.0"
-spdx    = "LGPL-2.1-or-later"
-source  = "https://ffmpeg.org/"
+spdx = "LGPL-2.1-or-later"
+source = "https://ffmpeg.org/"

@@ -56,6 +56,14 @@ name = "Mosh"
 version = "1.4.0"  # latest stable as of bundling
 spdx = "GPL-3.0-or-later"
 source = "https://mosh.org/ | mirror"
+
+# Tini: omits the optional `version` field. The record separator must
+# preserve the empty field so columns don't shift left — the SPDX value
+# must land in the Licence column, not Version.
+[[binary]]
+name = "Tini"
+spdx = "MIT"
+source = "https://github.com/krallin/tini"
 EOF
 
 cat >"$fixture_root/attribution.toml" <<EOF
@@ -124,6 +132,13 @@ fi
 # A literal `|` in a cell must be escaped so it can't break the table.
 if ! printf '%s' "$block_body" | grep -qF 'https://mosh.org/ \| mirror'; then
   echo "fail: literal pipe in the source cell was not escaped" >&2
+  echo "body: $block_body" >&2
+  exit 1
+fi
+# Omitted optional field must NOT shift columns: Tini has no version, so
+# the Version cell is `—` and MIT must land in the Licence column.
+if ! printf '%s' "$block_body" | grep -qE '\| Tini \| — \| MIT \|'; then
+  echo "fail: omitted version shifted Tini's columns (MIT not in Licence column?)" >&2
   echo "body: $block_body" >&2
   exit 1
 fi

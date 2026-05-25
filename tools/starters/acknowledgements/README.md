@@ -536,11 +536,11 @@ inventory_path = "bundled-binaries.toml"
 There is **no ecosystem-specific external tool** — the driver is pure bash/awk
 over the inventory (it shares the dispatcher's `jq` requirement for parsing the
 block config, but needs no licence scanner). Its "strict" step is field
-validation: an entry missing `name` or `spdx` fails
-the gate, named, before render. Render is a deterministic
-`| Binary | Version | License | Source |` table sorted by name. The curator owns
-licence correctness (there is no upstream scanner to cross-check). If you ship
-no bundled binaries, omit the block rather than shipping an empty inventory.
+validation: an entry missing `name` or `spdx` fails the gate, named, before
+render. Render is a deterministic `| Binary | Version | License | Source |`
+table sorted by name. The curator owns licence correctness (there is no upstream
+scanner to cross-check). If you ship no bundled binaries, omit the block rather
+than shipping an empty inventory.
 
 ## Monorepo guidance
 
