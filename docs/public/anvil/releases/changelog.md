@@ -31,6 +31,53 @@ All notable changes to anvil are documented here.
   to the structured `payload` object. The pre-WOUT shape was not guaranteed and
   is no longer produced.
 
+## [0.7.2-beta] — 2026-05-25 — Save-Time Scanning & Tooling Honesty
+
+`v0.7.2-beta` is the second Boring Week patch on the `v0.7.0-beta`
+daemon-working slate. It lands the beta-feedback fixes reported against
+`v0.7.1-beta`: bare `anvil watch` now runs the code-quality scanners instead of
+reporting "100% pass" while inspecting nothing, the antipattern rules stop
+flagging `any`/`!` inside comments and strings, `anvil version` warns when a
+stale shadowed binary is on `PATH`, and `anvil auth refresh` reports the real
+90-day refresh window. It also introduces the experimental `anvil policy`
+command group.
+
+### Changed
+
+- `anvil watch` now runs code-quality checks (`anvil check --all`) on each save
+  by default. Previously a bare `anvil watch` watched architecture and
+  dependency edges only and ran no code-quality scan, while the dashboard still
+  read as "100% pass" — protection it was not providing
+  ([#1913](https://github.com/eddacraft/anvil-001/issues/1913)). Run
+  `anvil watch --action none` to restore the architecture/dependency-only watch.
+  `anvil start --watch` is unchanged (remains architecture-only).
+
+### Fixed
+
+- **AP-003/GS-001 no longer flag `any` or `!` inside comments and string
+  literals.** The antipattern scanner masks comments, string literals, and regex
+  literals before applying code-construct rules, so prose or string content that
+  merely mentions `any` or contains a `!` is no longer reported as a finding
+  ([#1914](https://github.com/eddacraft/anvil-001/issues/1914)).
+- **`anvil version` warns when another `anvil` on `PATH` shadows the running
+  binary.** On Windows a stale cargo-dist install in `~/.eddacraft/bin` could
+  shadow a freshly-updated Scoop shim, so `scoop update` reported the new
+  version while `anvil` kept running the old one
+  ([#1920](https://github.com/eddacraft/anvil-001/issues/1920)).
+- **`anvil auth refresh` reports the 90-day refresh window.** It advertised a
+  90-day session in `--help` but printed only the ~7-day access-token expiry, so
+  a successful refresh read as broken. The output now surfaces the 90-day
+  refresh-token window alongside the access-token expiry
+  ([#1921](https://github.com/eddacraft/anvil-001/issues/1921)).
+
+### Added
+
+- **`anvil policy` command group (experimental).** New `list`, `explain`,
+  `diff`, `validate`, and `test` subcommands for working with policy
+  configuration, plus an experimental `anvil policy eval` that evaluates a Rego
+  policy against an input document (POLENG). The Rego evaluation surface is a
+  preview — its output shape may change before it stabilises.
+
 ## [0.7.1-beta] — 2026-05-22 — Activation Diagnostic Honesty
 
 `v0.7.1-beta` is the first Boring Week patch on the `v0.7.0-beta` daemon-working
@@ -877,7 +924,3 @@ See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
 
 **See also:** [Upgrade notes](/anvil/releases/upgrade-notes),
 [The Switch to Rust](/anvil/releases/rust-rewrite)
-
-## v0.7.2-beta
-
-- Release preparation metadata generated.
