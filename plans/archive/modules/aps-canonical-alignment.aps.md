@@ -8,9 +8,9 @@ operating-model extensions.
 
 # APS Canonical Alignment
 
-| ID     | Owner | Status | Progress |
-| ------ | ----- | ------ | -------- |
-| APSCAN | —     | Done | 11/11    |
+| ID     | Owner | Status   | Progress                    |
+| ------ | ----- | -------- | --------------------------- |
+| APSCAN | —     | Complete | 11/11 (archived 2026-05-25) |
 
 ## Purpose
 

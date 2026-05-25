@@ -154,13 +154,13 @@ question via a new APSCAN item.
 
 ## Related
 
-- [APSCAN-001](../modules/aps-canonical-alignment.aps.md): defined the active
+- [APSCAN-001](../archive/modules/aps-canonical-alignment.aps.md): defined the active
   APS lint scope (`scripts/aps/active-lint.mjs`).
-- [APSCAN-002](../modules/aps-canonical-alignment.aps.md): split portable APS
+- [APSCAN-002](../archive/modules/aps-canonical-alignment.aps.md): split portable APS
   rules from Anvil project context.
-- [APSCAN-003](../modules/aps-canonical-alignment.aps.md): added canonical
+- [APSCAN-003](../archive/modules/aps-canonical-alignment.aps.md): added canonical
   parser/validator aliases for `## Work Items` and `Outcome:`.
-- [APSCAN-006](../modules/aps-canonical-alignment.aps.md): documented canonical
+- [APSCAN-006](../archive/modules/aps-canonical-alignment.aps.md): documented canonical
   status vocabulary vs. Anvil project status extensions.
 - [`plans/aps-rules.md`](../aps-rules.md): canonical APS rules surface.
 - [`plans/project-context.md`](../project-context.md): Anvil-specific project

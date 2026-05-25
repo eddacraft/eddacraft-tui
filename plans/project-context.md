@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                            |
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| Guide | Authoritative | APSCAN | Live   | Last reviewed 2026-05-24 against `plans/modules/aps-canonical-alignment.aps.md` |
+| Guide | Authoritative | APSCAN | Live   | Last reviewed 2026-05-25 against `plans/archive/modules/aps-canonical-alignment.aps.md` (APSCAN archived) |
 
 | Upstream                                                  | Downstream                                      |
 | --------------------------------------------------------- | ----------------------------------------------- |
