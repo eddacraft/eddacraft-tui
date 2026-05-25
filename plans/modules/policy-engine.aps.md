@@ -371,7 +371,7 @@ post-rust engine question. POLENG is the answer.
 - **Implemented (2026-05-25):** (1) Determinism fence — the workspace builds
   `regorus` with `default-features = false`; the crate enables only the pure
   subset, removing the `time`/`uuid`/`http`/`net`/`opa-runtime` builtin groups
-  and their deps (ACKNOWLEDGEMENTS 317→313 crates), and `Engine::new` shadows
+  and their deps (ACKNOWLEDGEMENTS 317→311 crates), and `Engine::new` shadows
   the std-gated `rand.intn` with an erroring extension unless
   `allow_impure_builtins`. (2) Resource bounds — `EngineConfig::eval_timeout`
   (default 10s) wires `set_execution_timer_config`; the CLI caps policy (1 MiB)

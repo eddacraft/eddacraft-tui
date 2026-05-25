@@ -147,41 +147,37 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         serde_json::Value::Array(items) if items.iter().any(serde_json::Value::is_object)
     );
 
-    let (findings, exit_code, value) = match anvil_policy_engine::result::post_process(
-        &raw_for_pp,
-        &input,
-        opts,
-    ) {
-        // Findings-shaped: `findings` is canonical, so drop the raw array.
-        Ok(report) => (report.findings, report.exit_code, None),
-        // A findings-shaped array that fails post-processing (a finding
-        // missing `message`, a bad severity, a stray non-object element) is
-        // a broken policy — hard error always, even without
-        // `--fail-on-warnings`, so it can never silently pass a gate. Any
-        // error variant counts, so a future `ResultError` can't reopen the
-        // silent-pass hole.
-        Err(e) if looks_like_findings => {
-            return Err(e).with_context(|| {
+    let (findings, exit_code, value) =
+        match anvil_policy_engine::result::post_process(&raw_for_pp, &input, opts) {
+            // Findings-shaped: `findings` is canonical, so drop the raw array.
+            Ok(report) => (report.findings, report.exit_code, None),
+            // A findings-shaped array that fails post-processing (a finding
+            // missing `message`, a bad severity, a stray non-object element) is
+            // a broken policy — hard error always, even without
+            // `--fail-on-warnings`, so it can never silently pass a gate. Any
+            // error variant counts, so a future `ResultError` can't reopen the
+            // silent-pass hole.
+            Err(e) if looks_like_findings => {
+                // Keep the context generic; the chained `e` carries the specific
+                // reason (missing `message`, bad `severity`, a non-object element).
+                return Err(e).with_context(|| {
+                    format!("query `{}` returned a malformed findings array", args.query)
+                });
+            }
+            // Not findings-shaped, but the user is gating on it — fail loudly
+            // rather than silently passing (exit 0) on a non-findings query.
+            Err(e) if args.fail_on_warnings => {
+                return Err(e).with_context(|| {
                     format!(
-                        "query `{}` returned a malformed findings array (each finding needs a `message`)",
+                        "query `{}` is not a findings query; --fail-on-warnings needs one",
                         args.query
                     )
                 });
-        }
-        // Not findings-shaped, but the user is gating on it — fail loudly
-        // rather than silently passing (exit 0) on a non-findings query.
-        Err(e) if args.fail_on_warnings => {
-            return Err(e).with_context(|| {
-                format!(
-                    "query `{}` is not a findings query; --fail-on-warnings needs one",
-                    args.query
-                )
-            });
-        }
-        // Legitimately non-findings (a list of scalars, a scalar, an
-        // object): surface the raw value, no gating.
-        Err(_) => (Vec::new(), 0, raw_value),
-    };
+            }
+            // Legitimately non-findings (a list of scalars, a scalar, an
+            // object): surface the raw value, no gating.
+            Err(_) => (Vec::new(), 0, raw_value),
+        };
 
     // Validate --why against the findings actually produced.
     if let Some(idx) = args.why
