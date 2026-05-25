@@ -134,11 +134,19 @@ const modules = listModulePaths().map(extractModule);
 const items = modules.flatMap((module) => module.items);
 
 // #1769: progress is "done" when a task reaches any of the canonical
-// or lifecycle-terminal states defined in `plans/aps-rules.md`:
-//   - `Done`             — canonical schema value (Status Rule 3)
+// or lifecycle-terminal states. The canonical APS vocabulary lives in
+// `plans/aps-rules.md`; Anvil's local status extensions (which map back
+// to canonical `Done` for portability) are documented in
+// `plans/project-context.md#project-status-extensions`. The accepted
+// terminal forms:
+//   - `Done`             — canonical schema value (aps-rules Status Rule 3)
 //   - `Complete`         — legacy alias the parser normalises to `Done`
-//   - `Merged`           — lifecycle narrative: integration target reached
-//   - `Released/Shipped` — lifecycle narrative: release-record evidence
+//   - `Merged`           — Anvil extension: integration target reached
+//   - `Released/Shipped` — Anvil extension: release-record evidence
+// External APS tooling that does not know about the Anvil extensions
+// will treat them as opaque; this drift-check folds them into the done
+// count so progress counters stay accurate inside Anvil.
+//
 // The earlier equality-on-`Complete` check was misaligned with the
 // documented convention and emitted spurious `aps-progress-mismatch`
 // warnings across 15 modules. The narrower

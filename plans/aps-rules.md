@@ -46,8 +46,9 @@ The local parser currently normalises legacy `Draft` to `Proposed` and legacy
 
 ### Work Item Status
 
-Work item status describes execution authority and progress. Prefer canonical
-planning values in APS text:
+Work item status describes execution authority and progress. The canonical
+planning vocabulary is the portable contract that APS parsers, validators, and
+external tooling rely on:
 
 - `Proposed`
 - `Ready`
@@ -55,10 +56,14 @@ planning values in APS text:
 - `Done`
 - `Blocked`
 
-Historical Anvil plans also contain lifecycle narrative labels such as `Merged`,
-`Released/Shipped`, and `Archived`. Treat those as project context, not portable
-APS schema vocabulary. See
-[`plans/project-context.md#anvil-lifecycle-narrative`](project-context.md#anvil-lifecycle-narrative).
+Projects MAY accept additional **status extensions** as local lifecycle prose
+labels, but any such extensions must be documented in the project's own context
+file and treated as project-owned, not portable APS schema vocabulary. Anvil
+extends the canonical set with `Merged`, `Released/Shipped`, `Complete`, and
+`Archived` lifecycle labels — see
+[`plans/project-context.md#project-status-extensions`](project-context.md#project-status-extensions)
+for the full mapping and how local tooling reconciles extension labels back to
+canonical `Done` for portability.
 
 ### Status Rules
 

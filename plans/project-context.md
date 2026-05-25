@@ -45,6 +45,39 @@ APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Ship
   historical.
 - `Committed` is legacy wording for `Merged`; new text should prefer `Merged`.
 
+### Project Status Extensions
+
+The canonical APS work item status vocabulary
+([`plans/aps-rules.md#work-item-status`](aps-rules.md#work-item-status)) is the
+portable contract. Anvil locally extends that vocabulary with the lifecycle
+labels above so a work item's `Status:` field can carry release evidence inline
+rather than tracking it in a separate field. The accepted extensions are:
+
+| Status | Origin | Maps to canonical | When to use |
+| ------ | ------ | ----------------- | ----------- |
+| `Proposed`, `Ready`, `In Progress`, `Done`, `Blocked` | Canonical APS | self | Default; any portable APS reader understands these. |
+| `Merged` | Anvil extension | `Done` | Integration target reached (PR merged), release inclusion not yet proven. |
+| `Released/Shipped` | Anvil extension | `Done` | Release record proves inclusion in a verified release. |
+| `Complete` | Legacy alias normalised to canonical | `Done` | Historical text; new modules should write `Done`, `Merged`, or `Released/Shipped`. |
+| `Archived` | Anvil extension (module-level prose) | `Done` | Module moved to `plans/archive/modules/`; not used in work-item `Status:` fields. |
+
+Rules for using extensions:
+
+1. **New work items** SHOULD write a canonical status (`Ready`, `In Progress`,
+   `Done`, `Blocked`) when execution state is the only fact being recorded.
+2. **Closeout text** SHOULD prefer `Merged YYYY-MM-DD via PR #N` once integration
+   evidence exists, and `Released/Shipped via vX.Y.Z` once release evidence
+   exists, so progress counters and downstream tools have a single field to
+   read.
+3. **Status casing matters.** Write `Done`, `Merged`, `Released/Shipped`,
+   `Complete` exactly as shown. Lowercase forms parse but trip
+   `scripts/aps/drift-check.mjs` casing checks.
+4. **Portable readers** SHOULD treat any non-canonical value as opaque or map it
+   to `Done` for progress accounting. `scripts/aps/drift-check.mjs` does the
+   latter via the `DONE_PATTERNS` set.
+5. **Release metadata fields** (see below) are separate from the status field;
+   they describe release intent, not execution state.
+
 ## Repository Workflow
 
 Anvil work follows this lifecycle:

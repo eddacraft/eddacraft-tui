@@ -192,7 +192,7 @@ Migrate in waves:
 
 ### APSCAN-006: Document status semantics and release metadata extensions
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Separate canonical work-item status from Anvil release lifecycle
   prose so tools and agents stop conflating execution state with release state.
 - **Expected Outcome:** New work items use canonical statuses, while Anvil release
