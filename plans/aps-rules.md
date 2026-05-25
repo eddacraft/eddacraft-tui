@@ -239,6 +239,10 @@ Work items use the module's ID prefix and a zero-padded sequence:
 1. Find the relevant work item in a module file.
 2. Confirm the work item is `Ready` or `In Progress`.
 3. Create an action plan file in `plans/execution/` if the work is complex.
+   New action plans use the canonical `.actions.md` suffix
+   (`plans/execution/<WORK-ITEM-ID>.actions.md`). Legacy `.steps.md`
+   plans remain readable but are excluded from active APS lint; rename
+   them to `.actions.md` when the surrounding work is touched again.
 4. Execute one action at a time and validate checkpoints.
 5. Mark work complete only after validation passes.
 

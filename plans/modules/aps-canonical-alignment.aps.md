@@ -169,14 +169,15 @@ Migrate in waves:
 
 ### APSCAN-005: Rename active execution plans to action plans
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Adopt canonical `.actions.md` naming for active execution plans while
   preserving historical `.steps.md` references.
 - **Expected Outcome:** New execution plans use `plans/execution/*.actions.md`,
   active live references are renamed when touched, and archived `.steps.md` files
   remain historical.
 - **Validation:** Link checks and `pnpm docs:check` pass for renamed active plans.
-- **Files:** `plans/execution/**`, `plans/modules/*.aps.md`, `plans/aps-rules.md`
+- **Files:** `plans/execution/**`, `plans/modules/*.aps.md`, `plans/aps-rules.md`,
+  `plans/project-context.md`
 - **Dependencies:** APSCAN-003
 - **Confidence:** medium
 

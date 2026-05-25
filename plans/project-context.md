@@ -79,6 +79,29 @@ Active modules live under `plans/modules/`. Completed modules move to
 `plans/archive/modules/` with `git mv`; update the index path in the same
 change.
 
+## Execution Plans (`plans/execution/`)
+
+Action plans live under `plans/execution/`. Anvil follows the canonical
+`.actions.md` naming convention going forward; legacy `.steps.md` plans remain
+readable for historical context but are excluded from canonical active APS lint
+(`scripts/aps/active-lint.mjs`).
+
+Rules:
+
+1. **New execution plans MUST use `.actions.md`**
+   (`plans/execution/<WORK-ITEM-ID>.actions.md` or
+   `plans/execution/<MODULE>.actions.md`).
+2. **Rename legacy `.steps.md` to `.actions.md` when the surrounding work is
+   touched again** (a new wave is started, the plan is re-opened, or a follow-up
+   work item refers to it). Use `git mv` so blame history is preserved, and
+   update any inline references in the owning module file in the same commit.
+3. **Do not bulk-rename historical `.steps.md` plans.** Plans that have not
+   been touched since their original work landed are historical; they stay
+   `.steps.md` until APSCAN or a future module explicitly reopens them.
+4. **Archived execution plans stay where they are.** When a module moves to
+   `plans/archive/modules/`, the related execution plan files stay in
+   `plans/execution/` with their existing suffix; they document history.
+
 ## Keeping Plans Current
 
 Agents update APS state as they work:
