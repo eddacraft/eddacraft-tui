@@ -9,7 +9,7 @@
 ## Purpose
 
 Build an Anvil-native catalog of adversarial test probes to continuously
-validate prompt safety, data handling, and model behavior regressions.
+validate prompt safety, data handling, and model behaviour regressions.
 
 ## In Scope
 
