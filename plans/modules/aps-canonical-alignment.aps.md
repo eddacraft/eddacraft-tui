@@ -157,7 +157,7 @@ Migrate in waves:
 
 ### APSCAN-004: Migrate active module headings and required fields
 
-- **Status:** Merged 2026-05-25 via PR (this PR)
+- **Status:** Merged 2026-05-25 via PR [#1954](https://github.com/eddacraft/anvil-001/pull/1954)
 - **Intent:** Move active modules toward canonical `## Work Items` sections and
   required `Intent`, `Expected Outcome`, and `Validation` fields.
 - **Expected Outcome:** Active modules touched during current work use canonical
