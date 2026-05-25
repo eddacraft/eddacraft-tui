@@ -308,8 +308,9 @@ a backlog. Promote repeated friction or executable follow-up work to
 
 - **Task:** /goal "deliver as much of APSCAN as possible before you are blocked
   via /dev-workflow" — close the canonical-alignment migration backlog.
-- **Outcome:** All 7 remaining APSCAN items shipped (PRs #1946/-1947/-1948/-1949
-  /-1953/-1954/-1955). APSCAN module is now 11/11 Done, ready for archive.
+- **Outcome:** All 7 remaining APSCAN items shipped (PRs #1946, #1947, #1948,
+  #1949, #1953, #1954, #1955). APSCAN module is now 11/11 Done, ready for
+  archive.
 - **Worked:** Parallel-worktree fan-out — opened all 4 of the first-wave PRs
   concurrently while one waited on Copilot, kept context warm by drafting the
   next item in another worktree. Single resolve-threads.sh helper paid off
