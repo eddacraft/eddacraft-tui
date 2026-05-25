@@ -38,11 +38,115 @@ if either secret is empty.
 - **`EDDACRAFT_MIRROR_BOT_APP_ID`** and **`EDDACRAFT_MIRROR_BOT_PRIVATE_KEY`**
   on `eddacraft/anvil-001` repo secrets. Back the `eddacraft-mirror-bot` GitHub
   App (org-owned by `eddacraft`, installed on `eddacraft/eddacraft-tui` only,
-  permissions `Contents: Read and write` + `Metadata: Read`). Same App used by
-  the mirror content workflow (`.github/workflows/mirror-eddacraft-tui.yml`).
-  The workflow mints a short-lived installation token at runtime via
+  permissions `Contents: Read and write` + `Metadata: Read` +
+  `Workflows: Read and write`). The `Workflows` permission is required because
+  the mirrored crate tree contains a PR-redirect workflow file under
+  `crates/eddacraft-tui/.github/workflows/` (added by TUIR-007 on the mirror
+  side to auto-close drive-by source PRs against the mirror); without
+  `Workflows: Read and write`, GitHub rejects the first push with
+  `refusing to allow a GitHub App to create or update workflow … without workflows permission`.
+  Same App is used by the mirror content workflow
+  (`.github/workflows/mirror-eddacraft-tui.yml`). The workflow mints a
+  short-lived installation token at runtime via
   `actions/create-github-app-token` and uses it to push the release tag to the
   mirror.
+
+## Bootstrap gotchas
+
+The App + mirror-repo setup has four traps that each silently fail in a distinct
+way on the first attempt. Walk through them in order; the API verification
+commands surface state the GitHub UI hides.
+
+### 1. App registration ≠ App installation
+
+Creating the App in `eddacraft` org settings (Developer settings → GitHub Apps →
+New) **registers** the App. That step alone does not install it on any repo.
+Installation is a separate click sequence:
+
+- On the App's settings page, click **Install App** in the left nav.
+- On the row for the `eddacraft` org, click **Install**.
+- Choose **Only select repositories** and tick `eddacraft/eddacraft-tui`.
+- Confirm.
+
+Without the install step, `actions/create-github-app-token` fails on the first
+dispatch with:
+
+```
+RequestError [HttpError]: Not Found
+    at getTokenFromRepository
+```
+
+Verify with:
+
+```bash
+gh api orgs/eddacraft/installations --jq '.installations[] | {app_slug, target: .account.login, repository_selection}'
+```
+
+If `eddacraft-mirror-bot` is absent from the list, the install step is the gap.
+
+### 2. Permission set must include `Workflows: Read and write`
+
+See the `EDDACRAFT_MIRROR_BOT_*` bullet above. Setting the permission on the
+App's Permissions & events page sends a permission-update notification to the
+installation — the existing install on `eddacraft-tui` will display a yellow
+banner asking for approval of the new permission. Click through and approve, or
+the workflow keeps running under the old (insufficient) permission set even
+though the App page shows the new one.
+
+### 3. Mirror repo's classic branch protection blocks force-push
+
+GitHub repos that started life as a regular project usually have classic branch
+protection on `main`. The mirror workflow **must** be able to force-push to
+`main` (D-TUIR-004) — protection on a mirrored branch is contradictory by
+design.
+
+Required state (confirm via API, do NOT just check the UI):
+
+```bash
+gh api repos/eddacraft/eddacraft-tui/branches/main/protection \
+  --jq '{allow_force_pushes: .allow_force_pushes.enabled,
+         pr_bypass_apps: (.required_pull_request_reviews.bypass_pull_request_allowances.apps | map(.slug)),
+         required_status_checks: (.required_status_checks // "none")}'
+```
+
+Required values:
+
+- `allow_force_pushes: true` (or the App on the force-push actor allowlist if
+  the repo uses the newer ruleset variant — classic protection is
+  all-or-nothing).
+- `eddacraft-mirror-bot` present in `pr_bypass_apps` (so a PR is not required
+  for the mirror push).
+- `required_status_checks: "none"` (the mirror push wouldn't have time to let CI
+  run).
+
+Failure signature in the workflow log if force-push is blocked:
+
+```
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+- Cannot force-push to this branch
+```
+
+or, with the newer ruleset path:
+
+```
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+- Cannot force-push to this branch
+```
+
+### 4. "Save changes" button is at the very bottom of the protection page
+
+The classic branch protection edit page is long enough that the green **Save
+changes** button sits well below the fold. Toggling **Allow force pushes** at
+the top of the page and navigating away does NOT save. Always scroll to the
+bottom and click Save, then re-poll the API to confirm:
+
+```bash
+gh api repos/eddacraft/eddacraft-tui/branches/main/protection \
+  --jq '.allow_force_pushes.enabled'
+```
+
+Expected: `true`. If the API still shows `false` after a UI save, the save
+didn't take.
 
 ## Cut procedure
 
