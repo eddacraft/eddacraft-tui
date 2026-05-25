@@ -195,16 +195,22 @@ Migrate in waves:
 
 ### APSCAN-007: Add canonical issues tracker and context package support
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-25 via PR [#1948](https://github.com/eddacraft/anvil-001/pull/1948)
 - **Intent:** Support canonical `plans/issues.md` and `.aps/context/<ID>.md`
   surfaces without disrupting Anvil's existing review and release records.
 - **Expected Outcome:** New planning-level discoveries can be logged as `ISS-NNN`
   or `Q-NNN`, and generated canonical context packages are ignored and safe to
   regenerate.
-- **Validation:** `aps start <ready-item>` in a disposable fixture or documented
-  dry run creates ignored context output; `aps lint plans/issues.md` passes.
-- **Files:** `plans/issues.md`, `.gitignore`, `.aps/**` ignore rules
+- **Validation:** `pnpm format:check`, `pnpm docs:check` (7/7),
+  `pnpm aps:drift --json` (no APSCAN regressions); verified `.aps/context/`
+  fixture is ignored by creating + checking + removing a TEST file.
+- **Files:** `plans/issues.md`, `.gitignore`
 - **Dependencies:** APSCAN-001
+- **Closeout:** Empty-but-shaped `plans/issues.md` tracker landed with
+  `ISS-NNN` / `Q-NNN` IDs, status vocabulary, promotion path, and explicit
+  out-of-scope list. `.gitignore` ignores `.aps/` so canonical context
+  packages stay regenerable cache output; the durable surface remains
+  `plans/issues.md`.
 - **Confidence:** medium
 
 ### APSCAN-008: Decide canonical CLI adoption boundary
