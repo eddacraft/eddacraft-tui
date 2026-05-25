@@ -53,8 +53,11 @@ fn main() {
 
     let mut samples = Vec::with_capacity(iters);
     for _ in 0..iters {
+        // `eval_rule` takes the path by value; clone outside the timed window
+        // so the allocation is not attributed to eval.
+        let path = rule.clone();
         let start = Instant::now();
-        let _ = engine.eval_rule(rule.clone()).expect("eval_rule");
+        let _ = engine.eval_rule(path).expect("eval_rule");
         samples.push(start.elapsed().as_nanos());
     }
     samples.sort_unstable();

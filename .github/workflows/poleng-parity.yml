@@ -1,30 +1,40 @@
 # POLENG-008 parity gate: regorus vs the Go OPA reference (ADR-040 D-1).
 #
-# Advisory sidecar — intentionally NOT in the required-checks ruleset. A red run
-# means regorus measured slower than Go OPA on a representative policy, which is
-# an ADR-040 D-5 trigger (revisit the engine choice), not a routine merge block.
-# It installs the Go OPA reference out of band (not trivially available in CI)
-# and runs scripts/bench-vs-go-opa.sh.
+# Advisory sidecar — intentionally NOT in the required-checks ruleset (so it
+# cannot be enforced from this file; the constraint lives in repo settings). A
+# red run means regorus measured slower than Go OPA on a representative policy,
+# which is an ADR-040 D-5 trigger (revisit the engine choice), not a routine
+# merge block. Installs the repo-pinned Go OPA (v1.16.1, same
+# `open-policy-agent/setup-opa` action `rust.yml` trusts) and runs
+# scripts/bench-vs-go-opa.sh.
 name: POLENG parity gate
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/anvil-policy-engine/**'
+      - 'scripts/bench-vs-go-opa.sh'
+      - '.github/workflows/poleng-parity.yml'
   pull_request:
     paths:
       - 'crates/anvil-policy-engine/**'
       - 'scripts/bench-vs-go-opa.sh'
       - '.github/workflows/poleng-parity.yml'
 
+concurrency:
+  group: poleng-parity-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-
-env:
-  OPA_VERSION: v0.60.0
 
 jobs:
   parity:
     name: regorus vs Go OPA parity
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
@@ -32,11 +42,10 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
-      - name: Install Go OPA reference
-        run: |
-          curl -fsSL -o /usr/local/bin/opa \
-            "https://openpolicyagent.org/downloads/${OPA_VERSION}/opa_linux_amd64_static"
-          chmod +x /usr/local/bin/opa
-          opa version
+      # Repo-pinned Go OPA reference (matches rust.yml; under
+      # scripts/check-opa-version-pin.sh discipline).
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: v1.16.1
       - name: Run parity gate
         run: scripts/bench-vs-go-opa.sh 2000

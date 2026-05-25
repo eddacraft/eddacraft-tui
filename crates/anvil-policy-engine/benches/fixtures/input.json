@@ -106,123 +106,123 @@
     "edges": [
       {
         "from": "src/mod0/file0.rs",
-        "to": "src/mod5/file0.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod1/file1.rs",
-        "to": "src/mod6/file7.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod2/file2.rs",
-        "to": "src/mod7/file14.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod3/file3.rs",
-        "to": "src/mod8/file21.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod4/file4.rs",
-        "to": "src/mod9/file28.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod5/file5.rs",
-        "to": "src/mod10/file35.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod6/file6.rs",
-        "to": "src/mod11/file42.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod7/file7.rs",
-        "to": "src/mod0/file49.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod8/file8.rs",
-        "to": "src/mod1/file56.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod9/file9.rs",
-        "to": "src/mod2/file63.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod10/file10.rs",
-        "to": "src/mod3/file70.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod11/file11.rs",
-        "to": "src/mod4/file77.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod0/file12.rs",
-        "to": "src/mod5/file84.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod1/file13.rs",
-        "to": "src/mod6/file91.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod2/file14.rs",
-        "to": "src/mod7/file98.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod3/file15.rs",
-        "to": "src/mod8/file5.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod4/file16.rs",
-        "to": "src/mod9/file12.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod5/file17.rs",
-        "to": "src/mod10/file19.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod6/file18.rs",
-        "to": "src/mod11/file26.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod7/file19.rs",
-        "to": "src/mod0/file33.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod8/file20.rs",
-        "to": "src/mod1/file40.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod9/file21.rs",
-        "to": "src/mod2/file47.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod10/file22.rs",
-        "to": "src/mod3/file54.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod11/file23.rs",
-        "to": "src/mod4/file61.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod0/file24.rs",
-        "to": "src/mod5/file68.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod1/file25.rs",
-        "to": "src/mod6/file75.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod2/file26.rs",
-        "to": "src/mod7/file82.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod3/file27.rs",
-        "to": "src/mod8/file89.rs"
+        "to": "src/mod0/file0.rs"
       },
       {
         "from": "src/mod4/file28.rs",
-        "to": "src/mod9/file96.rs"
+        "to": "src/mod1/file1.rs"
       },
       {
         "from": "src/mod5/file29.rs",
-        "to": "src/mod10/file3.rs"
+        "to": "src/mod2/file2.rs"
       },
       {
         "from": "src/mod6/file30.rs",

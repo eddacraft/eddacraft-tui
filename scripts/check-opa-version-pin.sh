@@ -39,6 +39,7 @@ packages/anvil/policy/src/opa-binary-manager.test.ts
 .github/workflows/ci.yml
 .github/workflows/ci-nightly.yml
 .github/workflows/rust.yml
+.github/workflows/poleng-parity.yml
 docs/guides/opa-policy-testing.md
 docs/archive/planning/opa-policy-engine.md
 crates/anvil-policy/tests/opa_real_binary.rs
