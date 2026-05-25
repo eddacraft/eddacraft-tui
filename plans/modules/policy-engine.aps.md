@@ -10,10 +10,10 @@
 **Last reviewed:** 2026-05-25
 
 > Module promoted to Ready 2026-05-13 once ADR-040 reached Accepted.
-> POLENG-001 merged 2026-05-12 (PR #1485), so POLENG-002, POLENG-004, and
-> POLENG-006 (which depend only on POLENG-001) are now executable; the
-> remaining tasks unlock as their in-module dependencies close (the parser
-> evaluates executability per-task, not per-module).
+> POLENG-001 merged 2026-05-12 (PR #1485); POLENG-002..007 merged 2026-05-24
+> (PR #1931 — engine substrate + `anvil policy eval`). POLENG-008 (bench
+> parity gate vs Go OPA) is the only task still open; the module stays
+> In Progress until it lands (it could trigger an ADR-040 revisit).
 
 > ADR-040 picks `regorus` as the embedded Rust policy engine. This module
 > owns the substrate: facade crate, input data document, builtins surface,
@@ -164,7 +164,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-002: PolicyInput v1 schema
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Pin the input data document policies receive — repo state,
   plan files, decisions, diff, baseline cohort — as a versioned, stable
   contract
@@ -182,7 +182,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-003: First-party builtins surface v1
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Expose Anvil's data sources as deterministic, audited Rego
   builtins so policy authors can query plan and repo state declaratively
 - **Expected Outcome:** `anvil.repo_state()`, `anvil.plan(path)`,
@@ -197,7 +197,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-004: Determinism contract enforcement
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Guarantee that no policy can observe a clock, the network, or
   the filesystem except through audited builtins
 - **Expected Outcome:** `Builtin` trait requires explicit `DeterminismClass`
@@ -220,7 +220,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-005: Result post-processing — warnings-over-blocks + new-edges-only
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Apply ADR-002 and ADR-003 uniformly to every engine evaluation
   so downstream tiers inherit Anvil's defaults without re-implementing them
 - **Expected Outcome:** `EvalResult` carries `Severity` (`Warning` / `Error`)
@@ -234,7 +234,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-006: Coverage and trace as first-class result fields
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Expose line-level coverage and rule-firing trace on every
   evaluation so OPAE's debugger and POLFED federation reporting build on a
   shared substrate
@@ -260,7 +260,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-007: CLI surface — `anvil policy eval`
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-24 via PR #1931
 - **Intent:** Wire the engine into `crates/anvil-cli` so developers and CI
   can evaluate policies from the shell with structured output
 - **Expected Outcome:** `anvil policy eval <policy> [--input <path>] [--explain] [--why <finding-id>] [--fail-on-warnings]` produces JSON result + exit code; output uses the shared AIGUARD diagnostic envelope; `--explain` renders coverage; `--why` renders trace for a specific finding
