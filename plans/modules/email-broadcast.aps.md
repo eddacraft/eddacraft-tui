@@ -5,9 +5,9 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| EMAIL | —     | Medium   | Done   |
+| EMAIL | —     | Medium   | Ready  |
 
-**Last reviewed:** 2026-05-24
+**Last reviewed:** 2026-05-25 (Clawpatch delta triage added EMAIL-010; GH #1926)
 
 ## Purpose
 
@@ -622,6 +622,34 @@ in the same change.
     cleanups.
 - **Notes:** Landed 2026-05-24. 6 new tests; full anvil-api suite
   407/407 across 20 files (was 401/401); typecheck clean.
+
+### EMAIL-010 — Preview-token-only real-send contract
+
+- **Status:** Ready
+- **Priority:** High
+- **Confidence:** High
+- **Intent:** Restore the documented `POST /admin/broadcast` real-send
+  contract so `dryRun=false` requests can rely on the consumed preview
+  snapshot as source of truth.
+- **Expected Outcome:** Real-send validation requires `previewToken`,
+  consumes the snapshot atomically, and does not require or trust
+  request-time `template`, `audience`, `audienceParams`, or
+  `templateProps` values before snapshot consumption.
+- **Validation:** `pnpm exec vitest --run src/__tests__/admin-broadcast.test.ts`
+- **Files:**
+  - `apps/anvil-api/src/routes/admin-schemas.ts`
+  - `apps/anvil-api/src/routes/admin.ts`
+  - `apps/anvil-api/src/__tests__/admin-broadcast.test.ts`
+  - `apps/anvil-api/README.md`
+- **Source:** Clawpatch audit
+  `plans/audits/2026-05-25-clawpatch-v0.7.0-beta.json` findings
+  `fnd_sig-feat-route-9b3fea7b74-465993_c717310cda` and bundled docs
+  gap `fnd_sig-feat-route-9b3fea7b74-916bab_c69264c5ba`.
+- **GH issue:** [#1926](https://github.com/eddacraft/anvil-001/issues/1926)
+- **Notes:** Council review on 2026-05-25 dispositioned the medium
+  contract mismatch as the canonical follow-up and bundled the low README
+  endpoint-table gap into the same fix, rather than opening a separate
+  docs-only issue.
 
 ## Phase 6 — Council Follow-Ups (Not Tasked Yet)
 
