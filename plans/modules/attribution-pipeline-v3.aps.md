@@ -7,7 +7,7 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-05-24
+**Last reviewed:** 2026-05-25
 
 ## Purpose
 
@@ -317,10 +317,11 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-009: Port the kit back into `little-termi`
 
-- **Status:** Pending
+- **Status:** Merged via little-termi PR #39 (`634ff4c5` · 2026-05-25)
 - **Intent:** Replace the hand-ported v1 copy in `little-termi` with the v3 starter kit; confirm both repos regenerate identically.
 - **Expected Outcome:** `little-termi` adopts the kit via `git subtree pull` (or copy if subtree isn't workable) and runs `--check` clean. Divergence is a `little-termi` CI failure.
 - **Validation:** Both repos pass their respective `acknowledgements-diff` jobs after the port.
+- **Shipped:** [joshuaboys/little-termi#39](https://github.com/joshuaboys/little-termi/pull/39) merged 2026-05-25 at merge commit `634ff4c5`. The v3 kit is vendored at `tools/starters/acknowledgements/` via `git subtree` from the public mirror `eddacraft/acknowledgements-starter`; a root `attribution.toml` declares a single Rust `[[blocks]]` entry (`manifest_path = rust-core/Cargo.toml`) reusing the existing `rust-core/about.{toml,hbs}` (Android target triples + accepted-licence list unchanged). The hand-ported v1 `tools/generate-acknowledgements.sh` is removed; `.github/workflows/ci.yml` now runs the kit dispatcher `--check` plus the ATTRIB-007 `strict-license-field.sh` guard. The 866-line attribution block regenerated **byte-identically** — only the marker switched to the named-block form (`<!-- BEGIN AUTO-GENERATED rust -->`) — confirming a faithful drop-in. Validation met: little-termi CI green (Rust checks + Android build) and anvil's own acknowledgements CI already green on `main`, so both repos pass their `acknowledgements-diff` jobs. Copilot flagged three pre-existing minor smells in the **vendored kit** (not introduced by the port): an unused `target_array_name` local in `expand-licences.sh`, a stale `.github/workflows/rust.yml` reference in `node-driver-preflight.sh`, and a dead no-op marker-adjacency `if` in `go-driver-render.sh`. These are tracked for an upstream kit-hardening fix (canonical kit → mirror → `subtree pull`) rather than a little-termi-local patch, to preserve subtree fidelity. Not yet in a published release record (status `Merged`, not `Released/Shipped`).
 
 ### ATTRIB-010: Update release runbook + doc checklist
 

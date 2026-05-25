@@ -377,3 +377,37 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Treat post-merge APS advancement as a first-class bookkeeping PR
   step when a module status changes after merge.
 - **Follow-up:** Merge the bookkeeping PR after CI and review pass.
+
+### 2026-05-25 — claude
+
+- **Task:** Finish ATTRIB (attribution-pipeline-v3) — land ATTRIB-009, the
+  cross-repo `little-termi` starter-kit port, then reconcile anvil APS.
+- **Outcome:** little-termi PR #39 merged (`634ff4c5`) — v3 kit vendored via
+  `git subtree` from `eddacraft/acknowledgements-starter`, v1 hand-port
+  retired, CI repointed. Attribution block byte-identical. Both repos'
+  acknowledgements CI green. ATTRIB-009 → Merged; module now 15/16 (only the
+  deferred ATTRIB-005 remains, rehomed to supply-chain-attestation).
+- **Worked:** Establishing a clean v1 `--check` baseline in the worktree
+  before switching tooling proved the kit was a faithful drop-in — the diff
+  reduced to 4 marker/comment lines with the 866-line block untouched, which
+  made review trivial. Reusing little-termi's existing
+  `rust-core/about.{toml,hbs}` via the block's `template_path`/`config_path`
+  kept the port config-only.
+- **Failed:** Nothing blocking. uutils `dirname` 0.8.0 (`~/.local/bin`) no
+  longer mishandles the multi-segment subtree prefix that 0.2.2
+  (`/usr/bin`) still does — the documented git-subtree breakage is fixed in
+  the newer build, but PATH ordering still decides which wins, so the
+  `/tmp/gnu-shim` insurance is still worth pinning.
+- **Friction:** `/council` is anvil-scoped, so a downstream little-termi PR
+  has no first-class pre-PR review surface — relied on a focused self-review
+  + little-termi CI + Copilot. Cross-repo APS has no implementation-commit to
+  fold the status flip into, so a standalone anvil reconcile PR is
+  unavoidable (and correct) here.
+- **Improvement:** none
+- **Follow-up:** Upstream kit-hardening fix for three pre-existing smells
+  Copilot surfaced in the vendored kit (unused `target_array_name` in
+  `expand-licences.sh`; stale `rust.yml` ref in `node-driver-preflight.sh`;
+  dead no-op `if` in `go-driver-render.sh`) — fix in the canonical kit and
+  let the mirror + `subtree pull` propagate. Operator: `wt remove` the
+  `little-termi.attrib-009` and `anvil-001.docs-attrib-009-reconcile`
+  worktrees once this PR merges.
