@@ -291,7 +291,7 @@ Migrate in waves:
 
 ### APSCAN-010: Run active-module migration wave and closeout
 
-- **Status:** Merged 2026-05-25 via PR (this PR)
+- **Status:** Merged 2026-05-25 via PR [#1955](https://github.com/eddacraft/anvil-001/pull/1955)
 - **Intent:** Apply the compatibility rules to the first active-module wave and
   prove the migration path before broader rollout.
 - **Expected Outcome:** A representative batch of active modules validates under
