@@ -96,7 +96,7 @@ impl Surface for PlanDashboardState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  enter details  / filter  r rescan  esc/q back/quit  ? help"
+        "j/k navigate modules  enter details/list  / filter  r rescan  esc/q back/quit  ? help"
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -196,6 +196,15 @@ mod tests {
     }
 
     #[test]
+    fn carriage_return_also_toggles_detail() {
+        let mut state = sample_state();
+
+        state.handle_key(Action::Character('\r'));
+
+        assert!(state.show_detail);
+    }
+
+    #[test]
     fn r_requests_rescan() {
         let mut state = sample_state();
 
@@ -206,14 +215,25 @@ mod tests {
     }
 
     #[test]
-    fn filter_mode_allows_q_search_text() {
+    fn filter_mode_quit_still_exits() {
         let mut state = sample_state();
 
         state.handle_key(Action::Character('/'));
         state.handle_key(Action::Quit);
 
-        assert_eq!(state.filter_query, "q");
-        assert!(!state.should_quit());
+        assert!(state.should_quit());
+    }
+
+    #[test]
+    fn filter_mode_carriage_return_confirms_filter() {
+        let mut state = sample_state();
+
+        state.handle_key(Action::Character('/'));
+        state.handle_key(Action::Character('a'));
+        state.handle_key(Action::Character('\r'));
+
+        assert!(!state.filter_mode);
+        assert_eq!(state.filter_query, "a");
     }
 
     #[test]

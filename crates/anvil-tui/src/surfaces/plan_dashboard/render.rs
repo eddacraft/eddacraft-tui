@@ -40,7 +40,11 @@ fn render_narrow(
 ) {
     let chunks = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
     render_summary(frame, chunks[0], state, theme, "APS Work");
-    render_modules_compact(frame, chunks[1], state, theme);
+    if state.show_detail {
+        render_selected_module_detail(frame, chunks[1], state, theme);
+    } else {
+        render_modules_compact(frame, chunks[1], state, theme);
+    }
 }
 
 fn render_summary(
@@ -92,7 +96,7 @@ fn render_summary(
             ),
             Span::styled(&state.filter_query, Style::default().fg(theme.accent())),
             Span::styled(
-                "  keys: j/k select  / filter  enter details  r rescan  q quit",
+                "  keys: j/k modules  / filter  enter details/list  r rescan  q quit",
                 Style::default().fg(theme.muted()),
             ),
         ]));
@@ -138,10 +142,8 @@ fn render_modules(
         Constraint::Length(14),
         Constraint::Min(10),
     ];
-    let rows: Vec<Vec<String>> = state
-        .visible_modules()
+    let rows: Vec<Vec<String>> = visible_module_window(state, module_row_capacity(area))
         .into_iter()
-        .enumerate()
         .map(|(row_index, (_, module))| {
             vec![
                 if module.has_warning { "!" } else { "" }.to_string(),
@@ -176,10 +178,8 @@ fn render_modules_compact(
     state: &PlanDashboardState,
     theme: &EddaCraftTheme,
 ) {
-    let lines: Vec<Line> = state
-        .visible_modules()
+    let lines: Vec<Line> = visible_module_window(state, compact_module_row_capacity(area))
         .into_iter()
-        .enumerate()
         .map(|(row_index, (_, module))| {
             let selected = if row_index == state.selected_module {
                 ">"
@@ -212,6 +212,37 @@ fn render_modules_compact(
         ),
         area,
     );
+}
+
+fn visible_module_window(
+    state: &PlanDashboardState,
+    capacity: usize,
+) -> Vec<(usize, (usize, &PlanModuleRow))> {
+    let visible = state.visible_modules();
+    if capacity == 0 {
+        return Vec::new();
+    }
+    if visible.len() <= capacity {
+        return visible.into_iter().enumerate().collect();
+    }
+
+    let selected = state.selected_module.min(visible.len().saturating_sub(1));
+    let max_start = visible.len().saturating_sub(capacity);
+    let start = selected.saturating_sub(capacity / 2).min(max_start);
+    visible
+        .into_iter()
+        .enumerate()
+        .skip(start)
+        .take(capacity)
+        .collect()
+}
+
+fn module_row_capacity(area: Rect) -> usize {
+    area.height.saturating_sub(3).into()
+}
+
+fn compact_module_row_capacity(area: Rect) -> usize {
+    area.height.saturating_sub(2).into()
 }
 
 fn render_work_items(
@@ -434,6 +465,26 @@ mod tests {
             .join("\n")
     }
 
+    fn render_state_to_string(state: &PlanDashboardState, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        (0..buf.area.height)
+            .map(|y| {
+                (0..buf.area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     #[test]
     fn renders_summary_counts() {
         let rendered = render_to_string(100, 24);
@@ -468,6 +519,58 @@ mod tests {
 
         assert!(rendered.contains("APS Work"));
         assert!(rendered.contains("DOCGOV"));
+    }
+
+    #[test]
+    fn narrow_terminal_enter_shows_selected_module_detail() {
+        let mut state = sample_state();
+        state.selected_module = 1;
+        state.show_detail = true;
+
+        let rendered = render_state_to_string(&state, 40, 12);
+
+        assert!(rendered.contains("Detail"));
+        assert!(rendered.contains("APSCAN-011"));
+    }
+
+    #[test]
+    fn scrolls_selected_module_into_view() {
+        let mut state = sample_state();
+        state.snapshot.modules = (0..20)
+            .map(|index| PlanModuleRow {
+                scope: format!("MOD{index:02}"),
+                progress: "0/1".to_string(),
+                status: "Ready".to_string(),
+                note: "scroll fixture".to_string(),
+                has_warning: false,
+            })
+            .collect();
+        state.selected_module = 19;
+
+        let rendered = render_state_to_string(&state, 100, 14);
+
+        assert!(rendered.contains("MOD19"));
+        assert!(!rendered.contains("MOD00"));
+    }
+
+    #[test]
+    fn scrolls_module_text_before_selection_leaves_viewport() {
+        let mut state = sample_state();
+        state.snapshot.modules = (0..20)
+            .map(|index| PlanModuleRow {
+                scope: format!("MOD{index:02}"),
+                progress: "0/1".to_string(),
+                status: "Ready".to_string(),
+                note: "scroll fixture".to_string(),
+                has_warning: false,
+            })
+            .collect();
+        state.selected_module = 8;
+
+        let rendered = render_state_to_string(&state, 100, 14);
+
+        assert!(rendered.contains("> MOD08"));
+        assert!(!rendered.contains("MOD00"));
     }
 
     #[test]

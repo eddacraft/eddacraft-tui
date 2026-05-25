@@ -12,7 +12,7 @@ impl PlanDashboardState {
         match action {
             Action::Up => self.move_selection_up(),
             Action::Down => self.move_selection_down(),
-            Action::Select => {
+            Action::Select | Action::Character('\r' | '\n') => {
                 self.show_detail = !self.show_detail;
             }
             Action::Character('/') => {
@@ -36,6 +36,9 @@ impl PlanDashboardState {
 
     fn handle_filter_action(&mut self, action: Action) {
         match action {
+            Action::Select | Action::Character('\r' | '\n') => {
+                self.filter_mode = false;
+            }
             Action::Character(c) if c != '/' => {
                 self.filter_query.push(c);
                 self.selected_module = 0;
@@ -44,17 +47,13 @@ impl PlanDashboardState {
                 self.filter_query.pop();
                 self.selected_module = 0;
             }
-            Action::Select => {
-                self.filter_mode = false;
-            }
             Action::Back => {
                 self.filter_mode = false;
                 self.filter_query.clear();
                 self.selected_module = 0;
             }
             Action::Quit => {
-                self.filter_query.push('q');
-                self.selected_module = 0;
+                self.should_quit = true;
             }
             _ => {}
         }
