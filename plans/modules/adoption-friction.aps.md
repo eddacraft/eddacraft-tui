@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status | Progress |
 | ----- | ------ | ------ | -------- |
-| ADOPT | @aneki | Merged | 6/6 |
+| ADOPT | @aneki | Complete | 6/6 |
 
 **Last reviewed:** 2026-05-18 (counter and narrative refreshed for
 ADOPT-003 CLI-wiring + `anvil-run` half merge via PR #1700; module

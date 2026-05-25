@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status | Progress |
 | ---- | ------ | ------ | -------- |
-| INTL | @aneki | Done   | 9/9 |
+| INTL | @aneki | Complete | 9/9 |
 
 **Last reviewed:** 2026-05-14 (PR #1528 merged via rebase at
 `5d38e546` — `crates/anvil-run/` shipped with INTL-001..-009 covered by

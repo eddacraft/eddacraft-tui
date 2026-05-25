@@ -190,7 +190,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
-- **Status:** Done
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Provide reusable check guards and runtime budgets so absent file
   shapes short-circuit before expensive work.
 - **Expected Outcome:** `CheckDefinition` declares optional file-shape globs
