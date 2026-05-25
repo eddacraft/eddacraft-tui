@@ -209,16 +209,23 @@ Migrate in waves:
 
 ### APSCAN-008: Decide canonical CLI adoption boundary
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-25 via PR [#1947](https://github.com/eddacraft/anvil-001/pull/1947)
 - **Intent:** Choose whether Anvil consumes the canonical `aps` CLI directly or
   keeps its local `@eddacraft/anvil-aps` package as a compatibility layer.
 - **Expected Outcome:** A short design note records the authority split between
   canonical CLI commands and Anvil-specific drift/release checks.
 - **Validation:** Design note reviewed against `anvil-plan-spec/docs/usage.md` and
-  current `packages/aps/**` consumers.
+  current `packages/aps/**` consumers; `pnpm docs:check` (7/7 pass);
+  `pnpm aps:drift --json` (no APSCAN regressions).
 - **Files:** `plans/specs/2026-05-25-aps-cli-adoption-boundary.md`,
   `packages/aps/**`, `scripts/aps/**`
 - **Spec:** `plans/specs/2026-05-25-aps-cli-adoption-boundary.md`
+- **Closeout:** Hybrid adoption boundary recorded — canonical `aps` CLI is the
+  source of truth for portable APS semantics; `@eddacraft/anvil-aps` stays as
+  the local compatibility + extension layer; `scripts/aps/*` stays as the
+  Anvil-only enforcement layer for drift, release evidence, progress counters,
+  active-lint scope, and Anvil status extensions. No code changes — the
+  existing surfaces already match the recorded split.
 - **Confidence:** low
 
 ### APSCAN-009: Reconcile progress counters with canonical status

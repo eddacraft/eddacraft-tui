@@ -1,8 +1,8 @@
 # APS CLI Adoption Boundary
 
-| Type | Authority | Owner  | Status   | Freshness                                                                                                |
-| ---- | --------- | ------ | -------- | -------------------------------------------------------------------------------------------------------- |
-| Spec | Proposed  | APSCAN | Approved | Created 2026-05-25 against `anvil-plan-spec` v0.3.0 and current `packages/aps` + `scripts/aps` consumers |
+| Type | Authority     | Owner  | Status | Freshness                                                                                                |
+| ---- | ------------- | ------ | ------ | -------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | APSCAN | Live   | Created 2026-05-25 against `anvil-plan-spec` v0.3.0 and current `packages/aps` + `scripts/aps` consumers |
 
 | Upstream                                                                          | Downstream                                                                                                              |
 | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
