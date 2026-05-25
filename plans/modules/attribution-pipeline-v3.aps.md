@@ -268,19 +268,19 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 
 ### ATTRIB-004: `bundled-binaries.toml` schema and ingest plugin
 
-- **Status:** Pending
+- **Status:** Merged via PR #1934 (`feat/attrib-004-bundled-binaries`)
 - **Intent:** Allow attribution of third-party binaries that aren't Cargo crates (OpenSSH, Mosh, FFmpeg, ...).
-- **Expected Outcome:** Schema documented in starter kit; ingest plugin emits CycloneDX intermediate from a hand-maintained TOML inventory. Anvil ships an empty inventory today.
-- **Validation:** Sample `bundled-binaries.toml` with one fixture entry round-trips through the generator and renders into a `binaries` block.
-- **Open:** Whether the schema accepts arbitrary SPDX expressions or a closed enum — decide during implementation.
+- **Expected Outcome (re-scoped 2026-05-25):** A per-block `bundled-binaries` driver (consistent with the shipped multi-block dispatcher), NOT a CycloneDX emitter. `drivers/bundled-binaries.sh` reads a hand-maintained `bundled-binaries.toml` (`[[binary]]` entries) and renders a deterministic `binaries` markdown block directly. No external tool (pure bash/awk). Schema documented in the kit (`bundled-binaries.toml.example`). Anvil ships the capability + example, no active block (it bundles no binaries today). The original "emits CycloneDX intermediate" wording was dropped — see ATTRIB-005 for why CycloneDX moved to a future supply-chain initiative.
+- **Validation:** Sample `bundled-binaries.toml` with fixture entries round-trips through the generator and renders into a `binaries` block.
+- **Decision (Open resolved):** Schema accepts **arbitrary SPDX expression strings** (no closed enum) — binary licences vary too much for an enum; the curator records what upstream ships. The driver validates `name` + `spdx` are present per entry (its "strict" step) rather than cross-checking an enum.
+- **Shipped:** PR #1934 (`feat/attrib-004-bundled-binaries`). `drivers/bundled-binaries.sh` (pure bash/awk) parses `[[binary]]` entries (name/spdx required; version/source optional; unknown keys tolerated), validates required fields naming any offender, and renders a `| Binary | Version | License | Source |` table sorted by name. `bundled-binaries.toml.example` ships the inventory template. Tests: `bundled-binaries-render.sh` 3/3 (two-entry inventory round-trip, sorted, idempotent, `--check`), `bundled-binaries-preflight.sh` 4/4 (argv, missing inventory, entry-missing-spdx named, empty inventory). `acknowledgements-kit.yml` runs both (no new tool). No expander/licences.toml coupling (the inventory is self-contained). Not yet in a published release record (status `Merged`, not `Released/Shipped`).
 
-### ATTRIB-005: CycloneDX intermediate alongside cargo-about-direct
+### ATTRIB-005: CycloneDX intermediate — deferred to a supply-chain initiative
 
-- **Status:** Pending
-- **Intent:** Add CycloneDX as the canonical inter-ecosystem format; keep cargo-about-direct path as a faster-but-Rust-only fallback.
-- **Expected Outcome:** Generator can run in two modes: CycloneDX (multi-ecosystem merge) and direct (today's behaviour). Output identical for the Rust-only case.
-- **Validation:** `tools/generate-acknowledgements.sh --check` passes in both modes against the current anvil graph.
-- **Open:** Whether `anvil licenses --json` grows to expose the merged intermediate — decide during this task.
+- **Status:** Deferred (2026-05-25) — re-open under the `supply-chain-attestation` module
+- **Intent (original):** Add CycloneDX as the canonical inter-ecosystem format; two generator modes (CycloneDX merge + direct).
+- **Why deferred (not built):** The original framing predates the multi-block dispatcher (ATTRIB-008) that actually shipped. That architecture (v3.2 spec, explicit non-goal: "CycloneDX SBOM as the canonical intermediate ... stays queued as an alternative per-block `tool=` option") already achieves multi-ecosystem attribution by splicing per-block markdown — no canonical-merge layer is needed for *attribution*. Two further facts make building it here wrong: (1) the chosen licence tools (`license-checker`, `go-licenses`, `pip-licenses`) do **not** emit CycloneDX — a canonical-CycloneDX design would require swapping them for `cyclonedx-npm`/`cyclonedx-gomod`/`cyclonedx-py` plus a bash/jq SBOM-merge engine, for identical markdown output; (2) CycloneDX's real payoff (SBOM publication, **dependency mapping into Anvil's graph/witness layer**, new-edges-only policy gating over the dep graph, SLSA/vuln correlation) is a supply-chain *initiative*, out of scope for this attribution module.
+- **Re-scope:** CycloneDX is reserved as (a) a future per-block `tool=cyclonedx-*` driver variant if a consumer needs SBOM output, and (b) the structured intermediate for the proposed **`supply-chain-attestation`** module (dependency mapping, provenance, policy gating). Re-open there once Anvil's graph infrastructure is ready to consume a dependency graph. See [`plans/modules/supply-chain-attestation.aps.md`](./supply-chain-attestation.aps.md) (Proposed).
 
 ### ATTRIB-006: Single-source-of-truth licence allow-list
 
