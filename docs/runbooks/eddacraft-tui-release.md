@@ -53,9 +53,10 @@ if either secret is empty.
 
 ## Bootstrap gotchas
 
-The App + mirror-repo setup has four traps that each silently fail in a distinct
-way on the first attempt. Walk through them in order; the API verification
-commands surface state the GitHub UI hides.
+The App + mirror-repo setup has three config traps that each silently fail in a
+distinct way on the first attempt, plus a UI save gotcha that manifests on top
+of the third. Walk through them in order; the API verification commands surface
+state the GitHub UI hides.
 
 ### 1. App registration ≠ App installation
 
@@ -103,10 +104,15 @@ design.
 Required state (confirm via API, do NOT just check the UI):
 
 ```bash
+# Null-guarded so it works on any protection shape (a repo with no
+# PR-required rule, or no force-push field, returns sane defaults
+# instead of an "Cannot index null" jq error).
 gh api repos/eddacraft/eddacraft-tui/branches/main/protection \
-  --jq '{allow_force_pushes: .allow_force_pushes.enabled,
-         pr_bypass_apps: (.required_pull_request_reviews.bypass_pull_request_allowances.apps | map(.slug)),
-         required_status_checks: (.required_status_checks // "none")}'
+  --jq '{
+    allow_force_pushes: (try .allow_force_pushes.enabled catch false),
+    pr_bypass_apps: (try (.required_pull_request_reviews.bypass_pull_request_allowances.apps | map(.slug)) catch []),
+    required_status_checks: (.required_status_checks // "none")
+  }'
 ```
 
 Required values:
@@ -114,8 +120,11 @@ Required values:
 - `allow_force_pushes: true` (or the App on the force-push actor allowlist if
   the repo uses the newer ruleset variant — classic protection is
   all-or-nothing).
-- `eddacraft-mirror-bot` present in `pr_bypass_apps` (so a PR is not required
-  for the mirror push).
+- Either the PR-required rule is disabled entirely (`pr_bypass_apps: null` AND
+  no `required_pull_request_reviews` field), OR `eddacraft-mirror-bot` is
+  present in `pr_bypass_apps`. Disabling the rule entirely is fine for a mirror
+  — protection on a mirrored branch is contradictory by design — but if you keep
+  the rule for human-direct-push defence, the App MUST be on the bypass list.
 - `required_status_checks: "none"` (the mirror push wouldn't have time to let CI
   run).
 
