@@ -303,3 +303,37 @@ a backlog. Promote repeated friction or executable follow-up work to
   fixing — exact semver only.
 - **Follow-up:** File CIB-NNN for the cwd-race + docstring fix. Run
   /addressing-pr-reviews on the new PR after CI + Copilot settle.
+
+### 2026-05-25 — claude
+
+- **Task:** /goal "deliver as much of APSCAN as possible before you are blocked
+  via /dev-workflow" — close the canonical-alignment migration backlog.
+- **Outcome:** All 7 remaining APSCAN items shipped (PRs #1946/-1947/-1948/-1949
+  /-1953/-1954/-1955). APSCAN module is now 11/11 Done, ready for archive.
+- **Worked:** Parallel-worktree fan-out — opened all 4 of the first-wave PRs
+  concurrently while one waited on Copilot, kept context warm by drafting the
+  next item in another worktree. Single resolve-threads.sh helper paid off
+  every iteration. Memory rule "status flip lands in initial commit" — flipping
+  each work item to `Status: Merged 2026-05-25 via PR #N` before push avoided
+  the need for any follow-up reconcile PRs entirely.
+- **Failed:** First APSCAN-008 spec used `Status: Approved` / `Authority:
+  Proposed` — not in the docs-governance vocabulary. Should have grepped the
+  governance metadata table before authoring. Caught by Copilot, fixed in
+  same PR via the metadata enum (`Status: Live`, `Authority: Authoritative`).
+- **Friction:** Worktree cleanup is auto-mode-denied, so seven docs/apscan-*
+  worktrees are still hanging around in `wt list`. Each `gh pr merge --rebase
+  --delete-branch` warns "cannot delete local branch ... used by worktree"
+  but the remote delete succeeds. Operator can sweep with `wt remove` per
+  branch after this session.
+- **Improvement:** APSCAN-006's drift-check fix (strict-equality →
+  prefix-match for `Merged` / `Released/Shipped` release-record checks)
+  unmasked ~30 pre-existing `shipped-aps-without-release-record` findings
+  across ADOPT/DISTRIB/INTL/EATEST/RCLI3/RMCPF/INSIGHTS that the bug was
+  hiding. These are real release-record drift, all advisory, all out of
+  APSCAN scope — worth a focused CIB / module-level reconcile pass.
+- **Follow-up:** (a) operator: `wt remove` the 7 docs/apscan-* worktrees;
+  (b) archive `plans/modules/aps-canonical-alignment.aps.md` →
+  `plans/archive/modules/` once APSCAN-010 settles in a tagged release;
+  (c) reconcile the unmasked `shipped-aps-without-release-record` findings
+  per module owner (likely tracked under each affected module's release
+  evidence, not APSCAN).
