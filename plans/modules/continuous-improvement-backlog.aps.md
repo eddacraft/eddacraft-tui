@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 8/16     |
+| CIB | —     | In Progress | 8/19     |
 
 ## Purpose
 
@@ -607,3 +607,60 @@ archive.
   same first-scan-vs-steady-state class of UX gap).
 - **Confidence:** high — docs / output-string change; no behaviour
   change. Lowest-risk of the three Drako borrows.
+
+### CIB-017: Tracing on the `anvil policy eval` path
+
+- **Status:** Draft
+- **Intent:** `anvil policy eval` is the CI-gating policy primitive
+  (POLENG-007) but has zero `tracing` instrumentation; a production/CI
+  failure surfaces only as an anyhow chain with no structured fields.
+- **Expected Outcome:** `eval::run` carries `#[tracing::instrument]` with
+  `policy` / `query` fields; a `debug!` after evaluation emits input byte
+  size, eval duration, and finding count; the engine emits a `warn!` on
+  `RwLock` poison instead of a generic `EngineError::Input`.
+- **Validation:** `RUST_LOG=debug anvil policy eval …` shows the fields;
+  `cargo test -p eddacraft-anvil --test policy_eval` stays green.
+- **Identified From:** POLENG full council (operations seat), 2026-05-25.
+- **Files:** `crates/anvil-cli/src/commands/policy/eval.rs`,
+  `crates/anvil-policy-engine/src/lib.rs`.
+- **Coordinates with:** POLENG.
+- **Confidence:** high — additive instrumentation, no behaviour change.
+
+### CIB-018: `catch_unwind` at the policy-engine facade boundary
+
+- **Status:** Draft
+- **Intent:** `regorus` is a single-vendor 0.10 crate with internal
+  `unwrap`/`expect`; a panic on an adversarial or malformed policy aborts the
+  `anvil` process with no `--json` error envelope, breaking pipeline parsers.
+- **Expected Outcome:** `Engine::add_policy` / `Engine::eval` wrap the regorus
+  calls in `std::panic::catch_unwind`, converting a panic into
+  `EngineError::Regorus` with the panic message; `--json` always emits a
+  parseable envelope and a non-zero exit. The shared `RwLock` context is
+  treated as unusable after a caught panic.
+- **Validation:** a unit test feeding a panic-inducing policy asserts an
+  `Err`, not a process abort; existing tests stay green.
+- **Identified From:** POLENG full council (operations seat), 2026-05-25.
+- **Files:** `crates/anvil-policy-engine/src/lib.rs`.
+- **Coordinates with:** POLENG; related to POLENG-009 (resource bounds).
+- **Confidence:** medium — `catch_unwind` across the regorus closure boundary
+  needs `UnwindSafe` handling.
+
+### CIB-019: Surface Go OPA stderr in the parity gate
+
+- **Status:** Draft
+- **Intent:** `scripts/bench-vs-go-opa.sh` runs `opa bench … 2>/dev/null || true`;
+  on an OPA error (parse failure, crash, version skew) the script reports a
+  generic "no positive measurement" with OPA's diagnostic discarded, so a
+  failed parity run is hard to diagnose.
+- **Expected Outcome:** capture OPA stderr to a temp file and echo it before
+  the `require_pos_num` bail; document `opa bench --count` semantics and
+  consider a higher count for the heavy `repo_scan` fixture (it samples ~87
+  vs thousands for the light policies).
+- **Validation:** run the script against a deliberately broken fixture and
+  confirm OPA's error text reaches the operator; gate still PASSes on the real
+  fixtures.
+- **Identified From:** POLENG full council (operations + adversarial seats),
+  2026-05-25.
+- **Files:** `scripts/bench-vs-go-opa.sh`.
+- **Coordinates with:** POLENG-008; `.github/workflows/poleng-parity.yml`.
+- **Confidence:** high — diagnostics-only script change.

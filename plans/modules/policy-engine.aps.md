@@ -12,9 +12,11 @@
 > Module promoted to Ready 2026-05-13 once ADR-040 reached Accepted.
 > POLENG-001 merged 2026-05-12 (PR #1485); POLENG-002..007 merged 2026-05-24
 > (PR #1931 — engine substrate + `anvil policy eval`); POLENG-008 merged
-> 2026-05-25 (PR #1942 — Go OPA parity gate, PASS). All tasks Merged; the
-> module stays In Progress awaiting `v0.7.x` release evidence to advance to
-> Released/Shipped → Complete (cleanup agent).
+> 2026-05-25 (PR #1942 — Go OPA parity gate, PASS). The original substrate
+> (001..008) is complete; POLENG-009 was filed 2026-05-25 from the full
+> council as a hardening follow-up before downstream consumers / less-trusted
+> policy sources. Module stays In Progress; the 001..008 work awaits `v0.7.x`
+> release evidence to advance to Released/Shipped (cleanup agent).
 
 > ADR-040 picks `regorus` as the embedded Rust policy engine. This module
 > owns the substrate: facade crate, input data document, builtins surface,
@@ -316,3 +318,53 @@ post-rust engine question. POLENG is the answer.
   `.github/workflows/poleng-parity.yml` installs OPA via the repo's pinned
   `setup-opa` action. Scope note: the gate validates *engine eval* parity (the
   ADR-040 claim), not cold-start compile or `anvil.*` builtin-bridge overhead.
+
+### POLENG-009: Engine hardening — determinism fence, resource bounds, findings-parse
+
+- **Status:** Proposed
+- **Intent:** Close the three MUST-FIX findings from the POLENG full council
+  (2026-05-25) before downstream consumers (CPACKS/POLFED/OPAE) or
+  less-trusted policy sources build on the engine. Two seats independently
+  verified the determinism overclaim against the `regorus` source.
+- **Expected Outcome (three deliverables):**
+  1. **Determinism fence (MAJOR).** The `DeterminismClass`/`Builtin` contract
+     governs only Anvil's *own* builtins, but the crate enables `regorus`
+     without `default-features = false`, so the full Rego stdlib — incl.
+     `time.now_ns()`, `rand.intn()`, `uuid.rfc4122()` — is reachable from any
+     policy. The "no clock… byte-identical" claim in `determinism.rs` and the
+     v1 spec is therefore false at the real call site (the policy text).
+     **Decision needed:** either set `default-features = false` + a curated
+     pure feature subset, *or* a pre-eval deny-list rejecting impure builtin
+     references. Add a test that proves a `time.now_ns()` policy is blocked or
+     errors. (`http.send` / `opa.runtime` env-dump are already stubbed in
+     regorus 0.10.0, so there is no network-exfil path — this is correctness,
+     not RCE.) The interim doc-honesty correction ships ahead of this task.
+  2. **Resource bounds (MAJOR, security).** `regorus` exposes
+     `set_execution_timer_config` + `set_policy_length_config`; the facade
+     wires neither, and `eval.rs` reads policy/input with no size cap →
+     local DoS on a pathological policy or huge input. Wire defaults in
+     `Engine::new` (exposed via `EngineConfig`); cap `--input` / policy file
+     size in the CLI.
+  3. **Findings-parse discrimination (MAJOR, correctness).** `eval.rs`
+     conflates `ResultError::Shape` (a legit non-findings value) with
+     `ResultError::Parse` (a findings array whose objects lack `message`) in
+     the catch-all `Err(_)` arm → a broken policy exits 0 with empty findings,
+     silently passing a gate. Treat `Parse` as a hard error; only `Shape`
+     falls through to raw-value output.
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine` (new
+  impure-builtin-blocked test + a parse-vs-shape test); `cargo test
+  -p eddacraft-anvil --test policy_eval`; manual `anvil policy eval` against a
+  `time.now_ns()` policy and an oversized input.
+- **Files:** `crates/anvil-policy-engine/Cargo.toml` (features),
+  `crates/anvil-policy-engine/src/lib.rs` (timer/length config),
+  `crates/anvil-policy-engine/src/determinism.rs`,
+  `crates/anvil-cli/src/commands/policy/eval.rs`.
+- **Dependencies:** POLENG-001..008 (all Merged).
+- **Coordinates with:** POLFED (byte-identical federation depends on the
+  determinism guarantee actually holding); CIB-018 (`catch_unwind`).
+- **Confidence:** medium — deliverables 2 and 3 are immediately actionable;
+  deliverable 1 needs a feature-subset-vs-deny-list design decision (hence
+  Proposed, not Ready).
+- **Source:** POLENG full council, 2026-05-25 (security + adversarial +
+  general seats converged on the determinism overclaim; verified against the
+  regorus 0.10.0 source).
