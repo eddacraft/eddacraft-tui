@@ -108,7 +108,7 @@ has since shipped as `v0.7.0-beta` (2026-05-21) plus the `v0.7.1-beta` patch
 ### Shipped — _daemon-working slate_ (`v0.7.0-beta` + `v0.7.1-beta` patch)
 
 OPMODEL, RELORCH, and CICD are closed. This slate **shipped** as `v0.7.0-beta`
-(2026-05-21), with the `v0.7.1-beta` Boring-Week patch (Activation Diagnostic
+(2026-05-21), with the `v0.7.1-beta` Boring Week patch (Activation Diagnostic
 Honesty, 2026-05-23) on top. **Theme:** _Daemon working end-to-end_ —
 `anvil start` lands a real testable protection claim, hooks fire
 deterministically, the witness chain records every commit, baseline adoption
