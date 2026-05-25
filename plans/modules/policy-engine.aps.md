@@ -12,11 +12,11 @@
 > Module promoted to Ready 2026-05-13 once ADR-040 reached Accepted.
 > POLENG-001 merged 2026-05-12 (PR #1485); POLENG-002..007 merged 2026-05-24
 > (PR #1931 — engine substrate + `anvil policy eval`); POLENG-008 merged
-> 2026-05-25 (PR #1942 — Go OPA parity gate, PASS). The original substrate
-> (001..008) is complete; POLENG-009 was filed 2026-05-25 from the full
-> council as a hardening follow-up before downstream consumers / less-trusted
-> policy sources. Module stays In Progress; the 001..008 work awaits `v0.7.x`
-> release evidence to advance to Released/Shipped (cleanup agent).
+> 2026-05-25 (PR #1942 — Go OPA parity gate, PASS); POLENG-009 merged
+> 2026-05-25 (PR #1952 — determinism fence + resource bounds + findings-parse,
+> from the full council). All tasks (001..009) Merged; the module stays
+> In Progress awaiting `v0.7.x` release evidence to advance to
+> Released/Shipped → Complete (cleanup agent).
 
 > ADR-040 picks `regorus` as the embedded Rust policy engine. This module
 > owns the substrate: facade crate, input data document, builtins surface,
@@ -321,7 +321,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-009: Engine hardening — determinism fence, resource bounds, findings-parse
 
-- **Status:** In Progress (2026-05-25)
+- **Status:** Merged 2026-05-25 via PR #1952
 - **Intent:** Close the three MUST-FIX findings from the POLENG full council
   (2026-05-25) before downstream consumers (CPACKS/POLFED/OPAE) or
   less-trusted policy sources build on the engine. Two seats independently
