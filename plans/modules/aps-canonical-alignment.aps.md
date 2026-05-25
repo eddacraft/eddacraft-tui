@@ -192,15 +192,25 @@ Migrate in waves:
 
 ### APSCAN-006: Document status semantics and release metadata extensions
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-25 via PR [#1946](https://github.com/eddacraft/anvil-001/pull/1946)
 - **Intent:** Separate canonical work-item status from Anvil release lifecycle
   prose so tools and agents stop conflating execution state with release state.
 - **Expected Outcome:** New work items use canonical statuses, while Anvil release
   labels and release metadata fields are documented as local extensions outside
   canonical status semantics.
-- **Validation:** Manual review against `anvil-plan-spec/docs/usage.md` and
-  Anvil release records; `pnpm docs:check`
+- **Validation:** `pnpm format:check`, `pnpm docs:check` (7/7), `pnpm aps:drift --json`
+  (newly-surfaced advisory `shipped-aps-without-release-record` warnings from
+  the prefix-match fix are pre-existing drift, not regressions).
 - **Files:** `plans/aps-rules.md`, `plans/project-context.md`, `scripts/aps/drift-check.mjs`
+- **Closeout:** `plans/aps-rules.md` keeps canonical work-item status vocabulary
+  as the portable contract and cross-references the new Project Status
+  Extensions section in `plans/project-context.md`, which maps Anvil's
+  `Merged` / `Released/Shipped` / `Complete` extensions back to canonical `Done`
+  with rules for casing, closeout text, and portable-reader behaviour.
+  `scripts/aps/drift-check.mjs` switches `Merged` / `Released/Shipped`
+  release-record drift checks from strict equality to leading-token prefix
+  match, matching the documented closeout text shape; the literal `Complete`
+  validation-evidence check stays per Status Rule 4.
 - **Confidence:** medium
 
 ### APSCAN-007: Add canonical issues tracker and context package support
