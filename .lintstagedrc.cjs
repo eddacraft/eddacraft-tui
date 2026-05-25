@@ -15,6 +15,14 @@ const isVendoredOutput = (file) => {
   );
 };
 
+const isAuditJson = (file) => {
+  const normalised = normalisePath(file);
+  return (
+    normalised.endsWith('.json') &&
+    (normalised.includes('/plans/audits/') || normalised.startsWith('plans/audits/'))
+  );
+};
+
 const filter = (files) => files.filter((f) => !isVendoredOutput(f));
 
 // Quote each file with JSON.stringify so paths containing spaces (common on
@@ -33,8 +41,22 @@ module.exports = {
   '*.json': (files) => {
     const kept = filter(files);
     if (kept.length === 0) return [];
-    const list = toCommandList(kept);
-    return [`oxfmt --write ${list}`, `eslint --fix ${list}`];
+    const formatted = kept.filter((file) => !isAuditJson(file));
+    const auditJson = kept.filter(isAuditJson);
+    const tasks = [];
+    if (formatted.length > 0) {
+      const list = toCommandList(formatted);
+      tasks.push(`oxfmt --write ${list}`, `eslint --fix ${list}`);
+    }
+    if (auditJson.length > 0) {
+      // Validate each audit JSON, naming the offending file on failure so a
+      // bad file in a multi-file stage is obvious (a bare JSON.parse throws
+      // without saying which file).
+      tasks.push(
+        `node -e "for (const file of process.argv.slice(1)) { try { JSON.parse(require('node:fs').readFileSync(file, 'utf8')); } catch (err) { console.error('Invalid JSON in ' + file + ': ' + err.message); process.exit(1); } }" ${toCommandList(auditJson)}`
+      );
+    }
+    return tasks;
   },
   '!(pnpm-lock|temper).{yml,yaml}': (files) => {
     const kept = filter(files);

@@ -106,7 +106,6 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** POLENG-008 (bench parity vs Go OPA) — executable locally
   (opa 0.60.0 + go 1.26.3 present) but a separate PR and a potential
   ADR-040-revisit trigger. Run /addressing-pr-reviews after the PR opens.
-
 ### 2026-05-25 — claude
 
 - **Task:** Close out the remaining Attribution Pipeline v3 (ATTRIB)
@@ -181,3 +180,24 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** File the `scan_buffer` wall-clock-deadline
   hardening as a new MLP2 task (candidate MLP2-051k). Run
   /addressing-pr-reviews on #1923 after CI + Copilot settle.
+
+### 2026-05-25 — opencode
+
+- **Task:** Run Clawpatch scan, Council-review the findings, and triage them
+  into GH/APS tracking.
+- **Outcome:** New audit artefact captured; GH #1926 filed; EMAIL-010 added;
+  high-severity corpus confirmed covered by GH #1826.
+- **Worked:** Treating the scan as a delta avoided duplicating the existing
+  331-finding release-council backlog while still capturing the new broadcast
+  contract bug.
+- **Failed:** `pnpm aps:active-lint` still fails on unrelated
+  `plans/modules/weave.aps.md` missing `## Work Items`.
+- **Friction:** `plans/reviews/*` was gitignored, so local Council notes under
+  that directory were invisible to normal `git status`. This PR adds a tracked
+  `.gitignore` exception (`!plans/reviews/20*-clawpatch-triage.md`) so the dated
+  Clawpatch triage note is committed as durable evidence.
+- **Improvement:** Tracked-exception pattern — keep `plans/reviews/*` ignored by
+  default and allow-list durable triage artefacts via a `!`-rule, matching the
+  existing post-merge / release-council exceptions.
+- **Follow-up:** Resolve EMAIL-010 / GH #1926 before relying on
+  preview-token-only broadcast sends.
