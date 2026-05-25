@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 68/86 |
+| MLP2 | @aneki | In Progress | 69/86 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -2611,7 +2611,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-047: Pre-push end-to-end subprocess integration tests
 
-- **Status:** In Progress
+- **Status:** Merged via PR [#1941](https://github.com/eddacraft/anvil-001/pull/1941) (2026-05-25)
 - **Intent:** Helper coverage is 40+ tests across anvil-hook
   / anvil-l4 / anvil-cli::commands::hook. The run-the-binary
   smoke pass lands here, exercising the actual subprocess
