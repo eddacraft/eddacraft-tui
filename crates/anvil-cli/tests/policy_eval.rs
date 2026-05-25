@@ -299,3 +299,22 @@ fn malformed_findings_array_is_a_hard_error() {
         "a malformed findings array must be a hard error, not a silent pass"
     );
 }
+
+#[test]
+fn malformed_findings_with_smuggled_non_object_still_errors() {
+    // POLENG-009 council C-1: a malformed findings policy must not dodge the
+    // gate by mixing a non-object element into the array. An array containing
+    // any object is findings-shaped, so this hard-errors rather than falling
+    // through to a silent raw-value exit 0.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "smuggle.rego",
+        "package arch\nimport rego.v1\nfindings := [{\"sev\": \"error\"}, null]\n",
+    );
+    let (code, _err) = eval_status(dir.path(), &[&policy, "--query", "data.arch.findings"]);
+    assert!(
+        code != 0,
+        "a mixed object/non-object findings array must hard-error, not silently pass"
+    );
+}

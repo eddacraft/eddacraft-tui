@@ -15,7 +15,7 @@ use clap::Args;
 use serde::Serialize;
 
 use anvil_policy_engine::{
-    Coverage, Engine, EngineConfig, Finding, PolicyInput, PostProcessOptions, ResultError, Trace,
+    Coverage, Engine, EngineConfig, Finding, PolicyInput, PostProcessOptions, Trace,
 };
 
 use crate::GlobalArgs;
@@ -27,11 +27,17 @@ use crate::output;
 const MAX_POLICY_BYTES: u64 = 1 << 20; // 1 MiB
 const MAX_INPUT_BYTES: u64 = 8 << 20; // 8 MiB
 
-/// Read a file, refusing it if it exceeds `max` bytes (checked via metadata
-/// before the read, so a huge file never lands in memory).
+/// Read a regular file, refusing it if it exceeds `max` bytes. The size is
+/// checked via metadata before the read so an oversized file never lands in
+/// memory. Non-regular files are rejected outright: `metadata().len()` reports
+/// 0 for `/proc` entries, FIFOs, and device files like `/dev/zero`, which would
+/// otherwise dodge the cap and hang or exhaust memory in `read_to_string`.
 fn read_capped(path: &Path, max: u64, what: &str) -> Result<String> {
     let meta =
         fs::metadata(path).with_context(|| format!("reading {what} `{}`", path.display()))?;
+    if !meta.file_type().is_file() {
+        anyhow::bail!("{what} `{}` is not a regular file", path.display());
+    }
     if meta.len() > max {
         anyhow::bail!(
             "{what} `{}` is {} bytes, over the {max}-byte limit",
@@ -131,13 +137,14 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         fail_on_warnings: args.fail_on_warnings,
     };
 
-    // An array whose elements are all objects is *intended* as findings, so a
-    // parse failure there is a broken findings policy (POLENG-009) — not a
-    // legitimate non-findings value like `["a", "b"]` or a scalar/object.
+    // An array containing *any* object is intended as findings: a list of
+    // scalars (`["a", "b"]`) is a legitimate non-findings value, but the moment
+    // an object appears the result is findings-shaped. Using `any` (not `all`)
+    // closes the bypass where a malformed-findings policy smuggles a non-object
+    // element (e.g. `[{…}, null]`) to dodge the gate.
     let looks_like_findings = matches!(
         &raw_for_pp,
-        serde_json::Value::Array(items)
-            if !items.is_empty() && items.iter().all(serde_json::Value::is_object)
+        serde_json::Value::Array(items) if items.iter().any(serde_json::Value::is_object)
     );
 
     let (findings, exit_code, value) = match anvil_policy_engine::result::post_process(
@@ -147,10 +154,13 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     ) {
         // Findings-shaped: `findings` is canonical, so drop the raw array.
         Ok(report) => (report.findings, report.exit_code, None),
-        // A malformed findings array (objects missing `message`, bad
-        // severity) must never silently pass a gate — hard error always,
-        // even without `--fail-on-warnings`.
-        Err(e) if looks_like_findings && matches!(e, ResultError::Parse(_)) => {
+        // A findings-shaped array that fails post-processing (a finding
+        // missing `message`, a bad severity, a stray non-object element) is
+        // a broken policy — hard error always, even without
+        // `--fail-on-warnings`, so it can never silently pass a gate. Any
+        // error variant counts, so a future `ResultError` can't reopen the
+        // silent-pass hole.
+        Err(e) if looks_like_findings => {
             return Err(e).with_context(|| {
                     format!(
                         "query `{}` returned a malformed findings array (each finding needs a `message`)",

@@ -243,6 +243,17 @@ mod tests {
     }
 
     #[test]
+    fn rand_intn_shadow_fires_through_an_indirect_call() {
+        // The shadow is resolved in the interpreter's call path, so it fires
+        // even when `rand.intn` is reached indirectly (here, inside an array
+        // literal) — not only as a bare top-level call.
+        assert!(
+            try_eval(false, "[rand.intn(\"s\", 10)]").is_err(),
+            "the rand.intn shadow must fire regardless of call position"
+        );
+    }
+
+    #[test]
     fn pure_stdlib_builtins_still_work() {
         // The pure subset (sprintf/count/regex/etc.) is retained.
         let out = try_eval(false, "count([1, 2, 3])").expect("pure builtin works");

@@ -14,13 +14,17 @@ anyhow = { workspace = true }
 # POLENG-009 determinism fence: drop regorus's `full-opa` bundle and enable only
 # the pure subset, removing the impure Rego stdlib builtin groups at the source
 # (`time` → time.now_ns, `uuid` → uuid.rfc4122, plus `http`/`net`/`opa-runtime`)
-# along with their deps (chrono, ipnet, uuid). `arc`+`rvm` come from the old
-# default; `coverage` backs POLENG-006. The remaining features are pure. The one
-# residual impure builtin, `rand.intn` (std-gated, not separately feature-gated),
-# is fenced at runtime in `Engine::new` — see the determinism guard there.
+# along with their deps (chrono, ipnet, uuid). `arc` (from the old default)
+# keeps extensions `Send`+`Sync`; `coverage` backs POLENG-006. `rvm` is
+# intentionally omitted: we evaluate via the tree-walking interpreter
+# (`eval_query`/`eval_rule`), and the RVM compiled path does not consult
+# registered extensions, so it would bypass the `rand.intn` shadow installed in
+# `Engine::new`. The remaining features are pure. The one residual impure
+# builtin, `rand.intn` (std-gated, not separately feature-gated), is fenced at
+# runtime there. On a regorus version bump, diff `full-opa`'s contents against
+# this set so a newly-added impure builtin group can't slip in.
 regorus = { workspace = true, features = [
   "arc",
-  "rvm",
   "std",
   "coverage",
   "base64",

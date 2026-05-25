@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 313 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 311 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1079,7 +1079,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-segmentation` | 1.13.2 | MIT License | https://github.com/unicode-rs/unicode-segmentation |
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
-| `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
@@ -1136,7 +1135,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rand_core` | 0.10.1 | MIT License | https://github.com/rust-random/rand_core |
 | `getrandom` | 0.4.2 | MIT License | https://github.com/rust-random/getrandom |
 | `unicode-truncate` | 2.0.1 | MIT License | https://github.com/Aetf/unicode-truncate |
-| `postcard` | 1.1.3 | MIT License | https://github.com/jamesmunns/postcard |
 | `slab` | 0.4.12 | MIT License | https://github.com/tokio-rs/slab |
 | `sharded-slab` | 0.1.7 | MIT License | https://github.com/hawkw/sharded-slab |
 | `matchers` | 0.2.0 | MIT License | https://github.com/hawkw/matchers |
