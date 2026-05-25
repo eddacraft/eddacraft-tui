@@ -106,3 +106,46 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** POLENG-008 (bench parity vs Go OPA) — executable locally
   (opa 0.60.0 + go 1.26.3 present) but a separate PR and a potential
   ADR-040-revisit trigger. Run /addressing-pr-reviews after the PR opens.
+
+### 2026-05-25 — claude
+
+- **Task:** Close out the remaining Attribution Pipeline v3 (ATTRIB)
+  work via /dev-workflow — multi-block acknowledgements-kit drivers +
+  hardening: ATTRIB-016 (deterministic expander wrap), -013 (Go), -014
+  (Python), -004 (bundled-binaries); defer -009; resolve -005 (CycloneDX).
+- **Outcome:** Four PRs merged to main (#1925, #1929, #1932, #1934;
+  index 10→14/16). ATTRIB-005 reconciled to Deferred with a Proposed
+  `supply-chain-attestation` module capturing the CycloneDX →
+  dependency-mapping vision. ATTRIB-009 deferred per the operator.
+- **Worked:** Per-item worktree from origin/main (reset to origin/main
+  after `wt switch` — local `main` lagged each time) + TDD + a background
+  code-reviewer agent in parallel with Copilot, resolve threads,
+  rebase-merge, APS status-flip bundled into the feature PR. The Go/
+  Python drivers cloned the ATTRIB-012 Node pattern. Network-free
+  fixtures: Go local `replace` dep; bundled-binaries inline inventory;
+  Python a real venv + a local package (only pip-licenses fetched).
+- **Failed:** Council/Copilot caught two bugs the tests missed. (1)
+  ATTRIB-004 emitted records with a `\t` separator but read them with
+  `IFS=$'\t'` — tab is an IFS whitespace class, so an omitted optional
+  field collapsed and shifted later columns; every fixture populated
+  those fields, masking it. Fix: SOH `\001` separator + a version-omitted
+  test. (2) The ATTRIB-016 test piped data into `python3 - <<'PY'`, but
+  the heredoc shadows stdin so the program read EOF; pass data via a file
+  arg, not the pipe.
+- **Friction:** `oxfmt --check` (Docs Lint + Lint & Format) formats
+  `.toml` too, not only `.md` — a prose-only README edit AND a new
+  `.toml.example` both failed CI because the pre-commit hook only runs
+  markdownlint on `*.md`. Run `pnpm run format:check` before pushing any
+  non-code text, not just markdown. The shell here is zsh: `mapfile` is
+  absent and unquoted `$var` doesn't word-split — GraphQL
+  thread-resolution loops needed `while read` over a temp file. Transient
+  `BLOCKED` mergeState while ci.yml skip-twin jobs queue on the
+  self-hosted runner is not a failure — wait, don't re-push.
+- **Improvement:** Validate task-text vs shipped-architecture before
+  coding. ATTRIB-005's "CycloneDX canonical intermediate" predated the
+  multi-block dispatcher (which marked it a non-goal), and the chosen
+  licence scanners don't emit CycloneDX — implementing it verbatim would
+  have built a rejected layer. Surfaced it; operator chose defer + the
+  SCA proposal.
+- **Follow-up:** SCA module is Proposed, gated on Anvil's graph layer
+  ingesting a dependency graph — re-open when the graphs are firing.
