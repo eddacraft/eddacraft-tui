@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 317 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 313 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1230,7 +1230,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `animate` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.0 | MIT License | https://github.com/axodotdev/axoupdater |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
-| `chrono-tz` | 0.10.4 | MIT License | https://github.com/chronotope/chrono-tz |
 | `chrono` | 0.4.44 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
@@ -1243,7 +1242,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
 | `regorus` | 0.10.0 | MIT License | https://github.com/microsoft/regorus |
-| `siphasher` | 1.0.3 | MIT License | https://github.com/jedisct1/rust-siphash |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
@@ -1320,8 +1318,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `spin` | 0.10.0 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.0 | MIT License | https://github.com/paholg/typenum |
-| `phf` | 0.12.1 | MIT License | https://github.com/rust-phf/rust-phf |
-| `phf_shared` | 0.12.1 | MIT License | https://github.com/rust-phf/rust-phf |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |

@@ -8,18 +8,39 @@
 //! `--fail-on-warnings`) non-baselined warnings exit non-zero.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Args;
 use serde::Serialize;
 
 use anvil_policy_engine::{
-    Coverage, Engine, EngineConfig, Finding, PolicyInput, PostProcessOptions, Trace,
+    Coverage, Engine, EngineConfig, Finding, PolicyInput, PostProcessOptions, ResultError, Trace,
 };
 
 use crate::GlobalArgs;
 use crate::output;
+
+/// POLENG-009 resource bound: reject oversized policy/input files before
+/// reading them into memory. The policy cap mirrors regorus's 1 MiB default;
+/// the input document may legitimately be larger (a whole repo's state).
+const MAX_POLICY_BYTES: u64 = 1 << 20; // 1 MiB
+const MAX_INPUT_BYTES: u64 = 8 << 20; // 8 MiB
+
+/// Read a file, refusing it if it exceeds `max` bytes (checked via metadata
+/// before the read, so a huge file never lands in memory).
+fn read_capped(path: &Path, max: u64, what: &str) -> Result<String> {
+    let meta =
+        fs::metadata(path).with_context(|| format!("reading {what} `{}`", path.display()))?;
+    if meta.len() > max {
+        anyhow::bail!(
+            "{what} `{}` is {} bytes, over the {max}-byte limit",
+            path.display(),
+            meta.len(),
+        );
+    }
+    fs::read_to_string(path).with_context(|| format!("reading {what} `{}`", path.display()))
+}
 
 #[derive(Debug, Args)]
 pub struct EvalArgs {
@@ -72,13 +93,11 @@ struct EvalOutput {
 
 pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     let policy_display = args.policy.display().to_string();
-    let policy_source = fs::read_to_string(&args.policy)
-        .with_context(|| format!("reading policy file `{policy_display}`"))?;
+    let policy_source = read_capped(&args.policy, MAX_POLICY_BYTES, "policy file")?;
 
     let input = match &args.input {
         Some(path) => {
-            let raw = fs::read_to_string(path)
-                .with_context(|| format!("reading input file `{}`", path.display()))?;
+            let raw = read_capped(path, MAX_INPUT_BYTES, "input file")?;
             serde_json::from_str::<PolicyInput>(&raw).with_context(|| {
                 format!("parsing `{}` as a PolicyInput document", path.display())
             })?
@@ -112,23 +131,47 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         fail_on_warnings: args.fail_on_warnings,
     };
 
-    let (findings, exit_code, value) =
-        match anvil_policy_engine::result::post_process(&raw_for_pp, &input, opts) {
-            // Findings-shaped: `findings` is canonical, so drop the raw array.
-            Ok(report) => (report.findings, report.exit_code, None),
-            // Not findings-shaped, but the user is gating on it — fail loudly
-            // rather than silently passing (exit 0) on a non-findings query.
-            Err(err) if args.fail_on_warnings => {
-                return Err(err).with_context(|| {
+    // An array whose elements are all objects is *intended* as findings, so a
+    // parse failure there is a broken findings policy (POLENG-009) — not a
+    // legitimate non-findings value like `["a", "b"]` or a scalar/object.
+    let looks_like_findings = matches!(
+        &raw_for_pp,
+        serde_json::Value::Array(items)
+            if !items.is_empty() && items.iter().all(serde_json::Value::is_object)
+    );
+
+    let (findings, exit_code, value) = match anvil_policy_engine::result::post_process(
+        &raw_for_pp,
+        &input,
+        opts,
+    ) {
+        // Findings-shaped: `findings` is canonical, so drop the raw array.
+        Ok(report) => (report.findings, report.exit_code, None),
+        // A malformed findings array (objects missing `message`, bad
+        // severity) must never silently pass a gate — hard error always,
+        // even without `--fail-on-warnings`.
+        Err(e) if looks_like_findings && matches!(e, ResultError::Parse(_)) => {
+            return Err(e).with_context(|| {
                     format!(
-                        "query `{}` is not a findings query; --fail-on-warnings needs one",
+                        "query `{}` returned a malformed findings array (each finding needs a `message`)",
                         args.query
                     )
                 });
-            }
-            // Not findings-shaped: surface the raw value, no gating.
-            Err(_) => (Vec::new(), 0, raw_value),
-        };
+        }
+        // Not findings-shaped, but the user is gating on it — fail loudly
+        // rather than silently passing (exit 0) on a non-findings query.
+        Err(e) if args.fail_on_warnings => {
+            return Err(e).with_context(|| {
+                format!(
+                    "query `{}` is not a findings query; --fail-on-warnings needs one",
+                    args.query
+                )
+            });
+        }
+        // Legitimately non-findings (a list of scalars, a scalar, an
+        // object): surface the raw value, no gating.
+        Err(_) => (Vec::new(), 0, raw_value),
+    };
 
     // Validate --why against the findings actually produced.
     if let Some(idx) = args.why

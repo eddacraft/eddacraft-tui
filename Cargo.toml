@@ -59,7 +59,10 @@ serde_yaml = "0.9"
 toml = "1"
 
 # Policy engine (ADR-040 — pinned at a committed minor version)
-regorus = "=0.10.0"
+# default-features off so the sole consumer (anvil-policy-engine) opts into a
+# pure-only feature subset for the POLENG-009 determinism fence; see that
+# crate's Cargo.toml.
+regorus = { version = "=0.10.0", default-features = false }
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }

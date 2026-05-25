@@ -18,7 +18,6 @@ description = "Internal workspace-hack crate — feature-unification only, no pu
 aho-corasick = { version = "1" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["derive", "extern_crate_alloc", "min_const_generics"] }
-chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
 console = { version = "0.16" }
@@ -48,7 +47,6 @@ slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new"] }
 thiserror = { version = "2" }
 tracing-core = { version = "0.1" }
-uuid = { version = "1", features = ["fast-rng", "v4", "v7"] }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [build-dependencies]
@@ -65,7 +63,6 @@ syn = { version = "2", features = ["extra-traits", "fold", "full", "visit", "vis
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
@@ -83,7 +80,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
@@ -102,7 +98,6 @@ errno = { version = "0.3" }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
@@ -121,7 +116,6 @@ errno = { version = "0.3" }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 libc = { version = "0.2", features = ["extra_traits"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.30", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
@@ -141,7 +135,6 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
@@ -158,7 +151,6 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-ipnet = { version = "2" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }

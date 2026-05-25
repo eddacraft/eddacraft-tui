@@ -11,8 +11,30 @@ name = "anvil_policy_engine"
 
 [dependencies]
 anyhow = { workspace = true }
-# `coverage` enables get_coverage_report (POLENG-006); not in regorus defaults.
-regorus = { workspace = true, features = ["coverage"] }
+# POLENG-009 determinism fence: drop regorus's `full-opa` bundle and enable only
+# the pure subset, removing the impure Rego stdlib builtin groups at the source
+# (`time` → time.now_ns, `uuid` → uuid.rfc4122, plus `http`/`net`/`opa-runtime`)
+# along with their deps (chrono, ipnet, uuid). `arc`+`rvm` come from the old
+# default; `coverage` backs POLENG-006. The remaining features are pure. The one
+# residual impure builtin, `rand.intn` (std-gated, not separately feature-gated),
+# is fenced at runtime in `Engine::new` — see the determinism guard there.
+regorus = { workspace = true, features = [
+  "arc",
+  "rvm",
+  "std",
+  "coverage",
+  "base64",
+  "base64url",
+  "hex",
+  "cache",
+  "glob",
+  "graph",
+  "jsonschema",
+  "regex",
+  "semver",
+  "urlquery",
+  "yaml",
+] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

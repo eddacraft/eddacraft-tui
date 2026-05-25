@@ -46,10 +46,11 @@ accidental change to the Rust struct fails CI.
 - **Deterministic.** Field order is fixed by the struct definition; collections
   preserve caller-supplied order, and the input document itself carries no
   clock, environment, or filesystem state. POLENG-004 makes Anvil's first-party
-  `anvil.*` builtins pure; note that impure Rego stdlib builtins (`time.now_ns`,
-  `rand.*`, `uuid.*`) remain reachable from policy text until POLENG-009 fences
-  them, so byte-identical evaluation is guaranteed only for policies that avoid
-  them.
+  `anvil.*` builtins pure, and POLENG-009 fences the Rego stdlib: the impure
+  builtin groups (`time`, `uuid`, `http`, `net`, `opa-runtime`) are dropped from
+  the engine's feature set and `rand.intn` is shadowed at runtime, so on a
+  default engine a policy cannot reach a non-deterministic builtin without an
+  explicit opt-in.
 - **Versioned at the root.** `schema_version` lets a policy branch defensively
   (`input.schema_version == "v1"`) and lets future revisions coexist.
 

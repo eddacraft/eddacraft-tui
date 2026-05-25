@@ -7,10 +7,18 @@
 //! [`determinism`]. Concrete builtins, post-processing, coverage/trace,
 //! CLI, and the bench harness land in POLENG-003 and POLENG-005..-008.
 
+use std::num::NonZeroU32;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
+use regorus::utils::limits::ExecutionTimerConfig;
 use regorus::{Engine as RegorusEngine, Value as RegorusValue};
 use thiserror::Error;
+
+/// Default wall-clock ceiling on a single evaluation (POLENG-009). Generous
+/// enough that real policies never hit it, tight enough that a pathological one
+/// can't hang the process. `EngineConfig::eval_timeout = None` disables it.
+const DEFAULT_EVAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub mod builtins;
 pub mod coverage;
@@ -30,18 +38,34 @@ pub use trace::Trace;
 /// Construct with struct-update syntax over [`Default`] so call sites stay
 /// source-compatible as fields are added:
 /// `EngineConfig { collect_coverage: true, ..Default::default() }`.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct EngineConfig {
-    /// Allow registering [`DeterminismClass::Impure`] builtins. Off by
-    /// default: an impure builtin forfeits the determinism guarantee
-    /// (POLENG-004), so opting in is an explicit, auditable choice.
+    /// Allow registering [`DeterminismClass::Impure`] builtins, and skip the
+    /// determinism fence on the impure Rego stdlib (POLENG-009: the `rand.intn`
+    /// shadow). Off by default: opting in forfeits the determinism guarantee,
+    /// so it is an explicit, auditable choice.
     pub allow_impure_builtins: bool,
-    /// Collect line coverage and expose it on [`EvalResult::coverage`]. Off by
+    /// Collect line coverage and expose it via [`EvalResult::coverage`]. Off by
     /// default (it adds per-eval bookkeeping); the CLI's `--explain` enables it.
     pub collect_coverage: bool,
-    /// Collect the evaluation trace and expose it on [`EvalResult::trace`]. Off
+    /// Collect the evaluation trace and expose it via [`EvalResult::trace`]. Off
     /// by default; the CLI's `--why` enables it.
     pub collect_trace: bool,
+    /// Wall-clock ceiling on a single [`Engine::eval`] (POLENG-009). `None`
+    /// disables the limit; the [`Default`] is 10 seconds, so the engine is
+    /// bounded by default.
+    pub eval_timeout: Option<Duration>,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self {
+            allow_impure_builtins: false,
+            collect_coverage: false,
+            collect_trace: false,
+            eval_timeout: Some(DEFAULT_EVAL_TIMEOUT),
+        }
+    }
 }
 
 /// Result of a single evaluation.
@@ -108,8 +132,43 @@ impl std::fmt::Debug for Engine {
 
 impl Engine {
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
+        let mut inner = RegorusEngine::new();
+
+        // POLENG-009 resource bound: cap wall-clock eval time so a pathological
+        // policy can't hang the process. `None` disables the limit.
+        if let Some(limit) = config.eval_timeout {
+            let check_interval = NonZeroU32::new(1000).expect("non-zero check interval");
+            inner.set_execution_timer_config(ExecutionTimerConfig {
+                limit,
+                check_interval,
+            });
+        }
+
+        // POLENG-009 determinism fence. The impure stdlib builtin *groups*
+        // (time/uuid/http/net/opa-runtime) are removed via the crate's regorus
+        // feature set, so a policy referencing them fails to resolve. `rand.intn`
+        // rides on the `std` feature and can't be feature-dropped, so shadow it
+        // with an extension that errors. Extensions resolve before builtins, so
+        // a policy calling `rand.intn(_, n)` fails fast — unless the caller
+        // opted into non-determinism via `allow_impure_builtins`.
+        if !config.allow_impure_builtins {
+            inner
+                .add_extension(
+                    "rand.intn".to_string(),
+                    2,
+                    Box::new(|_args: Vec<RegorusValue>| -> anyhow::Result<RegorusValue> {
+                        anyhow::bail!(
+                            "impure builtin `rand.intn` is disabled for deterministic \
+                             evaluation (POLENG-009); set \
+                             EngineConfig::allow_impure_builtins to allow it"
+                        )
+                    }),
+                )
+                .map_err(|e| EngineError::Regorus(e.to_string()))?;
+        }
+
         Ok(Self {
-            inner: RegorusEngine::new(),
+            inner,
             config,
             context: Arc::new(RwLock::new(PolicyInput::default())),
         })

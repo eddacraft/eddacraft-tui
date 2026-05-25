@@ -237,3 +237,65 @@ fn explain_includes_coverage() {
         "expected coverage in output: {json}"
     );
 }
+
+/// Helper: invoke `policy eval` raw (no JSON parse) and return the exit code +
+/// combined stderr, for cases expected to fail before producing JSON.
+fn eval_status(dir: &Path, args: &[&str]) -> (i32, String) {
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .args(["policy", "eval"])
+        .args(args)
+        .current_dir(dir)
+        .env("HOME", dir)
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("invoke anvil");
+    (
+        output.status.code().unwrap_or(-1),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn oversized_input_is_rejected() {
+    // POLENG-009 resource bound: an input file over the cap is refused before
+    // being read into memory, rather than risking an OOM.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "greet.rego",
+        "package t\nimport rego.v1\ngreeting := \"hi\"\n",
+    );
+    let big = dir.path().join("huge.json");
+    fs::write(&big, vec![b'a'; (8 << 20) + 1024]).expect("write huge input");
+
+    let (code, _err) = eval_status(
+        dir.path(),
+        &[
+            &policy,
+            "--query",
+            "data.t.greeting",
+            "--input",
+            &big.display().to_string(),
+        ],
+    );
+    assert!(code != 0, "oversized input must be rejected");
+}
+
+#[test]
+fn malformed_findings_array_is_a_hard_error() {
+    // POLENG-009 findings-parse: an array of objects missing the required
+    // `message` is a broken policy, not a non-findings value — it must error,
+    // never silently pass as exit 0.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "bad.rego",
+        "package arch\nimport rego.v1\nfindings contains f if { some _ in [1]; f := {\"sev\": \"warning\"} }\n",
+    );
+    let (code, _err) = eval_status(dir.path(), &[&policy, "--query", "data.arch.findings"]);
+    assert!(
+        code != 0,
+        "a malformed findings array must be a hard error, not a silent pass"
+    );
+}

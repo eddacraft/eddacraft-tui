@@ -11,20 +11,27 @@
 //! integration test (`tests/determinism.rs`) exercises the runtime guarantee (a
 //! representative policy evaluated 100× yields identical bytes).
 //!
-//! ## Scope — what this does *not* cover (POLENG-009)
+//! ## Scope and the stdlib fence (POLENG-009)
 //!
-//! This contract governs only the first-party `anvil.*` builtins registered
-//! through [`Builtin`]. It does **not** sandbox the Rego stdlib that policy
-//! text can call directly. `regorus` is currently built with its default
-//! features, so impure stdlib builtins — `time.now_ns()`, `rand.intn()`,
-//! `uuid.rfc4122()` — are reachable from any policy and would make its output
-//! non-reproducible. The byte-identical guarantee therefore holds for policies
-//! that use only `input`, first-party `anvil.*` builtins, and the *pure* subset
-//! of the Rego stdlib — not for arbitrary policies. Fencing the impure stdlib
-//! (feature restriction or a pre-eval deny-list) is tracked as POLENG-009.
-//! (`http.send` and `opa.runtime` env access are stubbed in regorus 0.10.0, so
-//! there is no network or secret-exfil path — this is a reproducibility gap,
-//! not a sandbox escape.)
+//! The [`Builtin`] contract above governs only the first-party `anvil.*`
+//! builtins. The Rego *stdlib* that policy text can call directly is fenced
+//! separately, two ways:
+//!
+//! 1. **Feature removal.** The crate builds `regorus` without its `full-opa`
+//!    bundle, dropping the `time` / `uuid` / `http` / `net` / `opa-runtime`
+//!    builtin groups (and their deps) entirely — a policy referencing
+//!    `time.now_ns()` or `uuid.rfc4122()` fails to resolve. See this crate's
+//!    `Cargo.toml`.
+//! 2. **Runtime shadow.** `rand.intn` rides on the `std` feature and can't be
+//!    feature-dropped, so [`crate::Engine::new`] registers an extension that
+//!    shadows it with an error — unless [`crate::EngineConfig::allow_impure_builtins`]
+//!    is set (an explicit opt-in to non-determinism).
+//!
+//! So the byte-identical guarantee holds for any policy on a default engine:
+//! impure stdlib builtins either don't resolve or error at call time, rather
+//! than silently producing non-reproducible output. (`http.send` and
+//! `opa.runtime` env access were already stubbed in regorus 0.10.0; the fence
+//! removes them outright.)
 
 /// Determinism classification every registered [`Builtin`] must declare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -178,5 +185,67 @@ mod tests {
         engine
             .register_builtin(Arc::new(WallClock))
             .expect("opted-in impure builtin should register");
+    }
+
+    /// Evaluate a one-rule policy and return whether the whole flow succeeded.
+    fn try_eval(allow_impure: bool, rule_body: &str) -> Result<Option<serde_json::Value>, ()> {
+        let mut engine = Engine::new(EngineConfig {
+            allow_impure_builtins: allow_impure,
+            ..Default::default()
+        })
+        .map_err(|_| ())?;
+        engine
+            .add_policy(
+                "t.rego",
+                format!("package t\nimport rego.v1\nx := {rule_body}\n"),
+            )
+            .map_err(|_| ())?;
+        engine
+            .eval(&PolicyInput::default(), "data.t.x")
+            .map(|r| r.value)
+            .map_err(|_| ())
+    }
+
+    #[test]
+    fn impure_stdlib_builtins_are_removed_by_features() {
+        // POLENG-009: time/uuid (and http/net/opa-runtime) are dropped from the
+        // regorus feature set, so a policy referencing them cannot evaluate.
+        assert!(
+            try_eval(false, "time.now_ns()").is_err(),
+            "time.now_ns must not resolve"
+        );
+        assert!(
+            try_eval(false, "uuid.rfc4122(\"x\")").is_err(),
+            "uuid.rfc4122 must not resolve"
+        );
+        // Even opting into impurity does not bring back a feature-removed builtin.
+        assert!(
+            try_eval(true, "time.now_ns()").is_err(),
+            "feature-removed builtins stay removed regardless of allow_impure_builtins"
+        );
+    }
+
+    #[test]
+    fn rand_intn_is_fenced_by_default_and_allowed_when_opted_in() {
+        // `rand.intn` rides on the `std` feature and can't be feature-dropped,
+        // so it is shadowed by an erroring extension on a default engine…
+        assert!(
+            try_eval(false, "rand.intn(\"seed\", 10)").is_err(),
+            "rand.intn must be fenced by default"
+        );
+        // …and reachable only when the caller opts into non-determinism.
+        let allowed = try_eval(true, "rand.intn(\"seed\", 10)")
+            .expect("rand.intn should evaluate when impurity is allowed");
+        assert!(
+            allowed.is_some_and(|v| v.is_number()),
+            "rand.intn should yield a number when opted in"
+        );
+    }
+
+    #[test]
+    fn pure_stdlib_builtins_still_work() {
+        // The pure subset (sprintf/count/regex/etc.) is retained.
+        let out = try_eval(false, "count([1, 2, 3])").expect("pure builtin works");
+        assert_eq!(out, Some(serde_json::json!(3)));
     }
 }

@@ -321,7 +321,7 @@ post-rust engine question. POLENG is the answer.
 
 ### POLENG-009: Engine hardening — determinism fence, resource bounds, findings-parse
 
-- **Status:** Proposed
+- **Status:** In Progress (2026-05-25)
 - **Intent:** Close the three MUST-FIX findings from the POLENG full council
   (2026-05-25) before downstream consumers (CPACKS/POLFED/OPAE) or
   less-trusted policy sources build on the engine. Two seats independently
@@ -368,3 +368,15 @@ post-rust engine question. POLENG is the answer.
 - **Source:** POLENG full council, 2026-05-25 (security + adversarial +
   general seats converged on the determinism overclaim; verified against the
   regorus 0.10.0 source).
+- **Implemented (2026-05-25):** (1) Determinism fence — the workspace builds
+  `regorus` with `default-features = false`; the crate enables only the pure
+  subset, removing the `time`/`uuid`/`http`/`net`/`opa-runtime` builtin groups
+  and their deps (ACKNOWLEDGEMENTS 317→313 crates), and `Engine::new` shadows
+  the std-gated `rand.intn` with an erroring extension unless
+  `allow_impure_builtins`. (2) Resource bounds — `EngineConfig::eval_timeout`
+  (default 10s) wires `set_execution_timer_config`; the CLI caps policy (1 MiB)
+  and input (8 MiB) file sizes. (3) Findings-parse — the CLI hard-errors on a
+  malformed findings array (array of objects that fails to parse) while still
+  surfacing a legitimately non-findings array (`["a", "b"]`) as a raw value.
+  Tests: `determinism::tests` impure-removed / rand-fenced / pure-works;
+  `policy_eval` oversized-input + malformed-findings.
