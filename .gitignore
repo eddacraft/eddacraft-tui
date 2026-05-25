@@ -199,3 +199,9 @@ scripts/dbcon/*.csv
 
 # Local scratch — drafts, throwaway notes, intermediate artefacts
 .scratch/
+
+# APSCAN-007: canonical `anvil-plan-spec` CLI generates context packages
+# under `.aps/context/<ID>.md` when `aps start <work-item>` runs. Treat as
+# safe-to-regenerate cache output; the durable issues/questions surface is
+# `plans/issues.md`.
+.aps/

@@ -195,7 +195,7 @@ Migrate in waves:
 
 ### APSCAN-007: Add canonical issues tracker and context package support
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Support canonical `plans/issues.md` and `.aps/context/<ID>.md`
   surfaces without disrupting Anvil's existing review and release records.
 - **Expected Outcome:** New planning-level discoveries can be logged as `ISS-NNN`
