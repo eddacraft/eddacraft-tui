@@ -44,8 +44,12 @@ accidental change to the Rust struct fails CI.
   against `undefined` on `input.repo_state`, `input.diff`, etc. Optional _leaf_
   fields (`PlanFile.id`, `DecisionEntry.title`) are omitted when absent.
 - **Deterministic.** Field order is fixed by the struct definition; collections
-  preserve caller-supplied order. No clock, environment, or filesystem state
-  leaks into the document (POLENG-004 enforces this engine-wide).
+  preserve caller-supplied order, and the input document itself carries no
+  clock, environment, or filesystem state. POLENG-004 makes Anvil's first-party
+  `anvil.*` builtins pure; note that impure Rego stdlib builtins (`time.now_ns`,
+  `rand.*`, `uuid.*`) remain reachable from policy text until POLENG-009 fences
+  them, so byte-identical evaluation is guaranteed only for policies that avoid
+  them.
 - **Versioned at the root.** `schema_version` lets a policy branch defensively
   (`input.schema_version == "v1"`) and lets future revisions coexist.
 

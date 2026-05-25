@@ -1,18 +1,30 @@
 //! Determinism contract (POLENG-004).
 //!
-//! Anvil policy evaluation must be reproducible: the same policy over the same
-//! [`crate::PolicyInput`] always produces byte-identical output. That holds
-//! only if every data source a policy can reach is itself deterministic. This
-//! module makes that a *declared* property of each builtin and lets the engine
-//! refuse anything that isn't.
+//! Anvil's *own* data sources must be reproducible: a builtin's output is a
+//! pure function of its arguments and the policy [`crate::PolicyInput`]. This
+//! module makes that a *declared, type-enforced* property rather than a lint:
+//! [`Builtin`] requires a [`DeterminismClass`] via [`Builtin::determinism`], so
+//! a builtin cannot be written — let alone registered — without declaring its
+//! class, and [`crate::Engine::register_builtin`] rejects an
+//! [`DeterminismClass::Impure`] builtin unless the engine was explicitly
+//! configured to allow one. The end-to-end `repeatable_eval` integration test
+//! exercises the runtime guarantee (a representative policy evaluated 100×
+//! yields identical bytes).
 //!
-//! The guarantee is enforced by the type system, not a lint: [`Builtin`]
-//! requires a [`DeterminismClass`] via [`Builtin::determinism`], so a builtin
-//! cannot be written — let alone registered — without declaring its class.
-//! [`crate::Engine::register_builtin`] then rejects an [`DeterminismClass::Impure`]
-//! builtin unless the engine was explicitly configured to allow one. The
-//! end-to-end `repeatable_eval` integration test exercises the runtime
-//! guarantee (a representative policy evaluated 100× yields identical bytes).
+//! ## Scope — what this does *not* cover (POLENG-009)
+//!
+//! This contract governs only the first-party `anvil.*` builtins registered
+//! through [`Builtin`]. It does **not** sandbox the Rego stdlib that policy
+//! text can call directly. `regorus` is currently built with its default
+//! features, so impure stdlib builtins — `time.now_ns()`, `rand.intn()`,
+//! `uuid.rfc4122()` — are reachable from any policy and would make its output
+//! non-reproducible. The byte-identical guarantee therefore holds for policies
+//! that use only `input`, first-party `anvil.*` builtins, and the *pure* subset
+//! of the Rego stdlib — not for arbitrary policies. Fencing the impure stdlib
+//! (feature restriction or a pre-eval deny-list) is tracked as POLENG-009.
+//! (`http.send` and `opa.runtime` env access are stubbed in regorus 0.10.0, so
+//! there is no network or secret-exfil path — this is a reproducibility gap,
+//! not a sandbox escape.)
 
 /// Determinism classification every registered [`Builtin`] must declare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
