@@ -289,6 +289,7 @@ function validateLeafStructure(content: string, filePath: string, issues: Valida
 
   let hasH1 = false;
   let hasTasksSection = false;
+  let inTasksSection = false;
   let tasksLineNumber = 0;
   let hasTaskEntries = false;
 
@@ -302,12 +303,13 @@ function validateLeafStructure(content: string, filePath: string, issues: Valida
         text += textNode.value;
       });
 
-      if (isTaskSectionTitle(text)) {
+      inTasksSection = isTaskSectionTitle(text);
+      if (inTasksSection) {
         hasTasksSection = true;
         tasksLineNumber = node.position?.start.line ?? 0;
       }
     }
-    if (node.depth === 3 && hasTasksSection) {
+    if (node.depth === 3 && inTasksSection) {
       hasTaskEntries = true;
     }
   });

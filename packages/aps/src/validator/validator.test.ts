@@ -28,6 +28,17 @@ describe('validatePlanningDoc', () => {
       expect(result.warnings.some((w) => w.rule === 'missing-expected-outcome')).toBe(false);
     });
 
+    it('should warn when Work Items has no task entries before the next section', async () => {
+      const result = await validatePlanningDoc(join(fixturesDir, 'empty-work-items.aps.md'));
+
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some(
+          (w) => w.rule === 'required-sections' && w.message.includes('no task entries')
+        )
+      ).toBe(true);
+    });
+
     it('should validate a valid index file with linked modules', async () => {
       const result = await validatePlanningDoc(join(fixturesDir, 'valid-index.aps.md'));
 
