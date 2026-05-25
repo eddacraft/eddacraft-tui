@@ -533,8 +533,10 @@ ecosystem      = "bundled-binaries"
 inventory_path = "bundled-binaries.toml"
 ```
 
-There is **no external tool** — the driver is pure bash/awk over the inventory.
-Its "strict" step is field validation: an entry missing `name` or `spdx` fails
+There is **no ecosystem-specific external tool** — the driver is pure bash/awk
+over the inventory (it shares the dispatcher's `jq` requirement for parsing the
+block config, but needs no licence scanner). Its "strict" step is field
+validation: an entry missing `name` or `spdx` fails
 the gate, named, before render. Render is a deterministic
 `| Binary | Version | License | Source |` table sorted by name. The curator owns
 licence correctness (there is no upstream scanner to cross-check). If you ship

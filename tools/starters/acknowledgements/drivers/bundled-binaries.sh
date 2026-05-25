@@ -51,6 +51,13 @@ inventory_path="$(printf '%s' "$config_json" | jq -er '.inventory_path // empty'
   echo "drivers/bundled-binaries.sh: block is missing required key 'inventory_path'" >&2
   exit 1
 }
+# jq emits "" (exit 0) for a present-but-empty value; treat that as the
+# same config error rather than letting it fall through to a blank-path
+# "does not exist".
+if [ -z "$inventory_path" ]; then
+  echo "drivers/bundled-binaries.sh: block key 'inventory_path' is empty" >&2
+  exit 1
+fi
 
 if [ ! -f "$inventory_path" ]; then
   echo "drivers/bundled-binaries.sh: inventory_path does not exist: $inventory_path" >&2
@@ -70,9 +77,18 @@ trap 'rm -f "$records" "$parse_err"' EXIT
 
 if ! awk '
   function strip(v) {
-    sub(/^[^=]*=[[:space:]]*/, "", v)
-    sub(/[[:space:]]*$/, "", v)
-    sub(/^"/, "", v); sub(/"$/, "", v)
+    sub(/^[^=]*=[[:space:]]*/, "", v)        # drop "key ="
+    if (v ~ /^"/) {
+      # Basic string: take the content between the opening quote and the
+      # next quote, discarding any trailing inline `# comment`. (Single-
+      # line basic strings only; escaped quotes are not expected in this
+      # schema — names/versions/SPDX/URLs.)
+      sub(/^"/, "", v)
+      sub(/".*$/, "", v)
+    } else {
+      sub(/[[:space:]]*#.*$/, "", v)         # bare value: drop inline comment
+      sub(/[[:space:]]+$/, "", v)            # and trailing whitespace
+    }
     gsub(/\\"/, "\"", v)
     return v
   }
@@ -114,11 +130,17 @@ if [ ! -s "$records" ]; then
 fi
 
 # ── Render — sorted by name for deterministic output ─────────────────
+# Escape any literal `|` in a cell so a curated value can't break the
+# markdown table. (The awk parser already guarantees single-line values,
+# so no newline normalisation is needed.)
+md_cell() { local s="$1"; printf '%s' "${s//|/\\|}"; }
 {
   echo "| Binary | Version | License | Source |"
   echo "|---|---|---|---|"
   LC_ALL=C sort "$records" | while IFS=$'\t' read -r name version spdx source; do
-    printf '| %s | %s | %s | %s |\n' "$name" "${version:-—}" "$spdx" "${source:-—}"
+    printf '| %s | %s | %s | %s |\n' \
+      "$(md_cell "$name")" "$(md_cell "${version:-—}")" \
+      "$(md_cell "$spdx")" "$(md_cell "${source:-—}")"
   done
 } >"$output_path"
 

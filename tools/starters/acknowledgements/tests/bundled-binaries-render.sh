@@ -47,6 +47,15 @@ name = "FFmpeg"
 version = "7.0"
 spdx = "LGPL-2.1-or-later"
 source = "https://ffmpeg.org/"
+
+# Mosh: exercises an inline `# comment` after a value (must not corrupt
+# the parsed value) and a literal `|` in a cell (must be escaped so it
+# can't break the markdown table).
+[[binary]]
+name = "Mosh"
+version = "1.4.0"  # latest stable as of bundling
+spdx = "GPL-3.0-or-later"
+source = "https://mosh.org/ | mirror"
 EOF
 
 cat >"$fixture_root/attribution.toml" <<EOF
@@ -102,6 +111,20 @@ ff_line=$(printf '%s' "$block_body" | grep -nE 'FFmpeg' | head -1 | cut -d: -f1)
 os_line=$(printf '%s' "$block_body" | grep -nE 'OpenSSH' | head -1 | cut -d: -f1)
 if [ -z "$ff_line" ] || [ -z "$os_line" ] || [ "$ff_line" -ge "$os_line" ]; then
   echo "fail: binaries not sorted ascending by name (FFmpeg=$ff_line OpenSSH=$os_line)" >&2
+  exit 1
+fi
+
+# Inline comment must not corrupt the value: Mosh's version is exactly
+# "1.4.0", not "1.4.0  # latest…".
+if ! printf '%s' "$block_body" | grep -qE 'Mosh.*\| 1\.4\.0 \|.*GPL-3\.0-or-later'; then
+  echo "fail: Mosh row mis-parsed (inline comment leaked into the value?)" >&2
+  echo "body: $block_body" >&2
+  exit 1
+fi
+# A literal `|` in a cell must be escaped so it can't break the table.
+if ! printf '%s' "$block_body" | grep -qF 'https://mosh.org/ \| mirror'; then
+  echo "fail: literal pipe in the source cell was not escaped" >&2
+  echo "body: $block_body" >&2
   exit 1
 fi
 
