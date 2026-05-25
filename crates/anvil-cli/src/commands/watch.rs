@@ -442,11 +442,17 @@ fn build_action_command(
     cmd.arg(action);
     // `anvil check` requires an explicit file scope or it exits with
     // "No files specified" — so a bare `check` dispatch would fail every
-    // cycle and never scan. Scope it to the working-tree changes (the file
-    // just saved is part of that set), mirroring what `anvil gate` does
-    // internally via git status. `gate` self-scopes, so it needs no flag.
+    // cycle and never scan. Use `--all` rather than `--changed`: `--changed`
+    // is git-diff based, so it bails outside a git repo and skips untracked
+    // files — a freshly-created file you just saved would be silently
+    // unscanned, reintroducing the false-assurance #1913 set out to remove.
+    // `--all` walks the filesystem, so it covers untracked/new files and
+    // works without git. (Scoping to exactly the watcher's changed paths —
+    // which would also honour the watch's own `--file`/`--patterns` scope —
+    // needs the kernel to surface changed paths to the dispatcher; tracked as
+    // a follow-up.) `gate` self-scopes via git status, so it needs no flag.
     if action == "check" {
-        cmd.arg("--changed");
+        cmd.arg("--all");
     }
     if json {
         cmd.arg("--json");
@@ -1477,15 +1483,17 @@ mod tests {
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(args, vec![std::ffi::OsStr::new("gate")]);
 
-        // `check` MUST carry a file scope (`--changed`) or it bails with
+        // `check` MUST carry a file scope (`--all`) or it bails with
         // "No files specified" and never scans (GH #1913 / council F-001).
+        // `--all` (not `--changed`) so untracked/new files and non-git repos
+        // are still scanned (Copilot review on #1933).
         let cmd = build_action_command(&exe, "check", &ws, true, true, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
             vec![
                 std::ffi::OsStr::new("check"),
-                std::ffi::OsStr::new("--changed"),
+                std::ffi::OsStr::new("--all"),
                 std::ffi::OsStr::new("--json"),
                 std::ffi::OsStr::new("--no-tui"),
             ]
@@ -1493,18 +1501,15 @@ mod tests {
     }
 
     #[test]
-    fn build_action_command_scopes_check_to_changed_even_plain() {
+    fn build_action_command_scopes_check_to_all_even_plain() {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/project");
         let cmd = build_action_command(&exe, "check", &ws, false, false, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
-            vec![
-                std::ffi::OsStr::new("check"),
-                std::ffi::OsStr::new("--changed")
-            ],
-            "bare check dispatch must include --changed so it actually scans"
+            vec![std::ffi::OsStr::new("check"), std::ffi::OsStr::new("--all")],
+            "bare check dispatch must include --all so it scans (incl. untracked)"
         );
     }
 

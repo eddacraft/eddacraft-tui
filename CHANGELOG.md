@@ -10,11 +10,11 @@ engineering maintenance are recorded in the
 
 ### Changed
 
-- `anvil watch` now runs code-quality checks (`anvil check` over the
-  working-tree changes) on each save by default. Previously a bare `anvil watch`
-  watched architecture and dependency edges only and ran no code-quality scan,
-  while the dashboard still read as "100% pass" — protection it was not
-  providing ([#1913](https://github.com/eddacraft/anvil-001/issues/1913)). Run
+- `anvil watch` now runs code-quality checks (`anvil check --all`) on each save
+  by default. Previously a bare `anvil watch` watched architecture and
+  dependency edges only and ran no code-quality scan, while the dashboard still
+  read as "100% pass" — protection it was not providing
+  ([#1913](https://github.com/eddacraft/anvil-001/issues/1913)). Run
   `anvil watch --action none` to restore the architecture/dependency-only watch.
   `anvil start --watch` is unchanged (remains architecture-only).
 
