@@ -6,7 +6,7 @@ Date: 2026-05-22
 Module: `ATTRIB` (sharpens ATTRIB-008 and adds ATTRIB-012/013/014/015)
 Status: Ready
 Coordinates with:
-[`plans/modules/attribution-pipeline-v3.aps.md`](../modules/attribution-pipeline-v3.aps.md),
+[`plans/archive/modules/attribution-pipeline-v3.aps.md`](../archive/modules/attribution-pipeline-v3.aps.md),
 [`tools/starters/acknowledgements/README.md`](../../tools/starters/acknowledgements/README.md)
 
 ## Goal
@@ -372,7 +372,7 @@ attribution surface.
 
 ## Cross-references
 
-- Module: [`attribution-pipeline-v3.aps.md`](../modules/attribution-pipeline-v3.aps.md)
+- Module: [`attribution-pipeline-v3.aps.md`](../archive/modules/attribution-pipeline-v3.aps.md)
 - Current kit README:
   [`tools/starters/acknowledgements/README.md`](../../tools/starters/acknowledgements/README.md)
 - Existing generator:

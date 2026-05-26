@@ -177,7 +177,7 @@ affects install commands, supported targets, or project status.
 ### Pre-release: third-party attribution (ATTRIB)
 
 Owned by the
-[`attribution-pipeline-v3`](../../plans/modules/attribution-pipeline-v3.aps.md)
+[`attribution-pipeline-v3`](../../plans/archive/modules/attribution-pipeline-v3.aps.md)
 module. Both checks below are wired into the `Acknowledgements freshness` job in
 CI, so a passing PR pipeline already proves them — but run them locally before
 tagging so a stale lockfile surfaces here rather than in the CI fast-fail.

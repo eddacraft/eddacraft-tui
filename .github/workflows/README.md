@@ -271,7 +271,7 @@ force-resync. A ref-guard step refuses to run on anything other than
 scoped to the mirror repo, `Contents: Read and write`); deploy keys are disabled
 at the eddacraft org level. The mirror repo is read-only by policy — canonical
 edits land here, the workflow force-pushes the subtree split. See
-`plans/modules/attribution-pipeline-v3.aps.md` (ATTRIB-011) and
+`plans/archive/modules/attribution-pipeline-v3.aps.md` (ATTRIB-011) and
 `plans/execution/ATTRIB-011.steps.md`.
 
 ### `mirror-eddacraft-tui.yml`

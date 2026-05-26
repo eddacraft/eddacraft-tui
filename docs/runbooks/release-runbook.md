@@ -66,7 +66,7 @@ graph and that every workspace crate has a `license` / `license-file` field
 `deny.toml.[licenses].allow` are in sync with the canonical `licences.toml`
 (ATTRIB-006). Source of truth for licences is `licences.toml`; both consumer
 arrays are regenerated from it. See the
-[`attribution-pipeline-v3`](../../plans/modules/attribution-pipeline-v3.aps.md)
+[`attribution-pipeline-v3`](../../plans/archive/modules/attribution-pipeline-v3.aps.md)
 module for design history and the
 [release doc checklist](../guides/release-doc-checklist.md#pre-release-third-party-attribution-attrib)
 for the per-release tick-box.

@@ -12,7 +12,7 @@
 ## Purpose
 
 Capture (not yet build) the initiative that the
-[`attribution-pipeline-v3`](./attribution-pipeline-v3.aps.md) module
+[`attribution-pipeline-v3`](../archive/modules/attribution-pipeline-v3.aps.md) module
 deliberately scoped out: turning Anvil's dependency footprint into a
 machine-readable, graph-queryable, policy-gated artefact rather than
 only human-readable attribution markdown.

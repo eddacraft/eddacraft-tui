@@ -3,11 +3,20 @@
 
 # Attribution Pipeline v3
 
-| ID     | Owner      | Status      |
-| ------ | ---------- | ----------- |
-| ATTRIB | joshuaboys | In Progress |
+| ID     | Owner      | Status   |
+| ------ | ---------- | -------- |
+| ATTRIB | joshuaboys | Complete |
 
-**Last reviewed:** 2026-05-25
+**Last reviewed:** 2026-05-26 · **Archived:** 2026-05-26
+
+**Release evidence:** All anvil-code work items (ATTRIB-001..-004, -006..-008,
+-010..-016) shipped in **`v0.7.2-beta`** (tagged 2026-05-25). ATTRIB-009 (the
+`little-termi` adoption) shipped cross-repo via
+[joshuaboys/little-termi#39](https://github.com/joshuaboys/little-termi/pull/39).
+ATTRIB-005 (CycloneDX) was deferred and rehomed to the proposed
+`supply-chain-attestation` module, so it is resolved-by-relocation rather than
+outstanding. Nothing within ATTRIB's scope remains open; the module is archived
+to `plans/archive/modules/`.
 
 ## Purpose
 
@@ -280,7 +289,7 @@ script and per-language structure are superseded by ATTRIB-002/003/008.
 - **Status:** Deferred (2026-05-25) — re-open under the `supply-chain-attestation` module
 - **Intent (original):** Add CycloneDX as the canonical inter-ecosystem format; two generator modes (CycloneDX merge + direct).
 - **Why deferred (not built):** The original framing predates the multi-block dispatcher (ATTRIB-008) that actually shipped. That architecture (v3.2 spec, explicit non-goal: "CycloneDX SBOM as the canonical intermediate ... stays queued as an alternative per-block `tool=` option") already achieves multi-ecosystem attribution by splicing per-block markdown — no canonical-merge layer is needed for *attribution*. Two further facts make building it here wrong: (1) the chosen licence tools (`license-checker`, `go-licenses`, `pip-licenses`) do **not** emit CycloneDX — a canonical-CycloneDX design would require swapping them for `cyclonedx-npm`/`cyclonedx-gomod`/`cyclonedx-py` plus a bash/jq SBOM-merge engine, for identical markdown output; (2) CycloneDX's real payoff (SBOM publication, **dependency mapping into Anvil's graph/witness layer**, new-edges-only policy gating over the dep graph, SLSA/vuln correlation) is a supply-chain *initiative*, out of scope for this attribution module.
-- **Re-scope:** CycloneDX is reserved as (a) a future per-block `tool=cyclonedx-*` driver variant if a consumer needs SBOM output, and (b) the structured intermediate for the proposed **`supply-chain-attestation`** module (dependency mapping, provenance, policy gating). Re-open there once Anvil's graph infrastructure is ready to consume a dependency graph. See [`plans/modules/supply-chain-attestation.aps.md`](./supply-chain-attestation.aps.md) (Proposed).
+- **Re-scope:** CycloneDX is reserved as (a) a future per-block `tool=cyclonedx-*` driver variant if a consumer needs SBOM output, and (b) the structured intermediate for the proposed **`supply-chain-attestation`** module (dependency mapping, provenance, policy gating). Re-open there once Anvil's graph infrastructure is ready to consume a dependency graph. See [`plans/modules/supply-chain-attestation.aps.md`](../../modules/supply-chain-attestation.aps.md) (Proposed).
 
 ### ATTRIB-006: Single-source-of-truth licence allow-list
 
