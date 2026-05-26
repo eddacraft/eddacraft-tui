@@ -354,14 +354,11 @@ fn show_workflow_picker(
         .max(candidates.len());
 
     for workflow in candidates {
-        picker = picker.option(
-            DemandOption::new(*workflow)
-                .label(&workflow.label(root))
-                .selected(true),
-        );
+        let label = workflow.label(root);
+        picker = picker.option(DemandOption::new(*workflow).label(&label).selected(true));
     }
 
-    let _raw_guard = WorkflowRawModeGuard;
+    let _raw_guard = WorkflowRawModeCleanupGuard;
     match picker.run() {
         Ok(workflows) => Ok(workflows),
         Err(e) if e.kind() == std::io::ErrorKind::Interrupted => Ok(Vec::new()),
@@ -369,8 +366,8 @@ fn show_workflow_picker(
     }
 }
 
-struct WorkflowRawModeGuard;
-impl Drop for WorkflowRawModeGuard {
+struct WorkflowRawModeCleanupGuard;
+impl Drop for WorkflowRawModeCleanupGuard {
     fn drop(&mut self) {
         let _ = crossterm::terminal::disable_raw_mode();
     }
@@ -392,6 +389,7 @@ fn install_selected_workflows(
 ) -> std::io::Result<Vec<PathBuf>> {
     let workflows_dir = root.join(".github").join("workflows");
     let mut written = Vec::new();
+    let mut workflows_dir_created = false;
 
     for workflow in selected {
         let target = workflow.target_path(root);
@@ -399,8 +397,11 @@ fn install_selected_workflows(
             continue; // Idempotent — never clobber an existing file.
         }
         refuse_workflow_parent_symlinks(root)?;
-        std::fs::create_dir_all(&workflows_dir)?;
-        refuse_workflow_parent_symlinks(root)?;
+        if !workflows_dir_created {
+            std::fs::create_dir_all(&workflows_dir)?;
+            refuse_workflow_parent_symlinks(root)?;
+            workflows_dir_created = true;
+        }
         if existing_workflow_target(&target)? {
             continue;
         }
