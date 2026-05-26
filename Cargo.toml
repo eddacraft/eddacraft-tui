@@ -128,14 +128,20 @@ missing_panics_doc = "allow"
 [profile.release]
 lto = true
 codegen-units = 1
-panic = "abort"
+# panic = "unwind" (ADR-051). `anvil` processes untrusted input (policies, repo
+# content) and `anvil policy eval` is a machine-parsed CI gate; a regorus
+# internal panic on an adversarial/malformed policy must unwind to a
+# `catch_unwind` guard at the policy-engine facade (mapping it to a structured
+# error + non-zero exit) instead of aborting with no diagnostics. This was
+# `panic = "abort"`; abort is the wrong fit for untrusted-input tooling whose
+# output is parsed. `catch_unwind` is a no-op under abort, so unwind is load-
+# bearing for that guard.
+panic = "unwind"
 
-# Profile for the napi-rs binding crate. Inherits release, but overrides
-# panic=unwind so a panic in the scanner returns to the napi FFI boundary
-# (where catch_unwind maps it to a JS exception) instead of aborting the
-# host Node process. The CLI binary stays on the abort profile — abort is
-# correct there because the binary owns its own process and a panic is
-# acceptable to terminate it.
+# Profile for the napi-rs binding crate. Inherits release; `panic = "unwind"`
+# is kept explicit (the binding relies on it so a scanner panic returns to the
+# napi FFI boundary and maps to a JS exception rather than aborting the host
+# Node process — the same boundary discipline ADR-051 generalises to the CLI).
 [profile.release-napi]
 inherits = "release"
 panic = "unwind"

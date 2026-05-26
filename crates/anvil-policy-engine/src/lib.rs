@@ -8,6 +8,7 @@
 //! CLI, and the bench harness land in POLENG-003 and POLENG-005..-008.
 
 use std::num::NonZeroU32;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -115,6 +116,18 @@ pub enum EngineError {
     PostProcess(#[from] ResultError),
 }
 
+/// Best-effort message from a `catch_unwind` payload. `panic!` carries a
+/// `&'static str` (literal) or a `String` (formatted); anything else is opaque.
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "opaque panic payload".to_string()
+    }
+}
+
 pub struct Engine {
     inner: RegorusEngine,
     config: EngineConfig,
@@ -122,6 +135,11 @@ pub struct Engine {
     /// closures so a data-source builtin (e.g. `anvil.repo_state()`) can read
     /// it. Refreshed at the start of every [`Engine::eval`].
     context: Arc<RwLock<PolicyInput>>,
+    /// Set once a regorus call panics under [`Engine::guard`] (CIB-018).
+    /// regorus 0.10 is a single-vendor crate with internal `unwrap`/`expect`;
+    /// a panic mid-evaluation may leave its state inconsistent, so once one is
+    /// caught the engine refuses further calls rather than risk acting on it.
+    poisoned: bool,
 }
 
 impl std::fmt::Debug for Engine {
@@ -171,7 +189,50 @@ impl Engine {
             inner,
             config,
             context: Arc::new(RwLock::new(PolicyInput::default())),
+            poisoned: false,
         })
+    }
+
+    /// Run a regorus call under `catch_unwind` (CIB-018).
+    ///
+    /// regorus 0.10 has internal `unwrap`/`expect` paths; an adversarial or
+    /// malformed policy can panic deep inside `add_policy`/`eval_query`. Without
+    /// this guard that panic unwinds out of the `anvil` process and aborts it
+    /// with no `--json` error envelope, breaking any pipeline parsing the
+    /// output. Convert the panic into [`EngineError::Regorus`] and poison the
+    /// engine, since regorus state may be inconsistent after a partial unwind.
+    ///
+    /// `AssertUnwindSafe` is sound here precisely *because* of the poison flag:
+    /// after a caught panic the engine never exposes `inner` to a caller again
+    /// (every subsequent call hits the poison check first), so a broken
+    /// invariant inside `inner` cannot be observed.
+    ///
+    /// Note this is only effective under `panic = "unwind"`; the binary builds
+    /// with it for exactly this reason (ADR-051). Under `panic = "abort"` the
+    /// process aborts before this `catch_unwind` runs.
+    fn guard<T>(
+        &mut self,
+        what: &str,
+        f: impl FnOnce(&mut RegorusEngine) -> Result<T, EngineError>,
+    ) -> Result<T, EngineError> {
+        if self.poisoned {
+            return Err(EngineError::Regorus(format!(
+                "engine is unusable after a previously caught panic; cannot run {what}"
+            )));
+        }
+        let inner = &mut self.inner;
+        // The closure keeps its own error mapping (so `Input` vs `Regorus`
+        // classification is preserved); `guard` only adds the panic catch.
+        match panic::catch_unwind(AssertUnwindSafe(|| f(inner))) {
+            Ok(result) => result,
+            Err(payload) => {
+                self.poisoned = true;
+                Err(EngineError::Regorus(format!(
+                    "regorus panicked during {what}: {}",
+                    panic_payload_message(payload.as_ref())
+                )))
+            }
+        }
     }
 
     /// Register a first-party [`Builtin`] under its Rego call path.
@@ -193,37 +254,37 @@ impl Engine {
         // context and bridges `regorus::Value` to/from `serde_json::Value` so
         // the builtin never touches `regorus`.
         let context = Arc::clone(&self.context);
-        self.inner
-            .add_extension(
-                name,
-                arity,
-                Box::new(
-                    move |args: Vec<RegorusValue>| -> anyhow::Result<RegorusValue> {
-                        let json_args: Vec<serde_json::Value> = args
-                            .iter()
-                            .map(serde_json::to_value)
-                            .collect::<Result<_, _>>()?;
-                        let input = context
-                            .read()
-                            .map_err(|_| anyhow::Error::msg("policy input lock poisoned"))?;
-                        let out = builtin
-                            .call(&input, &json_args)
-                            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-                        // `RegorusValue::from(serde_json::Value)` silently maps
-                        // a non-representable value to `Undefined`; convert
-                        // explicitly so a builtin bug surfaces as an error
-                        // instead of a phantom `undefined` in the policy.
-                        serde_json::from_value::<RegorusValue>(out).map_err(|e| {
-                            anyhow::Error::msg(format!(
-                                "builtin `{}` produced a value regorus cannot represent: {e}",
-                                builtin.name()
-                            ))
-                        })
-                    },
-                ),
-            )
-            .map_err(|e| EngineError::Regorus(e.to_string()))?;
-        Ok(())
+        let extension = Box::new(
+            move |args: Vec<RegorusValue>| -> anyhow::Result<RegorusValue> {
+                let json_args: Vec<serde_json::Value> = args
+                    .iter()
+                    .map(serde_json::to_value)
+                    .collect::<Result<_, _>>()?;
+                let input = context
+                    .read()
+                    .map_err(|_| anyhow::Error::msg("policy input lock poisoned"))?;
+                let out = builtin
+                    .call(&input, &json_args)
+                    .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+                // `RegorusValue::from(serde_json::Value)` silently maps a
+                // non-representable value to `Undefined`; convert explicitly so
+                // a builtin bug surfaces as an error instead of a phantom
+                // `undefined` in the policy.
+                serde_json::from_value::<RegorusValue>(out).map_err(|e| {
+                    anyhow::Error::msg(format!(
+                        "builtin `{}` produced a value regorus cannot represent: {e}",
+                        builtin.name()
+                    ))
+                })
+            },
+        );
+        // Guarded: registration is a `pub` method callable after `eval`, and
+        // `add_extension` is a regorus call like any other (CIB-018).
+        self.guard("register_builtin", move |inner| {
+            inner
+                .add_extension(name, arity, extension)
+                .map_err(|e| EngineError::Regorus(e.to_string()))
+        })
     }
 
     /// Register a Rego policy module with the engine.
@@ -236,37 +297,50 @@ impl Engine {
         path: impl Into<String>,
         source: impl Into<String>,
     ) -> Result<(), EngineError> {
-        self.inner
-            .add_policy(path.into(), source.into())
-            .map_err(|e| EngineError::Regorus(e.to_string()))?;
-        Ok(())
+        let (path, source) = (path.into(), source.into());
+        self.guard("add_policy", move |inner| {
+            inner
+                .add_policy(path, source)
+                .map(|_| ()) // regorus returns the package path; we don't need it
+                .map_err(|e| EngineError::Regorus(e.to_string()))
+        })
     }
 
     /// Evaluate a Rego query against the loaded policies and the given input.
     pub fn eval(&mut self, input: &PolicyInput, query: &str) -> Result<EvalResult, EngineError> {
         let input_json =
             serde_json::to_string(input).map_err(|e| EngineError::Input(e.to_string()))?;
-        self.inner
-            .set_input_json(&input_json)
-            .map_err(|e| EngineError::Input(e.to_string()))?;
+        self.guard("set_input_json", |inner| {
+            inner
+                .set_input_json(&input_json)
+                .map_err(|e| EngineError::Input(e.to_string()))
+        })?;
 
         // Refresh the shared context builtins read from. Cloning keeps the
         // borrow self-contained; `input` documents are small policy fixtures.
+        // Reached only after `set_input_json` succeeded; on its failure/panic we
+        // returned above (poisoned), so the context is never left half-updated.
         *self
             .context
             .write()
             .map_err(|_| EngineError::Input("policy input lock poisoned".into()))? = input.clone();
 
         if self.config.collect_coverage {
-            self.inner.set_enable_coverage(true);
-            // Reset so coverage reflects only this evaluation.
-            self.inner.clear_coverage_data();
+            self.guard("set_coverage", |inner| {
+                inner.set_enable_coverage(true);
+                // Reset so coverage reflects only this evaluation.
+                inner.clear_coverage_data();
+                Ok(())
+            })?;
         }
 
-        let results = self
-            .inner
-            .eval_query(query.to_string(), self.config.collect_trace)
-            .map_err(|e| EngineError::Regorus(e.to_string()))?;
+        let query_owned = query.to_string();
+        let collect_trace = self.config.collect_trace;
+        let results = self.guard("eval_query", move |inner| {
+            inner
+                .eval_query(query_owned, collect_trace)
+                .map_err(|e| EngineError::Regorus(e.to_string()))
+        })?;
 
         let value = match results.result.first().and_then(|qr| qr.expressions.first()) {
             // Preserve the Rego undefined vs. null distinction: Rego
@@ -281,10 +355,11 @@ impl Engine {
         };
 
         let coverage = if self.config.collect_coverage {
-            let report = self
-                .inner
-                .get_coverage_report()
-                .map_err(|e| EngineError::Regorus(e.to_string()))?;
+            let report = self.guard("get_coverage_report", |inner| {
+                inner
+                    .get_coverage_report()
+                    .map_err(|e| EngineError::Regorus(e.to_string()))
+            })?;
             Some(Coverage::from_regorus(&report))
         } else {
             None
@@ -386,5 +461,72 @@ explicit_null := null
             .eval(&input, "data.shapes.explicit_null")
             .expect("eval null");
         assert_eq!(null.value, Some(serde_json::Value::Null));
+    }
+
+    /// CIB-018: a panic during evaluation — here a builtin that panics, a
+    /// deterministic stand-in for regorus's own internal `unwrap`/`expect` on
+    /// an adversarial policy — must be caught at the facade and surfaced as an
+    /// `Err`, never abort the process (which would leave `--json` callers and
+    /// pipeline parsers with no error envelope). After a caught panic the
+    /// engine is poisoned and refuses further evaluation rather than operate on
+    /// possibly-inconsistent regorus state.
+    #[test]
+    fn eval_catches_panic_and_poisons_engine() {
+        /// A builtin whose `call` panics instead of returning.
+        struct Boom;
+        impl Builtin for Boom {
+            fn name(&self) -> &'static str {
+                "anvil.boom"
+            }
+            fn arity(&self) -> u8 {
+                1
+            }
+            fn determinism(&self) -> DeterminismClass {
+                DeterminismClass::Pure
+            }
+            fn call(
+                &self,
+                _input: &PolicyInput,
+                _args: &[serde_json::Value],
+            ) -> Result<serde_json::Value, BuiltinError> {
+                panic!("boom from builtin");
+            }
+        }
+
+        let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+        engine.register_builtin(Arc::new(Boom)).expect("register");
+        engine
+            .add_policy(
+                "boom.rego",
+                "package boom\nimport rego.v1\n\nsafe := 1\ntriggered := anvil.boom(1)\n",
+            )
+            .expect("add_policy");
+
+        let input = PolicyInput::default();
+
+        // A query that does not reach the panicking builtin evaluates normally:
+        // registering/loading did not falsely poison a healthy engine.
+        let healthy = engine.eval(&input, "data.boom.safe").expect("healthy eval");
+        assert_eq!(healthy.value, Some(serde_json::json!(1)));
+
+        // The panic is caught and surfaced as `Regorus` with the message
+        // preserved — the test process surviving is itself proof of no abort.
+        let first = engine.eval(&input, "data.boom.triggered");
+        let Err(EngineError::Regorus(msg)) = first else {
+            panic!("expected caught panic as EngineError::Regorus, got {first:?}");
+        };
+        assert!(
+            msg.contains("boom from builtin"),
+            "panic payload not surfaced: {msg}"
+        );
+
+        // Poisoned: even the previously-healthy query now fails fast, rather
+        // than touching regorus state a mid-evaluation panic may have left
+        // inconsistent.
+        let second = engine.eval(&input, "data.boom.safe");
+        assert!(
+            matches!(second, Err(EngineError::Regorus(_))),
+            "poisoned engine must refuse further eval, got {second:?}"
+        );
     }
 }

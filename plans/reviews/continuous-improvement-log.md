@@ -500,3 +500,28 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** `apps/website` has no test runner at all — DASH's whole wave has no TDD path until someone seeds Vitest/RTL; this is an unstated prerequisite hiding in DASH-001.
 - **Improvement:** When "start <item>" lands on a module with REVIEW/archived-dep flags or no test target, run the readiness + prod-wireup check (and a quick prerequisite scan) BEFORE the In Progress flip, not after.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1978; consider a DASH readiness note that web-dashboard items need a test-infra seed item first.
+- **Task:** Implement CIB-018 — catch_unwind at the policy-engine facade so a
+  regorus panic on adversarial/malformed policy returns a structured error, not
+  a process abort.
+- **Outcome:** `Engine::guard` wraps regorus calls (add_policy / set_input_json /
+  eval_query / get_coverage_report / register_builtin / coverage setters) in
+  catch_unwind + a poison flag. CRITICALLY, also flipped the CLI from
+  `panic = "abort"` to `"unwind"` (ADR-051) — without it the guard is inert in
+  the shipped binary. Tests 37/0 + CLI 11/0; dist profile builds.
+- **Worked:** A 3-seat mini-council (adversarial + kernel + general) earned its
+  keep: the adversarial seat caught that `panic = "abort"` makes catch_unwind a
+  no-op, which would have shipped an inert fix that LOOKS like protection — the
+  exact false-confidence trap flagged the session before. Kernel seat confirmed
+  the AssertUnwindSafe-is-sound-via-poison reasoning and found two unguarded
+  regorus calls (coverage setters, register_builtin).
+- **Failed:** First implementation was inert in production (abort profile) and
+  had two unguarded call sites. Both found in review, not by me.
+- **Friction:** No way to e2e-test the dist-profile catch (tests always run
+  under unwind; the panic trigger is a test-only builtin not reachable via the
+  CLI). Verified the mechanism under unwind + that dist compiles; documented the
+  gap honestly.
+- **Improvement:** When a fix depends on runtime behaviour (panic strategy,
+  feature flags, profiles), check the SHIPPED build's config, not just `cargo
+  test` — `cargo test` defaults to `panic = "unwind"` and silently masked that
+  the release/dist profile defeats catch_unwind.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.

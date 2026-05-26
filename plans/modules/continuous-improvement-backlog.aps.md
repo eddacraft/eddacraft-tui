@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 14/22    |
+| CIB | —     | In Progress | 15/22    |
 
 ## Purpose
 
@@ -377,22 +377,13 @@ archive.
 
 ### CIB-018: `catch_unwind` at the policy-engine facade boundary
 
-- **Status:** Draft
-- **Intent:** `regorus` is a single-vendor 0.10 crate with internal
-  `unwrap`/`expect`; a panic on an adversarial or malformed policy aborts the
-  `anvil` process with no `--json` error envelope, breaking pipeline parsers.
-- **Expected Outcome:** `Engine::add_policy` / `Engine::eval` wrap the regorus
-  calls in `std::panic::catch_unwind`, converting a panic into
-  `EngineError::Regorus` with the panic message; `--json` always emits a
-  parseable envelope and a non-zero exit. The shared `RwLock` context is
-  treated as unusable after a caught panic.
-- **Validation:** a unit test feeding a panic-inducing policy asserts an
-  `Err`, not a process abort; existing tests stay green.
-- **Identified From:** POLENG full council (operations seat), 2026-05-25.
-- **Files:** `crates/anvil-policy-engine/src/lib.rs`.
-- **Coordinates with:** POLENG; related to POLENG-009 (resource bounds).
-- **Confidence:** medium — `catch_unwind` across the regorus closure boundary
-  needs `UnwindSafe` handling.
+- **Status:** Merged 2026-05-26 via PR #1980
+- **Summary:** `Engine::guard` wraps every regorus call in
+  `catch_unwind(AssertUnwindSafe(..))`, converting a panic on an adversarial
+  policy into `EngineError::Regorus` + poisoning the engine, so `anvil policy
+  eval` returns a structured error/non-zero exit instead of aborting. Required
+  flipping the CLI from `panic = "abort"` to `"unwind"` (**ADR-051**) — without
+  it `catch_unwind` is a no-op in the shipped binary.
 
 ### CIB-019: Surface Go OPA stderr in the parity gate
 

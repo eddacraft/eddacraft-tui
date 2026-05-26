@@ -29,6 +29,7 @@ These define how Anvil behaves by default. All features must align.
 | [006](006-hybrid-dc-opa.md) | Dependency-Cruiser for static analysis + OPA for policy evaluation | Accepted (engine half amended by ADR-040) |
 | [007](007-pulumi-iac.md) | Pulumi (TypeScript) for infrastructure as code | Accepted |
 | [014](014-language-allocation-tree-ts-vs-rust.md) | TypeScript for orchestration/UX; Rust for CPU-bound hot paths | Proposed |
+| [051](051-cli-panic-unwind-for-untrusted-input.md) | `anvil` CLI builds with `panic = "unwind"` (was `abort`) so untrusted-input panics (e.g. a `regorus` internal panic during `anvil policy eval`) unwind to a `catch_unwind` guard at the policy-engine facade → structured error + non-zero exit, not a no-diagnostics abort. Generalises the `release-napi` FFI-boundary discipline to the CLI | Accepted |
 
 ## Rust Migration
 
