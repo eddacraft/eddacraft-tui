@@ -647,3 +647,24 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** none beyond the usual fmt-invalidates-Edit-anchors.
 - **Improvement:** Keep a mental checklist of clippy-denied Option/Result idioms (`map().unwrap_or_else()` → `map_or_else`; `value: String` borrowed-only → `&str`) and write them right the first time.
 - **Follow-up:** TDASH-003 (drift snapshots, `.anvil/snapshots/` + baseline.json) is the last item — closes the module at 4/4.
+- **Task:** Triage CIB-015 (`anvil bom` surface) while a GitHub Actions outage
+  blocked all merges — scope-guard the five candidate BOM slices before filing.
+- **Outcome:** Brainstorm `2026-05-26-anvil-bom-surface.md`; decline to file an
+  APS item now. 3/5 slices survive as a read-only _view_ over wired collectors
+  (agents cache, policy list/bundles, witness/protection summary); MCP +
+  credential slices rejected (need new collectors); controlled-actions defers to
+  AGOV-007. The earning hook is a `--diff` drift gate, not the inventory.
+  CIB-015 → In Progress (count untouched until the Merged flip).
+- **Worked:** Fanned the 6-surface map to an Explore agent, then verified its
+  two over-simplifications myself before trusting them.
+- **Failed:** Nothing material.
+- **Friction:** Explore's "view over the witness chain" feasibility was wrong —
+  `ProtectionClaim` carries no agent attribution and the witness-line
+  `agent_tag` isn't reliably persisted, so the §8 chain-view option isn't
+  available today; the agent slice must read the detected-agents cache.
+- **Improvement:** Treat a fan-out Explore map as a lead, not a verdict — its
+  per-surface wired/inert calls still need a spot-check against the actual
+  producer. Its "agent_tag is an inert placeholder" verdict missed the whole
+  `anvil-attribution` minting/propagation path.
+- **Follow-up:** File `AGOV-NNN` (view + `--diff` drift) when AGOV leaves the
+  launch parking lot and a concrete `--json`/drift consumer appears.

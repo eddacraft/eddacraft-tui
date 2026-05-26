@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 16/23    |
+| CIB | —     | In Progress | 17/23    |
 
 ## Purpose
 
@@ -291,43 +291,24 @@ archive.
 
 ### CIB-015: Triage `anvil bom` surface before filing as APS
 
-- **Status:** Draft
-- **Intent:** Decide whether `anvil bom` belongs as a first-class
-  command and, if so, in which existing module (likely AGOV or
-  ADOPT) — before any APS module is filed. The Drako borrow
-  assessment explicitly deferred APS filing pending a scope-guard
-  pass on each slice (agents / MCP servers / policy refs /
-  credential refs / controlled actions) individually.
-- **Expected Outcome:** A brainstorm doc at
-  `plans/brainstorms/YYYY-MM-DD-anvil-bom-surface.md` that:
-  (a) lists the candidate BOM slices, (b) for each slice runs the
-  scope-guard decision framework (does it feed enforcement or
-  witness enrichment? if no → reject), (c) names the slot for the
-  surviving slices (AGOV-NNN addition, ADOPT-007, or new module),
-  (d) decides whether the BOM is a view over the witness chain or
-  a separate collector (per the assessment §8 open question).
-  Triage outcome closes this CIB and either files the followup
-  APS item(s) or records the decline.
-- **Validation:** Brainstorm doc exists; scope-guard decision is
-  recorded per slice; either a new APS task ID is filed
-  (under AGOV or elsewhere) or this CIB closes with a "decline"
-  decision and a one-line rationale.
-- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
-  §4 Borrow B + §8 open questions. Existing partial coverage:
-  `detect_agents.rs` (5-tool inventory, ADOPT-003 Merged),
-  `anvil mcp-config` (MCP server config), AGOV-007 (capability
-  declaration model).
-- **Coordinates with:** AGOV-007 (capability declaration upstream),
-  ADOPT-003 (AI tool auto-detect — Merged), MLP2-071 (cross-session
-  attribution — possible consumer of BOM data for witness
-  enrichment).
-- **Out of Scope:** Building the surface. This CIB is triage-only.
-  Implementation begins after the brainstorm closes with a
-  surviving slice list and a slot decision.
-- **Confidence:** medium — the scoping decision is real and
-  consequential; rushing it risks scope drift into generic asset
-  management, exactly the failure mode the Drako assessment §6
-  flagged.
+- **Status:** Merged 2026-05-26 via PR #1995
+- **Summary:** Triaged 2026-05-26 →
+  [`anvil-bom-surface`](../brainstorms/2026-05-26-anvil-bom-surface.md).
+  **Decline to file an APS item now.** Of five slices, three survive the
+  scope-guard as a read-only _view_ over existing production-wired collectors
+  (agents via the detected-agents cache; policy refs via `anvil policy
+  list`/bundles; witness/protection structural summary); MCP-server inventory
+  and credential-reference registry are **rejected** (both need new,
+  scope-creeping collectors — credentials additionally sensitive);
+  controlled-actions **defers to AGOV-007**. The shape that earns its place is a
+  view + `--diff` drift gate (new-edges-only), not the inventory itself. View,
+  not collector: it must add no detectors, and the §8 "view over the witness
+  chain" option is unavailable for the agent slice today (`ProtectionClaim`
+  carries no agent attribution; witness-line `agent_tag` is not reliably
+  persisted). Slot when filed: a new `AGOV-NNN` under
+  `agent-governance-patterns.aps.md` — not a new module, not AGOV-007; ADOPT
+  (`adoption-friction`) is Complete/archived, so not there either. Trigger to file: AGOV leaves the launch parking
+  lot **and** a concrete `--json`/drift consumer appears.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
