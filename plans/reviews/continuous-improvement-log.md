@@ -750,3 +750,30 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1994; cleanup
   worktree after merge. Possible EAMIG item: align git-scanner allowlist tiers
   with the on-disk shape/keyword split (#1800 parity).
+
+### 2026-05-26 — claude
+
+- **Task:** Council review (5 reviewers) of TDASH-003 + EAMIG-004 during the
+  GitHub Actions outage, to harden both queued PRs before CI returns.
+- **Outcome (EAMIG-004):** Fixed four reviewer findings: (1) validate
+  `skip_extensions` before embedding in a git `:(exclude)` pathspec — unsafe
+  entries are skipped+warned, failing toward *more* scanning (CRITICAL,
+  adversarial); (2) parse the post-image path from `+++ b/<path>` (stripping
+  git's tab terminator) so filenames with spaces attribute correctly (MAJOR);
+  (3) warn on non-zero `git log` exit instead of silently returning empty
+  (MAJOR, ops); (4) branch the allowlist on `pattern.high_confidence` to skip
+  the keyword tier for credential-shape patterns — #1800 parity, so textbook
+  `AKIA…EXAMPLE` keys surface in history too (MAJOR, adversarial). +3 tests.
+  Extracted `build_log_args` to stay under the 100-line clippy limit.
+- **Worked:** The council folded my own pre-filed follow-up (the #1800 allowlist
+  tier gap) into this PR — fixing it here makes the broadened coverage actually
+  effective rather than shipping coverage that keyword-suppresses real keys.
+- **Failed:** The `+++ b/` parse first captured a trailing `\t` (git's header
+  terminator for space-containing paths); test caught it, fixed with
+  `strip_suffix('\t')`.
+- **Friction:** Adding four fixes pushed `scan_git_history` past clippy's
+  `too_many_lines` (pedantic) — extracted the arg builder.
+- **Improvement:** none new.
+- **Follow-up:** /addressing-pr-reviews after CI on #1994. Deferred council
+  items (not blockers): stream `git log -p` instead of buffering (OOM on huge
+  histories), thread a `git_error` field to the caller. Cleanup worktree.

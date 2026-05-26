@@ -14,6 +14,51 @@ pub struct GitScanOutput {
     pub pattern_errors: Vec<String>,
 }
 
+/// A `skip_extensions` value safe to embed in a git `:(exclude)` pathspec: a
+/// dotted suffix of ASCII alphanumerics and `. _ + -`. Rejects whitespace and
+/// pathspec-magic characters (`:`, `(`, `*`, `\`, …) so operator config can't
+/// alter the scan scope.
+fn is_safe_extension(extension: &str) -> bool {
+    extension.len() > 1
+        && extension.starts_with('.')
+        && extension
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-'))
+}
+
+/// Build the `git log -p` argument vector: depth + added/modified filter + a
+/// `.` positive pathspec with `:(exclude)` entries for each safe
+/// `skip_extensions` value (mirrors the on-disk denylist). Unsafe entries are
+/// skipped with a warning so they can't narrow the scan scope.
+fn build_log_args(depth_flag: String, skip_extensions: &[String]) -> Vec<String> {
+    let mut args = vec![
+        "log".to_string(),
+        "-p".to_string(),
+        depth_flag,
+        "--all".to_string(),
+        "--diff-filter=AM".to_string(),
+        "--".to_string(),
+        ".".to_string(),
+    ];
+    for extension in skip_extensions {
+        if is_safe_extension(extension) {
+            // Git pathspec globs match across `/`, so `*<ext>` excludes the
+            // extension in any directory — the same suffix match the on-disk
+            // `should_skip_file` (`file.ends_with(extension)`) applies.
+            args.push(format!(":(exclude)*{extension}"));
+        } else {
+            // An operator-supplied value with whitespace or pathspec-magic
+            // characters could alter the scan scope if embedded raw. Skip it —
+            // failing toward *more* scanning, never less — and warn.
+            eprintln!(
+                "warning: ignoring unsafe secret-scan skip_extensions entry {extension:?}; \
+                 matching files will be scanned"
+            );
+        }
+    }
+    args
+}
+
 pub fn scan_git_history(
     workspace_root: &str,
     config: &SecretCheckConfig,
@@ -34,35 +79,22 @@ pub fn scan_git_history(
         });
     }
 
-    let depth_flag = format!("-{depth}");
     // Match the on-disk scan's coverage model: scan every changed file in
-    // history and exclude only the `skip_extensions` denylist (lockfiles,
-    // minified bundles, binary assets), rather than the old narrow
-    // JS/TS/JSON/YAML/env allowlist (EAMIG-004). The exclusions are derived
-    // from the same `skip_extensions` the working-tree scan uses, so the two
-    // surfaces stay in lockstep. `.` is the positive pathspec required when
-    // every other pathspec is an exclusion.
-    let mut args = vec![
-        "log".to_string(),
-        "-p".to_string(),
-        depth_flag,
-        "--all".to_string(),
-        "--diff-filter=AM".to_string(),
-        "--".to_string(),
-        ".".to_string(),
-    ];
-    for extension in &config.skip_extensions {
-        // Git pathspec globs match across `/`, so `*<ext>` excludes the
-        // extension in any directory — the same suffix match the on-disk
-        // `should_skip_file` (`file.ends_with(extension)`) applies.
-        args.push(format!(":(exclude)*{extension}"));
-    }
+    // history and exclude only the `skip_extensions` denylist, rather than the
+    // old narrow JS/TS/JSON/YAML/env allowlist (EAMIG-004).
+    let args = build_log_args(format!("-{depth}"), &config.skip_extensions);
     let output = Command::new("git")
         .args(&args)
         .current_dir(workspace_root)
         .output()?;
 
     if !output.status.success() {
+        // Surface the failure: a silently-empty result is indistinguishable
+        // from a clean history, which would hide a scan that never ran.
+        eprintln!(
+            "warning: git history secret scan skipped (git exited non-zero): {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
         return Ok(GitScanOutput {
             findings: Vec::new(),
             pattern_errors,
@@ -90,6 +122,16 @@ pub fn scan_git_history(
             continue;
         }
 
+        // The `+++ b/<path>` header carries the unambiguous post-image path and,
+        // unlike splitting the `diff --git` line on whitespace, survives paths
+        // containing spaces. `--diff-filter=AM` guarantees a real `b/` side.
+        // Git appends a single tab terminator to the header path when it
+        // contains spaces; strip just that one tab (not real trailing space).
+        if let Some(path) = line.strip_prefix("+++ b/") {
+            current_file = path.strip_suffix('\t').unwrap_or(path).to_string();
+            continue;
+        }
+
         if !line.starts_with('+') || line.starts_with("+++") {
             continue;
         }
@@ -112,7 +154,16 @@ pub fn scan_git_history(
                 None => continue,
             };
 
-            if matcher.is_allowlisted(matched_value) {
+            // Mirror the on-disk scanner's allowlist tiers: high-confidence
+            // patterns are the credential shape itself, so the fuzzy keyword
+            // tier (`example`/`test`/…) is skipped — otherwise textbook keys
+            // like `AKIAIOSFODNN7EXAMPLE` are wrongly suppressed (issue #1800).
+            let allowlisted = if pattern.high_confidence {
+                matcher.is_shape_or_custom_allowlisted(matched_value)
+            } else {
+                matcher.is_allowlisted(matched_value)
+            };
+            if allowlisted {
                 continue;
             }
 
@@ -282,6 +333,63 @@ mod tests {
         assert!(
             findings.is_empty(),
             "skip-extension file must be excluded from git history scan: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn attributes_findings_for_paths_with_spaces() {
+        // The `+++ b/<path>` header parse must survive spaces in filenames,
+        // unlike splitting `diff --git` on whitespace.
+        let repo = temp_repo();
+        commit_file(&repo, "my config.py", &format!("k = \"{AWS_KEY}\"\n"));
+
+        let findings = scan(&repo);
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("my config.py")),
+            "path with spaces should be attributed correctly: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn high_confidence_textbook_key_is_not_keyword_suppressed() {
+        // #1800 parity in the git path: the canonical AWS doc key carries the
+        // `EXAMPLE` keyword marker but is a real high-confidence access-key
+        // shape and must still surface.
+        let repo = temp_repo();
+        commit_file(&repo, "creds.py", "key = \"AKIAIOSFODNN7EXAMPLE\"\n");
+
+        let findings = scan(&repo);
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("creds.py")),
+            "textbook AWS key should surface despite EXAMPLE suffix: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn unsafe_skip_extension_does_not_disable_scanning() {
+        // A malformed skip_extensions entry must not be embedded into the git
+        // pathspec (which could narrow or disable the scan); it is skipped and
+        // the file is still scanned.
+        let repo = temp_repo();
+        commit_file(&repo, "app.py", &format!("k = \"{AWS_KEY}\"\n"));
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            skip_extensions: vec![" :(exclude)*".to_string(), ".lock".to_string()],
+            ..SecretCheckConfig::default()
+        };
+
+        let findings = scan_git_history(&repo.to_string_lossy(), &config)
+            .expect("scan returns Ok")
+            .findings;
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("app.py")),
+            "malformed skip entry must not suppress scanning: {findings:?}"
         );
 
         let _ = std::fs::remove_dir_all(&repo);
