@@ -18,8 +18,9 @@
 # Local invocation:
 #   tools/starters/acknowledgements/tests/node-driver-preflight.sh
 #
-# CI wires this into the Acknowledgements freshness job (see
-# .github/workflows/rust.yml).
+# CI wires this into the acknowledgements freshness job — your
+# repository's acknowledgements CI workflow (in anvil itself this is
+# .github/workflows/acknowledgements-kit.yml).
 
 set -euo pipefail
 

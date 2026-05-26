@@ -138,11 +138,6 @@ EOF
 block_body="$(awk '/BEGIN AUTO-GENERATED go/,/END AUTO-GENERATED go/' \
               "$project/ACKNOWLEDGEMENTS.md")"
 
-if printf '%s' "$block_body" | grep -q 'BEGIN AUTO-GENERATED go' \
-   && printf '%s' "$block_body" | grep -A0 'BEGIN AUTO-GENERATED go' | tail -n +2 | grep -q 'END AUTO-GENERATED go'; then
-  : # fallthrough; emptiness checked below
-fi
-
 if ! printf '%s' "$block_body" | grep -qE 'example\.com/thirdparty.*MIT'; then
   echo "fail: rendered block missing the third-party module/MIT row" >&2
   echo "body: $block_body" >&2

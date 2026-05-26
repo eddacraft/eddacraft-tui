@@ -258,9 +258,7 @@ wrap_note() {
 
 render_fragment() {
   # $1: column to filter on ("about" or "deny")
-  # $2: array name for the header comment (e.g. "about.toml.accepted")
   local filter="$1"
-  local target_array_name="$2"
   local col
   case "$filter" in
     about) col=2 ;;
@@ -290,7 +288,6 @@ render_fragment() {
     fi
     echo "  \"$spdx\","
   done <"$parsed_entries"
-  unset target_array_name
 }
 
 # ATTRIB-012: render a single semicolon-joined SPDX list for the Node
@@ -359,8 +356,8 @@ go_allow_fragment="$(mktemp)"
 python_allow_fragment="$(mktemp)"
 trap 'rm -f "$parsed_entries" "$about_fragment" "$deny_fragment" "$node_allow_fragment" "$go_allow_fragment" "$python_allow_fragment"' EXIT
 
-render_fragment about about.toml.accepted >"$about_fragment"
-render_fragment deny  "deny.toml.[licenses].allow" >"$deny_fragment"
+render_fragment about >"$about_fragment" # → about.toml.accepted
+render_fragment deny >"$deny_fragment"   # → deny.toml.[licenses].allow
 render_node_fragment >"$node_allow_fragment"
 render_go_fragment >"$go_allow_fragment"
 render_python_fragment >"$python_allow_fragment"
