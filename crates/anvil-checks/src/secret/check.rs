@@ -34,8 +34,7 @@ pub fn run_secret_check(
     // pool, mirroring the welcome-screen discovery shape. Per-file panics
     // are contained via `catch_unwind`; read failures and skipped files
     // simply drop out of the collected findings stream. Deterministic
-    // ordering is restored downstream via `deduplicate_findings` (sorts
-    // on a stable BTreeSet key).
+    // ordering is restored downstream after dedupe via `sort_findings`.
     let lines_skipped_atomic = AtomicUsize::new(0);
     let per_file: Vec<Vec<SecretFinding>> = files
         .par_iter()
