@@ -35,7 +35,9 @@ ITERS="${1:-5000}"
 TOLERANCE="${PARITY_TOLERANCE:-1.10}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURES="$REPO_ROOT/crates/anvil-policy-engine/benches/fixtures"
-HARNESS="$REPO_ROOT/target/release/examples/parity_harness"
+# `BENCH_HARNESS` overrides the regorus harness path and skips the build below;
+# the fixture test uses it to stub the regorus side. Defaults to the release build.
+HARNESS="${BENCH_HARNESS:-$REPO_ROOT/target/release/examples/parity_harness}"
 
 # policy-file : rule-path  (rule path doubles as the opa query)
 POLICIES=(
@@ -58,12 +60,20 @@ if ! command -v opa >/dev/null 2>&1; then
 	exit 0
 fi
 
-echo "Building regorus parity harness (release)…" >&2
-cargo build --release -p eddacraft-anvil-policy-engine --example parity_harness >&2
+if [ -z "${BENCH_HARNESS:-}" ]; then
+	echo "Building regorus parity harness (release)…" >&2
+	cargo build --release -p eddacraft-anvil-policy-engine --example parity_harness >&2
+fi
 if [ ! -x "$HARNESS" ]; then
 	echo "error: harness binary not found at $HARNESS after build" >&2
 	exit 2
 fi
+
+# CIB-019: capture Go OPA's stderr so a failed `opa bench` (parse error, crash,
+# version skew) surfaces its diagnostic instead of a bare "no positive
+# measurement". Reused per policy; the EXIT trap cleans it up.
+OPA_ERR="$(mktemp)"
+trap 'rm -f "$OPA_ERR"' EXIT
 
 opa_ver="$(opa version 2>/dev/null | awk '/^Version:/ {print $2}')"
 echo
@@ -73,10 +83,17 @@ printf '%-20s %14s %14s %8s  %s\n' "------" "-----------" "-------" "-----" "---
 
 # Extract a strictly-positive number from JSON, or fail the whole gate. A
 # missing/null/non-numeric reading must NEVER be treated as a pass.
-require_pos_num() { # <json> <jq-filter> <what>
+require_pos_num() { # <json> <jq-filter> <what> [stderr-file]
 	local val
 	if ! val="$(printf '%s' "$1" | jq -e "$2 | numbers | select(. > 0)" 2>/dev/null)"; then
 		echo "error: $3 produced no positive measurement (gate cannot conclude)." >&2
+		# CIB-019: if a captured-stderr file was passed and is non-empty, surface
+		# it — this is where Go OPA's parse error / crash / version-skew message
+		# lands, the diagnostic that used to be discarded by `2>/dev/null`.
+		if [ -n "${4:-}" ] && [ -s "$4" ]; then
+			echo "  --- $3 stderr ---" >&2
+			sed 's/^/  /' "$4" >&2
+		fi
 		exit 2
 	fi
 	printf '%s' "$val"
@@ -90,8 +107,14 @@ for entry in "${POLICIES[@]}"; do
 	reg_json="$("$HARNESS" "$FIXTURES/$pol" "$FIXTURES/input.json" "$rule" "$ITERS")"
 	reg_p50="$(require_pos_num "$reg_json" '.p50' "regorus ($pol)")"
 
-	opa_json="$(opa bench --count 1 --format json -d "$FIXTURES/$pol" -i "$FIXTURES/input.json" "$rule" 2>/dev/null || true)"
-	opa_p50="$(require_pos_num "$opa_json" '.Extra."histogram_timer_rego_query_eval_ns_median"' "opa ($pol)")"
+	# `opa bench --count 1` runs the benchmark loop once and reports the median
+	# of that run's internal samples (~thousands for the light policies; only
+	# ~tens for the heavy `repo_scan`, so its median is noisier). A higher
+	# `--count` would tighten repo_scan's reading but lengthen the gate; left at
+	# 1 for now since the tolerance (PARITY_TOLERANCE, default 1.10x) already
+	# absorbs that noise — revisit if repo_scan flaps near the threshold.
+	opa_json="$(opa bench --count 1 --format json -d "$FIXTURES/$pol" -i "$FIXTURES/input.json" "$rule" 2>"$OPA_ERR" || true)"
+	opa_p50="$(require_pos_num "$opa_json" '.Extra."histogram_timer_rego_query_eval_ns_median"' "opa ($pol)" "$OPA_ERR")"
 
 	# ratio = regorus / opa ; PASS when regorus is at/above parity (ratio <= tolerance).
 	read -r ratio verdict < <(jq -rn --argjson r "$reg_p50" --argjson o "$opa_p50" --argjson t "$TOLERANCE" \

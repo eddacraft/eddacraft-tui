@@ -360,7 +360,7 @@ archive.
 
 ### CIB-019: Surface Go OPA stderr in the parity gate
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `scripts/bench-vs-go-opa.sh` runs `opa bench … 2>/dev/null || true`;
   on an OPA error (parse failure, crash, version skew) the script reports a
   generic "no positive measurement" with OPA's diagnostic discarded, so a

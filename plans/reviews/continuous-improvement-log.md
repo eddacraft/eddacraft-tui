@@ -685,3 +685,28 @@ a backlog. Promote repeated friction or executable follow-up work to
   *default* filter), test that exact trigger, not just the easy-to-reach
   variant (debug logging).
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+- **Task:** Implement CIB-019 — surface Go OPA stderr in the parity gate
+  (`scripts/bench-vs-go-opa.sh`), closing the POLENG ops-seat trio (017/018/019).
+- **Outcome:** OPA stderr captured to a temp file + surfaced from
+  `require_pos_num`; a `BENCH_HARNESS` override (skips the build) makes it
+  testable; new stubbed fixture test (`bench-vs-go-opa.test.sh`, wired into the
+  script-fixtures CI step) proves happy-path PASS + opa-error surfaces stderr,
+  with no real `opa`/release build needed.
+- **Worked:** The `BENCH_HARNESS` affordance turned an integration-only script
+  (needs opa + a release harness) into something a hermetic stub test exercises
+  in <1s. Council caught a missing assertion and raised a `BENCH_HARNESS=''`
+  edge case that was inverted logic — verified empirically and dismissed (the
+  suggested `+x` fix would have *introduced* the bug it described).
+- **Failed:** Nothing in the code. Process friction below.
+- **Friction:** A sibling PR (CIB-024) got stuck — GitHub Actions stopped
+  delivering `synchronize`/`reopened` webhooks for its rebased SHAs (force-push
+  amend, close+reopen, and a normal appended-commit push all left `check-runs`
+  total_count=0), so auto-merge can't fire despite identical content having
+  passed CI on the prior SHA.
+- **Improvement:** A normal appended commit triggers CI more reliably than a
+  `--force-with-lease` amend — though during an Actions delivery hiccup neither
+  fires. Avoid >1 in-flight CIB PR at once: they collide on the single index
+  CIB-count row, so serialize the Merged-flip.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; flip CIB-019 Merged
+  + regenerate the count only after CIB-024 lands (avoids the count race);
+  cleanup worktree.
