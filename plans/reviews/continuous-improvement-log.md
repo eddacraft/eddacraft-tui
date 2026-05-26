@@ -710,3 +710,18 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; flip CIB-019 Merged
   + regenerate the count only after CIB-024 lands (avoids the count race);
   cleanup worktree.
+### 2026-05-26 — opencode
+
+- **Task:** Review and patch the SCAN module after finding policy discovery was
+  still on `walkdir::WalkDir` despite SCAN-001 being marked complete.
+- **Outcome:** `policy test` discovery now uses the shared `ignore::WalkBuilder`
+  shape, and secret-scan findings are sorted after parallel collection/dedupe.
+- **Worked:** The review caught an APS/code mismatch before treating it as a
+  documentation-only descoping issue.
+- **Failed:** The first comparator used `u8::cmp` without borrowing the RHS;
+  targeted tests caught the compile error immediately.
+- **Friction:** SCAN-001 listed several scan-fanout paths, but policy's test-file
+  counting path had no helper seam, so the smallest fix needed a local helper.
+- **Improvement:** When an APS item claims every named call-site migrated, grep
+  the exact legacy primitive during review before accepting completion wording.
+- **Follow-up:** none

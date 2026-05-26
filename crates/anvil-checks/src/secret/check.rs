@@ -81,7 +81,7 @@ pub fn run_secret_check(
         }
     }
 
-    let findings = deduplicate_findings(findings);
+    let findings = sort_findings(deduplicate_findings(findings));
     let passed = findings.is_empty();
     let pattern_count = findings
         .iter()
@@ -149,6 +149,24 @@ fn deduplicate_findings(findings: Vec<SecretFinding>) -> Vec<SecretFinding> {
             seen.insert(key)
         })
         .collect()
+}
+
+fn sort_findings(mut findings: Vec<SecretFinding>) -> Vec<SecretFinding> {
+    findings.sort_by(|a, b| {
+        a.file
+            .cmp(&b.file)
+            .then_with(|| a.line.cmp(&b.line))
+            .then_with(|| finding_type_key(a).cmp(&finding_type_key(b)))
+            .then_with(|| a.pattern_name.cmp(&b.pattern_name))
+    });
+    findings
+}
+
+const fn finding_type_key(finding: &SecretFinding) -> u8 {
+    match finding.finding_type {
+        FindingType::Pattern => 0,
+        FindingType::Entropy => 1,
+    }
 }
 
 fn normalise_file_path(file: &str, workspace_root: Option<&str>) -> String {
@@ -274,6 +292,26 @@ mod tests {
 
         assert!(!result.passed, "small files with secrets should be flagged");
         assert!(!result.findings.is_empty());
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn returns_findings_in_deterministic_path_order() {
+        let temp_dir = create_temp_dir("ordering");
+        let first = temp_dir.join("a.ts");
+        let second = temp_dir.join("b.ts");
+        fs::write(&first, "api_key='abcdEFGH1234567890'").unwrap();
+        fs::write(&second, "api_key='abcdEFGH1234567890'").unwrap();
+
+        let second_string = second.to_string_lossy().to_string();
+        let first_string = first.to_string_lossy().to_string();
+        let files = [second_string.as_str(), first_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert_eq!(result.findings.len(), 2);
+        assert_eq!(result.findings[0].file, first_string);
+        assert_eq!(result.findings[1].file, second_string);
 
         let _ = fs::remove_dir_all(temp_dir);
     }

@@ -104,6 +104,20 @@ struct TestResult {
     files: Option<Vec<String>>,
 }
 
+fn collect_policy_test_files(test_path: &str) -> Vec<String> {
+    let mut files: Vec<String> = ignore::WalkBuilder::new(test_path)
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false)
+        .build()
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .map(|e| e.path().to_string_lossy().to_string())
+        .collect();
+    files.sort();
+    files
+}
+
 fn policy_catalogue() -> Vec<PolicyEntry> {
     let mut policies: Vec<PolicyEntry> = anvil_policy::library::builtin_policies()
         .into_iter()
@@ -332,25 +346,9 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
                 return Ok(());
             }
 
-            // Only collect file paths when --list-files is requested;
-            // otherwise just count entries to avoid materialising a vec.
-            let (file_count, test_files) = if *list_files {
-                let files: Vec<String> = walkdir::WalkDir::new(test_path)
-                    .into_iter()
-                    .filter_map(std::result::Result::ok)
-                    .filter(|e| e.file_type().is_file())
-                    .map(|e| e.path().to_string_lossy().to_string())
-                    .collect();
-                let count = files.len();
-                (count, Some(files))
-            } else {
-                let count = walkdir::WalkDir::new(test_path)
-                    .into_iter()
-                    .filter_map(std::result::Result::ok)
-                    .filter(|e| e.file_type().is_file())
-                    .count();
-                (count, None)
-            };
+            let files = collect_policy_test_files(test_path);
+            let file_count = files.len();
+            let test_files = if *list_files { Some(files) } else { None };
 
             if file_count == 0 {
                 if global.json {
@@ -404,6 +402,8 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
 mod tests {
     use super::*;
     use clap::Parser;
+    use std::fs;
+    use std::path::PathBuf;
 
     #[derive(Parser)]
     struct Wrapper {
@@ -562,5 +562,35 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["valid"], false);
         assert_eq!(parsed["errors"][0], "err1");
+    }
+
+    fn create_temp_dir(name: &str) -> PathBuf {
+        let unique = format!(
+            "anvil-policy-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |duration| duration.as_nanos())
+        );
+        let path = std::env::temp_dir().join(unique);
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn collect_policy_test_files_uses_scan_walker_shape() {
+        let temp_dir = create_temp_dir("walker");
+        let hidden_dir = temp_dir.join(".hidden");
+        fs::create_dir_all(&hidden_dir).unwrap();
+        fs::write(temp_dir.join("b.rego"), "package b").unwrap();
+        fs::write(hidden_dir.join("a.rego"), "package a").unwrap();
+
+        let files = collect_policy_test_files(&temp_dir.to_string_lossy());
+
+        assert_eq!(files.len(), 2);
+        assert!(files[0].ends_with(".hidden/a.rego"));
+        assert!(files[1].ends_with("b.rego"));
+
+        let _ = fs::remove_dir_all(temp_dir);
     }
 }
