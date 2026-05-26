@@ -538,3 +538,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Keep small UI polish fixes tied to regression tests when APS
   planning has already closed the original feature.
 - **Follow-up:** none
+
+### 2026-05-26 — claude
+
+- **Task:** Implement TDASH-001 — `anvil dashboard [name]` command + read-only picker surface scaffold in anvil-tui, via dev-workflow + TDD.
+- **Outcome:** feat branch with the surface (DashboardPickerState), command (catalogue/resolve/JSON/plain/TUI), and main.rs wiring; 10 surface + 8 command tests; council quick run and all 5 findings addressed.
+- **Worked:** Red/green TDD on the surface; the `anvil plan dashboard` (plan_dashboard) precedent made the Surface + run_surface + TestBackend shape unambiguous. Council quick earned its keep — self-sizing the plain-text column (killed a magic `14`), a narrow-terminal compact fallback matching plan_dashboard, and a seam comment on the dropped SurfaceExit discriminant.
+- **Failed:** clippy `format_push_string` (-D warnings) bit after I refactored the println loop into a String builder with `push_str(&format!())`; had to switch to `writeln!` + `std::fmt::Write`.
+- **Friction:** `cargo fmt` reformatting between edits invalidated two Edit anchors (the `suffix` if-block expanded multi-line), forcing re-reads.
+- **Improvement:** When building a String in a loop, reach for `writeln!`/`write!` from the start — `push_str(&format!())` is a clippy-denied antipattern under the workspace `-D warnings` gate.
+- **Follow-up:** TDASH-002 (architecture-health) is unblocked — flip its catalogue entry to `available`, add a `launch` arm, and add the `dashboard/architecture.rs` surface reading `.anvil/architecture.json`.
