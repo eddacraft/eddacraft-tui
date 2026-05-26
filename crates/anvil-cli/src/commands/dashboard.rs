@@ -83,6 +83,14 @@ fn resolve(name: Option<&str>, catalog: &[CatalogEntry]) -> Resolution {
 pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let catalog = catalog();
 
+    // `--json` always emits the catalogue and returns, regardless of any name —
+    // the picker / launch / coming-soon branches are human-facing only, so a
+    // global `--json` must not fall through to them.
+    if global.json {
+        println!("{}", serde_json::to_string_pretty(&catalog)?);
+        return Ok(());
+    }
+
     match resolve(args.name.as_deref(), &catalog) {
         Resolution::Unknown(name) => {
             let names = catalog
@@ -90,7 +98,7 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 .map(|entry| entry.name)
                 .collect::<Vec<_>>()
                 .join(", ");
-            anyhow::bail!("unknown dashboard '{name}'. Available: {names}")
+            anyhow::bail!("unknown dashboard '{name}'. Valid dashboards: {names}")
         }
         Resolution::ComingSoon(name) => {
             println!("Dashboard '{name}' is not available yet (coming soon).");
@@ -102,11 +110,6 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn run_picker(catalog: &[CatalogEntry], global: &GlobalArgs) -> anyhow::Result<()> {
-    if global.json {
-        println!("{}", serde_json::to_string_pretty(catalog)?);
-        return Ok(());
-    }
-
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_picker(catalog);
         return Ok(());

@@ -10,9 +10,10 @@ use super::DashboardPickerState;
 /// Render the dashboard picker into `area`. The shell chrome (header + footer)
 /// is drawn by the surface loop; this fills the content area only.
 pub fn render(frame: &mut Frame, area: Rect, state: &DashboardPickerState, theme: &EddaCraftTheme) {
-    // Below the documented 80x24 minimum a bordered container can swallow the
-    // content area; drop the border and render a compact, still-legible list so
-    // titles never go silently invisible (mirrors plan_dashboard's narrow path).
+    // The bordered container needs room for its frame plus content; under ~24
+    // columns it swallows the entry text entirely. The surface targets an 80x24
+    // minimum, but rather than going blank below that we drop the border and
+    // render a compact, still-legible list (mirrors plan_dashboard's narrow path).
     if area.width < 24 {
         render_compact(frame, area, state, theme);
         return;
