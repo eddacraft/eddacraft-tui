@@ -35,21 +35,30 @@ pub fn scan_git_history(
     }
 
     let depth_flag = format!("-{depth}");
+    // Match the on-disk scan's coverage model: scan every changed file in
+    // history and exclude only the `skip_extensions` denylist (lockfiles,
+    // minified bundles, binary assets), rather than the old narrow
+    // JS/TS/JSON/YAML/env allowlist (EAMIG-004). The exclusions are derived
+    // from the same `skip_extensions` the working-tree scan uses, so the two
+    // surfaces stay in lockstep. `.` is the positive pathspec required when
+    // every other pathspec is an exclusion.
+    let mut args = vec![
+        "log".to_string(),
+        "-p".to_string(),
+        depth_flag,
+        "--all".to_string(),
+        "--diff-filter=AM".to_string(),
+        "--".to_string(),
+        ".".to_string(),
+    ];
+    for extension in &config.skip_extensions {
+        // Git pathspec globs match across `/`, so `*<ext>` excludes the
+        // extension in any directory — the same suffix match the on-disk
+        // `should_skip_file` (`file.ends_with(extension)`) applies.
+        args.push(format!(":(exclude)*{extension}"));
+    }
     let output = Command::new("git")
-        .args([
-            "log",
-            "-p",
-            &depth_flag,
-            "--all",
-            "--diff-filter=AM",
-            "--",
-            "*.ts",
-            "*.js",
-            "*.json",
-            "*.env*",
-            "*.yaml",
-            "*.yml",
-        ])
+        .args(&args)
         .current_dir(workspace_root)
         .output()?;
 
@@ -86,6 +95,13 @@ pub fn scan_git_history(
         }
 
         let line_content = &line[1..];
+        // SCAN-002 per-line guard, mirrored from the on-disk scan: skip
+        // pathologically long lines (minified/base64/concatenated) before any
+        // regex runs, so the now-broader history coverage can't open a ReDoS
+        // backtracking window across the built-in and custom patterns.
+        if line_content.len() > config.max_line_bytes {
+            continue;
+        }
         for pattern in DEFAULT_COMPILED_PATTERNS
             .iter()
             .chain(custom_patterns.iter())
@@ -174,5 +190,117 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    // A valid-shaped AWS access key id (matches the built-in `AKIA[0-9A-Z]{16}`
+    // pattern) used as the secret needle across the git-coverage tests. Avoids
+    // the `EXAMPLE`/`test`/`sample` keyword-allowlist markers so the finding is
+    // not suppressed — the tests exercise extension coverage, not allowlisting.
+    const AWS_KEY: &str = "AKIA1B2C3D4E5F6G7H8J";
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("git is available");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    fn temp_repo() -> std::path::PathBuf {
+        let tmp = std::env::temp_dir().join(format!(
+            "anvil-gitscan-repo-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        ));
+        std::fs::create_dir_all(&tmp).expect("create temp repo dir");
+        git(&tmp, &["init", "-q"]);
+        // Pin identity + disable signing/hooks so the commit is deterministic
+        // regardless of the host's global git config.
+        git(&tmp, &["config", "user.email", "test@example.com"]);
+        git(&tmp, &["config", "user.name", "Test"]);
+        git(&tmp, &["config", "commit.gpgsign", "false"]);
+        git(&tmp, &["config", "core.hooksPath", "/dev/null"]);
+        tmp
+    }
+
+    fn commit_file(dir: &std::path::Path, name: &str, content: &str) {
+        std::fs::write(dir.join(name), content).expect("write file");
+        git(dir, &["add", name]);
+        git(dir, &["commit", "-q", "-m", "add fixture"]);
+    }
+
+    fn scan(dir: &std::path::Path) -> Vec<crate::secret::types::SecretFinding> {
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        scan_git_history(&dir.to_string_lossy(), &config)
+            .expect("scan returns Ok")
+            .findings
+    }
+
+    #[test]
+    fn scans_extensions_outside_the_old_allowlist() {
+        // `.py` and `.rs` were not in the old JS/TS/JSON/YAML/env allowlist;
+        // EAMIG-004 brings git-history coverage to parity with on-disk scanning.
+        let repo = temp_repo();
+        commit_file(&repo, "config.py", &format!("API_KEY = \"{AWS_KEY}\"\n"));
+        commit_file(
+            &repo,
+            "main.rs",
+            &format!("const K: &str = \"{AWS_KEY}\";\n"),
+        );
+
+        let findings = scan(&repo);
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("config.py")),
+            "python file should be scanned: {findings:?}"
+        );
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("main.rs")),
+            "rust file should be scanned: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn excludes_skip_extension_files() {
+        // A secret committed only into a skip-list extension (`.lock`) must not
+        // surface — the git pathspec exclusion mirrors on-disk `should_skip_file`.
+        let repo = temp_repo();
+        commit_file(&repo, "deps.lock", &format!("token = {AWS_KEY}\n"));
+
+        let findings = scan(&repo);
+        assert!(
+            findings.is_empty(),
+            "skip-extension file must be excluded from git history scan: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn skips_oversize_lines() {
+        // A secret buried in a line past the per-line byte guard is skipped
+        // before any regex runs (mirrors the on-disk SCAN-002 guard).
+        let repo = temp_repo();
+        let long_line = format!("x = \"{}{AWS_KEY}\"\n", "a".repeat(5000));
+        commit_file(&repo, "huge.py", &long_line);
+
+        let findings = scan(&repo);
+        assert!(
+            findings.is_empty(),
+            "oversize line should be guarded out of the regex path: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
     }
 }

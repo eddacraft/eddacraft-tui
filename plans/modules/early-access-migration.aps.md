@@ -5,9 +5,9 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| EAMIG | —     | Medium   | Ready  |
+| EAMIG | —     | Medium   | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-26
 
 ## Purpose
 
@@ -84,7 +84,7 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### EAMIG-004 — Expand git scanner file extension coverage
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Git history scanning covers only JS/TS/JSON/YAML/env — far
