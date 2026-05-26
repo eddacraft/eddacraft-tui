@@ -82,35 +82,21 @@ archive.
 
 ## Tasks
 
+> **Completed items are compacted.** Items in a done state (`Done` / `Complete`
+> / `Merged` / `Released/Shipped` — the `DONE_PATTERNS` in
+> `scripts/aps/lib/modules.mjs`) are kept as a heading + `Status:` + a one-line
+> `Summary:`.
+> Their full Intent / Validation / Resolution detail lives in git history and,
+> in brief, in the `CIB` row of [`plans/index.aps.md`](../index.aps.md). The
+> `done/total` count is derived from these statuses by
+> `scripts/aps/index-counts.mjs` (CIB-022), so a compacted item still counts.
+
 ### CIB-001: Sweep global `dev-workflow` skill for post-cutover and current-council drift
 
 - **Status:** Done
-- **Intent:** Bring the global `dev-workflow` routing skill into alignment with
-  the main-first cutover and the current risk-tiered council architecture.
-- **Expected Outcome:** `~/Projects/src/code-env/.claude/skills/dev-workflow/SKILL.md`
-  no longer instructs branching from `dev`, the Stage Map references the current
-  council and skill set (risk-tiered `council`, `local-review-council` for the
-  streaming flow, `planning-council`), and adjacent stages
-  (`addressing-pr-reviews`, `finishing-a-branch`, `release`) are linked where
-  relevant. Skill is consistent with `AGENTS.md` and current APS lifecycle.
-- **Validation:** Manual diff of the updated skill against the main-first
-  cutover artefacts (`docs/guides/branching-strategy.md`,
-  `docs/guides/worktree-policy.md`) and the current council skill; `pnpm
-  format:check` if any in-repo doc is touched alongside.
-- **Identified From:** Session review 2026-05-11 — OPMODEL-012 archive closed
-  without sweeping `dev-workflow`; skill still says "Branch from `dev`" at line
-  32 and points "Review" only at the legacy `code-review` skill plus `/council`
-  command despite the newer streaming/batch council model.
-- **Coordinates with:** DOCGOV-008 (stale entrypoints), CIB-002 (canonical skill
-  list), `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
-  (skill authority boundaries).
-- **Evidence:** Anvil PR #1443 (vendored repo-local copy at
-  `.claude/skills/dev-workflow/SKILL.md`, merged 2026-05-11); follow-up review
-  fixes in commit `ce4091cf` aligned the skill to the repo-local `quick|mini|full`
-  council tiers and added a Surface Inventory section. Companion code-env PR
-  `joshuaboys/code-env#20` covers the upstream global skill — open at closeout
-  time; tracked separately.
-- **Confidence:** high
+- **Summary:** Aligned the global `dev-workflow` skill with the main-first
+  cutover and the risk-tiered council model (Anvil PR #1443; review fixes
+  `ce4091cf`). Upstream global skill tracked via `joshuaboys/code-env#20`.
 
 ### CIB-002: Establish definitive skill and agent list for the anvil repo
 
@@ -141,100 +127,27 @@ archive.
 ### CIB-003: Harden PR remediation against partial closure
 
 - **Status:** Done
-- **Intent:** Ensure PR review remediation does not stop after fixing only CI,
-  only review comments, or only merge conflicts.
-- **Expected Outcome:** Repo-local `addressing-pr-reviews` skills for Claude,
-  OpenCode, and Codex require a bounded closure loop that re-inventories CI,
-  unresolved review threads, and mergeability after every push/rebase/thread
-  resolution, and the dev workflow routes PR feedback through that loop.
-- **Validation:** Manual cross-check of `.claude/skills/addressing-pr-reviews/SKILL.md`,
-  `.opencode/skills/addressing-pr-reviews/SKILL.md`,
-  `.codex/skills/addressing-pr-reviews/SKILL.md`, and both `dev-workflow` skill
-  variants; targeted `pnpm exec oxfmt --check <changed files>` and
-  `git diff --check` for formatting/whitespace. Full `pnpm format:check` was
-  blocked by unrelated untracked OpenCode files in the local worktree.
-- **Identified From:** User report 2026-05-13 that agents addressing a stream of
-  PRs were fixing one blocker class while leaving CI, review comments, or merge
-  conflicts unresolved, causing repeated token-heavy reruns.
-- **Coordinates with:** CIB-002 (agent surface inventory) and repo-local
-  `addressing-pr-reviews` skill authority.
-- **Confidence:** high
+- **Summary:** Repo-local `addressing-pr-reviews` skills (Claude/OpenCode/Codex)
+  now require a bounded closure loop that re-inventories CI → review threads →
+  mergeability after every push/rebase, so remediation can't stop after one
+  blocker class.
 
 ### CIB-004: Simplify admin-key retrieval with credential-source config
 
 - **Status:** Done
-- **Intent:** Make routine admin CLI use easier without storing plaintext admin
-  keys by letting operators configure where the key should be retrieved from.
-- **Expected Outcome:** `anvil admin auth set 1password <op-reference>` writes
-  an owner-only local credential-source config, `anvil admin auth status` reports
-  the configured source without revealing the key, `anvil admin auth unset`
-  removes it, and normal `anvil admin` commands resolve the key from
-  `ANVIL_ADMIN_KEY` first or from `op read <reference>` otherwise.
-- **Validation:** `cargo test -p eddacraft-anvil commands::admin`; `cargo fmt
-  --check`; `pnpm format:check`; manual source check against issue #952.
-- **Identified From:** GitHub issue #952, deferred from ADMINCLIH v1 as
-  "Admin CLI: keychain-integrated local key storage".
-- **Coordinates with:** Archived `ADMINCLIH` module out-of-scope note; this item
-  intentionally records retrieval metadata only, not plaintext admin keys or OS
-  keychain integration.
-- **Files:** `crates/anvil-cli/src/commands/admin.rs`,
-  `docs/runbooks/admin-cli.md`.
-- **Evidence:** `anvil admin auth set 1password <op-reference>` stores only the
-  retrieval reference, normal admin commands resolve it with `op read` when
-  `ANVIL_ADMIN_KEY` is absent, and the runbook documents setup/status/unset.
-- **Confidence:** high
+- **Summary:** `anvil admin auth set/status/unset` configure a credential
+  *source* (e.g. `op read <reference>`) so routine admin use never stores a
+  plaintext key; commands resolve `ANVIL_ADMIN_KEY` first, else the source
+  (issue #952).
 
 ### CIB-005: Pre-write validator patch-mode support
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
-- **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
-  merged 2026-05-18 as `3a647d4b`. Advances to `Released/Shipped` when
-  the next hotfix tag records release evidence.
-- **Intent:** Stop forcing agents to ship full `proposedContent` to
-  `anvil_validate_write` when they only need to apply a small edit; accept a
-  diff/patch payload instead so token cost scales with the change, not the file.
-- **Expected Outcome:** `anvil_validate_write` invoked with `patch` and no
-  `content` no longer returns the `patch-only-unsupported` error currently
-  hard-coded at
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs:621-625`. The validator
-  reads the on-disk file at the `workspaceRoot`-relative path, applies the
-  patch to produce the post-image buffer, then feeds that buffer through the
-  existing `ProposedChange` (`crates/anvil-intercept/src/enforcement.rs:32`)
-  and `EnforcementPipeline::diagnostics_for_proposed_changes()`
-  (`crates/anvil-intercept/src/enforcement.rs:70`) pipeline — every existing
-  rule continues to fire against the post-image, with no rule-side changes.
-  Patch format (unified diff vs. structured edit ops), line-ending behaviour,
-  and the read-then-apply race window have documented semantics. The existing
-  rejection test (`patch_only_blocks_as_unsupported` at
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs:1312`) flips to a positive
-  acceptance test, and a new test covers the original screenshot case: a
-  one-string rename inside a 2770-line JSON file succeeds without
-  `proposedContent`.
-- **Validation:** `cargo test -p anvil-cli mcp::tools::validate_write`;
-  `cargo test -p anvil-intercept enforcement`; manual end-to-end check via the
-  MCP tool with a patch-only payload against a >20k-token fixture, confirming
-  the call succeeds, the diagnostics returned match what full-content
-  validation would have produced, and the disk file is unchanged (validator
-  is read-only).
-- **Identified From:** Beta tester screenshot 2026-05-18 — agent hit its
-  single-Read budget on a 2770-line (~25.6k token) JSON metadata file for a
-  one-string tag rename at idx 394 and was forced into a stop-and-ask. The
-  validator already parses the `patch` field (detection at
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs:589-602`) but rejects it
-  deliberately rather than for any architectural reason; the `contentSha256` +
-  `preview` slim-payload design intent in the same file's descriptor comment
-  signals patch-mode was planned and deferred, not abandoned.
-- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
-  `crates/anvil-cli/src/mcp/validation.rs` (entry at line 432),
-  `crates/anvil-intercept/src/enforcement.rs` (consumer; no expected changes).
-- **Coordinates with:** CIB-006 (risk-tiered validation builds on this — once
-  patches are first-class, the safelist tier can dispatch on patch shape).
-- **Out of Scope:** The same screenshot also surfaced the
-  `untrusted-workspace-root` gate
-  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`). Tracked
-  separately as CIB-007 and intended to ship in the same hotfix tag so the
-  beta tester's full friction surface clears in one cut.
-- **Confidence:** high
+- **Summary:** `anvil_validate_write` accepts a `patch` payload with no full
+  `content` — it applies the patch to the on-disk file and runs the post-image
+  through the normal enforcement pipeline (no rule changes), so token cost
+  scales with the edit, not the file. PR #1692 (`3a647d4b`). CIB-006 (risk
+  tiering) builds on it.
 
 ### CIB-006: Risk-tiered validation for trivial edits
 
@@ -277,76 +190,11 @@ archive.
 ### CIB-007: Untrusted-workspace-root preflight gate is unrecoverable for legitimate callers
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
-- **Evidence:** PR [#1692](https://github.com/eddacraft/anvil-001/pull/1692)
-  merged 2026-05-18 as `3a647d4b` (option **(b)** — recoverable error
-  payload). Advances to `Released/Shipped` when the next hotfix tag
-  records release evidence.
-- **Triage Decision (2026-05-18):** Option **(b)** — keep the strict
-  equality check, add an `expectedWorkspaceRoot` field to the
-  `untrusted-workspace-root` error payload so the caller can
-  self-correct on the next call. Option (a) (worktree-aware accept) is
-  the more leveraged fix but widens the trust boundary and needs an
-  ADR per `docs/guides/adr-process.md`, which is out of scope for the
-  CIB-005 hotfix this item is paired with. Option (a) can be opened
-  as a follow-up CIB if (b)'s recoverability proves insufficient in
-  practice.
-- **Intent:** Stop the `untrusted-workspace-root` MCP preflight from
-  rejecting agents that pass a legitimate sibling `workspaceRoot`
-  (worktree siblings, monorepo sub-packages, macOS `/private`-prefixed
-  symlink variants) without giving the caller enough information to
-  recover without a human round-trip.
-- **Expected Outcome:** The strict equality check at
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs:696-703` is updated
-  along one of two paths, chosen during triage:
-  - **(a) Relax to worktree-aware accept:** any path that canonicalises
-    to a Git worktree linked to the shim's primary working tree is
-    accepted. The trust boundary (no traversal outside the shim's tree)
-    is preserved; symlink resolution still goes through
-    `canonical_workspace_root()` at line 713.
-  - **(b) Keep the strict check but return a recoverable error:** the
-    `ToolProblem` payload includes the expected `workspaceRoot` (the
-    shim's canonicalised cwd) so the caller can retry with the right
-    value on the next call without operator intervention.
-  Either way the existing positive case (no `workspaceRoot` provided, or
-  exact match after canonicalisation) continues to pass, and the
-  rejection test at
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs:1470` is updated to
-  cover whichever resolution lands. The
-  `docs/architecture/mcp-shim-as-built.md` request-shape note (line 160)
-  is updated to match.
-- **Validation:** `cargo test -p anvil-cli mcp::tools::validate_write`;
-  manual end-to-end check from a worktree at
-  `~/Projects/src/anvil-001-<branch>` against an MCP shim launched in
-  `~/Projects/src/anvil-001`, confirming the call now either succeeds
-  (option a) or fails with a recoverable payload that names the expected
-  root (option b); `pnpm format:check` for any in-repo doc touched.
-- **Identified From:** Beta tester screenshot 2026-05-18 — same incident
-  as CIB-005. After patch-mode was worked around, the same agent then
-  tripped `untrusted-workspace-root`
-  (`crates/anvil-cli/src/mcp/tools/validate_write.rs:699-702`) because
-  its understood `workspaceRoot` did not canonicalise to the shim's
-  launch cwd. The gate is correct as a trust boundary, but its current
-  error text is unrecoverable: the agent cannot know what value would
-  satisfy the shim short of asking the operator, so the friction surface
-  rolls back to "stop and ask".
-- **Files:**
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs` (`workspace_root()`
-  at line 680, `canonical_workspace_root()` at line 713, rejection test
-  at line 1470); `docs/architecture/mcp-shim-as-built.md` (request-shape
-  table at line 160); `plans/decisions/DECISION-LOG.md` if option (a) is
-  chosen, because that path widens the trust boundary and needs an ADR
-  per `docs/guides/adr-process.md`.
-- **Coordinates with:** CIB-005 (same beta incident, same file; both
-  should ship in the same hotfix tag so the tester's full friction
-  surface clears in one cut, not two), CIB-006 (out of scope here —
-  risk-tiering does not depend on this gate).
-- **Out of Scope:** Broader MCP trust-boundary review (auth, multi-root
-  workspaces, daemon-mediated workspace registration). Anything beyond
-  worktree-sibling recognition and recoverable error payloads belongs in
-  a dedicated APS module, not a hotfix-eligible CIB item.
-- **Confidence:** medium — option (b) is high-confidence and small;
-  option (a) is higher-leverage but its trust-boundary widening needs an
-  ADR before code lands. Triage selects between them.
+- **Summary:** The `untrusted-workspace-root` MCP preflight error now returns
+  the expected `workspaceRoot` (option **(b)**, strict check kept) so a caller
+  passing a sibling/worktree root can self-correct without a human round-trip.
+  PR #1692 (`3a647d4b`), same hotfix as CIB-005. Worktree-aware accept (option
+  a) deferred — it widens the trust boundary and needs an ADR.
 
 ### CIB-008: `anvil check` planless path runs only `architecture`, ignoring `.anvilrc`
 
@@ -429,73 +277,25 @@ archive.
 ### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
 
 - **Status:** Merged via PR [#1818](https://github.com/eddacraft/anvil-001/pull/1818) (merged 2026-05-21 at `acc4db6f`)
-- **Tracking:** GH issue [#1803](https://github.com/eddacraft/anvil-001/issues/1803)
-- **Intent:** Immediately after `anvil start`, `anvil gate -p ai` reports
-  3/5 checks failing solely because their config files don't yet exist
-  (`.anvil/architecture.yaml`, `.anvil/policies/`, no commands to
-  analyse). The AI profile is the one most explicitly marketed to new
-  users; seeing a 1/5 score with no actionable next-step on first
-  contact sets the expectation that Anvil is broken for their stack.
-- **Expected Outcome:** Either:
-  1. Missing-config under any profile produces an `info`-level
-     notification, not a `FAIL`; overall score is graded against
-     **available** checks.
-  2. `anvil start` writes empty-but-valid `.anvil/architecture.yaml`
-     and `.anvil/policies/` scaffolds with header comments pointing at
-     the relevant docs, so `gate -p ai` has something to evaluate on
-     first run.
-
-  Either way, the failure line carries a `next:` hint with the exact
-  `anvil architecture init` / `anvil policy init` (or equivalent)
-  command.
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #9.
-- **Validation:** CLI integration test that runs `anvil start` followed
-  by `anvil gate -p ai --json` on a fresh repo and asserts no FAIL line
-  reports "Skipping" as its reason.
-- **Confidence:** high — directly observable on a fresh repo.
+- **Summary:** On a fresh repo, `anvil gate -p ai` no longer FAILs purely
+  because config files don't exist yet — missing-config is info-level and the
+  score grades against available checks, with a `next:` hint (issue #1803,
+  new-user journey audit finding #9).
 
 ### CIB-012: `anvil check --staged` errors with "`--changed` required"
 
 - **Status:** Merged via PR [#1813](https://github.com/eddacraft/anvil-001/pull/1813) (merged 2026-05-21 at `ce0bd32b`)
-- **Tracking:** GH issue [#1804](https://github.com/eddacraft/anvil-001/issues/1804)
-- **Intent:** `--staged` is the obvious flag a developer reaches for
-  first (`git diff --staged` mental model). Today it errors out with
-  `the following required arguments were not provided: --changed`.
-  The recommended usage line even reads
-  `anvil check --changed --staged --no-tui [FILES]...` — which makes
-  no sense as a public surface.
-- **Expected Outcome:** `--staged` implies `--changed`; same for
-  `--since`. The error path disappears.
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #10.
-- **Files:** clap parser for `anvil check` in
-  `crates/anvil-cli/src/commands/check.rs` (drop the
-  `requires = "changed"` constraint on `--staged` and `--since`; set
-  `changed = true` implicitly when either is present).
-- **Validation:** CLI test that invokes `anvil check --staged` (without
-  `--changed`) and asserts non-error exit + correct behaviour.
-- **Confidence:** high — trivial clap change.
+- **Summary:** `anvil check --staged` (and `--since`) now imply `--changed`
+  instead of erroring with "`--changed` required" (issue #1804, new-user
+  journey audit finding #10; `crates/anvil-cli/src/commands/check.rs`).
 
 ### CIB-013: Add agent continuous-improvement closeout to dev-workflow
 
 - **Status:** Done
-- **Intent:** Make continuous improvement part of the normal agent lifecycle
-  instead of relying on manual tmux reconstruction after sessions finish.
-- **Expected Outcome:** Repo-local OpenCode and Claude `dev-workflow` skills
-  explicitly trigger for all Anvil development/docs/config/review/release work,
-  require a compact session-learning note before final response on non-trivial
-  tasks, and point agents at a shared evidence log rather than a second backlog.
-- **Validation:** Manual diff of `.opencode/skills/dev-workflow/SKILL.md`,
-  `.claude/skills/dev-workflow/SKILL.md`, and
-  `plans/reviews/continuous-improvement-log.md`; `git diff --check`.
-- **Identified From:** User report 2026-05-24 that Claude agents regularly skip
-  `dev-workflow` unless invoked manually, plus discussion about lightweight
-  continuous-improvement logging.
-- **Files:** `.opencode/skills/dev-workflow/SKILL.md`,
-  `.claude/skills/dev-workflow/SKILL.md`,
-  `plans/reviews/continuous-improvement-log.md`.
-- **Confidence:** high
+- **Summary:** Repo-local OpenCode + Claude `dev-workflow` skills now require a
+  compact continuous-improvement note before the final response on non-trivial
+  tasks and point at the shared evidence log
+  (`plans/reviews/continuous-improvement-log.md`) rather than a second backlog.
 
 ### CIB-014: SARIF output for `anvil check` / `anvil gate` / `anvil audit`
 
@@ -668,109 +468,27 @@ archive.
 ### CIB-020: Release-prep must refresh version-embedding TUI snapshots
 
 - **Status:** Merged 2026-05-25 via PR #1961
-- **Intent:** `chore(release): prepare vX` bumps the workspace version in
-  `Cargo.toml` but does not refresh the anvil-tui snapshots that embed
-  `env!("CARGO_PKG_VERSION")` in the shell chrome, so ~36 snapshot tests go red
-  on `main` after every release-prep until someone re-runs `cargo insta`. The
-  `v0.7.2-beta` bump (`a259fba9e`) did exactly this, breaking `main`'s TUI tests
-  and any PR that builds anvil-tui (caught + fixed by PR #1959 while landing
-  POLENG-009).
-- **Expected Outcome:** the gap is closed structurally, not by hand each
-  release. Two viable approaches:
-  1. Add a `cargo insta test --accept -p eddacraft-anvil-tui` (then commit) step
-     to the release-prep script after the version bump, so the snapshots travel
-     with the bump.
-  2. Stop embedding `CARGO_PKG_VERSION` in the *committed* snapshots — e.g. have
-     `crates/anvil-tui/src/shell.rs` tests substitute a fixed placeholder
-     version when rendering for snapshots, so the watermark is version-agnostic.
-  Option 2 is the more durable fix (removes the coupling entirely); option 1 is
-  the cheaper interim. Pick one at implementation time.
-- **Validation:** simulate a version bump (edit `[workspace.package] version`),
-  run `cargo test -p eddacraft-anvil-tui`, and confirm the chosen mechanism keeps
-  it green without a manual snapshot sweep.
-- **Identified From:** POLENG-009 rebase (PR #1952) surfaced the stale snapshots;
-  fixed reactively in PR #1959, 2026-05-25.
-- **Files:** the release-prep script under `scripts/release/`, and/or
-  `crates/anvil-tui/src/shell.rs` + its `snapshots/`.
-- **Coordinates with:** RELORCH (release orchestration); the `anvil-tui` snapshot
-  surface.
-- **Confidence:** medium — option 1 is trivial; option 2 needs a small
-  test-render seam in shell.rs but is the cleaner long-term fix.
-- **Resolution:** Option 2 (version-agnostic snapshots). `crates/anvil-tui/src/shell.rs`
-  now defines `VERSION` as `env!("CARGO_PKG_VERSION")` under `#[cfg(not(test))]`
-  and a fixed `"X.Y.Z"` placeholder under `#[cfg(test)]`, so every shell snapshot
-  renders the watermark as `vX.Y.Z` regardless of the workspace version. The
-  former `version_matches_workspace` test is replaced by
-  `production_watermark_uses_cargo_pkg_version`, which asserts (a) the real
-  `CARGO_PKG_VERSION` is well-formed and (b) the test placeholder is the
-  deliberate `X.Y.Z` marker (not a stale real version). 38 committed snapshots
-  re-accepted with the placeholder; the coupling between release-prep and the TUI
-  snapshot sweep is removed entirely. Validation: bumping `[workspace.package]
-  version` to `9.9.9-bumptest` left `cargo test -p eddacraft-anvil-tui` green
-  (607/0) with zero snapshot churn.
+- **Summary:** anvil-tui's shell watermark renders a fixed `X.Y.Z` placeholder
+  in test builds (`VERSION` is `CARGO_PKG_VERSION` under `cfg(not(test))`, the
+  placeholder under `cfg(test)`), so ~38 snapshots are version-agnostic and a
+  release version bump no longer reddens `main`. `version_matches_workspace` →
+  `production_watermark_uses_cargo_pkg_version`. Surfaced reactively by PR #1959
+  during the POLENG-009 rebase.
 
 ### CIB-021: Append-only CI log should not produce merge conflicts
 
 - **Status:** Merged 2026-05-26 via PR #1967
-- **Intent:** The continuous-improvement log is append-only but lives in one
-  file, so parallel agents/worktrees that each append an entry collide on the
-  tail hunk and force a manual rebase/merge resolution (hit on the CIB-020
-  rebase, and recurringly before that).
-- **Expected Outcome:** Concurrent appends merge automatically with no conflict
-  markers, reusing the repo's existing `merge=union` pattern (already applied to
-  the witness NDJSON logs in `.gitattributes`). The entry convention guarantees
-  a trailing blank line so unioned entries don't abut.
-- **Validation:** two branches that each append a distinct entry merge/rebase
-  clean (no `<<<<<<<` markers); `.gitattributes` lists
-  `plans/reviews/continuous-improvement-log.md merge=union`.
-- **Identified From:** CIB-020 rebase (PR #1961) — hand-resolved a log conflict
-  caused by a sibling APSCAN closeout entry, 2026-05-26.
-- **Files:** `.gitattributes`, `plans/reviews/continuous-improvement-log.md`.
-- **Confidence:** high — direct reuse of an established in-repo mechanism.
+- **Summary:** `plans/reviews/continuous-improvement-log.md` is `merge=union` in
+  `.gitattributes`, so concurrent appends from parallel agents/worktrees merge
+  without conflict markers (reuses the witness-NDJSON-log pattern). Entry
+  convention requires a trailing blank line so unioned entries don't abut.
 
 ### CIB-022: Derive APS index progress counts instead of hand-editing
 
 - **Status:** Merged 2026-05-26 via PR #1969
-- **Intent:** `plans/index.aps.md` progress cells (e.g. `9/20`) are mutated by
-  hand whenever a module's done/total changes. Two agents bumping the same
-  counter is a genuine semantic conflict that `merge=union` cannot fix (it would
-  corrupt `8/20`/`9/20` into garbage), so the index stays a serialization point
-  and a recurring conflict source — the half of the problem CIB-021 deliberately
-  does not solve.
-- **Expected Outcome:** The done/total counts (and ideally the per-item PR
-  annotations) are generated from the module `.aps.md` files rather than
-  hand-maintained — same shape as the `docs:index` generator
-  (`scripts/docs/docs-index.mjs`) — with a `--check` mode wired into CI so the
-  derived index can't drift. Removes the counter-conflict class entirely.
-- **Validation:** a generator rewrites the index counts from module sources;
-  `--check` fails CI on drift; two branches that each complete a different item
-  no longer conflict on the index.
-- **Identified From:** Log/index conflict analysis during CIB-021, 2026-05-26 —
-  `merge=union` fixes the append-only log but not the index counter mutation.
-- **Files:** `plans/index.aps.md`, a new generator under `scripts/aps/` (e.g.
-  `scripts/aps/index-counts.mjs`) that borrows the *pattern* of
-  `scripts/docs/docs-index.mjs` (generate + `--check`), not its location or
-  scope; CI wiring alongside the existing `drift-check.mjs` invocation.
-- **Coordinates with:** APSCAN (canonical-alignment tooling); the `docs:index`
-  generator pattern it would mirror.
-- **Confidence:** medium — clear pattern to follow, but touches every module's
-  index row and needs careful idempotent generation + CI wiring.
-- **Resolution:** `scripts/aps/index-counts.mjs` derives `done/total` from each
-  module's work-item `Status:` lines and rewrites both the module header row and
-  the `plans/index.aps.md` count token; `--check` (npm `aps:index:check`) is
-  enforced in the `Docs Lint` CI job (exit 1 on drift), and `aps:index` writes
-  the refresh. The module parser (`extractModule`/`isDoneStatus`/`DONE_PATTERNS`)
-  was extracted to `scripts/aps/lib/modules.mjs` and is now shared with
-  `drift-check.mjs` so the advisory checker and the enforcing generator can never
-  disagree on what "done" means. **Scope (per the chosen approach):** only
-  modules that declare a `| ID | … | N/M |` progress header are managed;
-  headerless modules carry hand-curated *planned* totals that are not
-  item-derivable and are left untouched (as drift-check already does). Index
-  rows are matched by their *name-cell* link so a cross-reference in another
-  row's prose can't hijack the match, and archived (`archive/modules/…`) rows
-  are never touched. The per-cell annotation prose is preserved, so this makes
-  counts authoritative and drift-proof but does **not** eliminate same-module
-  concurrent *prose* conflicts (cross-module completions already merge cleanly).
-  Validation: `npm run test:aps-index` fixture suite; `aps:index:check` green on
-  the full tree; simulated completion (flip an item to `Merged`, run
-  `aps:index`) updates header + index and nothing else.
+- **Summary:** `scripts/aps/index-counts.mjs` derives each managed module's
+  `done/total` from its work-item `Status:` lines and rewrites the module header
+  + the `plans/index.aps.md` count token; `aps:index:check` enforces it in the
+  Docs Lint CI job (exit 1 on drift). Parser shared with `drift-check.mjs` via
+  `scripts/aps/lib/modules.mjs`. Headerless/archived rows untouched; annotation
+  prose preserved (so it kills count drift, not same-module prose conflicts).

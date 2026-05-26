@@ -448,3 +448,22 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree
   after merge. The same-module prose-conflict residue is documented in CIB-022,
   not a new item.
+
+### 2026-05-26 — claude
+
+- **Task:** Compact the 11 done items in the standing CIB module (the file had
+  grown to 776 lines) without changing the CIB-022-derived `11/22` count.
+- **Outcome:** Each done item reduced to heading + `Status:` + one-line
+  `Summary:`; a convention note added under `## Tasks`. Module 776 → 493 lines.
+  `aps:index:check` stays `11/22` (exit 0), drift-check 0 progress findings.
+- **Worked:** Because CIB-022's generator counts by heading + `Status:`, keeping
+  those two lines per item meant the count was unaffected by design — the
+  "compact in place, keep count" option was chosen precisely so the just-shipped
+  enforcing check didn't have to change. Verified empirically before push.
+- **Failed:** Nothing substantive. Line numbers shifted as I compacted top-down,
+  so I re-`grep`ed positions rather than trusting stale offsets.
+- **Friction:** markdownlint isn't installed locally (session-start flagged it
+  MISSING), so the `Docs Lint` markdown gate can only be checked in CI.
+- **Improvement:** none — the heading+Status invariant is now documented in the
+  new `## Tasks` note for future compactions.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
