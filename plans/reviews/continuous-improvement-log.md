@@ -490,3 +490,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   implemented-but-unreconciled items. Not filing yet (needs a real signal it
   recurs beyond this one audit batch).
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+
+### 2026-05-26 — claude
+
+- **Task:** Asked to "start DASH-001 in a worktree"; pivoted via user to scope simple, shippable TUI dashboards without json-render/AI, landing a new TDASH module.
+- **Outcome:** PR #1978 — `native-tui-dashboards` (TDASH) module proposed with 4 Ready items against already-persisted `.anvil/` data; DASH-001 worktree torn down (flip reverted, DASH stays Ready).
+- **Worked:** Verifying prod reality before trusting the plan — `eddacraft-tui` v0.2.2 has no json-render (it shipped web-side as `@eddacraft/render`), so TUIDASH is still blocked; `anvil plan dashboard` gave a proven native-surface precedent to generalise.
+- **Failed:** Flipped DASH-001 → In Progress before confirming direction; had to revert when the user redirected to TUIDASH/native dashboards. Should have surfaced the test-infra gap + dependency check before mutating APS state.
+- **Friction:** `apps/website` has no test runner at all — DASH's whole wave has no TDD path until someone seeds Vitest/RTL; this is an unstated prerequisite hiding in DASH-001.
+- **Improvement:** When "start <item>" lands on a module with REVIEW/archived-dep flags or no test target, run the readiness + prod-wireup check (and a quick prerequisite scan) BEFORE the In Progress flip, not after.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1978; consider a DASH readiness note that web-dashboard items need a test-infra seed item first.
