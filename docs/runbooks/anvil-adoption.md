@@ -4,9 +4,9 @@
 | ------- | ------------- | ------ | ------ | ------------------------------------------------------------- |
 | Runbook | Authoritative | @aneki | Live   | First filed 2026-05-18 as N4 doc-lane closure for v0.7.0-beta |
 
-| Upstream                                                                                                                                                                                                                                           | Downstream                                                                                                                                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md) (ADOPT-001..-006), [`plans/archive/modules/adoption-trust-surface.aps.md`](../../plans/archive/modules/adoption-trust-surface.aps.md) (ADTRUST-001..-006) | [`docs/policies/resource-budget.md`](../policies/resource-budget.md), [`docs/policies/editor-coexistence.md`](../policies/editor-coexistence.md), [hook coexistence runbook](anvil-hook-coexistence.md), `anvil uninstall` |
+| Upstream                                                                                                                                                                                                                                                           | Downstream                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md) (ADOPT-001..-006), [`plans/archive/modules/adoption-trust-surface.aps.md`](../../plans/archive/modules/adoption-trust-surface.aps.md) (ADTRUST-001..-006) | [`docs/policies/resource-budget.md`](../policies/resource-budget.md), [`docs/policies/editor-coexistence.md`](../policies/editor-coexistence.md), [hook coexistence runbook](anvil-hook-coexistence.md), `anvil uninstall` |
 
 This runbook walks an operator (and the senior engineer they support) through
 the first hour, first day, and first week of using Anvil on an existing project.
@@ -318,7 +318,7 @@ entry in the [witness-chain runbook](anvil-witness-chain.md).
 
 ## See also
 
-- [`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)
+- [`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)
   — ADOPT module scope and per-task evidence.
 - [`docs/policies/resource-budget.md`](../policies/resource-budget.md) — pinned
   CPU / RSS ceiling and measurement protocol.

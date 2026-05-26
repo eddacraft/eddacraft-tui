@@ -1,8 +1,8 @@
 # Editor Surface Coexistence
 
-| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                                |
-| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-17 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` |
+| Type  | Authority     | Owner                                                                                                            | Status | Freshness                                                                                                                |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-17 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` |
 
 | Upstream                                                                                                                                    | Downstream                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -211,4 +211,4 @@ feasible, and document an exclusion where not.
 - CI gate — `.github/workflows/editor-coexistence.yml`
 - Ignore-policy source of truth — `crates/anvil-kernel/src/watcher/filter.rs`
 - Hook-manager coexistence — `crates/anvil-hook/src/coexistence.rs`
-- APS — `plans/modules/adoption-friction.aps.md` (ADOPT-006)
+- APS — `plans/archive/modules/adoption-friction.aps.md` (ADOPT-006)

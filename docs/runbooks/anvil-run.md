@@ -4,9 +4,9 @@
 | ------- | ------------- | ------ | ------ | ------------------------------------------------------------- |
 | Runbook | Authoritative | @aneki | Live   | First filed 2026-05-18 as N4 doc-lane closure for v0.7.0-beta |
 
-| Upstream                                                                                                                                                                                  | Downstream                                                                                                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`plans/modules/intercept-launcher.aps.md`](../../plans/modules/intercept-launcher.aps.md) (INTL-001..-009), [ADR-038 §3](../../plans/decisions/038-hook-surface-and-noise-discipline.md) | [`crates/anvil-run/`](../../crates/anvil-run/), [`crates/anvil-run/shell/anvil-run.sh`](../../crates/anvil-run/shell/anvil-run.sh), [`crates/anvil-intercept-proto/src/session.rs`](../../crates/anvil-intercept-proto/src/session.rs) |
+| Upstream                                                                                                                                                                                                  | Downstream                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`plans/archive/modules/intercept-launcher.aps.md`](../../plans/archive/modules/intercept-launcher.aps.md) (INTL-001..-009), [ADR-038 §3](../../plans/decisions/038-hook-surface-and-noise-discipline.md) | [`crates/anvil-run/`](../../crates/anvil-run/), [`crates/anvil-run/shell/anvil-run.sh`](../../crates/anvil-run/shell/anvil-run.sh), [`crates/anvil-intercept-proto/src/session.rs`](../../crates/anvil-intercept-proto/src/session.rs) |
 
 ## NAME
 
@@ -142,7 +142,7 @@ tested under `crates/anvil-intercept-lib/tests/`. Neither `ANVIL_TASK_ID` nor
 chain (ADR-037 §D-2) is the only authenticated provenance.
 
 See
-[`plans/modules/intercept-launcher.aps.md`](../../plans/modules/intercept-launcher.aps.md)
+[`plans/archive/modules/intercept-launcher.aps.md`](../../plans/archive/modules/intercept-launcher.aps.md)
 for the contract.
 
 ## SECURITY CONSIDERATIONS
@@ -283,7 +283,7 @@ explicitly.
   hooks coexist with lefthook, husky, and pre-commit-framework.
 - [Air-gap operation runbook](anvil-air-gapped.md) — the no-network guarantee
   `anvil-run` participates in.
-- [`plans/modules/intercept-launcher.aps.md`](../../plans/modules/intercept-launcher.aps.md)
+- [`plans/archive/modules/intercept-launcher.aps.md`](../../plans/archive/modules/intercept-launcher.aps.md)
   — the full INTL module contract.
 - [ADR-038 §3](../../plans/decisions/038-hook-surface-and-noise-discipline.md) —
   noise-discipline rules the launcher's refusal banner conforms to.

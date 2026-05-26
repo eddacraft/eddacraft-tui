@@ -10,7 +10,7 @@
 **In Progress → Done**; all nine task `Status:` lines moved
 **In Progress → Done** so the APS drift / progress tooling counts them
 as finished. Narratively the module is **Merged** in the
-[`plans/aps-rules.md`](../aps-rules.md) lifecycle — the cleanup agent
+[`plans/aps-rules.md`](../../aps-rules.md) lifecycle — the cleanup agent
 advances **Merged → Released/Shipped → Complete/Archived** when
 release-record evidence from the `v0.7.0-beta` runbook lands, at which
 point this row will be archived to `plans/archive/modules/`. Two QoL
@@ -28,7 +28,7 @@ MLP-002 ships the witness primitive — true today.)
 
 INTL is the ingress that produces the `AgentTag` minted by the daemon per
 MLP-014. The stub type lives in
-[`crates/anvil-intercept-proto/src/session.rs`](../../crates/anvil-intercept-proto/src/session.rs)
+[`crates/anvil-intercept-proto/src/session.rs`](../../../crates/anvil-intercept-proto/src/session.rs)
 (landed 2026-05-13 as part of Wave 0 closure); behavioural use comes with
 MLP-014 (registry key change) and INTL-003 / INTL-004 (launcher-side
 propagation). Concretely:
@@ -60,7 +60,7 @@ process can spoof or unset them. The daemon MUST:
    normal path, not a security boundary.
 
 This contract is the carry-forward gate confirmed in Wave 0 of the
-[release plan](../../RELEASE-PLAN.md#wave-0-promote-contracts).
+[release plan](../../../RELEASE-PLAN.md#wave-0-promote-contracts).
 
 ## Purpose
 

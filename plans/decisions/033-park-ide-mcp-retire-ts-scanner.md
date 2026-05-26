@@ -315,7 +315,7 @@ which scanner consumers exist.
     rather than "actively migrating from")
   - [intercept-daemon](../archive/modules/intercept-daemon.aps.md) /
     [intercept-rules](../modules/intercept-rules.aps.md) /
-    [intercept-launcher](../modules/intercept-launcher.aps.md)
+    [intercept-launcher](../archive/modules/intercept-launcher.aps.md)
     (INTD/INTR/INTL — unaffected)
 - Code (archived under this ADR — surface packages):
   `packages/vscode-extension/` → `archive/anvil-vscode-extension/`,

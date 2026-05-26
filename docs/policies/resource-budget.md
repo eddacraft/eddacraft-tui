@@ -1,8 +1,8 @@
 # Resource Budget — `anvil watch`
 
-| Type  | Authority     | Owner                                                                                            | Status | Freshness                                                                                                                      |
-| ----- | ------------- | ------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | ADOPT ([`plans/modules/adoption-friction.aps.md`](../../plans/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-16 against `crates/anvil-bench/src/watch_resource_budget.rs` and `.github/workflows/resource-budget.yml` |
+| Type  | Authority     | Owner                                                                                                            | Status | Freshness                                                                                                                      |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-16 against `crates/anvil-bench/src/watch_resource_budget.rs` and `.github/workflows/resource-budget.yml` |
 
 | Upstream                                                                    | Downstream                                                                                     |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -97,4 +97,4 @@ on green builds — slow drift is detectable before it becomes a failure.
 - Fixture generator — `crates/anvil-bench/src/fixture.rs`
 - Watch budget sampler — `crates/anvil-bench/src/watch_resource_budget.rs`
 - CI gate — `.github/workflows/resource-budget.yml`
-- APS — `plans/modules/adoption-friction.aps.md` (ADOPT-002)
+- APS — `plans/archive/modules/adoption-friction.aps.md` (ADOPT-002)

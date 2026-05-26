@@ -25,12 +25,12 @@
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)  | `docs/runbooks/eddacraft-tui-release.md`     | Runbook  | Authoritative | @aneki | Live   |
 
-## ADOPT (plans/modules/adoption-friction.aps.md)
+## ADOPT (plans/archive/modules/adoption-friction.aps.md)
 
-| Document                                                                | Path                                  | Type  | Authority     | Owner                                          | Status |
-| ----------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ---------------------------------------------- | ------ |
-| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md) | Live   |
-| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`    | Guide | Authoritative | ADOPT (plans/modules/adoption-friction.aps.md) | Live   |
+| Document                                                                | Path                                  | Type  | Authority     | Owner                                                  | Status |
+| ----------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
+| [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
+| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`    | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
 
 ## ARCHCFG
 

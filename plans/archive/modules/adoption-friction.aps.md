@@ -10,7 +10,7 @@
 ADOPT-003 CLI-wiring + `anvil-run` half merge via PR #1700; module
 status In Progress → Merged. Progress: **6/6** — ADOPT-005
 `anvil uninstall` merged 2026-05-14 (PR #1521) and **Released/Shipped
-via [`v0.6.3-beta`](../releases/v0.6.3-beta.md) on 2026-05-15**;
+via [`v0.6.3-beta`](../../releases/v0.6.3-beta.md) on 2026-05-15**;
 ADOPT-001 hook coexistence Done 2026-05-15 (runbook at
 `docs/runbooks/anvil-hook-coexistence.md`); ADOPT-002 resource-budget
 enforcement completed 2026-05-16; ADOPT-004 shared ignore policy
@@ -279,7 +279,7 @@ disables any check, suppresses without resolution, or bypasses a hook.
 - **Status:** Released/Shipped via v0.6.3-beta (PR #1521 · 2026-05-14)
 - **Evidence:** Merged via PR #1521 (`feat(cli): add 'anvil uninstall' command +
   ADR-044 MCP entry ownership`) on 2026-05-14. Released in
-  [`v0.6.3-beta`](../releases/v0.6.3-beta.md) (2026-05-15).
+  [`v0.6.3-beta`](../../releases/v0.6.3-beta.md) (2026-05-15).
 - **Coordinates with:** ADOPT-001 — uninstall ships ahead of the hook
   coexistence work. The shipped implementation calls the silent
   `hooks::uninstall_all_managed_hooks_silent` helper (which clears
@@ -363,8 +363,8 @@ the user-visible specifics.
 
 ## Cross-References
 
-- Coordinates with: [`WATCHUX-002`](../archive/modules/watch-ux-advisory-rules.aps.md) (shared
-  ignore helper), [`MLP-008`](../archive/modules/multilayer-protection.aps.md) (hook bootstrap),
+- Coordinates with: [`WATCHUX-002`](./watch-ux-advisory-rules.aps.md) (shared
+  ignore helper), [`MLP-008`](./multilayer-protection.aps.md) (hook bootstrap),
   [`INTL-001`](intercept-launcher.aps.md) (`anvil-run` scaffold needed for
   ADOPT-003's launcher half).
 - Blocks on: WATCHUX-002 landing (already in flight).
