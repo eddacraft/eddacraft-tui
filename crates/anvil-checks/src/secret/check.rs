@@ -142,8 +142,13 @@ fn deduplicate_findings(findings: Vec<SecretFinding>) -> Vec<SecretFinding> {
                 FindingType::Entropy => "entropy",
             };
             let key = format!(
-                "{}:{}:{}:{}",
-                finding.file, finding.line, finding_type, finding.pattern_name
+                "{}:{}:{}:{}:{}:{}",
+                finding.file,
+                finding.line,
+                finding_type,
+                finding.pattern_name,
+                finding.redacted_match,
+                finding.redacted_line
             );
             seen.insert(key)
         })
@@ -189,7 +194,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::secret::check::run_secret_check;
-    use crate::secret::types::SecretCheckConfig;
+    use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
     fn create_temp_dir(name: &str) -> PathBuf {
         let base = std::env::temp_dir();
@@ -240,6 +245,32 @@ mod tests {
         assert_eq!(result.findings.len(), 2);
 
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn dedupe_preserves_distinct_matches_on_same_line() {
+        let findings = vec![
+            SecretFinding {
+                file: "src/config.ts".to_string(),
+                line: 1,
+                finding_type: FindingType::Pattern,
+                pattern_name: "Generic Secret".to_string(),
+                redacted_match: "abcd***7890".to_string(),
+                redacted_line: "const a = 'abcd***7890'; const b = 'wxyz***4321';".to_string(),
+            },
+            SecretFinding {
+                file: "src/config.ts".to_string(),
+                line: 1,
+                finding_type: FindingType::Pattern,
+                pattern_name: "Generic Secret".to_string(),
+                redacted_match: "wxyz***4321".to_string(),
+                redacted_line: "const a = 'abcd***7890'; const b = 'wxyz***4321';".to_string(),
+            },
+        ];
+
+        let deduped = super::deduplicate_findings(findings);
+
+        assert_eq!(deduped.len(), 2);
     }
 
     #[test]
