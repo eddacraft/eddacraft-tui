@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 9/20     |
+| CIB | —     | In Progress | 10/22    |
 
 ## Purpose
 
@@ -708,3 +708,50 @@ archive.
   snapshot sweep is removed entirely. Validation: bumping `[workspace.package]
   version` to `9.9.9-bumptest` left `cargo test -p eddacraft-anvil-tui` green
   (607/0) with zero snapshot churn.
+
+### CIB-021: Append-only CI log should not produce merge conflicts
+
+- **Status:** Merged 2026-05-26 via PR #1967
+- **Intent:** The continuous-improvement log is append-only but lives in one
+  file, so parallel agents/worktrees that each append an entry collide on the
+  tail hunk and force a manual rebase/merge resolution (hit on the CIB-020
+  rebase, and recurringly before that).
+- **Expected Outcome:** Concurrent appends merge automatically with no conflict
+  markers, reusing the repo's existing `merge=union` pattern (already applied to
+  the witness NDJSON logs in `.gitattributes`). The entry convention guarantees
+  a trailing blank line so unioned entries don't abut.
+- **Validation:** two branches that each append a distinct entry merge/rebase
+  clean (no `<<<<<<<` markers); `.gitattributes` lists
+  `plans/reviews/continuous-improvement-log.md merge=union`.
+- **Identified From:** CIB-020 rebase (PR #1961) — hand-resolved a log conflict
+  caused by a sibling APSCAN closeout entry, 2026-05-26.
+- **Files:** `.gitattributes`, `plans/reviews/continuous-improvement-log.md`.
+- **Confidence:** high — direct reuse of an established in-repo mechanism.
+
+### CIB-022: Derive APS index progress counts instead of hand-editing
+
+- **Status:** Draft
+- **Intent:** `plans/index.aps.md` progress cells (e.g. `9/20`) are mutated by
+  hand whenever a module's done/total changes. Two agents bumping the same
+  counter is a genuine semantic conflict that `merge=union` cannot fix (it would
+  corrupt `8/20`/`9/20` into garbage), so the index stays a serialization point
+  and a recurring conflict source — the half of the problem CIB-021 deliberately
+  does not solve.
+- **Expected Outcome:** The done/total counts (and ideally the per-item PR
+  annotations) are generated from the module `.aps.md` files rather than
+  hand-maintained — same shape as the `docs:index` generator
+  (`scripts/docs/docs-index.mjs`) — with a `--check` mode wired into CI so the
+  derived index can't drift. Removes the counter-conflict class entirely.
+- **Validation:** a generator rewrites the index counts from module sources;
+  `--check` fails CI on drift; two branches that each complete a different item
+  no longer conflict on the index.
+- **Identified From:** Log/index conflict analysis during CIB-021, 2026-05-26 —
+  `merge=union` fixes the append-only log but not the index counter mutation.
+- **Files:** `plans/index.aps.md`, a new generator under `scripts/aps/` (e.g.
+  `scripts/aps/index-counts.mjs`) that borrows the *pattern* of
+  `scripts/docs/docs-index.mjs` (generate + `--check`), not its location or
+  scope; CI wiring alongside the existing `drift-check.mjs` invocation.
+- **Coordinates with:** APSCAN (canonical-alignment tooling); the `docs:index`
+  generator pattern it would mirror.
+- **Confidence:** medium — clear pattern to follow, but touches every module's
+  index row and needs careful idempotent generation + CI wiring.

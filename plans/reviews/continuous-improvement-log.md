@@ -4,6 +4,16 @@ This file captures lightweight session learning from agents. It is evidence, not
 a backlog. Promote repeated friction or executable follow-up work to
 `plans/modules/continuous-improvement-backlog.aps.md` as `CIB-NNN` items.
 
+> **Concurrent writes:** this file is `merge=union` (see `.gitattributes`), so
+> independent appends from parallel agents/worktrees merge automatically — both
+> entries are kept, no conflict markers. This holds under `git merge`,
+> `cherry-pick`, and the default merge-backend `git rebase` (Git ≥ 2.26); only a
+> forced legacy `git rebase --apply` skips it (then just keep both entries). For
+> the merge to stay clean, **always append at the end and leave a blank line
+> after your entry** (and don't start it with a leading blank line), so entries
+> that union together stay separated. Never rewrite or reflow existing entries in
+> the same change as adding one.
+
 ## Template
 
 ```md

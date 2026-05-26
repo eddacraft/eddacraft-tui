@@ -22,3 +22,10 @@
 *.zip binary
 anvil/witness/active.ndjson merge=union -text
 anvil/witness/manifest/chain.ndjson merge=union -text
+
+# Append-only log: keep both sides' added entries instead of emitting conflict
+# markers, so concurrent agents/worktrees never collide on the tail. Honoured by
+# git merge, cherry-pick, and the default merge-backend rebase (Git >= 2.26);
+# NOT by a forced legacy `git rebase --apply`. Stays text/eol=lf via the *.md
+# rule above (no -text).
+plans/reviews/continuous-improvement-log.md merge=union
