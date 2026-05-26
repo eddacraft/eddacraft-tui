@@ -176,6 +176,8 @@ enum Commands {
     Mcp(commands::mcp::McpArgs),
     /// Inspect APS planning state.
     Plan(commands::plan::PlanArgs),
+    /// Open a native read-only dashboard over local Anvil state.
+    Dashboard(commands::dashboard::DashboardArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
@@ -253,6 +255,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::McpConfig(_) => "mcp-config",
         Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
         Commands::Plan(_) => "plan",
+        Commands::Dashboard(_) => "dashboard",
         Commands::New(_) => "new",
         Commands::Wizard(_) => "wizard",
         Commands::Admin(_) => "admin",
@@ -867,6 +870,7 @@ fn main() -> ExitCode {
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
         Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
         Commands::Plan(args) => commands::plan::run(args, &cli.global),
+        Commands::Dashboard(args) => commands::dashboard::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
@@ -1155,6 +1159,23 @@ mod tests {
         assert_eq!(
             command_canonical_name(&parse_command(&["plan", "dashboard"])),
             "plan"
+        );
+    }
+
+    #[test]
+    fn bypass_auth_dashboard() {
+        assert!(!requires_auth(&parse_command(&["dashboard"])));
+        assert!(!requires_auth(&parse_command(&[
+            "dashboard",
+            "architecture"
+        ])));
+    }
+
+    #[test]
+    fn canonical_name_dashboard() {
+        assert_eq!(
+            command_canonical_name(&parse_command(&["dashboard"])),
+            "dashboard"
         );
     }
 

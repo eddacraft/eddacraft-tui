@@ -5,7 +5,7 @@
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TDASH | joshuaboys | Ready  | 0/4      |
+| TDASH | joshuaboys | In Progress | 0/4      |
 
 **Last reviewed:** 2026-05-26
 
@@ -154,7 +154,7 @@ per-domain surfaces.
 
 ### TDASH-001: `anvil dashboard` command + shared read-only surface scaffold
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Add the `anvil dashboard [name]` command and a reusable read-only
   dashboard surface scaffold in `crates/anvil-tui/`, with JSON/plain/TUI
   fallbacks and a dashboard picker listing available dashboards
