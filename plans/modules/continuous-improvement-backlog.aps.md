@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 11/22    |
+| CIB | —     | In Progress | 14/22    |
 
 ## Purpose
 
@@ -198,81 +198,30 @@ archive.
 
 ### CIB-008: `anvil check` planless path runs only `architecture`, ignoring `.anvilrc`
 
-- **Status:** Draft
-- **Tracking:** GH issue [#1797](https://github.com/eddacraft/anvil-001/issues/1797)
-- **Intent:** `anvil check` is documented in `--help` as the planless-mode
-  surface, but the dispatcher only wires the `architecture` check. The
-  `.anvilrc` default written by `anvil start` lists `secret-detection`,
-  `import-boundaries`, and `antipattern-scan` — none of those fire under
-  `anvil check`, even though the same checks pass through `anvil gate`
-  and the MCP catch path on the same files.
-- **Expected Outcome:** `anvil check` runs the intersection of
-  `.anvilrc`-enabled and planless-eligible checks (minimum:
-  `secret-detection` + `antipattern-scan`). JSON `checksRun` reflects
-  what actually ran. `--help` is updated to name the planless-eligible
-  set explicitly.
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #3. The marquee single-file demo (`anvil check src/smelly.ts`)
-  silently passes a file containing a hardcoded `sk-…` key.
-- **Validation:** Fixture test in the CLI integration suite that writes a
-  `.ts` file containing a literal `sk-…` token, runs `anvil check
-  <file> --json`, and asserts `summary.errors >= 1` with a
-  `secret-detection` rule_id.
-- **Coordinates with:** CIB-009 (audit / gate consistency — same
-  dispatcher gap surfaces there).
-- **Confidence:** high — JSON output shows `checksRun: ["architecture"]`
-  on a fresh repo with the default `.anvilrc`; gate catches the same
-  finding on the same file. Dispatcher-side bug, not a check-side gap.
+- **Status:** Merged 2026-05-21 via PR #1817 (issue #1797)
+- **Summary:** The planless `anvil check` dispatcher now routes through the same
+  `.anvilrc#checks` reader as `anvil gate` and runs the planless-eligible set
+  (`secret-detection` + `antipattern-scan`), so the marquee `anvil check
+  src/smelly.ts` demo no longer silently passes a hardcoded `sk-…` key
+  (`crates/anvil-cli/src/commands/check.rs`, `PLANLESS_ELIGIBLE_CHECKS`).
 
 ### CIB-009: `anvil audit` and `anvil gate` disagree on the same repo
 
-- **Status:** Draft
-- **Tracking:** GH issue [#1798](https://github.com/eddacraft/anvil-001/issues/1798)
-- **Intent:** On the same workspace, `anvil audit` reports "0 issues —
-  project looks clean" while `anvil gate` (default profile) reports a
-  failing `secret-detection`. A new user who runs `audit` first sees a
-  clean bill of health for a repo that contains a planted API key.
-- **Expected Outcome:** `anvil audit` runs the same default check set as
-  `anvil gate` (default profile), or its summary line is rewritten to
-  name explicitly which check classes it runs and which it skips.
-  "0 issues" should not silently exclude secret-detection or
-  antipattern-scan output.
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #4.
-- **Validation:** A CLI test that fixtures a `.ts` file with a hardcoded
-  `sk-…` literal and asserts `anvil audit` returns non-zero issue
-  count, mirroring the `anvil gate` outcome on the same file.
-- **Coordinates with:** CIB-008 (same dispatcher-vs-checks
-  inconsistency).
-- **Confidence:** high — directly observable on a tiny demo repo.
+- **Status:** Merged 2026-05-21 via PR #1814 (issue #1798)
+- **Summary:** `anvil audit` now runs the canonical `secret-detection` check
+  over the same tree as `anvil gate` (with gate-aligned file extensions), so the
+  two can no longer disagree — audit no longer reports "0 issues" on a repo with
+  a planted key (`crates/anvil-cli/src/commands/audit.rs`). Sibling of CIB-008.
 
 ### CIB-010: `anvil watch` first-scan emits a wall of `public-api-expansion` against existing symbols
 
-- **Status:** Draft
-- **Tracking:** GH issue [#1802](https://github.com/eddacraft/anvil-001/issues/1802)
-- **Intent:** On a never-baselined repo, `anvil watch` reports every
-  existing exported symbol as a "new public symbol" violation (e.g. a
-  one-line `greet()` helper flagged as expanding the API surface). This
-  contradicts the **"new edges only"** principle stated in
-  `.claude/rules/architecture.md` and teaches a brand-new user to
-  ignore Anvil's warnings before they've seen a real one.
-- **Expected Outcome:** First-scan suppresses `public-api-expansion`
-  until the baseline pass completes. Two reasonable shapes:
-  1. Seed the baseline with every existing public symbol on first
-     scan; warn only on net-new symbols added after the watcher starts.
-  2. Emit a single `[baseline] established N nodes` event instead of
-     per-symbol violations on the cold path.
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #8.
-- **Validation:** Integration test that runs `anvil watch` for a
-  bounded period against a fresh repo containing two exported
-  functions and asserts no `public-api-expansion` violations fire
-  until a new export is added during the run.
-- **Out of Scope:** Behaviour of `watch` against a *seeded* baseline —
-  this is specifically about the cold-path / never-baselined case.
-- **Coordinates with:** WOUT (Done 6/6 / archived; this item lives in
-  CIB because WOUT is closed).
-- **Confidence:** high — directly observable on a fresh repo.
+- **Status:** Merged 2026-05-21 via PR #1816 (issue #1802; behaviour fixed by WATCHUX-001, PR #1816 adds the regression test)
+- **Summary:** On a never-baselined repo, the initial graph is now treated as
+  the baseline (behaviour fixed by WATCHUX-001 — only post-scan modifications go
+  through the policy engine), so `anvil watch`'s first scan no longer flags every
+  pre-existing public symbol as `public-api-expansion`. PR #1816 added the
+  multi-file regression test `audit_1802_multi_file_initial_scan_emits_no_public_api_violations`
+  in `crates/anvil-kernel/src/watch.rs`.
 
 ### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
 
@@ -326,10 +275,10 @@ archive.
   `crates/anvil-cli/src/commands/audit.rs`,
   `crates/anvil-cli/src/output/` (likely new `sarif.rs` module
   alongside the existing emitters).
-- **Coordinates with:** CIB-008 / CIB-009 (`anvil check` / `audit`
-  dispatcher consistency — SARIF output must reflect the same
-  finding set as JSON output, so both should be in their target
-  state before SARIF lands or the SARIF will mirror the bug);
+- **Coordinates with:** CIB-008 / CIB-009 (both now **Merged** —
+  `anvil check` / `audit` dispatcher consistency; SARIF output must
+  reflect the same finding set as JSON, and both surfaces are now in
+  their target state, so SARIF won't mirror the old bug);
   COMPLY (compliance-reporting) — SARIF is upstream of framework
   mapping, not a substitute for it.
 - **Out of Scope:** Full SARIF 2.1.0 conformance (only the GitHub
@@ -403,7 +352,7 @@ archive.
   `crates/anvil-cli/src/commands/check.rs`,
   wow-start tutorial copy (location TBD at implementation time).
 - **Coordinates with:** ADOPT (wow-start surface, Merged 6/6),
-  CIB-010 (`anvil watch` first-scan public-api-expansion wall —
+  CIB-010 (Merged — `anvil watch` first-scan public-api-expansion wall;
   same first-scan-vs-steady-state class of UX gap).
 - **Confidence:** high — docs / output-string change; no behaviour
   change. Lowest-risk of the three Drako borrows.

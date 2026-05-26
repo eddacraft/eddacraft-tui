@@ -467,3 +467,26 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** none — the heading+Status invariant is now documented in the
   new `## Tasks` note for future compactions.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+
+### 2026-05-26 — claude
+
+- **Task:** "Choose the next CIB item" — picked CIB-008 (security-relevant
+  `anvil check` planless bug), but verifying wire-up first revealed CIB-008/009/010
+  were all already implemented and left Draft. Reconciled the cluster instead.
+- **Outcome:** CIB-008 → Merged via PR #1817, CIB-009 → PR #1814, CIB-010 → PR #1816
+  (behaviour fixed by WATCHUX-001), each compacted to a Summary; generator bumped
+  the count 11/22 → 14/22. aps:index:check ok, drift-check 0 progress findings.
+- **Worked:** The "validate prod wire-up, not spec match" memory paid for itself —
+  grepping the dispatcher/`audit.rs`/`watch.rs` before committing to "implement"
+  caught three stale-Draft items that were done in code, turning a build task into
+  a fast reconciliation. The CIB-022 generator did the count bump automatically.
+- **Failed:** Nothing. The drift existed because only 011/012 of the 2026-05-21
+  audit cluster were reconciled when merged; 008/009/010 fixes shipped but their
+  CIB Status was never flipped.
+- **Friction:** No automated check flags "code references issue #N but the CIB item
+  is still Draft" — the drift was invisible until a human/agent looked.
+- **Improvement:** Possible future CIB — a check that cross-references `issue #N`
+  /`fix(...)` commit trailers against open CIB `Tracking:` issues to surface
+  implemented-but-unreconciled items. Not filing yet (needs a real signal it
+  recurs beyond this one audit batch).
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
