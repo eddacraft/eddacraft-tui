@@ -725,3 +725,28 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When an APS item claims every named call-site migrated, grep
   the exact legacy primitive during review before accepting completion wording.
 - **Follow-up:** none
+- **Task:** Implement EAMIG-004 — expand git-history secret scan to match
+  on-disk file coverage (PR #1994). Picked as unrelated queue-up work while a
+  GitHub Actions outage blocked the TDASH-003 PR.
+- **Outcome:** Replaced the narrow `*.ts/*.js/...` allowlist pathspec with
+  `-- .` + `:(exclude)*<ext>` derived from `config.skip_extensions` (parity with
+  on-disk `should_skip_file`); mirrored the SCAN-002 `max_line_bytes` guard into
+  the history loop. 3 new git-repo tests; full anvil-checks suite + workspace
+  clippy + fmt green.
+- **Worked:** Reproducing the exact `git log -p -- . :(exclude)...` invocation
+  in a throwaway repo confirmed the pathspec syntax before trusting the Rust
+  wiring — separated "is git happy" from "does the parser match".
+- **Failed:** First test run found nothing on the positive case. Root cause was
+  the test fixture secret `AKIAIOSFODNN7EXAMPLE` — the git scanner calls the
+  broad `is_allowlisted` (keyword tier incl. `example`), so the canonical AWS
+  textbook key is suppressed there. It also made the exclude/guard tests *false
+  passes* (empty for the wrong reason). Switched to a clean `AKIA…`-shaped key.
+- **Friction:** The keyword-allowlist tiering differs between surfaces: on-disk
+  exempts high-confidence shape patterns from the keyword tier (issue #1800),
+  the git scanner does not. Pre-existing; flagged in the PR as out of scope.
+- **Improvement:** When a fixture is a well-known dummy value, assume scanners
+  may allowlist it — pick a realistic-but-synthetic needle so a green test
+  proves the behaviour under test, not the allowlist.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1994; cleanup
+  worktree after merge. Possible EAMIG item: align git-scanner allowlist tiers
+  with the on-disk shape/keyword split (#1800 parity).

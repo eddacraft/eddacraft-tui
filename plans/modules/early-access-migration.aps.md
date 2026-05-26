@@ -84,7 +84,7 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### EAMIG-004 — Expand git scanner file extension coverage
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-26 via PR #1994
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Git history scanning covers only JS/TS/JSON/YAML/env — far
