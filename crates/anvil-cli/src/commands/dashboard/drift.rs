@@ -130,15 +130,8 @@ fn compute_delta(before: &DriftSnapshot, after: &DriftSnapshot) -> DriftDelta {
     let before_viol: BTreeSet<&str> = before.violations.iter().map(|v| v.id.as_str()).collect();
     let after_viol: BTreeSet<&str> = after.violations.iter().map(|v| v.id.as_str()).collect();
 
-    let ap_key = |snapshot: &DriftSnapshot| -> BTreeSet<String> {
-        snapshot
-            .antipatterns
-            .iter()
-            .map(|a| format!("{}:{}:{}", a.file, a.line, a.id))
-            .collect()
-    };
-    let before_ap = ap_key(before);
-    let after_ap = ap_key(after);
+    let before_ap = ap_keys(before);
+    let after_ap = ap_keys(after);
 
     DriftDelta {
         before_created_at: before.created_at.clone(),
@@ -147,15 +140,34 @@ fn compute_delta(before: &DriftSnapshot, after: &DriftSnapshot) -> DriftDelta {
         violations_removed: before_viol.difference(&after_viol).count(),
         antipatterns_added: after_ap.difference(&before_ap).count(),
         antipatterns_removed: before_ap.difference(&after_ap).count(),
-        net_violations: signed(after.metrics.boundary_violations)
-            - signed(before.metrics.boundary_violations),
-        net_antipatterns: signed(after.metrics.antipattern_count)
-            - signed(before.metrics.antipattern_count),
+        net_violations: net(
+            after.metrics.boundary_violations,
+            before.metrics.boundary_violations,
+        ),
+        net_antipatterns: net(
+            after.metrics.antipattern_count,
+            before.metrics.antipattern_count,
+        ),
     }
 }
 
-fn signed(value: usize) -> i64 {
-    i64::try_from(value).unwrap_or(i64::MAX)
+/// Borrowed `file:line:id` antipattern identity — same key as `drift compare`'s
+/// string form, without allocating a String per antipattern. A free fn (not a
+/// closure) so lifetime elision ties the borrowed keys to the snapshot.
+fn ap_keys(snapshot: &DriftSnapshot) -> BTreeSet<(&str, usize, &str)> {
+    snapshot
+        .antipatterns
+        .iter()
+        .map(|a| (a.file.as_str(), a.line, a.id.as_str()))
+        .collect()
+}
+
+/// Signed `after - before` count delta. Computed in `i128` (every `usize` is
+/// exactly representable) and clamped to `i64`, so two distinct large counts
+/// can't both saturate and net to a misleading zero.
+fn net(after: usize, before: usize) -> i64 {
+    let delta = after as i128 - before as i128;
+    i64::try_from(delta.clamp(i128::from(i64::MIN), i128::from(i64::MAX))).unwrap_or(i64::MAX)
 }
 
 fn row_from(snapshot: &DriftSnapshot) -> DriftSnapshotRow {
