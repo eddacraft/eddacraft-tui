@@ -308,10 +308,10 @@ fn run_show(args: &ShowArgs, global: &GlobalArgs) -> Result<()> {
         if json_output {
             println!(
                 "{}",
-                show_error_envelope(&format!(
-                    "No Edda storage found at {}",
-                    storage_path.display()
-                ))
+                show_error_envelope(
+                    &format!("No Edda storage found at {}", storage_path.display()),
+                    Some(false),
+                )
             );
         }
         bail!("No Edda storage found at {}", storage_path.display());
@@ -321,7 +321,7 @@ fn run_show(args: &ShowArgs, global: &GlobalArgs) -> Result<()> {
         Ok(payload) => payload,
         Err(err) => {
             if json_output {
-                println!("{}", show_error_envelope(&err.to_string()));
+                println!("{}", show_error_envelope(&err.to_string(), None));
             }
             return Err(err);
         }
@@ -440,12 +440,13 @@ fn show_memory_payload(storage_path: &Path, id: &str) -> Result<Value> {
     serde_json::to_value(record.rest).context("failed to serialise Edda memory")
 }
 
-fn show_error_envelope(message: &str) -> Value {
-    json!({
-        "error": message,
-        "storage_found": false,
-        "memories": [],
-    })
+fn show_error_envelope(message: &str, storage_found: Option<bool>) -> Value {
+    let mut envelope = serde_json::Map::new();
+    envelope.insert("error".to_string(), Value::String(message.to_string()));
+    if let Some(storage_found) = storage_found {
+        envelope.insert("storage_found".to_string(), Value::Bool(storage_found));
+    }
+    Value::Object(envelope)
 }
 
 fn filters_payload(
@@ -589,30 +590,68 @@ fn render_table(
 
 fn render_show(payload: &Value) {
     println!();
-    println!("Edda Memory");
-    print_show_field(payload, "ID", "id");
-    print_show_field(payload, "Type", "type");
-    print_show_field(payload, "Status", "status");
-    print_show_field(payload, "Confidence", "confidence");
-    print_show_field(payload, "Statement", "statement");
-    print_show_field(payload, "Context", "context");
-    print_show_field(payload, "Created", "created_at");
-    print_show_field(payload, "Updated", "updated_at");
-    print_show_field(payload, "Tags", "tags");
-    print_show_field(payload, "Attribution", "attribution");
-    print_show_field(payload, "Provenance", "provenance");
-    print_show_field(payload, "Evolution", "evolution");
+    println!("Memory: {}", field_string(payload, "id").unwrap_or("—"));
+    println!("Type:   {}", field_string(payload, "type").unwrap_or("—"));
+    println!("Status: {}", field_string(payload, "status").unwrap_or("—"));
+
+    print_show_section("Statement", payload.get("statement"));
+    print_show_section("Context", payload.get("context"));
+    print_confidence_section(payload.get("confidence"));
+    print_show_section("Attribution", payload.get("attribution"));
+    print_show_section("Provenance", payload.get("provenance"));
+    print_show_section("Evolution", payload.get("evolution"));
     println!();
 }
 
-fn print_show_field(payload: &Value, label: &str, key: &str) {
-    let Some(value) = payload.get(key) else {
+fn field_string<'a>(payload: &'a Value, key: &str) -> Option<&'a str> {
+    payload.get(key).and_then(Value::as_str)
+}
+
+fn print_confidence_section(value: Option<&Value>) {
+    let Some(value) = value else {
         return;
     };
     if value.is_null() {
         return;
     }
-    println!("  {label:<11} {}", display_value(value));
+    println!();
+    println!("Confidence");
+    match value {
+        Value::String(level) => println!("  Level: {level}"),
+        other => print_section_value(other),
+    }
+}
+
+fn print_show_section(label: &str, value: Option<&Value>) {
+    let Some(value) = value else {
+        return;
+    };
+    if value.is_null() {
+        return;
+    }
+    println!();
+    println!("{label}");
+    print_section_value(value);
+}
+
+fn print_section_value(value: &Value) {
+    match value {
+        Value::String(value) => println!("  {value}"),
+        Value::Object(fields) => {
+            for (key, value) in fields {
+                println!(
+                    "  {:<12} {}",
+                    format!("{}:", human_label(key)),
+                    display_value(value)
+                );
+            }
+        }
+        other => println!("  {}", display_value(other)),
+    }
+}
+
+fn human_label(key: &str) -> String {
+    key.replace('_', " ")
 }
 
 fn display_value(value: &Value) -> String {
@@ -623,9 +662,11 @@ fn display_value(value: &Value) -> String {
             .map(display_value)
             .collect::<Vec<_>>()
             .join(", "),
-        Value::Object(_) => {
-            serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
-        }
+        Value::Object(fields) => fields
+            .iter()
+            .map(|(key, value)| format!("{}: {}", human_label(key), display_value(value)))
+            .collect::<Vec<_>>()
+            .join(", "),
         other => other.to_string(),
     }
 }
@@ -813,10 +854,14 @@ evolution:
 
     #[test]
     fn show_error_envelope_is_machine_readable() {
-        let envelope = show_error_envelope("Edda memory not found: missing");
+        let envelope = show_error_envelope("Edda memory not found: missing", None);
 
         assert_eq!(envelope["error"], "Edda memory not found: missing");
-        assert_eq!(envelope["storage_found"], false);
-        assert_eq!(envelope["memories"].as_array().unwrap().len(), 0);
+        assert!(envelope.get("storage_found").is_none());
+        assert!(envelope.get("memories").is_none());
+
+        let missing_store =
+            show_error_envelope("No Edda storage found at .anvil/edda", Some(false));
+        assert_eq!(missing_store["storage_found"], false);
     }
 }
