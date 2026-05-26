@@ -100,19 +100,50 @@ number visible to the user, not just to a future post-release survey.
 
 - **Intent:** Surface every active suppression with provenance so the user
   can review whether suppressions are still warranted.
+- **Spec reconciliation (2026-05-26):** APS truth-validation before
+  implementation found the data-source premise was wrong and the scope
+  over-broad; corrected contract below:
+  - There is **no suppression log** — `crates/anvil-hook/src/suppression_log.rs`
+    does not exist and was never created. INSIGHTS-001 zero-fills its
+    suppression counters for exactly this reason. The data is derived from a
+    **live scan**, mirroring `services/sample_analyser.rs`: walk the workspace,
+    run `anvil_checks::antipattern::run_antipattern_check`, and read
+    `Warning.suppressed: Option<Suppression>`. (Same class of fix as
+    DISTRIB-005 — the spec named a storage surface that doesn't exist.)
+  - **Scope narrowed to inline `@anvil-ignore` directives** (the authoritative
+    suppression form per ADR-029, parsed by
+    `anvil_checks::antipattern::parse_suppression`). "Policy-level
+    suppression" (config `RuleModes` rule-disabling) is a distinct concept —
+    no per-site file/line, no date, no staleness — and does not fit the
+    health/staleness model; tracked as a separate follow-up, not in -002.
+  - **Provenance is partial:** `Suppression { reason, author: Option,
+    timestamp: Option, scope }`. Inline `@anvil-ignore <ID> -- <reason>`
+    directives populate `reason`/`scope` but leave `author`/`timestamp`
+    `None`, so the "suppression date" renders as `—` when absent rather than
+    being guaranteed.
+  - **Staleness method:** a `suppressed: Some(..)` warning means the finding
+    fired then got suppressed → underlying violation **present**. A directive
+    found by sweeping source (`parse_suppression`) with **no** matching
+    suppressed warning nearby → **stale** (violation gone). Sort stale-first.
 - **Expected Outcome:** `anvil insights --suppressions` lists every active
-  `@anvil-ignore` and policy-level suppression with: the file/line, the
-  suppression date, the rule it suppresses, and a flag indicating whether
-  the underlying violation is still present. The list is sorted with stale
-  suppressions (where the underlying violation is gone) first, so the user
-  can remove dead suppressions.
+  inline `@anvil-ignore` suppression with: the file/line, the rule it
+  suppresses, the reason, the suppression date (when recorded), and a flag for
+  whether the underlying violation is still present. Stale suppressions (the
+  underlying violation is gone) sort first so the user can remove dead
+  suppressions. `--json` emits a schema-versioned `anvil.suppressions.v1`
+  document.
 - **Files:**
-  - `crates/anvil-cli/src/commands/insights.rs`
-  - `crates/anvil-cli/src/insights/suppressions.rs` (NEW)
-  - `crates/anvil-hook/src/suppression_log.rs` (extended if needed)
+  - `crates/anvil-cli/src/commands/insights.rs` (MODIFY — `--suppressions`
+    flag + render)
+  - `crates/anvil-cli/src/insights/suppressions.rs` (NEW — live-scan health)
+  - `crates/anvil-cli/src/insights/mod.rs` (MODIFY — module decl)
+  - ~~`crates/anvil-hook/src/suppression_log.rs`~~ — dropped; no log exists,
+    data is derived from the live antipattern scan.
 - **Validation:**
-  - `cargo test -p eddacraft-anvil commands::insights::tests::suppression_view_flags_stale`
-- **Status:** Draft
+  - `cargo test -p eddacraft-anvil insights::suppressions::tests`
+  - `cargo test -p eddacraft-anvil commands::insights::tests`
+- **Status:** In Progress (promoted Draft → In Progress 2026-05-26; scope
+  reconciled to inline directives, live-scan data source, operator-recommended)
 - **Dependencies:** INSIGHTS-001
 - **changeType:** feature
 - **releaseIntent:** candidate

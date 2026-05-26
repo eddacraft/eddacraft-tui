@@ -1,13 +1,34 @@
 use chrono::Utc;
 use clap::Args;
 
-use crate::{GlobalArgs, insights::aggregator, util};
+use crate::{
+    GlobalArgs,
+    insights::{aggregator, suppressions},
+    util,
+};
 
 #[derive(Debug, Args)]
-pub struct InsightsArgs {}
+pub struct InsightsArgs {
+    /// Show the suppression health view: every active `@anvil-ignore`
+    /// suppression with stale ones (underlying violation gone) first.
+    /// [INSIGHTS-002]
+    #[arg(long)]
+    pub suppressions: bool,
+}
 
-pub fn run(_args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let root = util::workspace_root()?;
+
+    if args.suppressions {
+        let health = suppressions::suppression_health(&root);
+        if global.json {
+            println!("{}", serde_json::to_string_pretty(&health)?);
+        } else {
+            print_suppressions(&health);
+        }
+        return Ok(());
+    }
+
     let summary = aggregator::weekly_summary(&root, Utc::now())?;
     if global.json {
         println!("{}", serde_json::to_string_pretty(&summary)?);
@@ -15,6 +36,29 @@ pub fn run(_args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         print_plain(&summary);
     }
     Ok(())
+}
+
+fn print_suppressions(health: &suppressions::SuppressionHealth) {
+    println!("Anvil suppression health");
+    println!(
+        "{} @anvil-ignore directive(s): {} active, {} stale (underlying violation gone)",
+        health.total, health.active, health.stale
+    );
+    if health.entries.is_empty() {
+        println!("No active suppressions found.");
+        return;
+    }
+    for entry in &health.entries {
+        let marker = if entry.stale { "STALE" } else { " ok  " };
+        let date = entry.date.as_deref().unwrap_or("—");
+        println!(
+            "[{}] {}:{}  {}  ({})  {}",
+            marker, entry.file, entry.line, entry.rule, date, entry.reason
+        );
+    }
+    if health.stale > 0 {
+        println!("\nRemove stale suppressions — their underlying violation no longer fires.");
+    }
 }
 
 fn print_plain(summary: &aggregator::WeeklyInsights) {
