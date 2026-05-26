@@ -40,6 +40,15 @@ struct ViolationRecord {
     rule: Option<String>,
 }
 
+/// Stable `--json` envelope. `baseline_present` lets consumers distinguish "no
+/// baseline" from a present-but-empty one without the top-level value flipping
+/// between an object and `null`.
+#[derive(Debug, Serialize)]
+struct ArchitectureJson {
+    baseline_present: bool,
+    snapshot: Option<ArchitectureSnapshot>,
+}
+
 pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let root = util::workspace_root()?;
     // Propagate load errors (corrupt/unreadable baseline); `Ok(None)` is the
@@ -47,8 +56,14 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let baseline = load_baseline(&root)?;
 
     if global.json {
+        // Stable envelope so the top-level shape never flips between an object
+        // and `null`: `baseline_present` flags absence, `snapshot` carries data.
         let snapshot = baseline.as_ref().map(snapshot_from);
-        println!("{}", serde_json::to_string_pretty(&snapshot)?);
+        let payload = ArchitectureJson {
+            baseline_present: snapshot.is_some(),
+            snapshot,
+        };
+        println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
 
@@ -112,9 +127,7 @@ fn view_from(baseline: &ArchitectureBaseline) -> ArchitectureView {
 
 fn print_summary(snapshot: Option<&ArchitectureSnapshot>) {
     let Some(snapshot) = snapshot else {
-        println!(
-            "No architecture baseline found. Run `anvil architecture baseline` to create one."
-        );
+        println!("No architecture baseline found at .anvil/architecture.json.");
         return;
     };
     println!("Architecture Health");

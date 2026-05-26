@@ -121,7 +121,7 @@ fn render_empty(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
                 Style::default().fg(theme.muted()),
             ),
             Line::styled(
-                "  Run `anvil architecture baseline` to create one.",
+                "  Expected at .anvil/architecture.json.",
                 Style::default().fg(theme.muted()),
             ),
         ])),
@@ -318,7 +318,7 @@ mod tests {
             "got:\n{rendered}"
         );
         assert!(
-            rendered.contains("anvil architecture baseline"),
+            rendered.contains(".anvil/architecture.json"),
             "got:\n{rendered}"
         );
     }
