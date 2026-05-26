@@ -585,3 +585,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** none.
 - **Improvement:** none.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+
+### 2026-05-26 — claude
+
+- **Task:** Implement TDASH-002 (architecture-health native dashboard) and carry the TDASH-001 → Merged reconcile in the same PR.
+- **Outcome:** PR #1986 — `anvil dashboard architecture` renders `.anvil/architecture.json` (summary + violations table) via the architecture crate's `load_baseline`; `dashboard.rs` became a module dir; TDASH-001 reconciled to Merged (1/4) and TDASH-002 marked Merged via PR #1986 (2/4) *in the implementation commit*, then auto-merge armed.
+- **Worked:** Applied the [[feedback_aps_status_flip_in_same_commit]] lesson this time — opened the PR, grabbed #1986, amended the module to mark TDASH-002 Merged-via-PR before merge, so no throwaway reconcile PR. Folding the prior item's reconcile into the next item's PR (per the earlier AskUserQuestion) avoided a standalone hot-file bookkeeping PR entirely.
+- **Failed:** Guessed the eddacraft-tui `DataTable` API (`.headers()/.rows()/.title()` builders) — real API is `DataTable::new(theme, &headers, &rows).widths().block(Container…to_block())`. Also tripped clippy `needless_pass_by_value` on a `value: String` arg only borrowed by `format!`.
+- **Friction:** Two render helpers (`metric` closure + `metric_span` fn) were redundant; collapsed to one. `cargo fmt` between edits kept invalidating Edit anchors.
+- **Improvement:** Before using a sibling crate's widget builder, grep its `impl` block for the actual method set rather than inferring from the call shape — the constructor often takes the data the builders seem to.
+- **Follow-up:** TDASH-003 (drift snapshots, `.anvil/snapshots/` + baseline.json) and TDASH-004 (suppressions) are the remaining items; both slot into the same `launch` arm + `commands/dashboard/<name>.rs` + `surfaces/dashboard/<name>.rs` pattern.
