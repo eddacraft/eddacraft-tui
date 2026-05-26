@@ -595,3 +595,27 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Two render helpers (`metric` closure + `metric_span` fn) were redundant; collapsed to one. `cargo fmt` between edits kept invalidating Edit anchors.
 - **Improvement:** Before using a sibling crate's widget builder, grep its `impl` block for the actual method set rather than inferring from the call shape — the constructor often takes the data the builders seem to.
 - **Follow-up:** TDASH-003 (drift snapshots, `.anvil/snapshots/` + baseline.json) and TDASH-004 (suppressions) are the remaining items; both slot into the same `launch` arm + `commands/dashboard/<name>.rs` + `surfaces/dashboard/<name>.rs` pattern.
+
+### 2026-05-26 — claude
+
+- **Task:** Implement TDASH-003 — `anvil dashboard drift` native drift-snapshots
+  dashboard (PR #1988).
+- **Outcome:** Surface + CLI handler mirroring TDASH-002; reuses the `drift`
+  command's snapshot readers (promoted to `pub(crate)`) + the architecture
+  baseline loader. 9 surface + 7 CLI tests; --json/plain/TUI verified against two
+  real `drift snapshot` captures. fmt + workspace clippy clean. Status flipped to
+  Merged in-PR (counts 2/4 → 3/4) to avoid a reconcile PR.
+- **Worked:** The TDASH-002 follow-up note in this log named the exact extension
+  seam (launch arm + two files), so the implementation was pattern-fill. Reusing
+  the existing `DataTable::new(...).widths().block(...)` API (the gotcha the -002
+  session recorded) avoided re-discovering it.
+- **Failed:** Nothing substantive. rustfmt reflowed two long fn signatures + the
+  `Layout::vertical` line on first `--check`; applied and re-verified.
+- **Friction:** The TDASH-003 item names `.anvil/baseline.json`, but the drift
+  baseline snapshots score against is `.anvil/architecture.json` (anvil-baseline's
+  `baseline.json` is a separate fingerprint store). Documented the divergence in
+  the module doc comment rather than silently picking one.
+- **Improvement:** none — the per-surface pattern is now well-worn; TDASH-004
+  (suppressions) is the same shape against `.anvil/suppressions.json`.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1988; cleanup
+  worktree after merge.

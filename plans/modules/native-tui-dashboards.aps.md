@@ -5,7 +5,7 @@
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TDASH | joshuaboys | In Progress | 2/4      |
+| TDASH | joshuaboys | In Progress | 3/4      |
 
 **Last reviewed:** 2026-05-26
 
@@ -189,7 +189,7 @@ per-domain surfaces.
 
 ### TDASH-003: Drift-snapshots dashboard surface
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-26 via PR #1988
 - **Intent:** Render drift snapshots and baseline comparison natively from
   `.anvil/snapshots/` and `.anvil/baseline.json`
 - **Expected Outcome:** `anvil dashboard drift` lists snapshots with timestamps,
