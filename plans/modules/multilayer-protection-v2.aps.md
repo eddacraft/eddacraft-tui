@@ -2524,12 +2524,12 @@ task's `Source:` line cites the Council finding IDs.
 #### MLP2-043: Activation orchestrator writes `.github/workflows/anvil.yml`
 
 - **Status:** In Progress
-- **Intent:** `anvil start` / `anvil baseline` write the
-  template at `crates/anvil-cli/src/templates/anvil-workflow.yml`
-  into a target repo's `.github/workflows/anvil.yml` at
-  adoption time only after operator consent. Operator direction on
-  2026-05-26: present a pre-ticked install/enable list with Enter as
-  accept and allow opt-out before writing GitHub Actions workflows.
+- **Intent:** `anvil start` offers the template at
+  `crates/anvil-cli/src/templates/anvil-workflow.yml` for installation
+  into a target repo's `.github/workflows/anvil.yml` at adoption time
+  only after operator consent. Operator direction on 2026-05-26:
+  present a pre-ticked install/enable list with Enter as accept and
+  allow opt-out before writing GitHub Actions workflows.
 - **Expected Outcome:**
   - Orchestrator presents pending GitHub Actions workflow installs as
     a pre-selected consent list in interactive activation.
@@ -3459,7 +3459,7 @@ task's `Source:` line cites the Council finding IDs.
 
 - **Status:** Merged
 - **Intent:** Mirrors MLP2-043 for the audit-chain workflow.
-  `anvil start` / `anvil baseline` offer the template at
+  `anvil start` offers the template at
   `crates/anvil-cli/src/templates/anvil-audit-workflow.yml`
   for installation into a target repo's
   `.github/workflows/anvil-audit.yml` after operator consent.

@@ -140,6 +140,7 @@ pub(crate) fn run_with_home(
             error = %e,
             "orchestrator: failed to install GitHub Actions workflows; continuing without",
         );
+        eprintln!("anvil: could not install GitHub Actions workflows ({e}); continuing");
     }
 
     // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
@@ -394,14 +395,63 @@ fn install_selected_workflows(
 
     for workflow in selected {
         let target = workflow.target_path(root);
-        if target.exists() {
+        if existing_workflow_target(&target)? {
             continue; // Idempotent — never clobber an existing file.
         }
+        refuse_workflow_parent_symlinks(root)?;
         std::fs::create_dir_all(&workflows_dir)?;
-        std::fs::write(&target, workflow.contents())?;
+        refuse_workflow_parent_symlinks(root)?;
+        if existing_workflow_target(&target)? {
+            continue;
+        }
+        let mut file = match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        };
+        file.write_all(workflow.contents().as_bytes())?;
         written.push(target);
     }
     Ok(written)
+}
+
+fn existing_workflow_target(target: &Path) -> std::io::Result<bool> {
+    match std::fs::symlink_metadata(target) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "refusing to write workflow through symlink: {}",
+                target.display()
+            ),
+        )),
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+fn refuse_workflow_parent_symlinks(root: &Path) -> std::io::Result<()> {
+    for path in [root.join(".github"), root.join(".github/workflows")] {
+        match std::fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!(
+                        "refusing to write workflow through symlink: {}",
+                        path.display()
+                    ),
+                ));
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
 
 /// Decide whether to surface the interactive picker. We require:
@@ -1035,6 +1085,51 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&audit_target).unwrap(),
             crate::commands::audit_chain::audit_workflow_template(),
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workflow_install_refuses_symlinked_workflows_dir() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".github")).unwrap();
+        symlink(outside.path(), dir.path().join(".github/workflows")).unwrap();
+
+        let err = install_selected_workflows(dir.path(), &[WorkflowTemplate::Audit])
+            .expect_err("workflow install must reject symlinked workflow directory");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            !outside.path().join("anvil-audit.yml").exists(),
+            "must not write outside repo through a symlinked workflow directory",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workflow_install_refuses_symlinked_target() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let workflows = dir.path().join(".github/workflows");
+        std::fs::create_dir_all(&workflows).unwrap();
+        symlink(
+            outside.path().join("anvil-audit.yml"),
+            workflows.join("anvil-audit.yml"),
+        )
+        .unwrap();
+
+        let err = install_selected_workflows(dir.path(), &[WorkflowTemplate::Audit])
+            .expect_err("workflow install must reject symlinked workflow target");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            !outside.path().join("anvil-audit.yml").exists(),
+            "must not write outside repo through a symlinked workflow target",
         );
     }
 
