@@ -768,7 +768,7 @@ mod tests {
         .unwrap();
         fs::write(
             storage.join("memories/decision/edda-demo.yaml"),
-            r#"id: edda-demo
+            r"id: edda-demo
 type: decision
 status: active
 statement: Prefer boring tests
@@ -782,7 +782,7 @@ provenance:
 evolution:
   supersedes: []
   superseded_by: []
-"#,
+",
         )
         .unwrap();
 
