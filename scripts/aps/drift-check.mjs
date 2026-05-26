@@ -233,8 +233,7 @@ if (releaseRecord?.lifecycleState === 'published') {
   // Fall back to the on-disk path when both `source.tag` and `version` are
   // missing so the message never reads `(undefined)` — the operator should
   // always be able to tell which record the check ran against.
-  const recordLabel =
-    releaseRecord.source?.tag ?? releaseRecord.version ?? releaseRecordPath;
+  const recordLabel = releaseRecord.source?.tag ?? releaseRecord.version ?? releaseRecordPath;
   for (const item of items.filter((entry) => /^Released\/Shipped\b/.test(entry.status))) {
     if (!publishedItems.has(item.id)) {
       addFinding(
