@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 15/22    |
+| CIB | —     | In Progress | 15/23    |
 
 ## Purpose
 
@@ -432,3 +432,34 @@ archive.
   Docs Lint CI job (exit 1 on drift). Parser shared with `drift-check.mjs` via
   `scripts/aps/lib/modules.mjs`. Headerless/archived rows untouched; annotation
   prose preserved (so it kills count drift, not same-module prose conflicts).
+
+### CIB-023: Detect implemented-but-unreconciled APS items
+
+- **Status:** Draft
+- **Intent:** Surface APS items that are done in code but still marked `Draft` /
+  `Proposed` / `In Progress`. This drift is currently invisible: the
+  CIB-008/009/010 fixes from the 2026-05-21 new-user-journey audit had landed
+  (CIB-008 #1817, CIB-009 #1814; CIB-010's behaviour came from WATCHUX-001 with
+  regression coverage in #1816) but the items stayed `Draft` until a human
+  grepped the dispatcher while picking the next item.
+- **Expected Outcome:** An advisory check (extend `scripts/aps/drift-check.mjs` or
+  a sibling) that, for each non-done item carrying a `Tracking:` GH issue, looks
+  for evidence the issue was resolved — a merged PR linked to the issue, or a
+  `Fixes #N` / `fix(...): … #N` reference in merged history — and warns
+  `aps-item-implemented-but-draft` so the item can be reconciled. Advisory
+  (exit 0), consistent with the rest of `drift-check`.
+- **Validation:** a fixture where a non-done item's `Tracking:` issue has a
+  merged-PR reference emits the warning; an item with no such reference does not;
+  done items are never flagged.
+- **Identified From:** CIB-018 session 2026-05-26 — reconciling CIB-008/009/010
+  (PR #1977) surfaced that their fixes had merged but the items were left Draft;
+  the drift was invisible to every existing check until grepped by hand.
+- **Files:** `scripts/aps/drift-check.mjs` (or a new `scripts/aps/` check); likely
+  needs GH API access (issue→PR links) or a merged-commit-message scan in CI.
+- **Coordinates with:** CIB-022 (APS-count derivation — same "keep the index
+  honest about reality" goal, different drift class).
+- **Confidence:** low — the resolution heuristic needs a reliable signal
+  (GH issue↔PR links vs commit-message grep) and may false-positive on issues
+  that are referenced but not actually resolved; needs design before building.
+  Filed per operator request after the single observed instance, not a confirmed
+  recurring pattern yet.
