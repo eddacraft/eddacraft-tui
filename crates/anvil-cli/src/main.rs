@@ -154,11 +154,10 @@ enum Commands {
     Init(commands::init::InitArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
-    /// MLP2-040 — migrate a legacy `.anvilrc` to the multi-format
-    /// `.anvil.<ext>` surface from MLP-011. Existing `.anvilrc` projects
-    /// keep working through gate's fallback; this command is the one-shot
-    /// bridge for operators who want to land on the new format without
-    /// hand-editing.
+    /// Migrate Anvil config. `format` (MLP2-040) converts a legacy
+    /// `.anvilrc` to the multi-format `.anvil.<ext>` surface; `schema`
+    /// (DISTRIB-005) reconciles an existing config across anvil versions.
+    /// Bare `anvil migrate` runs `format` for back-compat.
     Migrate(commands::migrate::MigrateArgs),
     /// Manage the Anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),

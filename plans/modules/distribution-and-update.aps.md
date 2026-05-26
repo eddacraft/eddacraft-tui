@@ -23,7 +23,10 @@ DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
-DISTRIB-004 is Done; DISTRIB-005 remains Draft and depends on DISTRIB-002. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+DISTRIB-004 is Done; DISTRIB-005 is **In Progress** (started 2026-05-26 —
+`anvil migrate schema` cross-version config reconciliation, subcommand-split
+design; spec reconciled against MLP2-040's existing `migrate.rs`) and depends
+on DISTRIB-002 (Merged). ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
 users.)
 
@@ -211,25 +214,64 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - text: "Release cadence and version support window are now documented in
     `docs/policies/release-cadence.md`."
 
-### DISTRIB-005: `anvil migrate` For Cross-Version Config Reconciliation
+### DISTRIB-005: `anvil migrate schema` For Cross-Version Config Reconciliation
 
 - **Intent:** When a minor version changes a config schema, give users a
   one-command path to migrate without hand-editing files.
-- **Expected Outcome:** `anvil migrate` reads `.anvil/config.{yaml,toml,json}`
-  and the recorded `anvil-version` in baseline metadata; if a schema
-  migration is registered for the version delta, the command applies it
-  (with a dry-run preview by default and `--apply` to write). Migrations
-  are registered in `crates/anvil-config/src/migrations/`. Missing
-  migration registers a clear "no migration needed" or "manual review
-  required" message.
+- **Spec reconciliation (2026-05-26):** APS truth validation before
+  implementation found three stale assumptions plus a command-name
+  collision. The corrected contract:
+  - `commands/migrate.rs` is **not new** — MLP2-040 shipped it in
+    `v0.7.0-beta` as the `.anvilrc` → `.anvil.<ext>` *filename/format*
+    migration. `anvil migrate` is therefore restructured into
+    subcommands: `anvil migrate format` (the existing MLP2-040
+    behaviour, unchanged) and `anvil migrate schema` (this item). Bare
+    `anvil migrate` keeps routing to `format` with a deprecation notice
+    (operator-accepted design, 2026-05-26).
+  - Config location is the root-level `.anvil.<ext>` dotfile discovered
+    via `anvil_config::discover(root, ".anvil")` — **not**
+    `.anvil/config.{ext}`, which never existed.
+  - The project's origin anvil version is read from
+    `ProjectIdentity.created_by_version` (the `anvil/project-id`
+    surface, via `activation::identity::read_project_id`). `baseline.json`
+    also carries a `created_by_version` (baseline-_adoption_ time), but
+    `anvil/project-id` is the universal project-origin anchor — present
+    after `anvil start` even without a baseline — so it is the chosen
+    source. (The original spec's "anvil-version in baseline metadata" was
+    directionally right that a version is recorded, but named the wrong
+    surface for the project-origin anchor.) The installed version is
+    `env!("CARGO_PKG_VERSION")`.
+  - Scope reality: there are **zero registered schema migrations** and
+    no config-schema-version concept in the tree today. This item ships
+    the registry + version-delta detection + dry-run/apply plumbing;
+    every current config resolves to "no migration needed" until a
+    future minor version registers a real transform.
+- **Expected Outcome:** `anvil migrate schema` discovers the project's
+  `.anvil.<ext>` config and reads `created_by_version` from
+  `anvil/project-id`; it computes the delta against the running
+  `CARGO_PKG_VERSION` and, if a migration is registered for that delta,
+  previews the change (dry-run default) or writes it under `--apply`
+  (atomic write, original format preserved). With no registered
+  migration it prints "no migration needed for X → Y"; when the origin
+  version cannot be determined it prints clear manual-review guidance.
+  The registry lives in `crates/anvil-config/src/migrations.rs` and is
+  empty in production today.
 - **Files:**
-  - `crates/anvil-cli/src/commands/migrate.rs` (NEW)
-  - `crates/anvil-config/src/migrations/mod.rs` (NEW)
+  - `crates/anvil-cli/src/commands/migrate.rs` (MODIFY — split into
+    `format` / `schema` subcommands; preserve MLP2-040 behaviour under
+    `format`)
+  - `crates/anvil-cli/src/main.rs` (MODIFY — `Migrate` command help)
+  - `crates/anvil-config/src/migrations.rs` (NEW — migration registry +
+    version-delta resolver)
+  - `crates/anvil-config/src/lib.rs` (MODIFY — module decl + re-exports)
   - `docs/runbooks/anvil-migrate.md` (NEW)
 - **Validation:**
   - `cargo test -p eddacraft-anvil-config migrations::tests`
   - `cargo test -p eddacraft-anvil commands::migrate::tests`
-- **Status:** Draft
+  - Subcommand back-compat: the existing MLP2-040 `migrate::tests` stay
+    green under the `format` subcommand path.
+- **Status:** In Progress (promoted Draft → In Progress 2026-05-26;
+  subcommand-split design accepted by operator)
 - **Dependencies:** DISTRIB-002
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -237,8 +279,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
 - **releaseNote:**
   - audience: user
   - type: added
-  - text: "`anvil migrate` reconciles config across minor versions in one
-    step."
+  - text: "`anvil migrate schema` reconciles config across minor versions
+    in one step."
 
 ## Sequencing
 

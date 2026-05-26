@@ -79,6 +79,7 @@
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                   | `docs/runbooks/release-signing.md`             | Runbook | Authoritative | @aneki          | Live   |
 | [Runbook Template](../../docs/guides/runbook-template.md)                                      | `docs/guides/runbook-template.md`              | Runbook | Authoritative | MODULE-CODE     | Draft  |
 | [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                 | `docs/runbooks/anvil-witness-chain.md`         | Runbook | Authoritative | @aneki          | Live   |
+| [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                       | `docs/runbooks/anvil-migrate.md`               | Runbook | Authoritative | @aneki          | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                               | `docs/runbooks/anvil-run.md`                   | Runbook | Authoritative | @aneki          | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md) | `docs/runbooks/eddacraft-tui-release.md`       | Runbook | Authoritative | @aneki          | Live   |
 | [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)           | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
