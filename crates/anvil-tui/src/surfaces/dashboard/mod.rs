@@ -7,6 +7,7 @@
 //! suppressions) plug into as they land.
 
 pub mod architecture;
+pub mod drift;
 pub mod render;
 
 use eddacraft_tui::keyboard::Action;

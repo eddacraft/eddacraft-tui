@@ -16,6 +16,7 @@ use anvil_tui::surfaces::dashboard::{DashboardEntry, DashboardPickerState};
 use crate::{GlobalArgs, tui};
 
 mod architecture;
+mod drift;
 
 #[derive(Debug, Args)]
 pub struct DashboardArgs {
@@ -47,7 +48,7 @@ fn catalog() -> Vec<CatalogEntry> {
             name: "drift",
             title: "Drift Snapshots",
             description: "Snapshot history and new-edge deltas vs baseline",
-            available: false,
+            available: true,
         },
         CatalogEntry {
             name: "suppressions",
@@ -138,6 +139,7 @@ fn run_picker(catalog: &[CatalogEntry], global: &GlobalArgs) -> anyhow::Result<(
 fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
     match name {
         "architecture" => architecture::run(global),
+        "drift" => drift::run(global),
         other => anyhow::bail!("dashboard '{other}' has no surface wired yet"),
     }
 }
@@ -182,14 +184,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_lists_three_dashboards_with_architecture_wired() {
+    fn catalog_lists_three_dashboards_with_architecture_and_drift_wired() {
         let catalog = catalog();
         let names: Vec<_> = catalog.iter().map(|entry| entry.name).collect();
         assert_eq!(names, ["architecture", "drift", "suppressions"]);
-        // TDASH-002 wires architecture; drift + suppressions stay coming-soon.
+        // TDASH-002 wires architecture, TDASH-003 wires drift; suppressions
+        // stays coming-soon.
         let by_name = |n: &str| catalog.iter().find(|e| e.name == n).unwrap().available;
         assert!(by_name("architecture"), "architecture should be available");
-        assert!(!by_name("drift"));
+        assert!(by_name("drift"), "drift should be available");
         assert!(!by_name("suppressions"));
     }
 
@@ -207,10 +210,18 @@ mod tests {
     }
 
     #[test]
-    fn resolve_known_unavailable_is_coming_soon() {
+    fn resolve_drift_launches() {
         assert_eq!(
             resolve(Some("drift"), &catalog()),
-            Resolution::ComingSoon("drift".to_string())
+            Resolution::Launch("drift".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_known_unavailable_is_coming_soon() {
+        assert_eq!(
+            resolve(Some("suppressions"), &catalog()),
+            Resolution::ComingSoon("suppressions".to_string())
         );
     }
 
@@ -268,6 +279,6 @@ mod tests {
         // Defensive seam: a name with no launch arm (e.g. a coming-soon entry
         // flipped to `available` without wiring) must fail loudly, not no-op.
         let global = GlobalArgs::default();
-        assert!(launch("drift", &global).is_err());
+        assert!(launch("suppressions", &global).is_err());
     }
 }

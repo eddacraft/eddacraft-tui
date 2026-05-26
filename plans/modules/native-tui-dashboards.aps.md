@@ -189,7 +189,7 @@ per-domain surfaces.
 
 ### TDASH-003: Drift-snapshots dashboard surface
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Render drift snapshots and baseline comparison natively from
   `.anvil/snapshots/` and `.anvil/baseline.json`
 - **Expected Outcome:** `anvil dashboard drift` lists snapshots with timestamps,

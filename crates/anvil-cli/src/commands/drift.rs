@@ -480,7 +480,7 @@ fn load_snapshot(workspace: &Path, name: &str) -> Result<Option<DriftSnapshot>> 
     Ok(None)
 }
 
-fn load_snapshot_file(path: &Path) -> Result<DriftSnapshot> {
+pub(crate) fn load_snapshot_file(path: &Path) -> Result<DriftSnapshot> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("reading snapshot {}", path.display()))?;
     let snapshot: DriftSnapshot = serde_json::from_str(&content)
@@ -501,7 +501,7 @@ fn get_latest_snapshot(workspace: &Path) -> Result<Option<DriftSnapshot>> {
     Ok(None)
 }
 
-fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
+pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
     let dir = snapshots_dir(workspace);
     if !dir.exists() {
         return Ok(Vec::new());
