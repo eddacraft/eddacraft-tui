@@ -5,7 +5,7 @@
 > `anvil-intercept-proto`, `anvil-intercept-rules`, `anvil-intercept-win32`)
 > **Module owner (APS):** INTD (`plans/archive/modules/intercept-daemon.aps.md`,
 > 16/16 complete), INTL (`plans/archive/modules/intercept-launcher.aps.md`,
-> draft 0/9) **Used by:** `anvil intercept` CLI surface
+> Complete 9/9) **Used by:** `anvil intercept` CLI surface
 > (`crates/anvil-cli/src/commands/intercept.rs`),
 > `anvil-cli/src/mcp/validation.rs` (daemon-backed validation client), driver
 > framework (proto + auth surface)
@@ -740,6 +740,6 @@ small to keep the daemon's evaluation cost predictable.
 - `plans/archive/modules/intercept-daemon.aps.md` — INTD-001 through INTD-016
   work items (16/16 complete).
 - `plans/archive/modules/intercept-launcher.aps.md` — INTL-001 through INTL-009
-  (draft 0/9); the launcher side that registers sessions with the daemon.
+  (9/9 complete); the launcher side that registers sessions with the daemon.
 - `docs/public/anvil/integrations/mcp.md` — public MCP integration doc; the
   `validate_write` tool and `correlation.daemonStatus` field documented here.
