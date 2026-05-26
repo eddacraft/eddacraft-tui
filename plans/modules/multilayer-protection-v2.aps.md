@@ -2523,12 +2523,18 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-043: Activation orchestrator writes `.github/workflows/anvil.yml`
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** `anvil start` / `anvil baseline` write the
   template at `crates/anvil-cli/src/templates/anvil-workflow.yml`
   into a target repo's `.github/workflows/anvil.yml` at
-  adoption time.
+  adoption time only after operator consent. Operator direction on
+  2026-05-26: present a pre-ticked install/enable list with Enter as
+  accept and allow opt-out before writing GitHub Actions workflows.
 - **Expected Outcome:**
+  - Orchestrator presents pending GitHub Actions workflow installs as
+    a pre-selected consent list in interactive activation.
+  - Non-interactive activation does not silently add GitHub Actions
+    workflows.
   - Orchestrator detects whether the workflow file already
     exists; writes if absent, leaves alone if present.
   - Same pattern for `anvil-audit.yml` (MLP2-053).
@@ -3453,10 +3459,13 @@ task's `Source:` line cites the Council finding IDs.
 
 - **Status:** Merged
 - **Intent:** Mirrors MLP2-043 for the audit-chain workflow.
-  `anvil start` / `anvil baseline` write the template at
+  `anvil start` / `anvil baseline` offer the template at
   `crates/anvil-cli/src/templates/anvil-audit-workflow.yml`
-  into a target repo's `.github/workflows/anvil-audit.yml`.
+  for installation into a target repo's
+  `.github/workflows/anvil-audit.yml` after operator consent.
 - **Expected Outcome:**
+  - Same pre-selected interactive consent and non-interactive no-write
+    semantics as MLP2-043.
   - Same write-if-absent semantics as MLP2-043.
   - Idempotent on re-run.
 - **Files:** `crates/anvil-cli/src/activation/orchestrator/mod.rs`.

@@ -30,7 +30,7 @@
 //! marker so the two surfaces don't fight for first-run state.
 
 use std::io::{IsTerminal, Write as _};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 
@@ -124,22 +124,21 @@ pub(crate) fn run_with_home(
         );
     }
 
-    // Step 1a-c — pre-position `.github/workflows/anvil-audit.yml`
-    // (MLP2-053).
+    let interactive = is_interactive(global);
+
+    // Step 1a-c — offer GitHub Actions workflow installation
+    // (MLP2-043 / MLP2-053).
     //
-    // Drops the in-tree audit-chain workflow template at adoption time
-    // so the nightly L5 cron becomes active by default per ADR-037
-    // §D-9. Write-if-absent — operators routinely customise the cron
-    // schedule or swap the install step, and re-running `anvil start`
-    // must never clobber those edits. Failures are non-propagating
-    // (same pattern as identity / witness gitattributes): a missing
-    // workflow is recoverable by re-running activation, but a hard
-    // error here would block adoption on any host without write
-    // permission on `.github/`.
-    if let Err(e) = ensure_audit_workflow(root) {
+    // GitHub Actions workflows change repo behaviour and may consume
+    // customer CI minutes. Interactive activation presents a pre-ticked
+    // list so Enter accepts the recommended defaults and Space opts out;
+    // non-interactive activation skips them instead of writing silently.
+    // Writes remain write-if-absent so re-running activation never
+    // clobbers operator edits.
+    if let Err(e) = ensure_github_actions_workflows(root, interactive) {
         tracing::warn!(
             error = %e,
-            "orchestrator: failed to write .github/workflows/anvil-audit.yml; continuing without",
+            "orchestrator: failed to install GitHub Actions workflows; continuing without",
         );
     }
 
@@ -174,7 +173,6 @@ pub(crate) fn run_with_home(
     let install_report = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-            let interactive = is_interactive(global);
             install::install_for_clients(root, home, &fresh, interactive)
         }
         Err(e) => {
@@ -262,28 +260,148 @@ fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Drop the nightly L5-audit workflow template at
-/// `.github/workflows/anvil-audit.yml` (MLP2-053).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum WorkflowTemplate {
+    PrValidation,
+    Audit,
+}
+
+impl WorkflowTemplate {
+    fn target_path(self, root: &Path) -> PathBuf {
+        let workflows_dir = root.join(".github").join("workflows");
+        match self {
+            Self::PrValidation => workflows_dir.join("anvil.yml"),
+            Self::Audit => workflows_dir.join("anvil-audit.yml"),
+        }
+    }
+
+    fn label(self, root: &Path) -> String {
+        let target = workflow_display_path(root, &self.target_path(root));
+        match self {
+            Self::PrValidation => format!("PR validation ({target}) [pull_request]"),
+            Self::Audit => format!("Nightly audit ({target}) [schedule]"),
+        }
+    }
+
+    fn contents(self) -> &'static str {
+        match self {
+            Self::PrValidation => crate::commands::anvil_action::anvil_workflow_template(),
+            Self::Audit => crate::commands::audit_chain::audit_workflow_template(),
+        }
+    }
+}
+
+impl std::fmt::Display for WorkflowTemplate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PrValidation => f.write_str("PR validation"),
+            Self::Audit => f.write_str("Nightly audit"),
+        }
+    }
+}
+
+fn workflow_display_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+}
+
+/// Offer GitHub Actions workflow installation.
 ///
-/// Write-if-absent semantics — once the file exists we never touch it,
-/// so an operator who edits the cron schedule or swaps the install
-/// step keeps their changes across re-runs of `anvil start` /
-/// `anvil baseline`. The `.github/workflows/` parent is created if
-/// missing.
+/// Interactive sessions show a pre-selected list of absent workflow files. A
+/// plain Enter accepts the default set; toggling entries off opts out. In
+/// non-interactive sessions we skip entirely so customer repos are not modified
+/// without an operator seeing the list.
+fn ensure_github_actions_workflows(
+    root: &Path,
+    interactive: bool,
+) -> std::io::Result<Vec<PathBuf>> {
+    let candidates = pending_workflows(root);
+    if candidates.is_empty() || !interactive {
+        return Ok(Vec::new());
+    }
+
+    let selected = show_workflow_picker(root, &candidates)?;
+    let written = install_selected_workflows(root, &selected)?;
+    for path in &written {
+        eprintln!(
+            "anvil: installed GitHub Actions workflow {}",
+            workflow_display_path(root, path),
+        );
+    }
+    Ok(written)
+}
+
+fn pending_workflows(root: &Path) -> Vec<WorkflowTemplate> {
+    [WorkflowTemplate::PrValidation, WorkflowTemplate::Audit]
+        .into_iter()
+        .filter(|workflow| !workflow.target_path(root).exists())
+        .collect()
+}
+
+fn show_workflow_picker(
+    root: &Path,
+    candidates: &[WorkflowTemplate],
+) -> std::io::Result<Vec<WorkflowTemplate>> {
+    use demand::{DemandOption, MultiSelect};
+
+    let mut picker = MultiSelect::new("Install or enable GitHub Actions workflows?")
+        .description("Selected workflows are written only if absent. Space toggles; Enter accepts.")
+        .filterable(false)
+        .min(0)
+        .max(candidates.len());
+
+    for workflow in candidates {
+        picker = picker.option(
+            DemandOption::new(*workflow)
+                .label(&workflow.label(root))
+                .selected(true),
+        );
+    }
+
+    let _raw_guard = WorkflowRawModeGuard;
+    match picker.run() {
+        Ok(workflows) => Ok(workflows),
+        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => Ok(Vec::new()),
+        Err(e) => Err(e),
+    }
+}
+
+struct WorkflowRawModeGuard;
+impl Drop for WorkflowRawModeGuard {
+    fn drop(&mut self) {
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+}
+
+/// Drop selected GitHub Actions workflow templates into `.github/workflows/`.
+///
+/// Write-if-absent semantics — once a file exists we never touch it, so an
+/// operator who edits triggers or swaps the install step keeps their changes
+/// across re-runs of `anvil start` / `anvil baseline`. The
+/// `.github/workflows/` parent is created if missing.
 ///
 /// Errors propagate to the caller so the orchestrator can decide
-/// whether to log + continue (per the surrounding `tracing::warn!`
-/// pattern). Operators without write access to `.github/` should not
-/// have activation hard-fail on this step.
-fn ensure_audit_workflow(root: &Path) -> std::io::Result<()> {
+/// whether to log + continue. Operators without write access to `.github/`
+/// should not have activation hard-fail on this step.
+fn install_selected_workflows(
+    root: &Path,
+    selected: &[WorkflowTemplate],
+) -> std::io::Result<Vec<PathBuf>> {
     let workflows_dir = root.join(".github").join("workflows");
-    let target = workflows_dir.join("anvil-audit.yml");
-    if target.exists() {
-        return Ok(()); // Idempotent — never clobber an existing file.
+    let mut written = Vec::new();
+
+    for workflow in selected {
+        let target = workflow.target_path(root);
+        if target.exists() {
+            continue; // Idempotent — never clobber an existing file.
+        }
+        std::fs::create_dir_all(&workflows_dir)?;
+        std::fs::write(&target, workflow.contents())?;
+        written.push(target);
     }
-    std::fs::create_dir_all(&workflows_dir)?;
-    let template = crate::commands::audit_chain::audit_workflow_template();
-    std::fs::write(&target, template)
+    Ok(written)
 }
 
 /// Decide whether to surface the interactive picker. We require:
@@ -850,32 +968,30 @@ mod tests {
     // ---- MLP2-053: audit-chain workflow installation -------------------
 
     #[test]
-    fn orchestrator_writes_audit_workflow_when_absent() {
-        // MLP2-053 — on a greenfield repo the orchestrator must drop the
-        // in-tree audit-chain workflow template into
-        // `.github/workflows/anvil-audit.yml` so the nightly L5 cron
-        // becomes active by default per ADR-037 §D-9.
+    fn orchestrator_does_not_write_github_actions_without_interactive_consent() {
+        // MLP2-043 / MLP2-053 — GitHub Actions workflows change repo
+        // behaviour and consume customer CI minutes, so non-interactive
+        // activation must never add them silently.
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let global = default_global();
 
         run_in_isolated(dir.path(), home.path(), &global);
 
-        let target = dir.path().join(".github/workflows/anvil-audit.yml");
+        let action_target = dir.path().join(".github/workflows/anvil.yml");
+        let audit_target = dir.path().join(".github/workflows/anvil-audit.yml");
         assert!(
-            target.exists(),
-            "orchestrator must write .github/workflows/anvil-audit.yml on a fresh repo"
+            !action_target.exists(),
+            "orchestrator must not write .github/workflows/anvil.yml without consent"
         );
-        let written = std::fs::read_to_string(&target).unwrap();
-        let template = crate::commands::audit_chain::audit_workflow_template();
-        assert_eq!(
-            written, template,
-            "written workflow must byte-match the in-tree template"
+        assert!(
+            !audit_target.exists(),
+            "orchestrator must not write .github/workflows/anvil-audit.yml without consent"
         );
     }
 
     #[test]
-    fn orchestrator_audit_workflow_is_idempotent() {
+    fn workflow_install_is_idempotent() {
         // MLP2-053 — re-running activation must not rewrite an existing
         // `.github/workflows/anvil-audit.yml`. Operators are expected to
         // edit the file in-place (e.g. comment out the `schedule` block);
@@ -885,19 +1001,40 @@ mod tests {
         // proves the same property for a user-edited file; this one
         // pins it for the orchestrator's own template.
         let dir = TempDir::new().unwrap();
-        let home = TempDir::new().unwrap();
-        let global = default_global();
 
-        run_in_isolated(dir.path(), home.path(), &global);
+        install_selected_workflows(dir.path(), &[WorkflowTemplate::Audit]).unwrap();
         let target = dir.path().join(".github/workflows/anvil-audit.yml");
         let before = std::fs::read_to_string(&target).unwrap();
 
-        run_in_isolated(dir.path(), home.path(), &global);
+        install_selected_workflows(dir.path(), &[WorkflowTemplate::Audit]).unwrap();
         let after = std::fs::read_to_string(&target).unwrap();
 
         assert_eq!(
             before, after,
             "orchestrator must not rewrite anvil-audit.yml on re-run"
+        );
+    }
+
+    #[test]
+    fn workflow_install_writes_selected_templates() {
+        let dir = TempDir::new().unwrap();
+
+        let written = install_selected_workflows(
+            dir.path(),
+            &[WorkflowTemplate::PrValidation, WorkflowTemplate::Audit],
+        )
+        .unwrap();
+
+        let action_target = dir.path().join(".github/workflows/anvil.yml");
+        let audit_target = dir.path().join(".github/workflows/anvil-audit.yml");
+        assert_eq!(written, vec![action_target.clone(), audit_target.clone()]);
+        assert_eq!(
+            std::fs::read_to_string(&action_target).unwrap(),
+            crate::commands::anvil_action::anvil_workflow_template(),
+        );
+        assert_eq!(
+            std::fs::read_to_string(&audit_target).unwrap(),
+            crate::commands::audit_chain::audit_workflow_template(),
         );
     }
 

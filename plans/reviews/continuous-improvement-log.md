@@ -737,6 +737,18 @@ a backlog. Promote repeated friction or executable follow-up work to
   current enough to execute from.
 - **Improvement:** When promoting one APS item opportunistically, update both the
   item and the phase/status summary in the same pass.
+- **Task:** Add consent before activation installs GitHub Actions workflows.
+- **Outcome:** `anvil start` now routes workflow writes through an interactive,
+  pre-selected consent list and skips workflow writes in non-interactive runs.
+- **Worked:** The existing MCP `demand::MultiSelect` pattern gave the right UX
+  shape: selected by default, Enter accepts, Space opts out.
+- **Failed:** Initial targeted test command used the crate directory name instead
+  of the package name (`eddacraft-anvil`).
+- **Friction:** Parallel `cargo test` invocations contend on the package/artifact
+  locks and slow feedback.
+- **Improvement:** For Rust package tests, read the crate `Cargo.toml` package
+  name first and run related filters sequentially unless they are independent
+  packages.
 - **Follow-up:** none
 - **Task:** Implement EAMIG-004 — expand git-history secret scan to match
   on-disk file coverage (PR #1994). Picked as unrelated queue-up work while a
