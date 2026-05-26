@@ -569,3 +569,19 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
   Candidate CIB (not filed, flagged to operator): observability layer should
   log to stderr, not stdout, so `--json` stays clean under debug logging.
+
+### 2026-05-26 — claude
+
+- **Task:** Reconcile TDASH-001 (shipped via PR #1981) — its APS work-item
+  status was left In Progress after merge.
+- **Outcome:** TDASH-001 → `Merged 2026-05-26 via PR #1981`; CIB-022 generator
+  bumped module header + index 0/4 → 1/4. `aps:index:check` ok, drift-check
+  clean.
+- **Worked:** Verified prod wire-up before flipping — `Commands::Dashboard`
+  enum variant + dispatch arm live in `main.rs` (not just `pub mod dashboard`),
+  so the scaffold is genuinely reachable, not spec-match.
+- **Failed:** Nothing. The implementation PR merged without the status flip, so
+  a standalone reconcile is the correct shape (no impl commit to fold into).
+- **Friction:** none.
+- **Improvement:** none.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
