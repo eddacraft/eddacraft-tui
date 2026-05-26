@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 18/24    |
+| CIB | —     | In Progress | 19/24    |
 
 ## Purpose
 
@@ -360,23 +360,15 @@ archive.
 
 ### CIB-019: Surface Go OPA stderr in the parity gate
 
-- **Status:** In Progress
-- **Intent:** `scripts/bench-vs-go-opa.sh` runs `opa bench … 2>/dev/null || true`;
-  on an OPA error (parse failure, crash, version skew) the script reports a
-  generic "no positive measurement" with OPA's diagnostic discarded, so a
-  failed parity run is hard to diagnose.
-- **Expected Outcome:** capture OPA stderr to a temp file and echo it before
-  the `require_pos_num` bail; document `opa bench --count` semantics and
-  consider a higher count for the heavy `repo_scan` fixture (it samples ~87
-  vs thousands for the light policies).
-- **Validation:** run the script against a deliberately broken fixture and
-  confirm OPA's error text reaches the operator; gate still PASSes on the real
-  fixtures.
-- **Identified From:** POLENG full council (operations + adversarial seats),
-  2026-05-25.
-- **Files:** `scripts/bench-vs-go-opa.sh`.
-- **Coordinates with:** POLENG-008; `.github/workflows/poleng-parity.yml`.
-- **Confidence:** high — diagnostics-only script change.
+- **Status:** Merged 2026-05-26 via PR #1990
+- **Summary:** `scripts/bench-vs-go-opa.sh` now captures `opa bench` stderr to a
+  temp file (trap-cleaned) and surfaces it before the `require_pos_num` bail, so
+  an OPA error (parse failure, crash, version skew) reaches the operator instead
+  of a bare "no positive measurement". `require_pos_num` gained an optional 4th
+  arg pointing at the stderr file. New fixture test `bench-vs-go-opa.test.sh`
+  stubs `opa` + the harness and asserts both the happy-path `GATE: PASS` and the
+  opa-error path (exit 2, OPA's text surfaced); wired into CI script-fixtures.
+  From the POLENG full council (operations + adversarial seats), 2026-05-25.
 
 ### CIB-020: Release-prep must refresh version-embedding TUI snapshots
 
