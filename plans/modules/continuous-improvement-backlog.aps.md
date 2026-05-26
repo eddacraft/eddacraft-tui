@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 10/22    |
+| CIB | —     | In Progress | 11/22    |
 
 ## Purpose
 
@@ -730,7 +730,7 @@ archive.
 
 ### CIB-022: Derive APS index progress counts instead of hand-editing
 
-- **Status:** Draft
+- **Status:** Merged 2026-05-26 via PR #1969
 - **Intent:** `plans/index.aps.md` progress cells (e.g. `9/20`) are mutated by
   hand whenever a module's done/total changes. Two agents bumping the same
   counter is a genuine semantic conflict that `merge=union` cannot fix (it would
@@ -755,3 +755,22 @@ archive.
   generator pattern it would mirror.
 - **Confidence:** medium — clear pattern to follow, but touches every module's
   index row and needs careful idempotent generation + CI wiring.
+- **Resolution:** `scripts/aps/index-counts.mjs` derives `done/total` from each
+  module's work-item `Status:` lines and rewrites both the module header row and
+  the `plans/index.aps.md` count token; `--check` (npm `aps:index:check`) is
+  enforced in the `Docs Lint` CI job (exit 1 on drift), and `aps:index` writes
+  the refresh. The module parser (`extractModule`/`isDoneStatus`/`DONE_PATTERNS`)
+  was extracted to `scripts/aps/lib/modules.mjs` and is now shared with
+  `drift-check.mjs` so the advisory checker and the enforcing generator can never
+  disagree on what "done" means. **Scope (per the chosen approach):** only
+  modules that declare a `| ID | … | N/M |` progress header are managed;
+  headerless modules carry hand-curated *planned* totals that are not
+  item-derivable and are left untouched (as drift-check already does). Index
+  rows are matched by their *name-cell* link so a cross-reference in another
+  row's prose can't hijack the match, and archived (`archive/modules/…`) rows
+  are never touched. The per-cell annotation prose is preserved, so this makes
+  counts authoritative and drift-proof but does **not** eliminate same-module
+  concurrent *prose* conflicts (cross-module completions already merge cleanly).
+  Validation: `npm run test:aps-index` fixture suite; `aps:index:check` green on
+  the full tree; simulated completion (flip an item to `Merged`, run
+  `aps:index`) updates header + index and nothing else.

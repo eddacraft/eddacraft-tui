@@ -100,6 +100,9 @@ jobs:
       - name: Run docs:check (DOCGOV-005)
         run: pnpm run docs:check
 
+      - name: Check APS index counts (CIB-022)
+        run: pnpm run aps:index:check
+
       - name: Run docs-check fixture tests
         run: pnpm run test:docs-check
 
@@ -170,6 +173,7 @@ jobs:
           pnpm test:ci-matrix-targeting
           pnpm test:ci-drift-integration
           pnpm test:ci-workflow-contracts
+          pnpm test:aps-index
           pnpm test:validate-local
 
       - name: Install OPA

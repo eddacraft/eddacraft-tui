@@ -421,3 +421,30 @@ a backlog. Promote repeated friction or executable follow-up work to
   let the mirror + `subtree pull` propagate. Operator: `wt remove` the
   `little-termi.attrib-009` and `anvil-001.docs-attrib-009-reconcile`
   worktrees once this PR merges.
+
+### 2026-05-26 — claude
+
+- **Task:** Implement CIB-022 — derive APS index progress counts from module
+  files so the cross-cutting index counter stops being hand-maintained/drifting.
+- **Outcome:** `scripts/aps/index-counts.mjs` (`aps:index` / `aps:index:check`);
+  parser extracted to `scripts/aps/lib/modules.mjs` and shared with
+  `drift-check.mjs`; enforcing check wired into the Docs Lint job; fixture test
+  `test:aps-index`. Authoritative-counts approach (option A) — prose preserved.
+- **Worked:** Reusing drift-check's exact parser via a shared lib guarantees the
+  advisory checker and the enforcing generator agree on "done" — and scoping the
+  generator to drift-check's exact set (headered modules) made `--check` pass on
+  the consistent tree, so enabling enforcement didn't redden main.
+- **Failed:** First pass over-reached: (1) tried to manage headerless modules
+  whose index counts are curated *planned* totals, not item counts; (2) matched
+  index rows by link-substring, so a `superseded by [tui-reintegration](…)`
+  cross-reference in another row's prose hijacked TUIR's match. Fixed by gating
+  to headered modules and matching the row's *first* (name-cell) link.
+- **Friction:** The index is many tables with inconsistent layouts — some rows
+  have no count column at all (GATE/ILGOV/POLFED/UCFG); surfaced as notes, left
+  alone.
+- **Improvement:** When building a writer that mirrors an existing read-only
+  checker, scope it to exactly the checker's validated set first — divergence is
+  where the false positives live.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree
+  after merge. The same-module prose-conflict residue is documented in CIB-022,
+  not a new item.

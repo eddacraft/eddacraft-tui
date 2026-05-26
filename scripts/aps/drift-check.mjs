@@ -1,6 +1,14 @@
 #!/usr/bin/env node
-import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { appendFileSync, existsSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import {
+  escapeRegExp,
+  extractModule,
+  isDoneStatus,
+  listModulePaths,
+  normalisePath,
+  readText,
+} from './lib/modules.mjs';
 
 const args = process.argv.slice(2);
 
@@ -57,122 +65,18 @@ function addFinding(code, message, details = {}) {
   findings.push({ severity: 'warning', code, message, ...details });
 }
 
-function readText(path) {
-  return readFileSync(path, 'utf8');
-}
-
 function readJson(path) {
   return JSON.parse(readText(path));
 }
 
-function listModulePaths() {
-  const modulesDir = join(root, 'plans/modules');
-  if (!existsSync(modulesDir)) return [];
-  return readdirSync(modulesDir)
-    .filter((name) => name.endsWith('.aps.md'))
-    .map((name) => join(modulesDir, name));
-}
-
-function normalisePath(path) {
-  return path.replaceAll('\\', '/').replace(/^\.\//, '');
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function extractModule(path) {
-  const text = readText(path);
-  const id = text.match(/^\|\s*([A-Z][A-Z0-9-]*)\s*\|.*?\|\s*(\d+)\/(\d+)\s*\|\s*$/m);
-  const slug = basename(path, '.aps.md');
-  const items = [];
-  // CICD-011 council follow-up: `[a-z]?` after `\d{3}` admits suffixed
-  // work-item IDs (e.g. `RCLI3-016b`) that real modules already declare.
-  // Without it, b-suffix items are silently dropped from extractModule's
-  // count, which under-reports progress and false-positives
-  // pr-missing-aps-reference for any PR mentioning a b-suffix ID.
-  const headingPattern = /^###\s+([A-Z][A-Z0-9]*-\d{3}[a-z]?)(?::|\s+[—-])\s+(.+)$/gm;
-  const headings = [...text.matchAll(headingPattern)];
-
-  headings.forEach((heading, index) => {
-    const start = heading.index ?? 0;
-    const end =
-      index + 1 < headings.length ? (headings[index + 1].index ?? text.length) : text.length;
-    const block = text.slice(start, end);
-    const status = block.match(/^- \*\*Status:\*\*\s+(.+)$/m)?.[1]?.trim() ?? 'Unknown';
-    const filesBlock = block.match(/^- \*\*Files:\*\*\s+([^\n]+(?:\n\s{2,}[^\n]+)*)/m)?.[1] ?? '';
-    const files = filesBlock
-      .split(/,|\n/)
-      .map((entry) =>
-        entry
-          .replace(/`/g, '')
-          .replace(/\s+when implemented$/, '')
-          .trim()
-      )
-      .filter(Boolean)
-      .map(normalisePath);
-    items.push({
-      id: heading[1],
-      title: heading[2].trim(),
-      status,
-      block,
-      files,
-      moduleSlug: slug,
-    });
-  });
-
-  return {
-    id: id?.[1] ?? slug.toUpperCase(),
-    progressDone: id ? Number(id[2]) : null,
-    progressTotal: id ? Number(id[3]) : null,
-    path,
-    items,
-  };
-}
-
-const modules = listModulePaths().map(extractModule);
+const modules = listModulePaths(root).map(extractModule);
 const items = modules.flatMap((module) => module.items);
 
-// #1769: progress is "done" when a task reaches any of the canonical
-// or lifecycle-terminal states. The canonical APS vocabulary lives in
-// `plans/aps-rules.md`; Anvil's local status extensions (which map back
-// to canonical `Done` for portability) are documented in
-// `plans/project-context.md#project-status-extensions`. The accepted
-// terminal forms:
-//   - `Done`             — canonical schema value (aps-rules Status Rule 3)
-//   - `Complete`         — legacy alias the parser normalises to `Done`
-//   - `Merged`           — Anvil extension: integration target reached
-//   - `Released/Shipped` — Anvil extension: release-record evidence
-// External APS tooling that does not know about the Anvil extensions
-// will treat them as opaque; this drift-check folds them into the done
-// count so progress counters stay accurate inside Anvil.
-//
-// The earlier equality-on-`Complete` check was misaligned with the
-// documented convention and emitted spurious `aps-progress-mismatch`
-// warnings across 15 modules. The narrower
-// `aps-complete-without-validation-evidence` check below intentionally
-// stays keyed on literal `Complete` per Status Rule 4 (the narrative
-// validation gate).
-//
-// Real module text appends free-form prose after the terminal-state
-// token. Examples found in-tree (`plans/modules/`):
-//   - `Complete — merged 2026-04-29 via PR #1186`
-//   - `Complete (commit \`06d764d4\`; file present at ...)`
-//   - `Merged 2026-05-17 — all four umbrella-required sub-tasks ...`
-//   - `Done — landed via PR #100`
-// PR #1771 review-round 1 caught the `Merged 2026-05-17 — ...` form: an
-// earlier split-on-separator approach yielded `Merged 2026-05-17` as
-// the head token, which then failed an exact Set lookup. Match the
-// done-state as a leading prefix with a word boundary instead, so any
-// trailing prose (date, paren, dash, period, slash for compound
-// `Released/Shipped`) is accepted.
-const DONE_PATTERNS = [/^Done\b/, /^Complete\b/, /^Merged\b/, /^Released\/Shipped\b/];
-
-function isDoneStatus(status) {
-  const trimmed = status.trim();
-  return DONE_PATTERNS.some((pattern) => pattern.test(trimmed));
-}
-
+// `isDoneStatus` / `DONE_PATTERNS` and the module parser now live in
+// `./lib/modules.mjs` so this advisory checker and the enforcing
+// `index-counts.mjs` generator share one definition of "done" (CIB-022).
+// The narrower `aps-complete-without-validation-evidence` check below
+// intentionally stays keyed on literal `Complete` per Status Rule 4.
 for (const module of modules) {
   if (module.progressDone === null || module.progressTotal === null) continue;
   if (module.items.length === 0) continue;

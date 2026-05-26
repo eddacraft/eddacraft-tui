@@ -166,6 +166,18 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # CIB-022: node-based automation scripts also carry shell-style fixture tests
+  # (e.g. scripts/aps/_test/*.test.sh exercising scripts/aps/*.mjs), so a
+  # change to the .mjs must run `script-fixtures`. They still match the `ts`
+  # case above for lint/format/typecheck; classes accumulate.
+  case "${path}" in
+    scripts/*.mjs | scripts/**/*.mjs)
+      add_unique path_classes 'shell'
+      add_unique risk_classes 'automation'
+      matched=true
+      ;;
+  esac
+
   case "${path}" in
     infra/* | infra/**/* | deploy/* | deploy/**/* | Pulumi.yaml | Pulumi.*.yaml | docker-compose.* | Dockerfile)
       add_unique path_classes 'infra'
