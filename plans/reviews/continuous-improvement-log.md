@@ -525,3 +525,16 @@ a backlog. Promote repeated friction or executable follow-up work to
   test` — `cargo test` defaults to `panic = "unwind"` and silently masked that
   the release/dist profile defeats catch_unwind.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+### 2026-05-26 — opencode
+
+- **Task:** Fix APS dashboard body text clipping in the TUI renderer.
+- **Outcome:** Added paragraph wrapping for APS dashboard body panels and a
+  regression test for long detail text.
+- **Worked:** A focused Ratatui snapshot test reproduced the clipped body text
+  before the implementation change.
+- **Failed:** Nothing substantive.
+- **Friction:** The dashboard work item is archived, so urgent polish fixes do
+  not map cleanly to an active APS item.
+- **Improvement:** Keep small UI polish fixes tied to regression tests when APS
+  planning has already closed the original feature.
+- **Follow-up:** none

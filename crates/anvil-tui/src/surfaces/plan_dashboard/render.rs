@@ -6,7 +6,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use super::{PlanDashboardState, PlanModuleRow};
 
@@ -107,7 +107,10 @@ fn render_summary(
         .variant(ContainerVariant::Primary);
     let inner = container.inner(area);
     frame.render_widget(container, area);
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 fn count_modules_by_status(state: &PlanDashboardState, status: &str) -> usize {
@@ -204,12 +207,14 @@ fn render_modules_compact(
         .collect();
 
     frame.render_widget(
-        Paragraph::new(Text::from(lines)).block(
-            Container::new(theme)
-                .title("Modules")
-                .variant(ContainerVariant::Secondary)
-                .to_block(),
-        ),
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .block(
+                Container::new(theme)
+                    .title("Modules")
+                    .variant(ContainerVariant::Secondary)
+                    .to_block(),
+            ),
         area,
     );
 }
@@ -251,22 +256,25 @@ fn render_work_items(
     state: &PlanDashboardState,
     theme: &EddaCraftTheme,
 ) {
-    let rows: Vec<Vec<String>> = state
+    let lines: Vec<Line> = state
         .snapshot
         .work_items
         .iter()
-        .map(|item| vec![item.id.clone(), item.status.clone(), item.title.clone()])
+        .map(|item| {
+            Line::from(vec![
+                Span::styled(format!("{} ", item.id), Style::default().fg(theme.fg())),
+                Span::styled(
+                    format!("{} ", item.status),
+                    Style::default().fg(theme.accent()),
+                ),
+                Span::styled(item.title.clone(), Style::default().fg(theme.muted())),
+            ])
+        })
         .collect();
-    let headers = ["ID", "Status", "Title"];
-    let widths = [
-        Constraint::Length(12),
-        Constraint::Length(12),
-        Constraint::Min(10),
-    ];
 
     frame.render_widget(
-        DataTable::new(theme, &headers, &rows)
-            .widths(&widths)
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
             .block(
                 Container::new(theme)
                     .title("Open Items")
@@ -298,12 +306,14 @@ fn render_selected_module_detail(
 ) {
     let Some(scope) = state.selected_module_scope() else {
         frame.render_widget(
-            Paragraph::new("No module selected").block(
-                Container::new(theme)
-                    .title("Detail")
-                    .variant(ContainerVariant::Secondary)
-                    .to_block(),
-            ),
+            Paragraph::new("No module selected")
+                .wrap(Wrap { trim: false })
+                .block(
+                    Container::new(theme)
+                        .title("Detail")
+                        .variant(ContainerVariant::Secondary)
+                        .to_block(),
+                ),
             area,
         );
         return;
@@ -316,12 +326,14 @@ fn render_selected_module_detail(
     let lines = module_detail_lines(scope, module, state, theme);
 
     frame.render_widget(
-        Paragraph::new(Text::from(lines)).block(
-            Container::new(theme)
-                .title("Detail")
-                .variant(ContainerVariant::Secondary)
-                .to_block(),
-        ),
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .block(
+                Container::new(theme)
+                    .title("Detail")
+                    .variant(ContainerVariant::Secondary)
+                    .to_block(),
+            ),
         area,
     );
 }
@@ -430,9 +442,15 @@ fn render_warnings(
             inner.width,
             inner.height.saturating_sub(1),
         );
-        frame.render_widget(Paragraph::new(Text::from(lines)), warning_area);
+        frame.render_widget(
+            Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+            warning_area,
+        );
     } else {
-        frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+        frame.render_widget(
+            Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+            inner,
+        );
     }
 }
 
@@ -599,5 +617,31 @@ mod tests {
         assert!(rendered.contains("Detail"));
         assert!(rendered.contains("APSCAN-011"));
         assert!(rendered.contains("Validation:"));
+    }
+
+    #[test]
+    fn wraps_selected_module_detail_body_text() {
+        let mut state = sample_state();
+        state.selected_module = 1;
+        state.show_detail = true;
+        state.snapshot.work_items[0].validation = Some(
+            "cargo test -p eddacraft-anvil-tui plan_dashboard --lib with-visible-wrap-marker"
+                .to_string(),
+        );
+
+        let rendered = render_state_to_string(&state, 100, 24);
+
+        assert!(rendered.contains("with-visible-wrap-marker"));
+    }
+
+    #[test]
+    fn wraps_open_item_body_titles() {
+        let mut state = sample_state();
+        state.snapshot.work_items[0].title =
+            "Add APS TUI dashboard and keep-long-title-wrap-marker visible".to_string();
+
+        let rendered = render_state_to_string(&state, 100, 24);
+
+        assert!(rendered.contains("keep-long-title-wrap-marker"));
     }
 }
