@@ -640,3 +640,10 @@ a backlog. Promote repeated friction or executable follow-up work to
   re-litigate a merged review thread on a style call.
 - **Follow-up:** /addressing-pr-reviews after CI on #1988; deferred items above
   if Boring-Week usage exercises them; cleanup worktree after merge.
+- **Task:** Implement TDASH-004 (suppressions-overview native dashboard) via dev-workflow.
+- **Outcome:** PR #1989 — `anvil dashboard suppressions` renders `.anvil/suppressions.json`; suppressions loader extracted from `commands/export.rs` to shared `services/suppressions.rs`; TDASH-004 marked Merged via PR #1989 (3/4) in the implementation commit; module now 3/4 (only TDASH-003 drift remains).
+- **Worked:** Reusing the established surface+CLI pattern made this fast. Extracting the loader to `services/` rather than backwards-importing from `export.rs` or duplicating kept it DRY and gave a neutral home; council confirmed the extraction was behaviour-preserving. Applied prior lessons proactively (stable --json envelope, no phantom command, correct DataTable API) so council found 0 critical/major.
+- **Failed:** clippy `map_unwrap_or` on the date-only `.map().unwrap_or_else()` — should be `map_or_else`. Same class as the TDASH-002 `needless_pass_by_value` miss: a closure idiom clippy denies under `-D warnings`.
+- **Friction:** none beyond the usual fmt-invalidates-Edit-anchors.
+- **Improvement:** Keep a mental checklist of clippy-denied Option/Result idioms (`map().unwrap_or_else()` → `map_or_else`; `value: String` borrowed-only → `&str`) and write them right the first time.
+- **Follow-up:** TDASH-003 (drift snapshots, `.anvil/snapshots/` + baseline.json) is the last item — closes the module at 4/4.

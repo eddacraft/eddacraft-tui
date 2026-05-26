@@ -5,7 +5,7 @@
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TDASH | joshuaboys | In Progress | 3/4      |
+| TDASH | joshuaboys | Done   | 4/4      |
 
 **Last reviewed:** 2026-05-26
 
@@ -204,7 +204,7 @@ per-domain surfaces.
 
 ### TDASH-004: Suppressions-overview dashboard surface
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-26 via PR #1989
 - **Intent:** Render the suppressions inventory natively from
   `.anvil/suppressions.json`
 - **Expected Outcome:** `anvil dashboard suppressions` lists suppressions with

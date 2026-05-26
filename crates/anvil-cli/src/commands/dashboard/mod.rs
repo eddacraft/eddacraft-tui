@@ -17,6 +17,7 @@ use crate::{GlobalArgs, tui};
 
 mod architecture;
 mod drift;
+mod suppressions;
 
 #[derive(Debug, Args)]
 pub struct DashboardArgs {
@@ -53,8 +54,8 @@ fn catalog() -> Vec<CatalogEntry> {
         CatalogEntry {
             name: "suppressions",
             title: "Suppressions",
-            description: "Active suppressions with scope, justification, approver",
-            available: false,
+            description: "Active suppressions with scope, file, reason, and expiry",
+            available: true,
         },
     ]
 }
@@ -140,6 +141,7 @@ fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
     match name {
         "architecture" => architecture::run(global),
         "drift" => drift::run(global),
+        "suppressions" => suppressions::run(global),
         other => anyhow::bail!("dashboard '{other}' has no surface wired yet"),
     }
 }
@@ -184,16 +186,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_lists_three_dashboards_with_architecture_and_drift_wired() {
+    fn catalog_wires_all_three_dashboards() {
         let catalog = catalog();
         let names: Vec<_> = catalog.iter().map(|entry| entry.name).collect();
         assert_eq!(names, ["architecture", "drift", "suppressions"]);
-        // TDASH-002 wires architecture, TDASH-003 wires drift; suppressions
-        // stays coming-soon.
+        // TDASH-002/003/004 wired architecture, drift, and suppressions.
         let by_name = |n: &str| catalog.iter().find(|e| e.name == n).unwrap().available;
         assert!(by_name("architecture"), "architecture should be available");
         assert!(by_name("drift"), "drift should be available");
-        assert!(!by_name("suppressions"));
+        assert!(by_name("suppressions"), "suppressions should be available");
     }
 
     #[test]
@@ -219,9 +220,17 @@ mod tests {
 
     #[test]
     fn resolve_known_unavailable_is_coming_soon() {
+        // All shipped dashboards are now available; use a synthetic unavailable
+        // entry to keep covering the coming-soon resolution path.
+        let catalog = vec![CatalogEntry {
+            name: "future",
+            title: "Future",
+            description: "not wired yet",
+            available: false,
+        }];
         assert_eq!(
-            resolve(Some("suppressions"), &catalog()),
-            Resolution::ComingSoon("suppressions".to_string())
+            resolve(Some("future"), &catalog),
+            Resolution::ComingSoon("future".to_string())
         );
     }
 
@@ -271,14 +280,16 @@ mod tests {
                 "name runs into description: {line:?}"
             );
         }
-        assert!(text.contains("coming soon"), "got:\n{text}");
+        // All shipped dashboards are available — none should carry the
+        // coming-soon marker.
+        assert!(!text.contains("coming soon"), "got:\n{text}");
     }
 
     #[test]
     fn launch_bails_for_dashboard_without_an_arm() {
-        // Defensive seam: a name with no launch arm (e.g. a coming-soon entry
-        // flipped to `available` without wiring) must fail loudly, not no-op.
+        // Defensive seam: a name with no launch arm must fail loudly, not
+        // no-op. All catalogue entries are wired, so use a non-catalogue name.
         let global = GlobalArgs::default();
-        assert!(launch("suppressions", &global).is_err());
+        assert!(launch("nonexistent", &global).is_err());
     }
 }
