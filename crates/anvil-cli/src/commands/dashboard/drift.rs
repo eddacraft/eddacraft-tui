@@ -167,7 +167,10 @@ fn ap_keys(snapshot: &DriftSnapshot) -> BTreeSet<(&str, usize, &str)> {
 /// can't both saturate and net to a misleading zero.
 fn net(after: usize, before: usize) -> i64 {
     let delta = after as i128 - before as i128;
-    i64::try_from(delta.clamp(i128::from(i64::MIN), i128::from(i64::MAX))).unwrap_or(i64::MAX)
+    // The clamp guarantees the value is in i64 range, so try_from is infallible
+    // here; expect makes a future change to the clamp bounds fail loudly.
+    i64::try_from(delta.clamp(i128::from(i64::MIN), i128::from(i64::MAX)))
+        .expect("value clamped to i64 range always fits i64")
 }
 
 fn row_from(snapshot: &DriftSnapshot) -> DriftSnapshotRow {

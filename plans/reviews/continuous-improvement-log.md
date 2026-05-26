@@ -619,3 +619,24 @@ a backlog. Promote repeated friction or executable follow-up work to
   (suppressions) is the same shape against `.anvil/suppressions.json`.
 - **Follow-up:** /addressing-pr-reviews after CI + Copilot on #1988; cleanup
   worktree after merge.
+
+### 2026-05-26 — claude
+
+- **Task:** Council review (5 reviewers) of TDASH-003 + EAMIG-004 during the
+  GitHub Actions outage, to harden both queued PRs before CI returns.
+- **Outcome (TDASH-003):** Fixed `DriftDelta::trend()` i64 addition overflow
+  (`saturating_add`) + added a `trend_saturates_without_overflow` test; switched
+  `net()`'s post-clamp `unwrap_or(i64::MAX)` to `.expect(...)` so a future clamp
+  regression is loud. 10 tui + 7 cli tests, fmt + workspace clippy green.
+- **Worked:** Running all 5 reviewers in parallel against both worktrees gave
+  fast triable signal; the overflow in `trend()` (MAJOR, flagged by two seats)
+  was a real latent bug the unit tests hadn't exercised.
+- **Failed:** Nothing in the fix. Council also flagged larger items I chose to
+  defer (unbounded snapshot load, ANSI in TUI names, metric_delta vs net()
+  divergence in the existing drift.rs) as out-of-scope follow-ups, not blockers.
+- **Friction:** none.
+- **Improvement:** Pragmatic vs Copilot disagreed on the i128 `net()` (gold-
+  plating vs requested); kept it since Copilot already asked for it — don't
+  re-litigate a merged review thread on a style call.
+- **Follow-up:** /addressing-pr-reviews after CI on #1988; deferred items above
+  if Boring-Week usage exercises them; cleanup worktree after merge.

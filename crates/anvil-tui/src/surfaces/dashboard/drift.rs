@@ -47,7 +47,13 @@ impl DriftDelta {
     /// is degrading, no net change is stable.
     #[must_use]
     pub fn trend(&self) -> &'static str {
-        match (self.net_violations + self.net_antipatterns).cmp(&0) {
+        // saturating_add: both fields are independently clamped to i64, but
+        // their sum could still overflow — a wrap would flip the trend sign.
+        match self
+            .net_violations
+            .saturating_add(self.net_antipatterns)
+            .cmp(&0)
+        {
             std::cmp::Ordering::Less => "improving",
             std::cmp::Ordering::Greater => "degrading",
             std::cmp::Ordering::Equal => "stable",
@@ -397,6 +403,16 @@ mod tests {
         delta.net_violations = 0;
         delta.net_antipatterns = 0;
         assert_eq!(delta.trend(), "stable");
+    }
+
+    #[test]
+    fn trend_saturates_without_overflow() {
+        // Both fields at i64::MIN would overflow a plain `+`; saturating_add
+        // keeps it negative ("improving") instead of panicking/wrapping.
+        let mut delta = sample_view().latest_delta.unwrap();
+        delta.net_violations = i64::MIN;
+        delta.net_antipatterns = i64::MIN;
+        assert_eq!(delta.trend(), "improving");
     }
 
     #[test]
