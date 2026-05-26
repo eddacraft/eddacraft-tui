@@ -214,11 +214,14 @@ if (releaseRecordPath) {
 }
 
 // shipped-aps-without-release-record can only be evaluated against a specific
-// release record (`--release-record path/to/vX.Y.Z.md`). Without one, the
-// check has no published-items set to verify against, and active modules
-// legitimately carry `Released/Shipped via vX.Y.Z` text for items shipped via
-// past releases the runner was not handed. Skip the loop when no release
-// record was provided OR the provided record is not `published` — mirrors the
+// release record passed via `--release-record <path-to-json>` (the loader is
+// `readJson` — pure JSON only; the markdown release records under
+// `plans/releases/*.md` embed the JSON in a fenced block and are not
+// directly parseable today). Without a record, the check has no
+// published-items set to verify against, and active modules legitimately
+// carry `Released/Shipped via vX.Y.Z` text for items shipped via past
+// releases the runner was not handed. Skip the loop when no release record
+// was provided OR the provided record is not `published` — mirrors the
 // `candidate-missing-merged-aps-item` gating above.
 //
 // The earlier strict-equality check (`=== 'Released/Shipped'`) was silently
@@ -227,11 +230,16 @@ if (releaseRecordPath) {
 // gating as ~30 false positives on every local + CI drift run.
 if (releaseRecord?.lifecycleState === 'published') {
   const publishedItems = new Set((releaseRecord.aps?.items ?? []).map((item) => item.id));
+  // Fall back to the on-disk path when both `source.tag` and `version` are
+  // missing so the message never reads `(undefined)` — the operator should
+  // always be able to tell which record the check ran against.
+  const recordLabel =
+    releaseRecord.source?.tag ?? releaseRecord.version ?? releaseRecordPath;
   for (const item of items.filter((entry) => /^Released\/Shipped\b/.test(entry.status))) {
     if (!publishedItems.has(item.id)) {
       addFinding(
         'shipped-aps-without-release-record',
-        `${item.id} is Released/Shipped but is not listed in the provided release record (${releaseRecord.source?.tag ?? releaseRecord.version}).`,
+        `${item.id} is Released/Shipped but is not listed in the provided release record (${recordLabel}).`,
         {
           apsItem: item.id,
         }

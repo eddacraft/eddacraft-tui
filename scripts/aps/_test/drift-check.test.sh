@@ -173,7 +173,18 @@ assert_json_has_code "$candidate_json" 'aps-index-progress-mismatch'
 assert_json_has_code "$candidate_json" 'aps-complete-without-validation-evidence'
 assert_json_has_code "$candidate_json" 'changed-file-without-aps-reference'
 assert_json_has_code "$candidate_json" 'candidate-missing-merged-aps-item'
-assert_json_has_code "$candidate_json" 'shipped-aps-without-release-record'
+
+# Regression sentinel: shipped-aps-without-release-record MUST NOT fire under
+# a `candidate` record. Released/Shipped items reference a past published
+# release the candidate record knows nothing about — checking them against
+# the candidate's items would always produce false positives. The
+# published-only gate landed in #1971.
+if printf '%s' "$candidate_json" | node -e '
+const doc = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+if (doc.findings.some((f) => f.code === "shipped-aps-without-release-record")) {
+  throw new Error("shipped-aps-without-release-record fired under a candidate record");
+}
+'; then :; else echo "shipped-aps gating regression: fired under candidate record" >&2; exit 1; fi
 
 # #1438 follow-up: lock the message text on load-bearing findings so
 # silent renames are caught. `changed-file-without-aps-reference` is
@@ -244,6 +255,12 @@ published_json="$("${CHECK[@]}" --root "$tmp" --release-record "$tmp/published.j
 assert_json_has_code "$published_json" 'release-version-tag-mismatch'
 assert_json_has_code "$published_json" 'package-version-tag-mismatch'
 assert_json_has_code "$published_json" 'release-artifact-missing-integrity'
+# #1971: shipped-aps-without-release-record fires under a `published` record
+# for Released/Shipped items not listed in the record's `aps.items`. The
+# fixture's published.json lists FIX-003 but not LIFE-004, so LIFE-004's
+# Released/Shipped status should be flagged here.
+assert_json_has_code "$published_json" 'shipped-aps-without-release-record'
+assert_json_has_message_substring "$published_json" 'shipped-aps-without-release-record' 'LIFE-004'
 
 # ── CICD-011: PR metadata drift ──────────────────────────────────
 # A PR with no APS reference and no `Unplanned-work:` opt-out flags
