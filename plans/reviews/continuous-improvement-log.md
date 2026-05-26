@@ -548,3 +548,24 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** `cargo fmt` reformatting between edits invalidated two Edit anchors (the `suffix` if-block expanded multi-line), forcing re-reads.
 - **Improvement:** When building a String in a loop, reach for `writeln!`/`write!` from the start — `push_str(&format!())` is a clippy-denied antipattern under the workspace `-D warnings` gate.
 - **Follow-up:** TDASH-002 (architecture-health) is unblocked — flip its catalogue entry to `available`, add a `launch` arm, and add the `dashboard/architecture.rs` surface reading `.anvil/architecture.json`.
+- **Task:** Implement CIB-017 — tracing on the `anvil policy eval` path so a
+  CI/prod failure is diagnosable beyond an anyhow chain.
+- **Outcome:** `#[tracing::instrument]` + a structured `debug!` summary on
+  `eval::run`, `warn!` on engine abnormal paths; integration test asserts the
+  event under `ANVIL_LOG=debug`. Added `tracing` to policy-engine (1 Cargo.lock
+  edge, no new crates; hakari clean). 12/0 + 37/0 + clippy/fmt clean.
+- **Worked:** Verified the wire-up FIRST (per the last-two-sessions lesson) — the
+  binary's `anvil-observability::init_tracing` honours ANVIL_LOG>RUST_LOG and the
+  event surfaces as JSON. Avoided shipping latent instrumentation no subscriber
+  would render. Quick council caught two real gaps (a now-unreachable poison
+  warn! given CIB-018's guard; two failure paths with no structured event).
+- **Failed:** First cut left the gate-relevant post_process failure arms
+  uninstrumented — the exact failure class the item targets. Council caught it.
+- **Friction:** The observability layer writes JSON logs to **stdout**, so
+  `anvil <cmd> --json` with debug logging interleaves log lines with the
+  command's JSON. Pre-existing (all commands), but it undercuts turning on
+  debug logging for a `--json` gate.
+- **Improvement:** none new — reinforces the verify-the-wire-up habit.
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
+  Candidate CIB (not filed, flagged to operator): observability layer should
+  log to stderr, not stdout, so `--json` stays clean under debug logging.

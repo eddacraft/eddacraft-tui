@@ -65,6 +65,59 @@ fn eval_emits_raw_value_and_exits_zero() {
 }
 
 #[test]
+fn eval_emits_structured_debug_tracing() {
+    // CIB-017: under debug logging the eval path emits a `policy_eval` span and
+    // a "policy eval complete" event with structured fields, so a CI/prod
+    // failure is diagnosable beyond an anyhow chain. Quiet by default (the CLI's
+    // default filter is `warn`); operators opt in via ANVIL_LOG / RUST_LOG.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "greet.rego",
+        "package t\nimport rego.v1\ngreeting := \"hello world\"\n",
+    );
+
+    // No `--json`: the observability layer writes its JSON log lines to stdout,
+    // so reading the event off stdout keeps the command's own output plain.
+    let output = Command::new(ANVIL_BIN)
+        .args(["policy", "eval", &policy, "--query", "data.t.greeting"])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_LOG", "debug")
+        .output()
+        .expect("invoke anvil");
+    assert!(output.status.success(), "eval should exit 0");
+    // Search both streams: the observability layer currently writes logs to
+    // stdout, but this stays correct if they move to stderr later.
+    let combined = format!(
+        "{}{}",
+        String::from_utf8(output.stdout).expect("utf8 stdout"),
+        String::from_utf8(output.stderr).expect("utf8 stderr"),
+    );
+
+    let event = combined
+        .lines()
+        .find(|l| l.contains("policy eval complete"))
+        .unwrap_or_else(|| panic!("no `policy eval complete` debug event:\n{combined}"));
+    // Structured fields + the instrument span (name, policy, query) are present.
+    for needle in [
+        "policy_bytes",
+        "input_bytes",
+        "eval_ms",
+        "\"findings\"",
+        "exit_code",
+        "policy_eval",
+        "data.t.greeting",
+    ] {
+        assert!(
+            event.contains(needle),
+            "debug event missing `{needle}`:\n{event}"
+        );
+    }
+}
+
+#[test]
 fn findings_warn_but_do_not_block_by_default() {
     let dir = tempfile::tempdir().unwrap();
     let policy = write(dir.path(), "arch.rego", FINDINGS_POLICY);

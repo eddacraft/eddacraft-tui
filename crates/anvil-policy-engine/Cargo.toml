@@ -42,6 +42,10 @@ regorus = { workspace = true, features = [
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+# CIB-017: warn! on abnormal engine conditions (a caught panic, a poisoned
+# lock). Already in the binary's dependency tree via anvil-cli, so this adds no
+# new transitive crates.
+tracing = { workspace = true }
 workspace-hack.workspace = true
 
 [dev-dependencies]

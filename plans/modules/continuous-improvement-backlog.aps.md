@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 15/23    |
+| CIB | —     | In Progress | 16/23    |
 
 ## Purpose
 
@@ -359,21 +359,13 @@ archive.
 
 ### CIB-017: Tracing on the `anvil policy eval` path
 
-- **Status:** Draft
-- **Intent:** `anvil policy eval` is the CI-gating policy primitive
-  (POLENG-007) but has zero `tracing` instrumentation; a production/CI
-  failure surfaces only as an anyhow chain with no structured fields.
-- **Expected Outcome:** `eval::run` carries `#[tracing::instrument]` with
-  `policy` / `query` fields; a `debug!` after evaluation emits input byte
-  size, eval duration, and finding count; the engine emits a `warn!` on
-  `RwLock` poison instead of a generic `EngineError::Input`.
-- **Validation:** `RUST_LOG=debug anvil policy eval …` shows the fields;
-  `cargo test -p eddacraft-anvil --test policy_eval` stays green.
-- **Identified From:** POLENG full council (operations seat), 2026-05-25.
-- **Files:** `crates/anvil-cli/src/commands/policy/eval.rs`,
-  `crates/anvil-policy-engine/src/lib.rs`.
-- **Coordinates with:** POLENG.
-- **Confidence:** high — additive instrumentation, no behaviour change.
+- **Status:** Merged 2026-05-26 via PR #1983
+- **Summary:** `eval::run` carries `#[tracing::instrument]` (policy/query span)
+  and a `debug!` summary (policy_bytes / input_bytes / eval_ms / findings /
+  exit_code), with `warn!`s on the gate-relevant failure paths and on engine
+  abnormal conditions (caught panic, poisoned lock). Surfaces under
+  `ANVIL_LOG=debug` via `anvil-observability` (JSON to stdout). Added `tracing`
+  to the policy-engine crate (already in the binary tree; no new crates).
 
 ### CIB-018: `catch_unwind` at the policy-engine facade boundary
 

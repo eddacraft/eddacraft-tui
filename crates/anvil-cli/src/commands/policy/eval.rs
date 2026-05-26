@@ -97,13 +97,21 @@ struct EvalOutput {
     trace: Option<Trace>,
 }
 
+#[tracing::instrument(
+    name = "policy_eval",
+    skip_all,
+    fields(policy = %args.policy.display(), query = %args.query)
+)]
 pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     let policy_display = args.policy.display().to_string();
     let policy_source = read_capped(&args.policy, MAX_POLICY_BYTES, "policy file")?;
+    let policy_bytes = policy_source.len();
 
+    let mut input_bytes = 0usize;
     let input = match &args.input {
         Some(path) => {
             let raw = read_capped(path, MAX_INPUT_BYTES, "input file")?;
+            input_bytes = raw.len();
             serde_json::from_str::<PolicyInput>(&raw).with_context(|| {
                 format!("parsing `{}` as a PolicyInput document", path.display())
             })?
@@ -123,9 +131,11 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
         .add_policy(policy_display.clone(), policy_source)
         .with_context(|| format!("loading policy `{policy_display}`"))?;
 
+    let eval_start = std::time::Instant::now();
     let result = engine
         .eval(&input, &args.query)
         .with_context(|| format!("evaluating query `{}`", args.query))?;
+    let eval_elapsed = eval_start.elapsed();
 
     // Decide between findings semantics and a raw value by *shape*, via
     // `post_process` (a findings array parses; anything else does not). This
@@ -158,8 +168,12 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
             // error variant counts, so a future `ResultError` can't reopen the
             // silent-pass hole.
             Err(e) if looks_like_findings => {
-                // Keep the context generic; the chained `e` carries the specific
-                // reason (missing `message`, bad `severity`, a non-object element).
+                // CIB-017: a post-processing failure is a gate-relevant eval
+                // failure — surface it as a structured event, not just an anyhow
+                // chain. The `policy`/`query` span fields give context; the full
+                // reason (which can embed the rendered JSON value) stays in the
+                // returned `e`, not the log line, so the event stays bounded.
+                tracing::warn!("policy eval failed: malformed findings array");
                 return Err(e).with_context(|| {
                     format!("query `{}` returned a malformed findings array", args.query)
                 });
@@ -167,6 +181,7 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
             // Not findings-shaped, but the user is gating on it — fail loudly
             // rather than silently passing (exit 0) on a non-findings query.
             Err(e) if args.fail_on_warnings => {
+                tracing::warn!("policy eval failed: --fail-on-warnings on a non-findings query");
                 return Err(e).with_context(|| {
                     format!(
                         "query `{}` is not a findings query; --fail-on-warnings needs one",
@@ -178,6 +193,19 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
             // object): surface the raw value, no gating.
             Err(_) => (Vec::new(), 0, raw_value),
         };
+
+    // Structured eval summary for operators (CIB-017). Quiet by default; opt in
+    // with `ANVIL_LOG=debug` (or `RUST_LOG=debug`; ANVIL_LOG wins if both set).
+    // Fields, not an anyhow chain, so a CI/prod failure is diagnosable.
+    let eval_ms = u64::try_from(eval_elapsed.as_millis()).unwrap_or(u64::MAX);
+    tracing::debug!(
+        policy_bytes,
+        input_bytes,
+        eval_ms,
+        findings = findings.len(),
+        exit_code,
+        "policy eval complete"
+    );
 
     // Validate --why against the findings actually produced.
     if let Some(idx) = args.why

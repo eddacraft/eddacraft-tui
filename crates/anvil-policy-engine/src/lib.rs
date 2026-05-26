@@ -227,9 +227,13 @@ impl Engine {
             Ok(result) => result,
             Err(payload) => {
                 self.poisoned = true;
+                let message = panic_payload_message(payload.as_ref());
+                // CIB-017: a caught regorus panic is an abnormal condition the
+                // caller turns into an error — surface it as a `warn!` so it's
+                // observable in logs, not just in the returned `Err`.
+                tracing::warn!(operation = what, panic = %message, "caught panic in regorus call; engine poisoned");
                 Err(EngineError::Regorus(format!(
-                    "regorus panicked during {what}: {}",
-                    panic_payload_message(payload.as_ref())
+                    "regorus panicked during {what}: {message}"
                 )))
             }
         }
@@ -260,9 +264,13 @@ impl Engine {
                     .iter()
                     .map(serde_json::to_value)
                     .collect::<Result<_, _>>()?;
-                let input = context
-                    .read()
-                    .map_err(|_| anyhow::Error::msg("policy input lock poisoned"))?;
+                let input = context.read().map_err(|_| {
+                    // Defensive (CIB-017): a read can't poison the lock, so this
+                    // only fires if a write-hold path poisoned it — see the note
+                    // at the `context.write()` site in `eval`.
+                    tracing::warn!("policy input lock poisoned");
+                    anyhow::Error::msg("policy input lock poisoned")
+                })?;
                 let out = builtin
                     .call(&input, &json_args)
                     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
@@ -320,10 +328,16 @@ impl Engine {
         // borrow self-contained; `input` documents are small policy fixtures.
         // Reached only after `set_input_json` succeeded; on its failure/panic we
         // returned above (poisoned), so the context is never left half-updated.
-        *self
-            .context
-            .write()
-            .map_err(|_| EngineError::Input("policy input lock poisoned".into()))? = input.clone();
+        *self.context.write().map_err(|_| {
+            // CIB-017: defensive. The `guard` (CIB-018) catches panics in
+            // regorus calls before they could poison this lock, and the only
+            // write-hold is the infallible `input.clone()` below, so in
+            // practice this is unreachable — but if a future non-guarded path
+            // ever poisons the lock, a `warn!` makes it observable rather than
+            // a bare error.
+            tracing::warn!("policy input lock poisoned");
+            EngineError::Input("policy input lock poisoned".into())
+        })? = input.clone();
 
         if self.config.collect_coverage {
             self.guard("set_coverage", |inner| {
