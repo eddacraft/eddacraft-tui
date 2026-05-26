@@ -11,7 +11,7 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI3 | —     | In Progress | 4/20     |
+| RCLI3 | —     | In Progress | 5/20     |
 
 **Last reviewed:** 2026-05-17
 
@@ -173,7 +173,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-002: edda show command
 
-- **Status:** Proposed
+- **Status:** Done (2026-05-26 — `anvil edda show <id>` landed in
+  `crates/anvil-cli/src/commands/edda.rs`; targeted CLI tests pass)
 - **Intent:** Port `anvil edda show <id>`. Display full memory details:
   statement, context, type, confidence, provenance (ember source, kindling
   lineage, session), attribution, tags, timestamps, evolution chain
@@ -629,8 +630,8 @@ audit; reviewed 2026-04-26):
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Edda & Ember | 7 | Proposed |
-| 2 — Plan & Stack | 4 | Proposed |
-| 3 — Agent & Authorship | 3 | Proposed |
-| 4 — Utility Commands | 6 | Proposed |
+| 1 — Edda & Ember | 7 | 2 Done, 1 Ready, 4 Proposed |
+| 2 — Plan & Stack | 4 | 1 Ready, 3 Proposed |
+| 3 — Agent & Authorship | 3 | 2 Ready, 1 Proposed |
+| 4 — Utility Commands | 6 | 3 Done, 3 Ready |
 | **Total** | **20** | — |

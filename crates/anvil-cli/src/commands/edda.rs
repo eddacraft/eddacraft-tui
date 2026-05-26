@@ -43,6 +43,8 @@ enum EddaCommand {
     /// List Edda memories with filtering.
     #[command(alias = "ls")]
     List(ListArgs),
+    /// Show a single Edda memory with full metadata.
+    Show(ShowArgs),
 }
 
 #[derive(Debug, Args)]
@@ -68,9 +70,19 @@ struct ListArgs {
     limit: usize,
 }
 
-pub fn run(args: &EddaArgs, _global: &GlobalArgs) -> Result<()> {
+#[derive(Debug, Args)]
+struct ShowArgs {
+    /// Memory ID to display.
+    id: String,
+    /// Output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+pub fn run(args: &EddaArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         EddaCommand::List(list_args) => run_list(list_args),
+        EddaCommand::Show(show_args) => run_show(show_args, global),
     }
 }
 
@@ -289,6 +301,39 @@ fn run_list(args: &ListArgs) -> Result<()> {
     Ok(())
 }
 
+fn run_show(args: &ShowArgs, global: &GlobalArgs) -> Result<()> {
+    let storage_path = workspace_storage_path();
+    let json_output = args.json || global.json;
+    if !storage_path.exists() {
+        if json_output {
+            println!(
+                "{}",
+                show_error_envelope(&format!(
+                    "No Edda storage found at {}",
+                    storage_path.display()
+                ))
+            );
+        }
+        bail!("No Edda storage found at {}", storage_path.display());
+    }
+
+    let payload = match show_memory_payload(&storage_path, &args.id) {
+        Ok(payload) => payload,
+        Err(err) => {
+            if json_output {
+                println!("{}", show_error_envelope(&err.to_string()));
+            }
+            return Err(err);
+        }
+    };
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&payload)?);
+    } else {
+        render_show(&payload);
+    }
+    Ok(())
+}
+
 fn workspace_storage_path() -> PathBuf {
     // Match the historical Node.js CLI: anchor to the working
     // directory (the operator's project root). Walking up to find a
@@ -382,6 +427,25 @@ fn read_memory(storage_path: &Path, entry: &MemoryIndexEntry) -> Result<MemoryRe
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     serde_yaml::from_str::<MemoryRecord>(&raw)
         .with_context(|| format!("failed to parse {}", path.display()))
+}
+
+fn show_memory_payload(storage_path: &Path, id: &str) -> Result<Value> {
+    let index = load_index(storage_path)?;
+    let entry = index
+        .memories
+        .iter()
+        .find(|entry| entry.id == id)
+        .with_context(|| format!("Edda memory not found: {id}"))?;
+    let record = read_memory(storage_path, entry)?;
+    serde_json::to_value(record.rest).context("failed to serialise Edda memory")
+}
+
+fn show_error_envelope(message: &str) -> Value {
+    json!({
+        "error": message,
+        "storage_found": false,
+        "memories": [],
+    })
 }
 
 fn filters_payload(
@@ -523,6 +587,49 @@ fn render_table(
     println!();
 }
 
+fn render_show(payload: &Value) {
+    println!();
+    println!("Edda Memory");
+    print_show_field(payload, "ID", "id");
+    print_show_field(payload, "Type", "type");
+    print_show_field(payload, "Status", "status");
+    print_show_field(payload, "Confidence", "confidence");
+    print_show_field(payload, "Statement", "statement");
+    print_show_field(payload, "Context", "context");
+    print_show_field(payload, "Created", "created_at");
+    print_show_field(payload, "Updated", "updated_at");
+    print_show_field(payload, "Tags", "tags");
+    print_show_field(payload, "Attribution", "attribution");
+    print_show_field(payload, "Provenance", "provenance");
+    print_show_field(payload, "Evolution", "evolution");
+    println!();
+}
+
+fn print_show_field(payload: &Value, label: &str, key: &str) {
+    let Some(value) = payload.get(key) else {
+        return;
+    };
+    if value.is_null() {
+        return;
+    }
+    println!("  {label:<11} {}", display_value(value));
+}
+
+fn display_value(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        Value::Array(values) => values
+            .iter()
+            .map(display_value)
+            .collect::<Vec<_>>()
+            .join(", "),
+        Value::Object(_) => {
+            serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
+        }
+        other => other.to_string(),
+    }
+}
+
 fn truncate(value: &str, width: usize) -> String {
     if value.chars().count() <= width {
         return value.to_owned();
@@ -638,5 +745,78 @@ mod tests {
     fn truncate_with_ellipsis_at_max_width() {
         assert_eq!(truncate("short", 10), "short");
         assert_eq!(truncate("abcdefghijkl", 6), "abcd..");
+    }
+
+    #[test]
+    fn show_memory_payload_loads_full_record_by_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        fs::create_dir_all(storage.join("memories/decision")).unwrap();
+        fs::write(
+            storage.join("index.yaml"),
+            r#"memories:
+  - id: edda-demo
+    type: decision
+    status: active
+    path: memories/decision/edda-demo.yaml
+    statement: Prefer boring tests
+    confidence: high
+    tags: [testing, rust]
+    created_at: "2026-05-01T00:00:00Z"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            storage.join("memories/decision/edda-demo.yaml"),
+            r#"id: edda-demo
+type: decision
+status: active
+statement: Prefer boring tests
+context: Keeps command ports small and verifiable.
+confidence: high
+tags:
+  - testing
+  - rust
+provenance:
+  ember_id: emb-123
+evolution:
+  supersedes: []
+  superseded_by: []
+"#,
+        )
+        .unwrap();
+
+        let payload = show_memory_payload(&storage, "edda-demo").unwrap();
+
+        assert_eq!(payload["id"], "edda-demo");
+        assert_eq!(payload["statement"], "Prefer boring tests");
+        assert_eq!(
+            payload["context"],
+            "Keeps command ports small and verifiable."
+        );
+        assert_eq!(payload["provenance"]["ember_id"], "emb-123");
+    }
+
+    #[test]
+    fn show_memory_payload_reports_unknown_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        fs::create_dir_all(&storage).unwrap();
+        fs::write(storage.join("index.yaml"), "memories: []\n").unwrap();
+
+        let err = show_memory_payload(&storage, "missing")
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Edda memory not found: missing"));
+    }
+
+    #[test]
+    fn show_error_envelope_is_machine_readable() {
+        let envelope = show_error_envelope("Edda memory not found: missing");
+
+        assert_eq!(envelope["error"], "Edda memory not found: missing");
+        assert_eq!(envelope["storage_found"], false);
+        assert_eq!(envelope["memories"].as_array().unwrap().len(), 0);
     }
 }

@@ -724,6 +724,19 @@ a backlog. Promote repeated friction or executable follow-up work to
   counting path had no helper seam, so the smallest fix needed a local helper.
 - **Improvement:** When an APS item claims every named call-site migrated, grep
   the exact legacy primitive during review before accepting completion wording.
+### 2026-05-26 — opencode
+
+- **Task:** Continue RCLI work by selecting an executable CLI parity slice.
+- **Outcome:** RCLI2 remained OPAE-gated, so RCLI3-002 was promoted and completed
+  with `anvil edda show <id>` plus targeted tests.
+- **Worked:** Checking RCLI2 and RCLI3 together avoided forcing blocked OPAE work
+  and found a small display-only slice over shipped RCLI3-001 YAML loading.
+- **Failed:** Initial index note treated RCLI3-002 as if it had already been in
+  the Ready count; reconciliation corrected the count to 5/20 with 7 Ready.
+- **Friction:** RCLI3 stats were stale by phase even though item statuses were
+  current enough to execute from.
+- **Improvement:** When promoting one APS item opportunistically, update both the
+  item and the phase/status summary in the same pass.
 - **Follow-up:** none
 - **Task:** Implement EAMIG-004 — expand git-history secret scan to match
   on-disk file coverage (PR #1994). Picked as unrelated queue-up work while a
