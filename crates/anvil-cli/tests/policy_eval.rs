@@ -77,19 +77,21 @@ fn eval_emits_structured_debug_tracing() {
         "package t\nimport rego.v1\ngreeting := \"hello world\"\n",
     );
 
-    // No `--json`: the observability layer writes its JSON log lines to stdout,
-    // so reading the event off stdout keeps the command's own output plain.
     let output = Command::new(ANVIL_BIN)
         .args(["policy", "eval", &policy, "--query", "data.t.greeting"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
         .env("ANVIL_DEV", "1")
+        // Hermetic: ignore an ambient RUST_LOG / file sink so the run uses the
+        // ANVIL_LOG=debug filter and the default (stream) sink.
+        .env_remove("RUST_LOG")
+        .env_remove("ANVIL_TRACE_SINK")
         .env("ANVIL_LOG", "debug")
         .output()
         .expect("invoke anvil");
     assert!(output.status.success(), "eval should exit 0");
-    // Search both streams: the observability layer currently writes logs to
-    // stdout, but this stays correct if they move to stderr later.
+    // CIB-024: CLI diagnostics go to stderr. Search both streams so this stays
+    // correct regardless of the stream the layer happens to use.
     let combined = format!(
         "{}{}",
         String::from_utf8(output.stdout).expect("utf8 stdout"),
@@ -115,6 +117,99 @@ fn eval_emits_structured_debug_tracing() {
             "debug event missing `{needle}`:\n{event}"
         );
     }
+}
+
+#[test]
+fn json_stdout_clean_when_warn_fires_at_default_filter() {
+    // CIB-024: the motivating case is a `warn!` at the DEFAULT filter (no
+    // ANVIL_LOG) — here a `--fail-on-warnings` failure on a non-findings query,
+    // which fires the eval-failure `warn!` added in CIB-017. It must land on
+    // stderr, not pollute `--json` stdout.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "greet.rego",
+        "package t\nimport rego.v1\ngreeting := \"hi\"\n",
+    );
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .args([
+            "policy",
+            "eval",
+            &policy,
+            "--query",
+            "data.t.greeting",
+            "--fail-on-warnings",
+        ])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("ANVIL_DEV", "1")
+        // Hermetic: force the DEFAULT `warn` filter and default sink by clearing
+        // any ambient overrides — this test is specifically about that path.
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
+        .env_remove("ANVIL_TRACE_SINK")
+        .output()
+        .expect("invoke anvil");
+    assert!(
+        !output.status.success(),
+        "non-findings + --fail-on-warnings must fail"
+    );
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
+    assert!(
+        !stdout.contains("policy eval failed"),
+        "the warn! leaked onto stdout:\n{stdout}"
+    );
+    assert!(
+        stderr.contains("policy eval failed"),
+        "the warn! should be on stderr:\n{stderr}"
+    );
+}
+
+#[test]
+fn json_stdout_is_clean_under_debug_logging() {
+    // CIB-024: with CLI logging on, diagnostics go to stderr, so `--json`
+    // stdout stays exactly one parseable JSON document — no interleaved log
+    // lines that would choke a `jq` / pipeline consumer.
+    let dir = tempfile::tempdir().unwrap();
+    let policy = write(
+        dir.path(),
+        "greet.rego",
+        "package t\nimport rego.v1\ngreeting := \"hello world\"\n",
+    );
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--json")
+        .args(["policy", "eval", &policy, "--query", "data.t.greeting"])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("ANVIL_DEV", "1")
+        // Hermetic: ignore an ambient RUST_LOG / file sink so logging uses the
+        // ANVIL_LOG=debug filter and the default (stream) sink, not a file.
+        .env_remove("RUST_LOG")
+        .env_remove("ANVIL_TRACE_SINK")
+        .env("ANVIL_LOG", "debug")
+        .output()
+        .expect("invoke anvil");
+    assert!(output.status.success(), "eval should exit 0");
+
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    // stdout is exactly the command's JSON — a single document, no log lines.
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!(
+            "stdout not a single clean JSON doc under debug logging: {e}\n--- stdout ---\n{stdout}"
+        )
+    });
+    assert_eq!(parsed["value"], "hello world");
+
+    // The diagnostics went to stderr instead.
+    let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
+    assert!(
+        stderr.contains("policy eval complete"),
+        "expected the debug event on stderr:\n{stderr}"
+    );
 }
 
 #[test]

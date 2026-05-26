@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 17/23    |
+| CIB | —     | In Progress | 18/24    |
 
 ## Purpose
 
@@ -436,3 +436,14 @@ archive.
   that are referenced but not actually resolved; needs design before building.
   Filed per operator request after the single observed instance, not a confirmed
   recurring pattern yet.
+
+### CIB-024: CLI tracing logs to stderr, not stdout
+
+- **Status:** Merged 2026-05-26 via PR #1987
+- **Summary:** `anvil-observability::init_tracing` routes `BinaryKind::Cli`'s
+  fmt layer to **stderr** so stdout stays reserved for command output —
+  `anvil … --json` is now a single clean JSON document even under
+  `ANVIL_LOG=debug` or when a default-filter `warn!` fires. The daemon (stdout)
+  and the `file=` sink are untouched; the quiet-by-default filter is kept. Two
+  integration tests cover the debug and default-filter-`warn!` cases. Closes the
+  footgun CIB-017 surfaced.

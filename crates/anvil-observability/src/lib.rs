@@ -152,9 +152,20 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
 
     match std::env::var(TRACE_SINK_ENV).ok().as_deref() {
         None | Some("") => {
-            let subscriber = tracing_subscriber::registry().with(resolved).with(layer);
-            tracing::subscriber::set_global_default(subscriber)
-                .map_err(|_| InitTracingError::AlreadyInstalled)?;
+            // CIB-024: the CLI reserves stdout for command output (notably
+            // `--json`), so its diagnostics go to stderr — otherwise an enabled
+            // log level, or any `warn!`/`error!` at the default filter,
+            // interleaves log JSON with the command's own JSON. The daemon keeps
+            // the default (stdout), where its host captures it.
+            let registry = tracing_subscriber::registry().with(resolved);
+            let install = if matches!(kind, BinaryKind::Cli) {
+                tracing::subscriber::set_global_default(
+                    registry.with(layer.with_writer(std::io::stderr)),
+                )
+            } else {
+                tracing::subscriber::set_global_default(registry.with(layer))
+            };
+            install.map_err(|_| InitTracingError::AlreadyInstalled)?;
         }
         Some(value) if value.starts_with("file=") => {
             let path = value.strip_prefix("file=").expect("checked prefix");

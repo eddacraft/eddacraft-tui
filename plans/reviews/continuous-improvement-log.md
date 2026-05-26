@@ -668,3 +668,20 @@ a backlog. Promote repeated friction or executable follow-up work to
   `anvil-attribution` minting/propagation path.
 - **Follow-up:** File `AGOV-NNN` (view + `--diff` drift) when AGOV leaves the
   launch parking lot and a concrete `--json`/drift consumer appears.
+- **Task:** File + implement CIB-024 — route CLI tracing to stderr so
+  `anvil … --json` stdout stays clean (the footgun CIB-017 surfaced).
+- **Outcome:** `anvil-observability::init_tracing` routes `BinaryKind::Cli` to
+  stderr (daemon + file-sink untouched); two integration tests (debug-level and
+  the default-filter warn! case) assert stdout stays one clean JSON doc.
+  16/23 → 16/24. fmt/clippy clean; observability 22/0; policy_eval 14/0.
+- **Worked:** TDD red→green was clean — the failing test (parse `--json` stdout
+  under ANVIL_LOG=debug) proved the bug on main before the one-branch writer
+  fix. Council caught that I'd only tested the debug path, not the motivating
+  default-filter warn! case — added that.
+- **Failed:** First test covered only ANVIL_LOG=debug; the actual bug (a warn!
+  at the default filter polluting --json) was unexercised until council flagged.
+- **Friction:** none.
+- **Improvement:** When a fix targets a specific trigger (here: warn! at the
+  *default* filter), test that exact trigger, not just the easy-to-reach
+  variant (debug logging).
+- **Follow-up:** /addressing-pr-reviews after CI + Copilot; cleanup worktree.
