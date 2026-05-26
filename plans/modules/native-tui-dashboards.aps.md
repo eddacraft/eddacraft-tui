@@ -5,7 +5,7 @@
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TDASH | joshuaboys | In Progress | 1/4      |
+| TDASH | joshuaboys | In Progress | 2/4      |
 
 **Last reviewed:** 2026-05-26
 
@@ -174,7 +174,7 @@ per-domain surfaces.
 
 ### TDASH-002: Architecture-health dashboard surface
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-26 via PR #1986
 - **Intent:** Render architecture health (score, layers, boundary violations,
   rule compliance) natively from `.anvil/architecture.json`
 - **Expected Outcome:** `anvil dashboard architecture` renders a health-score

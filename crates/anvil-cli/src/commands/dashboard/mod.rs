@@ -15,6 +15,8 @@ use anvil_tui::surfaces::dashboard::{DashboardEntry, DashboardPickerState};
 
 use crate::{GlobalArgs, tui};
 
+mod architecture;
+
 #[derive(Debug, Args)]
 pub struct DashboardArgs {
     /// Dashboard to open (`architecture`, `drift`, `suppressions`). Omit to
@@ -39,7 +41,7 @@ fn catalog() -> Vec<CatalogEntry> {
             name: "architecture",
             title: "Architecture Health",
             description: "Layer boundaries, violations, and rule compliance",
-            available: false,
+            available: true,
         },
         CatalogEntry {
             name: "drift",
@@ -83,14 +85,9 @@ fn resolve(name: Option<&str>, catalog: &[CatalogEntry]) -> Resolution {
 pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let catalog = catalog();
 
-    // `--json` always emits the catalogue and returns, regardless of any name —
-    // the picker / launch / coming-soon branches are human-facing only, so a
-    // global `--json` must not fall through to them.
-    if global.json {
-        println!("{}", serde_json::to_string_pretty(&catalog)?);
-        return Ok(());
-    }
-
+    // Every terminal branch handles `--json` itself so a global `--json` never
+    // leaks human text: a launched dashboard emits its own data; the picker and
+    // coming-soon paths emit the catalogue.
     match resolve(args.name.as_deref(), &catalog) {
         Resolution::Unknown(name) => {
             let names = catalog
@@ -101,7 +98,11 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             anyhow::bail!("unknown dashboard '{name}'. Valid dashboards: {names}")
         }
         Resolution::ComingSoon(name) => {
-            println!("Dashboard '{name}' is not available yet (coming soon).");
+            if global.json {
+                println!("{}", serde_json::to_string_pretty(&catalog)?);
+            } else {
+                println!("Dashboard '{name}' is not available yet (coming soon).");
+            }
             Ok(())
         }
         Resolution::Launch(name) => launch(&name, global),
@@ -110,6 +111,11 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn run_picker(catalog: &[CatalogEntry], global: &GlobalArgs) -> anyhow::Result<()> {
+    if global.json {
+        println!("{}", serde_json::to_string_pretty(catalog)?);
+        return Ok(());
+    }
+
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_picker(catalog);
         return Ok(());
@@ -118,20 +124,22 @@ fn run_picker(catalog: &[CatalogEntry], global: &GlobalArgs) -> anyhow::Result<(
     let entries = catalog.iter().map(to_entry).collect();
     let state = tui::run_surface(DashboardPickerState::new(entries))?;
     // `run_surface` collapses quit vs back into the returned state; we act only
-    // on an explicit choice. No catalogue entry is `available` yet, so `chosen`
-    // is always `None` here today. A TDASH-002+ launch arm that needs to tell
-    // quit from back must read the `SurfaceExit` contract directly.
+    // on an explicit choice. Picking an `available` dashboard sets `chosen`,
+    // which launches it; quitting leaves it `None`.
     match state.chosen {
         Some(name) => launch(&name, global),
         None => Ok(()),
     }
 }
 
-/// Launch a wired dashboard surface. This is the seam TDASH-002+ extend; no
-/// catalogue entry is `available` yet, so it is currently only reached
-/// defensively (a future entry flipped to `available` without a launch arm).
-fn launch(name: &str, _global: &GlobalArgs) -> anyhow::Result<()> {
-    anyhow::bail!("dashboard '{name}' has no surface wired yet")
+/// Launch a wired dashboard surface. The seam per-domain dashboards extend:
+/// each `available` catalogue entry needs a matching arm here. An `available`
+/// entry without an arm bails loudly rather than silently no-opping.
+fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
+    match name {
+        "architecture" => architecture::run(global),
+        other => anyhow::bail!("dashboard '{other}' has no surface wired yet"),
+    }
 }
 
 fn to_entry(entry: &CatalogEntry) -> DashboardEntry {
@@ -174,19 +182,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_lists_three_planned_dashboards_all_unavailable() {
+    fn catalog_lists_three_dashboards_with_architecture_wired() {
         let catalog = catalog();
         let names: Vec<_> = catalog.iter().map(|entry| entry.name).collect();
         assert_eq!(names, ["architecture", "drift", "suppressions"]);
-        assert!(
-            catalog.iter().all(|entry| !entry.available),
-            "no dashboard surface is wired in TDASH-001"
-        );
+        // TDASH-002 wires architecture; drift + suppressions stay coming-soon.
+        let by_name = |n: &str| catalog.iter().find(|e| e.name == n).unwrap().available;
+        assert!(by_name("architecture"), "architecture should be available");
+        assert!(!by_name("drift"));
+        assert!(!by_name("suppressions"));
     }
 
     #[test]
     fn resolve_no_name_opens_picker() {
         assert_eq!(resolve(None, &catalog()), Resolution::Picker);
+    }
+
+    #[test]
+    fn resolve_architecture_launches() {
+        assert_eq!(
+            resolve(Some("architecture"), &catalog()),
+            Resolution::Launch("architecture".to_string())
+        );
     }
 
     #[test]
@@ -247,10 +264,10 @@ mod tests {
     }
 
     #[test]
-    fn launch_bails_until_a_surface_is_wired() {
-        // Defensive seam: flipping an entry to `available` without adding a
-        // launch arm must fail loudly, not silently no-op.
+    fn launch_bails_for_dashboard_without_an_arm() {
+        // Defensive seam: a name with no launch arm (e.g. a coming-soon entry
+        // flipped to `available` without wiring) must fail loudly, not no-op.
         let global = GlobalArgs::default();
-        assert!(launch("architecture", &global).is_err());
+        assert!(launch("drift", &global).is_err());
     }
 }

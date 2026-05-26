@@ -1,4 +1,4 @@
-//! Read-only dashboard picker surface.
+//! Read-only dashboard picker surface and per-domain dashboard surfaces.
 //!
 //! Lists the native Anvil dashboards a user can open. The CLI owns the
 //! catalogue of dashboards (which are wired, which are planned); this surface
@@ -6,6 +6,7 @@
 //! the shared scaffold the per-domain dashboards (architecture, drift,
 //! suppressions) plug into as they land.
 
+pub mod architecture;
 pub mod render;
 
 use eddacraft_tui::keyboard::Action;
