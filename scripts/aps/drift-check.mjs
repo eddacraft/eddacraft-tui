@@ -213,22 +213,30 @@ if (releaseRecordPath) {
   }
 }
 
-const publishedItems = new Set(
-  releaseRecord?.lifecycleState === 'published'
-    ? (releaseRecord.aps?.items ?? []).map((item) => item.id)
-    : []
-);
-// Prefix match: real APS text writes `Status: Released/Shipped via vX.Y.Z`,
-// so strict `=== 'Released/Shipped'` silently misses every populated closeout.
-for (const item of items.filter((entry) => /^Released\/Shipped\b/.test(entry.status))) {
-  if (!publishedItems.has(item.id)) {
-    addFinding(
-      'shipped-aps-without-release-record',
-      `${item.id} is Released/Shipped without a matching published release record item.`,
-      {
-        apsItem: item.id,
-      }
-    );
+// shipped-aps-without-release-record can only be evaluated against a specific
+// release record (`--release-record path/to/vX.Y.Z.md`). Without one, the
+// check has no published-items set to verify against, and active modules
+// legitimately carry `Released/Shipped via vX.Y.Z` text for items shipped via
+// past releases the runner was not handed. Skip the loop when no release
+// record was provided OR the provided record is not `published` — mirrors the
+// `candidate-missing-merged-aps-item` gating above.
+//
+// The earlier strict-equality check (`=== 'Released/Shipped'`) was silently
+// inert because real APS text always appends a version suffix; APSCAN-006's
+// prefix-match fix made the check fire, which then surfaced this missing
+// gating as ~30 false positives on every local + CI drift run.
+if (releaseRecord?.lifecycleState === 'published') {
+  const publishedItems = new Set((releaseRecord.aps?.items ?? []).map((item) => item.id));
+  for (const item of items.filter((entry) => /^Released\/Shipped\b/.test(entry.status))) {
+    if (!publishedItems.has(item.id)) {
+      addFinding(
+        'shipped-aps-without-release-record',
+        `${item.id} is Released/Shipped but is not listed in the provided release record (${releaseRecord.source?.tag ?? releaseRecord.version}).`,
+        {
+          apsItem: item.id,
+        }
+      );
+    }
   }
 }
 
