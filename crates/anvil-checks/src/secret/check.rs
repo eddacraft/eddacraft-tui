@@ -69,12 +69,15 @@ pub fn run_secret_check(
         .collect();
 
     let mut findings: Vec<SecretFinding> = per_file.into_iter().flatten().collect();
-    let lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
+    let mut lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
 
     if config.scan_git_history {
         let root = workspace_root.unwrap_or(".");
         if let Ok(history) = scan_git_history(root, config) {
             findings.extend(history.findings);
+            // Fold the history scan's oversize-line skips into the same total
+            // so a "0 findings" result isn't silently hiding skipped content.
+            lines_skipped_oversize += history.lines_skipped_oversize;
             // history.pattern_errors are duplicates of the file-scan errors
             // (same custom_patterns input compiled twice) — already captured.
         }

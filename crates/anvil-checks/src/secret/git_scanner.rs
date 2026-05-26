@@ -9,9 +9,13 @@ use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 /// `pattern_errors` holds compile failures for `config.custom_patterns` so the
 /// caller can surface them — silently dropped errors mean a misconfigured
 /// custom pattern produces zero matches with no user-visible signal.
+/// `lines_skipped_oversize` counts lines skipped by the `max_line_bytes` guard
+/// so the caller can fold them into `SecretCheckResult` — a silent skip would
+/// make a "0 findings" history scan misleading.
 pub struct GitScanOutput {
     pub findings: Vec<SecretFinding>,
     pub pattern_errors: Vec<String>,
+    pub lines_skipped_oversize: usize,
 }
 
 /// A `skip_extensions` value safe to embed in a git `:(exclude)` pathspec: a
@@ -76,6 +80,7 @@ pub fn scan_git_history(
         return Ok(GitScanOutput {
             findings: Vec::new(),
             pattern_errors,
+            lines_skipped_oversize: 0,
         });
     }
 
@@ -98,11 +103,13 @@ pub fn scan_git_history(
         return Ok(GitScanOutput {
             findings: Vec::new(),
             pattern_errors,
+            lines_skipped_oversize: 0,
         });
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut findings = Vec::new();
+    let mut lines_skipped_oversize = 0usize;
     let mut commit_hash = String::from("unknown");
     let mut current_file = String::from("git-history:unknown");
 
@@ -142,6 +149,7 @@ pub fn scan_git_history(
         // regex runs, so the now-broader history coverage can't open a ReDoS
         // backtracking window across the built-in and custom patterns.
         if line_content.len() > config.max_line_bytes {
+            lines_skipped_oversize += 1;
             continue;
         }
         for pattern in DEFAULT_COMPILED_PATTERNS
@@ -185,6 +193,7 @@ pub fn scan_git_history(
     Ok(GitScanOutput {
         findings,
         pattern_errors,
+        lines_skipped_oversize,
     })
 }
 
@@ -277,7 +286,14 @@ mod tests {
         git(&tmp, &["config", "user.email", "test@example.com"]);
         git(&tmp, &["config", "user.name", "Test"]);
         git(&tmp, &["config", "commit.gpgsign", "false"]);
-        git(&tmp, &["config", "core.hooksPath", "/dev/null"]);
+        // Point hooks at a real empty dir (portable across OSes, unlike the
+        // Unix-only `/dev/null`) so no global hook fires during the commit.
+        let empty_hooks = tmp.join("empty-hooks");
+        std::fs::create_dir_all(&empty_hooks).expect("create empty hooks dir");
+        git(
+            &tmp,
+            &["config", "core.hooksPath", &empty_hooks.to_string_lossy()],
+        );
         tmp
     }
 
@@ -403,10 +419,21 @@ mod tests {
         let long_line = format!("x = \"{}{AWS_KEY}\"\n", "a".repeat(5000));
         commit_file(&repo, "huge.py", &long_line);
 
-        let findings = scan(&repo);
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let output = scan_git_history(&repo.to_string_lossy(), &config).expect("scan returns Ok");
         assert!(
-            findings.is_empty(),
-            "oversize line should be guarded out of the regex path: {findings:?}"
+            output.findings.is_empty(),
+            "oversize line should be guarded out of the regex path: {:?}",
+            output.findings
+        );
+        // The skip is counted so the caller can surface it rather than report a
+        // misleading "0 findings".
+        assert_eq!(
+            output.lines_skipped_oversize, 1,
+            "the oversize line must be counted, not silently dropped"
         );
 
         let _ = std::fs::remove_dir_all(&repo);
