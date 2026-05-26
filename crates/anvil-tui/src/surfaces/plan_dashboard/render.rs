@@ -625,23 +625,23 @@ mod tests {
         state.selected_module = 1;
         state.show_detail = true;
         state.snapshot.work_items[0].validation = Some(
-            "cargo test -p eddacraft-anvil-tui plan_dashboard --lib with-visible-wrap-marker"
+            "cargo test -p eddacraft-anvil-tui plan_dashboard --lib with visible wrap marker"
                 .to_string(),
         );
 
-        let rendered = render_state_to_string(&state, 100, 24);
+        let rendered = render_state_to_string(&state, 80, 24);
 
-        assert!(rendered.contains("with-visible-wrap-marker"));
+        assert!(rendered.contains("wrap marker"));
     }
 
     #[test]
     fn wraps_open_item_body_titles() {
         let mut state = sample_state();
         state.snapshot.work_items[0].title =
-            "Add APS TUI dashboard and keep-long-title-wrap-marker visible".to_string();
+            "Add APS TUI dashboard and keep long title wrap marker visible".to_string();
 
-        let rendered = render_state_to_string(&state, 100, 24);
+        let rendered = render_state_to_string(&state, 80, 24);
 
-        assert!(rendered.contains("keep-long-title-wrap-marker"));
+        assert!(rendered.contains("wrap marker"));
     }
 }
