@@ -65,7 +65,11 @@ if [ -z "${BENCH_HARNESS:-}" ]; then
 	cargo build --release -p eddacraft-anvil-policy-engine --example parity_harness >&2
 fi
 if [ ! -x "$HARNESS" ]; then
-	echo "error: harness binary not found at $HARNESS after build" >&2
+	if [ -n "${BENCH_HARNESS:-}" ]; then
+		echo "error: harness binary not found at \$BENCH_HARNESS ($HARNESS)" >&2
+	else
+		echo "error: harness binary not found at $HARNESS after build" >&2
+	fi
 	exit 2
 fi
 
