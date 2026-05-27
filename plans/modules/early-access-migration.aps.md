@@ -557,3 +557,23 @@ but they represent genuine improvements that should be addressed before GA.
 - **Intent:** The metric counts rule-symbol matches, not violations. The
   naming is inverted compared to policy engine semantics.
 - **Files:** `crates/anvil-bench/src/scenarios/policy_scaling.rs`
+
+### EAMIG-051 — Stream git-history secret scan output
+
+- **Status:** Proposed
+- **Priority:** Low
+- **Confidence:** Medium
+- **Intent:** `scan_git_history` buffers the entire `git log -p` output into
+  memory via `Command::output()` before parsing. EAMIG-004 broadened the
+  pathspec from a 6-extension allowlist to "all files except `skip_extensions`",
+  increasing that buffered volume; on a large monorepo at high
+  `git_history_depth` this is an OOM/latency risk (bounded today by the depth
+  clamp of 1000 and `--diff-filter=AM`, so not urgent). Replace `.output()`
+  with a streaming `BufReader` over `Stdio::piped()` stdout, processing lines as
+  they arrive. While here, thread a typed `git_error: Option<String>` through
+  `GitScanOutput` so a non-zero git exit is distinguishable from a clean history
+  at the type level rather than only via a stderr warning.
+- **Files:** `crates/anvil-checks/src/secret/git_scanner.rs`,
+  `crates/anvil-checks/src/secret/check.rs`
+- **Source:** PR #1994 (EAMIG-004) council + Copilot review — operations and
+  adversarial reviewers flagged the buffering; deferred as non-blocking.
