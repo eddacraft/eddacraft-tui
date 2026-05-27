@@ -92,6 +92,14 @@ pub struct ScanResults {
     pub duration_ms: u64,
     /// True when the scan hit the file cap before exhausting the project.
     pub truncated: bool,
+    /// SCAN-004: number of files that matched the scan criteria but were
+    /// skipped because `.gitignore` excluded them (discovery honours gitignore
+    /// unless `ANVIL_SCAN_ALL` is set). Surfaced so a "0 findings" result can
+    /// be told apart from "we never looked at the directory that held the
+    /// secret". Zero when the scan was truncated by the file cap or when
+    /// `ANVIL_SCAN_ALL` is set, because neither case can be honestly
+    /// attributed to gitignore.
+    pub files_skipped_by_ignore: usize,
 }
 
 impl ScanResults {
@@ -137,6 +145,7 @@ impl ScanResults {
             files_scanned: self.files_scanned,
             duration_ms: self.duration_ms,
             truncated: self.truncated,
+            files_skipped_by_ignore: self.files_skipped_by_ignore,
         }
     }
 }
@@ -394,6 +403,7 @@ mod tests {
             files_scanned,
             duration_ms: 500,
             truncated: false,
+            files_skipped_by_ignore: 0,
         }
     }
 
@@ -837,6 +847,7 @@ mod tests {
             files_scanned: 150,
             duration_ms: 300,
             truncated: false,
+            files_skipped_by_ignore: 3,
         }
     }
 
@@ -851,6 +862,15 @@ mod tests {
                 .iter()
                 .all(|f| matches!(f.source, FindingSource::AntiPattern | FindingSource::Secret))
         );
+    }
+
+    #[test]
+    fn filter_by_domain_preserves_files_skipped_by_ignore() {
+        // SCAN-004: provenance must survive domain filtering — the skipped
+        // count is a property of the scan, not of the findings subset.
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::Architecture);
+        assert_eq!(filtered.files_skipped_by_ignore, 3);
     }
 
     #[test]

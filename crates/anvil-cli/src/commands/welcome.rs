@@ -330,6 +330,10 @@ fn run_discovery(
                 files_scanned: results.files_scanned,
                 duration_ms: results.duration_ms,
                 truncated: false,
+                // Keep the real scan's gitignore provenance even when we
+                // swap in showcase findings — the skipped files were still
+                // skipped, and hiding that would defeat SCAN-004.
+                files_skipped_by_ignore: results.files_skipped_by_ignore,
             }
         }
         Ok(results) => results,
@@ -344,6 +348,7 @@ fn run_discovery(
                 files_scanned: 0,
                 duration_ms: 0,
                 truncated: false,
+                files_skipped_by_ignore: 0,
             }
         }
     };
@@ -524,8 +529,28 @@ fn scan_one(
     Some(local)
 }
 
-#[allow(clippy::too_many_lines)]
 fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
+    let cwd = std::env::current_dir()?;
+    // `ANVIL_SCAN_ALL` bypasses gitignore (see `scan_project_at`). Parsed here
+    // so the discovery logic stays a pure function of `(root, scan_all)` and
+    // can be tested against a temp tree without mutating the process env or
+    // cwd.
+    let scan_all = std::env::var("ANVIL_SCAN_ALL")
+        .is_ok_and(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false"));
+    Ok(scan_project_at(&cwd, scan_all))
+}
+
+/// Discover and scan candidate files under `cwd`. Split out from
+/// `scan_project` so the gitignore-skip accounting (SCAN-004) is testable
+/// against a temp tree without touching the process cwd or environment.
+/// Infallible: read/permission errors are folded into per-file skips rather
+/// than aborting the scan, so the only fallible step (`current_dir`) stays in
+/// the `scan_project` wrapper.
+#[allow(clippy::too_many_lines)]
+fn scan_project_at(
+    cwd: &std::path::Path,
+    scan_all: bool,
+) -> anvil_tui::surfaces::tutorial::discovery::ScanResults {
     use anvil_checks::filter::{BUILD_ARTEFACT_DIRS, ScanFilter, is_always_scan_filename};
     use anvil_tui::surfaces::tutorial::discovery::{Finding, ScanResults};
     use rayon::prelude::*;
@@ -534,7 +559,6 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     let start = std::time::Instant::now();
-    let cwd = std::env::current_dir()?;
     let secret_config = anvil_checks::secret::types::SecretCheckConfig::default();
 
     // Correctness excludes (from `ScanFilter::default_excludes()`) + the
@@ -548,12 +572,16 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
             .collect(),
     );
 
-    let scan_all = std::env::var("ANVIL_SCAN_ALL")
-        .is_ok_and(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false"));
-
     let mut candidates: Vec<(std::path::PathBuf, String)> = Vec::new();
     let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
     let mut truncated = false;
+
+    // SCAN-004: every scan candidate the gitignore-blind Phase 1a walk can
+    // see. Phase 1b's gitignore-respecting set (`seen`) is later subtracted
+    // from this to count files `.gitignore` excluded. Only populated when
+    // `!scan_all` (Phase 1a runs only then); when `scan_all` is set nothing is
+    // gitignore-excluded, so an empty set yields a count of 0.
+    let mut all_candidates: HashSet<std::path::PathBuf> = HashSet::new();
 
     // Phase 1a: always-scan allowlist pass. Runs first (regardless of
     // truncation) and bypasses standard gitignore filters so leaked `.env`
@@ -561,13 +589,16 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     // precisely the class of secret the first-run scan exists to flag.
     //
     // `filter_entry` prunes directories that ScanFilter would otherwise
-    // reject (node_modules, target, dist, .git, ...) so Phase 1b can't
-    // dominate runtime on typical JS/Rust repos by descending into them.
+    // reject (node_modules, target, dist, .git, ...). It is applied only to
+    // this Phase 1a walker (Phase 1b uses a separate WalkBuilder without it),
+    // so it bounds the cost of this pass — which now also stats every entry to
+    // build `all_candidates` for the SCAN-004 skip count — by keeping it from
+    // descending into those large dirs on typical JS/Rust repos.
     // Skipped when `scan_all` is set because Phase 1b then covers
     // everything (including `.env`) via the same walker.
     if !scan_all {
         let filter_for_prune = filter.clone();
-        let allowlist_walker = ignore::WalkBuilder::new(&cwd)
+        let allowlist_walker = ignore::WalkBuilder::new(cwd)
             .follow_links(false)
             .standard_filters(false)
             .hidden(false)
@@ -582,16 +613,26 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
             .build();
 
         for entry in allowlist_walker.filter_map(Result::ok) {
-            let path = entry.path();
-            if !is_always_scan_filename(path) {
+            let Some(candidate) = candidate_path(&entry, cwd, &filter) else {
                 continue;
-            }
+            };
+            // Record every gitignore-blind candidate so Phase 1b's
+            // gitignore-respecting set can be subtracted from it (SCAN-004).
+            // It must use the *same* `candidate_path` predicate (incl. the
+            // size stat) as the scan set: a looser predicate here would let a
+            // non-gitignored file that the scan dropped for another reason
+            // (e.g. oversize) leak into the skip count. Equal predicates mean
+            // the only axis that differs between the two sets is gitignore.
+            // Cost: this stats every file the gitignore-blind walk reaches
+            // rather than only allowlist names — accepted for first-run
+            // provenance and bounded by the `filter_entry` dir prune above.
+            all_candidates.insert(candidate.0.clone());
             // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a
             // small, rare-filename set, so total contribution is bounded by
-            // how many `.env`-like files actually exist in the tree.
-            if let Some(candidate) = candidate_path(&entry, &cwd, &filter)
-                && seen.insert(candidate.0.clone())
-            {
+            // how many `.env`-like files actually exist in the tree. These
+            // are force-scanned even when gitignored — exactly the class of
+            // leak the first-run scan exists to flag.
+            if is_always_scan_filename(&candidate.0) && seen.insert(candidate.0.clone()) {
                 candidates.push(candidate);
             }
         }
@@ -602,7 +643,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     // directories (`.config`, `.secrets`, ...) must be descended into so
     // secret-bearing dotfiles can be discovered; gitignore still prunes
     // anything listed there.
-    let walker = ignore::WalkBuilder::new(&cwd)
+    let walker = ignore::WalkBuilder::new(cwd)
         .follow_links(false)
         .standard_filters(!scan_all)
         .hidden(false)
@@ -610,7 +651,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
 
     let mut iter = walker.filter_map(Result::ok);
     for entry in iter.by_ref() {
-        if let Some(candidate) = candidate_path(&entry, &cwd, &filter) {
+        if let Some(candidate) = candidate_path(&entry, cwd, &filter) {
             if seen.insert(candidate.0.clone()) {
                 candidates.push(candidate);
             }
@@ -619,7 +660,7 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
                 // more matching entries beyond the cap?
                 truncated = iter
                     .by_ref()
-                    .any(|e| candidate_path(&e, &cwd, &filter).is_some());
+                    .any(|e| candidate_path(&e, cwd, &filter).is_some());
                 break;
             }
         }
@@ -710,12 +751,40 @@ fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::Sc
     #[allow(clippy::cast_possible_truncation)]
     let duration_ms = start.elapsed().as_millis() as u64;
 
-    Ok(ScanResults {
+    // SCAN-004: candidates the gitignore-blind walk saw but the scanned set
+    // (`seen` = Phase 1b's gitignore-respecting walk + the allowlist) never
+    // included were dropped by `.gitignore`.
+    //
+    // This is a filtered membership count over `all_candidates`, NOT a
+    // cardinality difference, which is what makes it robust to the two walks
+    // having different shapes (Phase 1a prunes dirs via `filter_entry`; Phase
+    // 1b prunes per-file in `candidate_path`). A file in `seen` but not in
+    // `all_candidates` is simply not iterated — it was scanned, so it is
+    // correctly not a "skip". A file in `all_candidates` but not in `seen`
+    // made it past Phase 1a's prune, so its directory was not pruned; Phase 1b
+    // (no dir prune) therefore reaches it too, meaning the only reason it is
+    // absent from `seen` is gitignore. Hence every counted file is genuinely
+    // gitignore-excluded.
+    //
+    // Suppressed to 0 when the scan was truncated by the file cap (Phase 1b
+    // stopped early for an unrelated reason, so unscanned candidates beyond the
+    // cap would wrongly look gitignore-dropped) or when `scan_all` disabled
+    // gitignore entirely (`all_candidates` is empty then). `truncated` is set
+    // only by Phase 1b hitting `SCAN_MAX_FILES`; Phase 1a is uncapped by
+    // design, so there is no Phase 1a truncation to account for.
+    let files_skipped_by_ignore = if truncated || scan_all {
+        0
+    } else {
+        all_candidates.iter().filter(|p| !seen.contains(*p)).count()
+    };
+
+    ScanResults {
         findings,
         files_scanned,
         duration_ms,
         truncated,
-    })
+        files_skipped_by_ignore,
+    }
 }
 
 /// Try to start a file watcher for the tutorial. Returns the receiver and
@@ -1265,6 +1334,85 @@ mod tests {
                 let pool = build_first_run_pool().expect("scoped pool builds");
                 assert_eq!(pool.current_num_threads(), 2);
             });
+        }
+    }
+
+    // ── SCAN-004: gitignore-skip provenance ─────────────────────────
+    //
+    // Exercises the real two-phase walk in `scan_project_at` against a temp
+    // git repo so the gitignore-skip count reflects production behaviour, not
+    // a stubbed set difference. Grouped so
+    // `cargo test -p eddacraft-anvil welcome::tests::gitignore_skip` hits them.
+    mod gitignore_skip {
+        use super::super::scan_project_at;
+        use std::fs;
+        use std::process::Command;
+
+        /// `git init` so the `ignore` crate honours `.gitignore` (it only
+        /// applies git ignore rules inside a git repo). No commit is made —
+        /// presence of `.git` plus the `.gitignore` file is enough.
+        fn git_init(dir: &std::path::Path) {
+            let ok = Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(dir)
+                .status()
+                .is_ok_and(|s| s.success());
+            assert!(ok, "git init failed in test fixture");
+        }
+
+        #[test]
+        fn counts_candidate_files_dropped_by_gitignore() {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            git_init(root);
+
+            // A tracked source file (scanned) and a gitignored one (dropped).
+            // Both are scan candidates by extension; only gitignore differs,
+            // so exactly one file is "skipped by ignore".
+            fs::create_dir(root.join("src")).unwrap();
+            fs::write(root.join("src/app.rs"), "fn main() {}\n").unwrap();
+            fs::create_dir(root.join("ignored")).unwrap();
+            fs::write(root.join("ignored/leaked.rs"), "let x = 1;\n").unwrap();
+            fs::write(root.join(".gitignore"), "ignored/\n").unwrap();
+
+            let results = scan_project_at(root, false);
+            // Guards the fixture's assumption that `.rs` is a scan candidate:
+            // if the filter ever stops treating `.rs` as eligible, the tracked
+            // file is not scanned and the skip count drops to 0 — this assert
+            // then fails loudly rather than the test silently passing wrong.
+            assert!(
+                results.files_scanned >= 1,
+                "tracked src/app.rs must be a scan candidate for this test to be meaningful"
+            );
+            assert_eq!(
+                results.files_skipped_by_ignore, 1,
+                "the one gitignored .rs file should be counted as skipped"
+            );
+        }
+
+        #[test]
+        fn scan_all_disables_skip_count() {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            git_init(root);
+            fs::create_dir(root.join("ignored")).unwrap();
+            fs::write(root.join("ignored/leaked.rs"), "let x = 1;\n").unwrap();
+            fs::write(root.join(".gitignore"), "ignored/\n").unwrap();
+
+            // scan_all bypasses gitignore, so nothing is attributable to it.
+            let results = scan_project_at(root, true);
+            assert_eq!(results.files_skipped_by_ignore, 0);
+        }
+
+        #[test]
+        fn clean_tree_yields_zero() {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            git_init(root);
+            fs::write(root.join("app.rs"), "fn main() {}\n").unwrap();
+
+            let results = scan_project_at(root, false);
+            assert_eq!(results.files_skipped_by_ignore, 0);
         }
     }
 

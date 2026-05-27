@@ -133,21 +133,33 @@ reference the council finding IDs where relevant.
   is no provenance: users cannot tell whether "0 findings" means "clean" or
   "we skipped the directory that had the secret". Surface the count.
 - **Expected Outcome:** `ScanResults` gains a `files_skipped_by_ignore: usize`
-  field (API extension, additive). The welcome screen shows it when non-zero
-  ("scanned X files, skipped Y by .gitignore — pass `ANVIL_SCAN_ALL=1` to
-  include them"). Other surfaces that render `ScanResults` get updated
-  consistently.
+  field (additive; the struct derives `Default`). The welcome discovery screen
+  shows it when non-zero ("… N file(s) skipped by .gitignore — set
+  `ANVIL_SCAN_ALL=1` to include them"). The count is suppressed (0) when the
+  scan is truncated by the file cap or when `ANVIL_SCAN_ALL` is set, because
+  neither case can be honestly attributed to gitignore.
 - **Validation:**
-  - `cargo test -p eddacraft-anvil-checks` covers the new counter
-  - Welcome / gate / audit output includes the skipped count when > 0
-  - Snapshot test for TUI rendering updated
+  - `cargo test -p eddacraft-anvil-tui` covers the render (count shown when > 0,
+    omitted when 0)
+  - `cargo test -p eddacraft-anvil` covers the count derived in `scan_project`
+  - Existing discovery render/snapshot fixtures updated for the new field
 - **Files:**
-  - `crates/anvil-checks/src/types.rs` (or wherever `ScanResults` is defined)
-  - `crates/anvil-cli/src/commands/welcome.rs`
-  - TUI render sites that display `ScanResults`
-- **Confidence:** medium
+  - `crates/anvil-tui/src/surfaces/tutorial/discovery.rs` (`ScanResults` struct +
+    fixtures)
+  - `crates/anvil-cli/src/commands/welcome.rs` (`scan_project` count)
+  - `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs` (summary render)
+- **Confidence:** high
 - **Priority:** Medium
-- **Status:** Proposed
+- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-27;
+  execution authorised by operator)
+- **Scope note (2026-05-27):** Spec originally guessed `ScanResults` lived in
+  `crates/anvil-checks/src/types.rs` and that gate/audit would render the count.
+  Reality: `ScanResults` is the welcome/TUI discovery type, and the welcome
+  discovery scan is the ONLY secret-scan surface that honours `.gitignore`
+  (`standard_filters(!scan_all)`); gate/audit/check/drift/policy/baseline all use
+  `standard_filters(false)` by design, so the count would always be 0 there.
+  SCAN-004 is therefore scoped to the welcome/`ScanResults` surface;
+  `SecretCheckResult` is out of scope (dead plumbing).
 - **Origin:** Council `security-analyst` SEC-007 (provenance)
 
 ---

@@ -1123,6 +1123,7 @@ mod tests {
             files_scanned: 100,
             duration_ms: 250,
             truncated: false,
+            files_skipped_by_ignore: 0,
         }
     }
 

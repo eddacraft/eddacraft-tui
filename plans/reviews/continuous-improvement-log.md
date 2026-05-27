@@ -1016,3 +1016,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   recoverable pre-cutover tip, (2) cut `eddacraft-tui-v0.2.3`, (3) revoke the
   legacy `CARGO_REGISTRY_TOKEN`, (4) run the `eddacraft-skills` consumer check,
   then the post-cut close-out (TUIR-008 → Merged, TUIMIRROR archive, index 8/8).
+
+### 2026-05-27 — claude
+
+- **Task:** SCAN-004 — surface `files_skipped_by_ignore` provenance on the welcome discovery scan (promote Proposed→Ready→In Progress, then implement TDD).
+- **Outcome:** Added the field to `ScanResults`, derived the count in `scan_project` from the Phase 1a (gitignore-blind) vs Phase 1b (gitignore-respecting) set difference, rendered it on the continue screen; all gates green (clippy 0, fmt 0, anvil-tui 648, anvil-cli full suite, oxfmt clean).
+- **Worked:** APS Truth Gate caught real spec drift before any code — the spec placed the field on a shared `anvil-checks` type and claimed gate/audit would show it, but `standard_filters` per call site proved the welcome scan is the ONLY gitignore-respecting surface, so the count is meaningful nowhere else. Reusing the existing Phase 1a full walk meant no extra tree traversal.
+- **Failed:** Nothing substantive.
+- **Friction:** (1) Spec's `Files`/`Validation` were written against a pre-existing architecture assumption (`ScanResults` in `anvil-checks/types.rs`) that was never true — cost a round of investigation. (2) `eddacraft-anvil` is a bin-only crate, so `cargo test --lib` fails with "no library targets"; unit tests need `--bins`.
+- **Improvement:** For any scan/check feature, verify `standard_filters` (gitignore on/off) per call site before trusting a spec's claim about which result type a field belongs on.
+- **Follow-up:** SecretCheckResult provenance for gate/audit is intentionally out of scope (those scan with `standard_filters(false)`); no follow-up needed unless a future surface opts into gitignore.

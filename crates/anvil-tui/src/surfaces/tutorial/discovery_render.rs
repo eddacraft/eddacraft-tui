@@ -358,6 +358,16 @@ fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme:
     // user chasing the wrong fix.
     let truncated_note = matches!(&state.results, Some(r) if r.truncated && r.files_scanned > 0);
 
+    // SCAN-004: surface gitignore provenance. The scan honours .gitignore by
+    // default, so "no issues found" could mean "clean" or "we never opened the
+    // ignored directory that held the secret". scan_project forces this to 0
+    // when the scan was truncated or ANVIL_SCAN_ALL was set, so the note only
+    // appears when the count is honestly attributable to gitignore.
+    let skipped_by_ignore = state
+        .results
+        .as_ref()
+        .map_or(0, |r| r.files_skipped_by_ignore);
+
     let mut lines = vec![
         Line::default(),
         Line::from(Span::styled(summary_line, Style::default().fg(theme.fg()))),
@@ -365,6 +375,16 @@ fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme:
     if truncated_note {
         lines.push(Line::from(Span::styled(
             "Scan was limited — re-run on a subdirectory for complete coverage.",
+            Style::default().fg(theme.muted()),
+        )));
+    }
+    if skipped_by_ignore > 0 {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "{skipped_by_ignore} file{} skipped by .gitignore — set ANVIL_SCAN_ALL=1 to scan {}.",
+                if skipped_by_ignore == 1 { "" } else { "s" },
+                if skipped_by_ignore == 1 { "it" } else { "them" },
+            ),
             Style::default().fg(theme.muted()),
         )));
     }
@@ -430,6 +450,7 @@ mod tests {
             files_scanned: 120,
             duration_ms: 3200,
             truncated: false,
+            files_skipped_by_ignore: 0,
         });
         let theme = EddaCraftTheme;
 
@@ -461,6 +482,7 @@ mod tests {
             files_scanned: 50,
             duration_ms: 1500,
             truncated: false,
+            files_skipped_by_ignore: 0,
         });
         // Advance to continue phase
         state.handle_key(Action::Select);
@@ -481,6 +503,7 @@ mod tests {
             files_scanned: 500,
             duration_ms: 1500,
             truncated: true,
+            files_skipped_by_ignore: 0,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -503,6 +526,78 @@ mod tests {
         assert!(
             rendered.contains("Scan was limited"),
             "truncated continue screen should carry the limited-scan note: {rendered}"
+        );
+    }
+
+    #[test]
+    fn continue_screen_notes_gitignore_skips() {
+        // SCAN-004: when discovery dropped candidate files because .gitignore
+        // excluded them, the continue screen must say so — otherwise "no
+        // issues found" hides the possibility that the secret lived in an
+        // ignored directory we never opened.
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: Vec::new(),
+            files_scanned: 40,
+            duration_ms: 900,
+            truncated: false,
+            files_skipped_by_ignore: 7,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("7 file") && rendered.contains(".gitignore"),
+            "continue screen should report files skipped by .gitignore: {rendered}"
+        );
+        assert!(
+            rendered.contains("ANVIL_SCAN_ALL"),
+            "skip note should point at the ANVIL_SCAN_ALL override: {rendered}"
+        );
+    }
+
+    #[test]
+    fn continue_screen_omits_gitignore_note_when_zero() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: Vec::new(),
+            files_scanned: 40,
+            duration_ms: 900,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            !rendered.contains(".gitignore"),
+            "no gitignore skips means no skip note should render: {rendered}"
         );
     }
 
@@ -534,6 +629,7 @@ mod tests {
             files_scanned: 500,
             duration_ms: 1500,
             truncated: true,
+            files_skipped_by_ignore: 0,
         });
         let theme = EddaCraftTheme;
 
@@ -572,6 +668,7 @@ mod tests {
             files_scanned: 500,
             duration_ms: 1500,
             truncated: true,
+            files_skipped_by_ignore: 0,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -608,6 +705,7 @@ mod tests {
             files_scanned: 0,
             duration_ms: 500,
             truncated: true,
+            files_skipped_by_ignore: 0,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
