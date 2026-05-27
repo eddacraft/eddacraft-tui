@@ -189,6 +189,8 @@ plans/reviews/*
 !plans/reviews/post-merge/**
 !plans/reviews/release-council/
 !plans/reviews/release-council/**
+# Source review backing the 2026-05-09 plan/build/release operating-model spec.
+!plans/reviews/plan-build-release-operating-model.md
 
 # GitHub Local Runners
 .github/actions-runner

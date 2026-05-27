@@ -4,7 +4,7 @@ Date: 2026-05-09
 
 Status: Proposed
 
-Source review: `review/plan-build-release-operating-model.md`
+Source review: `plans/reviews/plan-build-release-operating-model.md`
 
 ## Purpose
 
