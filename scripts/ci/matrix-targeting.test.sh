@@ -85,6 +85,11 @@ assert_contains "${ci_workflow}" '  test-release-gate:'
 assert_block_contains "${ci_workflow}" "^  test-release-gate:" "source-changed == 'true'"
 assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.base_ref == 'main'"
 assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == 'refs/heads/main'"
+# The release gate is the cross-platform Node gate. Rust coverage lives in rust.yml;
+# do not route this through the root test script, because pnpm appends --run to
+# cargo test and breaks on macOS/Windows.
+assert_block_contains "${ci_workflow}" "^  test-release-gate:" "run: pnpm run test:js -- --run"
+assert_block_not_contains "${ci_workflow}" "^  test-release-gate:" "pnpm run test -- --run"
 
 # ── rust.yml: cross-compile is release-gate-only ────────────────
 # - Push to `dev` must NOT trigger cross-compile (dev is the integration
