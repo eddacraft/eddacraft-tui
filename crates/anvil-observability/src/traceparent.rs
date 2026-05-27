@@ -40,8 +40,8 @@ const RESERVED_VERSION: &str = "ff";
 /// derived deserialiser would let callers construct a `TraceContext`
 /// without going through [`TraceContext::parse`] and bypass the
 /// canonical-form invariants. Callers that need to round-trip a
-/// `TraceContext` over the wire serialise [`as_header`] and parse on
-/// the receiving end.
+/// `TraceContext` over the wire serialise [`as_header`](TraceContext::as_header)
+/// and parse on the receiving end.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraceContext {
     trace_id: String,

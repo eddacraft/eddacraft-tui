@@ -126,7 +126,7 @@ pub fn bind_traceparent_to_span(span: &Span, context: &TraceContext) {
 /// window between guard check and install).
 ///
 /// Filter precedence (highest first): `ANVIL_LOG`, `RUST_LOG`,
-/// [`BinaryKind::default_filter`].
+/// `BinaryKind::default_filter`.
 ///
 /// # Errors
 ///
