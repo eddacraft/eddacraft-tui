@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (effective on CIB-025 implementation — see Decision §5)
 
 ## Date
 
@@ -19,7 +19,7 @@ that completed a work item rewrote its module's `N/M`.
 Because two PRs completing *different* items in the *same* module each rewrite
 that one aggregate to a *different* value, they collide on it at merge — a
 textual conflict that derivation does not prevent (it only makes the post-merge
-fix deterministic). Observed live 2026-05-26: four CIB PRs (CIB-017/-018/-019/
+fix deterministic). Observed live 2026-05-26: four CIB PRs (CIB-017, -018, -019,
 -024) plus a triage all collided on the single `| CIB | … | N/M |` token, forcing
 four serialised rebase-merges. `merge=union` (CIB-021) cannot help — union keeps
 both lines, yielding two count rows — and a recompute-on-conflict git merge
@@ -45,11 +45,19 @@ not a PR-maintained one:
    blocking — a scoped exception to ADR-042's "closeout checks block by design",
    because once PRs stop maintaining the count a freshness mismatch is the
    *expected* state between reconciles, not an error to gate on.
-4. **A single-writer periodic reconcile refreshes the stored count** — the
-   existing `chore(plans): reconcile APS index` sweep runs `npm run aps:index`
-   and commits. Being single-writer (one reconcile at a time, never concurrent
-   with itself) it never contends, and because feature PRs don't touch the count
-   a reconcile never conflicts with feature work.
+4. **A single-writer reconcile refreshes the stored count** — the existing
+   manual/ad-hoc `chore(plans): reconcile APS index` practice (run on demand via
+   `npm run aps:index`; there is **no automated workflow today**, and adding one
+   would be the option-1 escalation below). Being single-writer (one reconcile at
+   a time, never concurrent with itself) it never contends, and because feature
+   PRs don't touch the count a reconcile never conflicts with feature work.
+5. **Effectivity.** This ADR records the decided end-state; it takes effect when
+   CIB-025 downgrades `aps:index:check` to advisory. **Until CIB-025 lands the
+   gate still blocks**, so the existing `.claude/rules/aps-index.md` guidance
+   (update the module done/total count on completion) **remains in force** —
+   contributors keep updating the count until then. CIB-025's implementation must
+   update `.claude/rules/aps-index.md` in lockstep with the gate downgrade so the
+   rule and the gate never contradict.
 
 Implementation is tracked by CIB-025 (advisory shape).
 
