@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                          |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-18 against `RELEASE-PLAN.md`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                        |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-27 against `plans/releases/v0.7.2-beta.md`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -132,17 +132,14 @@ an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 
 ## Release Status
 
-Latest repository tag: **`v0.7.0-beta`** (2026-05-20) — the daemon-working
-product slate. Anvil now protects this project end-to-end through the daemon,
-hooks, witness chain, baseline, and wrapped agent-launch surfaces, with a
-signature-verified update path.
+Latest repository tag: **`v0.7.2-beta`** (published 2026-05-25) — Save-Time
+Scanning & Tooling Honesty, the second Boring Week patch on top of the
+`v0.7.0-beta` daemon-working slate. It preserves the daemon, hooks, witness
+chain, baseline, and wrapped agent-launch protection claim while shipping the
+beta-feedback fixes for save-time scanning and tooling diagnostics.
 
-Next candidate: **`v0.8.0-beta`** — the Team-Lead Surface and platform slate.
-The candidate-time expectation is that Anvil provides a unified browser surface
-for platform engineers and team leads to view last-gate runs, severity-grouped
-warnings, and historical drift trends, backed by a local-only database. Current
-cut-line, docs-phase closure, and deferrals live in
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
+Current release planning, cut-line detail, docs-phase closure, and deferrals
+live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
 [`plans/index.aps.md`](./plans/index.aps.md).
 
 Release cadence and beta support-window expectations are documented in
@@ -161,9 +158,10 @@ Release cadence and beta support-window expectations are documented in
 
 eddacraft monorepo. Currently home to **anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
-save, before they reach code review. Active release work is on the `v0.8.0-beta`
-Team-Lead Surface and platform slate: unified browser dashboard, `anvil export`
-run-state, severity-grouped warning panels, and local database integration.
+save, before they reach code review. The current shipped baseline is
+`v0.7.2-beta`; active release planning and candidate scope live in
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
+[`plans/index.aps.md`](./plans/index.aps.md).
 
 Coverage is advisory rather than a merge gate. Nightly CI publishes the
 authoritative coverage artefacts; local commands are listed in
@@ -295,6 +293,7 @@ Archived integrations retained for historical context:
 | `crates/anvil-run`             | Wrapped agent launcher and session registration ingress            |
 | `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)            |
 | `crates/anvil-witness`         | Hash-chained witness log writer, rollover, manifest, and verifier  |
+| `crates/eddacraft-tui`         | Shared TUI component primitives used by Anvil TUI surfaces         |
 | `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph             |
 | `crates/workspace-hack`        | Hakari-managed feature unifier for build times                     |
 
@@ -330,6 +329,7 @@ Archived integrations retained for historical context:
   the default CI/setup-workspace version, with Node 24 exercised in nightly
   compatibility jobs
 - **pnpm** >= 10.20.0
+- **Git** >= 2.54.0
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
 - **cargo-llvm-cov** (optional, for Rust coverage) —
   `cargo install cargo-llvm-cov`
@@ -513,8 +513,8 @@ The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
 defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
 saturation, graph memory ceiling, incremental throughput under sustained load,
 and cold start scaling. See the
-[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and Phase
-3 work items.
+[BENCH module](./plans/archive/modules/kernel-benchmarking.aps.md) for archived
+Phase 2 and Phase 3 work items.
 
 ## Deployment
 
