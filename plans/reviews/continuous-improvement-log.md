@@ -973,3 +973,17 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** (1) `check-links` scans `docs/**`+`plans/**` but does NOT exclude archive (unlike check-metadata + docs-index), so moving a byte-exact frozen snapshot into `docs/archive` surfaced a pre-existing dangling link. (2) `docs:check:update-baseline` regenerates the whole baseline and swept in 71 unrelated stale metadata entries owned by in-flight DOCGOV-009 work — had to add the one entry by hand.
 - **Improvement:** When relocating into archive, remember check-links still scans it; add baseline entries surgically, never via `update-baseline` on a shared baseline. lint-staged per-file format tasks should mirror `.prettierignore`'s `archive/` exclusion.
 - **Follow-up:** Candidate CIB — make lint-staged yaml/json/md matchers skip `.prettierignore`-ignored paths so per-file oxfmt doesn't error on relocated artefacts. `policies/fixtures` move deferred pending operator decision.
+
+### 2026-05-27 — opencode
+
+- **Task:** Address PR #2010 review readiness after automation completed.
+- **Outcome:** No review threads or failed checks were present; GitHub reported the
+  branch dirty, so the PR branch was rebased onto `origin/main` for mergeability.
+- **Worked:** Checking mergeability through the REST PR endpoint exposed the
+  conflict state while `gh pr view` still returned `UNKNOWN`.
+- **Failed:** Nothing substantive.
+- **Friction:** `gh pr checkout` cannot switch branches already held by a sibling
+  worktree; using the existing Worktrunk worktree avoided disrupting `main`.
+- **Improvement:** For review-remediation tasks, query both `gh pr view` and the
+  REST `mergeable_state` before concluding there is no work to do.
+- **Follow-up:** none
