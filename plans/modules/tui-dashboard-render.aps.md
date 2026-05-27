@@ -2,15 +2,19 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | Draft  | 0/12     |
+| TUIDASH | —     | Ready  | 0/12     |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-27
 
-> **Status correction 2026-04-26:** Demoted Ready → Draft per Council A
-> finding. Two Ready-checklist items are unchecked (catalogue source —
-> `packages/json-render/` doesn't exist in tree — and spec format pin).
-> Promote back to Ready when DASHAI catalogue resolution lands and the
-> json-render spec source is reconfirmed.
+> **Re-scope 2026-05-27 ([ADR-053](../decisions/053-json-render-tui-engine-home.md)):**
+> Promoted Draft → Ready. The 2026-04-26 demotion blockers are resolved — the
+> catalogue and spec pin live web-side in `@eddacraft/render`
+> (`packages/libs/render/`: `src/catalog-registry.ts`, `@json-render/core
+> ^0.19.0`, and the 3 template specs under `specs/`). Per ADR-053 the generic
+> **engine** moves to `eddacraft-tui` behind a `json-render` feature and the
+> Anvil **catalogue + surface** to `anvil-tui`; the standalone `anvil-tui-render`
+> crate is dropped. Work-item file homes are re-mapped — see "Re-homing
+> (ADR-053)" below.
 
 ## Purpose
 
@@ -48,35 +52,40 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## Interfaces
 
+Per [ADR-053](../decisions/053-json-render-tui-engine-home.md), work splits along
+the generic/specific boundary: a generic **engine** in `eddacraft-tui` and the
+Anvil **catalogue + surface** in `anvil-tui`.
+
 **Depends on:**
 
-- RATS (complete) — provides the Ratatui surface layer in two parts:
-  - `eddacraft-tui` (published workspace dep, `eddacraft-tui = "0.1.0"`) —
-    shared widget library + theme + Surface trait. Pre-extraction local
-    copy of these sources lives in `archive/eddacraft-tui-local/` for
-    historical reference (e.g. early-access work items still cite the
-    archived widget files where the published version's source path is
-    not directly addressable).
-  - `crates/anvil-tui/` (lib name `anvil_tui`, package
-    `eddacraft-anvil-tui`) — Anvil-specific surfaces built on top of
-    `eddacraft-tui`. Currently exposes Anvil-specific widgets only
-    (`results_dashboard.rs`, `quick_wins_panel.rs`); the shared widget
-    set continues to live in `eddacraft-tui`.
-  TUIDASH should consume the json-render spec via `crates/anvil-tui/`
-  surfaces, which in turn render through `eddacraft-tui` widgets.
-- DASHAI — component catalogue definition and JSON spec format
-- DASH-005 — `.anvil/` data layer (gate findings, drift, etc.)
-- `@json-render/core` — spec format documentation (consumed as JSON schema, not
-  as a Rust dependency). Note: as of 2026-04-26 there is no
-  `packages/json-render/` in this repo; the spec source/version pin is owned
-  by DASHAI and must be confirmed before TUIDASH-001 starts.
+- `crates/eddacraft-tui/` (vendored canonical, mirrored out per ADR-047) — shared
+  widget library, theme, and `Surface` trait. The json-render engine is added
+  here behind a `json-render` Cargo feature: spec types + serde parser,
+  `Registry` trait, tree walker, generic data-path binding, and a base catalogue
+  mapping generic components to eddacraft-tui widgets. `serde`/`serde_json` enter
+  only under that feature.
+- `crates/anvil-tui/` (package `eddacraft-anvil-tui`) — hosts the Anvil-domain
+  catalogue, the `.anvil/` data-context loader, and the dashboard surface.
+- `@eddacraft/render` (`packages/libs/render/`) — the spec contract: pins
+  `@json-render/core ^0.19.0`, defines the catalogue (`src/catalog-registry.ts`),
+  and ships the 3 template specs
+  (`specs/{gate-summary,watch-session,architecture-health}.dashboard.json`).
+  Consumed as the spec / JSON-schema source, not as a Rust dependency.
+- TDASH (`native-tui-dashboards`, shipped) — owns the existing `anvil dashboard`
+  command (architecture/drift/suppressions + picker); TUIDASH extends it with a
+  spec-rendering path rather than creating it.
+- DASH-005 — `.anvil/` data layer (gate findings, drift, etc.) for data binding.
 
 **Exposes:**
 
-- `anvil-tui-render` crate (new) — spec parser, registry, tree renderer
-- Dashboard surface in `anvil-tui` (new `crates/anvil-tui/src/surfaces/dashboard/`)
-  — renders saved dashboard specs
-- `anvil dashboard [name]` subcommand — launches TUI dashboard viewer
+- `eddacraft-tui` `json-render` feature — generic spec interpreter (parser,
+  registry, tree walker, base catalogue, Ratatui renderer), reusable across the
+  eddacraft TUI family; no Anvil semantics.
+- `anvil-tui` — Anvil component catalogue + `.anvil/` data context + a
+  spec-rendering dashboard surface.
+- `anvil dashboard <spec>` — extends the existing TDASH command to render saved
+  `.anvil/dashboards/*.json` specs through the engine, alongside the fixed
+  native dashboards.
 
 ## Decisions
 
@@ -109,6 +118,19 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
   dashboard specs. Complex web layouts (CSS grid) degrade to vertical stacking.
 - **Status:** Resolved
 
+**D-TUIDASH-004:** Engine home
+
+- **Options:** (a) Generic engine in `eddacraft-tui` (feature-gated) + Anvil
+  catalogue in `anvil-tui`, (b) standalone Anvil-owned `anvil-tui-render` crate
+  (the original plan), (c) engine + Anvil catalogue both in `eddacraft-tui`
+- **Resolution:** Option (a), per
+  [ADR-053](../decisions/053-json-render-tui-engine-home.md). The engine is
+  generic render-anywhere infrastructure and belongs in the shared library
+  (behind a `json-render` feature to contain the `serde` cost); Anvil domain
+  components must not leak into the generic family library. Drops the standalone
+  `anvil-tui-render` crate.
+- **Status:** Resolved
+
 ## Constraints
 
 - Spec format must match `@json-render/core` exactly — no Anvil-specific
@@ -121,30 +143,45 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Promoted to **Ready** 2026-05-27:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
-- [x] Decisions resolved
-- [ ] Catalogue schema known — historically referenced
-  `packages/json-render/src/catalog-registry.ts` defining 12 components with
-  Zod schemas (DASHAI-002 dependency). **Note (2026-04-26):**
-  `packages/json-render/` is not present in this repo; confirm where the
-  authoritative catalogue + JSON Schema lives before starting TUIDASH-001.
-- [ ] json-render spec format usable — `@json-render/core` (or replacement
-  source) version pin and schema documented
+- [x] Decisions resolved (incl. D-TUIDASH-004 / ADR-053 engine home)
+- [x] Catalogue schema known — `@eddacraft/render` at
+  `packages/libs/render/src/catalog-registry.ts` (shadcn built-ins + Anvil
+  custom components)
+- [x] json-render spec format usable — `@json-render/core ^0.19.0` pinned in
+  `packages/libs/render/package.json`
 - [x] At least one task defined
-- [x] Template dashboard specs authored (PR #701 — 3 specs: gate-summary,
-  watch-session, architecture-health)
+- [x] Template dashboard specs authored — `packages/libs/render/specs/`
+  (gate-summary, watch-session, architecture-health; PR #701)
 
 ## Wave
 
-**Wave 3** — Unblocked structurally (RATS, RCLI complete). DASHAI (web
-dashboard) is a parallel workstream, not a prerequisite. TUI can consume the
-same specs independently. **Note (2026-04-26):** Catalogue/spec source must
-be re-confirmed because `packages/json-render/` is no longer in tree.
+**Wave 3** — Unblocked. RATS/RCLI complete; the spec contract, catalogue, and
+template specs exist (`packages/libs/render/`); and the engine home is decided
+(ADR-053). DASHAI (web dashboard) is a parallel workstream, not a prerequisite —
+the TUI consumes the same specs independently.
 
 ---
+
+## Re-homing (ADR-053)
+
+The work-item `Files:` paths below predate [ADR-053](../decisions/053-json-render-tui-engine-home.md)
+and reference the dropped `crates/anvil-tui-render/` crate. This mapping is
+authoritative; per-file paths are finalized at execution:
+
+| Work items | New home |
+|------------|----------|
+| TUIDASH-001/-002/-003 (parser, registry, tree walker), -008 binding *mechanism*, -011 (responsive), and the generic base-catalogue components from -004/-005/-006 | `crates/eddacraft-tui/src/json_render/` behind the `json-render` feature |
+| TUIDASH-007 (Anvil-domain components), -008 `.anvil/` data context, -009 (dashboard surface), -012 (previews) | `crates/anvil-tui/` (+ `anvil-cli` for the command) |
+| TUIDASH-010 (catalogue parity) | CI/test spanning both — compares the eddacraft-tui registry against the `@eddacraft/render` catalogue |
+
+**TUIDASH-009 reconciliation:** `anvil dashboard` already exists (shipped by
+TDASH — architecture/drift/suppressions + picker). TUIDASH-009 no longer
+*creates* the command; it adds a spec-rendering path (`anvil dashboard <spec>`
+rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ## Tasks
 
