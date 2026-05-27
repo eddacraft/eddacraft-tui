@@ -6,15 +6,15 @@
 
 **Last reviewed:** 2026-05-27
 
-> **Re-scope 2026-05-27 ([ADR-053](../decisions/053-json-render-tui-engine-home.md)):**
+> **Re-scope 2026-05-27 ([ADR-054](../decisions/054-json-render-tui-engine-home.md)):**
 > Promoted Draft → Ready. The 2026-04-26 demotion blockers are resolved — the
 > catalogue and spec pin live web-side in `@eddacraft/render`
 > (`packages/libs/render/`: `src/catalog-registry.ts`, `@json-render/core
-> ^0.19.0`, and the 3 template specs under `specs/`). Per ADR-053 the generic
+> ^0.19.0`, and the 3 template specs under `specs/`). Per ADR-054 the generic
 > **engine** moves to `eddacraft-tui` behind a `json-render` feature and the
 > Anvil **catalogue + surface** to `anvil-tui`; the standalone `anvil-tui-render`
 > crate is dropped. Work-item file homes are re-mapped — see "Re-homing
-> (ADR-053)" below.
+> (ADR-054)" below.
 
 ## Purpose
 
@@ -52,7 +52,7 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## Interfaces
 
-Per [ADR-053](../decisions/053-json-render-tui-engine-home.md), work splits along
+Per [ADR-054](../decisions/054-json-render-tui-engine-home.md), work splits along
 the generic/specific boundary: a generic **engine** in `eddacraft-tui` and the
 Anvil **catalogue + surface** in `anvil-tui`.
 
@@ -124,7 +124,7 @@ Anvil **catalogue + surface** in `anvil-tui`.
   catalogue in `anvil-tui`, (b) standalone Anvil-owned `anvil-tui-render` crate
   (the original plan), (c) engine + Anvil catalogue both in `eddacraft-tui`
 - **Resolution:** Option (a), per
-  [ADR-053](../decisions/053-json-render-tui-engine-home.md). The engine is
+  [ADR-054](../decisions/054-json-render-tui-engine-home.md). The engine is
   generic render-anywhere infrastructure and belongs in the shared library
   (behind a `json-render` feature to contain the `serde` cost); Anvil domain
   components must not leak into the generic family library. Drops the standalone
@@ -147,7 +147,7 @@ Promoted to **Ready** 2026-05-27:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
-- [x] Decisions resolved (incl. D-TUIDASH-004 / ADR-053 engine home)
+- [x] Decisions resolved (incl. D-TUIDASH-004 / ADR-054 engine home)
 - [x] Catalogue schema known — `@eddacraft/render` at
   `packages/libs/render/src/catalog-registry.ts` (shadcn built-ins + Anvil
   custom components)
@@ -161,14 +161,14 @@ Promoted to **Ready** 2026-05-27:
 
 **Wave 3** — Unblocked. RATS/RCLI complete; the spec contract, catalogue, and
 template specs exist (`packages/libs/render/`); and the engine home is decided
-(ADR-053). DASHAI (web dashboard) is a parallel workstream, not a prerequisite —
+(ADR-054). DASHAI (web dashboard) is a parallel workstream, not a prerequisite —
 the TUI consumes the same specs independently.
 
 ---
 
-## Re-homing (ADR-053)
+## Re-homing (ADR-054)
 
-The work-item `Files:` paths below predate [ADR-053](../decisions/053-json-render-tui-engine-home.md)
+The work-item `Files:` paths below predate [ADR-054](../decisions/054-json-render-tui-engine-home.md)
 and reference the dropped `crates/anvil-tui-render/` crate. This mapping is
 authoritative; per-file paths are finalized at execution:
 

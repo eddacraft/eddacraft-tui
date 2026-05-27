@@ -52,7 +52,7 @@ These define how Anvil behaves by default. All features must align.
 | [045](045-update-signing-scheme.md) | Minisign (Ed25519 + BLAKE2b) signs release artefacts; pure-Rust `minisign-verify` enforces the chain inside `anvil update`; long-lived key custody via GitHub Actions secret + offline backup | Proposed |
 | [047](047-eddacraft-tui-canonical-source-mirror.md) | Move `eddacraft-tui` canonical source back into Anvil; keep the public repo as a read-only mirror and crates.io as external distribution | Accepted |
 | [050](050-eddacraft-tui-runner-and-cli-policy.md) | `eddacraft-tui` ships an opt-in `runner` feature flag bundling a turn-key `launch_default(app)` entry point (lifecycle + minimal `lexopt` parser + `TerminalApp` trait); library-shaped consumers get a CLI from a 3-line `main.rs`; Anvil keeps its own `TerminalGuard` + `clap` tree (non-adopter); no `clap` in core, no `[[bin]]` in core, no sibling crate | Proposed |
-| [053](053-json-render-tui-engine-home.md) | json-render TUI engine (spec parser, registry trait, tree walker, generic base catalogue) lives in `eddacraft-tui` behind a `json-render` feature; Anvil-domain catalogue + `.anvil/` data context + dashboard surface live in `anvil-tui`. No standalone `anvil-tui-render` crate; one-way dep `anvil-tui → eddacraft-tui`. Re-homes TUIDASH | Proposed |
+| [054](054-json-render-tui-engine-home.md) | json-render TUI engine (spec parser, registry trait, tree walker, generic base catalogue) lives in `eddacraft-tui` behind a `json-render` feature; Anvil-domain catalogue + `.anvil/` data context + dashboard surface live in `anvil-tui`. No standalone `anvil-tui-render` crate; one-way dep `anvil-tui → eddacraft-tui`. Re-homes TUIDASH | Proposed |
 
 ## Configuration and Structure
 
