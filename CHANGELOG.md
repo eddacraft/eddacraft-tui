@@ -9,7 +9,26 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
-## [0.2.2] - 2026-05-08
+## [0.2.3] - 2026-05-27
+
+First release published from the canonical source in the Anvil monorepo
+(`crates/eddacraft-tui/`). `eddacraft/eddacraft-tui` is now a read-only mirror
+of that source; releases publish from the monorepo. **No public API changes** —
+the relocation is byte-equivalent at the API surface. External consumers keep
+depending on the crates.io release (`eddacraft-tui = "0.2"`); see the mirror
+banner for the consumption contract.
+
+### Internal
+
+- **Canonical source relocated** into the Anvil monorepo. The public repository
+  becomes a read-only, automation-mirrored copy; contributions and releases flow
+  through the monorepo.
+- **Mechanical clippy cleanups** to satisfy the stricter workspace
+  `-D warnings` gate: `map_or` for `map_unwrap_or`, backticked identifiers in
+  doc comments, `let ... else`, inlined format args, and a test-only
+  `repeat_words` helper in place of a `format`-collect. No behaviour or public
+  API change; the crate's `[lints]` block still treats `clippy::pedantic` as
+  `warn` for downstream consumers building from crates.io.
 
 Hotfix for a release-build compile error introduced in 0.2.0.
 
