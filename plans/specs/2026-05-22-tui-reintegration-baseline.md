@@ -210,10 +210,21 @@ Source under `src/` plus three families (`pretext/`, `theme/`, `widgets/`,
 - **Docs in tarball:** `docs/README.md`, `docs/animations.md`,
   `docs/council-review-issues.md`.
 
-Full byte-exact published-tarball file list:
-[`package-list.txt`](./2026-05-22-tui-reintegration-baseline/package-list.txt)
-(60 files). Captured via `cargo package --list --allow-dirty`. This is the
-baseline that D-TUIR-007's drift gate diffs against post-migration.
+Published-tarball file list:
+[`package-list.txt`](./2026-05-22-tui-reintegration-baseline/package-list.txt).
+This file is the **live anchor** that D-TUIR-007's drift gate
+(`.github/workflows/publish-eddacraft-tui.yml`) byte-diffs against at publish
+time, so it must equal the in-repo crate's
+`cargo package --list -p eddacraft-tui --allow-dirty` — not a frozen snapshot.
+It therefore tracks the **post-migration canonical published set (58 files)**.
+At TUIR-001 capture time it held the standalone v0.2.2 tarball (60 files); the
+two differ by exactly the TUIR-002 import deltas — dropped
+`.github/workflows/{ci,release}.yml`, `deny.toml`, and
+`docs/council-review-issues.md`; added `.github/workflows/pr-redirect.yml` and
+`MIRROR-README.md`. The original standalone 60-file snapshot is preserved in
+this file's git history at the TUIR-001 capture commit. (TUIR-008 refreshed the
+file to the canonical set so the publish gate, whose live validation was
+deferred to TUIR-008, passes the cut.)
 
 ### Repo-management dirs NOT carried to `crates/eddacraft-tui/`
 
@@ -245,8 +256,12 @@ Captured by re-running cargo against the standalone v0.2.2 tree at SHA
   full dependency graph (ratatui 0.30, crossterm 0.29, ratatui-image 10.0.8,
   animate 0.3.0, etc.) and succeeded; upload aborted under `--dry-run` as
   expected.
-- `cargo package --list --allow-dirty` stored byte-for-byte under
-  [`package-list.txt`](./2026-05-22-tui-reintegration-baseline/package-list.txt).
+- `cargo package --list --allow-dirty` produced the 60-file standalone list,
+  stored byte-for-byte under
+  [`package-list.txt`](./2026-05-22-tui-reintegration-baseline/package-list.txt)
+  at capture time. That standalone snapshot now lives in the file's git history
+  (see "Published-tarball file list" above) — the live file tracks the
+  post-migration canonical set.
 
 ## Downstream consumers
 
