@@ -1029,6 +1029,7 @@ mod tests {
                     IpcState::Serving,
                     None,
                     None,
+                    0,
                 )
             }
         }

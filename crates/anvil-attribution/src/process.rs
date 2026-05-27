@@ -225,6 +225,9 @@ fn read_boot_time_seconds() -> Result<u64, ProcessInfoError> {
 
 #[cfg(test)]
 mod tests {
+    // Every test below is Linux-gated, so the glob import is unused on other
+    // targets; gate it to match and keep `-D unused-imports` happy cross-platform.
+    #[cfg(target_os = "linux")]
     use super::*;
 
     #[test]
