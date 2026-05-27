@@ -1,0 +1,206 @@
+// Standalone entry point for the APS dashboard.
+//
+// Rename to `main.rs` in the adopting repo (drop the `.template`).
+//
+// Wires the three pieces together:
+//   - `snapshot`     — reads `plans/` and builds a `PlanStatusSnapshot` (copied
+//                      verbatim from Anvil; std + serde + anyhow only).
+//   - `dashboard`    — the Ratatui render surface (copied from Anvil; the only
+//                      edit was repointing `Surface` at the public crate).
+//   - `run_surface`  — the standalone TUI loop (this kit's `run_surface.rs`).
+//
+// The `to_tui_snapshot` adapter, `print_summary`, and CLI dispatch below are
+// lifted from Anvil's `crates/anvil-cli/src/commands/plan.rs`, de-coupled from
+// `GlobalArgs`/`util::workspace_root()` into a tiny argv parser. This is the
+// layer you are expected to re-develop for your product's CLI conventions.
+
+mod dashboard;
+mod run_surface;
+mod snapshot;
+
+use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anyhow::Result;
+
+use dashboard::{
+    PlanDashboardSnapshot, PlanDashboardState, PlanModuleRow, PlanWarningRow, PlanWorkItemRow,
+};
+
+const HELP: &str = "\
+aps-dashboard — read-only terminal view of canonical APS plan state
+
+USAGE:
+    aps-dashboard [--root <PATH>] [--json | --no-tui]
+
+OPTIONS:
+    --root <PATH>   Repository root containing `plans/` (default: current dir)
+    --json          Print the PlanStatusSnapshot as JSON and exit
+    --no-tui        Print a plain-text summary instead of the interactive TUI
+    -h, --help      Show this help
+";
+
+struct Args {
+    root: PathBuf,
+    json: bool,
+    no_tui: bool,
+}
+
+fn parse_args() -> Result<Option<Args>> {
+    let mut root = std::env::current_dir()?;
+    let mut json = false;
+    let mut no_tui = false;
+
+    let mut it = std::env::args().skip(1);
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                print!("{HELP}");
+                return Ok(None);
+            }
+            "--json" => json = true,
+            "--no-tui" => no_tui = true,
+            "--root" => {
+                let value = it
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("--root requires a path argument"))?;
+                root = PathBuf::from(value);
+            }
+            other => anyhow::bail!("unrecognised argument: {other}\n\n{HELP}"),
+        }
+    }
+
+    Ok(Some(Args {
+        root,
+        json,
+        no_tui,
+    }))
+}
+
+fn main() -> Result<()> {
+    let Some(args) = parse_args()? else {
+        return Ok(());
+    };
+
+    if args.json {
+        let snapshot = snapshot::build_plan_status_snapshot(&args.root)?;
+        println!("{}", serde_json::to_string_pretty(&snapshot)?);
+    } else if args.no_tui
+        || !std::io::stdout().is_terminal()
+        || !std::io::stdin().is_terminal()
+    {
+        let snapshot = snapshot::build_plan_status_snapshot(&args.root)?;
+        print_summary(&snapshot);
+    } else {
+        loop {
+            let snapshot = snapshot::build_plan_status_snapshot(&args.root)?;
+            let state = PlanDashboardState::new(to_tui_snapshot(&snapshot));
+            let state = run_surface::run_surface(state)?;
+            if !state.rescan_requested {
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn print_summary(snapshot: &snapshot::PlanStatusSnapshot) {
+    println!("APS Work Dashboard");
+    println!("Modules: {}", snapshot.modules.len());
+    println!(
+        "Open work items: {}",
+        snapshot
+            .work_items
+            .iter()
+            .filter(|item| !snapshot::is_done_status(&item.status))
+            .count()
+    );
+    println!("Warnings: {}", snapshot.warnings.len());
+    println!();
+
+    for module in &snapshot.modules {
+        let progress = match (module.done, module.total) {
+            (Some(done), Some(total)) => format!("{done}/{total}"),
+            _ => "-".to_string(),
+        };
+        let warning_marker = if snapshot
+            .warnings
+            .iter()
+            .any(|warning| warning.module.as_deref() == Some(module.scope.as_str()))
+        {
+            " !"
+        } else {
+            ""
+        };
+        println!(
+            "{:<10} {:<8} {}{}",
+            module.scope, progress, module.status, warning_marker
+        );
+    }
+}
+
+fn to_tui_snapshot(snapshot: &snapshot::PlanStatusSnapshot) -> PlanDashboardSnapshot {
+    PlanDashboardSnapshot {
+        modules: snapshot
+            .modules
+            .iter()
+            .map(|module| PlanModuleRow {
+                scope: module.scope.clone(),
+                progress: match (module.done, module.total) {
+                    (Some(done), Some(total)) => format!("{done}/{total}"),
+                    _ => "-".to_string(),
+                },
+                status: module.status.clone(),
+                note: module.notes.clone().unwrap_or_else(|| module.title.clone()),
+                has_warning: snapshot
+                    .warnings
+                    .iter()
+                    .any(|warning| warning.module.as_deref() == Some(module.scope.as_str())),
+            })
+            .collect(),
+        work_items: snapshot
+            .work_items
+            .iter()
+            .filter(|item| !snapshot::is_done_status(&item.status))
+            .map(|item| PlanWorkItemRow {
+                id: item.id.clone(),
+                title: item.title.clone(),
+                module: item.module.clone(),
+                status: item.status.clone(),
+                validation: item.validation.clone(),
+            })
+            .collect(),
+        warnings: snapshot
+            .warnings
+            .iter()
+            .map(|warning| PlanWarningRow {
+                target: warning
+                    .work_item
+                    .clone()
+                    .or_else(|| warning.module.clone())
+                    .unwrap_or_else(|| "plans".to_string()),
+                module: warning.module.clone(),
+                message: warning.message.clone(),
+            })
+            .collect(),
+        branch: git_output(&snapshot.repo_root, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .filter(|branch| branch != "HEAD"),
+        sha: git_output(&snapshot.repo_root, &["rev-parse", "--short", "HEAD"]),
+    }
+}
+
+fn git_output(repo_root: &Path, args: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    (!value.is_empty()).then_some(value)
+}

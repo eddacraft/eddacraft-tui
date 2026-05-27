@@ -1,0 +1,107 @@
+// Minimal standalone TUI runner for a `Surface`.
+//
+// Rename to `run_surface.rs` in the adopting repo (drop the `.template`).
+//
+// Extracted and reduced from Anvil's `crates/anvil-cli/src/tui.rs`. Anvil's
+// version carries watch/tutorial/animation loops and an RAII terminal guard
+// with a panic-restore hook; this keeps only the generic surface loop the
+// dashboard needs. If you want the panic-restore hook (recommended — a panic
+// mid-loop otherwise leaves the terminal in raw mode), port `install_panic_hook`
+// + `TerminalGuard` from the Anvil source.
+//
+// Chrome is rendered through eddacraft-tui's public `render_shell`. Set BRAND /
+// BRANDING to taste; `ShellBranding::Plain` keeps it un-branded.
+
+use std::io;
+use std::time::Duration;
+
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyEventKind};
+use crossterm::execute;
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use eddacraft_tui::keyboard::KeyHandler;
+use eddacraft_tui::shell::{ShellBranding, render_shell};
+use eddacraft_tui::surface::Surface;
+use eddacraft_tui::theme::EddaCraftTheme;
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+
+const BRAND: &str = "aps";
+const BRANDING: ShellBranding = ShellBranding::Plain;
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Enter the alternate screen, run the surface to completion, restore the
+/// terminal, and return the final state so the caller can inspect it (e.g. the
+/// dashboard's `rescan_requested` re-loop flag).
+pub fn run_surface<S: Surface>(mut state: S) -> Result<S> {
+    terminal::enable_raw_mode()?;
+    // Raw mode is now on, so every early return below must restore the terminal
+    // — a bare `?` here would leave the user's shell in raw mode / alt-screen.
+    // (Anvil's full version uses an RAII `TerminalGuard` for this; see the
+    // README "three seams" note if you want to port it.)
+    if let Err(e) = execute!(io::stdout(), EnterAlternateScreen) {
+        let _ = terminal::disable_raw_mode();
+        return Err(e.into());
+    }
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = match Terminal::new(backend) {
+        Ok(terminal) => terminal,
+        Err(e) => {
+            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = terminal::disable_raw_mode();
+            return Err(e.into());
+        }
+    };
+    let theme = EddaCraftTheme;
+
+    let result = surface_loop(&mut terminal, &mut state, &theme);
+
+    // Best-effort restore regardless of how the loop exited.
+    let _ = terminal::disable_raw_mode();
+    let _ = execute!(io::stdout(), LeaveAlternateScreen);
+
+    result.map(|()| state)
+}
+
+fn surface_loop<S: Surface>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut S,
+    theme: &EddaCraftTheme,
+) -> Result<()> {
+    // Render only when state changed; starts true so the first frame draws.
+    let mut dirty = true;
+
+    loop {
+        if dirty {
+            terminal.draw(|frame| {
+                let area = frame.area();
+                let content = render_shell(
+                    frame,
+                    area,
+                    BRANDING,
+                    BRAND,
+                    state.surface_name(),
+                    state.help_text(),
+                    theme,
+                    VERSION,
+                );
+                state.render(frame, content, theme);
+            })?;
+            dirty = false;
+        }
+
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    state.handle_key(KeyHandler::map(key));
+                    dirty = true;
+                    if state.should_quit() || state.should_back() {
+                        return Ok(());
+                    }
+                }
+                Event::Resize(_, _) => dirty = true,
+                _ => {}
+            }
+        }
+    }
+}

@@ -1,0 +1,35 @@
+# Standalone crate manifest for the APS dashboard starter kit.
+#
+# Rename to `Cargo.toml` in the adopting repo. Versions below match what
+# `eddacraft-tui` 0.2.x is built against — keep ratatui/crossterm in lockstep
+# with the eddacraft-tui release you pin, or the `Surface`/`render_shell` types
+# won't line up.
+
+[package]
+name = "aps-dashboard"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Read-only terminal dashboard for canonical APS plan state"
+# Intended published licence — NOT yet in force. The source copied into this kit
+# is currently LicenseRef-Proprietary; Apache-2.0 applies only once ADR-055 is
+# Accepted with legal sign-off and the pre-publication scrub is done (APSDASH-003).
+license = "Apache-2.0"
+
+[[bin]]
+name = "aps-dashboard"
+path = "src/main.rs"
+
+[dependencies]
+# The public widget + shell + Surface substrate. Source-visible mirror:
+# https://github.com/eddacraft/eddacraft-tui — published to crates.io.
+eddacraft-tui = "0.2"
+ratatui = "0.30"
+crossterm = "0.29"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[dev-dependencies]
+# Used by the copied `snapshot.rs` builder tests (temp `plans/` fixtures).
+tempfile = "3"
