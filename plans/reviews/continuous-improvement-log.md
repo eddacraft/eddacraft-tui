@@ -987,3 +987,32 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** For review-remediation tasks, query both `gh pr view` and the
   REST `mergeable_state` before concluding there is no work to do.
 - **Follow-up:** none
+
+### 2026-05-27 — claude
+
+- **Task:** Goal "close out TUIR by completing TUIR-008" — the E2E verification +
+  TUIMIRROR retirement item.
+- **Outcome:** Did the reversible, in-scope half: closed the three outstanding
+  Ready Checklist items (cutover/history-rewrite runbook section +
+  `pre-canonical-archive` preservation, two-layer migration rollback, `deny.toml`
+  review) on `docs/tuir-008-cutover-readiness`. Stopped at the operator gate —
+  TUIR-008's body is an irreversible E2E cut (live `v0.2.3` publish, mirror
+  force-push, token revocation, private-repo consumer check). Progress stays 7/8;
+  no premature status flip or TUIMIRROR archive.
+- **Worked:** Reading the live mirror state (read-only `gh api`) before writing the
+  cutover runbook caught a real gap — the content force-push already ran
+  (2026-05-25) without D-TUIR-010's `pre-canonical-archive` being created first
+  (`compare/v0.2.2...main` → 404 "No common ancestor"). The runbook now documents
+  a retroactive corrective step.
+- **Failed:** First `docs:check` run failed `asbuilt-paths` — bare workflow
+  filenames (`mirror-eddacraft-tui.yml`) in new prose are treated as source-path
+  references; the checker only resolves the full `.github/workflows/...` form.
+- **Friction:** A "complete item" goal that is fundamentally operator-gated +
+  irreversible can't be satisfied autonomously; the honest deliverable is "make it
+  Ready + executable + de-risked, then hand off the cut."
+- **Improvement:** When a docs PR names a workflow/source file in prose, use the
+  repo-relative path form so `asbuilt-paths` resolves it; bare basenames error.
+- **Follow-up:** Operator must (1) create `pre-canonical-archive` from the
+  recoverable pre-cutover tip, (2) cut `eddacraft-tui-v0.2.3`, (3) revoke the
+  legacy `CARGO_REGISTRY_TOKEN`, (4) run the `eddacraft-skills` consumer check,
+  then the post-cut close-out (TUIR-008 → Merged, TUIMIRROR archive, index 8/8).

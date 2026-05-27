@@ -7,13 +7,22 @@
 | ---- | ---------- | ----------- | -------- |
 | TUIR | joshuaboys | In Progress | 7/8      |
 
-**Last reviewed:** 2026-05-25 — TUIR-005 publish workflow + release
-runbook land via PR #1919; module progress ticks 6/8 → 7/8. The
-`mirror-eddacraft-tui.yml` workflow (TUIR-004) is migrated to the
-new `eddacraft-mirror-bot` GitHub App in the same PR so both adjacent
-mirror auth paths converge on the org-owned credential. Status flip
-lands in the initial PR commit (no deferred-flip pattern, learned
-from PR #1894 → #1900 reconcile).
+**Last reviewed:** 2026-05-27 — TUIR-008 Ready Checklist closed out
+(docs-only): the three outstanding prep items (cutover/history-rewrite
+runbook section + `pre-canonical-archive` preservation, two-layer
+migration rollback, `deny.toml` review) are now documented in
+`docs/runbooks/eddacraft-tui-release.md`. Progress stays **7/8** —
+TUIR-008's body is the operator-driven E2E cut (live `eddacraft-tui-v0.2.3`
+publish, mirror tag propagation, legacy token revocation, downstream
+consumer check against the private `eddacraft/eddacraft-skills`), which
+is irreversible/outward-facing and is **not** done by this PR. Drafting
+the cutover section surfaced a live gap: the content force-push already
+ran (2026-05-25) without the D-TUIR-010 archive — see the checklist note
+and the runbook's corrective step. Earlier: 2026-05-25 — TUIR-005
+publish workflow + release runbook landed via PR #1919 (6/8 → 7/8); the
+`mirror-eddacraft-tui.yml` workflow (TUIR-004) migrated to the
+`eddacraft-mirror-bot` GitHub App so both adjacent mirror auth paths
+converge on the org-owned credential.
 
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
@@ -948,10 +957,24 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       `eddacraft/eddacraft-tui` repo secrets, set 2026-04-10) is the
       one slated for revocation in TUIR-008 after the first
       successful publish from canonical source.
-- [ ] History-rewrite acknowledged: cutover force-push to
+- [x] History-rewrite acknowledged: cutover force-push to
       `eddacraft/eddacraft-tui:main` is one-shot and irreversible;
       `pre-canonical-archive` preservation step (D-TUIR-010) drafted
-      in the TUIR-008 runbook before cutover.
+      in the TUIR-008 runbook before cutover. ✓ Drafted in
+      `docs/runbooks/eddacraft-tui-release.md` → "First cutover
+      (one-shot, TUIR-008)". ⚠️ **Live-state caveat surfaced while
+      drafting:** the content force-push already ran (mirror `main`
+      HEAD is the banner-swap commit, 2026-05-25;
+      `compare/v0.2.2...main` → 404 "No common ancestor", confirming a
+      disconnected subtree-split root) **without** the D-TUIR-010
+      archive being created first — `pre-canonical-archive` is still
+      404 on the mirror. The pre-cutover graph survives only via the
+      preserved `v0.x.y` tags (`v0.2.2` → `5078007b`) and the leftover
+      `fix/relocate-acknowledgements-subtree` branch. The runbook now
+      carries a corrective step to create `pre-canonical-archive`
+      retroactively from the recoverable pre-cutover tip **before**
+      cutting `eddacraft-tui-v0.2.3`. This remains an operator action
+      (mutates the public mirror).
 - [x] Existing public tag policy confirmed (D-TUIR-011) — old
       unprefixed `v0.x.y` tags remain on mirror untouched, new tags
       use `eddacraft-tui-v*` prefix. ✓ Tags + SHAs captured in baseline.
@@ -993,9 +1016,22 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       also exits 1, so the count-only form looks like success on
       stdout while failing the exit-status check; use `grep -Fq` for
       script use.
-- [ ] `deny.toml` reviewed for any rules that would unexpectedly fail
-      against `eddacraft-tui`'s dependency graph.
-- [ ] Rollback path documented at two layers:
+- [x] `deny.toml` reviewed for any rules that would unexpectedly fail
+      against `eddacraft-tui`'s dependency graph. ✓ Reviewed 2026-05-27.
+      `cargo deny check` is clean — `advisories ok, bans ok, licenses
+      ok, sources ok`. The crate's transitive tree (ratatui / crossterm
+      / `image` + `big-text` + `test-utils` feature deps) is fully
+      covered by the broad-permissive `[licenses].allow` list
+      (MIT / Apache-2.0 / BSD-2/3 / ISC / Unicode-3.0 / Zlib / MPL-2.0,
+      etc., generated from `licences.toml`); `[bans].wildcards = "deny"`
+      does not bite (crates.io forbids wildcard deps on published
+      crates); `[sources]` allows only the crates.io registry and the
+      crate carries no git deps (D-TUIR-014 guard). The only warnings
+      are the expected `multiple-versions = "warn"` duplicate (windows
+      sys crates) and an unrelated `unnecessary-skip` on
+      `workspace-hack` — neither is an error and neither is
+      `eddacraft-tui`-specific.
+- [x] Rollback path documented at two layers:
       (a) **dependency rollback** — how to revert
       `crates/anvil-tui/Cargo.toml` to the crates.io dep without
       losing in-flight Anvil work;
@@ -1003,7 +1039,12 @@ emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
       repo, revert Anvil consumers to `eddacraft-tui = "0.2.2"`,
       resume standalone publishing, document that public mirror
       history rewrite is not reversible (forensics via
-      `pre-canonical-archive`).
+      `pre-canonical-archive`). ✓ Documented in
+      `docs/runbooks/eddacraft-tui-release.md` → "Migration rollback
+      (two layers)", with the hakari-ordering constraint (Layer a),
+      the do-not-revoke-the-legacy-token-while-rollback-is-live caveat
+      (Layer b), and the irreversibility note on the `main` history
+      rewrite.
 - [x] `docs/policies/eddacraft-tui-mirror.md` draft reviewed before
       TUIR-007 implementation begins. ✓ Landed via TUIR-007 (PR #1886) —
       policy doc carries the Backport / Conflict Policy section

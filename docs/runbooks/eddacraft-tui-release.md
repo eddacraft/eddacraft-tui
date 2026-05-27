@@ -157,6 +157,91 @@ gh api repos/eddacraft/eddacraft-tui/branches/main/protection \
 Expected: `true`. If the API still shows `false` after a UI save, the save
 didn't take.
 
+## First cutover (one-shot, TUIR-008)
+
+This section is the **one-time** migration cutover. It is distinct from the
+recurring "Cut procedure" below and runs exactly once, when canonical source
+first takes over the public mirror. Re-read it only for audit or rollback.
+
+### What "cutover" means here
+
+The mirror workflow (`.github/workflows/mirror-eddacraft-tui.yml`) force-pushes
+the `crates/eddacraft-tui/` subtree-split onto `eddacraft/eddacraft-tui:main`.
+The **first** such push replaces the public repo's entire pre-existing `main`
+history with a fresh, disconnected subtree-split root. This is **irreversible
+and one-shot** (Risk: "Cutover force-push destroys existing public history") and
+is distinct from the ongoing per-change history rewrites (D-TUIR-020), which are
+expected and continuous.
+
+### Required preservation BEFORE the first force-push (D-TUIR-010)
+
+Before the first canonical force-push, the pre-cutover public `main` tip MUST be
+captured as a durable, never-updated archive branch `pre-canonical-archive`:
+
+```bash
+# Capture the CURRENT (pre-cutover) mirror main SHA, then archive it.
+PRE=$(gh api repos/eddacraft/eddacraft-tui/git/refs/heads/main --jq .object.sha)
+gh api -X POST repos/eddacraft/eddacraft-tui/git/refs \
+  -f ref='refs/heads/pre-canonical-archive' \
+  -f "sha=$PRE"
+gh api repos/eddacraft/eddacraft-tui/branches/pre-canonical-archive --jq .name
+# Expected: pre-canonical-archive
+unset PRE
+```
+
+The old unprefixed `v0.x.y` tags are left untouched (D-TUIR-011) and keep
+pointing at pre-cutover commits, so already-published `0.x.y` artifacts retain
+their source.
+
+### Current-state reconciliation (read before cutting v0.2.3)
+
+⚠️ The **content** force-push has already run during TUIR-004 / TUIR-005
+validation — mirror `main` HEAD is the banner-swap commit
+`chore(mirror): prepend public README header` (2026-05-25) — and
+`pre-canonical-archive` was **not** created beforehand. The D-TUIR-010
+preservation step above was therefore skipped on the content cutover. Confirm
+the current state before proceeding:
+
+```bash
+# main now has a disconnected subtree-split root: no common ancestor with the
+# pre-cutover release tags, which confirms the content cutover already ran.
+gh api repos/eddacraft/eddacraft-tui/compare/v0.2.2...main --jq .status
+#   → 404 "No common ancestor between v0.2.2 and main" (expected post-cutover)
+
+# pre-canonical-archive is still missing — this is the gap to close:
+gh api repos/eddacraft/eddacraft-tui/branches/pre-canonical-archive --jq .name
+#   → 404 "Branch not found"
+```
+
+**Corrective step (do this before cutting v0.2.3).** Create the archive branch
+retroactively from the most complete recoverable pre-cutover commit. The last
+pre-cutover release tag `v0.2.2` (`5078007b961bcb648ac0d5a190af94d797e01daf`) is
+the durable anchor; if the pre-cutover `main` advanced past `v0.2.2`, a fuller
+tip may be recoverable from the leftover `fix/relocate-acknowledgements-subtree`
+branch's ancestry, the publishing host's reflog, or a standalone clone. Prefer
+the fullest recoverable tip; fall back to the tag:
+
+```bash
+gh api -X POST repos/eddacraft/eddacraft-tui/git/refs \
+  -f ref='refs/heads/pre-canonical-archive' \
+  -f sha='5078007b961bcb648ac0d5a190af94d797e01daf'
+```
+
+Record the chosen SHA on the TUIR-008 PR. TUIR-008's validation
+(`gh api …/branches/pre-canonical-archive --jq .name` → `pre-canonical-archive`)
+passes once this branch exists.
+
+### Then cut the first publish
+
+Once `pre-canonical-archive` exists and the `v0.x.y` tags are confirmed intact,
+proceed to "Cut procedure" to cut `eddacraft-tui-v0.2.3` — the first publish
+from canonical source. After the first successful publish, revoke the legacy
+`CARGO_REGISTRY_TOKEN` on `eddacraft/eddacraft-tui` (see Token rotation →
+"Retiring the legacy" notes) and confirm the public repo presents as read-only:
+the MIRROR-README banner and the PR-redirect workflow (both from TUIR-007)
+provide the "read-only with a notice" posture; no human-writable path should
+remain other than the mirror bot's force-push.
+
 ## Cut procedure
 
 ### 1. Version-bump PR
@@ -300,6 +385,59 @@ cargo yank --version X.Y.Z --undo eddacraft-tui
 
 The mirror tag and the GitHub Release stay in place after yank — they are
 append-only by policy (D-TUIR-009 / D-TUIR-011).
+
+## Migration rollback (two layers)
+
+The "Rollback" section above covers a single failed publish. This section covers
+backing out the **canonical-source migration itself** if the model proves
+unworkable. Two layers, smallest blast radius first.
+
+### Layer (a): dependency rollback — revert Anvil consumers only
+
+Use when Anvil-side consumption of the path crate is the problem but the
+migration model is otherwise sound. Reverts Anvil consumers to the crates.io
+release without losing in-flight crate work:
+
+1. In the workspace dep table (root `Cargo.toml`), repoint `eddacraft-tui` from
+   the `path = "crates/eddacraft-tui"` form back to the published version
+   requirement: `eddacraft-tui = "0.2.2"` (or the latest published version).
+2. Drop any per-crate `path` overrides on first-party consumers
+   (`crates/anvil-tui`, `crates/anvil-cli`) so they inherit the workspace
+   crates.io dep.
+3. Regenerate workspace-hack: `cargo hakari generate` (the registry dep
+   re-enters hakari aggregation). Run this AFTER the dep edit — hakari ordering
+   is load-bearing (see TUIR-003): regenerating before the rewrite leaves the
+   split-resolution graph in place.
+4. Validate: `cargo tree -p eddacraft-anvil-tui -i eddacraft-tui` shows the
+   registry crate; `cargo hakari verify`; `cargo test --workspace`.
+
+The canonical source at `crates/eddacraft-tui/` stays in place — this only
+changes how Anvil _consumes_ it. In-flight crate edits remain in the workspace
+tree and can be published later.
+
+### Layer (b): full-migration rollback — abandon canonical source
+
+Use only if the canonical-source + mirror model must be abandoned wholesale.
+
+1. Apply Layer (a) to revert consumers to `eddacraft-tui = "0.2.2"`.
+2. Un-freeze `eddacraft/eddacraft-tui` as the canonical standalone source again:
+   re-enable human PRs (remove/relax the PR-redirect workflow and the branch
+   protection that allow only the mirror bot to push), and restore the
+   standalone README (drop the prepended mirror banner).
+3. Resume standalone publishing from `eddacraft/eddacraft-tui` — re-instate the
+   repo's own `CARGO_REGISTRY_TOKEN`. **Do NOT revoke the legacy
+   `CARGO_REGISTRY_TOKEN` while rollback is still a live option** (TUIR-008
+   schedules its revocation only after the first publish from canonical source
+   commits to the new model).
+4. Stand down the Anvil-side `.github/workflows/mirror-eddacraft-tui.yml` and
+   `.github/workflows/publish-eddacraft-tui.yml` workflows — disable them, do
+   not delete, for audit.
+
+**Irreversibility caveat.** The public mirror's `main` history rewrite is
+**not** reversible — the pre-cutover graph cannot be restored as `main`.
+Forensics and re-basing of any standalone work rely on `pre-canonical-archive`
+(D-TUIR-010) and the preserved `v0.x.y` tags (D-TUIR-011). This is exactly why
+the preservation step is a hard precondition of cutover, not an afterthought.
 
 ## Token rotation
 
