@@ -194,9 +194,9 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   round-trip with json-render's JSON output. Schema validation rejects unknown
   component types against a registered catalogue.
 - **Files:**
-  - `crates/anvil-tui-render/src/lib.rs`
-  - `crates/anvil-tui-render/src/spec.rs`
-  - `crates/anvil-tui-render/Cargo.toml`
+  - `crates/eddacraft-tui/src/json_render/mod.rs`
+  - `crates/eddacraft-tui/src/json_render/spec.rs`
+  - `crates/eddacraft-tui/Cargo.toml` (`json-render` feature)
 - **Validation:** Once a sample dashboard-templates directory exists (target
   path under `apps/website/data/dashboard-templates/`, owned by DASHAI),
   parse the sample JSON specs and verify round-trip fidelity
@@ -214,8 +214,8 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   Registry supports dynamic component lookup by name. Components receive props
   as `serde_json::Value` and render into a `Frame` area.
 - **Files:**
-  - `crates/anvil-tui-render/src/registry.rs`
-  - `crates/anvil-tui-render/src/component.rs`
+  - `crates/eddacraft-tui/src/json_render/registry.rs`
+  - `crates/eddacraft-tui/src/json_render/component.rs`
 - **Validation:** Register a mock component, look it up by name, call render
   without panic
 - **Confidence:** high
@@ -231,7 +231,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   full component tree into a Ratatui `Frame`. Handles missing components
   gracefully (placeholder widget). Handles circular references (depth limit).
 - **Files:**
-  - `crates/anvil-tui-render/src/renderer.rs`
+  - `crates/eddacraft-tui/src/json_render/renderer.rs`
 - **Validation:** Render a multi-level spec (Container > GridLayout > MetricCard
   x3) and verify all components appear in the frame
 - **Confidence:** high
@@ -252,9 +252,9 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   - `Section` → `Container` (bordered) with title `Span`
   - `TabGroup` → Tab bar with keyboard switching (1-9 keys)
 - **Files:**
-  - `crates/anvil-tui-render/src/components/grid_layout.rs`
-  - `crates/anvil-tui-render/src/components/section.rs`
-  - `crates/anvil-tui-render/src/components/tab_group.rs`
+  - `crates/eddacraft-tui/src/json_render/components/grid_layout.rs`
+  - `crates/eddacraft-tui/src/json_render/components/section.rs`
+  - `crates/eddacraft-tui/src/json_render/components/tab_group.rs`
 - **Validation:** GridLayout with 3 children renders as 3 columns; Section shows
   bordered title; TabGroup switches between children
 - **Confidence:** high
@@ -271,10 +271,10 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   - `StatusBadge` → `StatusBadge` (direct 1:1 from eddacraft-tui)
   - `CodeBlock` → `Paragraph` with `Style` spans (no syntax highlighting)
 - **Files:**
-  - `crates/anvil-tui-render/src/components/metric_card.rs`
-  - `crates/anvil-tui-render/src/components/data_table.rs`
-  - `crates/anvil-tui-render/src/components/status_badge.rs`
-  - `crates/anvil-tui-render/src/components/code_block.rs`
+  - `crates/eddacraft-tui/src/json_render/components/metric_card.rs`
+  - `crates/eddacraft-tui/src/json_render/components/data_table.rs`
+  - `crates/eddacraft-tui/src/json_render/components/status_badge.rs`
+  - `crates/eddacraft-tui/src/json_render/components/code_block.rs`
 - **Validation:** Each component renders with representative props; DataTable
   handles 100+ rows with scrolling
 - **Confidence:** high
@@ -291,9 +291,9 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   - `SparklineChart` → Ratatui `Sparkline` (inline, no axes)
   - `HeatMap` → Placeholder (not renderable in terminal)
 - **Files:**
-  - `crates/anvil-tui-render/src/components/line_chart.rs`
-  - `crates/anvil-tui-render/src/components/bar_chart.rs`
-  - `crates/anvil-tui-render/src/components/sparkline_chart.rs`
+  - `crates/eddacraft-tui/src/json_render/components/line_chart.rs`
+  - `crates/eddacraft-tui/src/json_render/components/bar_chart.rs`
+  - `crates/eddacraft-tui/src/json_render/components/sparkline_chart.rs`
 - **Validation:** LineChart renders 30-point time series; BarChart renders 10
   categories; SparklineChart fits within a MetricCard
 - **Confidence:** medium (Ratatui charts are less capable than Recharts)
@@ -313,12 +313,12 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   - `SuppressionRequest` → Container with status + justification + approver
   - `EvidenceEntry` → Single-line log-style entry with timestamp + actor
 - **Files:**
-  - `crates/anvil-tui-render/src/components/gate_result.rs`
-  - `crates/anvil-tui-render/src/components/warning_list.rs`
-  - `crates/anvil-tui-render/src/components/drift_indicator.rs`
-  - `crates/anvil-tui-render/src/components/plan_card.rs`
-  - `crates/anvil-tui-render/src/components/suppression.rs`
-  - `crates/anvil-tui-render/src/components/evidence_entry.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/gate_result.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/warning_list.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/drift_indicator.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/plan_card.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/suppression.rs`
+  - `crates/anvil-tui/src/dashboard_catalog/evidence_entry.rs`
 - **Validation:** Each component renders with fixture data from
   `packages/edda-stack/src/testing/fixtures/` (or a Rust-side fixture
   module if/when edda-stack TS contracts are retired)
@@ -340,8 +340,8 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   nested JSON. Missing paths resolve to `null` (rendered as em dash). Context is
   loaded from `.anvil/` storage at surface startup and refreshable.
 - **Files:**
-  - `crates/anvil-tui-render/src/binding.rs`
-  - `crates/anvil-tui-render/src/context.rs`
+  - `crates/eddacraft-tui/src/json_render/binding.rs` (generic path resolution)
+  - `crates/anvil-tui/src/dashboard_context.rs` (`.anvil/` data context)
 - **Validation:** Bind a MetricCard's `value` prop to a data path; verify it
   renders the resolved value; verify missing paths show `—`
 - **Confidence:** high
@@ -376,8 +376,8 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   TypeScript catalogue. Warns on missing mappings (components available on web
   but not TUI). Documents which components degrade to placeholders.
 - **Files:**
-  - `crates/anvil-tui-render/src/catalog_sync.rs`
-  - `crates/anvil-tui-render/tests/catalog_parity.rs`
+  - `crates/eddacraft-tui/src/json_render/catalog_sync.rs`
+  - `crates/eddacraft-tui/tests/catalog_parity.rs`
 - **Validation:** Adding a new component to the TS catalogue without a Rust
   mapping triggers a CI warning
 - **Confidence:** medium (depends on DASHAI-002 exporting JSON Schema)
@@ -397,7 +397,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   terminals. DataTables hide columns progressively. Tested at 80x24, 120x40,
   and 200x60.
 - **Files:**
-  - `crates/anvil-tui-render/src/responsive.rs`
+  - `crates/eddacraft-tui/src/json_render/responsive.rs`
 - **Validation:** Same spec renders usably at 80x24 and richly at 200x60
 - **Confidence:** medium
 - **Priority:** Medium

@@ -17,10 +17,11 @@ uses (`@json-render/core` v0.19, via the web-side `@eddacraft/render` package at
 `packages/libs/render/`), and render it in the terminal. The value proposition
 is write-once / render-anywhere — one spec, web and TUI surfaces.
 
-No such Rust interpreter exists yet (a recurring misconception this session was
-that it already shipped in `eddacraft-tui`; verified it does not — `eddacraft-tui`
-is `0.2.2` with modules animation/compat/keyboard/pretext/shell/surface/theme/
-widgets and no spec interpreter). So we get to choose where to build it.
+No such Rust interpreter exists yet — as of this ADR, `eddacraft-tui` is `0.2.2`
+with modules animation/compat/keyboard/pretext/shell/surface/theme/widgets and no
+spec interpreter, and no other Rust crate provides one. (It is easy to assume the
+TUI port shipped alongside the pretext work; it did not.) So we get to choose
+where to build it.
 
 The original TUIDASH plan put the whole interpreter in a new Anvil-owned crate,
 `crates/anvil-tui-render/`. But json-render is, by design, **generic
