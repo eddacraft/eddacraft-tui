@@ -815,11 +815,11 @@ a backlog. Promote repeated friction or executable follow-up work to
   count-only) as a small Ready win, or a `plan-create` pass resolving Gates 1–4
   for the full restructure. Do not implement while AMEND stands.
 
-### 2026-05-26 — claude
+### 2026-05-27 — claude
 
 - **Task:** Ship DISTRIB-005 (`anvil migrate schema`) + INSIGHTS-002
   (`anvil insights --suppressions`) via /dev-workflow, queued during a GitHub
-  Actions outage.
+  Actions outage (work spanned 2026-05-26 → 27; merged 05-27).
 - **Outcome:** PRs #1984 + #1996 merged (DISTRIB 5/5; INSIGHTS 2/4). Both
   truth-validated first: DISTRIB-005's `migrate.rs` already existed (MLP2-040 →
   subcommand split); INSIGHTS-002 had no suppression log (live antipattern scan

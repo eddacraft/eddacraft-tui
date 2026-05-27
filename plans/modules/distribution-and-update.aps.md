@@ -1,6 +1,6 @@
 # Distribution and Self-Update
 
-<!-- Executable only if tasks exist and status is Ready. -->
+<!-- Executable only if tasks exist and status is Ready or In Progress. -->
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
