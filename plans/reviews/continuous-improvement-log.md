@@ -777,3 +777,27 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** /addressing-pr-reviews after CI on #1994. Deferred council
   items (not blockers): stream `git log -p` instead of buffering (OOM on huge
   histories), thread a `git_error` field to the caller. Cleanup worktree.
+
+### 2026-05-27 — claude
+
+- **Task:** Promote CIB-025 (generate index rows) toward Ready via a planning
+  council, citing the prior session's 4 serialized rebases as evidence.
+- **Outcome:** Council was unanimous **AMEND**, not proceed — CIB-025 → Proposed
+  (not Ready). Record at `plans/brainstorms/2026-05-27-cib-025-planning-council.md`;
+  item rewritten with corrected (same-module) framing, 4 design gates, and a
+  waved-migration constraint. No count change (Draft→Proposed).
+- **Worked:** Pre-seeding the adversarial lens with the same-module-vs-cross-
+  module suspicion paid off — all four lenses independently converged on it: the
+  proposed generate-from-modules mechanism only *moves* same-module contention
+  into the module file, and the original validation tested a case that already
+  passes. The council earned its keep by stopping a plausible-looking item from
+  going Ready with a strawman acceptance test.
+- **Failed:** Nothing — this was the council doing its job pre-execution.
+- **Friction:** none.
+- **Improvement:** When a backlog item's validation describes a *different*
+  scenario than the bug that motivated it (here: "different modules" vs the
+  observed same-module collisions), treat that mismatch as a direction-validate
+  red flag before promoting to Ready.
+- **Follow-up:** Operator to choose: split shape 1 (drop index prose →
+  count-only) as a small Ready win, or a `plan-create` pass resolving Gates 1–4
+  for the full restructure. Do not implement while AMEND stands.
