@@ -1026,3 +1026,26 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** (1) Spec's `Files`/`Validation` were written against a pre-existing architecture assumption (`ScanResults` in `anvil-checks/types.rs`) that was never true — cost a round of investigation. (2) `eddacraft-anvil` is a bin-only crate, so `cargo test --lib` fails with "no library targets"; unit tests need `--bins`.
 - **Improvement:** For any scan/check feature, verify `standard_filters` (gitignore on/off) per call site before trusting a spec's claim about which result type a field belongs on.
 - **Follow-up:** SecretCheckResult provenance for gate/audit is intentionally out of scope (those scan with `standard_filters(false)`); no follow-up needed unless a future surface opts into gitignore.
+- **Task:** Land the remaining DOCGOV-009 metadata backfill (from stale branch
+  `docs/docgov-009-metadata-backfill`) as DOCGOV-011 wave 1.
+- **Outcome:** 26 internal docs backfilled with the rubric metadata table;
+  docs-check metadata baseline shrank 140 → 93; DOCGOV-011 opened (In Progress)
+  and DOCGOV-009 given a batch-1 scope note. All deterministic gates green.
+- **Worked:** Patch-id (`git cherry`) plus a per-file metadata-marker scan
+  disambiguated "already on main" from "owed" across two metadata formats (YAML
+  frontmatter for `docs/public/**` vs the governance table for internal docs).
+  Lifting additions-only docs from the stale branch and hand-inserting the block
+  into the 2 main-drifted docs avoided a messy 9-commit rebase.
+- **Failed:** The initial wave of 50 included As-built/Runbook docs; adding the
+  metadata table classifies them for strict asbuilt-paths validation, surfacing
+  265 pre-existing unresolved backtick body references — almost certainly why
+  the original branch stalled and never merged.
+- **Friction:** Fresh worktree needed `pnpm install` before docs-meta could
+  build; `aps:active-lint` can't run locally (`aps` binary not on PATH);
+  `docs:check:update-baseline` regenerates the whole metadata bucket (it also
+  cleaned 21 stale entries beyond this wave).
+- **Improvement:** The DOCGOV-009 rubric should state that As-built/Runbook
+  backfill must fix body source-references in the same pass, since the metadata
+  table opts the doc into asbuilt-paths validation.
+- **Follow-up:** Deferred As-built/Runbook backfill (24 docs, 265 asbuilt-paths
+  references) is the next DOCGOV-011 wave.
