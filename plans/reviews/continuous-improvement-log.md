@@ -781,7 +781,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 ### 2026-05-27 — claude
 
 - **Task:** Promote CIB-025 (generate index rows) toward Ready via a planning
-  council, citing the prior session's 4 serialized rebases as evidence.
+  council, citing the prior session's 4 serialised rebases as evidence.
 - **Outcome:** Council was unanimous **AMEND**, not proceed — CIB-025 → Proposed
   (not Ready). Record at `plans/brainstorms/2026-05-27-cib-025-planning-council.md`;
   item rewritten with corrected (same-module) framing, 4 design gates, and a

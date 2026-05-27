@@ -448,7 +448,7 @@ archive.
   line. CIB-022 made the count *derived* + CI-enforced but left it a hand-edited,
   textually-conflicting cell. **The observed contention is _same-module_** — four
   CIB items (CIB-017/-018/-019/-024) plus the #1995 triage all collided on the
-  one `| CIB | … | N/M |` token on 2026-05-26, forcing four fully serialized
+  one `| CIB | … | N/M |` token on 2026-05-26, forcing four fully serialised
   rebase-merges. This is the deferred CIB-022 "option B", re-surfaced by real
   multi-PR contention.
 - **Planning council (2026-05-27, direction-validate):** unanimous **AMEND** —
@@ -496,7 +496,7 @@ archive.
   matches module sources; `aps:index:check` green; a fixture with `|` in a module
   title does not corrupt the table; an unparseable module fails the generator
   loudly.
-- **Identified From:** CIB-019/-024 session 2026-05-26 (4 serialized rebases);
+- **Identified From:** CIB-019/-024 session 2026-05-26 (4 serialised rebases);
   planning council 2026-05-27.
 - **Files:** `scripts/aps/index-counts.mjs`, `scripts/aps/lib/modules.mjs`,
   `scripts/docs/docs-index.mjs` (precedent), `plans/index.aps.md`. Required

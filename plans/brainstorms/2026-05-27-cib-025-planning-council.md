@@ -29,7 +29,7 @@ proposed mechanism is not Ready. Item advanced **Draft → Proposed**, not Ready
 
 ## The central flaw (convergent)
 
-The four serialized rebases on 2026-05-26 were **same-module** (four CIB items →
+The four serialised rebases on 2026-05-26 were **same-module** (four CIB items →
 the one CIB row). Generating the table from module files relocates that collision
 into the module file (its `Status:` lines + header count) — it does not eliminate
 it. CIB-025's original validation ("two PRs in *different* modules merge clean")
