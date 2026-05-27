@@ -951,4 +951,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Promote only observations with observable outcomes and
   validation paths; leave non-urgent process hygiene in CIB unless user-visible
   breakage needs issue triage.
+
+### 2026-05-27 — opencode
+
+- **Task:** Finish post-merge APS bookkeeping for MLP2-043 / PR #1992.
+- **Outcome:** Advanced the item to Merged and reconciled MLP2 progress count.
+- **Worked:** Preserving the handoff summary made the required next state obvious.
+- **Failed:** Initial post-merge handoff stopped before APS status was advanced.
+- **Friction:** Merge completion and APS lifecycle closeout are easy to split across
+  sessions when review remediation runs long.
+- **Improvement:** After confirming a PR is merged, immediately check the owning APS
+  item for `In Progress` before offering cleanup.
 - **Follow-up:** none

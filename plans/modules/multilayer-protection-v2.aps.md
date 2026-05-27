@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 69/86 |
+| MLP2 | @aneki | In Progress | 70/86 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -2523,7 +2523,9 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-043: Activation orchestrator writes `.github/workflows/anvil.yml`
 
-- **Status:** In Progress
+- **Status:** Merged via PR
+  [#1992](https://github.com/eddacraft/anvil-001/pull/1992) at
+  `defc77eeedb7f9ae9b5efdb620ca3a19e0b0c3e9` on 2026-05-27.
 - **Intent:** `anvil start` offers the template at
   `crates/anvil-cli/src/templates/anvil-workflow.yml` for installation
   into a target repo's `.github/workflows/anvil.yml` at adoption time
