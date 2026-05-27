@@ -2,7 +2,7 @@
 
 | Type    | Authority     | Owner | Status | Freshness                                        |
 | ------- | ------------- | ----- | ------ | ------------------------------------------------ |
-| Runbook | Authoritative | API   | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+| Runbook | Authoritative | API   | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
 | Upstream                     | Downstream                      |
 | ---------------------------- | ------------------------------- |

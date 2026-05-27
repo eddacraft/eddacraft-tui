@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner  | Status | Freshness                                        |
 | ----- | --------- | ------ | ------ | ------------------------------------------------ |
-| Guide | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+| Guide | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
 | Upstream         | Downstream                                    |
 | ---------------- | --------------------------------------------- |
