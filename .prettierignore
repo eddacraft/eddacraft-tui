@@ -39,6 +39,6 @@ tools/test-harness/editor-coexistence/fixtures/
 # frozen snapshot of plans/modules/tui-dashboard-render.aps.md and the two
 # HTML files are the comparison output of convert.mjs. Formatting them
 # would invalidate the comparison.
-experiments/html-vs-markdown-tokens/source.md
-experiments/html-vs-markdown-tokens/source.minimal.html
-experiments/html-vs-markdown-tokens/source.structured.html
+docs/archive/experiments/html-vs-markdown-tokens/source.md
+docs/archive/experiments/html-vs-markdown-tokens/source.minimal.html
+docs/archive/experiments/html-vs-markdown-tokens/source.structured.html
