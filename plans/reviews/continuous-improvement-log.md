@@ -865,3 +865,18 @@ a backlog. Promote repeated friction or executable follow-up work to
   surface (`commands/*.rs`) AND archived modules before designing a data source.
 - **Follow-up:** Operator to accept ADR-052; then implement the auto-snapshot
   write actor + a new INSIGHTS item, then INSIGHTS-003 on the populated series.
+
+### 2026-05-27 — opencode
+
+- **Task:** Triage stale automated APS reconciliation PR #1970.
+- **Outcome:** Closed the PR as stale/incomplete and confirmed no in-repo GitHub
+  Actions generator was present.
+- **Worked:** Checking mergeability, diff scope, current `origin/main`, and
+  automation references made the close-vs-fix call clear.
+- **Failed:** Nothing substantive.
+- **Friction:** External PR generators can create APS bookkeeping PRs that bypass
+  the repo's managed `aps:index` two-surface update path.
+- **Improvement:** Treat generated APS reconciliation PRs as suspect unless they
+  update both module headers and `plans/index.aps.md` via the managed script.
+- **Follow-up:** Disable or retire the external Codesmith/Claude Code job if it
+  still exists outside the repo.
