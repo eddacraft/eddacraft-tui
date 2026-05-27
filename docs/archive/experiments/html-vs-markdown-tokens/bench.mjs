@@ -4,7 +4,7 @@
 //
 // Usage:
 //   ANTHROPIC_API_KEY=sk-ant-... \
-//     node experiments/html-vs-markdown-tokens/bench.mjs [--model NAME] [--runs N]
+//     node docs/archive/experiments/html-vs-markdown-tokens/bench.mjs [--model NAME] [--runs N]
 //
 // Defaults: model=claude-sonnet-4-6, runs=1.
 //

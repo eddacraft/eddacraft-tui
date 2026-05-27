@@ -15,7 +15,7 @@ are committed so the bench compares fixed artifacts, not a live conversion.
 ## Regenerate HTML
 
 ```bash
-node experiments/html-vs-markdown-tokens/convert.mjs
+node docs/archive/experiments/html-vs-markdown-tokens/convert.mjs
 ```
 
 ## Run the bench
@@ -24,11 +24,11 @@ Needs `ANTHROPIC_API_KEY` exported. Defaults to `claude-sonnet-4-6`, one run.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... \
-  node experiments/html-vs-markdown-tokens/bench.mjs
+  node docs/archive/experiments/html-vs-markdown-tokens/bench.mjs
 
 # Average across runs, pick a different model:
 ANTHROPIC_API_KEY=sk-ant-... \
-  node experiments/html-vs-markdown-tokens/bench.mjs --runs 3 --model claude-haiku-4-5-20251001
+  node docs/archive/experiments/html-vs-markdown-tokens/bench.mjs --runs 3 --model claude-haiku-4-5-20251001
 ```
 
 Reports per variant:
