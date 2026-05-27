@@ -93,6 +93,7 @@ These define how Anvil behaves by default. All features must align.
 |-----|----------|--------|
 | [034](034-cross-cutting-modules-as-aps-primitive.md) | Promote cross-cutting modules to a first-class APS primitive in `aps-rules.md`; LAUNCH (first trial) and TRACE (second trial) cite the spec by anchor; `Blocks on:` callout type carried as provisional until exercised through a real close | Accepted |
 | [042](042-closeout-enforcement-exit-codes.md) | Closeout-enforcement checks (`adr:check`, `aps:drift`, future `docs:check`) are a named carve-out from ADR-002 — they exit non-zero on violation by design. ADR-002 continues to govern runtime warnings on user code. | Proposed |
+| [053](053-advisory-aps-index-counts.md) | Per-module APS index `N/M` counts are advisory-derived from per-item `Status:` lines, not PR-maintained; feature PRs never edit the count, a single-writer periodic reconcile refreshes it, and `aps:index:check` freshness is advisory (scoped exception to ADR-042). Post-merge regen bot recorded as the escalation. | Accepted |
 
 ## Agent Infrastructure
 

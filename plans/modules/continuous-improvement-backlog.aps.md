@@ -464,12 +464,16 @@ archive.
      option). A real restructure — blocked by Gates 2–4.
   3. **Per-module index fragments** concatenated by a generator.
 - **Design gates (must resolve before Ready):**
-  1. **Same-module mechanism.** Generating from module files only *moves* the
-     collision from the index row into the module file (two same-module PRs still
-     touch its `Status:` lines + header count). Name the mechanism that makes
-     same-module concurrent PRs conflict-free, or scope to cross-module only and
-     accept same-module as out of scope. The original validation tested the wrong
-     case (different modules — passes today).
+  1. **Same-module mechanism — RESOLVED 2026-05-27 by
+     [ADR-053](../decisions/053-advisory-aps-index-counts.md).** Generating from
+     module files only *moves* the collision from the index row into the module
+     file (two same-module PRs still touch the header count). Decision: feature
+     PRs **never edit the `N/M` count** (they flip only their own, distinct,
+     `Status:` line); the count is advisory-derived; `aps:index:check` freshness
+     becomes advisory (warn); a single-writer periodic reconcile (`npm run
+     aps:index`) refreshes it. Post-merge regen bot is the documented escalation
+     (ADR-053 Consequences). The original validation tested the wrong case
+     (different modules — passes today); corrected to same-module below.
   2. **Prose custody.** Index Progress cells carry curated narrative (PR SHAs,
      "added from session X", reparenting notes) with no structured home in module
      files (the MLP2 row alone is ~21 KB). Define where it lands, or decide to

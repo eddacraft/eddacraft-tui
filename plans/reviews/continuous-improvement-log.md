@@ -892,3 +892,27 @@ a backlog. Promote repeated friction or executable follow-up work to
   update both module headers and `plans/index.aps.md` via the managed script.
 - **Follow-up:** Disable or retire the external Codesmith/Claude Code job if it
   still exists outside the repo.
+
+### 2026-05-27 — claude
+
+- **Task:** Resolve CIB-025 Gate 1 (count-freshness mechanism) and record the
+  road-not-taken durably; operator chose advisory freshness (option 2).
+- **Outcome:** ADR-053 (Accepted) — per-module `N/M` counts are advisory-derived,
+  not PR-maintained: feature PRs never edit the count, a single-writer periodic
+  reconcile refreshes it, `aps:index:check` freshness goes advisory. The
+  post-merge regen bot (option 1) is recorded as the escalation in ADR-053
+  Consequences with an explicit revisit trigger. DECISION-LOG + CIB-025 Gate 1
+  point at it. `adr:check` green (54/54).
+- **Worked:** When the operator asked "where do we log option 1 as a future
+  solve, somewhere that won't get archived?" the answer was an existing surface,
+  not a new log — an ADR's *Alternatives Considered* + *Consequences* are exactly
+  that, and ADRs are never archived (superseded in place). Avoided inventing a
+  parallel "deferred-options log".
+- **Failed:** Nothing.
+- **Friction:** none.
+- **Improvement:** "Decision + rejected alternative + revisit trigger" almost
+  always belongs in an ADR, not a new bespoke log — check the ADR sections before
+  proposing a new tracking surface.
+- **Follow-up:** CIB-025 Gate 1 is now resolved; Gates 2–4 + the waved migration
+  remain before it can go Ready. Operator may promote a scoped wave-1 (advisory
+  count + stop-PR-edits) when ready.
