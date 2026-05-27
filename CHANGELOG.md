@@ -30,6 +30,8 @@ banner for the consumption contract.
   API change; the crate's `[lints]` block still treats `clippy::pedantic` as
   `warn` for downstream consumers building from crates.io.
 
+## [0.2.2] - 2026-05-08
+
 Hotfix for a release-build compile error introduced in 0.2.0.
 
 ### Fixed
