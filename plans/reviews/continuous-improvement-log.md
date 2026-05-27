@@ -963,3 +963,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** After confirming a PR is merged, immediately check the owning APS
   item for `In Progress` before offering cleanup.
 - **Follow-up:** none
+
+### 2026-05-27 — claude
+
+- **Task:** Librarian root-structure cleanup — relocate stray top-level dirs (`docs/plans`, `experiments`, gitignored `review/`) into archive trees; investigate moving `policies/fixtures`.
+- **Outcome:** Shipped 3 relocations (5 commits) on `docs/repo-structure-consolidation`; all gates green (format, docs:check 7/7, both index checks). Dropped the `policies/fixtures` move after evidence showed it is documented, load-bearing shared infra (16+ refs, two CI workflows, the change-classifier, a governed guide), not a misplaced orphan.
+- **Worked:** Routing relocations under `docs/**/archive/**` dodged the metadata gate and docs-index (both exclude archive). Tracing prod ref-counts before moving caught the `policies/fixtures` premise being wrong.
+- **Failed:** First Batch-D commit was rejected — lint-staged fed an archive-ignored `.yaml` to oxfmt, which exits non-zero on "no targets" even though whole-tree `format:check` is clean.
+- **Friction:** (1) `check-links` scans `docs/**`+`plans/**` but does NOT exclude archive (unlike check-metadata + docs-index), so moving a byte-exact frozen snapshot into `docs/archive` surfaced a pre-existing dangling link. (2) `docs:check:update-baseline` regenerates the whole baseline and swept in 71 unrelated stale metadata entries owned by in-flight DOCGOV-009 work — had to add the one entry by hand.
+- **Improvement:** When relocating into archive, remember check-links still scans it; add baseline entries surgically, never via `update-baseline` on a shared baseline. lint-staged per-file format tasks should mirror `.prettierignore`'s `archive/` exclusion.
+- **Follow-up:** Candidate CIB — make lint-staged yaml/json/md matchers skip `.prettierignore`-ignored paths so per-file oxfmt doesn't error on relocated artefacts. `policies/fixtures` move deferred pending operator decision.
