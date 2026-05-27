@@ -937,9 +937,10 @@ a backlog. Promote repeated friction or executable follow-up work to
 
 - **Task:** Promote actionable items from the continuous-improvement log review
   into CIB tracking.
-- **Outcome:** Added CIB-023 (cwd-mutating test isolation), CIB-024 (cross-repo
-  review fallback), and CIB-025 (safe post-merge worktree cleanup sweep), then
-  reconciled CIB progress in the module and index.
+- **Outcome:** Added CIB-026 (cwd-mutating test isolation), CIB-027 (cross-repo
+  review fallback), CIB-028 (safe post-merge worktree cleanup sweep), and CIB-029
+  (`required_anvil_version` exact-semver docs), then reconciled CIB progress in
+  the module and index.
 - **Worked:** Checking existing CIB coverage first avoided duplicating CIB-022
   and the POLENG crate-name note.
 - **Failed:** `pnpm aps:active-lint` remains blocked by pre-existing
