@@ -1,4 +1,4 @@
-# ADR-052: Automated Drift Snapshot Capture
+# ADR-052: Automated Drift Capture — Edge-Delta Event Ledger
 
 ## Status
 
@@ -6,94 +6,137 @@ Proposed
 
 ## Date
 
-2026-05-27
+2026-05-27 (revised the same day after planning council `plan-0e9c300c`, which
+investigated alternatives to the original scheduled-CI-snapshot proposal)
 
 ## Context
 
-`anvil drift snapshot` already captures a point-in-time `DriftSnapshot`
-(`created_at`, `metrics.boundary_violations`, `violations[]` with
-`from_layer`/`to_layer`, antipatterns, suppressions) to
-`.anvil/snapshots/snapshot-*.json`, and `anvil drift report` already compares
-snapshots and renders a text trend (shipped by the archived DRIFT module). The
-machinery exists.
+`anvil drift snapshot`/`report` already exist (`crates/anvil-cli/src/commands/drift.rs`),
+writing a whole-state `DriftSnapshot` to `.anvil/snapshots/`. The drift *trend*
+the product needs — to serve the success criterion **"new cross-boundary edges
+per sprint decreases by 30% within 8 weeks"** and the planned
+`anvil insights --drift` sparkline (INSIGHTS-003) — requires a populated,
+team-comparable, local-only **time-series**. Capture is currently manual, so the
+series is empty for almost every repo and there is no data to measure against.
 
-What does **not** exist is any *automatic* capture: the snapshot series is only
-populated when a human runs `anvil drift snapshot`. In practice that means the
-series is empty or sparse for almost every repo, so:
+A planning council (`plan-0e9c300c`: architect, delivery lead, devil's advocate)
+investigated how to populate it and surfaced three findings that reframe the
+decision away from the original "scheduled CI workflow → weekly snapshot PR":
 
-- The index success criterion **"new cross-boundary edges per sprint decreases
-  by 30% within 8 weeks"** has no data to measure against.
-- `anvil drift report --since` and the planned `anvil insights --drift`
-  sparkline (INSIGHTS-003) have nothing to render and must fall back to
-  "insufficient data".
+1. **The consumer's spec names a different source.** INSIGHTS-003
+   (`plans/modules/usage-insights.aps.md`) says its data "is derived from
+   **baseline diff entries**" (`crates/anvil-baseline/*`) — *not*
+   `.anvil/snapshots/`. The original ADR silently re-pointed it at whole-state
+   snapshots.
+2. **Sampling loses signal.** A weekly whole-state snapshot measures `main` HEAD
+   once per week, so an edge added and removed within the same week nets to zero
+   — the metric goes blind to intra-week churn. The actual drift signal is the
+   **edge delta** (`BaselineDiff.added`/`removed`), which is lossless if captured
+   as an event.
+3. **The snapshot record can't support a valid trend.** `DriftSnapshot` carries
+   no `anvil_version` and no `rules_sha`, so a week-over-week delta conflates
+   "code drifted" with "the rule set / org-policy ref changed" — not a
+   controlled measurement.
 
-A drift *trend* is a team/sprint-level signal, so the time-series must be
-**shared and comparable across the team**, not a divergent per-developer-machine
-artefact. Anvil is also local-only (no telemetry, ADR scope guard) — the series
-must live in the repo, not an external service. A decision is needed on *what
-captures the series and where it lives* before INSIGHTS-003 or a useful
-`anvil drift report --since` can be built on real data.
+Anvil is local-only (no telemetry); `main` is trunk-protected (PR + checks); the
+metric is team/sprint-level, so the canonical series must be shared and
+comparable, not divergent per-developer-machine.
 
 ## Decision
 
-Add a **scheduled CI workflow** that captures the canonical drift series:
+Capture drift as an **append-only edge-delta event ledger**, not periodic
+whole-state snapshots:
 
-- New `.github/workflows/drift-snapshot.yml`: weekly `schedule` cron plus
-  `workflow_dispatch`, running against `main`.
-- The job obtains the `anvil` binary, runs
-  `anvil drift snapshot --name weekly-<ISO-week>`, and **opens an auto-merge PR**
-  adding the resulting `.anvil/snapshots/snapshot-*.json` to `main`. It does not
-  push directly to `main` — the existing trunk ruleset (PR + required checks) is
-  respected, no bypass.
-- The same workflow prunes `.anvil/snapshots/` to the most recent **26** weekly
-  snapshots so the directory does not grow unbounded.
+- **Data model:** a new in-tree NDJSON ledger `anvil/drift/edges.ndjson`
+  (`merge=union`, like the witness/CI-log), local-only. One record per change
+  that alters cross-boundary edges, shaped:
+  `{ ts, commit_sha, anvil_version, rules_sha, added: [{from_layer, to_layer, file}], removed: [...] }`.
+  The delta is exactly `anvil_baseline::BaselineDiff.added`/`removed`. Whole-state
+  `.anvil/snapshots/` (the existing `anvil drift snapshot`) remains supported for
+  point-in-time comparison but is **not** the trend source.
+- **Capture is event-driven on merge to `main`, not a wall-clock timer.** The
+  canonical record is appended when new cross-boundary edges land on `main`,
+  riding the same PR that introduced them — no separate scheduled workflow, no
+  separate auto-merge PR, no trunk bypass. Preferred write actor (pinned at
+  implementation): the existing required CI check on the PR computes the
+  `BaselineDiff` against `main`'s recorded state and, when non-empty, appends the
+  record to the PR branch; the local `anvil baseline refresh` path appends the
+  same record as the offline fallback. Manual `anvil drift snapshot` and any
+  opportunistic local capture are **supplements**, never the canonical series.
+- **Consumers:** `anvil drift report` and INSIGHTS-003 read
+  `anvil/drift/edges.ndjson`, bucket records by `ts` into weeks, and report
+  "insufficient data" honestly when fewer than two weeks of records exist.
 
-The committed `.anvil/snapshots/` series is the **canonical, team-shared drift
-time-series**. Manual `anvil drift snapshot` remains fully supported and simply
-adds to the same series. `anvil drift report` and INSIGHTS-003
-(`anvil insights --drift`) consume `.anvil/snapshots/` and bucket by
-`created_at`; both report "insufficient data" honestly when fewer than two
-weekly snapshots exist.
+This resolves two of the council's correctness gaps by construction: because the
+ledger holds *every* add/remove event, INSIGHTS-003 can compute **both** net and
+gross ("peak") new-edges-per-week (no forced peak-vs-net choice); and because
+each record carries `anvil_version` + `rules_sha`, consumers can segment or annotate
+the series when a rule-set change — not code — moved the number.
 
 ## Rationale
 
-A weekly, `main`-scoped, committed series is the smallest mechanism that
-produces a *comparable team metric* while honouring the local-only and
-trunk-protection constraints. Weekly cadence matches the per-week granularity
-INSIGHTS-003 renders and keeps churn to one small JSON file per week.
+The trigger question was downstream of a more fundamental one: *what is captured*.
+Capturing the edge **delta** as an event is lossless, matches INSIGHTS-003's
+declared source (`baseline diff entries`), and is intrinsically event-aligned to
+when edges are actually introduced — so it neither misses intra-week churn nor
+depends on a wall-clock cadence. Writing it on merge-to-`main` via the PR that
+caused the change keeps the series team-shared and trunk-safe without a scheduled
+workflow, a recurring auto-merge PR, or a ruleset bypass.
 
 ### Alternatives Considered
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Scheduled CI workflow → auto-merge PR (chosen)** | Shared canonical series; respects trunk ruleset (no bypass); weekly cadence = trend granularity; minimal churn; no per-machine divergence | One automated PR/week; workflow must build/obtain `anvil`; only as live as `main` |
-| Intercept-daemon timer (local) | No CI cost; works offline | Per-developer-machine series diverge; only runs while the daemon is up; not a team metric |
-| Post-commit hook (throttled) | Event-driven, local | Per-developer; too frequent/noisy; post-commit cannot amend the just-made commit, so snapshots land awkwardly |
-| CI bot direct-commit to `main` (ruleset bypass) | No weekly PR noise | Requires a trunk-protection bypass for a bot — more privilege, weaker audit trail |
+| Option | Pros | Cons | Verdict |
+|--------|------|------|---------|
+| **Edge-delta event ledger on merge (chosen)** | Lossless; matches consumer spec; event-driven (no intra-week blindness); supports net + peak; carries determinism fields; rides existing PR, no scheduler/extra-PR/bypass | New on-disk format + writer to version; series advances only when edges change (needs explicit zero-fill for quiet weeks); write-actor on merge needs pinning (CI-appends-to-PR has a fork-PR caveat) | **Chosen** |
+| Scheduled CI workflow → weekly auto-merge PR (original proposal) | Shared canonical series; weekly cadence = trend granularity | Samples whole state weekly → blind to intra-week add/remove; recurring PR to triage forever; must build/obtain `anvil` weekly; "auto-merge, no bypass" is in tension (auto-merge needs a reviewer or a scoped bypass); pruning was CI-shell-only, skipped on manual runs | Rejected — sampling loses signal; high ops tail |
+| Lazy opportunistic capture on `anvil insights`/`drift` run | Zero infra; planless; lives inside the consuming command | Series density tracks user engagement, not calendar → gaps-then-bursts read as false deterioration; silent no-data for non-interactive users | Rejected as canonical; viable only as a local supplement |
+| CI artifact → orphan/data branch (not `main`) | No PR-noise; main tree stays clean; bot pushes direct with no main bypass | Off-main data ref hurts discoverability/onboarding; needs its own force-push protection or history can be silently rewritten; CLI must fetch a ref (breaks local-only-at-command-time) | Rejected — integrity + discoverability cost |
+| Release/tag-time capture | Sprint-ish cadence; reuses release build | Too coarse on typical cadences (monthly release → 2 points in 8 weeks); quiet gaps unsampled | Rejected as primary; useful only as supplementary release markers |
+| Reuse the witness chain as the series | Hardened append/verify/timestamp/share already shipped | Records hook events, not boundary counts; per-commit (not per-sprint) cadence; per-machine + uncommitted by default; pollutes a tamper-evidence artefact with analytics and turns a metrics-schema change into a hash-chained-line change | Rejected |
+| Intercept-daemon timer / post-commit hook | Local, no CI | Per-developer-machine series diverge (can't aggregate to a team metric); daemon only runs when up; post-commit snapshots land as uncommitted working-tree churn, violating atomic commits | Rejected (fatal for a team metric) |
 
 ## Consequences
 
-- **Positive:** the drift success criterion becomes measurable; INSIGHTS-003 and
-  `anvil drift report --since` get real data without manual discipline; the
-  series stays local-only (committed in-repo, no telemetry); trunk protection is
-  untouched.
-- **Negative:** a recurring automated PR to triage/merge each week; the workflow
-  must build or download `anvil` on a schedule; `.anvil/snapshots/` carries
-  committed data files (bounded by retention).
-- **Risks:** weekly CI build cost; PR noise; a non-deterministic scan would make
-  week-over-week deltas misleading.
-- **Mitigations:** 26-snapshot retention prune in the same workflow;
-  `workflow_dispatch` for on-demand capture; Anvil scans are already
-  deterministic by principle, so consecutive snapshots are comparable; if weekly
-  PR noise proves unacceptable, revisit the bot-direct-commit alternative under a
-  follow-up ADR.
+- **Positive:** the drift success criterion becomes measurable on a lossless,
+  event-aligned series; INSIGHTS-003 + `anvil drift report` get the source their
+  spec names; net *and* peak are both derivable; rule-set vs code changes are
+  distinguishable; no scheduled workflow, no recurring auto-merge PR, no trunk
+  bypass; stays local-only and team-shared (in-tree, union-merge).
+- **Negative:** a new on-disk ledger format + writer to design, version, and
+  document; the "append on merge" write actor still needs pinning (CI-appends-to-
+  PR has a fork-PR caveat; the local `baseline refresh` fallback relies on that
+  path being used); a zero-fill rule is needed so quiet weeks render honestly
+  rather than as gaps.
+- **Risks:** if no write actor is wired, the ledger is empty and INSIGHTS-003
+  permanently reports "insufficient data" (the same silent-no-data failure the
+  council flagged for every option); a non-deterministic scan would corrupt
+  deltas.
+- **Mitigations:** ship the write actor *before* (or with) INSIGHTS-003 so the
+  feature never ships against an empty source; record `anvil_version` + `rules_sha`
+  so non-determinism is detectable; distinguish "insufficient data yet" from
+  "capture pipeline silently stopped" in the consumer's output.
+
+## Open Implementation Questions
+
+Carried from the council; settled during implementation, not in this ADR:
+
+1. **Write actor on merge:** CI check appends the delta to the PR branch
+   (fork-PR caveat) vs. a local `anvil baseline refresh` / pre-push-to-`main`
+   append vs. a post-merge follow-up. Decide before the implementing PR.
+2. **Zero-fill semantics:** how INSIGHTS-003 renders weeks with no edge change
+   (explicit `0`, not a gap) without implying missing data.
+3. **Ledger retention/rollover:** append-only NDJSON growth; reuse the witness
+   manifest rollover pattern, or leave unbounded (records are small).
+4. **Ledger schema versioning** (a `schema_version`/format pin on the file).
 
 ## References
 
-- Related ADRs: ADR scope guard (`docs/vision/anvil-scope-guard.md`)
-- APS modules: a new INSIGHTS item (filed with the implementation once this ADR
-  is accepted) tracks this capability; INSIGHTS-003 is the consumer; the archived
-  DRIFT module (`plans/archive/modules/drift-reporting.aps.md`) shipped the
-  underlying `anvil drift snapshot`/`report` machinery
-- Success criterion: "new cross-boundary edges per sprint decreases by 30%
-  within 8 weeks" (`plans/index.aps.md`)
+- Planning council: `plan-0e9c300c` (architect / delivery lead / devil's advocate)
+- Drift machinery: `crates/anvil-cli/src/commands/drift.rs`; the actual signal:
+  `crates/anvil-baseline/src/diff.rs` (`BaselineDiff`)
+- APS: INSIGHTS-003 (consumer; spec names "baseline diff entries" as its source);
+  a new INSIGHTS item — filed with the implementation once this ADR is accepted —
+  tracks the ledger + write actor; archived DRIFT module shipped
+  `anvil drift snapshot`/`report`
+- Success criterion: "new cross-boundary edges per sprint decreases by 30% within
+  8 weeks" (`plans/index.aps.md`)
