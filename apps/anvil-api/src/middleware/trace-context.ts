@@ -22,7 +22,7 @@ export async function traceContext(c: Context, next: Next): Promise<Response | v
     const context = parseTraceparent(header);
     c.set(TRACE_CONTEXT_VAR, context);
     await next();
-    c.header(TRACE_RESPONSE_HEADER, context.header);
+    c.res.headers.set(TRACE_RESPONSE_HEADER, context.header);
     return undefined;
   } catch (error) {
     if (error instanceof TraceparentParseError) {
