@@ -6,8 +6,7 @@ Proposed
 
 ## Date
 
-2026-05-27 (revised the same day after planning council `plan-0e9c300c`, which
-investigated alternatives to the original scheduled-CI-snapshot proposal)
+2026-05-27
 
 ## Context
 
@@ -49,18 +48,23 @@ whole-state snapshots:
 
 - **Data model:** a new in-tree NDJSON ledger `anvil/drift/edges.ndjson`
   (`merge=union`, like the witness/CI-log), local-only. One record per change
-  that alters cross-boundary edges, shaped:
-  `{ ts, commit_sha, anvil_version, rules_sha, added: [{from_layer, to_layer, file}], removed: [...] }`.
-  The delta is exactly `anvil_baseline::BaselineDiff.added`/`removed`. Whole-state
-  `.anvil/snapshots/` (the existing `anvil drift snapshot`) remains supported for
-  point-in-time comparison but is **not** the trend source.
+  that alters cross-boundary edges, shaped
+  `{ ts, commit_sha, anvil_version, rules_sha, added: [<entry>], removed: [<entry>] }`,
+  where each `<entry>` is an `anvil_baseline::BaselineDiffEntry`
+  (`rule_id`, `file_path`, `fingerprint`) — the delta is exactly
+  `BaselineDiff.added`/`removed`. Richer cross-boundary attribution
+  (`from_layer`/`to_layer`) is available from the drift snapshot's `violations`
+  (`SnapshotViolation`) if a future consumer needs it; the exact recorded field
+  set is pinned at implementation (see Open Implementation Questions).
+  Whole-state `.anvil/snapshots/` (the existing `anvil drift snapshot`) remains
+  supported for point-in-time comparison but is **not** the trend source.
 - **Capture is event-driven on merge to `main`, not a wall-clock timer.** The
   canonical record is appended when new cross-boundary edges land on `main`,
   riding the same PR that introduced them — no separate scheduled workflow, no
   separate auto-merge PR, no trunk bypass. Preferred write actor (pinned at
   implementation): the existing required CI check on the PR computes the
   `BaselineDiff` against `main`'s recorded state and, when non-empty, appends the
-  record to the PR branch; the local `anvil baseline refresh` path appends the
+  record to the PR branch; the local `anvil baseline --refresh` path appends the
   same record as the offline fallback. Manual `anvil drift snapshot` and any
   opportunistic local capture are **supplements**, never the canonical series.
 - **Consumers:** `anvil drift report` and INSIGHTS-003 read
@@ -90,7 +94,7 @@ workflow, a recurring auto-merge PR, or a ruleset bypass.
 | **Edge-delta event ledger on merge (chosen)** | Lossless; matches consumer spec; event-driven (no intra-week blindness); supports net + peak; carries determinism fields; rides existing PR, no scheduler/extra-PR/bypass | New on-disk format + writer to version; series advances only when edges change (needs explicit zero-fill for quiet weeks); write-actor on merge needs pinning (CI-appends-to-PR has a fork-PR caveat) | **Chosen** |
 | Scheduled CI workflow → weekly auto-merge PR (original proposal) | Shared canonical series; weekly cadence = trend granularity | Samples whole state weekly → blind to intra-week add/remove; recurring PR to triage forever; must build/obtain `anvil` weekly; "auto-merge, no bypass" is in tension (auto-merge needs a reviewer or a scoped bypass); pruning was CI-shell-only, skipped on manual runs | Rejected — sampling loses signal; high ops tail |
 | Lazy opportunistic capture on `anvil insights`/`drift` run | Zero infra; planless; lives inside the consuming command | Series density tracks user engagement, not calendar → gaps-then-bursts read as false deterioration; silent no-data for non-interactive users | Rejected as canonical; viable only as a local supplement |
-| CI artifact → orphan/data branch (not `main`) | No PR-noise; main tree stays clean; bot pushes direct with no main bypass | Off-main data ref hurts discoverability/onboarding; needs its own force-push protection or history can be silently rewritten; CLI must fetch a ref (breaks local-only-at-command-time) | Rejected — integrity + discoverability cost |
+| CI artefact → orphan/data branch (not `main`) | No PR-noise; main tree stays clean; bot pushes direct with no main bypass | Off-main data ref hurts discoverability/onboarding; needs its own force-push protection or history can be silently rewritten; CLI must fetch a ref (breaks local-only-at-command-time) | Rejected — integrity + discoverability cost |
 | Release/tag-time capture | Sprint-ish cadence; reuses release build | Too coarse on typical cadences (monthly release → 2 points in 8 weeks); quiet gaps unsampled | Rejected as primary; useful only as supplementary release markers |
 | Reuse the witness chain as the series | Hardened append/verify/timestamp/share already shipped | Records hook events, not boundary counts; per-commit (not per-sprint) cadence; per-machine + uncommitted by default; pollutes a tamper-evidence artefact with analytics and turns a metrics-schema change into a hash-chained-line change | Rejected |
 | Intercept-daemon timer / post-commit hook | Local, no CI | Per-developer-machine series diverge (can't aggregate to a team metric); daemon only runs when up; post-commit snapshots land as uncommitted working-tree churn, violating atomic commits | Rejected (fatal for a team metric) |
@@ -104,7 +108,7 @@ workflow, a recurring auto-merge PR, or a ruleset bypass.
   bypass; stays local-only and team-shared (in-tree, union-merge).
 - **Negative:** a new on-disk ledger format + writer to design, version, and
   document; the "append on merge" write actor still needs pinning (CI-appends-to-
-  PR has a fork-PR caveat; the local `baseline refresh` fallback relies on that
+  PR has a fork-PR caveat; the local `anvil baseline --refresh` fallback relies on that
   path being used); a zero-fill rule is needed so quiet weeks render honestly
   rather than as gaps.
 - **Risks:** if no write actor is wired, the ledger is empty and INSIGHTS-003
@@ -121,7 +125,7 @@ workflow, a recurring auto-merge PR, or a ruleset bypass.
 Carried from the council; settled during implementation, not in this ADR:
 
 1. **Write actor on merge:** CI check appends the delta to the PR branch
-   (fork-PR caveat) vs. a local `anvil baseline refresh` / pre-push-to-`main`
+   (fork-PR caveat) vs. a local `anvil baseline --refresh` / pre-push-to-`main`
    append vs. a post-merge follow-up. Decide before the implementing PR.
 2. **Zero-fill semantics:** how INSIGHTS-003 renders weeks with no edge change
    (explicit `0`, not a gap) without implying missing data.
