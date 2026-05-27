@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/25    |
+| CIB | —     | In Progress | 19/29    |
 
 ## Purpose
 
@@ -512,3 +512,87 @@ archive.
   CIB-021 (same shared-append-file problem), CIB-023.
 - **Confidence:** medium — shape 1 (count-only) is small and could go Ready on
   its own; shapes 2/3 are a real restructure gated on the four design questions.
+
+### CIB-026: Isolate cwd-mutating tests across the Rust workspace
+
+- **Status:** Draft
+- **Intent:** Stop tests that mutate process-global cwd from creating sporadic
+  failures when unrelated subprocess or MCP tests add scheduling pressure.
+- **Expected Outcome:** Every test path that calls `std::env::set_current_dir`
+  either uses one workspace-wide serialisation guard or is refactored to thread
+  cwd explicitly, so `cargo test --workspace` is deterministic even when the
+  pre-push subprocess tests run alongside doctor and MCP validation suites.
+- **Validation:** `cargo test --workspace` repeated under the same parallelism as
+  CI; targeted tests covering `doctor`, `mcp::tools::validate_write`, and
+  `crates/anvil-cli/tests/pre_push_subprocess.rs` pass together without cwd
+  leakage.
+- **Identified From:** Continuous-improvement log entry 2026-05-25 for MLP2-047:
+  new subprocess tests surfaced pre-existing cwd races in doctor and MCP tests.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs`, shared Rust test helper
+  location chosen during implementation.
+- **Confidence:** high — root cause and affected surfaces are named; fix shape
+  is straightforward but needs careful test-helper placement.
+
+### CIB-027: Define a lightweight review path for cross-repo implementation work
+
+- **Status:** Draft
+- **Intent:** Give agents a first-class pre-PR review surface when implementation
+  work happens in a downstream or sibling repository where Anvil's `/council`
+  command is not available.
+- **Expected Outcome:** The dev workflow or agent-surface inventory documents a
+  cross-repo review fallback, such as a focused `code-reviewer`/Council-agent
+  pass plus the target repository's CI and automated review checks, and records
+  when full Anvil Council is not applicable.
+- **Validation:** Manual dry run on a non-Anvil repository task confirms the
+  documented path produces review evidence before PR publication without
+  pretending Anvil-specific Council commands exist there.
+- **Identified From:** Continuous-improvement log entry 2026-05-25 for ATTRIB
+  cross-repo `little-termi` work: `/council` was Anvil-scoped, so review relied
+  on self-review, target-repo CI, and Copilot.
+- **Files:** `docs/guides/agent-surface-inventory.md` and/or repo-local
+  `dev-workflow` skill copies, depending on where CIB-002 lands the canonical
+  inventory.
+- **Coordinates with:** CIB-002 (definitive skill and agent list).
+- **Confidence:** medium — process-only improvement, but needs care not to imply
+  Anvil commands are portable across repositories.
+
+### CIB-028: Add a safe post-merge worktree cleanup sweep
+
+- **Status:** Draft
+- **Intent:** Reduce accumulated Worktrunk worktrees left behind after batches of
+  merged PRs, without deleting unmerged or still-needed local work.
+- **Expected Outcome:** A documented operator command or script lists
+  Worktrunk-managed worktrees whose branches are merged or deleted remotely,
+  verifies clean local state, and offers/removes them with explicit safety
+  checks.
+- **Validation:** Run against a fixture or local repository state containing one
+  merged clean worktree, one unmerged worktree, and one dirty worktree; only the
+  merged clean worktree is eligible for removal.
+- **Identified From:** Continuous-improvement log entries from APSCAN and ATTRIB
+  batches: repeated `wt remove` follow-ups remained after PR branches merged and
+  remote branches were deleted.
+- **Files:** `docs/guides/worktree-policy.md` and optionally a helper under
+  `scripts/` if an executable sweep is chosen.
+- **Confidence:** medium — valuable ergonomics improvement, but must preserve the
+  existing rule to ask before deleting unmerged, unpushed, or dirty work.
+
+### CIB-029: Fix required Anvil version documentation to use exact semver
+
+- **Status:** Draft
+- **Intent:** Stop examples from teaching operators and test authors to write
+  semver range expressions where the parser accepts only exact versions.
+- **Expected Outcome:** Documentation and inline examples for
+  `required_anvil_version` show exact semver values such as `0.6.0`, not range
+  requirements such as `>=0.6.0`, or the parser/documentation contract is
+  explicitly changed if range support is intentionally added later.
+- **Validation:** Search for `required_anvil_version` examples; any examples in
+  active docs or docstrings align with `RequiredAnvilVersion::parse` behaviour;
+  targeted tests that cover the version-floor path still pass.
+- **Identified From:** Continuous-improvement log entry 2026-05-25 for MLP2-047:
+  a subprocess fixture copied the `anvil-l4` docstring's `>=0.6.0` example and
+  hit `InvalidFloor` because the implementation parses exact semver only.
+- **Files:** `crates/anvil-l4/src/lib.rs` and any active docs found by the
+  implementation search.
+- **Confidence:** high — small documentation/API-contract alignment with a named
+  parser behaviour.

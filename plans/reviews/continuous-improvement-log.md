@@ -916,3 +916,38 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** CIB-025 Gate 1 is now resolved; Gates 2–4 + the waved migration
   remain before it can go Ready. Operator may promote a scoped wave-1 (advisory
   count + stop-PR-edits) when ready.
+### 2026-05-27 — opencode
+
+- **Task:** Review the continuous-improvement session log for actionable areas of
+  improvement.
+- **Outcome:** Identified recurring friction themes and mapped them to existing
+  or missing follow-up work.
+- **Worked:** The append-only log plus CIB module made it easy to separate raw
+  observations from executable backlog candidates.
+- **Failed:** Initial response reviewed only visible chat context instead of the
+  repo-local session log named by `dev-workflow`.
+- **Friction:** The phrase "session log" is overloaded unless agents first check
+  the workflow skill's project references.
+- **Improvement:** For Anvil meta-review requests, load `dev-workflow` and check
+  `plans/reviews/continuous-improvement-log.md` before answering from chat
+  context.
+- **Follow-up:** none
+
+### 2026-05-27 — opencode
+
+- **Task:** Promote actionable items from the continuous-improvement log review
+  into CIB tracking.
+- **Outcome:** Added CIB-023 (cwd-mutating test isolation), CIB-024 (cross-repo
+  review fallback), and CIB-025 (safe post-merge worktree cleanup sweep), then
+  reconciled CIB progress in the module and index.
+- **Worked:** Checking existing CIB coverage first avoided duplicating CIB-022
+  and the POLENG crate-name note.
+- **Failed:** `pnpm aps:active-lint` remains blocked by pre-existing
+  `plans/modules/weave.aps.md` missing `## Work Items`.
+- **Friction:** Some CI-log observations are process hygiene rather than urgent
+  product defects, so CIB is the right tracking surface and GH issues would add
+  duplicate overhead.
+- **Improvement:** Promote only observations with observable outcomes and
+  validation paths; leave non-urgent process hygiene in CIB unless user-visible
+  breakage needs issue triage.
+- **Follow-up:** none
