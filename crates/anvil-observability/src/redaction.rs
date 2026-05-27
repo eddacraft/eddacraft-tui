@@ -59,9 +59,10 @@ pub const SENSITIVE_FIELDS: &[&str] = &[
 /// is allowed even though `token` is on the list. Callers that need
 /// pattern matching must layer their own logic on top.
 ///
-/// **Advisory-only** — the runtime subscriber installed by
-/// [`init_tracing`](super::init_tracing) does NOT consult this. See
-/// the module-level note.
+/// Consulted at runtime: [`init_tracing`](super::init_tracing) installs
+/// [`RedactingJsonFields`]/[`RedactingJsonEventFormatter`], which call this
+/// to decide whether a span/event field value is replaced with
+/// [`REDACTED`]. See the module-level note.
 #[must_use]
 pub fn is_sensitive_field(field: &str) -> bool {
     SENSITIVE_FIELDS
