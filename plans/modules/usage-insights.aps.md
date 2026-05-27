@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 1/4 |
+| INSIGHTS | @aneki | In Progress | 2/4 |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -142,8 +142,11 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil insights::suppressions::tests`
   - `cargo test -p eddacraft-anvil commands::insights::tests`
-- **Status:** In Progress (promoted Draft → In Progress 2026-05-26; scope
-  reconciled to inline directives, live-scan data source, operator-recommended)
+- **Status:** Merged 2026-05-27 via PR
+  [#1996](https://github.com/eddacraft/anvil-001/pull/1996) — `anvil insights
+  --suppressions` lists inline `@anvil-ignore` directives (stale-first) from a
+  live antipattern scan; directive-primary `classify` (Council + Copilot
+  review). Awaiting release-tag evidence to advance to Released/Shipped.
 - **Dependencies:** INSIGHTS-001
 - **changeType:** feature
 - **releaseIntent:** candidate

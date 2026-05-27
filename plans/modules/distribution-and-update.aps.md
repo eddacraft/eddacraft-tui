@@ -4,7 +4,7 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 4/5 |
+| DISTRIB | @aneki | In Progress | 5/5 |
 
 **Last reviewed:** 2026-05-17 (DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested
@@ -23,10 +23,10 @@ DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
-DISTRIB-004 is Done; DISTRIB-005 is **In Progress** (started 2026-05-26 —
-`anvil migrate schema` cross-version config reconciliation, subcommand-split
-design; spec reconciled against MLP2-040's existing `migrate.rs`) and depends
-on DISTRIB-002 (Merged). ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
+(`anvil migrate schema` cross-version config reconciliation, subcommand-split
+design). All five items are Merged-or-beyond; the module advances to Complete
+once DISTRIB-005 rides a release tag. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
 users.)
 
@@ -270,8 +270,12 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil commands::migrate::tests`
   - Subcommand back-compat: the existing MLP2-040 `migrate::tests` stay
     green under the `format` subcommand path.
-- **Status:** In Progress (promoted Draft → In Progress 2026-05-26;
-  subcommand-split design accepted by operator)
+- **Status:** Merged 2026-05-26 via PR
+  [#1984](https://github.com/eddacraft/anvil-001/pull/1984) — `anvil migrate`
+  split into `format` (MLP2-040) + new `schema` subcommand; cross-version
+  config-schema reconciliation with an empty-by-design migration registry in
+  `anvil-config::migrations`. Awaiting release-tag evidence to advance to
+  Released/Shipped.
 - **Dependencies:** DISTRIB-002
 - **changeType:** feature
 - **releaseIntent:** candidate

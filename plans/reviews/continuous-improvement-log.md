@@ -814,3 +814,54 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Operator to choose: split shape 1 (drop index prose →
   count-only) as a small Ready win, or a `plan-create` pass resolving Gates 1–4
   for the full restructure. Do not implement while AMEND stands.
+
+### 2026-05-26 — claude
+
+- **Task:** Ship DISTRIB-005 (`anvil migrate schema`) + INSIGHTS-002
+  (`anvil insights --suppressions`) via /dev-workflow, queued during a GitHub
+  Actions outage.
+- **Outcome:** PRs #1984 + #1996 merged (DISTRIB 5/5; INSIGHTS 2/4). Both
+  truth-validated first: DISTRIB-005's `migrate.rs` already existed (MLP2-040 →
+  subcommand split); INSIGHTS-002 had no suppression log (live antipattern scan
+  instead). This reconcile PR flips both to Merged + re-adds these notes.
+- **Worked:** APS truth-validation before code caught stale specs in both (named
+  files/surfaces that didn't exist) — same class twice. Council quick caught real
+  bugs pre-PR (ad-hoc ignore list hiding `packages/anvil/`; basename-collision
+  masking stale suppressions).
+- **Failed:** Skipped the addressing-pr-reviews loop on #1996/#2001 before
+  declaring them "queued" — the `required_review_thread_resolution` ruleset
+  then blocked merge on unresolved Copilot threads (several real: directive-vs-
+  Warning.suppressed source, wrong `anvil baseline --refresh` command, wrong
+  ledger record shape). Cost a full extra fix+resolve round per PR.
+- **Friction:** `merge=union` CI-log shows CONFLICTING in GitHub's mergeability
+  preview during a frozen-main window (Actions outage) even though it auto-merges
+  — burned several rebase/force-push cycles on #1984 before I pulled the CI-log
+  note out of the feature PRs entirely (re-added here).
+- **Improvement:** Always run addressing-pr-reviews (incl. waiting for Copilot)
+  BEFORE calling a PR "queued/done" — opening + arming auto-merge is not the end
+  of the loop; thread-resolution is a hard merge gate here. And keep the CI-log
+  out of feature PRs; batch its notes into the bookkeeping reconcile PR.
+- **Follow-up:** `wt remove` the DISTRIB-005, INSIGHTS-002, ADR-052 worktrees;
+  INSIGHTS-003 + the ADR-052 auto-snapshot capability remain (blocked on ADR
+  acceptance).
+
+### 2026-05-27 — claude
+
+- **Task:** Planning council on the ADR-052 drift-snapshot trigger (operator
+  wanted alternatives to scheduled-CI before accepting).
+- **Outcome:** ADR-052 revised (PR #2001, Proposed) from weekly-CI-snapshot to an
+  append-only **edge-delta event ledger** appended on merge-to-main; matches
+  INSIGHTS-003's actual spec source, lossless vs weekly sampling, carries
+  `anvil_version`/`rules_sha`.
+- **Worked:** The council reframed "which trigger" into "what to capture" — the
+  architect spotted that INSIGHTS-003's spec names `baseline diff entries`, not
+  snapshots, and the adversarial pass found the determinism gap (no version/rules
+  in `DriftSnapshot`). The edge-delta model resolves both by construction.
+- **Failed:** none material.
+- **Friction:** I initially missed that `anvil drift snapshot/report` already
+  exist (archived DRIFT module) — the audit's first pass proposed git-archaeology
+  before finding the shipped snapshot infra.
+- **Improvement:** When auditing a "new" capability, grep for an existing command
+  surface (`commands/*.rs`) AND archived modules before designing a data source.
+- **Follow-up:** Operator to accept ADR-052; then implement the auto-snapshot
+  write actor + a new INSIGHTS item, then INSIGHTS-003 on the populated series.
