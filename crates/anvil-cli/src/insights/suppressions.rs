@@ -1,10 +1,13 @@
 //! INSIGHTS-002 — `anvil insights --suppressions` suppression health view.
 //!
 //! Derives from a **live antipattern scan**, not a durable log (there is
-//! none — see the module's APS entry). Active suppressions come from
-//! `Warning.suppressed`; stale ones from inline `@anvil-ignore` directives
-//! that suppress no current finding. The directive parser is the ADR-029
-//! authoritative `anvil_checks::antipattern::parse_suppression`.
+//! none — see the module's APS entry). Entries come from the inline
+//! `@anvil-ignore` directives swept from source (the ADR-029 authoritative
+//! `anvil_checks::antipattern::parse_suppression`); each directive is
+//! **active** when a suppressed finding for the same rule sits one line below
+//! it, else **stale** (the underlying violation is gone). Suppressions the
+//! scanner attributes to other sources (e.g. `eslint-disable`) are out of
+//! scope and not counted.
 //!
 //! Scope is the antipattern checker's surfaces (TS/JS/HTML/CSS per the
 //! default config); config-level `RuleModes` rule-disabling is a separate
@@ -21,13 +24,13 @@ use crate::util::is_ignored_dir_name;
 /// Schema id for the `--json` document; bump on any breaking field change.
 pub const SCHEMA_VERSION: &str = "anvil.suppressions.v1";
 
-/// A suppressed finding the live scan reported (the directive is load-bearing).
+/// A suppressed finding the live scan reported, used only to decide whether a
+/// directive is load-bearing and to carry the suppression date.
 #[derive(Debug, Clone)]
 pub(crate) struct SuppressedFinding {
     pub file: String,
     pub line: usize,
     pub rule: String,
-    pub reason: String,
     pub date: Option<String>,
 }
 
@@ -67,55 +70,55 @@ pub struct SuppressionHealth {
     pub entries: Vec<SuppressionEntry>,
 }
 
-/// Combine suppressed findings (load-bearing) and swept directives into a
-/// sorted health list. A directive is **stale** when no suppressed finding
-/// for the same rule sits exactly one line below it. Stale entries sort first.
+/// Build the sorted health list from the swept `@anvil-ignore` directives,
+/// using the suppressed findings only to decide active-ness. A directive is
+/// **active** when a suppressed finding for the same file + rule sits exactly
+/// one line below it — the scanner (`anvil-checks`'s `suppression_for_line`)
+/// honours a directive only on the line *immediately above* the finding, so
+/// `finding.line == directive.line + 1`; otherwise the directive is **stale**
+/// (the underlying violation is gone).
 ///
-/// The line relationship mirrors the scanner: `anvil-checks`'s
-/// `suppression_for_line` honours a directive only when it is on the line
-/// *immediately above* the finding, so `finding.line == directive.line + 1`.
-/// Both `file` strings are workspace-relative paths derived from the same
-/// canonical root, so full-path equality is exact (no basename collisions).
+/// Directives are the **sole** source of entries, so suppressions the scanner
+/// attributes to non-`@anvil-ignore` sources (e.g. `eslint-disable`) are not
+/// counted — keeping this view to its stated scope and giving every entry a
+/// consistent directive-line provenance. Both `file` strings are
+/// workspace-relative paths from the same canonical root, so full-path
+/// equality is exact (no basename collisions).
 ///
 /// Pure so it can be unit-tested without exercising the antipattern engine.
 pub(crate) fn classify(
-    suppressed: &[SuppressedFinding],
     directives: &[Directive],
+    suppressed: &[SuppressedFinding],
 ) -> Vec<SuppressionEntry> {
-    let mut entries: Vec<SuppressionEntry> = suppressed
+    let mut entries: Vec<SuppressionEntry> = directives
         .iter()
-        .map(|s| SuppressionEntry {
-            file: s.file.clone(),
-            line: s.line,
-            rule: s.rule.clone(),
-            reason: s.reason.clone(),
-            date: s.date.clone(),
-            stale: false,
-        })
-        .collect();
-
-    for directive in directives {
-        let load_bearing = suppressed.iter().any(|s| {
-            s.rule == directive.rule && s.file == directive.file && s.line == directive.line + 1
-        });
-        if !load_bearing {
-            entries.push(SuppressionEntry {
+        .map(|directive| {
+            let matched = suppressed.iter().find(|s| {
+                s.rule == directive.rule && s.file == directive.file && s.line == directive.line + 1
+            });
+            SuppressionEntry {
                 file: directive.file.clone(),
                 line: directive.line,
                 rule: directive.rule.clone(),
                 reason: directive.reason.clone(),
-                date: None,
-                stale: true,
-            });
-        }
-    }
+                // Provenance date comes from the matched suppression when the
+                // directive is load-bearing; inline directives usually omit it.
+                date: matched.and_then(|s| s.date.clone()),
+                stale: matched.is_none(),
+            }
+        })
+        .collect();
 
-    // Stale first, then file, then line — stable, actionable ordering.
+    // Stale first, then a fully-deterministic key (file, line, rule, reason) so
+    // multiple directives on the same line order stably regardless of the
+    // (rayon-parallel) scan order.
     entries.sort_by(|a, b| {
         b.stale
             .cmp(&a.stale)
             .then_with(|| a.file.cmp(&b.file))
             .then_with(|| a.line.cmp(&b.line))
+            .then_with(|| a.rule.cmp(&b.rule))
+            .then_with(|| a.reason.cmp(&b.reason))
     });
     entries
 }
@@ -124,9 +127,9 @@ pub(crate) fn classify(
 /// surfaces for inline `@anvil-ignore` directives and cross-referencing the
 /// live findings.
 ///
-/// Best-effort and infallible: unreadable files and a non-canonicalisable
-/// root are skipped rather than erroring, matching the once-a-week-glance
-/// nature of the command.
+/// Best-effort and infallible: unreadable files are skipped, and a
+/// non-canonicalisable root falls back to the path as given, rather than
+/// erroring — matching the once-a-week-glance nature of the command.
 #[must_use]
 pub fn suppression_health(root: &Path) -> SuppressionHealth {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
@@ -151,7 +154,6 @@ pub fn suppression_health(root: &Path) -> SuppressionHealth {
                 file: w.location.file.clone(),
                 line: w.location.line,
                 rule: w.id.clone(),
-                reason: supp.reason.clone(),
                 date: supp.timestamp.clone(),
             })
         })
@@ -179,7 +181,7 @@ pub fn suppression_health(root: &Path) -> SuppressionHealth {
         }
     }
 
-    let entries = classify(&suppressed, &directives);
+    let entries = classify(&directives, &suppressed);
     let stale = entries.iter().filter(|e| e.stale).count();
     SuppressionHealth {
         schema_version: SCHEMA_VERSION,
@@ -238,7 +240,6 @@ mod tests {
             file: file.to_string(),
             line,
             rule: rule.to_string(),
-            reason: "intentional".to_string(),
             date: None,
         }
     }
@@ -253,61 +254,92 @@ mod tests {
     }
 
     #[test]
-    fn classify_flags_orphan_directive_stale_and_sorts_first() {
-        // One load-bearing suppression (finding present) + one stale directive.
-        let suppressed = vec![finding("src/active.ts", 10, "AP-001")];
+    fn classify_orphan_directive_stale_active_directive_kept_and_sorts_first() {
         let directives = vec![
-            directive("src/active.ts", 9, "AP-001"), // matches finding at line 10 (dir+1)
+            directive("src/active.ts", 9, "AP-001"), // finding at line 10 (dir+1) -> active
             directive("src/dead.ts", 4, "AP-004"),   // no finding -> stale
         ];
-        let entries = classify(&suppressed, &directives);
+        let suppressed = vec![finding("src/active.ts", 10, "AP-001")];
+        let entries = classify(&directives, &suppressed);
 
-        // Active suppression + one stale directive; the matched directive is
-        // not double-counted.
+        // One entry per directive; stale sorts first.
         assert_eq!(entries.len(), 2, "got: {entries:#?}");
-        // Stale sorts first.
         assert!(entries[0].stale);
         assert_eq!(entries[0].file, "src/dead.ts");
         assert_eq!(entries[0].rule, "AP-004");
-        // The active one is present and not stale.
+        // Active entry reports the DIRECTIVE line (9), not the finding line (10).
         assert!(!entries[1].stale);
         assert_eq!(entries[1].rule, "AP-001");
+        assert_eq!(
+            entries[1].line, 9,
+            "active entry must use the directive line"
+        );
     }
 
     #[test]
-    fn classify_directive_immediately_above_finding_is_load_bearing() {
+    fn classify_directive_immediately_above_finding_is_active() {
         // The scanner honours a directive only on the line directly above the
         // finding, so finding.line == directive.line + 1 is load-bearing.
-        let suppressed = vec![finding("a.ts", 8, "AP-002")];
         let directives = vec![directive("a.ts", 7, "AP-002")];
-        let entries = classify(&suppressed, &directives);
+        let suppressed = vec![finding("a.ts", 8, "AP-002")];
+        let entries = classify(&directives, &suppressed);
         assert_eq!(entries.len(), 1);
         assert!(!entries[0].stale);
+        assert_eq!(entries[0].line, 7);
     }
 
     #[test]
     fn classify_full_path_match_does_not_collide_on_basename() {
-        // A suppressed finding in one dir must NOT mask a stale directive of
-        // the same rule in a same-named file in another dir.
-        let suppressed = vec![finding("packages/a/index.ts", 8, "AP-001")];
+        // A suppressed finding in a same-named file in another dir must NOT
+        // mark this directive active.
         let directives = vec![directive("src/index.ts", 7, "AP-001")];
-        let entries = classify(&suppressed, &directives);
-        // active (the suppressed finding) + stale (the unmatched directive).
-        assert_eq!(entries.len(), 2);
-        let stale: Vec<&SuppressionEntry> = entries.iter().filter(|e| e.stale).collect();
-        assert_eq!(stale.len(), 1);
-        assert_eq!(stale[0].file, "src/index.ts");
+        let suppressed = vec![finding("packages/a/index.ts", 8, "AP-001")];
+        let entries = classify(&directives, &suppressed);
+        assert_eq!(entries.len(), 1);
+        assert!(
+            entries[0].stale,
+            "basename collision must not mark it active"
+        );
+        assert_eq!(entries[0].file, "src/index.ts");
     }
 
     #[test]
     fn classify_directive_for_other_rule_is_stale() {
-        let suppressed = vec![finding("a.ts", 7, "AP-002")];
-        let directives = vec![directive("a.ts", 6, "AP-009")]; // different rule
-        let entries = classify(&suppressed, &directives);
-        // The AP-002 finding (active) + the unmatched AP-009 directive (stale).
-        assert_eq!(entries.len(), 2);
+        let directives = vec![directive("a.ts", 6, "AP-009")];
+        let suppressed = vec![finding("a.ts", 7, "AP-002")]; // different rule
+        let entries = classify(&directives, &suppressed);
+        assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].rule, "AP-009");
         assert!(entries[0].stale);
+    }
+
+    #[test]
+    fn classify_ignores_suppressed_findings_with_no_directive() {
+        // A suppressed finding from a non-@anvil-ignore source (e.g. an
+        // eslint-disable the scanner attributes) has no swept directive, so it
+        // must NOT appear as an entry or inflate the counts (Copilot #1).
+        let directives: Vec<Directive> = Vec::new();
+        let suppressed = vec![finding("a.ts", 5, "AP-001")];
+        let entries = classify(&directives, &suppressed);
+        assert!(
+            entries.is_empty(),
+            "non-directive suppressions must not count"
+        );
+    }
+
+    #[test]
+    fn classify_active_entry_carries_matched_suppression_date() {
+        let directives = vec![directive("a.ts", 3, "AP-001")];
+        let suppressed = vec![SuppressedFinding {
+            file: "a.ts".to_string(),
+            line: 4,
+            rule: "AP-001".to_string(),
+            date: Some("2026-05-01".to_string()),
+        }];
+        let entries = classify(&directives, &suppressed);
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].stale);
+        assert_eq!(entries[0].date.as_deref(), Some("2026-05-01"));
     }
 
     #[test]
