@@ -1,5 +1,13 @@
 # Competitor Tier 2 Tracking
 
+| Type  | Authority | Owner    | Status | Freshness                                        |
+| ----- | --------- | -------- | ------ | ------------------------------------------------ |
+| Guide | Advisory  | STRATEGY | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                 | Downstream                      |
+| ------------------------ | ------------------------------- |
+| External competitor scan | Borrow/adopt candidate tracking |
+
 Purpose: keep a persistent Tier 2 watchlist in-repo and append new Tier 2
 candidates as they appear in daily competitor scans.
 

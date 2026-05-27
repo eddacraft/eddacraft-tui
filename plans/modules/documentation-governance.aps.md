@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 9/10     |
+| DOCGOV | —     | In Progress | 9/11     |
 
 ## Purpose
 
@@ -396,6 +396,9 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   land; tags resolve against the approved catalogue rather than ad-hoc usage.
   Dead docs identified during backfill are routed to DOCGOV-008 archival review
   rather than rewritten in place.
+- **Scope note:** The Merged #1927 increment landed the first high-authority
+  batch only; the remaining live-doc backfill waves continue under DOCGOV-011 so
+  this item's Merged record stays anchored to what #1927 actually shipped.
 - **Validation:** `pnpm docs:check && pnpm docs:index:check && pnpm format:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-005, DOCGOV-008
 - **Files:** `docs/**`, `docs/governance/docs-check.baseline.json`,
@@ -405,7 +408,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
 - **Coordinates with:** DOCGOV-008 (route dead docs to archive instead of
   backfilling), DOCGOV-010 (provides the authority/type tags that drive
-  reorganisation placement)
+  reorganisation placement), DOCGOV-011 (continues the remaining backfill waves)
 - **Confidence:** medium
 
 ### DOCGOV-010: Reorganise live documentation under canonical taxonomy
@@ -433,3 +436,25 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   shuffling docs that are about to leave), DOCGOV-009 (metadata backfill
   provides the authority/type tags placement depends on)
 - **Confidence:** medium
+
+### DOCGOV-011: Continue metadata backfill across remaining live docs
+
+- **Status:** In Progress
+- **Authorisation:** Continuation of DOCGOV-009 under the same operator-approved
+  rubric (`plans/execution/DOCGOV-009.rubric.md`, signed off 2026-05-25).
+  DOCGOV-009 Merged via #1927 landed the first high-authority batch; this item
+  carries the remaining backfill waves. Authorised 2026-05-27.
+- **Intent:** Apply the DOCGOV-002 metadata table to the live docs DOCGOV-009 did
+  not reach, so the governed doc set converges on a single metadata contract.
+- **Expected Outcome:** Architecture, runbook, vision, observability, strategy,
+  testing, internal, and guide docs that lack the governance metadata table
+  carry it; the `docs/governance/docs-check.baseline.json` `metadata` bucket
+  shrinks by each backfilled wave with no new findings introduced. Docs not yet
+  reached stay tracked in the baseline for later waves until the bucket is empty.
+- **Validation:** `pnpm docs:check && pnpm docs:index:check && pnpm format:check`
+- **Dependencies:** DOCGOV-002, DOCGOV-005, DOCGOV-009
+- **Files:** `docs/**`, `docs/governance/docs-check.baseline.json`,
+  `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
+- **Coordinates with:** DOCGOV-009 (same rubric and metadata contract),
+  DOCGOV-010 (metadata authority/type tags drive reorganisation placement)
+- **Confidence:** high

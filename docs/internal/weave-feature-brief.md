@@ -1,5 +1,13 @@
 # weave: Internal Agent Harness
 
+| Type | Authority | Owner | Status | Freshness                                        |
+| ---- | --------- | ----- | ------ | ------------------------------------------------ |
+| Spec | Advisory  | WEAVE | Draft  | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                  | Downstream                             |
+| ----------------------------------------- | -------------------------------------- |
+| Rust kernel semantic graph, weave runtime | Future internal agent harness planning |
+
 ## Technical Feature Description (Internal Engineering)
 
 ### What Is This?

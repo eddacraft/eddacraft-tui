@@ -33,11 +33,23 @@
 | [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
 | [Resource Budget — anvil watch](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`    | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
 
+## API
+
+| Document                                                                              | Path                                         | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------- | -------------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md) | `docs/runbooks/waitlist-email-operations.md` | Runbook | Authoritative | API   | Live   |
+
 ## ARCHCFG
 
 | Document                                                                                | Path                                          | Type  | Authority | Owner   | Status |
 | --------------------------------------------------------------------------------------- | --------------------------------------------- | ----- | --------- | ------- | ------ |
 | [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md) | `docs/guides/custom-architecture-policies.md` | Guide | Advisory  | ARCHCFG | Live   |
+
+## BETA
+
+| Document                                                                   | Path                                       | Type  | Authority | Owner | Status |
+| -------------------------------------------------------------------------- | ------------------------------------------ | ----- | --------- | ----- | ------ |
+| [Beta User Test Scenarios](../../docs/testing/beta-user-test-scenarios.md) | `docs/testing/beta-user-test-scenarios.md` | Guide | Advisory  | BETA  | Live   |
 
 ## CIB
 
@@ -67,16 +79,25 @@
 
 ## DOCGOV
 
-| Document                                                                       | Path                                      | Type   | Authority     | Owner  | Status |
-| ------------------------------------------------------------------------------ | ----------------------------------------- | ------ | ------------- | ------ | ------ |
-| [ADR Process](../../docs/guides/adr-process.md)                                | `docs/guides/adr-process.md`              | Guide  | Authoritative | DOCGOV | Live   |
-| [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`           | Guide  | Derived       | DOCGOV | Live   |
-| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCGOV | Live   |
-| [Development Guides](../../docs/guides/README.md)                              | `docs/guides/README.md`                   | README | Advisory      | DOCGOV | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)      | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCGOV | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`       | Guide  | Authoritative | DOCGOV | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                          | README | Advisory      | DOCGOV | Live   |
-| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md`    | Guide  | Advisory      | DOCGOV | Live   |
+| Document                                                                                                        | Path                                           | Type   | Authority     | Owner  | Status |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------ | ------------- | ------ | ------ |
+| [ADR Process](../../docs/guides/adr-process.md)                                                                 | `docs/guides/adr-process.md`                   | Guide  | Authoritative | DOCGOV | Live   |
+| [Anvil Architecture](../../docs/architecture/overview.md)                                                       | `docs/architecture/overview.md`                | Guide  | Derived       | DOCGOV | Live   |
+| [Anvil — Full Architecture (Current vs Proposed End State)](../../docs/architecture/anvil-full-architecture.md) | `docs/architecture/anvil-full-architecture.md` | Spec   | Derived       | DOCGOV | Live   |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)                                  | `docs/guides/architecture-diagrams.md`         | Guide  | Authoritative | DOCGOV | Live   |
+| [Development Guides](../../docs/guides/README.md)                                                               | `docs/guides/README.md`                        | README | Advisory      | DOCGOV | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)                                       | `docs/guides/documentation-governance.md`      | Guide  | Authoritative | DOCGOV | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)                                         | `docs/governance/tags-catalogue.md`            | Guide  | Authoritative | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                                                      | `docs/README.md`                               | README | Advisory      | DOCGOV | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |
+| [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                                 | `docs/architecture/oss-surface.md`             | Guide  | Derived       | DOCGOV | Live   |
+
+## EDDA
+
+| Document                                                         | Path                               | Type | Authority | Owner | Status |
+| ---------------------------------------------------------------- | ---------------------------------- | ---- | --------- | ----- | ------ |
+| [Edda Stack Architecture](../../docs/architecture/edda-stack.md) | `docs/architecture/edda-stack.md`  | Spec | Derived   | EDDA  | Live   |
+| [System Specification](../../docs/architecture/system-spec.md)   | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Live   |
 
 ## FLAGCAT
 
@@ -98,12 +119,35 @@
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- | --------- | ----- | ------ |
 | [Entire's Branch-as-Sidecar Pattern for Session Storage](../../docs/architecture/references/entire-branch-sidecar.md) | `docs/architecture/references/entire-branch-sidecar.md` | Guide | Advisory  | GV2   | Live   |
 
+## HARNESS
+
+| Document                                                                                     | Path                                             | Type  | Authority     | Owner   | Status |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | ------------- | ------- | ------ |
+| [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md) | `docs/guides/eddacraft-autonomy-constitution.md` | Guide | Authoritative | HARNESS | Draft  |
+
 ## KERN
 
-| Document                                                                                                   | Path                                              | Type  | Authority     | Owner | Status |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----- | ------------- | ----- | ------ |
-| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md` | Spec  | Derived       | KERN  | Live   |
-| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`              | Guide | Authoritative | KERN  | Live   |
+| Document                                                                                                   | Path                                                | Type  | Authority     | Owner | Status   |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----- | ------------- | ----- | -------- |
+| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)                    | `docs/architecture/anvil-architecture-evolution.md` | Spec  | Derived       | KERN  | Live     |
+| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md`   | Spec  | Derived       | KERN  | Live     |
+| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)                   | `docs/architecture/kernel-benchmarking-spec.md`     | Spec  | Derived       | KERN  | Proposed |
+| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`                | Guide | Authoritative | KERN  | Live     |
+| [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md)                 | `docs/architecture/rust-architecture-overview.md`   | Guide | Derived       | KERN  | Live     |
+| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)                              | `docs/architecture/rust-kernel-spec.md`             | Spec  | Derived       | KERN  | Proposed |
+
+## KIND
+
+| Document                                                                                 | Path                                                      | Type  | Authority | Owner | Status |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----- | --------- | ----- | ------ |
+| [PocketFlow Capabilities](../../docs/architecture/references/pocketflow-capabilities.md) | `docs/architecture/references/pocketflow-capabilities.md` | Guide | Advisory  | KIND  | Live   |
+| [PocketFlow Integration](../../docs/architecture/references/pocketflow-vendoring.md)     | `docs/architecture/references/pocketflow-vendoring.md`    | Guide | Advisory  | KIND  | Live   |
+
+## LANGCOV
+
+| Document                                                                   | Path                                      | Type  | Authority     | Owner   | Status |
+| -------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------- | ------ |
+| [Anchor Re-Scoring Process](../../docs/guides/anchor-rescoring-process.md) | `docs/guides/anchor-rescoring-process.md` | Guide | Authoritative | LANGCOV | Live   |
 
 ## MODULE-CODE
 
@@ -142,6 +186,12 @@
 | [Branching Strategy](../../docs/guides/branching-strategy.md) | `docs/guides/branching-strategy.md` | Guide | Authoritative | OPMODEL | Live   |
 | [Worktree Policy](../../docs/guides/worktree-policy.md)       | `docs/guides/worktree-policy.md`    | Guide | Authoritative | OPMODEL | Live   |
 
+## OPS
+
+| Document                                                                                    | Path                                      | Type | Authority | Owner | Status |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | --------- | ----- | ------ |
+| [Real-time Operations Feed Contract (Draft)](../../docs/internal/realtime-feed-contract.md) | `docs/internal/realtime-feed-contract.md` | Spec | Derived   | OPS   | Draft  |
+
 ## POLENG (plans/modules/policy-engine.aps.md)
 
 | Document                                                                      | Path                            | Type | Authority     | Owner                                       | Status |
@@ -154,6 +204,12 @@
 | ------------------------------------------------------------------------ | --------------------------------- | ----- | ------------- | ----- | ------ |
 | [Edda Memory Management](../../docs/guides/edda-memory.md)               | `docs/guides/edda-memory.md`      | Guide | Authoritative | RCLI3 | Live   |
 | [Ember Candidate Review Workflow](../../docs/guides/ember-candidates.md) | `docs/guides/ember-candidates.md` | Guide | Authoritative | RCLI3 | Live   |
+
+## RELEASE
+
+| Document                                                                                                                                               | Path                                                                        | Type  | Authority  | Owner   | Status   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ----- | ---------- | ------- | -------- |
+| [Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)](../../docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md) | `docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md` | Guide | Historical | RELEASE | Archived |
 
 ## RELORCH
 
@@ -180,17 +236,47 @@
 | ------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ----- | ------ |
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md) | `docs/guides/anvil-rule-authoring.md` | Guide | Authoritative | SCAN  | Live   |
 
+## STRATEGY
+
+| Document                                                                       | Path                                         | Type  | Authority | Owner    | Status |
+| ------------------------------------------------------------------------------ | -------------------------------------------- | ----- | --------- | -------- | ------ |
+| [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)    | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
+| [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md) | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
+
 ## TEST
 
 | Document                                               | Path                     | Type  | Authority     | Owner | Status |
 | ------------------------------------------------------ | ------------------------ | ----- | ------------- | ----- | ------ |
 | [Testing Best Practices](../../docs/guides/testing.md) | `docs/guides/testing.md` | Guide | Authoritative | TEST  | Live   |
 
+## TRACE
+
+| Document                                                                                 | Path                                          | Type     | Authority     | Owner | Status |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------- | -------- | ------------- | ----- | ------ |
+| [Anvil Observability Namespace Registry](../../docs/observability/namespace-registry.md) | `docs/observability/namespace-registry.md`    | Guide    | Authoritative | TRACE | Live   |
+| [Local Tracing](../../docs/observability/local-tracing.md)                               | `docs/observability/local-tracing.md`         | Guide    | Derived       | TRACE | Live   |
+| [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)      | `docs/architecture/observability-as-built.md` | As-built | Derived       | TRACE | Live   |
+
 ## TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
 
 | Document                                                                                           | Path                                    | Type  | Authority     | Owner                                                               | Status |
 | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------------------------------------------------------------- | ------ |
 | [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
+
+## VISION
+
+| Document                                                                                                                | Path                                           | Type  | Authority     | Owner  | Status |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ----- | ------------- | ------ | ------ |
+| [Anvil Scope Guard](../../docs/vision/anvil-scope-guard.md)                                                             | `docs/vision/anvil-scope-guard.md`             | Guide | Authoritative | VISION | Live   |
+| [Anvil Vision](../../docs/vision/anvil-vision.md)                                                                       | `docs/vision/anvil-vision.md`                  | Guide | Authoritative | VISION | Live   |
+| [Constitutional Engineering](../../docs/vision/constitutional-engineering.md)                                           | `docs/vision/constitutional-engineering.md`    | Guide | Advisory      | VISION | Live   |
+| [The Ultimate Feature: A Real-Time Deterministic Semantic Guardian](../../docs/vision/aspirational-ultimate-feature.md) | `docs/vision/aspirational-ultimate-feature.md` | Guide | Advisory      | VISION | Draft  |
+
+## WEAVE
+
+| Document                                                                    | Path                                   | Type | Authority | Owner | Status |
+| --------------------------------------------------------------------------- | -------------------------------------- | ---- | --------- | ----- | ------ |
+| [weave: Internal Agent Harness](../../docs/internal/weave-feature-brief.md) | `docs/internal/weave-feature-brief.md` | Spec | Advisory  | WEAVE | Draft  |
 
 ## WOUT (plans/modules/watch-output-contract.aps.md)
 

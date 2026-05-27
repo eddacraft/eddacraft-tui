@@ -1,5 +1,13 @@
 # PocketFlow Integration
 
+| Type  | Authority | Owner | Status | Freshness                                        |
+| ----- | --------- | ----- | ------ | ------------------------------------------------ |
+| Guide | Advisory  | KIND  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                                       | Downstream                              |
+| ------------------------------------------------------------------------------ | --------------------------------------- |
+| `packages/kindling-adapter-pocketflow/vendor/pocketflow/`, PocketFlow upstream | Kindling PocketFlow adapter maintenance |
+
 ## Overview
 
 PocketFlow is a lightweight workflow engine that provides explicit node

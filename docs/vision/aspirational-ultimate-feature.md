@@ -1,5 +1,13 @@
 # The Ultimate Feature: A Real-Time Deterministic Semantic Guardian
 
+| Type  | Authority | Owner  | Status | Freshness                                        |
+| ----- | --------- | ------ | ------ | ------------------------------------------------ |
+| Guide | Advisory  | VISION | Draft  | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                              | Downstream                   |
+| ------------------------------------- | ---------------------------- |
+| Rust kernel and semantic graph vision | Future feature ideation only |
+
 **This is an aspirational design direction. Not all items are committed scope.**
 
 Anvil becomes a **continuous structural reasoning engine** over the repository.

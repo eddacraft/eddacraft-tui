@@ -1,5 +1,13 @@
 # Anvil Vision
 
+| Type  | Authority     | Owner  | Status | Freshness                                        |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------ |
+| Guide | Authoritative | VISION | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream             | Downstream                             |
+| -------------------- | -------------------------------------- |
+| Product vision input | Scope guard, architecture, public docs |
+
 Anvil exists to ensure that AI and humans cannot produce unsafe software.
 
 ## The Shift

@@ -1,5 +1,13 @@
 # System Specification
 
+| Type | Authority | Owner | Status | Freshness                                        |
+| ---- | --------- | ----- | ------ | ------------------------------------------------ |
+| Spec | Derived   | EDDA  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                     | Downstream                                 |
+| -------------------------------------------- | ------------------------------------------ |
+| PocketFlow, Kindling, Ember, Edda, and Anvil | Edda Stack architecture and component docs |
+
 ## System Summary
 
 PocketFlow orchestrates execution. Kindling captures observations. Ember

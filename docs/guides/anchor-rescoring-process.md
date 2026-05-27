@@ -1,5 +1,13 @@
 # Anchor Re-Scoring Process
 
+| Type  | Authority     | Owner   | Status | Freshness                                        |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------ |
+| Guide | Authoritative | LANGCOV | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                 | Downstream                                       |
+| -------------------------------------------------------- | ------------------------------------------------ |
+| `plans/specs/2026-04-08-language-and-coverage-design.md` | Language anchor modules and re-scoring snapshots |
+
 > Process gate that runs before each language anchor module begins
 > implementation. Required by the
 > [2026-04-08 Language and Coverage Design](../../plans/specs/2026-04-08-language-and-coverage-design.md)

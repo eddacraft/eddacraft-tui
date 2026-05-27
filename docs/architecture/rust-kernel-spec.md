@@ -1,5 +1,13 @@
 # Rust Kernel Specification (H1)
 
+| Type | Authority | Owner | Status   | Freshness                                        |
+| ---- | --------- | ----- | -------- | ------------------------------------------------ |
+| Spec | Derived   | KERN  | Proposed | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                                                                            | Downstream                                                           |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ADR-011a, `docs/architecture/anvil-architecture-evolution.md`, `docs/vision/constitutional-engineering.md`, ADR-006 | `kernel-as-built.md`, benchmarking specs, Rust architecture overview |
+
 **Status:** Proposed — H1 Implementation Target
 
 **Relationship to other documents:**

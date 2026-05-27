@@ -1,5 +1,13 @@
 # Anvil — Full Architecture (Current vs Proposed End State)
 
+| Type | Authority | Owner  | Status | Freshness                                        |
+| ---- | --------- | ------ | ------ | ------------------------------------------------ |
+| Spec | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                          | Downstream                                                 |
+| ------------------------------------------------- | ---------------------------------------------------------- |
+| APS modules, architecture specs, vision documents | Architecture reference docs, public architecture tutorials |
+
 > **Date:** 2026-03-13 **Status:** Reference — synthesised from APS modules,
 > architecture specs, and vision documents
 >

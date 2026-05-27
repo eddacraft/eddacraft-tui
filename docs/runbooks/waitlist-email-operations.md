@@ -1,5 +1,13 @@
 # Waitlist Email Operations (Admin)
 
+| Type    | Authority     | Owner | Status | Freshness                                        |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------ |
+| Runbook | Authoritative | API   | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                     | Downstream                      |
+| ---------------------------- | ------------------------------- |
+| Anvil API waitlist endpoints | Waitlist email admin operations |
+
 This guide covers how to preview, test, and resend waitlist confirmation emails
 via the Anvil API (`api.eddacraft.ai`).
 

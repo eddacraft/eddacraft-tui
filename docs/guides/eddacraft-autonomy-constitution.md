@@ -1,5 +1,13 @@
 # eddacraft Autonomy Constitution (v0)
 
+| Type  | Authority     | Owner   | Status | Freshness                                                                 |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------- |
+| Guide | Authoritative | HARNESS | Draft  | Last updated 2026-03-09; metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                 | Downstream                              |
+| ---------------------------------------- | --------------------------------------- |
+| Harness engineering operating principles | Agent autonomy and governance workflows |
+
 Status: Draft for operational use  
 Owner: Harness Engineering  
 Last updated: 2026-03-09

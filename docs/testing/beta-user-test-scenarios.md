@@ -1,5 +1,13 @@
 # Beta User Test Scenarios
 
+| Type  | Authority | Owner | Status | Freshness                                        |
+| ----- | --------- | ----- | ------ | ------------------------------------------------ |
+| Guide | Advisory  | BETA  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                  | Downstream                     |
+| ----------------------------------------- | ------------------------------ |
+| Public beta testing guide, beta programme | Facilitated beta test sessions |
+
 Internal facilitator guide for running 45-60 minute beta sessions with one or
 two external users. Send testers the public
 [Beta Testing Guide](../public/anvil/beta-testing-guide.md); use this document

@@ -1,5 +1,13 @@
 # Anvil Observability Namespace Registry
 
+| Type  | Authority     | Owner | Status | Freshness                                                               |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------- |
+| Guide | Authoritative | TRACE | Live   | Live as of 2026-04-30; metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                  | Downstream                                    |
+| ------------------------- | --------------------------------------------- |
+| ADR-019, ADR-034, ADR-035 | Observability namespace authors and reviewers |
+
 > **Status:** Live as of 2026-04-30 (TRACE-001 landed). Records every
 > `anvil.<domain>.*` namespace contributed to the tracing pipe and which binary
 > owns the contribution. New rows are added by founder-reviewed PR per the

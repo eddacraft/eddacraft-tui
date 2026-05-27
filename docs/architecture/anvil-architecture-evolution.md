@@ -1,5 +1,13 @@
 # Anvil Architecture Evolution
 
+| Type | Authority | Owner | Status | Freshness                                        |
+| ---- | --------- | ----- | ------ | ------------------------------------------------ |
+| Spec | Derived   | KERN  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                                             | Downstream                                        |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| ADR-011, `docs/architecture/rust-kernel-spec.md`, `plans/modules/rust-kernel.aps.md` | Rust kernel docs, TUI docs, CLI architecture docs |
+
 **This document supersedes ADR-011 and defines the Current → H1 → H2 migration
 path.**
 

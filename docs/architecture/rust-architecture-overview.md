@@ -1,5 +1,13 @@
 # Rust Architecture — Full Overview
 
+| Type  | Authority | Owner | Status | Freshness                                        |
+| ----- | --------- | ----- | ------ | ------------------------------------------------ |
+| Guide | Derived   | KERN  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                        | Downstream                                 |
+| ----------------------------------------------- | ------------------------------------------ |
+| KERN, RENG, RATS, PORT, RSTLAN, and TUI modules | Rust architecture docs and onboarding docs |
+
 > Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, TUI (superseded),
 > and supporting architecture documents. This is a reference document — not a
 > plan itself.

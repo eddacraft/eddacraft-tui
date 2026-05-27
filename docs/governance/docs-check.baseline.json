@@ -6,12 +6,6 @@
     "docs/architecture/adapter-packages-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
     ],
-    "docs/architecture/anvil-architecture-evolution.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/architecture/anvil-full-architecture.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
     "docs/architecture/api-as-built.md": [
       "Metadata table column 1 must be \"type\"; got \"method\""
     ],
@@ -27,47 +21,14 @@
     "docs/architecture/driver-framework-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
     ],
-    "docs/architecture/edda-stack.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
     "docs/architecture/intercept-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
     "docs/architecture/kernel-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
-    "docs/architecture/kernel-benchmarking-spec.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
     "docs/architecture/mcp-shim-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/architecture/observability-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/oss-surface.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/architecture/quality-model.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/architecture/references/entire-branch-sidecar.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/architecture/references/pocketflow-capabilities.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/architecture/references/pocketflow-vendoring.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/architecture/rust-architecture-overview.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/rust-kernel-spec.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/architecture/system-spec.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
     ],
     "docs/architecture/tui-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
@@ -77,78 +38,6 @@
     ],
     "docs/architecture/widgets-as-built.md": [
       "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/adapters/workflow-guide.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/guides/adr-process.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/guides/agent-surface-inventory.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/guides/anchor-rescoring-process.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/guides/branching-strategy.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/guides/cli-output-streams.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/guides/command-safety-configuration.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/guides/command-safety.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/guides/custom-architecture-policies.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/guides/edda-memory.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/eddacraft-autonomy-constitution.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/guides/ember-candidates.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/feature-flag-governance.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/feature-flag-inventory.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/feature-flag-reference.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/guides/git-hook-compatibility.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/guides/opa-policy-testing.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/guides/stack-migration.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/guides/testing.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/guides/worktree-policy.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/internal/realtime-feed-contract.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/internal/weave-feature-brief.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/observability/local-tracing.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/observability/namespace-registry.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
     ],
     "docs/public/anvil/beta-testing-guide.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
@@ -375,9 +264,6 @@
     "docs/runbooks/neon-db-operations.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
-    "docs/runbooks/observability-triage.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
     "docs/runbooks/post-deploy-smoke-check.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
@@ -391,33 +277,6 @@
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ],
     "docs/runbooks/rollback-bad-published-release.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/waitlist-email-operations.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/strategy/borrow-adopt-candidates.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/strategy/competitor-tier2-tracking.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/testing/beta-user-test-scenarios.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/vision/anvil-scope-guard.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/vision/anvil-vision.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/vision/aspirational-ultimate-feature.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/vision/constitutional-engineering.md": [
       "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
     ]
   },
@@ -1046,13 +905,6 @@
     "docs/runbooks/v0.7.0-beta-release-runbook.md": [
       "source path does not exist: \"intd-012-windows-evidence.md\" (body reference \"intd-012-windows-evidence.md\")",
       "source path does not exist: \"plans/reviews/cleanup-log.md\" (body reference \"plans/reviews/cleanup-log.md\")"
-    ],
-    "docs/runbooks/release-runbook.md": [
-      "source path does not exist: \"about.toml.accepted\" (body reference \"about.toml.accepted\")",
-      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
-      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
-      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
-      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
     ]
   }
 }

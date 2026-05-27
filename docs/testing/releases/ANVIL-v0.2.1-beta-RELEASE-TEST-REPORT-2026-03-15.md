@@ -1,5 +1,13 @@
 # Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)
 
+| Type  | Authority  | Owner   | Status   | Freshness                                                                                       |
+| ----- | ---------- | ------- | -------- | ----------------------------------------------------------------------------------------------- |
+| Guide | Historical | RELEASE | Archived | Historical release evidence for `v0.2.1-beta`; metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                        | Downstream                       |
+| ------------------------------- | -------------------------------- |
+| `v0.2.1-beta` release artefacts | Historical release evidence only |
+
 > Historical release evidence for `v0.2.1-beta` only.
 >
 > This report documents a point-in-time release test run against the old

@@ -1,5 +1,13 @@
 # PocketFlow Capabilities
 
+| Type  | Authority | Owner | Status | Freshness                                        |
+| ----- | --------- | ----- | ------ | ------------------------------------------------ |
+| Guide | Advisory  | KIND  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                     | Downstream                            |
+| ------------------------------------------------------------ | ------------------------------------- |
+| `packages/kindling-adapter-pocketflow/`, PocketFlow upstream | Kindling workflow capability guidance |
+
 This document describes what PocketFlow enables beyond core Kindling
 functionality. PocketFlow is vendored at
 `packages/kindling-adapter-pocketflow/vendor/pocketflow/`.

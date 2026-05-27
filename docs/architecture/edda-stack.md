@@ -1,5 +1,13 @@
 # Edda Stack Architecture
 
+| Type | Authority | Owner | Status | Freshness                                        |
+| ---- | --------- | ----- | ------ | ------------------------------------------------ |
+| Spec | Derived   | EDDA  | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                    | Downstream                                       |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| Edda Stack public docs, Kindling and Ember package surfaces | Public Edda Stack docs, memory architecture docs |
+
 > A three-layer architecture that governs how activity becomes memory.
 
 ## Overview

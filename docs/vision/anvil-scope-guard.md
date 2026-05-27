@@ -1,5 +1,13 @@
 # Anvil Scope Guard
 
+| Type  | Authority     | Owner  | Status | Freshness                                        |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------ |
+| Guide | Authoritative | VISION | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream     | Downstream                                     |
+| ------------ | ---------------------------------------------- |
+| Anvil vision | Architecture decisions, APS scoping, PR review |
+
 ## Purpose
 
 This document defines the strict boundaries of what Anvil is and is not.

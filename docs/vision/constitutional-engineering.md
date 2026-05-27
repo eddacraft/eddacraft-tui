@@ -1,5 +1,13 @@
 # Constitutional Engineering
 
+| Type  | Authority | Owner  | Status | Freshness                                        |
+| ----- | --------- | ------ | ------ | ------------------------------------------------ |
+| Guide | Advisory  | VISION | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream          | Downstream                                     |
+| ----------------- | ---------------------------------------------- |
+| Anvil vision docs | Architecture specs and kernel policy rationale |
+
 **This is a philosophical document exploring the conceptual foundations of
 Anvil's approach. It is not a scope document or implementation plan.**
 

@@ -1,5 +1,13 @@
 # eddacraft OSS Surface
 
+| Type  | Authority | Owner  | Status | Freshness                                        |
+| ----- | --------- | ------ | ------ | ------------------------------------------------ |
+| Guide | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream         | Downstream                                    |
+| ---------------- | --------------------------------------------- |
+| ADR-018, ADR-047 | OSS mirror policy, public repository guidance |
+
 eddacraft operates a closed-source product (the Anvil platform) with a
 deliberate, narrow open-source surface limited to three foundational
 repositories. This document describes those repositories, why they are open, and

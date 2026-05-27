@@ -1,5 +1,13 @@
 # Real-time Operations Feed Contract (Draft)
 
+| Type | Authority | Owner | Status | Freshness                                        |
+| ---- | --------- | ----- | ------ | ------------------------------------------------ |
+| Spec | Derived   | OPS   | Draft  | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                      | Downstream                          |
+| ----------------------------- | ----------------------------------- |
+| Dashboard operations surfaces | Real-time operations feed consumers |
+
 This document defines the minimum event feed contract required by dashboard
 operations views.
 

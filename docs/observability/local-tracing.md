@@ -1,5 +1,13 @@
 # Local Tracing
 
+| Type  | Authority | Owner | Status | Freshness                                        |
+| ----- | --------- | ----- | ------ | ------------------------------------------------ |
+| Guide | Derived   | TRACE | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                | Downstream                     |
+| ------------------------------------------------------- | ------------------------------ |
+| TRACE-004, `crates/anvil-observability/`, intercept CLI | Local daemon and CLI debugging |
+
 TRACE-004 adds local span correlation for daemon and CLI debugging without
 selecting a production exporter.
 

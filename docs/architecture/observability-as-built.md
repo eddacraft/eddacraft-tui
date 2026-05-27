@@ -1,5 +1,13 @@
 # anvil-observability — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                          |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------ |
+| As-built | Derived   | TRACE | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and HEAD `d223b8d9` |
+
+| Upstream                               | Downstream                                      |
+| -------------------------------------- | ----------------------------------------------- |
+| `crates/anvil-observability/`, ADR-035 | CLI tracing, intercept tracing, MCP correlation |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `d223b8d9`) **Crate / location:** `crates/anvil-observability`
 > (package `eddacraft-anvil-observability`, lib name `anvil_observability`)

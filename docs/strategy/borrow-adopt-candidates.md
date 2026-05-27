@@ -1,5 +1,13 @@
 # Borrow / Adopt Candidates
 
+| Type  | Authority | Owner    | Status | Freshness                                        |
+| ----- | --------- | -------- | ------ | ------------------------------------------------ |
+| Guide | Advisory  | STRATEGY | Live   | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                  | Downstream                              |
+| ------------------------- | --------------------------------------- |
+| External project research | Borrow/adopt strategy and APS follow-up |
+
 Purpose: track concrete ideas to borrow, adapt, or integrate from external
 projects into Anvil.
 

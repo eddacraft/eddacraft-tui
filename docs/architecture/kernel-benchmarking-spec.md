@@ -1,5 +1,13 @@
 # Kernel Benchmarking Specification
 
+| Type | Authority | Owner | Status   | Freshness                                        |
+| ---- | --------- | ----- | -------- | ------------------------------------------------ |
+| Spec | Derived   | KERN  | Proposed | Metadata backfilled 2026-05-24 during DOCGOV-009 |
+
+| Upstream                                                                                  | Downstream                                            |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `docs/architecture/rust-kernel-spec.md`, `crates/anvil-kernel/benches/kernel.rs`, ADR-031 | Kernel performance validation, benchmark harness work |
+
 **Status:** Proposed
 
 **Relationship to other documents:**
