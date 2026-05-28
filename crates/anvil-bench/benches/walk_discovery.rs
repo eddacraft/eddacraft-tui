@@ -91,7 +91,11 @@ fn build_corpus() -> Corpus {
         for _ in 0..here {
             // Alternate extensions both pass the scan filter and the
             // binary check, matching a typical TS/Rust monorepo.
-            let ext = if file_idx % 2 == 0 { "ts" } else { "rs" };
+            let ext = if file_idx.is_multiple_of(2) {
+                "ts"
+            } else {
+                "rs"
+            };
             let path = subdir.join(format!("file_{file_idx:05}.{ext}"));
             std::fs::write(&path, b"export const x = 1;\n").expect("write");
             file_idx += 1;

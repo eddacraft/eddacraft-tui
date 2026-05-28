@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| SCAN | @team | In Progress | 4/6      |
+| SCAN | @team | In Progress | 5/6      |
 
 **Last reviewed:** 2026-04-26
 
@@ -184,9 +184,8 @@ reference the council finding IDs where relevant.
   - `crates/anvil-bench/` (benchmark harness)
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-28;
-  spike complete pending merge — flip to `Merged` lands in the follow-up
-  reconcile PR)
+- **Status:** Merged 2026-05-28 via PR [#2034](https://github.com/eddacraft/anvil-001/pull/2034)
+  (`7c43a05c`). Promoted Proposed → Ready → In Progress → Merged 2026-05-28.
 - **Outcome (2026-05-28):** Bench committed at
   `crates/anvil-bench/benches/walk_discovery.rs` (criterion, `harness = false`).
   Three corpora on a 16-core box:
