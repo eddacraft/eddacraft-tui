@@ -420,14 +420,24 @@ fn resolve_first_run_thread_count(env_value: Option<&str>, available_cpus: usize
     (resolved > 0).then_some(resolved)
 }
 
+/// SCAN-003: resolve the first-run thread budget from `ANVIL_SCAN_THREADS`
+/// (default `min(num_cpus, DEFAULT_FIRST_RUN_THREAD_CAP)`). Shared by the
+/// Phase 1a parallel walker and the Phase 2 rayon pool so both honour the same
+/// "don't fight the TUI for cores" cap from one place.
+fn first_run_thread_count() -> Option<usize> {
+    resolve_first_run_thread_count(
+        std::env::var(ANVIL_SCAN_THREADS_ENV).ok().as_deref(),
+        num_cpus::get(),
+    )
+}
+
 /// SCAN-003: build a scoped rayon pool sized for the first-run scan.
 ///
 /// Returns the pool when construction succeeds; on failure the caller
 /// should fall back to the global rayon pool — failure here is a
 /// best-effort fallback, never fatal to the scan.
 fn build_first_run_pool() -> Option<rayon::ThreadPool> {
-    let env = std::env::var(ANVIL_SCAN_THREADS_ENV).ok();
-    let threads = resolve_first_run_thread_count(env.as_deref(), num_cpus::get())?;
+    let threads = first_run_thread_count()?;
     rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
         .thread_name(|idx| format!("anvil-scan-{idx}"))
@@ -468,6 +478,67 @@ fn candidate_path(
         .to_string_lossy()
         .to_string();
     Some((path.to_path_buf(), rel_path))
+}
+
+/// SCAN-006: collect the gitignore-blind Phase 1a candidates in parallel.
+///
+/// Phase 1a is **uncapped** — it must see the whole tree to build the
+/// `all_candidates` set the SCAN-004 skip count subtracts from — so it is the
+/// dominant walk cost and the one that benefits most from parallelism
+/// (especially on large / cold-cache repos). It is also the *safe* walk to
+/// parallelise: its output feeds an order-independent `HashSet` plus the
+/// `ALWAYS_SCAN_FILENAMES` allowlist filter, and final user-visible ordering is
+/// imposed later by `findings.sort_by`, so concurrency introduces no
+/// determinism hazard. (The capped Phase 1b walk stays sequential — see
+/// `scan_project_at` — because its early-break at `SCAN_MAX_FILES` and
+/// deterministic truncation depend on an ordered single-threaded walk.)
+///
+/// `candidate_path` (incl. its `metadata()` stat) runs concurrently across the
+/// walker's threads; the `mpsc` channel collects results with low contention.
+/// Threads are capped with the SCAN-003 first-run budget (`ANVIL_SCAN_THREADS`,
+/// default `min(num_cpus, 4)`) so the walk does not fight the TUI for cores.
+fn collect_blind_candidates_parallel(
+    cwd: &std::path::Path,
+    filter: &anvil_checks::filter::ScanFilter,
+) -> Vec<(std::path::PathBuf, String)> {
+    let mut builder = ignore::WalkBuilder::new(cwd);
+    builder
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false);
+    if let Some(threads) = first_run_thread_count() {
+        builder.threads(threads);
+    }
+
+    let filter_for_prune = filter.clone();
+    builder.filter_entry(move |entry| {
+        // Only prune directories — always descend into files so the filename
+        // allowlist can match them.
+        if entry.file_type().is_none_or(|ft| !ft.is_dir()) {
+            return true;
+        }
+        filter_for_prune.includes(entry.path())
+    });
+
+    // Safety/lifetime note: `build_parallel().run()` is synchronous — it joins
+    // every worker thread before returning — so the `&Path` (`cwd`) and
+    // `&ScanFilter` (`filter`) borrows captured by the per-thread closure stay
+    // valid for the whole walk despite the `Send` boundary. Do NOT switch to an
+    // async / detached walk variant without giving these owned copies first.
+    let (tx, rx) = std::sync::mpsc::channel();
+    builder.build_parallel().run(|| {
+        let tx = tx.clone();
+        Box::new(move |result| {
+            if let Ok(entry) = result
+                && let Some(candidate) = candidate_path(&entry, cwd, filter)
+            {
+                let _ = tx.send(candidate);
+            }
+            ignore::WalkState::Continue
+        })
+    });
+    drop(tx);
+    rx.iter().collect()
 }
 
 /// Read and scan one file. Returns `None` when the file cannot be read or has
@@ -583,55 +654,29 @@ fn scan_project_at(
     // gitignore-excluded, so an empty set yields a count of 0.
     let mut all_candidates: HashSet<std::path::PathBuf> = HashSet::new();
 
-    // Phase 1a: always-scan allowlist pass. Runs first (regardless of
-    // truncation) and bypasses standard gitignore filters so leaked `.env`
-    // or `id_rsa` files in gitignored locations are still caught — that's
-    // precisely the class of secret the first-run scan exists to flag.
+    // Phase 1a: always-scan allowlist pass. Bypasses standard gitignore
+    // filters so leaked `.env` or `id_rsa` files in gitignored locations are
+    // still caught — precisely the class of secret the first-run scan exists to
+    // flag — and builds `all_candidates` for the SCAN-004 skip count.
     //
-    // `filter_entry` prunes directories that ScanFilter would otherwise
-    // reject (node_modules, target, dist, .git, ...). It is applied only to
-    // this Phase 1a walker (Phase 1b uses a separate WalkBuilder without it),
-    // so it bounds the cost of this pass — which now also stats every entry to
-    // build `all_candidates` for the SCAN-004 skip count — by keeping it from
-    // descending into those large dirs on typical JS/Rust repos.
-    // Skipped when `scan_all` is set because Phase 1b then covers
-    // everything (including `.env`) via the same walker.
+    // SCAN-006: the walk runs in parallel (`collect_blind_candidates_parallel`)
+    // because it is uncapped and order-free; the sequential post-pass below
+    // just folds its results into the order-independent sets. `filter_entry`
+    // (inside the helper) prunes build-artefact dirs so the gitignore-blind
+    // walk can't dominate runtime by descending into node_modules/target/...
+    // Skipped when `scan_all` is set because Phase 1b then covers everything
+    // (including `.env`) via the same walker.
     if !scan_all {
-        let filter_for_prune = filter.clone();
-        let allowlist_walker = ignore::WalkBuilder::new(cwd)
-            .follow_links(false)
-            .standard_filters(false)
-            .hidden(false)
-            .filter_entry(move |entry| {
-                // Only prune directories — always descend into files so the
-                // filename allowlist can match them.
-                if entry.file_type().is_none_or(|ft| !ft.is_dir()) {
-                    return true;
-                }
-                filter_for_prune.includes(entry.path())
-            })
-            .build();
-
-        for entry in allowlist_walker.filter_map(Result::ok) {
-            let Some(candidate) = candidate_path(&entry, cwd, &filter) else {
-                continue;
-            };
+        for candidate in collect_blind_candidates_parallel(cwd, &filter) {
             // Record every gitignore-blind candidate so Phase 1b's
             // gitignore-respecting set can be subtracted from it (SCAN-004).
-            // It must use the *same* `candidate_path` predicate (incl. the
-            // size stat) as the scan set: a looser predicate here would let a
-            // non-gitignored file that the scan dropped for another reason
-            // (e.g. oversize) leak into the skip count. Equal predicates mean
-            // the only axis that differs between the two sets is gitignore.
-            // Cost: this stats every file the gitignore-blind walk reaches
-            // rather than only allowlist names — accepted for first-run
-            // provenance and bounded by the `filter_entry` dir prune above.
+            // `candidate_path` (the *same* predicate, incl. the size stat, as
+            // the scan set) is applied inside the parallel helper, so the only
+            // axis that differs between the two sets is gitignore.
             all_candidates.insert(candidate.0.clone());
-            // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a
-            // small, rare-filename set, so total contribution is bounded by
-            // how many `.env`-like files actually exist in the tree. These
-            // are force-scanned even when gitignored — exactly the class of
-            // leak the first-run scan exists to flag.
+            // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a small,
+            // rare-filename set. These are force-scanned even when gitignored —
+            // exactly the class of leak the first-run scan exists to flag.
             if is_always_scan_filename(&candidate.0) && seen.insert(candidate.0.clone()) {
                 candidates.push(candidate);
             }
@@ -1413,6 +1458,95 @@ mod tests {
 
             let results = scan_project_at(root, false);
             assert_eq!(results.files_skipped_by_ignore, 0);
+        }
+    }
+
+    // ── SCAN-006: parallel Phase 1a walk invariants ─────────────────
+    mod discovery_parallel {
+        use super::super::{SCAN_MAX_FILES, scan_project_at};
+        use anvil_tui::surfaces::tutorial::discovery::FindingSeverity;
+        use std::fs;
+
+        // The parallel Phase 1a walk must not leak thread-scheduling order into
+        // user-visible output. `scan_project_at` imposes a final deterministic
+        // sort, so repeated runs over the same tree must yield identical
+        // findings in identical order.
+        #[test]
+        fn findings_order_is_deterministic_across_runs() {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            let token = format!("ghp_{}", "a".repeat(36));
+            for i in 0..12 {
+                let dir = root.join(format!("pkg{i:02}"));
+                fs::create_dir_all(&dir).unwrap();
+                fs::write(dir.join("conf.rs"), format!("let k = \"{token}\";\n")).unwrap();
+            }
+            // Project to (severity-rank, file, line, title). The rank encodes
+            // the real sort's primary key (severity *descending* — Error first),
+            // so a plain ascending sort of this tuple equals the documented
+            // canonical order regardless of any severity mix in the fixture.
+            let run = |r: &std::path::Path| {
+                scan_project_at(r, false)
+                    .findings
+                    .iter()
+                    .map(|f| {
+                        let rank = match f.severity {
+                            FindingSeverity::Error => 0u8,
+                            FindingSeverity::Warning => 1,
+                            FindingSeverity::Info => 2,
+                        };
+                        (rank, f.file.clone(), f.line, f.title.clone())
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let first = run(root);
+            assert!(!first.is_empty(), "fixture should produce secret findings");
+            // Canonical-order invariant: the output is already in its own sorted
+            // order, so determinism does not hinge on walk scheduling luck.
+            let mut sorted = first.clone();
+            sorted.sort();
+            assert_eq!(
+                first, sorted,
+                "findings must be emitted in canonical sorted order"
+            );
+            // And repeated runs must agree (several runs to give the parallel
+            // walk room to schedule differently).
+            for _ in 0..5 {
+                assert_eq!(
+                    run(root),
+                    first,
+                    "parallel walk must produce a deterministic finding order across runs"
+                );
+            }
+        }
+
+        // Phase 1b stays sequential precisely to preserve the SCAN_MAX_FILES
+        // early-break + honest truncation flag. More than the cap of candidate
+        // files must set `truncated` and bound the scanned set.
+        #[test]
+        fn over_cap_candidate_set_is_truncated() {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            let n = SCAN_MAX_FILES + 25;
+            for i in 0..n {
+                fs::write(root.join(format!("f{i:04}.rs")), "fn x() {}\n").unwrap();
+            }
+            let results = scan_project_at(root, false);
+            assert!(
+                results.truncated,
+                "more than SCAN_MAX_FILES candidates must truncate"
+            );
+            assert!(
+                results.files_scanned <= SCAN_MAX_FILES,
+                "scanned set must not exceed the cap: {}",
+                results.files_scanned
+            );
+            // Truncation suppresses the SCAN-004 skip count (a capped walk can't
+            // honestly attribute unscanned candidates to gitignore).
+            assert_eq!(
+                results.files_skipped_by_ignore, 0,
+                "truncated scan must suppress the gitignore-skip count"
+            );
         }
     }
 

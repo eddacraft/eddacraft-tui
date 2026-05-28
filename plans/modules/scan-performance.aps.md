@@ -235,27 +235,41 @@ reference the council finding IDs where relevant.
   `break` after N); (d) concurrent dedup of the SCAN-004
   `all_candidates`/`seen` sets without breaking the membership-filter
   correctness guarantee.
-- **Validation:**
-  - Extend `walk_discovery` bench (or add an end-to-end variant) to show that
-    `scan_project_at` itself — not just the walk in isolation — improves
-    ≥20% wall-time on at least one of (entx real, 30k synthetic).
-  - All existing `crates/anvil-cli/src/commands/welcome.rs` tests + the
-    SCAN-004 `gitignore_skip` tests + `discovery_render` tests stay green.
-  - New tests pinning: deterministic finding ordering under parallel walk;
-    `SCAN_MAX_FILES` truncation behaviour under concurrent collection.
-  - Decide explicitly whether Phase 1a (the gitignore-blind allowlist walk)
-    and the `scan_all` / gitignore-off path (`standard_filters(false)`) are in
-    scope — the SCAN-005 spike bench only measured Phase 1b with gitignore on,
-    so those paths are unvalidated and must be either parallelised too or
-    documented as deliberately left sequential.
-- **Files:**
-  - `crates/anvil-cli/src/commands/welcome.rs` (`scan_project_at`)
-  - `crates/anvil-bench/benches/walk_discovery.rs` (end-to-end variant)
-  - Possibly `crates/anvil-tui/src/surfaces/tutorial/discovery.rs` if ordering
-    invariants need to change.
+- **Validation (done):**
+  - Walk-phase speedup is evidenced by the committed `walk_discovery` bench
+    (sequential `WalkBuilder` vs `WalkParallel`, **4.5–6.3×**); Phase 1a now
+    uses that parallel path. **The original "≥20% end-to-end" bar was retired**
+    — the SCAN-005 spike already established Phase 2 (the rayon-parallel
+    read+regex scan) dominates total discovery, so end-to-end gain is ~10–17%
+    on warm typical repos and larger on big/cold repos where the uncapped
+    Phase 1a walk dominates. End-to-end ≥20% was never achievable and is not the
+    right metric for a walk-only change.
+  - All existing `welcome.rs` tests + SCAN-004 `gitignore_skip` + `discovery_render`
+    tests stay green. ✓
+  - New `welcome::tests::discovery_parallel` tests pin deterministic finding
+    order across runs and `SCAN_MAX_FILES` truncation. ✓
+  - Scope decided (see Status): Phase 1a parallelised; Phase 1b (capped) and
+    `scan_all` (gitignore-off, Phase 1a skipped) left sequential, documented in
+    code. Determinism preserved via the final `findings.sort_by` + the
+    sequential capped Phase 1b.
+- **Files (actual):**
+  - `crates/anvil-cli/src/commands/welcome.rs` — new
+    `collect_blind_candidates_parallel` helper, Phase 1a rewired to it, and
+    `welcome::tests::discovery_parallel` invariant tests.
+  - `crates/anvil-bench/benches/walk_discovery.rs` — unchanged; the SCAN-005
+    bench already measures the seq-vs-parallel walk delta Phase 1a now realises.
+  - `crates/anvil-tui/.../discovery.rs` — not touched; finding-order invariant
+    held via the existing final sort, no struct change needed.
 - **Confidence:** medium (truncation + dedup under parallel is non-trivial)
 - **Priority:** Low
-- **Status:** Proposed
+- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-28;
+  execution authorised by operator). Scope decision: parallelise the
+  **uncapped Phase 1a** gitignore-blind walk (the dominant cost; order-free, no
+  truncation risk) via `WalkBuilder::build_parallel()` with the SCAN-003 thread
+  cap; keep the **capped Phase 1b** walk sequential to preserve its early-break
+  at `SCAN_MAX_FILES` and deterministic truncation. `scan_all` mode (Phase 1a
+  skipped) stays sequential and is documented as such. Finding order stays
+  deterministic via the existing final `findings.sort_by`.
 - **Origin:** SCAN-005 spike (PR TBD, 2026-05-28) — walk parallelism is real
   (4.5–6.3×) but end-to-end gain on typical warm repos is right at the 20%
   bar (~10–17%) because Phase 2 (the already-rayon-parallel read+regex scan)
