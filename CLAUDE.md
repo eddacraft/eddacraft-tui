@@ -5,10 +5,6 @@
 
 ## Commands
 
-```bash
-npm run kindling:link   # Link @kindling/core, @kindling/cli, @kindling/store-sqlite
-```
-
 No build or test commands in this config layer — the monorepo uses `pnpm` and
 `nx` for builds/tests, `cargo` for Rust crates.
 
@@ -17,8 +13,6 @@ No build or test commands in this config layer — the monorepo uses `pnpm` and
 - `plans/` — APS implementation plans; check before planning new features
 - `docs/vision/` — North star docs for validating feature alignment (not scope)
 - `.claude/` — Claude Code configuration (agents, hooks, skills, MCP servers)
-- `setup-claude-config.sh` — Copies/symlinks `.claude/` config into other
-  projects (copy, `--symlink`, or `--update` modes)
 
 ## Active Hooks
 
