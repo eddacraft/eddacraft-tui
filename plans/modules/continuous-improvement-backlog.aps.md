@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/32    |
+| CIB | —     | In Progress | 19/33    |
 
 ## Purpose
 
@@ -721,3 +721,30 @@ archive.
   tooling if a setup hook is the chosen path.
 - **Confidence:** medium — clear problem and validation; the cleanest fix
   mechanism (script guard vs setup hook vs docs) needs a small design call.
+
+### CIB-033: Sweep for open GitHub issues already resolved on main
+
+- **Status:** Draft
+- **Intent:** Open issues that have already been fixed on `main` (often by a
+  later, separately-tracked change) linger in the tracker, so anyone picking
+  work from the issue list wastes a verification round per stale item before
+  finding a still-real one.
+- **Expected Outcome:** A lightweight, repeatable way to surface
+  likely-already-resolved open issues for human confirmation + closure —
+  e.g. a documented triage procedure, or a best-effort script that, for each
+  open issue, greps the file/symbol/behaviour it cites against current `main`
+  and flags candidates whose described gap no longer exists. Output is a
+  candidate list a human closes; it does not auto-close.
+- **Validation:** Running the sweep over the current open-issue list surfaces a
+  candidate set; spot-checking confirms the flagged items are genuinely
+  resolved (no false "still open" misses on a small known sample). Closure
+  decisions stay human.
+- **Identified From:** 2026-05-28 session picking a GitHub issue to work — 2 of the
+  first 3 candidates (#1873 resolved by CIB-020; #1976 resolved by the
+  drift-check `--release-record` gating) were already fixed on `main` but still
+  open. Both were closed manually; a sweep would have surfaced them up front.
+- **Files:** A new triage helper under `scripts/` and/or a procedure note in
+  the dev-workflow / issue-triage docs — mechanism chosen at implementation.
+- **Confidence:** low — the "is this issue resolved?" heuristic is inherently
+  fuzzy (cited symbols move, behaviour is hard to grep); the win is a
+  human-reviewed candidate list, not automated closure.
