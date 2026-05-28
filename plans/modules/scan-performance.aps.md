@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| SCAN | @team | In Progress | 3/5      |
+| SCAN | @team | In Progress | 4/5      |
 
 **Last reviewed:** 2026-04-26
 
@@ -150,8 +150,8 @@ reference the council finding IDs where relevant.
   - `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs` (summary render)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-27;
-  execution authorised by operator)
+- **Status:** Merged 2026-05-27 via PR [#2021](https://github.com/eddacraft/anvil-001/pull/2021)
+  (`3d1d3e1b`). Promoted Proposed → Ready → In Progress → Merged 2026-05-27.
 - **Scope note (2026-05-27):** Spec originally guessed `ScanResults` lived in
   `crates/anvil-checks/src/types.rs` and that gate/audit would render the count.
   Reality: `ScanResults` is the welcome/TUI discovery type, and the welcome

@@ -1,16 +1,16 @@
 # Post-merge: feat-scan-004-files-skipped-by-ignore
 
-PR: #NNN
+PR: #2021
 Branch: `feat/scan-004-files-skipped-by-ignore`
 APS: SCAN-004
-Merged: <!-- filled by cleanup agent -->
+Merged: 2026-05-27 (commit `3d1d3e1b`)
 Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance SCAN-004 `In Progress → Merged YYYY-MM-DD via PR #NNN` in
+- [x] Advance SCAN-004 `In Progress → Merged 2026-05-27 via PR #2021` in
       `plans/modules/scan-performance.aps.md`, and update the index row note in
-      `plans/index.aps.md` (count moves 3/5 → 4/5). (agent: yes)
+      `plans/index.aps.md` (count moves 3/5 → 4/5). Done in docs/scan-004-reconcile.
 - [ ] `cargo test -p eddacraft-anvil --bins gitignore_skip` passes on `main`
       (the three temp-git-repo counting tests). (agent: yes)
 - [ ] `cargo test -p eddacraft-anvil-tui --lib discovery` passes on `main`
