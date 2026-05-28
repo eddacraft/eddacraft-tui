@@ -164,9 +164,16 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
+/// Build the sidecar updater command.
+///
+/// The sidecar (`eddacraft-anvil-update`, a cargo-dist updater) understands the
+/// standard `--check` / `--version` / `--force` flags but NOT anvil's custom
+/// `--insecure-skip-verify`, so that flag is deliberately *not* forwarded here —
+/// forwarding an unknown flag would make the updater error out. `run_sidecar`
+/// warns the operator instead (issue #1735). Extracted so the forwarded arg
+/// surface is unit-testable without spawning the real updater.
+fn build_sidecar_command(path: &Path, args: &UpdateArgs) -> Command {
     let mut cmd = Command::new(path);
-
     if args.check {
         cmd.arg("--check");
     }
@@ -176,8 +183,59 @@ fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
     if args.force {
         cmd.arg("--force");
     }
+    cmd
+}
 
-    let status = cmd
+/// Loud warning when `--insecure-skip-verify` is passed but the sidecar updater
+/// cannot honour it (it has no such flag).
+///
+/// `--insecure-skip-verify` only controls anvil's *own* signature check on the
+/// library-fallback path; the sidecar (`eddacraft-anvil-update`) runs its own
+/// updater logic and never anvil's signature step, so the flag is meaningless
+/// there. Per ADR-045 and the operator-config silent-default class (#1735) we
+/// never drop an operator-supplied security flag silently — so say so loudly
+/// and name the sidecar so the operator can remove it to reach the path where
+/// the flag does apply.
+fn write_sidecar_skip_verify_ignored_warning<W: std::io::Write>(
+    path: &Path,
+    w: &mut W,
+) -> std::io::Result<()> {
+    writeln!(
+        w,
+        "WARNING: --insecure-skip-verify is not supported by the sidecar updater ({SIDECAR_NAME}); the flag has no effect on this path."
+    )?;
+    writeln!(
+        w,
+        "         It only governs anvil's own signature check, which the sidecar does not run. To use it, remove the sidecar ({}) so anvil's built-in updater runs instead.",
+        path.display()
+    )?;
+    Ok(())
+}
+
+/// Emit the sidecar skip-verify warning only when it is actually meaningful:
+/// the flag was set AND this is a real install. `--check` downloads nothing, so
+/// the flag is a no-op there on every path and a warning would be pure noise.
+/// Split from `run_sidecar` so the call-site decision is unit-testable without
+/// spawning the updater.
+fn maybe_warn_sidecar_skip_verify<W: std::io::Write>(
+    path: &Path,
+    args: &UpdateArgs,
+    w: &mut W,
+) -> std::io::Result<()> {
+    if args.insecure_skip_verify && !args.check {
+        write_sidecar_skip_verify_ignored_warning(path, w)?;
+    }
+    Ok(())
+}
+
+fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
+    // Surface a dropped --insecure-skip-verify loudly rather than silently
+    // (#1735). `.expect` matches the library path's ADR-045 convention: the
+    // security warning is a contract, so a failed stderr write is fatal.
+    maybe_warn_sidecar_skip_verify(path, args, &mut std::io::stderr().lock())
+        .expect("stderr write for ADR-045 sidecar skip-verify warning");
+
+    let status = build_sidecar_command(path, args)
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
@@ -674,39 +732,125 @@ mod tests {
         }
     }
 
+    fn sidecar_args(args: &UpdateArgs) -> Vec<String> {
+        build_sidecar_command(std::path::Path::new("fake-updater"), args)
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
+    }
+
     #[test]
     fn sidecar_command_check_flag() {
-        // Verify the command would be built with --check
-        let mut cmd = Command::new("fake-updater");
-        let args = args_with(true, None, false);
-        if args.check {
-            cmd.arg("--check");
-        }
-        // Command::get_args is available — verify the arg is present
-        let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
-        assert_eq!(cmd_args, vec!["--check"]);
+        assert_eq!(sidecar_args(&args_with(true, None, false)), vec!["--check"]);
     }
 
     #[test]
     fn sidecar_command_version_flag() {
-        let mut cmd = Command::new("fake-updater");
-        let args = args_with(false, Some("0.4.0"), false);
-        if let Some(ver) = &args.version {
-            cmd.args(["--version", ver]);
-        }
-        let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
-        assert_eq!(cmd_args, vec!["--version", "0.4.0"]);
+        assert_eq!(
+            sidecar_args(&args_with(false, Some("0.4.0"), false)),
+            vec!["--version", "0.4.0"]
+        );
     }
 
     #[test]
     fn sidecar_command_force_flag() {
-        let mut cmd = Command::new("fake-updater");
-        let args = args_with(false, None, true);
-        if args.force {
-            cmd.arg("--force");
-        }
-        let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
-        assert_eq!(cmd_args, vec!["--force"]);
+        assert_eq!(sidecar_args(&args_with(false, None, true)), vec!["--force"]);
+    }
+
+    #[test]
+    fn sidecar_command_omits_insecure_skip_verify() {
+        // The sidecar updater has no such flag; forwarding an unknown flag
+        // would break it, so it must never be forwarded (#1735). Supported
+        // flags alongside it still are.
+        let args = UpdateArgs {
+            check: false,
+            version: None,
+            force: true,
+            insecure_skip_verify: true,
+        };
+        let got = sidecar_args(&args);
+        assert!(
+            !got.iter().any(|a| a == "--insecure-skip-verify"),
+            "insecure-skip-verify must not be forwarded to the sidecar: {got:?}"
+        );
+        assert!(
+            got.iter().any(|a| a == "--force"),
+            "supported flags still forwarded: {got:?}"
+        );
+    }
+
+    fn warn_output(path: &str, args: &UpdateArgs) -> String {
+        let mut buf = Vec::new();
+        maybe_warn_sidecar_skip_verify(std::path::Path::new(path), args, &mut buf)
+            .expect("infallible for Vec");
+        String::from_utf8(buf).expect("utf-8")
+    }
+
+    #[test]
+    fn sidecar_skip_verify_ignored_warning_is_loud() {
+        let mut buf = Vec::new();
+        write_sidecar_skip_verify_ignored_warning(
+            std::path::Path::new("/opt/anvil/eddacraft-anvil-update"),
+            &mut buf,
+        )
+        .expect("infallible for Vec");
+        let text = std::str::from_utf8(&buf).expect("utf-8");
+        assert!(
+            text.contains("WARNING: --insecure-skip-verify"),
+            "header line missing; got:\n{text}"
+        );
+        assert!(
+            text.contains("not supported by the sidecar updater"),
+            "reason missing; got:\n{text}"
+        );
+        assert!(
+            text.contains(SIDECAR_NAME),
+            "should name the sidecar binary; got:\n{text}"
+        );
+        assert!(
+            text.contains("/opt/anvil/eddacraft-anvil-update"),
+            "should name the resolved sidecar path so the operator can remove it; got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn warns_on_real_install_with_skip_verify() {
+        // flag set + actual install (not --check) → loud warning.
+        let args = UpdateArgs {
+            check: false,
+            version: None,
+            force: false,
+            insecure_skip_verify: true,
+        };
+        assert!(
+            warn_output("/p/eddacraft-anvil-update", &args)
+                .contains("WARNING: --insecure-skip-verify"),
+            "expected a warning on the install + skip-verify sidecar path"
+        );
+    }
+
+    #[test]
+    fn silent_on_check_even_with_skip_verify() {
+        // --check downloads nothing, so the flag is a no-op on every path — no
+        // warning noise.
+        let args = UpdateArgs {
+            check: true,
+            version: None,
+            force: false,
+            insecure_skip_verify: true,
+        };
+        assert!(
+            warn_output("/p/eddacraft-anvil-update", &args).is_empty(),
+            "--check is read-only; skip-verify warning must not fire"
+        );
+    }
+
+    #[test]
+    fn silent_when_skip_verify_absent() {
+        assert!(
+            warn_output("/p/eddacraft-anvil-update", &args_with(false, None, true)).is_empty(),
+            "no warning when --insecure-skip-verify is not set"
+        );
     }
 
     #[test]
@@ -719,9 +863,7 @@ mod tests {
 
     #[test]
     fn sidecar_command_no_flags() {
-        let cmd = Command::new("fake-updater");
-        let cmd_args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
-        assert!(cmd_args.is_empty());
+        assert!(sidecar_args(&args_with(false, None, false)).is_empty());
     }
 
     // ── Warning emission on the skip-verify paths (CLAWP-001) ───────

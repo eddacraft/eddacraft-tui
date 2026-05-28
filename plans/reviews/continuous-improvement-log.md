@@ -1116,3 +1116,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The SCAN-006 spec's "≥20% end-to-end" acceptance bar was unachievable — the SCAN-005 spike had already shown Phase 2 (parallel scan) dominates, so a walk-only change tops out ~10–17% end-to-end. Retired that bar in the item rather than pretend to meet it; walk-phase speedup (4.5–6.3×, already benched) is the right metric.
 - **Improvement:** When writing a follow-up item's acceptance criteria off a spike, don't copy an aspirational threshold the spike itself disproved — set the metric to what the change can actually move (here: the walk phase, not end-to-end).
 - **Follow-up:** SCAN-006 → Merged reconcile post-merge (count 5/6 → 6/6, module → Complete-eligible once released). `scan_all` mode's capped walk is deliberately left sequential.
+
+### 2026-05-28 — claude (#1735)
+
+- **Task:** GH #1735 (ADV-009) — `anvil update` sidecar path silently drops `--insecure-skip-verify`.
+- **Outcome:** Confirmed the sidecar is `eddacraft-anvil-update` (cargo-dist updater) which has no such flag, so forwarding would break it with an unknown-flag error. Fix: extract `build_sidecar_command` (testable, never forwards the flag) + emit a loud warning when the flag is set on the sidecar path, then proceed. Migrated the 4 mirrored `sidecar_command_*` tests to call the real builder; added omit + warning tests. Workspace clippy/fmt/full anvil-cli suite green.
+- **Worked:** Verifying the actual sidecar binary (`SIDECAR_NAME`) before choosing forward-vs-warn — the issue offered "forward if supported, else refuse/warn", and the binary identity decided it. Picking warn-over-refuse follows Anvil's "warnings over blocks" principle and fails safe (the operator's *skip* intent isn't honoured, so they get the sidecar's own behaviour, not less verification).
+- **Failed:** Nothing substantive.
+- **Friction:** Two issues I assessed first (#1873 insta version-literal, #1976 drift-check over-flag) were **already fixed** on main but still open — the issues list has stale resolved items. Cost two verification rounds before landing on a still-real one. Worth a backlog item: a periodic "stale-resolved issue" sweep.
+- **Improvement:** Before picking a GH issue to work, grep the cited file/symbol against current main first — cheaper than reading the whole issue then discovering it's resolved.
+- **Follow-up:** Recommend closing #1873 (fixed by CIB-020) and #1976 (drift-check rule now gated on `--release-record`). Possible enhancement: an `ANVIL_NO_SIDECAR=1` env to force the library updater (the issue assumed it exists; it doesn't) — would give operators a real way to skip verification.
