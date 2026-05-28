@@ -17,6 +17,7 @@
 
 ## Contents
 
+- [Next Best Items](#next-best-items)
 - [Release Plan](#release-plan)
 - [Branch Recovery](#branch-recovery)
 - [Hardening & Maintenance](#hardening--maintenance)
@@ -79,6 +80,32 @@ class reaches across architectural contexts.
 - [x] Save-time feedback latency < 2 seconds cached, < 5 seconds cold (speed)
 - [ ] < 10% of warnings are suppressed without resolution (signal quality) —
       post-release
+
+## Next Best Items
+
+**Next Best Item (NBI)** is the running, index-owned selector for the best work
+to pick up or schedule next. It does not replace APS module truth: every row
+must point at an APS module, work item, release-plan gate, or documented
+operational follow-up. Keep the list short, ranked, and current when an item
+starts, completes, blocks, or a release priority changes.
+
+Selection rules:
+
+- Prefer `Ready` and unblocked work that advances the current release claim,
+  adoption, trust, signal quality, or recurring delivery friction.
+- Include `Schedule` rows only when the work is not execution-ready but should be
+  shaped next because it is likely to outrank ordinary ready work.
+- Do not duplicate module tables here. Link the source of truth and state only
+  the next action needed to move the item.
+- If this list is stale, derive the next pick from the highest-value `Ready`
+  item in the active module tables and refresh this section in the same change.
+
+| Rank | NBI | Mode | Source | Why now | Next action |
+| ---- | --- | ---- | ------ | ------- | ----------- |
+| 1 | EMAIL-010 — Preview-token-only real-send contract | Do now | [`email-broadcast`](./modules/email-broadcast.aps.md) | High-priority admin broadcast contract mismatch; small, well-scoped, and already Ready. | Implement and validate with `pnpm exec vitest --run src/__tests__/admin-broadcast.test.ts`. |
+| 2 | INSIGHTS-003 — Drift Trend Sparkline | Schedule | [`usage-insights`](./modules/usage-insights.aps.md#insights-003-drift-trend-sparkline) | Directly supports the index drift success criterion and extends the shipped local-only insights path. | Reconcile status/readiness, then promote or revise before execution. |
+| 3 | TUIDASH-001 — JSON spec parser crate | Do now | [`tui-dashboard-render`](./modules/tui-dashboard-render.aps.md#tuidash-001-json-spec-parser-crate) | Starts a Ready module that unlocks terminal rendering for json-render dashboard specs. | Start the TUIDASH wave at the parser boundary. |
+| 4 | CIB-031 — Scope dependency-audit for Rust-only lockfile changes | Schedule | [`continuous-improvement-backlog`](./modules/continuous-improvement-backlog.aps.md#cib-031-scope-the-dependency-audit-gate-so-rust-only-lockfile-changes-skip-the-npm-trivy-audit) | Removes recurring red-X noise on Rust-only PRs and protects real npm audit signal. | Design the classifier contract and promote to Ready if the route is clear. |
 
 ## Release Plan
 
