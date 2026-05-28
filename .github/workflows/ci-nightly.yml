@@ -119,7 +119,7 @@ jobs:
 
   # ── TypeScript coverage (scheduled assurance) ─────────────────
   # CICD-006: TypeScript coverage runs nightly rather than on every
-  # `dev` push. PR/integration runs use plain tests; nightly produces
+  # `main` push. PR/integration runs use plain tests; nightly produces
   # coverage evidence and uploads the per-project summaries.
   coverage-typescript:
     name: TypeScript Coverage (Node 22.x, Linux)
