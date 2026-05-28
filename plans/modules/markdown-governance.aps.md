@@ -94,29 +94,160 @@ is replacing — the bar must reflect that reality.
 
 Change status to **Ready** when:
 
-- [ ] ADR-028 Accepted.
-- [ ] ADR-029 Accepted.
-- [ ] OPSUP check-registry slice landed.
-- [ ] Acceptance bar wording agreed and aligned with the existing
-      cross-reference rot in `plans/`.
+- [x] ADR-028 Accepted — `Accepted (2026-04-26)`.
+- [x] ADR-029 Accepted — `Accepted (2026-04-26)`.
+- [x] OPSUP check-registry slice landed — OPSUP-001 Done (stable check-ID
+      registry on `check_catalog.rs`); MDGOV-001 registers through it.
+- [x] Acceptance bar wording agreed and aligned with the existing
+      cross-reference rot in `plans/` — "all findings reviewed and
+      fixed-or-suppressed" per spec §8.5 + council C-016; pinned in MDGOV-006.
 - [ ] Anvil's own `plans/` directory inventoried for known stale
-      references (this is the baseline drift event).
+      references (this is the baseline drift event) — owned by MDGOV-005;
+      done as the first execution step, not a pre-Ready gate.
 - [ ] Owner named.
 
-## Tasks
+Remaining gate to flip Ready: name an owner. All ADR/OPSUP/acceptance-bar
+prerequisites are satisfied; the `plans/` inventory is MDGOV-005's deliverable,
+not a precondition.
 
-Tasks will be defined when this module moves to Ready. Anticipated:
+## Work Items
 
-- MDGOV-001: Land `crates/anvil-markdown-governance/` skeleton per
-  [ADR-028](../decisions/028-markdown-governance-crate.md); register
-  through OPSUP.
-- MDGOV-002: APS wellformedness checks (schema, status transitions,
-  ID uniqueness).
-- MDGOV-003: Cross-reference integrity check (markdown links resolve).
-- MDGOV-004: Decision-record-hygiene check (`NNN-*.md` numbering).
-- MDGOV-005: Baseline drift event for `plans/` (record current
-  cross-reference state as the starting point).
-- MDGOV-006: Validation against Anvil's own `plans/` and `docs/`.
+M1 target: APS wellformedness + cross-reference integrity + decision-record
+hygiene, delivered as a standalone Rust crate per
+[ADR-028](../decisions/028-markdown-governance-crate.md). Acceptance is "all
+findings reviewed and fixed-or-suppressed", not "clean run".
+
+### MDGOV-001: Land `crates/anvil-markdown-governance/` skeleton
+
+- **Status:** Ready
+- **Intent:** Stand up the standalone markdown-governance crate and register
+  its checks through the OPSUP check-ID registry.
+- **Expected Outcome:** A new `crates/anvil-markdown-governance/` crate exists
+  using `pulldown-cmark`, exposing a check entry point that registers `ANV-MD-*`
+  IDs through the OPSUP-001 registry (consumed via `crates/anvil-checks`). No
+  markdown logic lands in `crates/anvil-kernel` (council C-017). The crate
+  compiles and has at least one smoke test parsing a fixture markdown file.
+- **Scopes:** new crate skeleton; OPSUP registry registration; suppression
+  parser consumption via `crates/anvil-checks`.
+- **Non-scope:** any concrete check rule (MDGOV-002/-003/-004 own those); any
+  edit to `crates/anvil-kernel`.
+- **Files:**
+  - `crates/anvil-markdown-governance/` (NEW crate)
+  - `crates/anvil-checks/src/` (registry + suppression-parser hand-off seam)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance` (skeleton smoke test)
+  - New test asserts the crate registers its check IDs through the OPSUP registry
+- **Dependencies:** OPSUP-001 (Done), ADR-028, ADR-029
+- **Confidence:** high
+
+### MDGOV-002: APS wellformedness checks
+
+- **Status:** Ready
+- **Intent:** Promote the `aps-planning` skill's structural rules into a
+  deterministic check over `plans/**/*.aps.md`.
+- **Expected Outcome:** The check flags missing required headers, work-item IDs
+  that do not match the `PREFIX-NNN` shape, duplicated work-item IDs within a
+  module, and invalid status values per `plans/aps-rules.md`. Findings carry the
+  file + line and an `ANV-MD-*` ID, and are suppressible via the standard
+  `@anvil-ignore` syntax. Rules derive from a single source shared with the APS
+  schema where practical (see Open Questions on schema sharing).
+- **Scopes:** APS structural rules; finding emission through the crate.
+- **Non-scope:** cross-reference resolution (MDGOV-003); prose-quality checks.
+- **Files:**
+  - `crates/anvil-markdown-governance/src/` (APS wellformedness rules)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance aps_wellformedness`
+  - Fixtures: a well-formed module passes; modules with a missing header, a
+    malformed ID, a duplicate ID, and an invalid status each flag exactly once
+- **Dependencies:** MDGOV-001
+- **Confidence:** high
+
+### MDGOV-003: Cross-reference integrity check
+
+- **Status:** Ready
+- **Intent:** Verify markdown `[link](path)` references in governance docs
+  resolve to existing files, distinguishing archived targets from broken ones.
+- **Expected Outcome:** The check resolves relative links in `plans/**` and
+  flags references whose target file does not exist. References into
+  `./archive/modules/...` resolve normally (archived ≠ broken). The check
+  reports the source file + line and is suppressible. This is the same class of
+  signal the `docs:check` `links` surface provides today, scoped to governance
+  markdown and emitted through the unified check pipeline.
+- **Scopes:** relative-link resolution; archived-vs-broken disambiguation.
+- **Non-scope:** external URL liveness; anchor-fragment resolution beyond file
+  existence.
+- **Files:**
+  - `crates/anvil-markdown-governance/src/` (cross-reference resolver)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance cross_reference`
+  - Fixtures: a resolving link passes; a broken link flags; an
+    `./archive/modules/...` link resolves without a finding
+- **Dependencies:** MDGOV-001
+- **Confidence:** high
+
+### MDGOV-004: Decision-record-hygiene check
+
+- **Status:** Ready
+- **Intent:** Check that `plans/decisions/NNN-*.md` records are numbered
+  contiguously, dated, and carry a status.
+- **Expected Outcome:** The check flags non-contiguous ADR numbering, an ADR
+  missing a `## Status` section, and an ADR missing a date. Findings are
+  per-file with an `ANV-MD-*` ID and are suppressible. Mirrors the existing
+  `adr:check` invariant so the two do not disagree.
+- **Scopes:** ADR numbering/date/status hygiene.
+- **Non-scope:** ADR content quality; the DECISION-LOG index (owned by DOCGOV).
+- **Files:**
+  - `crates/anvil-markdown-governance/src/` (decision-record rules)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance decision_record`
+  - Fixtures: a contiguous, dated, statused ADR set passes; a gap in numbering,
+    a missing status, and a missing date each flag
+- **Dependencies:** MDGOV-001
+- **Confidence:** high
+
+### MDGOV-005: Baseline drift event for `plans/`
+
+- **Status:** Ready
+- **Intent:** Record Anvil's own current cross-reference and wellformedness
+  state as the starting baseline so M1 warns on new drift, not legacy rot.
+- **Expected Outcome:** Running the MDGOV-002/-003/-004 checks against `plans/`
+  produces a recorded baseline of current findings (the "drift baseline
+  established" event per new-edges-only posture, D-003). Pre-existing findings
+  are baselined; only new findings warn after this point. The baseline lives
+  with the drift baseline mechanism (coordinate with OPSUP-003 schema
+  versioning).
+- **Scopes:** the first-run baseline capture for governance markdown.
+- **Non-scope:** fixing the legacy findings (acceptance bar is reviewed +
+  fixed-or-suppressed over time, not a clean run gate).
+- **Files:**
+  - `crates/anvil-markdown-governance/src/` (baseline integration)
+  - drift baseline storage (per OPSUP-003)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance baseline`
+  - The baseline run over `plans/` completes and records current findings
+    without failing the gate
+- **Dependencies:** MDGOV-002, MDGOV-003, MDGOV-004; coordinates with OPSUP-003
+- **Confidence:** medium
+
+### MDGOV-006: Validation against Anvil's own `plans/` and `docs/`
+
+- **Status:** Ready
+- **Intent:** Prove M1 on Anvil's own corpus and confirm the acceptance bar.
+- **Expected Outcome:** The full M1 check set runs over `plans/` and `docs/`
+  with every finding reviewed and either fixed or explicitly suppressed (the
+  council C-016 acceptance bar), not a clean-run requirement. A short report
+  records the finding count, how many were fixed, and how many were suppressed
+  with reasons.
+- **Scopes:** end-to-end validation run + acceptance report.
+- **Non-scope:** M2 stale-claim detection; M3 capability-aware checks.
+- **Files:**
+  - `crates/anvil-markdown-governance/` (integration test over the real corpus)
+  - a validation report under `plans/` or the crate's test fixtures
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-markdown-governance --test corpus`
+  - All findings reviewed and fixed-or-suppressed; report committed
+- **Dependencies:** MDGOV-005
+- **Confidence:** medium
 
 ## Risks
 
@@ -129,12 +260,15 @@ Tasks will be defined when this module moves to Ready. Anticipated:
 
 ## Open Questions
 
-<!-- 2026-04-26 audit: crate-location question is resolved by ADR-028
-     (standalone `crates/anvil-markdown-governance/`). Left here for
-     historical context; remove on next scope revision. -->
-- [ ] Crate location: standalone Rust crate, TS layer, or new tooling
-      package?
-- [ ] Should APS wellformedness rules be derived from a single schema
-      definition shared with the `aps-planning` skill?
+- [x] Crate location: standalone Rust crate, TS layer, or new tooling
+      package? **Resolved by [ADR-028](../decisions/028-markdown-governance-crate.md)
+      (Accepted 2026-04-26): standalone `crates/anvil-markdown-governance/`
+      using `pulldown-cmark`.** MDGOV-001 lands it.
+- [ ] Should APS wellformedness rules (MDGOV-002) be derived from a single
+      schema definition shared with the `aps-planning` skill, or implemented
+      independently against `plans/aps-rules.md`? Implementation detail, not a
+      blocker — decide at MDGOV-002 start.
 - [ ] How are explicitly-archived modules (`./archive/modules/...`)
-      distinguished from broken references?
+      distinguished from broken references in MDGOV-003? Treated as resolvable
+      targets (archived ≠ broken); confirm the resolver honours the archive
+      path convention.
