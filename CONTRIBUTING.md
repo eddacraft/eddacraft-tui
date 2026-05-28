@@ -93,8 +93,6 @@ depend on directory structure.
 ```bash
 pnpm test:e2e       # Playwright E2E tests
 pnpm test:e2e:cli   # CLI-only E2E tests
-pnpm link:cli       # Build + link 'anvil' command globally
-pnpm unlink:cli     # Remove global link
 ```
 
 ### Coverage
