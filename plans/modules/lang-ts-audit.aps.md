@@ -7,7 +7,12 @@
 | ------ | ----- | ------ | ---- |
 | LANGTS | —     | Ready  | 3/6  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-28 — the two bounded open questions are resolved
+inline (single module, no `lang-ts-prereq` split; K1 extractor-trait ADR
+deferred to RSTLAN per the audit §8 decision), so LANGTS-002, -004, and -005
+are promoted from anticipated-shape bullets to Ready work items with grounded
+Intent / Outcome / Scope / Validation. Done count unchanged at 3/6
+(LANGTS-001, -003, -006 done; -002, -004, -005 now Ready).
 
 > **Anchor re-scoring gate run 2026-04-26 (solo, self-review):**
 > - **TS still anchor zero** — confirmed. Demand profile unchanged since
@@ -114,13 +119,16 @@ Change status to **Ready** when:
 
 - [x] Audit owner named (single accountable owner for the T3 checklist)
       — *audit produced 2026-04-26, see audit report header.*
-- [ ] Re-scoring gate run per
+- [x] Re-scoring gate run per
       [docs/guides/anchor-rescoring-process.md](../../docs/guides/anchor-rescoring-process.md);
-      session owner named for this invocation.
-- [ ] Decision recorded on whether kernel prerequisite work (council §16.5 #3)
-      is in-scope here or split into LANGTS-prereq submodule. *Audit
-      recommendation: keep inside LANGTS-005 if K1..K4 fit one sprint; split
-      otherwise.*
+      session owner named for this invocation. *Run 2026-04-26 (solo,
+      self-review) — see the gate-run callout at the top of this module.*
+- [x] Decision recorded on whether kernel prerequisite work (council §16.5 #3)
+      is in-scope here or split into LANGTS-prereq submodule. **Resolved
+      2026-05-28 — keep K1..K4 inside LANGTS-005 (single module); the audit
+      §5.6 sizing puts K1..K4 within one sprint. Split only if K1 grows past a
+      sprint during execution (Risks-table escape hatch).** See Open
+      Questions.
 - [x] Decision recorded on T3 checklist artefact location — *companion
       spec at `plans/specs/2026-04-26-t3-acceptance-checklist.md`. Re-home
       to `docs/architecture/anvil-t3-acceptance.md` is a follow-up if the
@@ -129,33 +137,137 @@ Change status to **Ready** when:
 
 ## Tasks
 
-Tasks below are anticipated shape; promote each to a proper task with Intent
-+ Validation when the module moves to Ready. Two of the five anticipated
-tasks have evidence completed by the audit (LANGTS-001 audit pass and
-LANGTS-003 publication of the checklist artefact).
+LANGTS-001 and LANGTS-003 carry audit-completed evidence. LANGTS-002, -004,
+and -005 were promoted from anticipated-shape bullets to Ready work items
+2026-05-28 once the two bounded open questions (single-module-vs-split; the
+K1 ADR) were resolved inline above.
 
-- **LANGTS-001** (audit pass complete 2026-04-26): Enumerate current TS
-  capability state across the seven T3 dimensions. *Evidence:
-  [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).*
-- LANGTS-002: Close identified TS gaps (TS-G1..G7 per
-  [audit report §4](../specs/2026-04-26-langts-audit-report.md#4-ts-specific-gaps-langts-work-items)).
-  Default scope per audit §7 OQ1: TS-G1 (interfaces / type aliases / enums)
-  + TS-G2 (methods); defer TS-G3 / TS-G4 / TS-G6 with explicit follow-up
-  notes; TS-G7 lives in checklist documentation only.
-- **LANGTS-003** (publication complete 2026-04-26): Publish T3 acceptance
-  checklist artefact. *Evidence:
-  [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).*
-- LANGTS-004: Add Zod-creep rules (`z.any()`, `z.unknown()`,
-  `.passthrough()`) to TS T2 anti-pattern catalogue. Closes audit gap
-  TS-G5; rules ship in `patterns/compiled/registry.json` with
-  `definition_ref` to a new family entry.
-- LANGTS-005: Kernel prerequisite work — extractor trait (K1), grammar
-  version in AST cache key (K2), parser thread-safety strategy (K3), panic
-  removal in `Parser::get_parser()` (K4), grammar maturity audit (K5)
-  surfaced as a rubric in the T3 checklist. Or split into
-  LANGTS-prereq-* if scope justifies (audit §7 OQ2). See
-  [audit report §5](../specs/2026-04-26-langts-audit-report.md#5-kernel-prereq-gaps-council-165-3-work).
-- LANGTS-006: Ship a TS antipattern rule for dynamic-eval shapes
+### LANGTS-001: Audit current TS capability state across the T3 dimensions — Done
+
+- **Status:** Done (audit pass complete 2026-04-26).
+- **Intent:** Enumerate current TS capability state across the nine T3
+  dimensions so "T3" is a measured bar, not a label.
+- **Evidence:**
+  [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).
+
+### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — Ready
+
+- **Status:** Ready
+- **Intent:** Close the two extraction gaps the audit marked Medium so the TS
+  symbol graph carries the shapes Track 4 packs will reason about, and record
+  the deferral decision for the rest.
+- **Expected Outcome:** The TS extractor in
+  `crates/anvil-kernel/src/parser/extract.rs` emits interface / type-alias /
+  enum symbols (TS-G1) and method-level symbols on classes (TS-G2). TS-G3
+  (dynamic `import()` edges), TS-G4 (namespace re-exports), and TS-G6
+  (per-specifier re-export names) are deferred with an explicit
+  "deferred for the first T3 iteration" note in the T3 acceptance checklist,
+  so RSTLAN/PYLAN are not required to extract analogous shapes while the
+  deferral note stands. TS-G7 (entry-point auto-detection) remains
+  documentation-only in the checklist.
+- **Scope:** `crates/anvil-kernel/src/parser/extract.rs`,
+  `crates/anvil-kernel-types/src/graph.rs` (additive `SymbolKind` variants if
+  the audit's predicted `SymbolKind::Method` / `TypeAlias` additions are
+  needed), the T3 checklist deferral note.
+- **Non-scope:** The extractor-trait refactor (that is LANGTS-005); TS-G3 /
+  TS-G4 / TS-G6 implementation; type checking.
+- **Dependencies:** LANGTS-001 (Done). Sequence-coupled with LANGTS-005 — if
+  LANGTS-005 lands first, TS-G1/TS-G2 are implemented against the new
+  `LanguageExtractor` TS impl rather than the current monolithic walker; the
+  outcome is the same either way.
+- **Validation:** `cargo test -p eddacraft-anvil-kernel` passes with new
+  extraction fixtures asserting an `interface` / `type` / `enum` declaration
+  and a class method each appear in the extracted `FileSymbols`.
+- **Confidence:** medium — additive extraction over the existing walker; the
+  `SymbolKind` additions are the only contract-surface risk.
+
+### LANGTS-003: Publish the T3 acceptance checklist artefact — Done
+
+- **Status:** Done (publication complete 2026-04-26).
+- **Intent:** Publish the durable T3 bar every Track 4 pack and future anchor
+  references.
+- **Evidence:**
+  [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).
+
+### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — Ready
+
+- **Status:** Ready
+- **Intent:** Close audit gap TS-G5 by adding the cross-cutting Zod-creep
+  rules so escape hatches in schema definitions trip the gate the same way
+  the existing `any` / `as any` / `@ts-ignore` rules do.
+- **Expected Outcome:** New rules detect `z.any()`, `z.unknown()`, and
+  `.passthrough()` and ship in the compiled pattern registry with a family
+  entry, mirroring how LANGTS-006 shipped the `dynamic-execution` family.
+  Severity matches the audit's TS T2 placement (alongside the existing
+  type-evasion rules).
+- **Scope:** a `patterns/<family>/` source directory (Zod-creep fits the
+  existing `type-system-evasion` family or a new sibling family directory
+  under `patterns/`) plus the regenerated `patterns/compiled/registry.json`
+  entry.
+- **Non-scope:** Extractor changes (LANGTS-002); the kernel-prereq work
+  (LANGTS-005).
+- **Dependencies:** LANGTS-001 (Done).
+- **Validation:** A fixture test asserts each of `z.any()`, `z.unknown()`,
+  and `.passthrough()` fires the rule, while a plain typed Zod schema
+  (`z.object({ id: z.string() })`) does not — same fixture-pair shape the
+  LANGTS-006 `dynamic-execution` rules used to avoid false positives.
+- **Confidence:** high — registry edit + family doc page is a well-trodden
+  path (FLAGCAT-independent; LANGTS-006 is the working precedent).
+
+### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — Ready
+
+- **Status:** Ready
+- **Intent:** Land the load-bearing kernel-prereq work (council §16.5 #3) so
+  the parser layer can host three anchor languages plus a tail wave without an
+  `if lang == …` cascade, without latent cache corruption, without a parse-path
+  panic, and with a stated concurrency posture. Single module — K1..K4 stay
+  here (decision recorded in Open Questions).
+- **Expected Outcome:**
+  - **K1 — extractor trait:** `crates/anvil-kernel/src/parser/extract.rs` is
+    reshaped into a `LanguageExtractor` trait plus per-language modules; the
+    orchestration layer (`extract_symbols`) is language-agnostic and dispatches
+    on the parsed language. Existing TS extraction behaviour is preserved by
+    porting today's walker to the TS impl. The trait shape is captured inline +
+    against the T3 checklist §3 suggested interface; the durable cross-anchor
+    ADR is deferred to RSTLAN per the audit §8 decision (no LANGTS ADR).
+  - **K2 — grammar version in cache key:** the AST cache at
+    `crates/anvil-kernel/src/parser/cache.rs` keys on grammar version in
+    addition to content hash, so a tree-sitter grammar bump cannot serve a
+    stale cached tree.
+  - **K3 — parser thread-safety:** a stated strategy (audit option (1)
+    `thread_local!` is the default) with a regression net; no ADR unless
+    INTD-001 review makes the choice contentious (audit §8 conditional defer).
+  - **K4 — panic removal:** the parse path no longer panics on language
+    mismatch — `Parser::get_parser` surfaces the
+    `expect("language version mismatch")` at
+    `crates/anvil-kernel/src/parser/mod.rs:54` as a `Result`/`ParseError`
+    instead of panicking, which is load-bearing for daemon mode.
+  - **K5** stays a rubric referenced from the T3 checklist §1 (not executable
+    scope here; folds into OPSUP per the audit §8 decision).
+- **Scope:** `crates/anvil-kernel/src/parser/extract.rs` (+ new
+  `extract/typescript.rs` module per the audit's recommended shape),
+  `crates/anvil-kernel/src/parser/cache.rs`,
+  `crates/anvil-kernel/src/parser/mod.rs`,
+  `crates/anvil-kernel-types/src/graph.rs` (additive `SymbolKind` variants if
+  needed).
+- **Non-scope:** Rust / Python extractor implementations (per-anchor work in
+  RSTLAN / PYLAN); the cross-anchor extractor-trait ADR (RSTLAN); K5 rubric
+  promotion (OPSUP).
+- **Dependencies:** LANGTS-001 (Done).
+- **Validation:** `cargo test -p eddacraft-anvil-kernel` passes with: a
+  parity test proving the TS extractor produces identical `FileSymbols`
+  before/after the trait refactor; a cache test proving a grammar-version
+  change invalidates a cached tree on the same content hash; and a parse-path
+  test asserting a language mismatch returns a `ParseError` rather than
+  panicking.
+- **Confidence:** medium — the trait refactor is ~1 sprint (audit §5.6);
+  the escape hatch is splitting into `lang-ts-prereq.aps.md` if K1 grows.
+
+### LANGTS-006: TS dynamic-eval antipattern rule — Merged
+
+- **Status:** Merged 2026-05-21 via PR
+  [#1820](https://github.com/eddacraft/anvil-001/pull/1820) (`bcb96175`).
+- **Intent:** Ship a TS antipattern rule for dynamic-eval shapes
   (`eval(<dynamic>)`, `new Function(...)`, `Function.prototype.constructor`
   string-source invocations). Severity `error` under the default profile;
   also wired into the `gate -p ai` curated set. **Merged 2026-05-21 via
@@ -188,22 +300,39 @@ LANGTS-003 publication of the checklist artefact).
 
 ## Open Questions
 
-- [ ] Is LANGTS a single module or LANGTS + LANGTS-prereq? Decide before
-      moving to Ready. *Audit recommendation: keep inside LANGTS-005 if
-      K1..K4 fit one sprint; split otherwise.*
+- [x] **Resolved 2026-05-28 — single module.** Is LANGTS a single module or
+      LANGTS + LANGTS-prereq? The audit §5.6 sizes the kernel-prereq gaps as
+      K1 medium (~1 sprint), K2 small (< 1 day), K3 small wrapper, K4 trivial,
+      K5 per-grammar — i.e. K1..K4 fit inside one sprint. Per the audit §7 OQ2
+      recommendation, **keep K1..K4 inside LANGTS-005; do not split into
+      `lang-ts-prereq.aps.md`.** The Risks-table escape hatch stands: split out
+      only if K1's trait-port scope grows past a sprint during execution. This
+      closes the matching Ready-Checklist box.
 - [x] Where does the T3 acceptance checklist live in the docs tree?
       Resolved: companion spec at
       `plans/specs/2026-04-26-t3-acceptance-checklist.md`. Re-home to
       `docs/architecture/` is a follow-up if user-facing reference needs
       it.
-- [ ] Should the Zod-creep rules ship in a separate task, or fold into
-      LANGTS-002 gap-close? *Audit recommendation: keep LANGTS-004 separate
-      — registry edit + family doc page is naturally distinct from the
-      extractor changes in LANGTS-002.*
-- [ ] **New (audit §8):** Does the extractor trait shape (K1) need a
-      dedicated ADR, or can it land inside LANGTS-005 with a section in
-      ADR-026? Audit recommends a dedicated ADR before RSTLAN moves to
-      Ready.
-- [ ] **New (audit §8):** Should the grammar maturity rubric (K5) be
-      lifted from a checklist section into its own ADR before the LANGTAIL
-      tail wave kicks off? Audit recommends yes.
+- [x] **Resolved — separate task.** Should the Zod-creep rules ship in a
+      separate task, or fold into LANGTS-002 gap-close? Per the audit
+      recommendation, **keep LANGTS-004 separate** — the registry edit + family
+      doc page (a `patterns/<family>/` directory + `patterns/compiled/registry.json`
+      entry, mirroring LANGTS-006's `dynamic-execution` family) is naturally
+      distinct from the extractor changes in LANGTS-002.
+- [x] **Resolved 2026-05-28 — no standalone ADR now; defer to RSTLAN start.**
+      Does the extractor trait shape (K1) need a dedicated ADR? The audit's
+      §7 OQ3 said "probably yes", but the audit's own **§8 Decision
+      (2026-04-26)** refined it to: *"Extractor trait shape — defer until
+      RSTLAN starts. Author at the point RSTLAN's first work item surfaces
+      real shape requirements; premature locking risks the wrong
+      abstraction."* So LANGTS-005 ships the `LanguageExtractor` trait with
+      its shape captured inline in the implementation and the T3 checklist §3
+      suggested interface; the durable cross-anchor ADR is authored by RSTLAN,
+      not LANGTS. (This supersedes the earlier "dedicated ADR before RSTLAN
+      moves to Ready" wording, which conflicted with §8.)
+- [x] **Resolved — fold into OPSUP, no standalone ADR.** Should the grammar
+      maturity rubric (K5) be lifted into its own ADR before LANGTAIL? Per the
+      audit §8 Decision, **fold K5 into `operational-supplement` (OPSUP)** as a
+      slice when LANGTAIL admission becomes a real ask; no standalone ADR.
+      Inside LANGTS, K5 stays a rubric referenced from the T3 checklist §1 (it
+      is not part of LANGTS-005's executable scope).
