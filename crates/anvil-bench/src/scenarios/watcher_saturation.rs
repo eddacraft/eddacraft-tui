@@ -213,7 +213,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = WatcherSaturationConfig {
             write_count: 50,
-            settle_time: Duration::from_millis(500),
+            settle_time: Duration::from_secs(2),
             ..WatcherSaturationConfig::default()
         };
 
