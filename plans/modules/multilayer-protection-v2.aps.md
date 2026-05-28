@@ -4466,19 +4466,23 @@ experiences.
   `RecognisedRules`/`check_recognised_rules` draft that is superseded
   by main's registry API and contributes nothing.
 - **Intent:** Make the live L4 `ValidationEngine` consult
-  `RecognisedRulesRegistry::evaluate_rules_sha` against the witness's
-  `rules_sha` (already plumbed by MLP2-014 in
+  `evaluate_rules_sha` (the free function in
+  `crates/anvil-l4/src/recognised_rules.rs` taking
+  `&RecognisedRulesRegistry`) against the witness's `rules_sha`
+  (already plumbed by MLP2-014 in
   `crates/anvil-cli/src/commands/hook.rs`), so an unrecognised digest
   produces an explicit `ValidationDiagnostic` rather than a silent
   allow.
 - **Expected Outcome:** A `ValidationEngine` impl (or wrapper around
   the existing `CommitAntipatternEngine` in
   `crates/anvil-cli/src/l4_engine.rs`) calls `evaluate_rules_sha` on
-  each request, emits the diagnostic with rule id
-  `l4.witness.rules_sha.unrecognised` on
-  `RulesShaOutcome::Unrecognised`, and the hook's L4 path surfaces it
-  in the verdict. The recognition surface stays
-  `RecognisedRulesRegistry` + `evaluate_rules_sha` (the superseded
+  each request and acts on the returned `RulesShaOutcome`: `Block`
+  emits a recognition diagnostic (proposed rule id
+  `l4.witness.rules_sha.unrecognised`) and refuses, `NeedsRevalidation`
+  routes to full re-evaluation, while `Recognised` / `AdmitUnrecognised`
+  / `Absent` pass through per policy; the hook's L4 path surfaces the
+  verdict. The recognition surface stays `RecognisedRulesRegistry` +
+  `evaluate_rules_sha` (the superseded
   `RecognisedRules`/`check_recognised_rules` draft is not used).
 - **Validation:** A production validation request whose witness
   `rules_sha` is not in the registry produces a `Block` verdict
