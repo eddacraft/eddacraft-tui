@@ -398,7 +398,7 @@ same session. Detail goes to `~/.local/state/anvil/intercept.log` and
 ### 7.1 `anvil/policy.yml` shape
 
 ```yaml
-required_anvil_version: ">=0.6.0"     # optional floor
+required_anvil_version: "0.6.0"        # optional exact-semver floor
 baseline:
   cutoff_commit: a3b2ea4e...           # everything before is legacy
 branches:
@@ -700,8 +700,8 @@ Witness lines carry `rules_sha` + `anvil_version`. Different machines
 producing witnesses with different `rules_sha` is normal; L4 verifies
 "this rules_sha is from a recognised Anvil version."
 
-`anvil/policy.yml` may set `required_anvil_version: ">=0.6.0"` to floor
-the version. Pre-commit/pre-push hooks check this before validating;
+`anvil/policy.yml` may set `required_anvil_version: "0.6.0"` (exact
+semver) to floor the version. Pre-commit/pre-push hooks check this before validating;
 fail with terse actionable message:
 `anvil: this repo requires anvil >= 0.7.0 (you have 0.6.0)` (exit 1).
 

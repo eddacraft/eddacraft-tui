@@ -1188,6 +1188,26 @@ a backlog. Promote repeated friction or executable follow-up work to
   oxfmt to clear the standing format drift.
 - **Follow-up:** none.
 
+### 2026-05-29 — claude (Council follow-up)
+
+- **Task:** CIB-029 Council blocker — range-syntax `required_anvil_version`
+  examples survived in two active docs after the first pass only fixed the
+  `anvil-l4` docstring.
+- **Outcome:** Fixed `plans/decisions/037-witness-chain-and-l4-policy.md` and
+  the two sites in
+  `plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md` (`>=0.6.0`
+  → exact `0.6.0`, keeping the "optional floor" intent). Added
+  `parse_rejects_semver_range_syntax` to `anvil-rules/src/version.rs` to lock the
+  exact-semver contract (range ops → `InvalidFloor`).
+- **Worked:** A repo-wide grep filtered to literal `required_anvil_version:
+  "<range-op>` pinned the active-doc examples apart from historical log prose.
+- **Failed:** Nothing substantive.
+- **Friction:** First-pass validation search scoped to source + docstrings and
+  missed prose docs.
+- **Improvement:** CIB doc-contract validation should sweep `plans/decisions/` +
+  `plans/specs/`, not just code.
+- **Follow-up:** none.
+
 
 ### 2026-05-29 — claude (#2065)
 

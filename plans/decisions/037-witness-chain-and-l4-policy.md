@@ -153,7 +153,7 @@ lock briefly but don't block validation.
 declares per-branch rules:
 
 ```yaml
-required_anvil_version: ">=0.6.0"     # optional floor
+required_anvil_version: "0.6.0"        # optional exact-semver floor
 baseline:
   cutoff_commit: a3b2ea4e...           # everything before is legacy
 branches:

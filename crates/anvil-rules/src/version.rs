@@ -96,6 +96,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_rejects_semver_range_syntax() {
+        // CIB-029: docs once taught `required_anvil_version: ">=0.6.0"`,
+        // but `parse` accepts only exact semver — the floor semantics
+        // live in `satisfied_by`. Range operators must be rejected so the
+        // documented contract and the parser stay aligned.
+        for range in [">=0.6.0", "^0.6.0", "~0.6.0", "0.6.*", ">0.6.0"] {
+            let err = RequiredAnvilVersion::parse(range).unwrap_err();
+            assert!(
+                matches!(err, VersionFloorError::InvalidFloor { .. }),
+                "expected InvalidFloor for range syntax {range:?}",
+            );
+        }
+    }
+
+    #[test]
     fn parse_rejects_empty_string() {
         let err = RequiredAnvilVersion::parse("").unwrap_err();
         assert!(matches!(err, VersionFloorError::InvalidFloor { .. }));
