@@ -102,6 +102,31 @@ cat >"$tmp/plans/modules/gamma.aps.md" <<'EOF'
 - **Status:** In Progress
 EOF
 
+# phased: items live under a `### Phase` group as `#### PHX-NNN` (the MLP2
+# shape). The count must derive from the #### items (1 Done of 2), not the
+# stale 0/2 header — the regression guard for the #### count-gate fix. The
+# `### Phase A` group heading carries no work-item ID, so it must not be
+# counted; only the two `#### PHX-NNN` items are.
+cat >"$tmp/plans/modules/phased.aps.md" <<'EOF'
+# Phased
+
+| ID  | Owner | Status      | Progress |
+| --- | ----- | ----------- | -------- |
+| PHX | —     | In Progress | 0/2      |
+
+## Tasks
+
+### Phase A — groundwork
+
+#### PHX-001: first
+
+- **Status:** Done
+
+#### PHX-002: second
+
+- **Status:** In Progress
+EOF
+
 # Index: WID header is stale (1/3); a DIFFERENT row's prose links to widget
 # (the TUIR-style hijack trap); the N9 text-name row links to zeta in prose
 # (the N1 trap); zeta's own row is stale (1/2); gamma carries its count in
@@ -116,6 +141,7 @@ cat >"$tmp/plans/index.aps.md" <<'EOF'
 | N9 — legacy zeta | Complete | 9/9 | folded into [zeta](./modules/zeta.aps.md) |
 | [zeta](./modules/zeta.aps.md) | ZETA | Complete | 1/2 |
 | [gamma](./modules/gamma.aps.md) | GAMMA | scaffolding (0/2 wired) | In Progress |
+| [phased](./modules/phased.aps.md) | PHX | In Progress | 0/2 |
 | [planning](./modules/planning.aps.md) | PLAN | Proposed | 1/8 (8 planned) |
 | [old](./archive/modules/old.aps.md) | OLD | Complete | 5/5 |
 EOF
@@ -152,6 +178,13 @@ grep -qE '^\| GAMMA +\| +— +\| In Progress +\| 1/2 ' "$tmp/plans/modules/gamma
   || fail "gamma header not updated to 1/2"
 grep -q '| GAMMA | scaffolding (0/2 wired) | In Progress |' "$tmp/plans/index.aps.md" \
   || fail "gamma prose-embedded count was wrongly rewritten"
+
+# Fourth-level items: `#### PHX-NNN` under a `### Phase` group must be counted
+# (1 Done of 2), proving the count gate no longer skips #### task headings.
+grep -qE '^\| PHX +\| +— +\| In Progress +\| 1/2 ' "$tmp/plans/modules/phased.aps.md" \
+  || fail "phased module #### items not counted (header not updated to 1/2)"
+grep -qF '| [phased](./modules/phased.aps.md) | PHX | In Progress | 1/2 |' "$tmp/plans/index.aps.md" \
+  || fail "phased index row not updated to 1/2 from #### items"
 
 # Headerless module: curated 1/8 must be untouched (item count would be 1/1).
 grep -q '| PLAN | Proposed | 1/8 (8 planned) |' "$tmp/plans/index.aps.md" \

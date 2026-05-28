@@ -53,7 +53,13 @@ export function extractModule(path) {
   // work-item IDs (e.g. `RCLI3-016b`) that real modules already declare.
   // Without it, b-suffix items are silently dropped from extractModule's
   // count, which under-reports progress.
-  const headingPattern = /^###\s+([A-Z][A-Z0-9]*-\d{3}[a-z]?)(?::|\s+[—-])\s+(.+)$/gm;
+  // `#{3,4}` admits work items filed under a fourth heading level: modules that
+  // group items beneath `### <Phase>` headings (e.g. MLP2) declare each item as
+  // `#### ID-NNN: …`. Anchoring on `###` alone silently dropped every such item
+  // from the count, so those modules skipped the count gate entirely. The ID
+  // pattern still gates membership, so non-item `###`/`####` headings (group
+  // titles, prose subsections) never match.
+  const headingPattern = /^#{3,4}\s+([A-Z][A-Z0-9]*-\d{3}[a-z]?)(?::|\s+[—-])\s+(.+)$/gm;
   const headings = [...text.matchAll(headingPattern)];
 
   headings.forEach((heading, index) => {

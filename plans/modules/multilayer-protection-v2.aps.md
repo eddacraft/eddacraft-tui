@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 70/87 |
+| MLP2 | @aneki | In Progress | 71/87 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
