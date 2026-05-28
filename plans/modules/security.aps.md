@@ -65,15 +65,173 @@ security concerns.
 
 ## Tasks
 
-- SEC-001: Dependency audit automation (pnpm + cargo audit in CI)
-- SEC-002: Secret rotation strategy and documentation
-- SEC-003: Vulnerability response process and SLA
-- SEC-004: Supply chain security policy (lockfile, registry)
-- SEC-005: HTTP security headers configuration
-- SEC-006: SBOM generation for release artifacts
-- SEC-007: Atomic token-revocation hardening (GH #1672)
-- SEC-008: Named-pattern secret detection for AWS / GitHub PAT / Slack tokens (GH #1800)
-- SEC-009: Private docs entitlement gate for signed licences (GH #1673)
+| Item | Title | Status |
+| ---- | ----- | ------ |
+| SEC-001 | Reconcile + document the dependency-audit posture | Ready |
+| SEC-002 | Secret rotation runbook | Ready |
+| SEC-003 | Vulnerability response + coordinated disclosure policy | Ready |
+| SEC-004 | Supply-chain policy doc (lockfile, registry, cargo-deny) | Ready |
+| SEC-005 | HTTP security headers on `anvil-api` | Proposed — **needs APGOV boundary call** |
+| SEC-006 | SBOM generation for release artefacts | **Deferred to SCA** — do not duplicate |
+| SEC-007 | Atomic token-revocation hardening (GH #1672) | In Progress |
+| SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
+| SEC-009 | Private docs entitlement gate (GH #1673) | Done |
+
+> **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
+>
+> - **SEC-006 (SBOM) ↔ SCA.** `supply-chain-attestation` (SCA, Proposed)
+>   already owns SBOM generation — SCA-001 "Design the SBOM generation + merge
+>   stage" uses the proper CycloneDX generators (`cargo-cyclonedx`,
+>   `cyclonedx-npm`, `cyclonedx-gomod`, `cyclonedx-py`), feeds the merged SBOM
+>   into Anvil's graph/witness layer (SCA-002), and gates release-time
+>   attestation. SEC-006 is therefore **deferred to SCA**, not implemented
+>   here — SEC keeps only a pointer so the posture doc (SEC-001) can link the
+>   SBOM story without re-scoping it. SCA itself is gated on Anvil's graph
+>   layer ingesting a dependency graph and stays Proposed.
+> - **SEC-005 (security headers) ↔ APGOV.** API security headers "feed into API
+>   governance" per this module's In-Scope note, but `api-governance` (APGOV)
+>   does not currently list security headers in its scope (it governs
+>   versioning, error contract, rate limiting, CORS, OpenAPI, deprecation,
+>   health). SEC-005 stays **Proposed pending an owner call** on whether the
+>   header config + policy lives in APGOV's API-surface governance or here in
+>   SEC. It is not fleshable to Ready until that boundary is set.
+
+### SEC-001: Reconcile and document the dependency-audit posture — Ready
+
+- **Status:** Ready
+- **Intent:** Make the already-shipped dependency-audit automation legible and
+  close the one real Rust-update gap, rather than rebuilding it.
+- **Reality on `main` (2026-05-28):** the original bullet ("pnpm + cargo audit
+  in CI") is largely already shipped, but not via those literal tools:
+  - `.github/workflows/security.yml` runs a `dependency-audit` job (Trivy
+    `fs` scan over lockfiles, HIGH/CRITICAL, `exit-code: 1`), a `license-check`
+    job (`scripts/license-check.sh`), a `secret-scan` job (TruffleHog
+    `--only-verified`), and Semgrep SAST — path-gated per PR plus a weekly
+    sweep. The comment at `security.yml:108` records *why* literal `pnpm audit`
+    is not used (the npm v1 audit endpoint returns 410).
+  - `.github/workflows/rust.yml` runs a `cargo-deny` job
+    (`rust.yml:369`) whose `deny.toml` `[advisories]` section consumes the
+    RUSTSEC advisory DB — i.e. the "cargo audit" intent already ships via
+    cargo-deny.
+  - `.github/dependabot.yml` updates `npm` and `github-actions` ecosystems
+    weekly.
+- **Expected Outcome:** A short `docs/guides/dependency-audit-posture.md` (new)
+  documents the as-built audit surface (Trivy vuln scan, cargo-deny advisories,
+  TruffleHog, dependabot, license-check) and its gating; and `.github/dependabot.yml`
+  gains a `cargo` ecosystem entry so Rust dependency updates are automated the
+  same way npm and actions already are (the one concrete gap, since no literal
+  `cargo audit`/dependabot-cargo exists today).
+- **Scope:** `.github/dependabot.yml`, `docs/guides/dependency-audit-posture.md`
+  (new — does not exist yet).
+- **Non-scope:** SBOM/attestation (SCA); changing the existing Trivy/cargo-deny
+  thresholds; secret-detection rule content (SEC-008).
+- **Dependencies:** —
+- **Validation:** `grep -q "package-ecosystem: 'cargo'" .github/dependabot.yml`
+  and the new posture doc passes `pnpm docs:check`.
+- **Confidence:** high
+
+### SEC-002: Secret rotation runbook — Ready
+
+- **Status:** Ready
+- **Intent:** Document how each long-lived secret is rotated, on what cadence,
+  and through which channel (Pulumi ESC), so rotation is a runbook step rather
+  than tribal knowledge.
+- **Expected Outcome:** A `docs/runbooks/secret-rotation.md` (new) inventories
+  the rotatable secrets (licence signing/verifying key PEMs, DB/Neon
+  credentials, admin tokens, any third-party API keys), states a review/rotation
+  cadence for each, and gives the rotation procedure including the Pulumi ESC
+  path. Each secret has an owner and a "rotate by" review date.
+- **Scope:** `docs/runbooks/secret-rotation.md` (new — does not exist yet);
+  no code change.
+- **Non-scope:** Implementing automated rotation; secret *detection* (that is
+  the Rust scanner + SEC-008).
+- **Dependencies:** —
+- **Validation:** Manual review — an operator can follow the runbook to rotate
+  the licence signing key end to end; `pnpm docs:check` passes.
+- **Confidence:** medium — the secret inventory is grounded but the Pulumi ESC
+  rotation path needs confirmation against the live infra.
+
+### SEC-003: Vulnerability response and coordinated disclosure policy — Ready
+
+- **Status:** Ready
+- **Intent:** Define how externally-reported and internally-found
+  vulnerabilities are received, triaged, and patched, and publish a disclosure
+  contact — none exists today (no `SECURITY.md` in the repo).
+- **Expected Outcome:** A root `SECURITY.md` (new) states the disclosure
+  channel, supported versions, and the response/patch SLA by severity; a
+  companion `docs/runbooks/vulnerability-response.md` (new) gives the internal
+  triage-to-patch procedure (intake, severity assessment, fix, release,
+  advisory). The existing DeepSec finding flow (e.g. SEC-007's GH #1672) is
+  referenced as the internal-discovery example.
+- **Scope:** `SECURITY.md` (new — does not exist yet),
+  `docs/runbooks/vulnerability-response.md` (new — does not exist yet).
+- **Non-scope:** SOC 2 / compliance (compliance-reporting); pen-testing.
+- **Dependencies:** —
+- **Validation:** `test -f SECURITY.md` and `pnpm docs:check` passes; manual
+  review that the SLA table maps severity → response time.
+- **Confidence:** high
+
+### SEC-004: Supply-chain policy documentation — Ready
+
+- **Status:** Ready
+- **Intent:** Write down the supply-chain policy that the `deny.toml` config
+  already enforces, plus the lockfile/registry rules, so the enforcement is
+  documented and changes to `deny.toml` have a referenced rationale.
+- **Reality on `main`:** `deny.toml` already carries `[advisories]`,
+  `[licenses]`, `[bans]`, and `[sources]` sections (enforced by the `rust.yml`
+  `cargo-deny` job); pnpm uses `--frozen-lockfile` in CI; a private-registry
+  evaluation has not been recorded.
+- **Expected Outcome:** A `docs/guides/supply-chain-policy.md` (new) documents
+  the lockfile policy (frozen lockfile, who may update), the `deny.toml`
+  ban/source rules and how to amend them, the transitive-dependency risk
+  posture, and the (current) decision on private registries. Cross-links SCA
+  for the attestation/SBOM half of supply-chain security so the boundary is
+  explicit.
+- **Scope:** `docs/guides/supply-chain-policy.md` (new — does not exist yet);
+  optionally an explanatory comment in `deny.toml`.
+- **Non-scope:** SBOM/attestation (SCA); changing the actual ban/license rules.
+- **Dependencies:** —
+- **Validation:** `pnpm docs:check` passes; manual review that the policy doc
+  matches the live `deny.toml` sections.
+- **Confidence:** high
+
+### SEC-005: HTTP security headers on `anvil-api` — Proposed (needs APGOV boundary call)
+
+- **Status:** Proposed — **needs design**: the APGOV↔SEC ownership boundary
+  must be set before this is fleshable to Ready (see the overlap callout
+  above). Not promoted.
+- **Intent:** Add HTTP security headers (CSP, HSTS, `X-Content-Type-Options`,
+  `X-Frame-Options`, referrer policy) to the `anvil-api` Hono app, which
+  currently sets none.
+- **Reality on `main`:** `apps/anvil-api/src/index.ts` wires `cors`, `logger`,
+  `traceContext`, and `rateLimiter` middleware but no `secureHeaders`
+  equivalent — a grep for `secureHeaders`/`Content-Security-Policy`/`hsts`
+  returns nothing in `apps/anvil-api/src`.
+- **Blocks on:** an owner decision on whether the header config + policy is
+  owned by `api-governance` (APGOV, which governs the API surface) or by SEC.
+  Until that lands, scoping the work item risks duplicating APGOV scope.
+- **Coordinates with:** APGOV (API-surface governance; CORS/rate-limit already
+  live there).
+- **Expected Outcome (deferred until ownership is set):** the API responds with
+  the agreed security-header set on all routes, with CSP scoped to the API's
+  actual needs (it serves JSON, not HTML, so the CSP can be strict).
+- **Validation (deferred):** `curl -I` against a route shows the agreed headers;
+  a route test asserts their presence.
+
+### SEC-006: SBOM generation for release artefacts — Deferred to SCA
+
+- **Status:** Deferred — **do not implement here.** SBOM generation is owned by
+  `supply-chain-attestation` (SCA-001). See the overlap callout above.
+- **Intent (historical):** Generate a software bill of materials for release
+  artefacts.
+- **Why deferred:** SCA-001 already scopes per-ecosystem CycloneDX SBOM
+  generation + merge with the *proper* generators, dependency-graph ingestion
+  (SCA-002), and release-time attestation. Duplicating it under SEC would split
+  the SBOM story across two modules. SEC retains only this pointer; the work
+  lives in SCA, which is gated on Anvil's graph layer ingesting a dependency
+  graph and remains Proposed.
+- **Pointer:** [`supply-chain-attestation`](./supply-chain-attestation.aps.md)
+  SCA-001 / SCA-002.
 
 ### SEC-007: Atomic token-revocation hardening
 
