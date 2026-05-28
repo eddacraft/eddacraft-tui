@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/29    |
+| CIB | —     | In Progress | 19/30    |
 
 ## Purpose
 
@@ -596,3 +596,57 @@ archive.
   implementation search.
 - **Confidence:** high — small documentation/API-contract alignment with a named
   parser behaviour.
+
+### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs, release ordering)
+
+- **Status:** Draft
+- **Intent:** Close three latent gaps in the `eddacraft-tui` publish workflow
+  and PR-side doc gate that let two `broken_intra_doc_links` errors reach the
+  live publish run (`26549955604`, 2026-05-28) and fail it at the `cargo doc`
+  step, after `#2018` had been merged green. The fix PR `#2029` repaired the
+  immediate breakage; this item closes the recurrence surface.
+- **Expected Outcome:**
+  1. **PR-side `cargo doc` gate enforces `-D warnings`.** The `rust.yml`
+     workflow's `cargo doc` step runs with `RUSTDOCFLAGS=-D warnings`
+     (matching the publish-side gate) so rustdoc regressions block at PR
+     review, not at publish. Today it does not — which is how the two
+     broken links slipped through `#2018`.
+  2. **Publish doc gate truly proxies docs.rs.**
+     `publish-eddacraft-tui.yml`'s `cargo doc --no-deps -p eddacraft-tui`
+     step uses `--all-features` (matching
+     `crates/eddacraft-tui/Cargo.toml` `[package.metadata.docs.rs]
+     all-features = true`) so the gate validates the same surface docs.rs
+     builds. Today it uses default features, so feature-gated rustdoc
+     links (e.g. the `test_utils` link de-linked by `#2029`) and
+     feature-gated lints (e.g. an existing `redundant_explicit_links` in
+     `widgets/image_pane.rs` under the `image` feature) are invisible to
+     it. Switching to `--all-features` requires fixing the pre-existing
+     all-features rustdoc lints in `image`-gated code first.
+  3. **Publish workflow creates the GitHub Release only after `cargo
+     publish` succeeds.** Today `publish-eddacraft-tui.yml` creates the
+     `eddacraft-tui-v*` Release early in the job, so a failed publish
+     (e.g. run `26549955604`) leaves a stray non-draft GitHub Release
+     advertising a version that is not on crates.io. The `gh release
+     create` step should move after the `cargo publish` step (and after
+     tag propagation to the mirror) so a failure leaves nothing public.
+- **Validation:**
+  - `.github/workflows/rust.yml`'s `cargo doc` step has
+    `env: RUSTDOCFLAGS: -D warnings` (or equivalent).
+  - `.github/workflows/publish-eddacraft-tui.yml`'s doc step passes
+    `--all-features`; `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps
+    -p eddacraft-tui --all-features` is green on `main`.
+  - `gh release create` step in the publish workflow is positioned after
+    the `cargo publish` step and after tag propagation.
+  - A deliberately broken intra-doc link in a doc-only PR fails the
+    PR-side `cargo doc` gate (manual smoke).
+- **Identified From:** TUIR-008 first publish attempt (run `26549955604`,
+  2026-05-28) failed at the doc gate with two `broken_intra_doc_links` after
+  `#2018` merged green; a stray `eddacraft-tui-v0.2.3` GitHub Release
+  (`github-actions[bot]`, 2026-05-28T01:57:43Z) was left behind by the
+  failed run. Surfaced while opening `#2029`.
+- **Files:** `.github/workflows/rust.yml`,
+  `.github/workflows/publish-eddacraft-tui.yml`,
+  `crates/eddacraft-tui/src/widgets/image_pane.rs` (and any sibling
+  feature-gated rustdoc lints uncovered by `--all-features -D warnings`).
+- **Confidence:** high — each gap is small and well-isolated; the
+  all-features lint cascade is the only unknown-scope subpoint.
