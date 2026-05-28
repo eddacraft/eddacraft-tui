@@ -143,9 +143,15 @@ None — this module unblocks others, not vice versa.
 
 Remaining non-registry slices move to **Ready** when:
 
-- [ ] Drift schema migration policy drafted and reviewed.
-- [ ] Per-track flag taxonomy aligns with existing flag governance.
-- [ ] FP reporting destination confirmed (Kindling vs other).
+- [x] Drift schema migration policy drafted and reviewed — OPSUP-003 (schema
+      versioning) + OPSUP-004 (`anvil drift migrate`) authored to Ready
+      quality 2026-05-28.
+- [x] Per-track flag taxonomy aligns with existing flag governance — OPSUP-005
+      authored against FLAGCAT + `feature-flag-governance.md`; default-policy
+      open question recorded inline.
+- [ ] FP reporting destination confirmed (Kindling vs other) — OPSUP-007 CLI
+      surface + anonymisation policy authored, but the telemetry **destination**
+      remains a design decision (stays Draft until resolved).
 
 ## Tasks
 
@@ -169,24 +175,116 @@ Remaining non-registry slices move to **Ready** when:
 - **Status:** Ready
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
+- **Expected Outcome:** `--skip_checks` and the `.anvil.<ext>` `checks:` list
+  resolve every entry against the OPSUP-001 registry: stable `ANV-*` IDs,
+  current user-facing names, and explicit legacy aliases all map to the same
+  canonical check. An unknown identifier produces a deterministic error that
+  names the closest registered ID rather than silently skipping nothing. A
+  newly shipped check is skippable by ID without a binary downgrade.
+- **Scopes:** skip/disable resolution paths in the gate dispatcher; no new
+  check definitions.
+- **Non-scope:** introducing new checks; changing default-enabled check sets;
+  the FP reporting path (OPSUP-007).
+- **Files:**
+  - `crates/anvil-cli/src/commands/gate.rs` (skip-set normalisation)
+  - `crates/anvil-cli/src/commands/gate_config.rs` (`.anvil.<ext>` checks list)
+  - `crates/anvil-cli/src/commands/check_catalog.rs` (registry lookup surface)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil commands::gate::tests::normalize_gate_check_set_accepts_stable_ids_and_aliases`
+  - New test: an unknown skip ID errors with a registry-resolved suggestion
+  - New test: a check absent from the legacy name map but present by `ANV-*`
+    ID resolves and is skippable
+- **Dependencies:** OPSUP-001 (Done)
+- **Confidence:** high
 
 ### OPSUP-003 — Drift baseline schema versioning
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Replace ad hoc schema constants with a versioned drift baseline
   schema model and per-field declarations.
+- **Expected Outcome:** The single `SCHEMA_VERSION = "1.0.0"` string constant
+  in `drift.rs` is replaced by a versioned schema model that records the
+  baseline schema version on write and reads it back on load. Each Track 3/4
+  surface or pack declares the baseline fields it contributes, so adding a new
+  surface advances the schema version additively rather than mutating `1.0.0`
+  in place. Loading a baseline whose version is newer than the running binary
+  understands fails with a clear "upgrade anvil" message instead of silently
+  dropping fields.
+- **Scopes:** drift baseline read/write schema; per-surface field declaration
+  registry.
+- **Non-scope:** the migration command itself (OPSUP-004); concrete surface
+  baseline fields (owned by each surface module).
+- **Files:**
+  - `crates/anvil-cli/src/commands/drift.rs` (`SCHEMA_VERSION` → versioned model)
+  - `crates/anvil-kernel-types/src/` (drift baseline schema types, if the
+    version model is shared)
+- **Validation:**
+  - New test: a current-version baseline round-trips byte-stable
+  - New test: a future-version baseline fails to load with an upgrade message
+  - New test: an additive surface field declaration advances the version
+    without breaking an older baseline read path
+- **Dependencies:** none (unblocks OPSUP-004 and every surface baseline)
+- **Confidence:** high
 
 ### OPSUP-004 — Drift migration command
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
   existing baselines.
+- **Expected Outcome:** `anvil drift migrate` upgrades an existing drift
+  baseline from an older schema version (per OPSUP-003) to the current one,
+  writing a backup of the original before any in-place write. Migration is
+  one-way write-with-backup; the backup is retained for one release. Running
+  `anvil drift` against an out-of-date baseline surfaces a one-line hint
+  pointing at `anvil drift migrate` rather than failing opaquely. Migrating an
+  already-current baseline is a no-op that reports "already current".
+- **Scopes:** the `drift migrate` subcommand and the on-load upgrade hint.
+- **Non-scope:** the schema version model (OPSUP-003 owns it); destructive
+  rewrites without a backup.
+- **Files:**
+  - `crates/anvil-cli/src/commands/drift.rs` (`migrate` subcommand + on-load hint)
+  - `crates/anvil-cli/src/commands/mod.rs` (subcommand wiring)
+- **Validation:**
+  - New test: migrating an older-version baseline writes a backup then upgrades
+  - New test: migrating a current baseline is a no-op
+  - New test: `anvil drift` on a stale baseline emits the migrate hint
+- **Dependencies:** OPSUP-003
+- **Confidence:** medium
 
 ### OPSUP-005 — Per-track feature flag taxonomy
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Define per-track flag naming, defaults, and governance alignment
   for new surfaces and packs.
+- **Expected Outcome:** A documented flag taxonomy lets a user disable a noisy
+  Track 3 surface or Track 4 pack without rolling back the whole release.
+  Flags are hierarchical (`track.surface.*` / `track.pack.*` umbrella with
+  per-leaf overrides, e.g. `track.surface.sql`, `track.pack.pulumi`) so the
+  flag count does not explode one-per-surface. Each new track ships opt-in
+  behind its leaf flag for one release, then the default flips on. The taxonomy
+  registers through the existing flag system per
+  [feature-flag-governance.md](../../docs/guides/feature-flag-governance.md)
+  and through [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md)
+  (FLAGCAT), not a parallel flag system; every flag carries `createdFor`
+  linking to its owning surface/pack work item and a sunset/review date per
+  flag governance.
+- **Scopes:** flag naming convention, default-state policy, FLAGCAT catalogue
+  entries for the track flags.
+- **Non-scope:** the surface/pack rule logic each flag gates; replacing the
+  existing flag system.
+- **Files:**
+  - `crates/anvil-kernel-types/src/feature_flags.rs` (flag taxonomy types, if
+    the hierarchy needs a type)
+  - FLAGCAT manifest entries (coordinated with the catalogue's manifest layout)
+  - `docs/guides/feature-flag-governance.md` (taxonomy reference, if extended)
+- **Validation:**
+  - New test/consistency check: each `track.*` flag has `createdFor` + a
+    sunset/review date and resolves through the hierarchical umbrella
+  - `pnpm`-side flag consistency check (FLAGCAT) passes with the new entries
+- **Dependencies:** FLAGCAT manifest layout (FLAGCAT-001 Complete)
+- **Confidence:** medium
+- **Open question:** default policy — opt-in for one release then auto-flip, or
+  opt-in until an explicit per-track promotion decision? (See Open Questions.)
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
@@ -216,6 +314,28 @@ Remaining non-registry slices move to **Ready** when:
 - **Status:** Draft
 - **Intent:** Define the CLI and telemetry path for users to report false
   positives without shipping source content by default.
+- **Expected Outcome (CLI surface, deterministic):** `anvil report-fp
+  <check-id> <file:line>` records a structured false-positive report keyed on
+  the OPSUP-001 stable check ID. The report includes the check ID, a hashed
+  file path (no plaintext path), and the rule context — never source content by
+  default. Source snippets are opt-in only and never enabled in the default
+  config (fail-closed on anonymisation).
+- **Scopes:** the `report-fp` CLI command and the anonymisation policy.
+- **Non-scope:** analytics dashboards over the collected data (a dashboard
+  module concern); the registry itself (OPSUP-001).
+- **Files:**
+  - `crates/anvil-cli/src/commands/` (new `report_fp` command)
+  - `crates/anvil-cli/src/commands/mod.rs` (subcommand wiring)
+- **Validation:**
+  - New test: `report-fp` hashes the path and omits source content under the
+    default config
+  - New test: an unknown check ID is rejected against the registry
+- **Dependencies:** OPSUP-001 (Done)
+- **Confidence:** medium
+- **Blocked-on (design):** the telemetry **destination** is unresolved —
+  Kindling pipeline reuse vs a new endpoint (see Open Questions). The CLI
+  surface and anonymisation policy above are decidable now; the destination is
+  a cross-cutting infra decision that gates this item moving to Ready.
 
 ## Risks
 
