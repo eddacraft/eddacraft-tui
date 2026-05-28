@@ -108,7 +108,8 @@ docs/analysis/claude-code-safety-net-review.md
 !.claude/skills/aps-planning/
 !.claude/skills/test-driven-development/
 !.claude/skills/addressing-pr-reviews/
-!.claude/skills/dependabot
+!.claude/skills/dependabot/
+!.claude/skills/dependabot/**
 !.claude/skills/planning-council/
 .claude/VERSION
 # SKOBS — skill discovery & observability snapshots (local, not committed)
