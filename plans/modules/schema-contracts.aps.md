@@ -75,8 +75,10 @@ Change status to **Ready** when:
       (Zod) and `crates/anvil-kernel-types/src/` (serde) both present.
 - [ ] Decision recorded on whether the cross-language parity framework
       (SCHEMA-002/-005) lives test-side only or ships a reusable harness.
-- [ ] Confirm `generate:schema` + `update-golden-hashes` are the current
-      generation entry points named in `AGENTS.md` (SCHEMA-003 automates them).
+- [ ] Decide and document the generation entry points
+      (`generate:schema` / `update-golden-hashes` or equivalents) that
+      SCHEMA-003 will automate — they do not exist yet and are not named in
+      `AGENTS.md`.
 
 ## Work Items
 
@@ -95,7 +97,9 @@ Change status to **Ready** when:
 - **Status:** Proposed
 - **Intent:** Validate that TypeScript Zod types and Rust serde types produce identical outputs
 - **Expected Outcome:** Framework runs both parsers on sample data, diffs results
-- **Scopes:** `packages/anvil/core/src/validation/parity.ts` and `crates/anvil-kernel-types/tests/`
+- **Scopes:** new cross-language parity harness (candidate location
+  `packages/anvil/core/src/validation/parity.ts`, to be created) and
+  `crates/anvil-kernel-types/tests/`
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- parity`
 - **Dependencies:** SCHEMA-001
 - **Confidence:** high
@@ -106,7 +110,7 @@ Change status to **Ready** when:
 - **Intent:** Automate golden hash updates when schemas change
 - **Expected Outcome:** `cargo test` and `pnpm test` update hashes atomically
 - **Scopes:** `generate:schema` + `update-golden-hashes` build scripts in both
-  workspaces (the generation entry points named in `AGENTS.md`)
+  workspaces (to be added — no such scripts/targets exist yet)
 - **Validation:** `cargo test` with `--locked` passes
 - **Confidence:** high
 
@@ -115,7 +119,7 @@ Change status to **Ready** when:
 - **Status:** Proposed
 - **Intent:** Track which schema versions are compatible with which kernel versions
 - **Expected Outcome:** Matrix documented; migration paths defined
-- **Scopes:** `crates/anvil-kernel-types/src/version.rs`
+- **Scopes:** `crates/anvil-kernel-types/src/version.rs` (new — no `version.rs` exists yet)
 - **Validation:** Compatibility matrix in `docs/guides/schema-compatibility.md`
 - **Dependencies:** SCHEMA-001
 - **Confidence:** high
@@ -125,7 +129,7 @@ Change status to **Ready** when:
 - **Status:** Proposed
 - **Intent:** Test that TS and Rust types serialise/deserialise identically
 - **Expected Outcome:** Contract tests pass for all shared types
-- **Scopes:** `crates/anvil-kernel-types/tests/parity.rs`
+- **Scopes:** `crates/anvil-kernel-types/tests/parity.rs` (new; the crate currently has only `tests/type_invariants.rs`)
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types`
 - **Dependencies:** SCHEMA-002
 - **Confidence:** high

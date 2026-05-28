@@ -175,7 +175,7 @@ Remaining non-registry slices move to **Ready** when:
 - **Status:** Ready
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
-- **Expected Outcome:** `--skip_checks` and the `.anvil.<ext>` `checks:` list
+- **Expected Outcome:** `--skip-checks` and the `.anvil.<ext>` `checks:` list
   resolve every entry against the OPSUP-001 registry: stable `ANV-*` IDs,
   current user-facing names, and explicit legacy aliases all map to the same
   canonical check. An unknown identifier produces a deterministic error that
