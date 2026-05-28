@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| SCAN | @team | In Progress | 5/6      |
+| SCAN | @team | In Progress | 6/6      |
 
 **Last reviewed:** 2026-04-26
 
@@ -262,8 +262,9 @@ reference the council finding IDs where relevant.
     held via the existing final sort, no struct change needed.
 - **Confidence:** medium (truncation + dedup under parallel is non-trivial)
 - **Priority:** Low
-- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-28;
-  execution authorised by operator). Scope decision: parallelise the
+- **Status:** Merged 2026-05-28 via PR [#2041](https://github.com/eddacraft/anvil-001/pull/2041)
+  (`67949a4d`). Promoted Proposed → Ready → In Progress → Merged 2026-05-28.
+  Scope decision: parallelise the
   **uncapped Phase 1a** gitignore-blind walk (the dominant cost; order-free, no
   truncation risk) via `WalkBuilder::build_parallel()` with the SCAN-003 thread
   cap; keep the **capped Phase 1b** walk sequential to preserve its early-break
