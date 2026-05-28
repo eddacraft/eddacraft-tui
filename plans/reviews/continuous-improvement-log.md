@@ -1171,3 +1171,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Binary-crate test-support modules must be gated `#[cfg(test)] mod test_support;` in `main.rs` (no lib.rs here) so they compile only under test and never reach the shipped binary.
 - **Follow-up:** none
 
+### 2026-05-29 — claude (#2065)
+
+- **Task:** "work through CLAWP" — landed CLAWP-019 (SURFENV suppression audit hard-coded its rule IDs, so a future rule could bypass the audit unnoticed).
+- **Outcome:** Added a `SURFENV_RULES` registry const in `crates/anvil-checks/src/surface/env/mod.rs`, drove the existing shape check from it, and added an exhaustiveness trip-wire `every_registered_rule_has_a_suppression_case`. PR #2065 (auto-merge armed, rebase); CLAWP 12/64 → 13/64.
+- **Worked:** Proved the trip-wire non-vacuous by injecting a bogus `SURFENV-999` — the shape check still passed while the trip-wire failed, which is exactly the silent-bypass shape the finding named. Letting `index-counts.mjs` regenerate the count cells made each rebase conflict on `plans/index.aps.md` trivially resolvable (`checkout --ours` → re-add the CLAWP-019 annotation → regen).
+- **Failed:** The literal request was to finish CLAWP-017/-024; abandoned mid-setup on discovering a sibling session was actively committing AND pushing those exact branches (tips advanced and a post-merge doc grew between two reads; last push ~48s before I looked). Re-confirmed scope with the user instead of racing.
+- **Friction:** `scripts/agent/guidance.sh --branch` over-classified this 3-file change as `release`/`mini` because its diff base is local `main` (an ancestor of `origin/main`), sweeping in all of origin/main's forward progress. `main` moved 4× during the session → three rebases, each conflicting only on the `index.aps.md` count hot-line.
+- **Improvement:** When a worktree is cut from `origin/main` while local `main` is stale, trust `git diff origin/main..HEAD` and the GitHub-computed PR file list over `--branch`/guidance diffs — the latter inflate the change set and mis-route the review tier.
+- **Follow-up:** none (CLAWP-017 still in flight with its owner; CLAWP-024's test merged to main but its APS status was left Draft by the sibling — their bookkeeping to close).
+
