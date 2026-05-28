@@ -453,10 +453,27 @@ async fn oversized_scan_buffer_notification_is_dropped_silently() {
         "oversized scan_buffer notification must not produce a response: {line}"
     );
 
-    // Connection should still be alive — send a regular notification on
-    // the same stream and verify the listener is still serving.
-    let client = reader.into_inner();
-    drop(client);
+    // Connection should still be alive — send a regular id-bearing request
+    // on the same recovered stream and verify the listener is still serving
+    // by reading back a well-formed JSON-RPC result with the matching id.
+    let mut client = reader.into_inner();
+    client
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"session.list\",\"id\":\"liveness-1\"}\n")
+        .await
+        .expect("write follow-up request");
+
+    let mut reader = BufReader::new(client);
+    let mut response_line = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut response_line))
+        .await
+        .expect("follow-up response timeout")
+        .expect("read follow-up response");
+    let response: Value =
+        serde_json::from_str(response_line.trim_end()).expect("follow-up response json");
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "liveness-1");
+    assert_eq!(response["result"], json!([]));
+    assert!(response.get("error").is_none());
 
     shutdown.trigger();
     tokio::time::timeout(Duration::from_secs(1), handle)
