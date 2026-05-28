@@ -150,6 +150,7 @@ dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
+ "ignore",
  "petgraph",
  "rand 0.10.1",
  "rayon",

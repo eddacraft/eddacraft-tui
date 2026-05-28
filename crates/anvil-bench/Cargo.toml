@@ -20,6 +20,7 @@ workspace-hack.workspace = true
 rayon = { workspace = true }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
+ignore = "0.4"
 
 [[bench]]
 name = "stress"
@@ -35,6 +36,11 @@ harness = false
 
 [[bench]]
 name = "watch_resource_budget"
+harness = false
+
+# SCAN-005: sequential WalkBuilder vs WalkParallel for the discovery walk phase.
+[[bench]]
+name = "walk_discovery"
 harness = false
 
 [lints]

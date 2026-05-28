@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| SCAN | @team | In Progress | 4/5      |
+| SCAN | @team | In Progress | 4/6      |
 
 **Last reviewed:** 2026-04-26
 
@@ -184,6 +184,82 @@ reference the council finding IDs where relevant.
   - `crates/anvil-bench/` (benchmark harness)
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Proposed
+- **Status:** In Progress (promoted Proposed → Ready → In Progress 2026-05-28;
+  spike complete pending merge — flip to `Merged` lands in the follow-up
+  reconcile PR)
+- **Outcome (2026-05-28):** Bench committed at
+  `crates/anvil-bench/benches/walk_discovery.rs` (criterion, `harness = false`).
+  Three corpora on a 16-core box:
+  - 20k synthetic on tmpfs (RAM, pure CPU): seq **87.8 ms** → par **14.7 ms** = **6.0×**
+  - entx real (ext4 warm, 2,694 candidates): seq **38.8 ms** → par **8.5 ms** = **4.55×**
+  - 30k synthetic on ext4 (warm): seq **176.5 ms** → par **28.2 ms** = **6.3×**
+
+  Walk speedup is robust **4.5–6.3×** across RAM/disk/sizes — well past the
+  20% bar in isolation. End-to-end share is where it lands closer to the line:
+  Phase 2 (the already-rayon-parallel read+regex scan) dominates total
+  discovery, so a parallel walk saves only ~10–17% end-to-end on typical warm
+  repos (walk is ~12–22% of welcome scan wall-time depending on the per-file
+  scan cost; reference: `secret_scan_parallel` parallel pass on 3k files
+  ≈ 899 ms with 8 threads, welcome caps at 4 per SCAN-003 so the share skews
+  toward the upper bound). Cold-cache was **not measurable** here (no root in
+  sandbox; `drop_caches` unwritable) — strictly favours parallel because
+  serial pays IO latency one stat at a time, so the cold/large-monorepo tail
+  is where the refactor would matter most.
+
+  **Decision:** keep the spike single-purpose. Refactor deferred to **SCAN-006**
+  (`Refactor scan_project discovery walk to WalkParallel`) so the production
+  change can be sized + prioritised on its own, with the spike's numbers as
+  baseline and the complexity cost (parallel-safe `SCAN_MAX_FILES` truncation,
+  deterministic finding order, concurrent dedup of SCAN-004's
+  `all_candidates`/`seen`) explicit in the acceptance criteria.
 - **Origin:** Council `kernel-maintainer` (suggested `WalkParallel` during
-  review; deferred because measured win came from regex parallelism)
+  review; deferred because measured win came from regex parallelism — this
+  spike confirmed walk parallelism is real but bounded end-to-end by
+  Phase 2's already-parallel cost)
+
+---
+
+### SCAN-006: Refactor scan_project discovery walk to WalkParallel
+
+- **Intent:** SCAN-005 measured that `ignore::WalkParallel` is **4.5–6.3×**
+  faster than the current sequential `WalkBuilder` walk on every corpus tested
+  (RAM, real ext4, 20k–30k synthetic). Realise that gain in production for the
+  welcome discovery scan, while preserving the invariants the sequential walk
+  currently provides for free.
+- **Expected Outcome:** `scan_project_at` discovers candidates via
+  `WalkBuilder::build_parallel()` instead of the sequential `Walk`, behind a
+  design that preserves: (a) the two-phase allowlist semantics (Phase 1a
+  gitignore-blind allowlist pass + Phase 1b gitignore-respecting walk);
+  (b) deterministic finding order (currently emerges from the sequential walk
+  + the explicit final `findings.sort_by(...)` — re-verify under parallel);
+  (c) parallel-safe `SCAN_MAX_FILES` truncation (cannot rely on a sequential
+  `break` after N); (d) concurrent dedup of the SCAN-004
+  `all_candidates`/`seen` sets without breaking the membership-filter
+  correctness guarantee.
+- **Validation:**
+  - Extend `walk_discovery` bench (or add an end-to-end variant) to show that
+    `scan_project_at` itself — not just the walk in isolation — improves
+    ≥20% wall-time on at least one of (entx real, 30k synthetic).
+  - All existing `crates/anvil-cli/src/commands/welcome.rs` tests + the
+    SCAN-004 `gitignore_skip` tests + `discovery_render` tests stay green.
+  - New tests pinning: deterministic finding ordering under parallel walk;
+    `SCAN_MAX_FILES` truncation behaviour under concurrent collection.
+  - Decide explicitly whether Phase 1a (the gitignore-blind allowlist walk)
+    and the `scan_all` / gitignore-off path (`standard_filters(false)`) are in
+    scope — the SCAN-005 spike bench only measured Phase 1b with gitignore on,
+    so those paths are unvalidated and must be either parallelised too or
+    documented as deliberately left sequential.
+- **Files:**
+  - `crates/anvil-cli/src/commands/welcome.rs` (`scan_project_at`)
+  - `crates/anvil-bench/benches/walk_discovery.rs` (end-to-end variant)
+  - Possibly `crates/anvil-tui/src/surfaces/tutorial/discovery.rs` if ordering
+    invariants need to change.
+- **Confidence:** medium (truncation + dedup under parallel is non-trivial)
+- **Priority:** Low
+- **Status:** Proposed
+- **Origin:** SCAN-005 spike (PR TBD, 2026-05-28) — walk parallelism is real
+  (4.5–6.3×) but end-to-end gain on typical warm repos is right at the 20%
+  bar (~10–17%) because Phase 2 (the already-rayon-parallel read+regex scan)
+  dominates total discovery. The case for refactoring grows for the
+  cold-cache / very-large-monorepo tail (unmeasurable in the spike sandbox);
+  pursue when that tail becomes a concrete concern.
