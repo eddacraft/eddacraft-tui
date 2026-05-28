@@ -1,6 +1,6 @@
 # Post-merge: fix-broadcast-preview-token-real-send
 
-PR: <!-- filled on PR creation -->
+PR: #2048
 Branch: `fix/broadcast-preview-token-real-send`
 Issue: #1926 ([Clawpatch] POST /admin/broadcast real-send rejects
 preview-token-only sends)
