@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/30    |
+| CIB | —     | In Progress | 19/31    |
 
 ## Purpose
 
@@ -650,3 +650,45 @@ archive.
   feature-gated rustdoc lints uncovered by `--all-features -D warnings`).
 - **Confidence:** high — each gap is small and well-isolated; the
   all-features lint cascade is the only unknown-scope subpoint.
+
+### CIB-031: Scope the dependency-audit gate so Rust-only lockfile changes skip the npm Trivy audit
+
+- **Status:** Draft
+- **Intent:** A PR that changes only `Cargo.lock` (or a crate `Cargo.toml`) is
+  classified as a generic `lockfile` change, which the classifier maps to the
+  `dependency-audit` signal. In `.github/workflows/security.yml` that signal
+  gates **two** npm-oriented jobs — the Trivy `Dependency Audit` *and*
+  `license-check` (both keyed on `dependency-audit-required`). Trivy runs with
+  `scan-ref: '.'`, scanning the whole repo filesystem, so it reports the repo's
+  standing `pnpm-lock.yaml` HIGH/CRITICAL advisories regardless of what changed.
+  Net effect: a Rust-only dependency change runs two npm-facing gates and
+  re-surfaces unrelated npm advisories, while `cargo-deny` already covers the
+  Rust side. Route Rust-only lockfile changes to `cargo-deny` and reserve the
+  Trivy + `license-check` gates for npm manifest/lockfile changes.
+- **Expected Outcome:** A PR whose only dependency-file change is `Cargo.lock`
+  or a crate `Cargo.toml` triggers `cargo-deny` but NOT the Trivy
+  `Dependency Audit` or `license-check` jobs (or those jobs no-op when no npm
+  lockfile/manifest changed). A `pnpm-lock.yaml` / `package.json` change still
+  triggers Trivy + `license-check` as today. The change-classifier
+  distinguishes Rust lockfiles from npm lockfiles.
+- **Validation:** `scripts/ci/classify-changes.test.sh` gains cases asserting
+  (a) a `Cargo.lock`-only diff routes to the Rust audit and does NOT add the
+  `dependency-audit` requirement (which gates Trivy + `license-check`), and
+  (b) a `pnpm-lock.yaml` diff still does. A Rust-only-dependency PR shows green
+  `cargo-deny` and no `Dependency Audit` / `license-check` failure attributable
+  to unrelated npm advisories.
+- **Identified From:** SCAN-005 PR #2034 (2026-05-28). Adding `ignore` to
+  `anvil-bench` dev-dependencies changed only `Cargo.lock` (no npm files), but
+  the `lockfile` classification ran the Trivy `Dependency Audit` (whole-repo
+  `scan-ref: '.'`), which failed on pre-existing `pnpm-lock.yaml` HIGH/CRITICAL
+  vulns unrelated to the change. `cargo-deny` passed. The Trivy job is advisory
+  (not a required check) so it did not block, but it is persistent red-X noise
+  on Rust-only PRs and can mask a genuinely new npm advisory.
+- **Files:** `scripts/ci/classify-changes.sh` (the `lockfile)` classification
+  case and its path→class mapping), `.github/workflows/security.yml` (the
+  `dependency-audit` Trivy job AND the `license-check` job — both gated on
+  `dependency-audit-required`), `.github/actions/detect-changes/action.yml`,
+  `scripts/ci/classify-changes.test.sh`.
+- **Confidence:** medium — must keep the Rust audit (`cargo-deny`) and the
+  npm-facing gates (Trivy + `license-check`) correctly routed; touches the
+  change-classifier contract, which has its own test suite to extend.
