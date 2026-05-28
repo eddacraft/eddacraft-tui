@@ -6,7 +6,7 @@
 
 ## Progress (as of 2026-05-28)
 
-- **Fleshout pass 2026-05-28.** Phase 3 in-workspace items (TCOV-015..-018,
+- **Flesh-out pass 2026-05-28.** Phase 3 in-workspace items (TCOV-015..-018,
   edda-stack + kindling-integration) promoted to Ready. Phase 3 mcp-server
   items (TCOV-019..-021) re-classified `Blocked — needs decision` because
   their target was archived under ADR-033 and excluded from the workspace.

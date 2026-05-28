@@ -119,8 +119,9 @@ security concerns.
   documents the as-built audit surface (Trivy vuln scan, cargo-deny advisories,
   TruffleHog, dependabot, license-check) and its gating; and `.github/dependabot.yml`
   gains a `cargo` ecosystem entry so Rust dependency updates are automated the
-  same way npm and actions already are (the one concrete gap, since no literal
-  `cargo audit`/dependabot-cargo exists today).
+  same way npm and actions already are (the one concrete gap, since cargo
+  updates are not configured in Dependabot today and advisory gating already
+  ships via cargo-deny).
 - **Scope:** `.github/dependabot.yml`, `docs/guides/dependency-audit-posture.md`
   (new — does not exist yet).
 - **Non-scope:** SBOM/attestation (SCA); changing the existing Trivy/cargo-deny
@@ -156,7 +157,8 @@ security concerns.
 - **Status:** Ready
 - **Intent:** Define how externally-reported and internally-found
   vulnerabilities are received, triaged, and patched, and publish a disclosure
-  contact — none exists today (no `SECURITY.md` in the repo).
+  contact — the root policy file does not exist today (`apps/anvil-api/` has a
+  local `SECURITY.md`, but there is no repository-level `SECURITY.md`).
 - **Expected Outcome:** A root `SECURITY.md` (new) states the disclosure
   channel, supported versions, and the response/patch SLA by severity; a
   companion `docs/runbooks/vulnerability-response.md` (new) gives the internal
