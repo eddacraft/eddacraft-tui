@@ -100,10 +100,48 @@ deprecation policy, or consistent error shapes.
 
 ### APGOV-006: Health endpoint and dependency checks
 
-- **Status:** Draft
-- **Intent:** Add `/api/v1/health` endpoint that checks DB and external deps
-- **Expected Outcome:** `/api/v1/health` returns `{ status: "ok", checks: {...} }`
-- **Validation:** `curl localhost:3000/api/v1/health | jq .status` returns "ok"
+- **Status:** Draft — **needs design** (response-shape + dependency-set
+  decision; see "Blocks on" below). Not fleshable to Ready without an owner
+  call.
+- **Intent:** Reconcile the API's health/readiness contract — a `/health`
+  endpoint **already ships** at `apps/anvil-api/src/index.ts:79`.
+- **Reality on `main` (2026-05-28):** `app.get('/health')` (registered under
+  `.basePath('/api/v1')`, so the live path is already `/api/v1/health`)
+  probes three dependencies in parallel — the Neon DB (`SELECT 1`), the
+  licence signing key, and the licence verifying key — and returns
+  `{ status: 'ok', db, signingKey, verifyingKey }` on success or
+  `{ status: 'degraded', ... }` with HTTP 503 on any failure. So the
+  endpoint exists; what is unresolved is its **contract shape** and **which
+  dependencies it is responsible for**, not whether it exists.
+- **Why this is needs-design, not ready-to-flesh:**
+  1. **Response-shape mismatch.** The original draft outcome
+     (`{ status: "ok", checks: {...} }`, nested) contradicts the shipped flat
+     shape (`{ status, db, signingKey, verifyingKey }`). Picking one is a
+     public-contract decision that must land alongside APGOV-002 (error
+     contract) and APGOV-004 (OpenAPI spec) so the health response is
+     documented consistently — not invented here.
+  2. **Dependency-set ownership overlaps OBS.** "Checks DB and external
+     deps" collides with `observability-foundation` (OBS), which owns the
+     core health-signal set (`plans/modules/observability-foundation.aps.md:51`
+     — uptime, error rate, latency, queue depth, email delivery) and Neon
+     health visibility (`:90`, OBS-002 at `:125`). Deciding whether `/health`
+     reports email-delivery / queue-depth / OPA-binary reachability, or stays
+     a thin liveness probe, is an OBS↔APGOV boundary call.
+- **Blocks on:** an owner decision recording (a) the canonical `/health`
+  response shape (flat vs. nested `checks`, and whether to add a separate
+  `/health/ready` vs `/health/live` split), and (b) the dependency set
+  `/health` owns vs. what OBS surfaces through observability instead. Capture
+  the decision as a short ADR or an APGOV/OBS coordination note before
+  promoting.
+- **Coordinates with:** APGOV-002 (error contract), APGOV-004 (OpenAPI spec),
+  and `observability-foundation` OBS-001/OBS-002 (health signals, Neon
+  instrumentation).
+- **Expected Outcome (deferred — set once the shape is decided):** the live
+  `/api/v1/health` response matches the agreed contract and the agreed
+  dependency set, and is documented in the OpenAPI spec.
+- **Validation (deferred):** `curl localhost:3000/api/v1/health | jq .status`
+  returns `"ok"` against the agreed shape, plus a route test asserting the
+  degraded path returns 503.
 
 ### APGOV-007: CORS policy documentation and configuration
 
