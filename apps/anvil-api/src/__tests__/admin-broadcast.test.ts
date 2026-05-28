@@ -401,6 +401,83 @@ describe('POST /admin/broadcast', () => {
       };
     }
 
+    it('accepts a preview-token-only real-send (no request template/audience)', async () => {
+      // EMAIL-010 / #1926: the snapshot is source of truth on real-send, so
+      // an operator may send ONLY {dryRun: false, previewToken}. The shared
+      // request schema must not reject this for a missing template/audience.
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(makeSnapshot());
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+        { email: 'bob@example.com', name: null, user_id: 'u-2' },
+      ]);
+      vi.mocked(sendReleaseAnnouncement).mockResolvedValue({ sent: true });
+
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        { dryRun: false, previewToken: 'snap-bc-abc' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // Response reflects the consumed snapshot, not the (absent) request body.
+      expect(body.template).toBe('release-announcement');
+      expect(body.audience).toBe('beta:active');
+      expect(body.sent).toBe(2);
+      expect(body.failed).toBe(0);
+      expect(vi.mocked(consumeBroadcastSnapshot)).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores request-time template/audience/templateProps that contradict the consumed snapshot', async () => {
+      // Anti-bait-and-switch: even when the operator re-supplies request-time
+      // fields that DISAGREE with the snapshot, the consumed snapshot wins for
+      // template, audience, and templateProps.
+      vi.mocked(consumeBroadcastSnapshot).mockResolvedValue(
+        makeSnapshot({
+          template: 'release-announcement',
+          template_props: { version: 'v0.7.0-beta', theme: 'Snapshotted theme' },
+          audience_key: 'beta:active',
+          audience_params: {},
+          recipients: [{ email: 'alice@example.com', name: 'Alice' }],
+        })
+      );
+      resolveAudienceMock.mockResolvedValueOnce([
+        { email: 'alice@example.com', name: 'Alice', user_id: 'u-1' },
+      ]);
+      vi.mocked(sendReleaseAnnouncement).mockResolvedValue({ sent: true });
+
+      const res = await request(
+        'POST',
+        '/admin/broadcast',
+        {
+          dryRun: false,
+          previewToken: 'snap-bc-abc',
+          // All three contradict the snapshot — must be ignored.
+          template: 'waitlist-migration',
+          audience: 'waitlist:source',
+          audienceParams: { source: 'import' },
+          templateProps: { version: 'v9.9.9', theme: 'Malicious theme' },
+        },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.template).toBe('release-announcement');
+      expect(body.audience).toBe('beta:active');
+
+      // Re-resolve used the snapshot's audience key, not the request's.
+      const audienceCall = resolveAudienceMock.mock.calls.at(-1);
+      expect(audienceCall?.[1]).toBe('beta:active');
+
+      // Sender received the snapshotted props, not the request's malicious ones.
+      expect(vi.mocked(sendReleaseAnnouncement)).toHaveBeenCalledWith('alice@example.com', {
+        version: 'v0.7.0-beta',
+        theme: 'Snapshotted theme',
+      });
+    });
+
     it('returns 400 preview_token_required when token is missing', async () => {
       const res = await request(
         'POST',

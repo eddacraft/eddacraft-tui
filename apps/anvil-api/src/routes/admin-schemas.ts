@@ -71,36 +71,56 @@ export const driftDiffSchema = z.object({
 // `template_unknown` / `audience_unknown` codes instead of a generic
 // zod enum mismatch.
 //
+// `template` and `audience` are required ONLY for the dry-run leg, where
+// they seed the snapshot. On a real-send (`dryRun: false`) the consumed
+// preview snapshot is the source of truth for template, templateProps,
+// audience, and audienceParams (EMAIL-010 / #1926), so the schema keeps
+// them optional and the cross-field refine below requires them only when
+// `dryRun` is true. This lets an operator issue a preview-token-only
+// real-send — `{ dryRun: false, previewToken }` with no other fields —
+// without the shared request schema rejecting it before the handler
+// reaches snapshot consumption. The handler additionally IGNORES any
+// request-time template/audience/templateProps on the real-send leg so a
+// contradicting body cannot bait-and-switch the consumed snapshot.
+//
 // `limit` is capped at 80 — derived from Vercel Pro default 60s timeout,
 // Resend p99 ~500ms, ~50ms per-iteration overhead, plus a 5s response /
 // 3s cold-start budget. The synchronous send loop can survive 80
 // recipients with margin. Raising the cap requires either bounded
 // concurrency in the loop OR moving to a job-queue dispatch — both
 // deferred to the EMAIL Phase 6 hardening slice.
-export const broadcastSchema = z.object({
-  template: z.string().min(1).max(64),
-  audience: z.string().min(1).max(64),
-  // Caps prevent megabyte-scale templateProps blobs from being
-  // persisted into the snapshot table. Per-template propsSchema
-  // does the structural validation; these are envelope guards.
-  audienceParams: z
-    .record(z.string().max(64), z.string().max(1024))
-    .refine((o) => Object.keys(o).length <= 16, {
-      message: 'audienceParams may not have more than 16 keys',
-    })
-    .optional()
-    .default({}),
-  templateProps: z
-    .record(z.string().max(64), z.unknown())
-    .refine((o) => Object.keys(o).length <= 64, {
-      message: 'templateProps may not have more than 64 keys',
-    })
-    .optional()
-    .default({}),
-  limit: z.number().int().min(1).max(80).default(80),
-  dryRun: z.boolean().default(false),
-  previewToken: z.string().min(1).max(128).optional(),
-});
+export const broadcastSchema = z
+  .object({
+    template: z.string().min(1).max(64).optional(),
+    audience: z.string().min(1).max(64).optional(),
+    // Caps prevent megabyte-scale templateProps blobs from being
+    // persisted into the snapshot table. Per-template propsSchema
+    // does the structural validation; these are envelope guards.
+    audienceParams: z
+      .record(z.string().max(64), z.string().max(1024))
+      .refine((o) => Object.keys(o).length <= 16, {
+        message: 'audienceParams may not have more than 16 keys',
+      })
+      .optional()
+      .default({}),
+    templateProps: z
+      .record(z.string().max(64), z.unknown())
+      .refine((o) => Object.keys(o).length <= 64, {
+        message: 'templateProps may not have more than 64 keys',
+      })
+      .optional()
+      .default({}),
+    limit: z.number().int().min(1).max(80).default(80),
+    dryRun: z.boolean().default(false),
+    previewToken: z.string().min(1).max(128).optional(),
+  })
+  // Dry-runs seed the snapshot from the request, so template + audience
+  // are mandatory there. Real-sends derive both from the consumed
+  // snapshot, so they are optional on that leg (see comment above).
+  .refine((data) => !data.dryRun || (Boolean(data.template) && Boolean(data.audience)), {
+    message: 'template and audience are required when dryRun is true',
+    path: ['template'],
+  });
 
 export const userEmailUpdateSchema = z.object({
   currentEmail: z.string().email().max(254),

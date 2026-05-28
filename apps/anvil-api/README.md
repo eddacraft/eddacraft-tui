@@ -6,25 +6,59 @@ REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
 
 ## Endpoints
 
-| Method | Path                           | Auth  | Description                |
-| ------ | ------------------------------ | ----- | -------------------------- |
-| GET    | `/api/v1/health`               | None  | Health check               |
-| POST   | `/api/v1/waitlist`             | None  | Join waitlist + send email |
-| POST   | `/api/v1/waitlist/resend`      | Token | Force re-send confirmation |
-| POST   | `/api/v1/auth/verify`          | None  | Validate beta token        |
-| POST   | `/api/v1/auth/device/start`    | None  | Start device code flow     |
-| POST   | `/api/v1/auth/device/confirm`  | None  | Confirm device code        |
-| POST   | `/api/v1/auth/device/poll`     | None  | Poll for confirmation      |
-| POST   | `/api/v1/auth/otp/request`     | None  | Request OTP email          |
-| POST   | `/api/v1/auth/otp/verify`      | None  | Verify OTP for JWT         |
-| POST   | `/api/v1/auth/session/refresh` | None  | Refresh JWT token          |
-| POST   | `/api/v1/admin/invite`         | Admin | Create user + token        |
-| POST   | `/api/v1/admin/approve`        | Admin | Approve waitlist user      |
-| POST   | `/api/v1/admin/revoke`         | Admin | Revoke token(s)            |
-| GET    | `/api/v1/admin/user/:email`    | Admin | Lookup user + tokens       |
+| Method | Path                           | Auth  | Description                        |
+| ------ | ------------------------------ | ----- | ---------------------------------- |
+| GET    | `/api/v1/health`               | None  | Health check                       |
+| POST   | `/api/v1/waitlist`             | None  | Join waitlist + send email         |
+| POST   | `/api/v1/waitlist/resend`      | Token | Force re-send confirmation         |
+| POST   | `/api/v1/auth/verify`          | None  | Validate beta token                |
+| POST   | `/api/v1/auth/device/start`    | None  | Start device code flow             |
+| POST   | `/api/v1/auth/device/confirm`  | None  | Confirm device code                |
+| POST   | `/api/v1/auth/device/poll`     | None  | Poll for confirmation              |
+| POST   | `/api/v1/auth/otp/request`     | None  | Request OTP email                  |
+| POST   | `/api/v1/auth/otp/verify`      | None  | Verify OTP for JWT                 |
+| POST   | `/api/v1/auth/session/refresh` | None  | Refresh JWT token                  |
+| POST   | `/api/v1/admin/invite`         | Admin | Create user + token                |
+| POST   | `/api/v1/admin/approve`        | Admin | Approve waitlist user              |
+| POST   | `/api/v1/admin/revoke`         | Admin | Revoke token(s)                    |
+| GET    | `/api/v1/admin/user/:email`    | Admin | Lookup user + tokens               |
+| POST   | `/api/v1/admin/broadcast`      | Admin | Preview/send broadcast mail        |
+| POST   | `/api/v1/admin/send-migration` | Admin | Migration-mail shim over broadcast |
 
 > **Deprecation:** `/auth/verify` and `/auth/license/refresh` still work but new
 > integrations should use the device code or OTP flows above.
+
+### `POST /admin/broadcast`
+
+Two-step, snapshot-backed mail-to-many. A dry-run resolves the audience, records
+a single-use preview snapshot, and returns an opaque `previewToken`:
+
+```jsonc
+// dry-run — template + audience are required and seed the snapshot
+{
+  "template": "release-announcement",
+  "audience": "beta:active",
+  "dryRun": true,
+}
+```
+
+The real-send consumes that snapshot atomically and treats it as the source of
+truth for `template`, `templateProps`, `audience`, and `audienceParams`. Only
+`previewToken` is required — request-time `template` / `audience` /
+`templateProps` are **ignored** on the real-send leg (anti-bait-and-switch), so
+a preview-token-only body is accepted:
+
+```jsonc
+// real-send — token-only; the snapshot drives template + audience
+{ "dryRun": false, "previewToken": "<token from dry-run>" }
+```
+
+If the audience re-resolves to a different recipient set than the snapshot, the
+send is rejected with `409 cohort_drift` and the operator must re-preview.
+
+`POST /admin/send-migration` is a thin back-compat shim that maps a `source` to
+the equivalent broadcast call (`template: waitlist-migration`,
+`audience: waitlist:source`) and preserves the legacy response shape.
 
 ## Environment Variables
 

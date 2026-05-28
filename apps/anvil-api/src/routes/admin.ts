@@ -1054,53 +1054,71 @@ admin.post('/broadcast', zValidator('json', broadcastSchema), async (c) => {
   const { template, audience, audienceParams, templateProps, limit, dryRun, previewToken } =
     c.req.valid('json');
 
-  // ---- Validate template ---------------------------------------------------
-  // `Object.hasOwn` rather than the `in` operator: `in` matches inherited
-  // properties (e.g. `toString`, `__proto__`), letting `template: 'toString'`
-  // pass this guard and then index the registry to a non-template value.
-  if (!Object.hasOwn(EMAIL_REGISTRY, template)) {
-    return c.json({ code: 'template_unknown', error: `unknown template: ${template}` }, 400);
-  }
-  const entry = EMAIL_REGISTRY[template as TemplateKey];
-  if (entry.kind !== 'broadcast') {
-    return c.json(
-      {
-        code: 'template_kind_not_broadcastable',
-        error: `template '${template}' is transactional and cannot be broadcast`,
-      },
-      400
-    );
-  }
-
-  // ---- Validate audience ---------------------------------------------------
-  if (!(AUDIENCE_KEYS as readonly string[]).includes(audience)) {
-    return c.json({ code: 'audience_unknown', error: `unknown audience: ${audience}` }, 400);
-  }
-  if (audience === 'waitlist:source' && !audienceParams['source']) {
-    return c.json(
-      {
-        code: 'audience_params_missing',
-        error: "audience 'waitlist:source' requires audienceParams.source",
-      },
-      400
-    );
-  }
-
-  // ---- Validate templateProps ----------------------------------------------
-  const propsParse = entry.propsSchema.safeParse(templateProps);
-  if (!propsParse.success) {
-    return c.json(
-      {
-        code: 'template_props_invalid',
-        error: propsParse.error.message,
-      },
-      400
-    );
-  }
-  const validatedProps = propsParse.data as Record<string, unknown>;
-
   // ---- Dry-run -------------------------------------------------------------
+  // Request-time template / audience / templateProps are validated and
+  // snapshotted ONLY on the dry-run leg. On a real-send the consumed
+  // preview snapshot is the source of truth (EMAIL-010 / #1926), so these
+  // request fields are neither required nor trusted there — validating them
+  // before snapshot consumption would reject a valid preview-token-only
+  // real-send (the contract-mismatch Clawpatch flagged).
   if (dryRun) {
+    // The schema refine guarantees template + audience are present when
+    // dryRun is true; assert for the type narrowing.
+    if (!template || !audience) {
+      return c.json(
+        {
+          code: 'audience_params_missing',
+          error: 'template and audience are required when dryRun is true',
+        },
+        400
+      );
+    }
+
+    // ---- Validate template -------------------------------------------------
+    // `Object.hasOwn` rather than the `in` operator: `in` matches inherited
+    // properties (e.g. `toString`, `__proto__`), letting `template: 'toString'`
+    // pass this guard and then index the registry to a non-template value.
+    if (!Object.hasOwn(EMAIL_REGISTRY, template)) {
+      return c.json({ code: 'template_unknown', error: `unknown template: ${template}` }, 400);
+    }
+    const entry = EMAIL_REGISTRY[template as TemplateKey];
+    if (entry.kind !== 'broadcast') {
+      return c.json(
+        {
+          code: 'template_kind_not_broadcastable',
+          error: `template '${template}' is transactional and cannot be broadcast`,
+        },
+        400
+      );
+    }
+
+    // ---- Validate audience -------------------------------------------------
+    if (!(AUDIENCE_KEYS as readonly string[]).includes(audience)) {
+      return c.json({ code: 'audience_unknown', error: `unknown audience: ${audience}` }, 400);
+    }
+    if (audience === 'waitlist:source' && !audienceParams['source']) {
+      return c.json(
+        {
+          code: 'audience_params_missing',
+          error: "audience 'waitlist:source' requires audienceParams.source",
+        },
+        400
+      );
+    }
+
+    // ---- Validate templateProps --------------------------------------------
+    const propsParse = entry.propsSchema.safeParse(templateProps);
+    if (!propsParse.success) {
+      return c.json(
+        {
+          code: 'template_props_invalid',
+          error: propsParse.error.message,
+        },
+        400
+      );
+    }
+    const validatedProps = propsParse.data as Record<string, unknown>;
+
     const audienceRows = await resolveAudience(sql, audience as AudienceKey, {
       limit,
       params: audienceParams,
