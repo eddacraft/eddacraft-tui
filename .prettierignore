@@ -21,6 +21,10 @@ pnpm-lock.yaml
 .semgrep/
 # Claude Code dev tooling — agents, hooks, council sessions, skills
 .claude/
+# opencode dev tooling — vendored agents + skills, parallel to .claude/. Skill
+# files embed copy/paste templates inside fenced ```markdown blocks that oxfmt
+# reflows and corrupts (e.g. merging distinct template lines into one paragraph).
+.opencode/
 archive/
 # cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
 # handlebars parent-scope access like {{../name}}. Template is authoritative.
