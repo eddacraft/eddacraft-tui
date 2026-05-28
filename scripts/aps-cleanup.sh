@@ -27,6 +27,48 @@ for arg in "$@"; do
   esac
 done
 
+# ── --advance-released: release-time Merged → Released/Shipped (#1715) ───────
+# Delegates to scripts/aps/advance-released.mjs (node — reuses the APS module
+# parser + handles both `###` and `####` item headings). Invoked as:
+#   aps-cleanup.sh --advance-released --release-record <path> --tag <tag> \
+#     --sha <sha> --date <date> [--dry-run] [--repo=<path>]
+# Replaces the manual awk|jq|perl walk in the release runbook §13.
+advance_released_mode() {
+  local release_record="" tag="" sha="" date="" repo_override=""
+  local -a passthru=()   # array, so optional flags can't word-split
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --release-record)   release_record="$2"; shift ;;
+      --release-record=*) release_record="${1#*=}" ;;
+      --tag)   tag="$2";  shift ;;
+      --tag=*) tag="${1#*=}" ;;
+      --sha)   sha="$2";  shift ;;
+      --sha=*) sha="${1#*=}" ;;
+      --date)   date="$2"; shift ;;
+      --date=*) date="${1#*=}" ;;
+      --dry-run) passthru+=(--dry-run) ;;
+      --repo)    repo_override="$2"; shift ;;
+      --repo=*)  repo_override="${1#*=}" ;;
+    esac
+    shift
+  done
+  local script_dir; script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local root="$repo_override"
+  if [ -z "$root" ]; then
+    root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null)" \
+      || { echo "[aps-cleanup] error: cannot locate repo root; pass --repo=<path>" >&2; exit 2; }
+  fi
+  exec node "$script_dir/aps/advance-released.mjs" \
+    --root="$root" --release-record="$release_record" \
+    --tag="$tag" --sha="$sha" --date="$date" "${passthru[@]}"
+}
+
+for arg in "$@"; do
+  if [ "$arg" = "--advance-released" ]; then
+    advance_released_mode "$@"   # execs node; does not return
+  fi
+done
+
 LOG="$REPO/plans/reviews/cleanup-log.md"
 MODULES_DIR="$REPO/plans/modules"
 ARCHIVE_DIR="$REPO/plans/archive/modules"

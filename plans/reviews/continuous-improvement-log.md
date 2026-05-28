@@ -1151,3 +1151,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   evidence from public mirror evidence and name the sanitisation boundary.
 - **Follow-up:** CIB-034 should be promoted or split when the release mirror
   publication workflow is next touched.
+
+### 2026-05-29 — claude (#1715)
+
+- **Task:** GH #1715 — add a release-time `--advance-released` mode to `scripts/aps-cleanup.sh` (advance `Merged` APS items to `Released/Shipped` from a release record).
+- **Outcome:** New `scripts/aps/advance-released.mjs` (node, reuses lib/modules.mjs helpers) located by `aps-cleanup.sh --advance-released` delegation; locates items by heading-search across active + archived modules (`###` and `####`), advances Merged→Released/Shipped, idempotent SKIP for already-done, MISS+non-zero on not-found/not-Merged, refuses to rewrite frozen archive files. 8-scenario bash test under `scripts/aps/_test/`, registered as `test:aps-advance-released` (npm + CI). Runbook §13 rewritten to invoke the script. Validated dry-run against the real v0.7.0-beta record: 49/49 items located (0 MISS).
+- **Worked:** Running the dry-run against the real v0.7.0-beta record caught a real design gap before merge — the runbook's manual walk (and my first cut) MISSed 16 items because their modules had been **archived**; scanning `plans/archive/modules/` too (SKIP archived/done items, refuse to rewrite frozen files) fixed it. Also confirmed the runbook's `module`-field→filename guess (`INTL`→`intl.aps.md`) never worked; heading-search is the robust fix.
+- **Failed:** Nothing substantive. Two test bugs caught + fixed: `grep "- ..."` needs `--` (pattern starts with `-`); `run | grep` under `pipefail` propagates `run`'s expected non-zero exit, so capture-then-grep.
+- **Friction:** Repo-wide `oxfmt --check .` is red on a **pre-existing** non-conformant `.opencode/skills/dependabot/SKILL.md` (added by a recent sibling "vendor dependabot skill" commit; `.prettierignore` excludes `.claude/` but not `.opencode/`). Not mine — left it; will surface at PR time if Lint & Format blocks. CIB-032's stale-global-oxfmt trap bit again in this fresh worktree (`pnpm install` fixed).
+- **Improvement:** A dry-run against the most recent real release record is a cheap, high-value smoke for any APS-record-walking tool — it exercises real module shapes (archived, `####`) that synthetic fixtures miss.
+- **Follow-up:** none beyond the pre-existing SKILL.md format issue (sibling's file).

@@ -54,6 +54,7 @@
     "test:aps-active-lint": "bash scripts/aps/_test/active-lint.test.sh",
     "test:aps-drift": "bash scripts/aps/_test/drift-check.test.sh",
     "test:aps-index": "bash scripts/aps/_test/index-counts.test.sh",
+    "test:aps-advance-released": "bash scripts/aps/_test/advance-released.test.sh",
     "test:bench-parity": "bash scripts/bench-vs-go-opa.test.sh",
     "aps:active-lint": "node scripts/aps/active-lint.mjs",
     "aps:drift": "node scripts/aps/drift-check.mjs",
