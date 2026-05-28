@@ -1139,7 +1139,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 ### 2026-05-28 — opencode
 
 - **Task:** File public release mirror evidence as a CIB item.
-- **Outcome:** Added CIB-030 for sanitised public release evidence records that
+- **Outcome:** Added CIB-034 for sanitised public release evidence records that
   prove artefact-to-release-ref alignment without exposing private operational
   data.
 - **Worked:** The standing CIB module was the right place because the idea has a
@@ -1149,5 +1149,5 @@ a backlog. Promote repeated friction or executable follow-up work to
   public release mirror; the evidence boundary needs to be stated explicitly.
 - **Improvement:** Release-trust follow-ups should distinguish private internal
   evidence from public mirror evidence and name the sanitisation boundary.
-- **Follow-up:** CIB-030 should be promoted or split when the release mirror
+- **Follow-up:** CIB-034 should be promoted or split when the release mirror
   publication workflow is next touched.
