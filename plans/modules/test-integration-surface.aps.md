@@ -265,11 +265,11 @@ Change status to **Ready** when:
   - `crates/anvil-tui/src/snapshots/` (existing `insta` snapshot dir — extend)
   - `crates/anvil-tui/src/surfaces/**` (surface modules needing snapshot tests)
 - **Dependencies:** —
-- **Confidence:** high — `insta` snapshot infra already exists in `anvil-tui`;
-  this is gap-filling, not greenfield.
 - **Validation:** `cargo test -p eddacraft-anvil-tui` passes; `cargo insta
   review` shows clean diffs on intentional changes. Fix the virtual terminal to
   80x24 per the snapshot-stability risk.
+- **Confidence:** high — `insta` snapshot infra already exists in `anvil-tui`;
+  this is gap-filling, not greenfield.
 - **Status:** Ready
 
 ### TINT-011: full gate pipeline E2E (CLI → gate → OPA → report)
