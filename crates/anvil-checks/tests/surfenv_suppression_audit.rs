@@ -14,7 +14,7 @@
 use anvil_checks::secret::SecretCheckConfig;
 use anvil_checks::surface::env::{
     SURFENV_001_RULE_ID, SURFENV_002_RULE_ID, SURFENV_003_RULE_ID, SURFENV_004_RULE_ID,
-    check_env_drift, check_gitignore_hygiene, scan_env_file, scan_prod_values,
+    SURFENV_RULES, check_env_drift, check_gitignore_hygiene, scan_env_file, scan_prod_values,
 };
 use std::path::PathBuf;
 
@@ -29,12 +29,9 @@ fn config_no_entropy() -> SecretCheckConfig {
 fn rule_ids_follow_surfenv_nnn_shape() {
     // Trip-wire: any change to a rule ID must keep it parseable as a
     // SURFENV-NNN identifier so the antipattern parser still matches.
-    for id in [
-        SURFENV_001_RULE_ID,
-        SURFENV_002_RULE_ID,
-        SURFENV_003_RULE_ID,
-        SURFENV_004_RULE_ID,
-    ] {
+    // Driven from the `SURFENV_RULES` registry so a newly registered rule
+    // is shape-checked automatically rather than silently skipped.
+    for &id in SURFENV_RULES {
         let mut parts = id.split('-');
         assert_eq!(parts.next(), Some("SURFENV"), "{id}");
         let number = parts.next().expect("trailing number");
@@ -104,5 +101,34 @@ fn cross_rule_directives_do_not_leak() {
     assert!(
         !findings[0].suppressed,
         "SURFENV-001 directive must not silence a SURFENV-003 finding"
+    );
+}
+
+#[test]
+fn every_registered_rule_has_a_suppression_case() {
+    // CLAWP-019 trip-wire: the per-rule `surfenv_NNN_*_suppresses` tests
+    // above are hand-written, one per rule. `AUDITED` enumerates exactly
+    // the rules those cases cover. If a rule is added to the
+    // `SURFENV_RULES` registry without a matching suppression case here,
+    // this fails — closing the gap where a new rule could silently bypass
+    // the audit.
+    const AUDITED: &[&str] = &[
+        SURFENV_001_RULE_ID,
+        SURFENV_002_RULE_ID,
+        SURFENV_003_RULE_ID,
+        SURFENV_004_RULE_ID,
+    ];
+    for rule in SURFENV_RULES {
+        assert!(
+            AUDITED.contains(rule),
+            "{rule} is registered in SURFENV_RULES but has no suppression \
+             audit case in surfenv_suppression_audit.rs — add one and enrol \
+             it in AUDITED"
+        );
+    }
+    assert_eq!(
+        AUDITED.len(),
+        SURFENV_RULES.len(),
+        "AUDITED lists a rule that is no longer in the SURFENV_RULES registry"
     );
 }

@@ -28,3 +28,17 @@ pub use parser::{EnvEntry, EnvParseError, parse_env};
 pub use prod_value::{ProdIndicator, ProdValueFinding, SURFENV_003_RULE_ID, scan_prod_values};
 pub use scanner::{EnvFinding, SURFENV_001_RULE_ID, is_env_file, scan_env_file};
 pub use suppression::{resolve_file_header_suppression, resolve_line_suppression};
+
+/// Canonical registry of every SURFENV structural rule ID.
+///
+/// The cross-rule suppression audit (`tests/surfenv_suppression_audit.rs`)
+/// drives its coverage from this slice, so registering a new rule trips the
+/// audit's exhaustiveness check until a matching suppression case is added.
+/// Keep this in sync with the `SURFENV_001_RULE_ID`..`SURFENV_004_RULE_ID`
+/// constants re-exported above.
+pub const SURFENV_RULES: &[&str] = &[
+    SURFENV_001_RULE_ID,
+    SURFENV_002_RULE_ID,
+    SURFENV_003_RULE_ID,
+    SURFENV_004_RULE_ID,
+];

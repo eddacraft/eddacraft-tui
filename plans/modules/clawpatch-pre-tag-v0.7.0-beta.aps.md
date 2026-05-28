@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 12/64    |
+| CLAWP | @aneki | In Progress | 13/64    |
 
-**Last reviewed:** 2026-05-21 (twelve findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732. CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-21 (thirteen findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
 
 ## Purpose
 
@@ -359,10 +359,25 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 ### CLAWP-019: Audit hard-codes current SURFENV rules, so new rules can bypass it
 
 - **Clawpatch finding:** `fnd_sig-feat-test-suite-7d1e850c95-0_0c13ed7da6`
+- **GH issue:** [#1750](https://github.com/eddacraft/anvil-001/issues/1750)
 - **Feature:** `feat_test-suite_7d1e850c95` — Rust integration test eddacraft-anvil-checks/surfenv_suppression_audit
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged via PR #2065
+- **Branch:** `fix/1750-clawp-019-surfenv-audit-registry`
+- **Resolution:** Added a `SURFENV_RULES` registry constant to
+  `crates/anvil-checks/src/surface/env/mod.rs` and rewrote
+  `rule_ids_follow_surfenv_nnn_shape` to iterate it, so a newly
+  registered rule is shape-checked automatically. Added an
+  exhaustiveness trip-wire
+  `every_registered_rule_has_a_suppression_case` that asserts every
+  registered rule appears in the hand-written `AUDITED` set — adding a
+  rule without a suppression case now fails the audit loudly. Proven
+  non-vacuous by injecting a bogus `SURFENV-999`: the shape check still
+  passed while the trip-wire failed, which is exactly the silent-bypass
+  gap CLAWP-019 named. Pure test-hardening plus one public constant; no
+  runtime behaviour change. Advances to **Merged** on this PR's merge;
+  counter bumped 12/64 → 13/64 in the same step.
 - **Recommendation:** Drive this audit from a single SURFENV rule registry, or add an explicit coverage table that fails when the registered SURFENV rule count exceeds the audited cases. Include suppression mode metadata so every line-level and header-level rule gets a positive suppression case and at least one wrong-rule negative case.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_suppression_audit.rs:6`, `crates/anvil-checks/tests/surfenv_suppression_audit.rs:32` (`rule_ids_follow_surfenv_nnn_shape`), `crates/anvil-checks/tests/surfenv_suppression_audit.rs:93` (`cross_rule_directives_do_not_leak`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
