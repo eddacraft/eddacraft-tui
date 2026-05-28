@@ -1099,6 +1099,75 @@ fn mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file() {
     assert!(on_disk.contains("AP-003: legacy contract under TICKET-123"));
 }
 
+// CLAWP-024: `anvil_suppress` mutates files, so workspace-root containment
+// must be enforced before any write. The server starts in one tempdir while
+// `workspaceRoot` points at a sibling tempdir outside the server root; the
+// call must error and the sibling file must remain byte-for-byte unchanged.
+#[test]
+fn mcp_serve_stdio_tools_call_suppress_rejects_workspace_outside_server_root() {
+    const ORIGINAL: &str = "const x: any = 1;\n";
+    let server_root = tempfile::tempdir().expect("server root exists");
+    let foreign_workspace = tempfile::tempdir().expect("foreign workspace exists");
+    let foreign_src = foreign_workspace.path().join("src");
+    std::fs::create_dir_all(&foreign_src).expect("foreign src dir exists");
+    std::fs::write(foreign_src.join("a.ts"), ORIGINAL).expect("foreign fixture written");
+
+    let mut child = spawn_mcp_server_in(server_root.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 33,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_suppress",
+                    "arguments": {
+                        "workspaceRoot": foreign_workspace.path(),
+                        "filePath": "src/a.ts",
+                        "warningId": "AP-003",
+                        "line": 1,
+                        "reason": "legacy contract under TICKET-123"
+                    }
+                }
+            })
+        )
+        .expect("failed to send out-of-root suppress tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after out-of-root suppress call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("suppress error response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["result"]["isError"], true);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(
+        payload["error"],
+        "workspaceRoot must be inside the MCP server root"
+    );
+
+    // The mutating tool must not have touched the sibling file on disk.
+    let on_disk =
+        std::fs::read_to_string(foreign_src.join("a.ts")).expect("foreign file still readable");
+    assert_eq!(
+        on_disk, ORIGINAL,
+        "out-of-root suppress must leave the sibling file unchanged"
+    );
+}
+
 #[test]
 fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
     let workspace = tempfile::tempdir().expect("workspace exists");
@@ -1156,6 +1225,74 @@ fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
     let on_disk =
         std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
     assert!(on_disk.contains("const x: unknown = 1;"));
+}
+
+// CLAWP-024: `anvil_fix` also mutates files, so it must enforce the same
+// workspace-root containment guard as `anvil_suppress`. The server starts in
+// one tempdir while `workspaceRoot` points at a sibling tempdir outside the
+// server root; the call must error and the sibling file must stay unchanged.
+#[test]
+fn mcp_serve_stdio_tools_call_fix_rejects_workspace_outside_server_root() {
+    const ORIGINAL: &str = "const x: any = 1;\n";
+    let server_root = tempfile::tempdir().expect("server root exists");
+    let foreign_workspace = tempfile::tempdir().expect("foreign workspace exists");
+    let foreign_src = foreign_workspace.path().join("src");
+    std::fs::create_dir_all(&foreign_src).expect("foreign src dir exists");
+    std::fs::write(foreign_src.join("a.ts"), ORIGINAL).expect("foreign fixture written");
+
+    let mut child = spawn_mcp_server_in(server_root.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 34,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_fix",
+                    "arguments": {
+                        "workspaceRoot": foreign_workspace.path(),
+                        "filePath": "src/a.ts",
+                        "warningId": "AP-003",
+                        "line": 1
+                    }
+                }
+            })
+        )
+        .expect("failed to send out-of-root fix tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after out-of-root fix call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("fix error response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["result"]["isError"], true);
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(
+        payload["error"],
+        "workspaceRoot must be inside the MCP server root"
+    );
+
+    // The mutating tool must not have touched the sibling file on disk.
+    let on_disk =
+        std::fs::read_to_string(foreign_src.join("a.ts")).expect("foreign file still readable");
+    assert_eq!(
+        on_disk, ORIGINAL,
+        "out-of-root fix must leave the sibling file unchanged"
+    );
 }
 
 #[test]
