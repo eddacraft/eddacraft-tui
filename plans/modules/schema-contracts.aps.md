@@ -57,56 +57,85 @@ are handled.
 - Breaking change checklist
 - Cross-language type parity validation
 
-## Estimated Scope
+## Scope
 
-- **Effort:** 1 week
+- 6 work items: 1 policy doc, 2 parity/contract test frameworks, 1 golden-hash
+  automation, 1 version matrix, 1 migration-guide template.
+- Touches two workspaces: `packages/anvil/contracts` + `packages/anvil/core`
+  (TS Zod) and `crates/anvil-kernel-types` (Rust serde). Both surfaces exist
+  today; this module governs how they stay in parity, it does not add new
+  schemas.
 
-## Tasks
+## Ready Checklist
+
+Change status to **Ready** when:
+
+- [ ] Owner named (single accountable owner for schema-evolution policy).
+- [x] Both type surfaces confirmed live — `packages/anvil/contracts/src/`
+      (Zod) and `crates/anvil-kernel-types/src/` (serde) both present.
+- [ ] Decision recorded on whether the cross-language parity framework
+      (SCHEMA-002/-005) lives test-side only or ships a reusable harness.
+- [ ] Confirm `generate:schema` + `update-golden-hashes` are the current
+      generation entry points named in `AGENTS.md` (SCHEMA-003 automates them).
+
+## Work Items
 
 ### SCHEMA-001: Schema evolution policy and breaking change definition
 
+- **Status:** Proposed
 - **Intent:** Define what constitutes a breaking change in schemas
 - **Expected Outcome:** Policy document detailing TS Zod ↔ Rust serde parity rules
-- **Scope:** `packages/anvil/contracts/src/` and `crates/anvil-kernel-types/src/`
-- **Validation:** Policy documented in docs/guides/schema-evolution.md
+- **Scopes:** `packages/anvil/contracts/src/` and `crates/anvil-kernel-types/src/`
+- **Non-scope:** individual schema definitions (each feature module owns those)
+- **Validation:** Policy documented in `docs/guides/schema-evolution.md`
 - **Confidence:** high
 
 ### SCHEMA-002: Cross-language type parity validation framework
 
+- **Status:** Proposed
 - **Intent:** Validate that TypeScript Zod types and Rust serde types produce identical outputs
 - **Expected Outcome:** Framework runs both parsers on sample data, diffs results
-- **Scope:** `packages/anvil/core/src/validation/parity.ts` and `crates/anvil-kernel-types/tests/`
+- **Scopes:** `packages/anvil/core/src/validation/parity.ts` and `crates/anvil-kernel-types/tests/`
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- parity`
+- **Dependencies:** SCHEMA-001
 - **Confidence:** high
 
 ### SCHEMA-003: Golden hash management automation
 
+- **Status:** Proposed
 - **Intent:** Automate golden hash updates when schemas change
 - **Expected Outcome:** `cargo test` and `pnpm test` update hashes atomically
-- **Scope:** Build scripts in both workspaces
-- **Validation:** `cargo test` with --locked flag passes
+- **Scopes:** `generate:schema` + `update-golden-hashes` build scripts in both
+  workspaces (the generation entry points named in `AGENTS.md`)
+- **Validation:** `cargo test` with `--locked` passes
 - **Confidence:** high
 
 ### SCHEMA-004: Schema version compatibility matrix
 
+- **Status:** Proposed
 - **Intent:** Track which schema versions are compatible with which kernel versions
 - **Expected Outcome:** Matrix documented; migration paths defined
-- **Scope:** `crates/anvil-kernel-types/src/version.rs`
-- **Validation:** Compatibility matrix in docs/guides/schema-compatibility.md
+- **Scopes:** `crates/anvil-kernel-types/src/version.rs`
+- **Validation:** Compatibility matrix in `docs/guides/schema-compatibility.md`
+- **Dependencies:** SCHEMA-001
 - **Confidence:** high
 
 ### SCHEMA-005: Contract testing (TS ↔ Rust output parity)
 
+- **Status:** Proposed
 - **Intent:** Test that TS and Rust types serialise/deserialise identically
 - **Expected Outcome:** Contract tests pass for all shared types
-- **Scope:** `crates/anvil-kernel-types/tests/parity.rs`
+- **Scopes:** `crates/anvil-kernel-types/tests/parity.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types`
+- **Dependencies:** SCHEMA-002
 - **Confidence:** high
 
 ### SCHEMA-006: Breaking change migration guide template
 
+- **Status:** Proposed
 - **Intent:** Standardise migration guides when schemas change
-- **Expected Outcome:** Template available in docs/guides/
-- **Scope:** `docs/guides/schema-migration-template.md`
+- **Expected Outcome:** Template available in `docs/guides/`
+- **Scopes:** `docs/guides/schema-migration-template.md`
 - **Validation:** Template exists and follows format
+- **Dependencies:** SCHEMA-001
 - **Confidence:** high
