@@ -73,6 +73,7 @@ security concerns.
 - SEC-006: SBOM generation for release artifacts
 - SEC-007: Atomic token-revocation hardening (GH #1672)
 - SEC-008: Named-pattern secret detection for AWS / GitHub PAT / Slack tokens (GH #1800)
+- SEC-009: Private docs entitlement gate for signed licences (GH #1673)
 
 ### SEC-007: Atomic token-revocation hardening
 
@@ -206,3 +207,37 @@ they are not silently swallowed by an auth-gate response.
 - **type:** security
 - **text:** Anvil's secret detector now catches AWS, GitHub PAT, and Slack
   token shapes by named pattern as well as high entropy.
+
+### SEC-009: Private docs entitlement gate for signed licences
+
+**Status:** Done
+**Tracking:** GH issue [#1673](https://github.com/eddacraft/anvil-001/issues/1673)
+**Identified From:** DeepSec run `20260517012618-52306118d7d9df6a`, finding
+`acl-check`.
+
+**Outcome:** `apps/docs-shell` must reject valid signed licence JWTs that do not
+carry the private-docs entitlement represented by the docs access tier contract,
+instead of treating any valid signature as sufficient for `/anvil` private docs.
+
+**Why:** The docs shell currently gates `/anvil` by cookie presence and licence
+signature only. A signed licence without a docs-access tier can therefore proxy
+private Anvil documentation.
+
+**Validation:**
+
+- `pnpm --filter @eddacraft/docs-shell test` — regression covers a valid signed
+  licence without docs entitlement redirecting to login and clearing the cookie.
+- `pnpm --filter @eddacraft/docs-shell typecheck`
+
+**Evidence:** 2026-05-28 — `pnpm --filter @eddacraft/docs-shell test` (47/47
+passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
+
+**changeType:** fix
+**releaseIntent:** candidate
+**releaseScope:** patch
+**releaseNote:**
+
+- **audience:** operator
+- **type:** security
+- **text:** The private docs shell now requires a docs-access entitlement in the
+  signed licence before proxying `/anvil` documentation.

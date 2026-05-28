@@ -32,9 +32,21 @@ describe('verifyLicense', () => {
   });
 
   it('verifies a valid token', async () => {
-    const token = await signToken({ sub: 'user@example.com' });
+    const token = await signToken({ sub: 'user@example.com', tier: 'beta' });
     const result = await verifyLicense(token);
     expect(result.valid).toBe(true);
+  });
+
+  it('rejects a valid token without docs entitlement', async () => {
+    const token = await signToken({ sub: 'user@example.com' });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects a valid token with a non-entitled tier', async () => {
+    const token = await signToken({ sub: 'user@example.com', tier: 'free' });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
   });
 
   it('rejects an expired token', async () => {

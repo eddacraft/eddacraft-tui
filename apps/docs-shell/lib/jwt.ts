@@ -1,6 +1,7 @@
 import { jwtVerify, importSPKI, type CryptoKey } from 'jose';
 
 let cachedKey: CryptoKey | null = null;
+const DOCS_ACCESS_TIERS = new Set(['beta', 'pro', 'enterprise']);
 
 export function resetKeyCache(): void {
   cachedKey = null;
@@ -23,7 +24,10 @@ export interface VerifyResult {
 export async function verifyLicense(token: string): Promise<VerifyResult> {
   try {
     const publicKey = await getPublicKey();
-    await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
+    const { payload } = await jwtVerify(token, publicKey, { algorithms: ['ES256'] });
+    if (typeof payload['tier'] !== 'string' || !DOCS_ACCESS_TIERS.has(payload['tier'])) {
+      return { valid: false };
+    }
     return { valid: true };
   } catch {
     return { valid: false };

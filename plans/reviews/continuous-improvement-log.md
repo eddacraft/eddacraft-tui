@@ -1049,3 +1049,19 @@ a backlog. Promote repeated friction or executable follow-up work to
   table opts the doc into asbuilt-paths validation.
 - **Follow-up:** Deferred As-built/Runbook backfill (24 docs, 265 asbuilt-paths
   references) is the next DOCGOV-011 wave.
+
+### 2026-05-28 — opencode
+
+- **Task:** Select and complete an older high-impact GitHub issue after validating
+  it was still needed.
+- **Outcome:** Validated GH #1673 still reproduced in `apps/docs-shell`, added
+  SEC-009, and tightened private-docs licence verification with regression tests.
+- **Worked:** Starting from oldest open issues surfaced a real high-severity
+  access-control item with a small, testable docs-shell fix.
+- **Failed:** The long APS index table row was awkward to update with patch
+  context because alignment whitespace made exact matching brittle.
+- **Friction:** The docs entitlement model is split between `docs-site` flag prose
+  and `docs-shell` JWT verification, so validation required checking both.
+- **Improvement:** Future docs-auth issues should name the concrete JWT claim used
+  for entitlement (`tier`) in the issue body to avoid ambiguous scope wording.
+- **Follow-up:** None.

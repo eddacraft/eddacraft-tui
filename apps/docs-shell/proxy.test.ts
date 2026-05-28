@@ -19,9 +19,12 @@ VMjMeNt4PRYgGRjF0/1UL4WT8Z+hRANCAAQkEG89AGRY0oP2ZvompgyahpSDz579
 IJHYkuQeRvIOymU4a1n3B5WRo5moFj78Gm8j8JRSugyusu0JtksAAfUN
 -----END PRIVATE KEY-----`;
 
-async function signToken(expSecondsFromNow: number = 3600): Promise<string> {
+async function signToken(
+  expSecondsFromNow: number = 3600,
+  claims: Record<string, unknown> = { sub: 'test@example.com', tier: 'beta' }
+): Promise<string> {
   const privateKey = await importPKCS8(TEST_PRIVATE_KEY_PEM, 'ES256');
-  return new SignJWT({ sub: 'test@example.com' })
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + expSecondsFromNow)
@@ -86,6 +89,18 @@ describe('middleware', () => {
     });
     const res = await proxy(req as never);
     expect(res.status).toBe(302);
+  });
+
+  it('redirects and clears cookie when token lacks docs entitlement', async () => {
+    const token = await signToken(3600, { sub: 'test@example.com' });
+    const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
+      'anvil-docs-session': token,
+    });
+    const res = await proxy(req as never);
+    expect(res.status).toBe(302);
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('anvil-docs-session=');
+    expect(setCookie).toContain('Max-Age=0');
   });
 
   it('preserves deep path in next param', async () => {
