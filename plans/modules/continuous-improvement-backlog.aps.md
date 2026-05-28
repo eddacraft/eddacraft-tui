@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/34    |
+| CIB | —     | In Progress | 20/34    |
 
 ## Purpose
 
@@ -515,7 +515,10 @@ archive.
 
 ### CIB-026: Isolate cwd-mutating tests across the Rust workspace
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2063
+- **Summary:** Routed all `set_current_dir` tests through one workspace-wide
+  serialisation guard so `cargo test --workspace` is deterministic under CI
+  parallelism.
 - **Intent:** Stop tests that mutate process-global cwd from creating sporadic
   failures when unrelated subprocess or MCP tests add scheduling pressure.
 - **Expected Outcome:** Every test path that calls `std::env::set_current_dir`
