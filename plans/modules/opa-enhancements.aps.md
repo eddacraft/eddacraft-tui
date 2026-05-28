@@ -475,8 +475,8 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 
 ## Related Documents
 
-- [OPA Enhancement Vision](../../docs/planning/opa-enhancement-vision.md)
+- [OPA Enhancement Vision](../../docs/archive/planning/opa-enhancement-vision.md)
 - [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md)
-- [OPA Policy Engine](../../docs/planning/opa-policy-engine.md)
+- [OPA Policy Engine](../../docs/archive/planning/opa-policy-engine.md)
 - [OPA Architecture Integration](./opa-architecture-integration.aps.md)
 
