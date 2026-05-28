@@ -4,9 +4,14 @@
 | ---- | ------ | ----------- | -------- |
 | INTR | @aneki | In Progress | 5/8      |
 
-**Last reviewed:** 2026-05-13 (Wave 0 G5: INTR-004 path-deny rule promoted
-**Draft → Ready** so the carry-forward gate closes before Wave 1 begins.
-INTR-003 / INTR-005 / INTR-007 unchanged and remain Draft.)
+**Last reviewed:** 2026-05-28 — INTR-003 (antipattern wrapper), INTR-005
+(regex-content rule), and INTR-007 (rule configuration) fleshed to **Ready**:
+each now carries scope/files grounded in `crates/anvil-intercept-rules/` and the
+existing `anvil-checks` / `anvil-config` APIs, dependencies, and a concrete unit
+validation mirroring the shipped INTR-002 / INTR-004 / INTR-008 wrappers.
+INTR-007 depends on INTR-003 and INTR-005 landing first. Module remains
+**In Progress** (5/8 Done). Earlier (2026-05-13, Wave 0 G5): INTR-004 path-deny
+promoted **Draft → Ready** so the carry-forward gate closed before Wave 1.
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTR-001 (rule
 > trait), INTR-002 (secret-detection wrapper), INTR-006 (rule registry —
@@ -120,11 +125,33 @@ daemon hot path.
 ### INTR-003: Antipattern Scanning Wrapper
 
 - **Intent:** Expose existing anvil-checks antipattern scanning as an
-  InterceptRule
-- **Expected Outcome:** A thin adapter that calls anvil-checks antipattern
-  detection on changed file content and maps findings to interrupt decisions
+  InterceptRule without duplicating detection logic, mirroring the INTR-002
+  secret-detection and INTR-008 reasoning wrappers.
+- **Expected Outcome:** A `crates/anvil-intercept-rules/src/antipattern.rs`
+  adapter holds an `AntipatternCheckConfig`, declares `needs_content() == true`,
+  runs antipattern detection over the changed file's borrowed content via
+  `RuleInput`, and maps each finding to an interrupt decision carrying the
+  antipattern id and line. Findings render through the canonical
+  `Category`/`Diagnostic` envelope via a `diagnostics_with_limit` method
+  consistent with the secret wrapper. `Removed` changes always `Allow`. The
+  rule is registry-composable (object-safe `dyn InterceptRule`) so INTD-005 can
+  short-circuit on the first interrupt.
+- **Scopes:** `crates/anvil-intercept-rules/` only.
+- **Non-scope:** New antipattern detections, false-positive tuning, opt-in
+  pattern catalogue changes, or graph-assisted antipattern checks (GV2 boundary
+  per the Graph v2 Coordination section).
+- **Files:**
+  - `crates/anvil-intercept-rules/src/antipattern.rs` (new)
+  - `crates/anvil-intercept-rules/src/lib.rs` (module + re-export)
+- **Dependencies:** INTR-001 (trait, Done), anvil-checks
+  `antipattern::run_antipattern_check` (exists).
+- **Confidence:** high
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib antipattern`
-- **Status:** Draft
+  — unit tests cover an interrupting fixture, a clean-content allow, a
+  `Removed`-change allow, the missing/binary-content allow, and
+  canonical-diagnostic mapping (category, source module, line) mirroring the
+  secret-wrapper test shape.
+- **Status:** Ready
 
 ### INTR-004: Path Deny List Rule
 
@@ -157,12 +184,36 @@ daemon hot path.
 ### INTR-005: Regex Content Rule
 
 - **Intent:** Allow projects to declare content patterns that should trigger
-  interruption when written by agent sessions
-- **Expected Outcome:** A rule that applies compiled regex patterns against
-  changed file content; matches produce an interrupt decision with the matching
-  pattern and line context
+  interruption when written by agent sessions, the content-matching counterpart
+  to the INTR-004 path-deny rule.
+- **Expected Outcome:** A `crates/anvil-intercept-rules/src/regex_content.rs`
+  rule compiles a configured list of regex patterns eagerly at construction so
+  malformed patterns surface as a typed `RegexContentError::InvalidPattern`
+  (mirroring INTR-004's `PathDenyError::InvalidGlob`) rather than failing on the
+  hot path. `needs_content() == true`. `evaluate()` matches compiled patterns
+  against the borrowed `RuleInput` content and on first match returns
+  `RuleDecision::interrupt_at` with the matching pattern and the 1-based line
+  number. Deterministic "first registered pattern wins" ordering keeps output
+  stable. `Removed` changes always `Allow`; missing/binary content always
+  `Allow`. A `diagnostics_with_limit` method emits a canonical `Category::Policy`
+  diagnostic with the matched line and a remediation hint.
+- **Scopes:** `crates/anvil-intercept-rules/` only.
+- **Non-scope:** Regex sourced from `.anvil.yaml` (that wiring is INTR-007),
+  multiline/streaming matching, ReDoS-bounded execution budgets beyond compiling
+  with the existing `regex` crate's linear-time guarantees, or capture-group
+  reporting.
+- **Files:**
+  - `crates/anvil-intercept-rules/src/regex_content.rs` (new)
+  - `crates/anvil-intercept-rules/src/lib.rs` (module + re-export)
+- **Dependencies:** INTR-001 (trait, Done). Construction-time pattern compilation
+  follows the INTR-004 eager-compile precedent.
+- **Confidence:** high
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib regex_content`
-- **Status:** Draft
+  — unit tests cover invalid-pattern rejection at construction, a single-pattern
+  interrupt with correct line, first-pattern-wins ordering, clean-content allow,
+  `Removed`-change allow, missing/binary-content allow, and canonical-diagnostic
+  line mapping.
+- **Status:** Ready
 
 ### INTR-006: Rule Registry
 
@@ -198,15 +249,39 @@ daemon hot path.
 
 ### INTR-007: Rule Configuration
 
-- **Intent:** Load rule parameters (deny lists, regex patterns, enabled checks)
-  from the `.anvil.yaml` enforcement block
-- **Expected Outcome:** Configuration parsed from the enforcement section of
-  `.anvil.yaml`; rule instances constructed from configuration; missing config
-  falls back to sensible defaults (secret detection enabled, no custom deny
-  lists); regex patterns compiled once at startup and cached for the lifetime
-  of the rule instance
+- **Intent:** Build a populated rule registry from the `.anvil.yaml` enforcement
+  block so projects can declare deny lists, regex patterns, and which built-in
+  rules are enabled without code changes.
+- **Expected Outcome:** A `crates/anvil-intercept-rules/src/config.rs` module
+  reads the `enforcement` section discovered by `anvil_config::discover`
+  (`.anvil.<ext>`), parses an intercept-rules sub-block into typed config, and
+  constructs a `RuleRegistry` (INTR-006) holding the enabled rule instances:
+  secret detection (default on), antipattern (INTR-003), path-deny (INTR-004),
+  and regex-content (INTR-005). Missing or absent config falls back to sensible
+  defaults (secret detection enabled, no custom deny lists, no custom regex).
+  Malformed config returns a typed `Result::Err` rather than silently degrading
+  to defaults (operator-config no-silent-defaults rule). Regex and globs are
+  compiled once at construction and cached for the rule instances' lifetime, so
+  the hot path never recompiles.
+- **Scopes:** `crates/anvil-intercept-rules/` only.
+- **Non-scope:** New `.anvil.yaml` schema keys outside the existing
+  `enforcement` block, per-rule enforcement granularity (all rules share the
+  project enforcement mode per Out of Scope), or a config-authoring wizard.
+- **Files:**
+  - `crates/anvil-intercept-rules/src/config.rs` (new)
+  - `crates/anvil-intercept-rules/src/lib.rs` (module + re-export)
+- **Dependencies:** INTR-003 (antipattern wrapper), INTR-005 (regex-content
+  rule), INTR-006 (registry, Done), `anvil_config::discover` (exists; the
+  `enforcement` block is parsed today in `anvil-config/src/rule_modes.rs`).
+- **Confidence:** medium — depends on INTR-003 and INTR-005 landing first so the
+  config can construct those rule instances; the parse-and-construct shape
+  itself is clear.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules --lib config`
-- **Status:** Draft
+  — unit tests cover an absent-config default registry, a populated config
+  constructing deny-list + regex + antipattern rules, a malformed-config typed
+  error (no silent default), and a round-trip that the constructed registry
+  rejects a content payload its configured rules should interrupt.
+- **Status:** Ready
 
 ### INTR-008: Launch reasoning-pattern rule wrapper
 
