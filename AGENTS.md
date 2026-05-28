@@ -277,7 +277,7 @@ cargo llvm-cov --workspace --html            # needs `cargo install cargo-llvm-c
 
 ### Coverage reports
 
-Coverage is advisory only — no blocking threshold. PR and `dev`-push runs do not
+Coverage is advisory only — no blocking threshold. PR and `main`-push runs do not
 emit coverage; per APS CICD-006, coverage moved to the nightly `ci-nightly.yml`
 workflow:
 

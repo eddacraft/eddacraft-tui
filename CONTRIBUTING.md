@@ -257,7 +257,7 @@ anvil/
 | `docs/guides/branching-strategy.md` | Branching model          |
 | `docs/guides/worktree-policy.md`    | Worktree hygiene         |
 | `docs/guides/testing.md`            | Testing best practices   |
-| `docs/adr/`                         | Architecture decisions   |
+| `plans/decisions/`                  | Architecture decisions   |
 
 ## Questions?
 

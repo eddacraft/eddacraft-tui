@@ -7,7 +7,7 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased]
+## [0.7.0-beta] — 2026-05-21 — Daemon Working End-to-End
 
 ### Multi-Layer Protection v2 (MLP2) — daemon-working integration
 
