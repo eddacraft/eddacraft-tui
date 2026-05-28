@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 70/86 |
+| MLP2 | @aneki | In Progress | 70/87 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -4450,6 +4450,59 @@ experiences.
   longer prints the `Method not found` warning to stderr.
 - **Dependencies:** None — the launcher already sends the right wire
   shape; only the daemon dispatch is missing.
+
+#### MLP2-076: Wire L4 `rules_sha` recognition into the live validate engine
+
+- **Status:** Proposed
+- **Source:** Forward-tracking item filed 2026-05-28 after audit of
+  the (now-dropped) `feat/mlp2-014-019-059-daemon-observability-close`
+  branch. The audit confirmed MLP2-019's recognition surface
+  (`RecognisedRulesRegistry`, `evaluate_rules_sha`) is
+  **intentionally deferred-wired** with no production caller, per the
+  MLP2-019 post-merge note at
+  [`plans/reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md`](../reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md)
+  ("wiring belongs to MLP2-032 … and a follow-up L4 validate engine
+  integration"). The dropped branch carried an earlier
+  `RecognisedRules`/`check_recognised_rules` draft that is superseded
+  by main's registry API and contributes nothing.
+- **Intent:** Make the live L4 `ValidationEngine` consult
+  `RecognisedRulesRegistry::evaluate_rules_sha` against the witness's
+  `rules_sha` (already plumbed by MLP2-014 in
+  `crates/anvil-cli/src/commands/hook.rs`), so an unrecognised digest
+  produces an explicit `ValidationDiagnostic` rather than a silent
+  allow.
+- **Expected Outcome:** A `ValidationEngine` impl (or wrapper around
+  the existing `CommitAntipatternEngine` in
+  `crates/anvil-cli/src/l4_engine.rs`) calls `evaluate_rules_sha` on
+  each request, emits the diagnostic with rule id
+  `l4.witness.rules_sha.unrecognised` on
+  `RulesShaOutcome::Unrecognised`, and the hook's L4 path surfaces it
+  in the verdict. The recognition surface stays
+  `RecognisedRulesRegistry` + `evaluate_rules_sha` (the superseded
+  `RecognisedRules`/`check_recognised_rules` draft is not used).
+- **Validation:** A production validation request whose witness
+  `rules_sha` is not in the registry produces a `Block` verdict
+  carrying the recognition diagnostic; a recognised digest passes
+  through unchanged; engine-level test pinning the integration.
+- **Dependencies:** **Rule-pack distribution (vNext, beyond v1.5)** —
+  the registry has no source of recognised digests until rule-pack
+  distribution is built (org rule packs via git refs / rule-pack
+  marketplace per
+  [`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md)
+  §"vNext beyond v1.5"). This dependency gates execution; do not
+  promote this item from `Proposed` until rule-pack distribution
+  lands.
+- **Files:** `crates/anvil-l4/src/validate.rs`,
+  `crates/anvil-cli/src/l4_engine.rs`,
+  `crates/anvil-cli/src/commands/hook.rs`,
+  `crates/anvil-l4/src/recognised_rules.rs` (consumer wire-up only;
+  registry surface stays `Merged`).
+- **Coordinates with:** MLP2-019 (registry/diagnostic surface,
+  `Merged`), MLP2-014 (witness `rules_sha` writer, live),
+  MLP2-032 (`anvil baseline` CLI consumer wire-up).
+- **Confidence:** medium — design is well-bounded once rule-pack
+  distribution lands; primary unknown is where recognised digests are
+  sourced and how registry refresh works under vNext distribution.
 
 ## Priority and phasing plan
 

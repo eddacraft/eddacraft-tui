@@ -1065,3 +1065,34 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Future docs-auth issues should name the concrete JWT claim used
   for entitlement (`tier`) in the issue body to avoid ambiguous scope wording.
 - **Follow-up:** None.
+### 2026-05-28 — claude
+
+- **Task:** Audit `feat/mlp2-014-019-059-daemon-observability-close` and decide
+  whether to salvage its `validate.rs` L4 `rules_sha` recognition surface.
+- **Outcome:** Branch dropped (fully superseded, inert draft); filed MLP2-076 as
+  a `Proposed` forward-tracking item for the deferred L4 recognition wiring,
+  with rule-pack distribution recorded as the vNext blocker. No planning
+  council convened — the deferral is documented and the prerequisite is gated
+  upstream.
+- **Worked:** Patch-id (`git cherry`) + per-symbol caller trace
+  (`git grep` for `check_recognised_rules` / `evaluate_rules_sha` in non-test
+  code) exposed that the branch's helpers are called only by their own tests
+  and that main's evolved `RecognisedRulesRegistry` / `evaluate_rules_sha`
+  surface is also production-uncalled. Truth discovery in MLP2-019's Expected
+  Outcome plus the post-merge note made the "intentionally deferred-wired"
+  status explicit, sparing a planning council.
+- **Failed:** Initial shallower analysis recommended salvaging "~106 missing
+  lines"; deeper symbol-level inspection reversed that — porting would have
+  added dead code and repeated the documented "registry shipped, call-site
+  inert" anti-pattern.
+- **Friction:** Several investigation layers (patch-id → per-file diff →
+  symbol-level caller trace → APS/spec source-of-truth) before the right
+  answer landed.
+- **Improvement:** When a branch claims a "missing feature" surface, trace the
+  proposed addition to its production callers BEFORE recommending salvage —
+  symbol-on-main absence is necessary but not sufficient evidence of a real
+  gap.
+- **Follow-up:** MLP2-076 stays `Proposed` until rule-pack distribution is
+  prioritised; that's when a planning council on rule-pack distribution
+  (recognition enforcement being one downstream consumer) becomes the right
+  scope.
