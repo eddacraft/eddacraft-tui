@@ -29,7 +29,7 @@
 //! | [`surface`] | `Surface` trait for multi-screen TUI applications |
 //! | [`shell`] | Branded header/footer chrome renderer |
 //! | [`compat`] | Terminal detection and minimum-size validation |
-//! | [`test_utils`] | Snapshot testing helpers for style-aware buffer serialisation |
+//! | `test_utils` (feature `test-utils`) | Snapshot testing helpers for style-aware buffer serialisation |
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

@@ -1,5 +1,6 @@
-//! Themed modal dialog designed to be rendered inside an [`OverlayStack`]
-//! layer. Provides a bordered, severity-coloured container with title and
+//! Themed modal dialog designed to be rendered inside an
+//! [`OverlayStack`](crate::widgets::overlay::OverlayStack) layer. Provides a
+//! bordered, severity-coloured container with title and
 //! multi-line body text.
 //!
 //! ```rust,no_run
