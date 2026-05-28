@@ -219,7 +219,8 @@ mod tests {
 
         let metrics = run_write_flood(&config, dir.path());
         assert_eq!(metrics.writes_performed, 50);
-        assert!(metrics.unique_events_received > 0);
+        assert_eq!(metrics.watch_registration_failures, 0);
+        assert!(metrics.watched_directories > 0);
     }
 
     #[test]

@@ -17,11 +17,15 @@
 //! (no validator dependency in this crate's surface); that lane is
 //! served by `pnpm run validate:schemas` against the same file in CI.
 
+#[cfg(not(target_os = "windows"))]
 use std::path::Path;
+#[cfg(not(target_os = "windows"))]
 use std::process::{Command, Output};
 
+#[cfg(not(target_os = "windows"))]
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
+#[cfg(not(target_os = "windows"))]
 fn run_status_json(workdir: &Path, home: &Path) -> Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui")
@@ -36,6 +40,7 @@ fn run_status_json(workdir: &Path, home: &Path) -> Output {
     cmd.output().expect("failed to invoke anvil binary")
 }
 
+#[cfg(not(target_os = "windows"))]
 fn workspace_root() -> std::path::PathBuf {
     // CARGO_MANIFEST_DIR points at crates/anvil-cli; ascend two levels
     // to reach the workspace root so the schema file resolves from
@@ -48,6 +53,7 @@ fn workspace_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
+#[cfg(not(target_os = "windows"))]
 fn load_schema() -> serde_json::Value {
     let path = workspace_root().join("schemas/anvil-status.v1.json");
     let bytes = std::fs::read(&path)
