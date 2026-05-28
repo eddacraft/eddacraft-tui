@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/31    |
+| CIB | —     | In Progress | 19/32    |
 
 ## Purpose
 
@@ -692,3 +692,32 @@ archive.
 - **Confidence:** medium — must keep the Rust audit (`cargo-deny`) and the
   npm-facing gates (Trivy + `license-check`) correctly routed; touches the
   change-classifier contract, which has its own test suite to extend.
+
+### CIB-032: Fresh worktrees fall back to a stale global oxfmt, producing false format failures
+
+- **Status:** Draft
+- **Intent:** A freshly created `git worktree` has no `node_modules`, so
+  `pnpm run format:check` / `pnpm run lint` resolve `oxfmt` from a stale
+  **global** install instead of the workspace-pinned `oxfmt@^0.51.0`. The older
+  global binary reports format "failures" on files the current change never
+  touched (observed repeatedly on `crates/eddacraft-tui/CHANGELOG.md`), sending
+  the developer chasing a non-issue until they realise `pnpm install` is needed.
+- **Expected Outcome:** A fresh worktree's first `pnpm run format:check` either
+  runs the workspace-pinned `oxfmt` or fails **loudly with an actionable
+  message** ("oxfmt X found, workspace pins Y — run `pnpm install`"), instead of
+  silently linting with a stale global binary. Candidate mechanisms: a tiny
+  version-guard prepended to the `format`/`lint` scripts; the worktree-creation
+  flow (`wt` / a setup hook) running `pnpm install`; or documenting the
+  install-first requirement in the worktree policy and failing closed otherwise.
+- **Validation:** In a worktree with no `node_modules`, `pnpm run format:check`
+  does not emit false positives on unmodified files — it either uses the pinned
+  oxfmt or exits non-zero with the version-mismatch guidance. A worktree that
+  has run `pnpm install` checks clean.
+- **Identified From:** Recurring friction across this session's worktrees
+  (SCAN-004/-005/-006, CIB-031, #1735) — the stale-global-oxfmt false positive
+  on `CHANGELOG.md` appeared on every fresh worktree until `pnpm install` ran.
+- **Files:** `package.json` (`format`/`format:check`/`lint` scripts), worktree
+  policy docs (`docs/guides/worktree-policy.md`), and the worktree-creation
+  tooling if a setup hook is the chosen path.
+- **Confidence:** medium — clear problem and validation; the cleanest fix
+  mechanism (script guard vs setup hook vs docs) needs a small design call.
