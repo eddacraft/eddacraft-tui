@@ -1,0 +1,96 @@
+//! Shared serialisation guard for tests that mutate the process-global
+//! current working directory (`std::env::set_current_dir`).
+//!
+//! Cargo runs unit and integration tests on a shared thread pool, so any
+//! two tests that swap the process cwd concurrently corrupt each other's
+//! relative-path resolution. Historically each module (`check.rs`,
+//! `doctor.rs`, `validate_write.rs`) carried its own independent `Mutex`,
+//! which meant they serialised *within* a module but raced *across*
+//! modules. CIB-026 collapses them onto this single workspace-wide guard
+//! so every cwd-mutating test path serialises against every other.
+//!
+//! Use [`with_cwd_in`] for the common case: it locks the guard, swaps the
+//! process cwd to `dir`, runs `body`, and restores the original cwd via an
+//! RAII drop — even if `body` panics. The mutex is recovered from
+//! [`std::sync::PoisonError`] so a panicking test does not wedge every
+//! later cwd test behind a poisoned lock.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
+
+/// Process-wide guard serialising every cwd-mutating test in the crate.
+static CWD_GUARD: Mutex<()> = Mutex::new(());
+
+/// Restores the captured cwd on drop so the test runner's working
+/// directory is always reinstated — including on panic, where the drop
+/// runs during unwinding.
+struct CwdRestore(PathBuf);
+
+impl Drop for CwdRestore {
+    fn drop(&mut self) {
+        // Best-effort: if the original dir is gone there is nothing we can
+        // do, and panicking inside a drop during unwinding would abort.
+        let _ = std::env::set_current_dir(&self.0);
+    }
+}
+
+/// Run `body` with the process cwd swapped to `dir`, serialised against
+/// every other caller of this helper via the shared [`CWD_GUARD`].
+///
+/// The original cwd is restored before this function returns, even if
+/// `body` panics. A poisoned guard (from an earlier panicking test) is
+/// recovered rather than propagated, so one failing test does not cascade
+/// into spurious failures for every later cwd test.
+pub fn with_cwd_in<R>(dir: &Path, body: impl FnOnce() -> R) -> R {
+    let _lock = CWD_GUARD.lock().unwrap_or_else(PoisonError::into_inner);
+    let original = std::env::current_dir().expect("test runner has a readable cwd");
+    std::env::set_current_dir(dir).expect("cd into target dir");
+    // Drop order: `_restore` is declared after `_lock`, so it drops first —
+    // the cwd is reinstated before the mutex is released and any other test
+    // can grab the lock.
+    let _restore = CwdRestore(original);
+    body()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restores_cwd_after_body_returns() {
+        let original = std::env::current_dir().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        // `canonicalize` because macOS tempdirs live under a symlinked
+        // `/var` → `/private/var`, so the raw tempdir path won't compare
+        // equal to the post-cd `current_dir`.
+        let expected = tmp.path().canonicalize().unwrap();
+
+        let observed = with_cwd_in(tmp.path(), || std::env::current_dir().unwrap());
+
+        assert_eq!(observed, expected, "body should observe the swapped cwd");
+        assert_eq!(
+            std::env::current_dir().unwrap(),
+            original,
+            "cwd must be restored after the body returns"
+        );
+    }
+
+    #[test]
+    fn restores_cwd_even_when_body_panics() {
+        let original = std::env::current_dir().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+
+        let result = std::panic::catch_unwind(|| {
+            with_cwd_in(tmp.path(), || {
+                panic!("body blew up after swapping cwd");
+            })
+        });
+
+        assert!(result.is_err(), "panic should propagate out of the helper");
+        assert_eq!(
+            std::env::current_dir().unwrap(),
+            original,
+            "cwd must be restored even when the body panics"
+        );
+    }
+}

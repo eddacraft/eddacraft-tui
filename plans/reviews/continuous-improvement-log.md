@@ -1161,3 +1161,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Repo-wide `oxfmt --check .` is red on a **pre-existing** non-conformant `.opencode/skills/dependabot/SKILL.md` (added by a recent sibling "vendor dependabot skill" commit; `.prettierignore` excludes `.claude/` but not `.opencode/`). Not mine — left it; will surface at PR time if Lint & Format blocks. CIB-032's stale-global-oxfmt trap bit again in this fresh worktree (`pnpm install` fixed).
 - **Improvement:** A dry-run against the most recent real release record is a cheap, high-value smoke for any APS-record-walking tool — it exercises real module shapes (archived, `####`) that synthetic fixtures miss.
 - **Follow-up:** none beyond the pre-existing SKILL.md format issue (sibling's file).
+### 2026-05-29 — claude
+
+- **Task:** CIB-026 — isolate cwd-mutating tests across the Rust workspace behind one serialisation guard.
+- **Outcome:** Added `crates/anvil-cli/src/test_support/cwd.rs` (`#[cfg(test)]` only) exposing a single `static CWD_GUARD` and `with_cwd_in(dir, body)` RAII helper that restores cwd on return and on panic, recovering from `PoisonError`. Refactored the three independent guards (`check.rs` CWD_LOCK, `doctor.rs` CWD_GUARD/with_tempdir_as_cwd, `validate_write.rs` CWD_GUARD/CwdRestore) plus the previously-unguarded `wizard.rs` scaffold_dot_project_skips_mkdir and `doctor.rs` apply_fixes_creates_anvil_dir to delegate to it, so they serialise against each other rather than each holding a separate mutex.
+- **Worked:** TDD on the helper first (restore-after-return + restore-on-panic via catch_unwind) pinned the contract before collapsing the call sites; production code paths were untouched.
+- **Failed:** Nothing substantive.
+- **Friction:** The shared `/home/aneki/Projects` disk was 100% full from sibling worktree `target/` dirs; reclaimed ~32G by deleting only this worktree's own regenerable `target/debug/incremental` + stale cross-compile caches (never touched sibling trees).
+- **Improvement:** Binary-crate test-support modules must be gated `#[cfg(test)] mod test_support;` in `main.rs` (no lib.rs here) so they compile only under test and never reach the shipped binary.
+- **Follow-up:** none
+

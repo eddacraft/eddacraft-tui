@@ -515,7 +515,7 @@ archive.
 
 ### CIB-026: Isolate cwd-mutating tests across the Rust workspace
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Stop tests that mutate process-global cwd from creating sporadic
   failures when unrelated subprocess or MCP tests add scheduling pressure.
 - **Expected Outcome:** Every test path that calls `std::env::set_current_dir`

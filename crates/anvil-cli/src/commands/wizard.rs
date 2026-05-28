@@ -262,16 +262,19 @@ mod tests {
     #[test]
     fn scaffold_dot_project_skips_mkdir() {
         let dir = tempfile::tempdir().unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
 
-        let mut state = WizardState::new(builtin_templates());
-        state.config.project_name = ".".to_string();
-        state.config.template_id = Some("minimal".to_string());
-        state.confirmed = true;
+        // `scaffold_project` resolves `.` against the process cwd, so this
+        // test mutates the process-global cwd. Run it under the
+        // workspace-wide cwd guard (CIB-026) so it serialises against the
+        // check/doctor/MCP cwd tests instead of racing them.
+        let result = crate::test_support::cwd::with_cwd_in(dir.path(), || {
+            let mut state = WizardState::new(builtin_templates());
+            state.config.project_name = ".".to_string();
+            state.config.template_id = Some("minimal".to_string());
+            state.confirmed = true;
+            scaffold_project(&state)
+        });
 
-        let result = scaffold_project(&state);
-        std::env::set_current_dir(original_dir).unwrap();
         assert!(result.is_ok());
         assert!(dir.path().join(".anvil").exists());
         assert!(dir.path().join(".anvilrc").exists());

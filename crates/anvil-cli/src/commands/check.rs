@@ -1733,11 +1733,6 @@ mod tests {
         assert_eq!(resolved, vec!["antipattern-scan"]);
     }
 
-    /// Mutex shared by tests that mutate `current_dir`. Two tests entering
-    /// `set_current_dir` concurrently corrupt each other's relative-path
-    /// resolution; serialise them via this guard.
-    static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     #[test]
     fn planless_check_detects_sk_literal_in_typescript_file() {
         // Fixture witness for issue #1797: a TS file with a planted
@@ -1774,12 +1769,8 @@ mod tests {
         // `run()` needs `git_toplevel` to resolve workspace root; the tmp
         // dir is not a git repo, so the function falls back to cwd. Move
         // cwd into the tmp dir for the duration of the test so relative
-        // paths resolve. The module-level `CWD_LOCK` serialises tests that
-        // mutate the process-wide cwd.
-        let _guard = CWD_LOCK.lock().unwrap();
-        let prev_cwd = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
-
+        // paths resolve. The workspace-wide cwd guard (CIB-026) serialises
+        // every test that mutates the process-wide cwd.
         // Force JSON mode so the print path doesn't write to stderr/stdout
         // for the test runner.
         let global = GlobalArgs {
@@ -1787,9 +1778,7 @@ mod tests {
             ..GlobalArgs::default()
         };
 
-        let result = run(&args, &global);
-
-        std::env::set_current_dir(prev_cwd).unwrap();
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
 
         let err = result.expect_err("planted sk- literal must be a blocking finding");
         assert!(
@@ -1860,15 +1849,11 @@ mod tests {
             artifact: "source".to_string(),
         };
 
-        let _guard = CWD_LOCK.lock().unwrap();
-        let prev_cwd = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
         let global = GlobalArgs {
             json: true,
             ..GlobalArgs::default()
         };
-        let result = run(&args, &global);
-        std::env::set_current_dir(prev_cwd).unwrap();
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
 
         // No planless-eligible checks → clean exit (not an error), but a
         // dispatcher that scanned zero things must not pretend it passed.
@@ -1910,15 +1895,11 @@ mod tests {
             artifact: "source".to_string(),
         };
 
-        let _guard = CWD_LOCK.lock().unwrap();
-        let prev_cwd = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
         let global = GlobalArgs {
             json: true,
             ..GlobalArgs::default()
         };
-        let result = run(&args, &global);
-        std::env::set_current_dir(prev_cwd).unwrap();
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
 
         // Skipped silently → not blocking. The point of the assertion is
         // that we don't crash, don't double-mark scanned, and surface a

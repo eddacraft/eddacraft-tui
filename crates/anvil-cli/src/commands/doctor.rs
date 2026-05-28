@@ -1165,33 +1165,16 @@ mod tests {
 
     // --- LAUNCH-005 invariants ---
 
-    /// Serialise tests that mutate process-global cwd; these run on a
-    /// shared cargo-test thread pool so unsynchronised cwd swaps would
-    /// race with sibling tests. The `apply_fixes_creates_anvil_dir`
-    /// pattern saves/restores cwd but does not lock — these new
-    /// invariants amplify that surface, so we add the lock here.
-    static CWD_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Run `body` inside a tempdir, with the process cwd swapped to
-    /// it for the duration. Restores cwd even on panic via the guard
-    /// drop order. Acquires the cwd mutex so concurrent tests do not
-    /// observe each other's directory state.
-    struct CwdRestore(std::path::PathBuf);
-    impl Drop for CwdRestore {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.0);
-        }
-    }
-
+    /// Run `body` inside a fresh tempdir, with the process cwd swapped to
+    /// it for the duration. Delegates to the workspace-wide
+    /// [`crate::test_support::cwd::with_cwd_in`] guard (CIB-026) so it
+    /// serialises against every other cwd-mutating test in the crate, not
+    /// just the ones in this module. The original cwd is restored even on
+    /// panic.
     fn with_tempdir_as_cwd<R>(body: impl FnOnce(&Path) -> R) -> R {
-        let _lock = CWD_GUARD
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let original = std::env::current_dir().expect("read cwd");
         let tmp = tempfile::tempdir().expect("create tempdir");
-        std::env::set_current_dir(tmp.path()).expect("cd into tempdir");
-        let _restore = CwdRestore(original);
-        body(tmp.path())
+        let path = tmp.path().to_path_buf();
+        crate::test_support::cwd::with_cwd_in(&path, || body(&path))
     }
 
     /// Drive every check function into a Fail or Warn state and
@@ -1674,27 +1657,23 @@ mod tests {
 
     #[test]
     fn apply_fixes_creates_anvil_dir() {
-        let tmp = tempfile::tempdir().unwrap();
-        let original = std::env::current_dir().unwrap();
-        std::env::set_current_dir(tmp.path()).unwrap();
+        with_tempdir_as_cwd(|dir| {
+            let mut checks = vec![DiagnosticCheck {
+                name: "anvil-dir".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Warn,
+                message: ".anvil/ directory not found".to_string(),
+                details: Some("Create .anvil/ directory for Anvil state files".to_string()),
+                auto_fixable: true,
+                remediation: Remediation::default(),
+            }];
 
-        let mut checks = vec![DiagnosticCheck {
-            name: "anvil-dir".to_string(),
-            category: "Configuration".to_string(),
-            status: CheckStatus::Warn,
-            message: ".anvil/ directory not found".to_string(),
-            details: Some("Create .anvil/ directory for Anvil state files".to_string()),
-            auto_fixable: true,
-            remediation: Remediation::default(),
-        }];
+            apply_fixes(&mut checks, true);
 
-        apply_fixes(&mut checks, true);
-
-        assert_eq!(checks[0].status, CheckStatus::Pass);
-        assert!(!checks[0].auto_fixable);
-        assert!(tmp.path().join(".anvil").is_dir());
-
-        std::env::set_current_dir(original).unwrap();
+            assert_eq!(checks[0].status, CheckStatus::Pass);
+            assert!(!checks[0].auto_fixable);
+            assert!(dir.join(".anvil").is_dir());
+        });
     }
 
     // --- JsonCheck serialisation tests ---

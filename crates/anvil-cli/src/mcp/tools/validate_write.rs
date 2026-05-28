@@ -1312,31 +1312,9 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
-    #[cfg(unix)]
-    use std::sync::Mutex;
     use tempfile::tempdir;
     #[cfg(unix)]
     use tokio::runtime::Runtime;
-
-    /// Global lock for tests that mutate the process cwd. Cargo runs
-    /// unit tests in parallel; without serialisation here, the
-    /// deleted-cwd test could race against any other test that calls
-    /// `current_dir` (e.g. embedded validation paths that resolve
-    /// relative file lookups).
-    #[cfg(unix)]
-    static CWD_GUARD: Mutex<()> = Mutex::new(());
-
-    /// RAII helper for the `deleted_server_cwd_*` test: restores the
-    /// captured cwd on drop so the test runner's working directory is
-    /// always reinstated, even if the test body panics.
-    #[cfg(unix)]
-    struct CwdRestore(std::path::PathBuf);
-    #[cfg(unix)]
-    impl Drop for CwdRestore {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.0);
-        }
-    }
 
     struct FixtureDaemon {
         outcome: DaemonValidationOutcome,
@@ -2487,34 +2465,31 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn deleted_server_cwd_surfaces_structured_error() {
-        // `set_current_dir` is process-global. Hold the cwd mutex for
-        // the duration of the test so concurrent unit tests cannot
-        // observe each other's directory state. The guard is released
-        // when `_lock` drops at the end of the function.
-        let _lock = CWD_GUARD
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let original_cwd = std::env::current_dir().expect("test runner has a cwd");
-        // Drop order matters: `_restore` drops before `_lock`, so the
-        // cwd is back before any other test grabs the lock.
-
+        // `set_current_dir` is process-global. The workspace-wide cwd
+        // guard (CIB-026) serialises this test against every other
+        // cwd-mutating test in the crate and restores the original cwd on
+        // exit — even though this test deliberately deletes the dir it
+        // `cd`s into, the guard captured the original beforehand.
         let scratch = tempdir().expect("scratch workspace exists");
         let scratch_path = scratch.path().to_path_buf();
-        std::env::set_current_dir(&scratch_path).expect("cd into scratch dir");
-        let _restore = CwdRestore(original_cwd);
-        // Drop the TempDir so the directory is removed while the
-        // process cwd still points at it. `std::env::current_dir`
-        // will now return an error.
-        drop(scratch);
 
-        let result = super::call(&json!({
-            "path": "src/example.ts",
-            "operation": "create",
-            "proposedContent": "export const value = 1;\n"
-        }));
+        let payload = crate::test_support::cwd::with_cwd_in(&scratch_path, || {
+            // Drop the TempDir so the directory is removed while the
+            // process cwd still points at it. `std::env::current_dir`
+            // will now return an error.
+            drop(scratch);
 
-        let payload = parse_payload(&result);
-        assert_eq!(result["isError"], true);
+            let result = super::call(&json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }));
+
+            let payload = parse_payload(&result);
+            assert_eq!(result["isError"], true);
+            payload
+        });
+
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["error"]["code"], "server-cwd-unavailable");

@@ -11,6 +11,8 @@ mod mcp;
 mod output;
 mod plan_dashboard;
 mod services;
+#[cfg(test)]
+mod test_support;
 mod tui;
 mod update_hint;
 mod util;
