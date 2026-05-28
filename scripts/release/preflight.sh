@@ -14,6 +14,7 @@ readonly PNPM_TEST_TIMEOUT="${ANVIL_RELEASE_PNPM_TEST_TIMEOUT:-1800}"
 json=false
 base=""
 head=""
+version=""
 repo="$DEFAULT_REPO"
 parse_error=""
 
@@ -35,7 +36,7 @@ deny_status="unknown"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--repo <owner/name>]
+Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--version <vX.Y.Z>] [--repo <owner/name>]
 
 Runs deterministic local release-readiness gates without network or gh calls.
 
@@ -43,6 +44,7 @@ Options:
   --json              Emit exactly one JSON object to stdout.
   --base <ref>        Comparison base ref recorded in output.
   --head <ref>        Comparison head ref recorded in output.
+  --version <vX.Y.Z>  Tag to be cut; checked against the workspace version.
   --repo <owner/name> Repository owner/name. Defaults to eddacraft/anvil-001.
   -h, --help          Show this help.
 
@@ -155,6 +157,81 @@ require_cargo_tool_version() {
   fi
 }
 
+validate_version() {
+  local value="$1"
+  [[ "$value" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+}
+
+# Reads [workspace.package].version from the first Cargo.toml argument.
+read_workspace_version() {
+  local manifest="$1"
+  awk '
+    /^\[workspace\.package\]/ { in_section = 1; next }
+    /^\[/ { in_section = 0 }
+    in_section && /^[[:space:]]*version[[:space:]]*=/ {
+      line = $0
+      sub(/^[^=]*=[[:space:]]*/, "", line)
+      gsub(/["\047[:space:]]/, "", line)
+      print line
+      exit
+    }
+  ' "$manifest"
+}
+
+# Reads the "version" field from a package.json manifest.
+read_package_json_version() {
+  local manifest="$1"
+  MANIFEST_PATH="$manifest" node -e '
+    const fs = require("node:fs");
+    try {
+      const doc = JSON.parse(fs.readFileSync(process.env.MANIFEST_PATH, "utf8"));
+      process.stdout.write(doc.version || "");
+    } catch {
+      process.exit(1);
+    }
+  '
+}
+
+# cargo-version gate: keeps the cut from shipping a stale or drifted version.
+#   1. Confirms workspace Cargo.toml carries a [workspace.package].version.
+#   2. Confirms root package.json matches that version (catches inverse drift).
+#   3. When --version is supplied, confirms it equals v<workspace-version>.
+#   4. Even without --version, fails when the workspace version still equals
+#      the latest existing release tag (the engineer forgot to bump).
+require_workspace_version_match() {
+  local cargo_manifest="Cargo.toml"
+  local package_manifest="package.json"
+
+  [[ -f "$cargo_manifest" ]] || return 1
+
+  local cargo_version
+  cargo_version="$(read_workspace_version "$cargo_manifest")"
+  [[ -n "$cargo_version" ]] || return 1
+
+  if [[ -f "$package_manifest" ]]; then
+    local package_version
+    package_version="$(read_package_json_version "$package_manifest")" || return 1
+    if [[ -n "$package_version" && "$package_version" != "$cargo_version" ]]; then
+      return 1
+    fi
+  fi
+
+  if [[ -n "$version" && "$version" != "v${cargo_version}" ]]; then
+    return 1
+  fi
+
+  # Compare against the most recent existing release tag (v-prefixed or not).
+  # If the workspace version still equals the latest tag, the bump is missing.
+  local latest_tag
+  latest_tag="$(git tag --list --sort=-version:refname 'v[0-9]*' '[0-9]*' 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$latest_tag" ]]; then
+    local latest_version="${latest_tag#v}"
+    if [[ "$cargo_version" == "$latest_version" ]]; then
+      return 1
+    fi
+  fi
+}
+
 run_real_command() {
   local effective_timeout="${ANVIL_RELEASE_GATE_TIMEOUT:-$STEP_TIMEOUT}"
   if declare -F "$1" >/dev/null 2>&1; then
@@ -196,7 +273,10 @@ run_gate() {
   local fixture="${ANVIL_RELEASE_PREFLIGHT_FIXTURE:-}"
 
   if [[ -n "$fixture" ]]; then
-    if [[ "$fixture" == "version-mismatch" && ( "$gate_id" == "hakari-version" || "$gate_id" == "deny-version" ) ]]; then
+    if [[ "$fixture" == "version-mismatch" && "$gate_id" == "cargo-version" ]]; then
+      rc=1
+      status="failed"
+    elif [[ "$fixture" == "version-mismatch" && ( "$gate_id" == "hakari-version" || "$gate_id" == "deny-version" ) ]]; then
       rc=1
       status="failed"
       if [[ "$gate_id" == "hakari-version" ]]; then
@@ -242,6 +322,7 @@ run_gates() {
 
   run_gate "cargo-fmt" "cargo fmt" "cargo fmt --all --check" cargo fmt --all --check
   run_gate "release-pins" "release pins" "check .github/workflows/rust.yml release tool pins" require_release_tool_pins_synced
+  run_gate "cargo-version" "cargo version" "check Cargo.toml workspace version" require_workspace_version_match
   run_gate "hakari-version" "hakari version" "cargo hakari --version" require_cargo_tool_version cargo-hakari hakari "$CARGO_HAKARI_VERSION"
   run_gate "cargo-hakari" "cargo hakari" "cargo hakari verify" cargo hakari verify
   run_gate "deny-version" "deny version" "cargo deny --version" require_cargo_tool_version cargo-deny deny "$CARGO_DENY_VERSION"
@@ -302,7 +383,7 @@ emit_json() {
   printf '"startedAt":%s,' "$(json_string "$started_at")"
   printf '"endedAt":%s,' "$(json_string "$ended_at")"
   printf '"repository":%s,' "$(json_string "$repo")"
-  printf '"inputs":{"base":%s,"head":%s,"version":null,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")"
+  printf '"inputs":{"base":%s,"head":%s,"version":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")"
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":"candidate","recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":%s,"passedGateCount":%s,"toolVersions":{' "$failed_count" "$((${#GATE_IDS[@]} - failed_count))"
@@ -378,7 +459,7 @@ emit_invalid_json() {
   printf '{'
   printf '"schemaVersion":"1.0.0","command":"preflight","phase":"preflight","mode":"compatibility","status":"failed",'
   printf '"startedAt":%s,"endedAt":%s,"repository":%s,' "$(json_string "$started_at")" "$(json_string "$ended_at")" "$(json_string "$repo")"
-  printf '"inputs":{"base":%s,"head":%s,"version":null,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")"
+  printf '"inputs":{"base":%s,"head":%s,"version":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")"
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":null,"recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":0,"passedGateCount":0,"toolVersions":{},"gates":[]},"warnings":[],'
@@ -401,6 +482,12 @@ parse_args() {
       --head)
         head="${2:-}"
         [[ -n "$head" ]] || { parse_error="--head requires a value"; return 129; }
+        shift 2
+        ;;
+      --version)
+        version="${2:-}"
+        [[ -n "$version" ]] || { parse_error="--version requires a value"; return 129; }
+        validate_version "$version" || { parse_error="--version must look like vX.Y.Z[-suffix]"; return 129; }
         shift 2
         ;;
       --repo)

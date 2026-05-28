@@ -30,6 +30,36 @@ ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
     --expected-command preflight \
     -- bash "$PREFLIGHT" --json --base main --head dev --repo eddacraft/anvil-001
 
+# The pass fixture must expose the cargo workspace version-match gate so a
+# release engineer who forgets the Cargo.toml bump is caught (issue #1871).
+ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
+  bash "$PREFLIGHT" --json --base main --head dev >"$tmp/pass.json"
+node - "$tmp/pass.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const ids = doc.data.gates.map((gate) => gate.id);
+if (!ids.includes('cargo-version')) {
+  throw new Error(`expected cargo-version gate, got: ${ids.join(',')}`);
+}
+const gate = doc.data.gates.find((g) => g.id === 'cargo-version');
+if (gate.status !== 'pass') throw new Error(`expected cargo-version to pass, got ${gate.status}`);
+NODE
+
+# --version is accepted and threaded into inputs.version.
+ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
+  bash "$PREFLIGHT" --json --version v9.9.9 >"$tmp/version-input.json"
+node - "$tmp/version-input.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (doc.inputs.version !== 'v9.9.9') {
+  throw new Error(`expected inputs.version v9.9.9, got ${doc.inputs.version}`);
+}
+NODE
+
+# An invalid --version value is rejected as invalid-input.
+version_invalid_json="$(bash "$PREFLIGHT" --json --version not-a-version 2>/dev/null || true)"
+assert_contains "$version_invalid_json" '"code":"invalid-input"'
+
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
   bash "$PREFLIGHT" --base main --head dev >"$tmp/human.out"
 assert_contains "$(<"$tmp/human.out")" "Preflight summary"
@@ -112,8 +142,9 @@ rc=0
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=version-mismatch \
   bash "$PREFLIGHT" --json >"$tmp/version.json" || rc=$?
 rc="${rc:-0}"
-if [[ "$rc" != "2" ]]; then
-  echo "expected version mismatch exit 2, got $rc" >&2
+# version-mismatch fails hakari-version, deny-version, and cargo-version (3 gates).
+if [[ "$rc" != "3" ]]; then
+  echo "expected version mismatch exit 3, got $rc" >&2
   exit 1
 fi
 node - "$tmp/version.json" <<'NODE'
@@ -126,6 +157,10 @@ if (hakari.status !== 'mismatch' || deny.status !== 'mismatch') {
 }
 if (typeof hakari.expected !== 'string' || typeof hakari.installed !== 'string') {
   throw new Error('expected hakari expected/installed versions');
+}
+const cargoVersionGate = doc.data.gates.find((g) => g.id === 'cargo-version');
+if (!cargoVersionGate || cargoVersionGate.status !== 'fail') {
+  throw new Error('expected cargo-version gate to fail under version-mismatch fixture');
 }
 NODE
 
