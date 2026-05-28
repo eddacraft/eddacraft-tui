@@ -1170,6 +1170,24 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The shared `/home/aneki/Projects` disk was 100% full from sibling worktree `target/` dirs; reclaimed ~32G by deleting only this worktree's own regenerable `target/debug/incremental` + stale cross-compile caches (never touched sibling trees).
 - **Improvement:** Binary-crate test-support modules must be gated `#[cfg(test)] mod test_support;` in `main.rs` (no lib.rs here) so they compile only under test and never reach the shipped binary.
 - **Follow-up:** none
+### 2026-05-29 — claude
+
+- **Task:** CIB-029 — align `required_anvil_version` examples with exact-semver
+  parser contract.
+- **Outcome:** Fixed the `anvil-l4/src/lib.rs` schema docstring (`>=0.6.0` →
+  `0.6.0`) and the `policy.rs` VALID_YAML canonical-shape fixture + assertion
+  to exact semver. `cargo test -p eddacraft-anvil-l4` green (82 tests), fmt +
+  workspace clippy clean.
+- **Worked:** The policy fixture doubled as the failing-then-passing TDD test;
+  the repo already had the good pattern at policy.rs:662/681 to mirror.
+- **Failed:** Nothing substantive.
+- **Friction:** `pnpm run format:check` flags a pre-existing oxfmt drift in
+  `.opencode/skills/dependabot/SKILL.md` (present on clean main, unrelated to
+  this change); left untouched to keep the PR single-purpose.
+- **Improvement:** Whoever next touches the opencode dependabot skill should run
+  oxfmt to clear the standing format drift.
+- **Follow-up:** none.
+
 
 ### 2026-05-29 — claude (#2065)
 

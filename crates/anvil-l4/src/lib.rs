@@ -45,7 +45,7 @@
 //! ## Schema example
 //!
 //! ```yaml
-//! required_anvil_version: ">=0.6.0"
+//! required_anvil_version: "0.6.0"
 //! baseline:
 //!   cutoff_commit: a3b2ea4e...
 //! branches:

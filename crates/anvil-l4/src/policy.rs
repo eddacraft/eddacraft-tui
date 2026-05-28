@@ -433,7 +433,7 @@ mod tests {
     use super::*;
 
     const VALID_YAML: &str = r"
-required_anvil_version: '>=0.6.0'
+required_anvil_version: '0.6.0'
 baseline:
   cutoff_commit: a3b2ea4e
 branches:
@@ -452,7 +452,7 @@ branches:
     #[test]
     fn parse_accepts_canonical_yaml_shape() {
         let p = Policy::parse(VALID_YAML, ConfigFormat::Yaml, Path::new("<test>")).unwrap();
-        assert_eq!(p.required_anvil_version.as_deref(), Some(">=0.6.0"));
+        assert_eq!(p.required_anvil_version.as_deref(), Some("0.6.0"));
         assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
         assert_eq!(p.branches.len(), 3);
         assert_eq!(p.branches[0].pattern, "main");

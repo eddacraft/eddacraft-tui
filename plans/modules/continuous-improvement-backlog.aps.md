@@ -582,7 +582,7 @@ archive.
 
 ### CIB-029: Fix required Anvil version documentation to use exact semver
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Stop examples from teaching operators and test authors to write
   semver range expressions where the parser accepts only exact versions.
 - **Expected Outcome:** Documentation and inline examples for
