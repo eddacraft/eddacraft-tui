@@ -5,9 +5,20 @@
 
 | Scope   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Draft  | 2/8      |
+| FLAGCAT | —     | medium   | Ready  | 2/8      |
 
-**Last reviewed:** 2026-05-19 — Feature gating model landed at
+**Last reviewed:** 2026-05-28 — Promoted Draft → **Ready**. The
+`v0.7.0-beta` release-freeze deferral on FLAGCAT-002..-006 (recorded
+2026-05-19) is now spent: `v0.7.0-beta`, `v0.7.1-beta`, and `v0.7.2-beta`
+have all cut, so the contracts-level migration is clear of the freeze
+window. FLAGCAT-002..-006 promoted to Ready (FLAGCAT-004 stays
+`Confidence: low` — the `build.rs` workspace-root walk is the riskiest
+slice; its approach and a sibling-crate fallback are pinned in the design
+note §"Rust codegen", so it is execution-authorised at low confidence, not
+blocked). FLAGCAT-008 stays Draft pending the planless-membership triage
+(GH #1795).
+
+**Earlier — 2026-05-19** — Feature gating model landed at
 [`plans/specs/2026-05-19-feature-gating-model.md`](../specs/2026-05-19-feature-gating-model.md)
 with architectural pin [ADR-048](../decisions/048-feature-group-architectural-model.md):
 Feature Groups are defaults carriers (class + audiences + lifecycle) under a
@@ -197,16 +208,25 @@ The FLAGCAT-001 note covers:
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Status promoted Draft → **Ready** 2026-05-28.
 
 - [x] Design note documents the manifest layout, codegen approach, and
       consistency-check strategy (FLAGCAT-001) —
       [`2026-05-18-feature-flag-catalogue-design.md`](../specs/2026-05-18-feature-flag-catalogue-design.md)
-- [ ] Rust codegen approach confirmed against the `anvil-kernel-types` build
-      profile — prototype a `build.rs` walk from `CARGO_MANIFEST_DIR` to the
-      workspace root's `flags/manifest.json` and verify `cargo:rerun-if-changed`
-      fires correctly
-- [ ] Adoption guide outline agreed with inventory doc owners
+- [x] Rust codegen approach pinned against the `eddacraft-anvil-kernel-types`
+      build profile — the design note §"Rust codegen" gives the full
+      `build.rs` workspace-root walk (upward search for `[workspace]` +
+      `cargo:rerun-if-changed` on the resolved absolute path), the
+      `[build-dependencies] serde_json` placement, and a sibling
+      `crates/anvil-flags-catalogue/` fallback. The walk is **specified, not
+      yet prototyped against a live build**; FLAGCAT-004 carries that residual
+      risk explicitly (`Confidence: low`) and runs the verification as its
+      first action.
+- [x] Release-freeze deferral cleared — `v0.7.0-beta` has shipped (current
+      tag `v0.7.2-beta`), so the `EnvironmentName` contract changes in
+      FLAGCAT-002 are no longer inside a freeze window.
+- [x] Adoption guide owner — `docs/guides/feature-flag-inventory.md` already
+      exists and is owned by this module; FLAGCAT-006 updates it in place.
 
 ## Risks & Mitigations
 
@@ -250,17 +270,23 @@ Change status to **Ready** when:
   not run for this design pass; instructions for future sweeps are recorded
   in the note's "Clawpatch advisory inventory" section.
 
-### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Draft (deferred until post-`v0.7.0-beta`)
+### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Ready
 
-> **Sequencing note (2026-05-19):** Operator decision to defer this task and
-> the rest of FLAGCAT-002..-006 until after the `v0.7.0-beta` tag cuts. The
-> migration of the five shipped flags plus the `EnvironmentName` enum changes
-> (`Prod` → `Production`, `Dev` → `Development`, add `Demo`, drop `Staging`)
-> touch runtime construction sites (CLI eval context, kernel resolver, tests);
-> the contracts-level change is safer outside the release-freeze window.
-> Nothing in the current cut depends on the catalogue existing. Pre-tag,
-> day-1 gating policy stays advisory and any new flag entries land via the
-> existing per-surface modules; FLAGCAT-002 retrofits them on adoption.
+> **Sequencing note (resolved 2026-05-28):** The 2026-05-19 operator decision
+> to defer FLAGCAT-002..-006 until after the `v0.7.0-beta` tag cut is now
+> spent — `v0.7.0-beta`, `v0.7.1-beta`, and `v0.7.2-beta` have all shipped.
+> The migration of the five shipped flags plus the `EnvironmentName` enum
+> changes (`Prod` → `Production`, `Dev` → `Development`, add `Demo`, drop
+> `Staging`) touch runtime construction sites (CLI eval context at
+> `crates/anvil-cli/src/feature_flags.rs`, kernel resolver at
+> `crates/anvil-kernel/src/feature_flags/resolver.rs`, and the Rust unit
+> tests in `crates/anvil-kernel-types/src/feature_flags.rs`); doing the
+> contracts-level change outside a freeze window was the only reason to wait,
+> and that window is closed. The `EnvironmentName` enum still ships the
+> pre-rename `Local/Preview/Dev/Staging/Prod` set on `main` (Rust:
+> `crates/anvil-kernel-types/src/feature_flags.rs:57`; TS:
+> `packages/anvil/contracts/src/schemas/feature-flags.schema.ts:43`), so the
+> rename remains part of this item's scope.
 >
 > **Environment-list re-validation (2026-05-19):** Spec env inventory
 > reduced from seven to five (`local`, `development`, `preview`, `demo`,
@@ -287,14 +313,23 @@ Change status to **Ready** when:
   `key` strings as ADR-041 stable join keys and has room to represent retired
   keys or key-migration notes for historical queries. No existing call site
   migrated yet.
-- **Scope:** `flags/manifest.json`, `packages/anvil/flags-catalogue/`,
-  `pnpm-workspace.yaml`, `tsconfig.base.json`
+- **Scope:** `flags/manifest.json` (new — does not exist yet),
+  `packages/anvil/flags-catalogue/` (new package — does not exist yet),
+  `pnpm-workspace.yaml`, `tsconfig.base.json`, plus the `EnvironmentName`
+  rename in `crates/anvil-kernel-types/src/feature_flags.rs`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, and their
+  construction sites (`crates/anvil-cli/src/feature_flags.rs`,
+  `crates/anvil-kernel/src/feature_flags/resolver.rs`)
 - **Non-scope:** Rust codegen, flipping existing call sites
-- **Dependencies:** FLAGCAT-001
-- **Validation:** `pnpm nx test flags-catalogue`
+- **Dependencies:** FLAGCAT-001 (Done)
+- **Validation:** `pnpm nx test flags-catalogue` (new project; basename
+  convention matches existing `runtime`/`contracts`/`policy` projects) plus
+  `cargo test -p eddacraft-anvil-kernel-types environment_name` to prove the
+  enum rename round-trips
 - **Confidence:** medium
+- **Status:** Ready
 
-### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Draft
+### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Ready
 
 - **Intent:** Flip `apps/docs-site/lib/feature-flags.ts` and
   `apps/anvil-api/src/lib/feature-flags.ts` to re-export from the catalogue
@@ -309,11 +344,12 @@ Change status to **Ready** when:
   `apps/anvil-api/src/routes/admin-schemas.ts`
 - **Non-scope:** Rust side
 - **Dependencies:** FLAGCAT-002
-- **Validation:** `pnpm nx run-many -t test --projects=docs-site,anvil-api,runtime`
+- **Validation:** `pnpm nx run-many -t test --projects=docs-site,@eddacraft/anvil-api,runtime`
   + successful Vercel Preview deploy for the docs-site
 - **Confidence:** medium
+- **Status:** Ready
 
-### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Draft
+### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Ready
 
 - **Intent:** Emit Rust constants (flag key, variant keys, default variant)
   from the JSON manifest at build time so the Rust CLI consumes the same
@@ -323,16 +359,25 @@ Change status to **Ready** when:
   time and emits a generated module exposing Rust constants and variant
   newtypes. Drift between JSON and generated output is detected by the
   consistency check in FLAGCAT-006, not by hand-editing.
-- **Scope:** `crates/anvil-kernel-types/` (or new crate), `Cargo.toml`,
-  workspace `Cargo.toml`
+- **Scope:** `crates/anvil-kernel-types/build.rs` (new — does not exist yet),
+  `crates/anvil-kernel-types/src/feature_flags_generated.rs` (new include
+  shim — does not exist yet), `crates/anvil-kernel-types/Cargo.toml`
+  (`[build-dependencies] serde_json`); fallback path is a new
+  `crates/anvil-flags-catalogue/` crate + workspace `Cargo.toml` if the
+  in-crate `build.rs` walk proves unworkable (design note §"Rust codegen")
 - **Non-scope:** Flipping the CLI to consume the generated constants (next
   task); replacing the custom resolver with the `open-feature` crate
-- **Dependencies:** FLAGCAT-001
+- **Dependencies:** FLAGCAT-002 (the manifest must exist to read at build
+  time)
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types feature_flags_catalogue`
+  passes, and a touch of `flags/manifest.json` triggers a rebuild (proves
+  `cargo:rerun-if-changed` fires on the resolved path)
 - **Confidence:** low (build.rs path resolution + workspace layout is the
-  riskiest piece of the whole module)
+  riskiest piece of the whole module; design + sibling-crate fallback are
+  pinned in the design note, so it is Ready at low confidence, not blocked)
+- **Status:** Ready
 
-### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — Draft
+### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — Ready
 
 - **Intent:** Replace the hand-rolled `CliGateFlag` literal in
   `crates/anvil-cli/src/feature_flags.rs` with the generated catalogue
@@ -345,9 +390,14 @@ Change status to **Ready** when:
 - **Non-scope:** Changing which commands are gated; swapping the resolver
 - **Dependencies:** FLAGCAT-004
 - **Validation:** `cargo test -p eddacraft-anvil --bin anvil feature_flags`
+  (binary crate `eddacraft-anvil`, bin `anvil`); the existing
+  `cli_dev_bypass_active_*` tests at
+  `crates/anvil-cli/src/feature_flags.rs:352` must still pass to prove the
+  `ANVIL_DEV=1` override is behaviour-preserving
 - **Confidence:** medium
+- **Status:** Ready
 
-### FLAGCAT-006: Consistency check and adoption guide — Draft
+### FLAGCAT-006: Consistency check and adoption guide — Ready
 
 - **Intent:** Make drift between the JSON manifest, TS re-exports, and Rust
   codegen loud in CI; update the inventory doc so future contributors know
@@ -365,7 +415,11 @@ Change status to **Ready** when:
 - **Dependencies:** FLAGCAT-002, FLAGCAT-003, FLAGCAT-004, FLAGCAT-005
 - **Validation:** `pnpm nx test flags-catalogue` +
   `grep -q "single source of truth" docs/guides/feature-flag-inventory.md`
+  (the phrase is already present; this item also removes the residual
+  "split across surfaces" framing and adds the structural-equality
+  consistency spec to the new `flags-catalogue` project)
 - **Confidence:** high
+- **Status:** Ready
 
 <a id="flagcat-007"></a>
 
