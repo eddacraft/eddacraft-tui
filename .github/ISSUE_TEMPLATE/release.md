@@ -2,9 +2,15 @@
 name: Release
 about: Track a release from preflight through post-release verification
 title: 'release/'
-labels: release
+labels: release, priority:P1, readiness:ready
 assignees: ''
 ---
+
+## Authority
+
+- **Release plan:** <!-- RELEASE-PLAN.md section or release record -->
+- **APS/CIB links:** <!-- release blocker or follow-up IDs -->
+- **Priority:** P1
 
 ## Release Identity
 
@@ -66,7 +72,7 @@ assignees: ''
 
 ## 7. Post-Release Cleanup
 
-- [ ] Back-merge to `dev` completed
-- [ ] Release branch deleted (if stabilisation)
+- [ ] Release branch merged to `main` or marked N/A
+- [ ] Release branch deleted (if used)
 - [ ] `install.eddacraft.ai` serves correct version
 - [ ] Issue closed

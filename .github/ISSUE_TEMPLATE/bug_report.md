@@ -2,13 +2,18 @@
 name: Bug Report
 about: Report a bug or unexpected behaviour in Anvil
 title: '[BUG] '
-labels: bug
+labels: kind:bug, readiness:needs-triage
 assignees: ''
 ---
 
-## APS Context
+## Triage Context
 
-APS Module: <!-- e.g. CRB --> APS Task: <!-- e.g. CRB-023 (or TBD) -->
+- **Priority:** <!-- P0 | P1 | P2 | P3 | P4 | untriaged -->
+- **Triage outcome:**
+  <!-- small-fix | needs-aps | cib-candidate | promoted-to-aps | gh-only -->
+- **Authority:** <!-- APS/CIB ID, GH small-fix rationale, or TBD -->
+- **Public issue:**
+  <!-- link to eddacraft/anvil issue if this mirrors public evidence -->
 
 ## Description
 
@@ -51,3 +56,7 @@ Paste any error messages or stack traces here
 
 Add any other context about the problem here (screenshots, related issues,
 etc.).
+
+## Triage Notes
+
+<!-- Maintainer/agent notes: does this satisfy the small-fix exemption, or does it need APS/CIB promotion? -->

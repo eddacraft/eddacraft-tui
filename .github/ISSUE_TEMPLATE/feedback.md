@@ -2,13 +2,18 @@
 name: Beta Feedback
 about: Share your experience with the Anvil beta
 title: '[FEEDBACK] '
-labels: beta-feedback
+labels: beta-feedback, readiness:needs-triage
 assignees: ''
 ---
 
-## APS Context (optional)
+## Triage Context
 
-APS Module: <!-- optional --> APS Task: <!-- optional -->
+- **Priority:** <!-- P1 | P2 | P3 | P4 | untriaged -->
+- **Triage outcome:**
+  <!-- small-fix | needs-aps | cib-candidate | promoted-to-aps | gh-only -->
+- **Authority:** <!-- APS/CIB ID, GH small-fix rationale, or TBD -->
+- **Public issue:**
+  <!-- link to eddacraft/anvil issue if this is public feedback -->
 
 ## Feedback Type
 
@@ -51,3 +56,7 @@ Any specific suggestions for improvement?
 ## Additional Context
 
 Any other feedback, screenshots, or context you'd like to share.
+
+## Triage Notes
+
+<!-- Maintainer/agent notes: whether this remains feedback, becomes a public issue, or promotes to CIB/APS. -->

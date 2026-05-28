@@ -4,27 +4,37 @@
 
 -
 
+<!-- Normal Anvil PRs target `main` per the main-first workflow. -->
+
+## Authority
+
 <!--
-Target base reminder (CICD-012, OPMODEL-012):
+What authorised this work? See
+plans/specs/2026-05-28-issue-triage-and-aps-authority.md.
 
-- Migration mode (today): normal `feat/*` / `fix/*` / `docs/*` /
-  `chore/*` PRs target `dev`. PRs to `main` are release sync
-  (`dev`) or release/hotfix (`release/*` / `hotfix/*`) only — the
-  `PR Base Guard` workflow enforces this.
-- Target mode (after `OPMODEL-012`): normal PRs target `main`. The
-  release gate fires on `release/*` / `hotfix/*` heads, not on every
-  PR. See `docs/guides/branching-strategy.md` for the full table.
+Examples:
 
-Check that this PR's base branch matches the operating mode in
-effect right now.
+- Authority: APS MLP2-051g
+- Authority: CIB-031
+- Authority: Private GH #1234 small-fix exemption — isolated help-text
+  correction, validated by snapshot test
+- Authority: Emergency hotfix — containment first; APS/CIB reconciliation
+  follow-up required
+
+Public issues may be linked as evidence, but do not authorise implementation by
+themselves.
 -->
 
-## APS + GH execution context
+Authority:
 
-APS Module: <!-- e.g. INTD, RTAI, TRACE --> APS Task(s):
+## Issue / APS Context
 
-<!-- e.g. INTD-013, TRACE-001 --> GH Project Status:
-<!-- Backlog | Ready | In Progress | In Review | Blocked | Done -->
+APS Module: <!-- e.g. MLP2, CIB, or N/A for small-fix exemption --> APS Task(s):
+
+<!-- e.g. MLP2-051g, CIB-031, or N/A --> Related issue(s):
+
+<!-- e.g. closes private #1234; public issue link if safe/useful --> Triage outcome:
+<!-- small-fix | needs-aps | cib-candidate | promoted-to-aps | gh-only -->
 
 Acceptance criteria checked:
 

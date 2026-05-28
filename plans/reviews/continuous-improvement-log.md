@@ -1126,3 +1126,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Two issues I assessed first (#1873 insta version-literal, #1976 drift-check over-flag) were **already fixed** on main but still open — the issues list has stale resolved items. Cost two verification rounds before landing on a still-real one. Worth a backlog item: a periodic "stale-resolved issue" sweep.
 - **Improvement:** Before picking a GH issue to work, grep the cited file/symbol against current main first — cheaper than reading the whole issue then discovering it's resolved.
 - **Follow-up:** Recommend closing #1873 (fixed by CIB-020) and #1976 (drift-check rule now gated on `--release-record`). Possible enhancement: an `ANVIL_NO_SIDECAR=1` env to force the library updater (the issue assumed it exists; it doesn't) — would give operators a real way to skip verification.
+
+### 2026-05-28 — opencode
+
+- **Task:** Write and apply the issue-triage and APS-authority model for public/private GitHub issues, CIB, APS, and priority handling.
+- **Outcome:** Added `plans/specs/2026-05-28-issue-triage-and-aps-authority.md`, updated GitHub issue/PR templates to require an authority declaration or triage context, and created the priority/kind/readiness/tracked labels on both `eddacraft/anvil-001` and `eddacraft/anvil`.
+- **Worked:** Planning Council perspectives converged on the useful boundary: private monorepo issues or PRs can authorise small fixes, while APS authorises planned work.
+- **Failed:** Repo-wide `pnpm format:check` was noisy in the original worktree because unrelated formatting drift was present there.
+- **Friction:** The original worktree was on `main` ahead/behind origin, so opening a clean PR required replaying the intended changes into a fresh `origin/main` worktree.
+- **Improvement:** Start process/doc changes in a clean task worktree before applying live GitHub configuration, so the PR path stays direct.
+- **Follow-up:** none

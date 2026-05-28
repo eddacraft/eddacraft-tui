@@ -2,13 +2,18 @@
 name: Feature Request
 about: Suggest a new feature or enhancement for Anvil
 title: '[FEATURE] '
-labels: enhancement
+labels: kind:product, readiness:needs-design
 assignees: ''
 ---
 
-## APS Context
+## Triage Context
 
-APS Module: <!-- e.g. DASH --> APS Task: <!-- e.g. DASH-001 (or TBD) -->
+- **Priority:** <!-- P1 | P2 | P3 | P4 | untriaged -->
+- **Triage outcome:**
+  <!-- needs-aps | cib-candidate | gh-only | promoted-to-aps -->
+- **Authority:** <!-- APS/CIB ID or TBD -->
+- **Public issue:**
+  <!-- link to eddacraft/anvil issue if this mirrors public discussion -->
 
 ## Summary
 
@@ -36,6 +41,10 @@ Describe the use cases where this feature would be valuable:
 ## Additional Context
 
 Add any other context, mockups, or examples about the feature request here.
+
+## Planning Notes
+
+<!-- Maintainer/agent notes: promotion target, design questions, APS/CIB linkage. -->
 
 ## Would you be willing to contribute this feature?
 
