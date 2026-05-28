@@ -34,6 +34,20 @@ impl Drop for CwdRestore {
     }
 }
 
+/// Run `body` with the process cwd swapped to `dir`, restoring the
+/// original cwd on return and on panic. **Caller must already hold
+/// [`CWD_GUARD`]** — this is the unlocked primitive shared by
+/// [`with_cwd_in`] and by the guard's own self-tests, which need to read
+/// the surrounding cwd under the same lock hold rather than racing for it.
+fn swap_cwd_in<R>(dir: &Path, body: impl FnOnce() -> R) -> R {
+    let original = std::env::current_dir().expect("test runner has a readable cwd");
+    std::env::set_current_dir(dir).expect("cd into target dir");
+    // `_restore` reinstates the original cwd when it drops — including
+    // during unwinding if `body` panics.
+    let _restore = CwdRestore(original);
+    body()
+}
+
 /// Run `body` with the process cwd swapped to `dir`, serialised against
 /// every other caller of this helper via the shared [`CWD_GUARD`].
 ///
@@ -43,21 +57,28 @@ impl Drop for CwdRestore {
 /// into spurious failures for every later cwd test.
 pub fn with_cwd_in<R>(dir: &Path, body: impl FnOnce() -> R) -> R {
     let _lock = CWD_GUARD.lock().unwrap_or_else(PoisonError::into_inner);
-    let original = std::env::current_dir().expect("test runner has a readable cwd");
-    std::env::set_current_dir(dir).expect("cd into target dir");
-    // Drop order: `_restore` is declared after `_lock`, so it drops first —
-    // the cwd is reinstated before the mutex is released and any other test
-    // can grab the lock.
-    let _restore = CwdRestore(original);
-    body()
+    // Drop order: `swap_cwd_in`'s internal `_restore` drops before `_lock`,
+    // so the cwd is reinstated before the mutex is released and any other
+    // test can grab the lock.
+    swap_cwd_in(dir, body)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // These self-tests must read the surrounding cwd *under* `CWD_GUARD`,
+    // not via `with_cwd_in` alone: capturing the "original" cwd or
+    // asserting the restored cwd while unlocked lets a concurrent
+    // cwd-mutating test (which has swapped the process cwd to its own
+    // tempdir) be observed as our baseline, producing a deterministic
+    // false failure. Holding the guard for the whole capture → act →
+    // assert sequence serialises us against every other cwd test, and we
+    // drive the swap through the unlocked [`swap_cwd_in`] primitive.
+
     #[test]
     fn restores_cwd_after_body_returns() {
+        let _lock = CWD_GUARD.lock().unwrap_or_else(PoisonError::into_inner);
         let original = std::env::current_dir().unwrap();
         let tmp = tempfile::tempdir().unwrap();
         // `canonicalize` because macOS tempdirs live under a symlinked
@@ -65,7 +86,7 @@ mod tests {
         // equal to the post-cd `current_dir`.
         let expected = tmp.path().canonicalize().unwrap();
 
-        let observed = with_cwd_in(tmp.path(), || std::env::current_dir().unwrap());
+        let observed = swap_cwd_in(tmp.path(), || std::env::current_dir().unwrap());
 
         assert_eq!(observed, expected, "body should observe the swapped cwd");
         assert_eq!(
@@ -77,11 +98,12 @@ mod tests {
 
     #[test]
     fn restores_cwd_even_when_body_panics() {
+        let _lock = CWD_GUARD.lock().unwrap_or_else(PoisonError::into_inner);
         let original = std::env::current_dir().unwrap();
         let tmp = tempfile::tempdir().unwrap();
 
         let result = std::panic::catch_unwind(|| {
-            with_cwd_in(tmp.path(), || {
+            swap_cwd_in(tmp.path(), || {
                 panic!("body blew up after swapping cwd");
             })
         });
