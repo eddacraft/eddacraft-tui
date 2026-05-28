@@ -71,6 +71,7 @@ Thumbs.db
 !.opencode/skills/aps-planning/
 !.opencode/skills/test-driven-development/
 !.opencode/skills/addressing-pr-reviews/
+!.opencode/skills/dependabot/
 docs/analysis/claude-code-safety-net-review.md
 .anvil/first-run
 .anvil/tutorial-progress.json
