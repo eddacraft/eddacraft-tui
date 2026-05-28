@@ -5,9 +5,10 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | Proposed | 1/8      |
+| TUIN | joshuaboys | Proposed | 2/10     |
 
-**Last reviewed:** 2026-05-23 (ADR-050 design pass)
+**Last reviewed:** 2026-05-28 (opportunistic colour-harmonisation spike;
+TUIN-009/010 added). Prior: 2026-05-23 (ADR-050 design pass).
 
 > **Execution gate:** TUIN is gated on TUIR-008 (canonical source live in
 > `crates/eddacraft-tui/`, mirror healthy, first crates.io publish from
@@ -19,6 +20,16 @@
 > header progress advances 0/8 → 1/8 to reflect the closed task.
 > Implementation tasks (TUIN-003 onward) remain inert until the gate
 > opens.
+>
+> **Exception (2026-05-28):** TUIN-009 is a spike/decision item
+> (changeType: spike, releaseIntent: never) authorised by the operator
+> (joshuaboys) to land as planning material under the gate — like
+> TUIN-001 it merges no implementation, so it does not violate the gate;
+> it records a ship/no-ship signal for opportunistic colour
+> harmonisation and advances header progress to 2/10. TUIN-010 captures
+> the remaining tuie port candidates as `Proposed` backlog. The
+> colour-harmonisation **implementation** itself stays inert until
+> TUIR-008 closes.
 >
 > **Relationship to TUIR:** TUIR moves the source of truth without
 > behaviour change. TUIN is the first batch of design work that becomes
@@ -58,6 +69,10 @@ surface.
   hook, snapshot harness exposure.
 - API stability checkpoint after N releases from canonical source —
   decision document, not a refactor commitment.
+- Opportunistic colour / theming helpers that fit the post-migration
+  affordance window — e.g. terminal-harmonised palette generation
+  (TUIN-009 spike) and follow-on opt-in theme helpers that consumers can
+  adopt without architectural change.
 
 ## Out of Scope
 
@@ -68,9 +83,10 @@ surface.
 - Anvil-internal TUI surface redesign (`crates/anvil-tui/`,
   `crates/anvil-cli/`). TUIN owns the shared crate's contract, not
   its consumers' surfaces.
-- New widgets, themes, or accessibility features unless they
-  necessarily fall out of a TUIN decision (e.g. lifecycle ownership
-  forcing an API addition).
+- New widgets or accessibility features unless they necessarily fall
+  out of a TUIN decision (e.g. lifecycle ownership forcing an API
+  addition). (Opportunistic colour / theming helpers are now in scope —
+  see the corresponding In-Scope bullet.)
 - Changes to crates.io publication policy (D-TUIR-005 / D-TUIR-006
   binding).
 - Splitting `eddacraft-tui` into multiple published crates. ADR-050
@@ -449,6 +465,89 @@ backlog section so they can be picked up without re-discovery.
 
 **Validation:** retrospective exists; cross-links resolve; deferred
 items have explicit "needs follow-up module" notes.
+
+**changeType:** docs
+**releaseIntent:** never
+**releaseScope:** none
+
+### TUIN-009: Spike — opportunistic terminal-harmonised colour palette
+
+- **Status:** Done 2026-05-28 (spike; operator-authorised under the TUIN
+  gate, no PR — see gate Exception 2026-05-28)
+
+**Intent:** Decide whether to opportunistically port jake-stewart/tuie's
+terminal-harmonised colour generation (CIELAB-space 256-colour palette
+seeded from the terminal's real fg/bg + ANSI colours) into the
+`eddacraft-tui` theme layer, by producing a ship / no-ship signal before
+committing implementation effort.
+
+**Outcome:** A throwaway spike crate ported tuie's CIELAB conversion and
+palette-generation logic onto a `crossterm` front-end and added a
+three-tier degrade (`from_theme_and_terminal`): tier 0 pure brand theme →
+tier 1 terminal-true neutrals + brand accents → tier 2 fully
+terminal-harmonised. Findings:
+
+- Colour math is correct — 11 unit tests cover Lab round-trip
+  (near-lossless), cube corners pinning to fg/bg, a monotonic grey ramp,
+  the index-inversion involution, and all three degrade tiers.
+- The live terminal colour query (OSC 10 / 11 / 4) round-trip survives
+  `crossterm` raw-mode handling.
+- tmux is **not** a hard ceiling: wrapping the palette queries in tmux DCS
+  passthrough with `allow-passthrough on` returns the full palette
+  (18/18) even on a phone terminal over SSH; the initial partial result
+  was unwrapped queries being swallowed by tmux, not a terminal limit.
+- An `is_terminal()` guard makes the query safe to skip when piped or
+  redirected (degrades to the static brand theme).
+
+Decision: **SHIP.** Target shape = port the CIELAB module verbatim +
+`from_theme_and_terminal` three-tier seeding + a guarded terminal query
+(hand-rolled stdin reader or the `terminal-colorsaurus` crate) that wraps
+palette queries in tmux passthrough when `$TMUX` is set. Operational
+caveat to document, not engineer around: tmux needs `allow-passthrough
+on` (off by default since tmux 3.4); when off, consumers land in tier 1,
+which is designed to look intentional. tuie is MIT — attribution carried
+per house practice. The implementation is **not** merged into
+`crates/eddacraft-tui/` (the prototype lives outside the repo); landing it
+is `releaseIntent: candidate` work gated on TUIR-008 and is not part of
+this spike's Done state.
+
+**Validation:** spike crate `cargo test` → 11 passing; the demo binary
+reports `18/18` in tmux with `allow-passthrough on` and degrades cleanly
+to tier 1 / tier 0 otherwise.
+
+**changeType:** spike
+**releaseIntent:** never
+**releaseScope:** none
+
+### TUIN-010: Triage remaining tuie port candidates
+
+- **Status:** Proposed
+
+**Intent:** Capture the non-colour tuie features surfaced during the
+TUIN-009 spike session as a backlog item so the assessment isn't lost,
+with a port / reimplement-the-idea / skip decision for each. No
+implementation authority until triaged and the TUIN gate opens.
+
+**Outcome:** A triage note (this work-item body, promoted to its own spec
+if any candidate advances) recording, per candidate:
+
+- **Chord ergonomics** (tuie `input/chord.rs` + the `chord!` macro) —
+  human-readable chord strings (`<C-a>`) and key+modifier matching.
+  Recommendation: port the *idea* — map chord strings onto `crossterm`
+  key events feeding the existing keyboard binding table — not tuie's
+  proc-macro, which is bound to tuie's own key/trigger/modifier types.
+- **Image stack** (kitty / sixel / half-block + tmux passthrough, shared
+  memory transport) — **skip:** `eddacraft-tui` already depends on
+  `ratatui-image`, which covers this.
+- **Layout (flex / split / grid), virtualized list, async runtime, dirty
+  tracking, GUI / GPU mode, editor (vi / emacs)** — **skip:** these are
+  tuie's *architecture* (a retained widget tree), not detachable features;
+  lifting them onto Ratatui is a rewrite, and Ratatui already provides
+  `List` / `StatefulWidget` plus `tui-textarea`.
+
+**Validation:** triage note lists each candidate with a port/skip decision
+and rationale; any "port" decision spawns its own `Ready` work item once
+the gate opens.
 
 **changeType:** docs
 **releaseIntent:** never
