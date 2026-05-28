@@ -1,14 +1,20 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-19 (final release-plan/index sweep: ADOPT reconciled to 6/6 Merged, MLP2 reconciled to 60/76 after MLP2-068, WOUT added to release freight, Draft/Blocked items explicitly deferred). Prior 2026-05-18 review closed N4 docs lanes and added CIB-005 + CIB-007 as sit-on freight after the abandoned v0.6.4-beta hotfix attempt; base `v0.6.3-beta` + APS modules |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Last reviewed 2026-05-28 (fact-refresh: latest tag bumped to `v0.7.2-beta`; daemon-working window shipped as `v0.7.0-beta` 2026-05-21 with patches `v0.7.1-beta` and `v0.7.2-beta`; Current State + Next Release Window headings updated, strategic reframe of next window pending). Prior 2026-05-19 (final release-plan/index sweep: ADOPT reconciled to 6/6 Merged, MLP2 reconciled to 60/76 after MLP2-068, WOUT added to release freight, Draft/Blocked items explicitly deferred). 2026-05-18 closed N4 docs lanes and added CIB-005 + CIB-007 as sit-on freight after the abandoned v0.6.4-beta hotfix attempt; base `v0.6.3-beta` + APS modules |
 
 | Upstream                                                                                                                          | Downstream                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.6.3-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
+| [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.7.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-19 (MLP2-025 bullet narrowed to "on Linux" after the
+**Last updated:** 2026-05-28 (fact-refresh — latest tag bumped from
+`v0.6.3-beta` to `v0.7.2-beta`; the daemon-working window below shipped as
+`v0.7.0-beta` on 2026-05-21 with patches `v0.7.1-beta` (2026-05-22) and
+`v0.7.2-beta` (2026-05-25); Current State + Next Release Window headings
+updated, strategic reframe of "what's next" pending.)
+
+Previous update: 2026-05-19 (MLP2-025 bullet narrowed to "on Linux" after the
 DeepSec #1671 triage exposed a production wire-up gap closed by PR #1717 —
 cross-platform spoof-detection now explicitly rides on MLP2-027/-028 per the
 existing deferred entry. Earlier same-day sweep: final release-plan/index
@@ -106,22 +112,28 @@ file's history.
 
 ## Current State
 
-**Latest tag in repo:** `v0.6.3-beta` (shipped 2026-05-15)
+**Latest tag in repo:** `v0.7.2-beta` (shipped 2026-05-25)
 
-`v0.6.3-beta` is the latest shipped patch — Homebrew-aware curl installer,
-shared local-noise ignore policy in watch/audit, initial-watch-as-baseline
-semantics, immediate watch startup feedback, and `anvil uninstall`. It sits on
-top of `v0.6.2-beta`, which closed the release-operating-model window
-(main-first branch model, targeted CI/readiness checks, and deterministic
-release commands on `main`).
+The daemon-working slate documented below as the "Next Release Window" has since
+shipped: `v0.7.0-beta` (2026-05-21) tagged the slate, followed by patches
+`v0.7.1-beta` (2026-05-22, Activation Diagnostic Honesty) and `v0.7.2-beta`
+(2026-05-25, Save-Time Scanning & Tooling Honesty). See
+[`CHANGELOG.md`](./CHANGELOG.md) for per-release notes.
 
-| Area                              | Status  | Evidence                                                                                                                                       |
-| --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPMODEL` main-first cutover      | Shipped | 12/12, archived 2026-05-11. Cutover SHA `b6f236e9`; `main` ruleset 16217152; `dev-retired-2026-05-11` tag.                                     |
-| `RELORCH` release orchestration   | Shipped | 12/12, archived. Deterministic `assess`, `preflight`, `prepare`, `promote`, `tag`, `monitor`, `verify`, and `closeout` command surface exists. |
-| `CICD` targeting + drift controls | Shipped | 12/12, archived 2026-05-12. Fast PR targeting, integration SHA readiness, workflow contract map, and APS/repo/release drift checks are live.   |
-| Beta watch UX hotfix              | Shipped | WATCHUX 8/8 closed in `v0.6.3-beta`; ADOPT-005 `anvil uninstall` shipped 2026-05-14 via PR #1521 and rode the same tag.                        |
-| Release tag                       | Shipped | `HEAD` is tagged `v0.6.3-beta`; changelog entries live in `CHANGELOG.md` and the public release notes.                                         |
+`v0.6.3-beta` was the last pre-0.7 patch — Homebrew-aware curl installer, shared
+local-noise ignore policy in watch/audit, initial-watch-as-baseline semantics,
+immediate watch startup feedback, and `anvil uninstall`. It sat on top of
+`v0.6.2-beta`, which closed the release-operating-model window (main-first
+branch model, targeted CI/readiness checks, and deterministic release commands
+on `main`).
+
+| Area                              | Status  | Evidence                                                                                                                                                |
+| --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPMODEL` main-first cutover      | Shipped | 12/12, archived 2026-05-11. Cutover SHA `b6f236e9`; `main` ruleset 16217152; `dev-retired-2026-05-11` tag.                                              |
+| `RELORCH` release orchestration   | Shipped | 12/12, archived. Deterministic `assess`, `preflight`, `prepare`, `promote`, `tag`, `monitor`, `verify`, and `closeout` command surface exists.          |
+| `CICD` targeting + drift controls | Shipped | 12/12, archived 2026-05-12. Fast PR targeting, integration SHA readiness, workflow contract map, and APS/repo/release drift checks are live.            |
+| Beta watch UX hotfix              | Shipped | WATCHUX 8/8 closed in `v0.6.3-beta`; ADOPT-005 `anvil uninstall` shipped 2026-05-14 via PR #1521 and rode the same tag.                                 |
+| Release tag                       | Shipped | Latest tag `v0.7.2-beta` (2026-05-25); `v0.6.3-beta` was the last pre-0.7 patch. Changelog entries live in `CHANGELOG.md` and the public release notes. |
 
 The next release should be a **product-surface** release, not another operating
 model release. Its claim moves from "the operating model is executable" to
@@ -132,7 +144,13 @@ chain, baseline, and wrapped agent launch surfaces."
 
 <a id="next-release-window-proposed--post-v060-beta-daemon-working-slate"></a>
 
-## Next Release Window — `v0.7.0-beta` "Let's Use This"
+## Next Release Window — `v0.7.0-beta` "Let's Use This" — Shipped 2026-05-21
+
+> **Status (2026-05-28 fact-refresh):** This window shipped as `v0.7.0-beta` on
+> 2026-05-21, followed by patches `v0.7.1-beta` (2026-05-22) and `v0.7.2-beta`
+> (2026-05-25). The wave-by-wave planning, two-level claim, and module table
+> below describe the now-closed window and are retained as historical context.
+> Selection of the next release window is pending a strategic pass.
 
 **Candidate tag:** `v0.7.0-beta`
 

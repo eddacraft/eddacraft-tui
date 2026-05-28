@@ -1,7 +1,8 @@
 # Anvil Roadmap
 
-**Last updated:** 2026-05-09 (refresh — horizon-based, feature-level; rebased
-after `v0.6.0-beta` substrate locked and the daemon-working slate proposed)
+**Last updated:** 2026-05-28 (fact-refresh — Horizon 0 and Horizon 1 marked
+shipped through `v0.7.2-beta`; thematic framing and next-window selection are
+unchanged, pending a strategic pass)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -42,13 +43,13 @@ Detailed work-item lists live in `plans/index.aps.md`; this roadmap names
 
 ### Horizon 0 — Shipped to date
 
-| Tag                                  | Theme                                    | Headline capability                                                                                                                                                                                                                                   |
-| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.5.0-beta`                        | AI Guardrails & Mid-Edit Validation      | Real-time AI validation fires before save through the MCP launch shim. Validation backend was embedded fallback, not yet daemon-backed.                                                                                                               |
-| `v0.5.1-beta`                        | Scanner Signal & TUI Hotfixes            | Patch — secret/antipattern false-positive fixes, TUI zoom, audit env-template filtering, kernel import bug fixes.                                                                                                                                     |
-| `v0.6.0-beta` (locked, ready to tag) | Wow-Start Activation + Daemon-Backed RTV | `install → cd repo → anvil start` is the canonical first minute. MCP `tools/call` runs through the daemon when owner-only IPC is available, embedded path remains correctness-equivalent fallback. Driver framework + editor-driver protocol shipped. |
+| Tag           | Theme                                    | Headline capability                                                                                                                                                                                                                                   |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.5.0-beta` | AI Guardrails & Mid-Edit Validation      | Real-time AI validation fires before save through the MCP launch shim. Validation backend was embedded fallback, not yet daemon-backed.                                                                                                               |
+| `v0.5.1-beta` | Scanner Signal & TUI Hotfixes            | Patch — secret/antipattern false-positive fixes, TUI zoom, audit env-template filtering, kernel import bug fixes.                                                                                                                                     |
+| `v0.6.0-beta` | Wow-Start Activation + Daemon-Backed RTV | `install → cd repo → anvil start` is the canonical first minute. MCP `tools/call` runs through the daemon when owner-only IPC is available, embedded path remains correctness-equivalent fallback. Driver framework + editor-driver protocol shipped. |
 
-### Horizon 1 — Daemon Working End-to-End (next release window)
+### Horizon 1 — Daemon Working End-to-End — Shipped `v0.7.0-beta` (2026-05-21)
 
 **Theme:** Flip the daemon from "available when invoked" to "always-on, in-tree,
 defensible."
@@ -84,7 +85,8 @@ set of states the user can be in:
 No item ships until every state is reachable in fixtures and rendered claims
 match.
 
-**Tag candidate:** `v0.7.0-beta`. Detailed sequencing, waves, and
+**Shipped:** `v0.7.0-beta` (2026-05-21), followed by patches `v0.7.1-beta`
+(2026-05-22) and `v0.7.2-beta` (2026-05-25). Detailed sequencing, waves, and
 parallelisation in
 [RELEASE-PLAN.md → NEXT RELEASE WINDOW](./RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate).
 
