@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 19/33    |
+| CIB | —     | In Progress | 19/34    |
 
 ## Purpose
 
@@ -748,3 +748,32 @@ archive.
 - **Confidence:** low — the "is this issue resolved?" heuristic is inherently
   fuzzy (cited symbols move, behaviour is hard to grep); the win is a
   human-reviewed candidate list, not automated closure.
+
+### CIB-034: Publish sanitised release evidence for the public release mirror
+
+- **Status:** Draft
+- **Intent:** Give users of the public release mirror a concise, sanitised trust
+  record for each shipped Anvil release, even though the source project itself is
+  not public.
+- **Expected Outcome:** Each public mirror release includes a generated
+  `release-evidence.md` or equivalent manifest that names the release version,
+  tag or release ref, artefact identities, checksums or digests, publish
+  timestamps, blocking/advisory validation summary, and known accepted risks. The
+  evidence proves that the published artefacts map to the exact release ref that
+  passed blocking gates, and omits raw logs, secrets, internal hostnames,
+  customer data, provider payloads, and sensitive private-repo details.
+- **Validation:** Dry-run a release evidence generation against an existing beta
+  release and manually verify that the public mirror record is useful without
+  exposing private operational data; release verification confirms artefact
+  digest/checksum, package version, and release ref alignment.
+- **Identified From:** 2026-05-28 operator review of OpenClaw's public
+  `release-evidence.md` pattern and discussion of whether a private-source
+  project with a public release mirror benefits from public release evidence.
+- **Files:** `scripts/release/`, `plans/releases/`, public release mirror
+  publication workflow or repository, and any release runbook section that owns
+  public artefact publishing.
+- **Coordinates with:** Release orchestration / closeout flow; distribution
+  trust work under DISTRIB; future SBOM or provenance work if added.
+- **Confidence:** medium — the trust value is clear for a public mirror, but the
+  implementation must draw the sanitisation boundary carefully and prove exact
+  artefact-to-ref alignment rather than merely reporting nearby CI.

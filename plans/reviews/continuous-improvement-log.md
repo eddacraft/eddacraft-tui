@@ -1136,3 +1136,18 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The original worktree was on `main` ahead/behind origin, so opening a clean PR required replaying the intended changes into a fresh `origin/main` worktree.
 - **Improvement:** Start process/doc changes in a clean task worktree before applying live GitHub configuration, so the PR path stays direct.
 - **Follow-up:** none
+### 2026-05-28 — opencode
+
+- **Task:** File public release mirror evidence as a CIB item.
+- **Outcome:** Added CIB-030 for sanitised public release evidence records that
+  prove artefact-to-release-ref alignment without exposing private operational
+  data.
+- **Worked:** The standing CIB module was the right place because the idea has a
+  clear outcome but is not yet implementation-ready release work.
+- **Failed:** Nothing substantive.
+- **Friction:** Public trust value changes once a private-source project has a
+  public release mirror; the evidence boundary needs to be stated explicitly.
+- **Improvement:** Release-trust follow-ups should distinguish private internal
+  evidence from public mirror evidence and name the sanitisation boundary.
+- **Follow-up:** CIB-030 should be promoted or split when the release mirror
+  publication workflow is next touched.
