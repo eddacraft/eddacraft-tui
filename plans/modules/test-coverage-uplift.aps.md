@@ -4,6 +4,17 @@
 | ---- | ---------- | ----------- | -------- |
 | TCOV | @eddacraft | In Progress | 14/25    |
 
+## Progress (as of 2026-05-28)
+
+- **Fleshout pass 2026-05-28.** Phase 3 in-workspace items (TCOV-015..-018,
+  edda-stack + kindling-integration) promoted to Ready. Phase 3 mcp-server
+  items (TCOV-019..-021) re-classified `Blocked — needs decision` because
+  their target was archived under ADR-033 and excluded from the workspace.
+  Phase 4: TCOV-025 (surface trait compliance) promoted to Ready against the
+  live `eddacraft-tui`-re-export reality; TCOV-022..-024 stay `Blocked —
+  scope drift` pending a scope-refresh design call (no `theme/`/`keyboard/`
+  dirs; two-widget set). Done count unchanged at 14/25.
+
 ## Progress (as of 2026-04-21)
 
 - **Phase 1 — Rust CLI Commands:** Complete (8/8). All `anvil-cli` command and
@@ -324,6 +335,18 @@ Change status to **Ready** when:
 
 ### Phase 3 — TypeScript Package Coverage
 
+> **mcp-server items re-classified 2026-05-28 (needs decision).** TCOV-019,
+> -020, and -021 target `archive/anvil-mcp-server/`, which was **archived under
+> ADR-033 (2026-04-29)** and is **excluded from the pnpm workspace**
+> (`pnpm-workspace.yaml:51` — `!archive/**`); it is no longer an nx project and
+> is not built or tested in CI. The original Phase 3 progress note
+> (2026-04-21) predates that archival. Raising coverage on archived,
+> out-of-workspace code is almost certainly not worth doing — but **retire vs
+> keep is a scope decision**, so these three items are marked
+> `Blocked — needs decision` rather than fleshed to Ready. The
+> edda-stack and kindling-integration items (TCOV-014..-018) are unaffected and
+> are Ready. Phase 3 Ready surface is therefore TCOV-015..-018 (TCOV-014 Done).
+
 #### TCOV-014: edda-stack contracts layer tests
 
 - **Intent:** The contracts layer (938-line `edda-extended.ts`, memory types,
@@ -349,11 +372,14 @@ Change status to **Ready** when:
 - **Expected Outcome:** Tests verify that mock implementations satisfy the port
   interfaces and that the existing testing mocks are correct.
 - **Files:**
-  - `packages/edda-stack/src/contracts/ports/`
+  - `packages/edda-stack/src/contracts/ports/` (`edda.port.ts`,
+    `ember.port.ts`, `kindling.port.ts`, `index.ts`)
   - `packages/edda-stack/src/testing/mocks/`
 - **Dependencies:** —
-- **Validation:** Port tests pass; edda-stack coverage rises.
+- **Validation:** `pnpm vitest run packages/edda-stack` passes; the ports
+  layer shows ≥80% line coverage.
 - **Confidence:** high
+- **Status:** Ready
 
 #### TCOV-016: edda-stack store interfaces and migration tests
 
@@ -363,10 +389,12 @@ Change status to **Ready** when:
   implementations; migration tested with fixture data from prior versions.
 - **Files:**
   - `packages/edda-stack/src/edda/store-interfaces.ts`
-  - `packages/edda-stack/src/edda/migration/`
+  - `packages/edda-stack/src/edda/migration/` (`index.ts`)
 - **Dependencies:** —
-- **Validation:** ≥80% line coverage for store and migration modules.
+- **Validation:** `pnpm vitest run packages/edda-stack` shows ≥80% line
+  coverage for the store-interfaces and migration modules.
 - **Confidence:** medium
+- **Status:** Ready
 
 #### TCOV-017: kindling-integration emitter tests
 
@@ -375,10 +403,13 @@ Change status to **Ready** when:
 - **Expected Outcome:** Each emitter has a test file verifying event shape,
   required fields, and error handling.
 - **Files:**
-  - `packages/kindling-integration/src/emitters/*-emitter.ts`
+  - `packages/kindling-integration/src/emitters/*-emitter.ts` (action,
+    constraint, error, gate, human-input, plan, session — all present today)
 - **Dependencies:** —
-- **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%.
+- **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
+  line coverage; each emitter has a dedicated test file.
 - **Confidence:** high
+- **Status:** Ready
 
 #### TCOV-018: kindling-integration service and adapter tests
 
@@ -394,8 +425,10 @@ Change status to **Ready** when:
   - `packages/kindling-integration/src/retention.ts`
   - `packages/kindling-integration/src/status.ts`
 - **Dependencies:** —
-- **Validation:** ≥80% line coverage for the package.
+- **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
+  line coverage for the package.
 - **Confidence:** medium
+- **Status:** Ready
 
 #### TCOV-019: mcp-server per-resource isolation tests
 
@@ -410,6 +443,9 @@ Change status to **Ready** when:
 - **Validation:** Each resource test file passes independently; combined
   coverage ≥80%.
 - **Confidence:** high
+- **Status:** Blocked — needs decision. Target is archived under ADR-033 and
+  excluded from the workspace; retire this item or keep it pending an owner
+  call (see the Phase 3 callout above).
 
 #### TCOV-020: mcp-server config generator tests
 
@@ -423,6 +459,8 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** Config module reaches ≥80% line coverage.
 - **Confidence:** high
+- **Status:** Blocked — needs decision (archived target under ADR-033,
+  excluded from the workspace; see the Phase 3 callout above).
 
 #### TCOV-021: mcp-server transport and entry point tests
 
@@ -438,16 +476,34 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** ≥80% line coverage for the mcp-server package.
 - **Confidence:** medium — entry points may need process-level testing
+- **Status:** Blocked — needs decision (archived target under ADR-033,
+  excluded from the workspace; see the Phase 3 callout above).
 
 ### Phase 4 — Rust TUI Coverage
 
-> **Scope refresh required (2026-04-21).** The crate was renamed
-> `eddacraft-tui` → `anvil-tui` and its layout no longer matches the items
-> below: there is no `theme/` or `keyboard/` subdirectory, and the widget set
-> is `results_dashboard.rs` + `quick_wins_panel.rs` rather than the
-> text_input/select/confirm/log_panel widgets these items were drafted
-> against. Treat TCOV-022..025 as **Blocked — scope drift** until the items
-> are rewritten against the current `anvil-tui` structure.
+> **Scope refresh required — confirmed still needed 2026-05-28 (needs
+> design).** The crate split into `eddacraft-tui` (released crate, owns the
+> `Surface` trait + `Theme`) re-exported by `crates/anvil-tui` (cargo name
+> `eddacraft-anvil-tui`). The current `crates/anvil-tui/src/` layout does
+> **not** match TCOV-022..-024:
+>
+> - The widget set is `widgets/quick_wins_panel.rs` +
+>   `widgets/results_dashboard.rs` (both already carry `#[cfg(test)]`
+>   modules) — there is no text_input / select / confirm / log_panel widget,
+>   so TCOV-022's "each interactive widget" target has no concrete subject.
+> - There is **no `theme/` subdirectory** in `anvil-tui` (theming lives in
+>   the `eddacraft-tui` crate), so TCOV-023's theme-coverage premise is stale.
+> - There is **no `keyboard/handler.rs`**, so TCOV-024's target file does not
+>   exist.
+>
+> Deciding what Phase 4 should actually cover against the two-widget +
+> trait-re-export reality (and whether widget-interaction / theme / keyboard
+> coverage is even the right shape now that `eddacraft-tui` owns the
+> primitives) is a **scope-refresh design call**, not something to invent
+> here. TCOV-022, -023, and -024 stay `Blocked — scope drift` pending that
+> refresh. **TCOV-025 (surface trait compliance) survived the rename and is
+> promoted to Ready** below — its `surface.rs` / `surfaces/` premise still
+> holds.
 
 #### TCOV-022: anvil-tui widget interaction tests
 
@@ -489,16 +545,32 @@ Change status to **Ready** when:
 - **Confidence:** low — file path no longer exists
 - **Status:** Blocked — scope refresh
 
-#### TCOV-025: anvil-tui surface trait compliance tests
+#### TCOV-025: anvil-tui surface trait compliance tests — Ready
 
-- **Intent:** Verify all Surface trait implementations satisfy the full
-  interface contract (render, handle_key, metadata, lifecycle).
-- **Expected Outcome:** A parameterised test that runs the trait contract
-  against every registered surface in `crates/anvil-tui/src/surfaces/`.
+- **Status:** Ready — the one Phase 4 item whose premise survived the rename.
+  The `Surface` trait is defined in `crates/eddacraft-tui/src/surface.rs:13`
+  (`pub trait Surface<T: Theme = EddaCraftTheme>`) and re-exported via the
+  3-line shim `crates/anvil-tui/src/surface.rs`; `crates/anvil-tui/src/surfaces/`
+  holds the live `impl Surface` set (audit, browser, dashboard, doctor, gate,
+  init, notifications, onboarding, plan_dashboard, status, tutorial, update_hint,
+  watch, welcome, wizard).
+- **Intent:** Verify every registered `anvil-tui` surface satisfies the
+  `Surface` trait contract via a single parameterised compliance test, so a
+  new surface cannot ship a partial implementation.
+- **Expected Outcome:** A compliance test runs the trait contract (the methods
+  the trait actually requires — confirm against
+  `crates/eddacraft-tui/src/surface.rs`) against every surface in
+  `crates/anvil-tui/src/surfaces/`, and fails if a surface is added without
+  satisfying it.
 - **Files:**
-  - `crates/anvil-tui/src/surface.rs`
+  - `crates/anvil-tui/src/surface.rs` (re-export shim)
   - `crates/anvil-tui/src/surfaces/`
+  - `crates/eddacraft-tui/src/surface.rs` (trait definition — read-only
+    reference for the contract under test)
 - **Dependencies:** —
-- **Validation:** All surfaces pass the compliance test.
-- **Confidence:** medium — `surface.rs` and `surfaces/` both exist
-- **Status:** Draft
+- **Validation:** `cargo test -p eddacraft-anvil-tui surface` passes; the
+  compliance test enumerates the registered surfaces.
+- **Confidence:** medium — the trait lives in `eddacraft-tui`, a separately
+  released crate (currently `eddacraft-tui-v0.2.3`); the compliance test
+  asserts against the re-exported trait, so an upstream trait change is a real
+  (if low-frequency) source of churn.
