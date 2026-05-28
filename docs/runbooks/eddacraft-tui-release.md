@@ -53,10 +53,12 @@ if either secret is empty.
 
 ## Bootstrap gotchas
 
-The App + mirror-repo setup has three config traps that each silently fail in a
+The App + mirror-repo setup has four config traps that each silently fail in a
 distinct way on the first attempt, plus a UI save gotcha that manifests on top
-of the third. Walk through them in order; the API verification commands surface
-state the GitHub UI hides.
+of the third. Branch protection (#3) blocks the content force-push; tag
+protection (#5) blocks the release-tag push — they fail independently, so a
+green content sync does not prove the tag push will work. Walk through them in
+order; the API verification commands surface state the GitHub UI hides.
 
 ### 1. App registration ≠ App installation
 
@@ -156,6 +158,43 @@ gh api repos/eddacraft/eddacraft-tui/branches/main/protection \
 
 Expected: `true`. If the API still shows `false` after a UI save, the save
 didn't take.
+
+### 5. Tag protection blocks the App from creating release tags
+
+`Contents: Read and write` lets the App force-push `main` (content sync) but
+does **not** let it create tags when the mirror has a **tag protection rule**
+(classic Settings → Tags, or a tag ruleset) matching the release pattern. The
+App is denied with:
+
+```
+remote: Permission to eddacraft/eddacraft-tui.git denied to eddacraft-mirror-bot[bot].
+```
+
+This is the tag analog of gotcha #3 and bit the first `eddacraft-tui-v0.2.3`
+publish (run `26570817546`, step "Propagate tag to mirror"): `cargo publish`
+succeeded (0.2.3 went live on crates.io) but the tag-propagation step failed,
+leaving the mirror without the release tag. **Diagnostic:** if the content
+workflow (`.github/workflows/mirror-eddacraft-tui.yml`) is succeeding while only
+the publish workflow's tag step fails, the denial is tag-specific (not a general
+permission loss). Confirm:
+
+```bash
+# Either can block. Both reads need mirror-admin scope.
+gh api repos/eddacraft/eddacraft-tui/rulesets --jq '.[] | select(.target=="tag") | {name, enforcement}'
+gh api repos/eddacraft/eddacraft-tui/tags/protection --jq '.[].pattern'
+```
+
+Fix (one of):
+
+- Add `eddacraft-mirror-bot` to the tag ruleset's bypass list for the
+  `eddacraft-tui-v*` pattern, or
+- Scope/relax tag protection so the App can create `eddacraft-tui-v*` tags. The
+  old unprefixed `v0.x.y` tags stay protected — the App never needs to touch
+  them (D-TUIR-011).
+
+After fixing, **re-propagate the tag manually** (Rollback → "Tag propagation to
+mirror failed") — do NOT re-run the whole publish once `cargo publish` has
+already succeeded.
 
 ## First cutover (one-shot, TUIR-008)
 
@@ -337,12 +376,15 @@ git tag-pushes are not idempotent across ref-deletion.
 
 The crate is on crates.io and cannot be un-published, only yanked. Decide:
 
-- **Tag propagation to mirror failed:** the simplest recovery is to re-dispatch
-  the publish workflow via the Actions UI — the `cargo publish` step is
-  idempotent on the same version (cargo rejects double-publish), so re-running
-  only repeats the mirror push and the GitHub Release create. If you need to
-  push the tag manually (e.g. the publish workflow itself is broken), use a
-  short-lived App token minted locally rather than reaching for a PAT:
+- **Tag propagation to mirror failed:** first check whether the cause is tag
+  protection denying the App (Bootstrap gotcha #5) — if so, fix that before
+  retrying, or the retry is denied the same way. **Do NOT re-dispatch the whole
+  publish workflow once `cargo publish` has already succeeded:** the publish
+  step hard-fails on the already-published version (`cargo` rejects the
+  duplicate with a non-zero exit, and `set -e` stops the job before it reaches
+  the mirror push), so a re-dispatch fails earlier than the step you are trying
+  to retry. Instead, push **only the tag** manually with a short-lived App token
+  (not a PAT):
   ```bash
   # One-shot installation token via gh + jwt + the App private key.
   # See docs.github.com authentication-as-a-github-app for the JWT
