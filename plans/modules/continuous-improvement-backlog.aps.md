@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 20/34    |
+| CIB | —     | In Progress | 21/34    |
 
 ## Purpose
 
@@ -582,7 +582,12 @@ archive.
 
 ### CIB-029: Fix required Anvil version documentation to use exact semver
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2059
+- **Summary:** Aligned `required_anvil_version` examples with the exact-semver
+  parser contract: fixed the `anvil-l4` schema docstring + `policy.rs` fixture,
+  swept range-syntax examples out of `plans/decisions/037` and the multilayer
+  spec, and added `parse_rejects_semver_range_syntax` to lock range ops →
+  `InvalidFloor`.
 - **Intent:** Stop examples from teaching operators and test authors to write
   semver range expressions where the parser accepts only exact versions.
 - **Expected Outcome:** Documentation and inline examples for
