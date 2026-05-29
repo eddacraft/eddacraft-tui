@@ -76,6 +76,7 @@
     "validate:changed": "bash scripts/validate/local.sh --changed",
     "validate:full": "bash scripts/validate/local.sh --full",
     "test:validate-local": "bash scripts/validate/local.test.sh",
+    "test:cache-evict": "bash scripts/cache/anvil-target-evict.test.sh",
     "ci:cost": "bash scripts/ci/cost-report.sh",
     "generate:package": "nx g @eddacraft/anvil-generators:package",
     "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package",

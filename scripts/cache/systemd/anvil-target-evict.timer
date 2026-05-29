@@ -1,0 +1,11 @@
+[Unit]
+Description=Anvil: periodic disk-pressure eviction of relocated Rust targets (DEVENV-004)
+
+[Timer]
+# Fire ~hourly while the user session is active, plus shortly after login.
+OnBootSec=15min
+OnUnitInactiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

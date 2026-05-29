@@ -1,0 +1,13 @@
+[Unit]
+Description=Anvil: evict idle relocated Rust target dirs under disk pressure (DEVENV-004)
+Documentation=file:%h/Projects/src/anvil-001/docs/runbooks/cargo-target-eviction.md
+
+[Service]
+Type=oneshot
+# Replace __ANVIL_REPO__ with the absolute path to your anvil-001 checkout, e.g.
+#   sed -i "s#__ANVIL_REPO__#$HOME/Projects/src/anvil-001#" anvil-target-evict.service
+# Ships --apply: the timer is the real-run path. Run the script by hand WITHOUT
+# --apply first to preview. ANVIL_TARGET_BASE defaults to %h/.cache/anvil-targets.
+ExecStart=/usr/bin/env bash __ANVIL_REPO__/scripts/cache/anvil-target-evict.sh --apply
+Nice=10
+IOSchedulingClass=idle
