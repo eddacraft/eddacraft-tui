@@ -31,7 +31,7 @@
     "react-email": "^6.1.5"
   },
   "devDependencies": {
-    "@react-email/ui": "^6.1.5",
+    "@react-email/ui": "^6.5.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "typescript": "~6.0.3"

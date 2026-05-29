@@ -31,6 +31,6 @@
     "prepublishOnly": "napi pre-publish --tag-style npm --no-gh-release --dry-run"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.4.0"
+    "@napi-rs/cli": "^3.7.0"
   }
 }
