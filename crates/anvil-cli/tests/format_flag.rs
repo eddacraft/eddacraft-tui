@@ -14,12 +14,22 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
-/// A fresh, empty working directory so `anvil audit` scans nothing.
+/// A fresh, empty working directory so `anvil audit` scans nothing. The path is
+/// unique per invocation (process id + monotonic sequence) so concurrent runs
+/// of this integration-test binary on the same host cannot remove or recreate
+/// each other's working directory.
 fn temp_workdir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("anvil-sarifout-001-{tag}"));
+    static SEQ: AtomicU32 = AtomicU32::new(0);
+    let unique = format!(
+        "{}-{}",
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let dir = std::env::temp_dir().join(format!("anvil-sarifout-001-{tag}-{unique}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create temp workdir");
     dir
@@ -64,8 +74,11 @@ fn format_json_accepted_as_alias_on_finding_command() {
         String::from_utf8_lossy(&out.stderr)
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("`audit --format json` stdout must be valid JSON ({e}); got:\n{stdout}")
+    });
     assert!(
-        stdout.trim_start().starts_with('{'),
+        doc.is_object(),
         "`audit --format json` should emit a JSON object, got:\n{stdout}"
     );
 }
