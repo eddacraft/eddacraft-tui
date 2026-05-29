@@ -1235,8 +1235,9 @@ a backlog. Promote repeated friction or executable follow-up work to
   Outcome point 3) before it was actioned.
 - **Outcome:** Re-scoped CIB-030 to its two sound doc-gate sub-points and dropped
   point 3; added a dated correction note. The `gh release create` step in
-  `publish-eddacraft-tui.yml` is already the final step (post-`cargo publish`,
-  post tag-propagation) and has been since the workflow's creation, so the
+  `publish-eddacraft-tui.yml` is already the final state-mutating step
+  (post-`cargo publish`, post tag-propagation; only a non-mutating `Summary`
+  step follows) and has been since the workflow's creation, so the
   proposed reordering was a no-op against a false premise.
 - **Worked:** Reading the workflow and its full `git log` before editing caught a
   factually wrong backlog premise that would have produced an empty fix PR.

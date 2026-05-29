@@ -610,8 +610,9 @@ archive.
 - **Status:** Draft
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
-  step in `publish-eddacraft-tui.yml` is ALREADY the final step — it runs
-  after `cargo publish` AND after the mirror tag-propagation step, and has
+  step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating
+  step — it runs after `cargo publish` AND after the mirror tag-propagation
+  step (only a non-mutating `Summary` step follows it), and has
   been positioned there since the workflow's creation
   (`24884c1de`). There is no early `gh release create` to move, so point 3 is
   dropped. The stray `eddacraft-tui-v0.2.3` GitHub Release was therefore NOT
