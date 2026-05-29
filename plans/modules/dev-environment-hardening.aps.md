@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 4/8      |
+| DEVENV | —     | In Progress | 5/8      |
 
 ## Purpose
 
@@ -169,7 +169,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-006: Fix worktree creation + bootstrap in `.config/wt.toml`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2113
 - **Wave:** 1 (harden now)
 - **Intent:** Make a fresh worktree start from `origin/main`, build cleanly, and
   fail loudly when it doesn't.
