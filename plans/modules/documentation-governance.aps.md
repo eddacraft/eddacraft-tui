@@ -462,6 +462,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 ### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
 
 - **Status:** Draft
+- **Tracking:** [#2075](https://github.com/eddacraft/anvil-001/issues/2075)
 - **Authorisation:** Not yet authorised for implementation — filed as a tracked
   backlog item from the 2026-05-29 clawpatch periodic scan. Needs the normal
   operator/APS go-ahead (or a hotfix decision) before code work begins.
@@ -502,6 +503,5 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 - **Files:** `scripts/docs/docs-check.mjs`, `scripts/docs/check-links.mjs`,
   `docs/governance/docs-check.baseline.json` (only if regeneration semantics
   change require it), plus fixture tests under the docs-check test surface.
-- **Coordinates with:** DOCGOV-006/-007 (same surface family); GH tracking issue
-  pending operator confirmation.
+- **Coordinates with:** DOCGOV-006/-007 (same surface family).
 - **Confidence:** high

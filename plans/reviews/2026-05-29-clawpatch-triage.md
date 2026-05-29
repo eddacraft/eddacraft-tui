@@ -39,8 +39,8 @@ an issue.
 
 All three are confirmed/contract bugs in DOCGOV-owned gating tooling. Same file
 family, so routed as **one** APS item: **DOCGOV-012**
-(`plans/modules/documentation-governance.aps.md`). GH tracking issue pending
-operator confirmation.
+(`plans/modules/documentation-governance.aps.md`), tracked by GH issue
+[#2075](https://github.com/eddacraft/anvil-001/issues/2075).
 
 - `fnd_sig-feat-library-34bc4660c0-5f3f` — **[medium] data-loss, confirmed-bug.**
   `--update-baseline` can overwrite `docs-check.baseline.json` after a partial
