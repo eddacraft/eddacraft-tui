@@ -1,7 +1,7 @@
 # Watch Output Contract — `anvil.watch.event.v1`
 
-| Type | Authority     | Owner                                                                                                   | Status | Freshness                                                                                          |
-| ---- | ------------- | ------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| Type | Authority     | Owner                                                                                                   | Status | Freshness                                                                                                       |
+| ---- | ------------- | ------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
 | Spec | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](../../plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-29 against `main`; WOUT-001..006 implemented and documented as the stable v1 watch stream |
 
 | Upstream                                                                                                                                          | Downstream                                                                                                                                                                                                     |
@@ -284,8 +284,9 @@ read it was relying on implementation detail.
 ## Open Questions
 
 1. Should `anvil.watch.event.v1` also publish a JSON Schema under
-   `packages/anvil/contracts` for non-Rust consumers? **Still deferred.** WOUT-005
-   landed golden fixtures first; schema export remains a separate future work item.
+   `packages/anvil/contracts` for non-Rust consumers? **Still deferred.**
+   WOUT-005 landed golden fixtures first; schema export remains a separate
+   future work item.
 2. Should JSON mode emit a terminal `shutdown` / `stopped` event on Ctrl-C? **No
    for v1.** EOF terminates the stream; revisit if v2 work shows a need.
 3. Should action child `stderr` become an explicit `action_output` event? **Not
