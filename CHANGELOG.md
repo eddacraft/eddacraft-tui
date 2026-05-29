@@ -34,12 +34,12 @@ banner for the consumption contract.
 - **Canonical source relocated** into the Anvil monorepo. The public repository
   becomes a read-only, automation-mirrored copy; contributions and releases flow
   through the monorepo.
-- **Mechanical clippy cleanups** to satisfy the stricter workspace
-  `-D warnings` gate: `map_or` for `map_unwrap_or`, backticked identifiers in
-  doc comments, `let ... else`, inlined format args, and a test-only
-  `repeat_words` helper in place of a `format`-collect. No behaviour or public
-  API change; the crate's `[lints]` block still treats `clippy::pedantic` as
-  `warn` for downstream consumers building from crates.io.
+- **Mechanical clippy cleanups** to satisfy the stricter workspace `-D warnings`
+  gate: `map_or` for `map_unwrap_or`, backticked identifiers in doc comments,
+  `let ... else`, inlined format args, and a test-only `repeat_words` helper in
+  place of a `format`-collect. No behaviour or public API change; the crate's
+  `[lints]` block still treats `clippy::pedantic` as `warn` for downstream
+  consumers building from crates.io.
 
 ## [0.2.2] - 2026-05-08
 
