@@ -70,9 +70,14 @@ The CIB-014 line citations drifted; corrected anchors on the
   `--format` flag today.
 - **`anvil check`:** no `CheckResult` struct. JSON is built by
   `build_json_output(...)` (`check.rs:1030`) over `JsonWarning`
-  (`check.rs:151`); `JsonWarning` carries a `suppressed: Option<…>` field
-  (`check.rs:556`, filtered at `:675`, `:1118`+) — this is the baseline /
-  `@anvil-ignore` suppression signal.
+  (`check.rs:151`). Important: **`JsonWarning` itself has no `suppressed`
+  field** — it is `id/category/severity/title/message/file/line/suggestion/
+  nudge` only, and `antipattern_warning_to_json` (`check.rs:443`) drops
+  suppression when projecting. The suppression signal lives on the **upstream
+  `Warning` type** as `Warning.suppressed: Option<…>` (read at `check.rs:556`,
+  `:675`, `:1118`+) — this is the baseline / `@anvil-ignore` signal. The SARIF
+  adapter must therefore read suppression from the upstream `Warning` path
+  **before** the JSON projection, not from `JsonWarning`.
 - **`anvil gate`:** `GateResult` (`gate.rs:134`) holds `Vec<CheckResult>`
   (per-check pass/score/message, `gate.rs:142`); the AI-profile JSON envelope is
   `AiGateResultEnvelope` (`gate.rs:1896`) built by
@@ -187,7 +192,7 @@ machine-output format.
 
 | Command | Source shape | SARIF `results[]` unit | `ruleId` source | `locations[]` | `suppressions[]` |
 | ------- | ------------ | ---------------------- | --------------- | ------------- | ---------------- |
-| `check` | `JsonWarning` (per warning) | one result per warning | warning/pattern id | file + line/region from warning | `JsonWarning.suppressed` → one `suppression` (kind `external`/`inSource`) |
+| `check` | upstream `Warning` (per warning; read before the `JsonWarning` projection) | one result per warning | warning/pattern id | file + line/region from warning | `Warning.suppressed` → one `suppression` (kind `external`/`inSource`) — note `JsonWarning` drops this field, so the adapter reads the upstream `Warning` |
 | `gate`  | `GateResult.checks[]` | one result per failed/needs-config check | check `name` | repo-level or config-file location | config-gap (`requires_config`) → suppression or `notification`, decided at impl |
 | `audit` | `AuditOutput.issues[]` | one result per issue | `category` | `file` + `line` | none in v1 (audit has no suppression field today) |
 

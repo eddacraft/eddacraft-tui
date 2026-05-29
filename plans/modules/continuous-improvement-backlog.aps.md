@@ -249,8 +249,10 @@ archive.
 ### CIB-014: SARIF output for `anvil check` / `anvil gate` / `anvil audit`
 
 - **Status:** Done
-- **Promoted to:** [`sarif-output`](sarif-output.aps.md) (SARIFOUT module,
-  Proposed) on 2026-05-29.
+- **Superseded by:** [`sarif-output`](sarif-output.aps.md) (SARIFOUT module,
+  Proposed) on 2026-05-29 — promoted into a dedicated APS module per the CIB
+  intake rule; the `Superseded by:` label matches this module's cross-cutting
+  convention sweep.
 - **Summary:** Promoted out of the backlog into a dedicated APS module per the
   CIB intake rule ("promote into a dedicated APS module"). The 2026-05-29
   design pass

@@ -149,10 +149,13 @@ after design sign-off; run `pnpm adr:check` for the next number.
 - **Intent:** `anvil check --format sarif` emits schema-valid SARIF including
   baseline / `@anvil-ignore`-suppressed findings under `suppressions[]`.
 - **Expected Outcome:** `check` warnings map to SARIF `results[]` with
-  `ruleId` / `level` / `message` / `locations[]`; suppressed warnings
-  (`JsonWarning.suppressed`) render as `results[].suppressions[]` (§3.35) so
-  reviewers see what was accepted at baseline time; the result set matches the
-  JSON output's finding set.
+  `ruleId` / `level` / `message` / `locations[]`; suppressed warnings render as
+  `results[].suppressions[]` (§3.35) so reviewers see what was accepted at
+  baseline time; the result set matches the JSON output's finding set. Note: the
+  serialized `JsonWarning` shape drops suppression state, so the adapter reads
+  `Warning.suppressed` from the **upstream `Warning`** path before the JSON
+  projection (`antipattern_warning_to_json`) — or, if cleaner at impl time,
+  carries suppression onto `JsonWarning` first; the PR records which.
 - **Validation:** `cargo test -p anvil-cli` — golden + schema-validation fixture
   including at least one suppressed finding.
 - **Files:** `crates/anvil-cli/src/commands/check.rs`,
