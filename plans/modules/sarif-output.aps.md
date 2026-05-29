@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 5/6      |
+| SARIFOUT | —     | In Progress | 6/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -108,13 +108,13 @@ with SARIFOUT-002).
 
 ## Work Items
 
-> Status: In Progress. The three design decisions (flag surface, module home,
-> shared model) were ratified by the operator on 2026-05-29, promoting this
-> module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 Merged
-> via PR #2105; SARIFOUT-003 via PR #2107; SARIFOUT-004 via PR #2112;
-> SARIFOUT-005 via PR #2115; SARIFOUT-006 In Progress. Flag surface landed per-command
-> (not
-> global) — see ADR-056's Amendment.
+> Status: In Progress (all six work items Merged; module advances to Complete
+> when release evidence is recorded, per the dev-workflow lifecycle). The three
+> design decisions (flag surface, module home, shared model) were ratified by the
+> operator on 2026-05-29, promoting this module out of Proposed. SARIFOUT-001
+> Merged via PR #2099; SARIFOUT-002 via PR #2105; SARIFOUT-003 via PR #2107;
+> SARIFOUT-004 via PR #2112; SARIFOUT-005 via PR #2115; SARIFOUT-006 via PR
+> #2116. Flag surface landed per-command (not global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
 
@@ -237,7 +237,7 @@ with SARIFOUT-002).
 
 ### SARIFOUT-006: Docs, CHANGELOG, and manual Code Scanning upload smoke check
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2116
 - **Intent:** The SARIF surface is documented and validated end-to-end against a
   real Code Scanning consumer out-of-band.
 - **Expected Outcome:** the GitHub integration guide gains a **Code Scanning
