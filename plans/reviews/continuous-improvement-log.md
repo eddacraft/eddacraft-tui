@@ -1270,3 +1270,20 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Author the two candidate ADRs (`--format` value-enum;
   shared-emitter/no-finding-model) alongside SARIFOUT-001/-002 after sign-off.
 
+### 2026-05-29 — claude
+
+- **Task:** Draft ADR-056 recording the operator-ratified `--format` value-enum
+  output-selector decision (SARIFOUT design Decision 1) before SARIFOUT-001.
+- **Outcome:** Added `plans/decisions/056-format-flag-output-selector.md`
+  (Proposed) + DECISION-LOG row; `adr:check` clean (57/57), `format:check` and
+  `docs:check` (0 errors) green.
+- **Worked:** Branched the worktree from `origin/main` (not the stale shared
+  main), so the ADR's link to the SARIFOUT design doc and the current ADR count
+  resolved correctly.
+- **Failed:** Nothing substantive.
+- **Friction:** `pnpm adr:check` must run against the live repo for the real
+  next-available number; `test:adr-integrity` (fixtures) won't surface it.
+- **Improvement:** none
+- **Follow-up:** Second candidate ADR (shared SARIF emitter / no shared
+  finding-model) still to author alongside SARIFOUT-002.
+
