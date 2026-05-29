@@ -5,12 +5,19 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | In Progress | 5/6  |
+| LANGTS | —     | In Progress | 6/6  |
 
-**Last reviewed:** 2026-05-29 — LANGTS-002 (TS extraction gaps TS-G1/TS-G2:
+**Last reviewed:** 2026-05-30 — LANGTS-004 (Zod-creep rules) Merged via PR
+#2125 as AP-015 (`z.any()` + Zod `.passthrough()`, on by default) + AP-016
+(`z.unknown()`, opt-in), advancing the done count to **6/6** (all items
+merged; module stays In Progress pending release-tag evidence, per the
+DISTRIB 5/5 precedent). The Council renumbered off the retired
+`AP-010..AP-013` range and split `z.unknown()` to opt-in (idiomatic + the
+recommended `any` alternative) — see the LANGTS-004 spec reconciliation.
+2026-05-29 — LANGTS-002 (TS extraction gaps TS-G1/TS-G2:
 interface/type/enum + class-method symbols) Merged via PR #2106, advancing
 the done count to **5/6** (LANGTS-001, -002, -003, -005, -006 done; -004
-Ready). Earlier the same day LANGTS-005 (kernel-prerequisite refactor,
+done 2026-05-30). Earlier the same day LANGTS-005 (kernel-prerequisite refactor,
 K1–K4) Merged via PR #2096 (4/6). Earlier, 2026-05-28:
 the two bounded open questions were resolved inline (single module, no
 `lang-ts-prereq` split; K1 extractor-trait ADR deferred to RSTLAN per the
@@ -193,9 +200,13 @@ K1 ADR) were resolved inline above.
 - **Evidence:**
   [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).
 
-### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — In Progress
+### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-30 via PR
+  [#2125](https://github.com/eddacraft/anvil-001/pull/2125) — AP-015
+  (`z.any()` + Zod `.passthrough()`, on by default) and AP-016
+  (`z.unknown()`, opt-in) ship in the `type-system-evasion` family.
+  Awaiting release-tag evidence to advance to Released/Shipped.
 - **Intent:** Close audit gap TS-G5 by adding the cross-cutting Zod-creep
   rules so escape hatches in schema definitions trip the gate the same way
   the existing `any` / `as any` / `@ts-ignore` rules do.
