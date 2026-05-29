@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 1/6      |
+| SARIFOUT | —     | In Progress | 2/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -110,8 +110,9 @@ with SARIFOUT-002).
 
 > Status: In Progress. The three design decisions (flag surface, module home,
 > shared model) were ratified by the operator on 2026-05-29, promoting this
-> module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 In
-> Progress; SARIFOUT-003..006 Ready. Flag surface landed per-command (not
+> module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 Merged
+> via PR #2105; SARIFOUT-003 In Progress; SARIFOUT-004..006 Ready. Flag surface
+> landed per-command (not
 > global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
@@ -140,7 +141,7 @@ with SARIFOUT-002).
 
 ### SARIFOUT-002: Shared SARIF 2.1.0 emitter and schema-validation harness
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2105
 - **Intent:** A bounded, reusable SARIF document emitter exists with a
   deterministic schema-validation gate, independent of any command wiring.
 - **Expected Outcome:** `crates/anvil-cli/src/output/sarif.rs` produces a SARIF
@@ -162,21 +163,26 @@ with SARIFOUT-002).
 
 ### SARIFOUT-003: `anvil check` SARIF adapter with `suppressions[]`
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `anvil check --format sarif` emits schema-valid SARIF including
-  baseline / `@anvil-ignore`-suppressed findings under `suppressions[]`.
-- **Expected Outcome:** `check` warnings map to SARIF `results[]` with
-  `ruleId` / `level` / `message` / `locations[]`; suppressed warnings render as
-  `results[].suppressions[]` (§3.35) so reviewers see what was accepted at
-  baseline time; the result set matches the JSON output's finding set. Note: the
-  serialized `JsonWarning` shape drops suppression state, so the adapter reads
-  `Warning.suppressed` from the **upstream `Warning`** path before the JSON
-  projection (`antipattern_warning_to_json`) — or, if cleaner at impl time,
-  carries suppression onto `JsonWarning` first; the PR records which.
-- **Validation:** `cargo test -p anvil-cli` — golden + schema-validation fixture
-  including at least one suppressed finding.
+  `@anvil-ignore`-suppressed findings under `suppressions[]`.
+- **Expected Outcome:** both `check` paths (source scan + non-source artifact)
+  build SARIF directly from the upstream typed findings — antipattern `Warning`s
+  and secret `SecretFinding`s — so suppression is read from `Warning.suppressed`
+  **before** the `JsonWarning` projection drops it. Each finding → one
+  `results[]` entry (`ruleId`/`level`/`message`/`locations[]` with line +
+  column); suppressed warnings carry an in-source `suppressions[]` entry (§3.35)
+  with the suppression reason as `justification`; `partialFingerprints` reuse
+  `Warning.fingerprint` when present, else a stable digest. The result set
+  matches the JSON finding set (suppressed warnings are in both). SARIF stays
+  exit-code-neutral and is kept off stdout-printed human notices.
+- **Validation:** `cargo test -p eddacraft-anvil` — `check.rs` unit test builds
+  an accumulator with a normal + suppressed warning + a secret and validates the
+  document against the bundled schema (asserting `suppressions[]`, deduped
+  `rules[]`, secret ruleId/path); `tests/format_flag.rs` runs `check --format
+  sarif` end to end and parses the SARIF envelope.
 - **Files:** `crates/anvil-cli/src/commands/check.rs`,
-  `crates/anvil-cli/src/output/sarif.rs`.
+  `crates/anvil-cli/src/output/sarif.rs` (consumer), `crates/anvil-cli/tests/format_flag.rs`.
 - **Dependencies:** SARIFOUT-001, SARIFOUT-002
 - **Confidence:** high
 

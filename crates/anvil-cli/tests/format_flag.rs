@@ -70,12 +70,12 @@ fn format_json_accepted_as_alias_on_finding_command() {
     );
 }
 
-/// All three finding-emitting commands reach the SARIF path (and report the
-/// pending state) via their own `--format sarif`. `check` and `gate` bail
-/// before any file scan / check run, so this needs no project setup.
+/// The not-yet-wired finding commands report the pending state via their own
+/// `--format sarif` (both bail before any work, so no project setup needed).
+/// `check` is wired in SARIFOUT-003 and covered separately below.
 #[test]
-fn format_sarif_reaches_sarif_path_on_each_finding_command() {
-    for command in ["check", "gate", "audit"] {
+fn format_sarif_reports_pending_on_unwired_commands() {
+    for command in ["gate", "audit"] {
         let dir = temp_workdir(&format!("sarif-{command}"));
         let out = anvil(&dir)
             .args(["--no-tui", command, "--format", "sarif"])
@@ -94,4 +94,26 @@ fn format_sarif_reaches_sarif_path_on_each_finding_command() {
             "expected the SARIF-pending message for `{command}`, got stderr:\n{stderr}"
         );
     }
+}
+
+/// SARIFOUT-003: `anvil check --format sarif` emits a well-formed SARIF 2.1.0
+/// document on stdout (envelope + anvil driver), end to end.
+#[test]
+fn check_format_sarif_emits_well_formed_document() {
+    let dir = temp_workdir("check-sarif");
+    std::fs::write(dir.join("sample.ts"), "const x: any = 1;\n").expect("write fixture");
+    let out = anvil(&dir)
+        .args(["--no-tui", "check", "--all", "--format", "sarif"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("`check --format sarif` stdout must be valid JSON ({e}); got:\n{stdout}")
+    });
+    assert_eq!(doc["version"], "2.1.0", "SARIF version");
+    assert_eq!(
+        doc["runs"][0]["tool"]["driver"]["name"], "anvil",
+        "tool.driver.name"
+    );
+    assert!(doc["runs"][0]["results"].is_array(), "results[] present");
 }

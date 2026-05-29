@@ -12,11 +12,12 @@
 //! (`sarif-schema-2.1.0.json`, vendored verbatim from schemastore) is the
 //! validation gate: the test module checks emitted documents against it.
 
-// The emitter ships ahead of its consumers: the per-command adapters that call
-// this API land in SARIFOUT-003/004/005. Until the first adapter wires it, the
-// public surface is unused in the binary build, so dead-code analysis is
-// silenced here. The test module exercises the full surface today; remove this
-// allow once an adapter consumes the emitter.
+// The `anvil check` adapter (SARIFOUT-003) consumes most of this API; the
+// remaining surface (e.g. `SuppressionKind::External`, `Level::None`,
+// `ReportingDescriptor::help_uri`) is a faithful slice of the SARIF model kept
+// for the `audit` / `gate` adapters (SARIFOUT-004/005) and is exercised by the
+// test module. Dead-code analysis is silenced module-wide rather than scattering
+// per-item allows.
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
@@ -27,7 +28,9 @@ use sha2::{Digest, Sha256};
 /// SARIF specification version Anvil emits.
 pub const SARIF_VERSION: &str = "2.1.0";
 
-/// `$schema` URI advertised in emitted documents (matches the bundled schema).
+/// `$schema` URI advertised in emitted documents. This is the schemastore
+/// distribution of SARIF 2.1.0 (the bundled schema's own `$id` is the OASIS raw
+/// URL); both describe the same 2.1.0 schema.
 pub const SARIF_SCHEMA_URI: &str = "https://json.schemastore.org/sarif-2.1.0.json";
 
 /// `tool.driver.name` for every Anvil-emitted run.

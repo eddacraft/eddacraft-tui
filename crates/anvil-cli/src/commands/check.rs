@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
@@ -20,7 +20,7 @@ use anvil_checks::secret::{SecretCheckConfig, SecretFinding, run_secret_check};
 use crate::GlobalArgs;
 use crate::commands::check_catalog::canonical_check_name;
 use crate::commands::gate::read_anvilrc_checks;
-use crate::output::{self, OutputMode};
+use crate::output::{self, OutputMode, sarif};
 use crate::util::is_ignored_dir_name;
 
 /// Canonical names of checks the planless `anvil check` path can run.
@@ -171,14 +171,11 @@ struct JsonWarning {
 #[allow(clippy::too_many_lines)] // Linear phase pipeline (parse → gather → dispatch → render).
 pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let mode = OutputMode::from_command_format(args.format, global);
-    // SARIFOUT-003 replaces this guard with the real `anvil check` SARIF
-    // adapter. Bail early — before file-selection short-circuits and the
-    // blocking-warning handling — so `--format sarif` behaves consistently
-    // regardless of how many files match.
-    if mode == OutputMode::Sarif {
-        bail!("{}", output::sarif_pending_message("check"));
-    }
     let start = Instant::now();
+    // SARIFOUT-003: collect SARIF results alongside the JSON projection when
+    // `--format sarif` is requested. An empty document is emitted for the
+    // early-return guards below so the SARIF stream is always well-formed.
+    let mut sarif = SarifAccumulator::default();
 
     // Validate mutually exclusive flags. `--staged` and `--since` imply
     // `--changed`, so treat any of them as the change-selection mode.
@@ -208,13 +205,15 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         };
         if mode == OutputMode::Json {
             output::json::print(&empty_output(elapsed, message))?;
+        } else if mode == OutputMode::Sarif {
+            output::json::print(&SarifAccumulator::default().into_log())?;
         } else {
             output::plain::info(message);
         }
         return Ok(());
     }
 
-    if mode != OutputMode::Json && global.verbose {
+    if matches!(mode, OutputMode::Plain | OutputMode::Tui) && global.verbose {
         output::plain::info(&format!("Analysing {} file(s)...", files.len()));
     }
 
@@ -251,13 +250,15 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         );
         if mode == OutputMode::Json {
             output::json::print(&empty_output(elapsed, &message))?;
+        } else if mode == OutputMode::Sarif {
+            output::json::print(&SarifAccumulator::default().into_log())?;
         } else {
             output::plain::warn(&message);
         }
         return Ok(());
     }
 
-    if mode != OutputMode::Json && global.verbose {
+    if matches!(mode, OutputMode::Plain | OutputMode::Tui) && global.verbose {
         output::plain::info(&format!("Running checks: {}", enabled_checks.join(", ")));
     }
 
@@ -282,6 +283,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 }
                 for w in &result.warnings.warnings {
                     aggregated_warnings.push(antipattern_warning_to_json(w));
+                    if mode == OutputMode::Sarif {
+                        sarif.add_warning(w);
+                    }
                 }
                 aggregated_patterns.extend(result.patterns_checked);
                 checks_run.push((*check_name).to_string());
@@ -311,6 +315,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
                 for finding in &result.findings {
                     aggregated_warnings.push(secret_finding_to_json(finding));
+                    if mode == OutputMode::Sarif {
+                        sarif.add_secret(finding);
+                    }
                 }
                 checks_run.push((*check_name).to_string());
             }
@@ -334,6 +341,8 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     if !any_files_scanned {
         if mode == OutputMode::Json {
             output::json::print(&empty_output(elapsed, "No analysable files found"))?;
+        } else if mode == OutputMode::Sarif {
+            output::json::print(&SarifAccumulator::default().into_log())?;
         } else {
             output::plain::warn(
                 "No analysable files found (0 scanned). Check file extensions and readability.",
@@ -367,9 +376,8 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             );
             output::json::print(&json_output)?;
         }
-        // `Sarif` is handled by the early bail above; grouped here only for
-        // match exhaustiveness (SARIFOUT-003 wires real emission).
-        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+        OutputMode::Sarif => output::json::print(&sarif.into_log())?,
+        OutputMode::Plain | OutputMode::Tui => {
             print_human(
                 &aggregated_warnings_for_print(&aggregated_warnings),
                 &summary,
@@ -382,7 +390,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     }
 
     if has_blocking {
-        if mode != OutputMode::Json {
+        // Keep the blocking notice off the machine-output streams (it goes to
+        // stdout); JSON and SARIF stay well-formed. Exit code is unchanged.
+        if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
             output::plain::error("Blocking warnings found (severity meets threshold)");
         }
         // Signal failure via AlreadyReported so main exits with EXIT_ERROR
@@ -480,11 +490,17 @@ fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
 /// paths (e.g. `src/smelly.ts`). Strip the leading slash here so a single
 /// JSON response stays internally consistent and downstream consumers can
 /// match warnings to entries in `files` without special-casing secrets.
-fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
-    let id = format!(
+/// Stable rule id for a secret-scanner finding, shared by the JSON projection
+/// and the SARIF adapter so the same finding carries the same `ruleId`.
+fn secret_rule_id(pattern_name: &str) -> String {
+    format!(
         "SECRET-{}",
-        f.pattern_name.to_ascii_uppercase().replace(' ', "-")
-    );
+        pattern_name.to_ascii_uppercase().replace(' ', "-")
+    )
+}
+
+fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
+    let id = secret_rule_id(&f.pattern_name);
     let file = f.file.strip_prefix('/').unwrap_or(&f.file).to_string();
     JsonWarning {
         id,
@@ -498,6 +514,87 @@ fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
             "Move the value to a secret manager or environment variable; never commit literals."
                 .to_string(),
         nudge: None,
+    }
+}
+
+// ── SARIF adapter (SARIFOUT-003) ────────────────────────────────────
+//
+// Maps `anvil check` findings into the shared SARIF emitter. The result set is
+// the full warning list (matching the JSON output's finding set); suppressed
+// antipattern warnings are read from the upstream `Warning.suppressed` — which
+// the `JsonWarning` projection drops — and rendered under `results[].
+// suppressions[]` so reviewers see what was accepted at scan time.
+
+/// Map an antipattern `WarningSeverity` to a SARIF `level`.
+fn sarif_level(severity: WarningSeverity) -> sarif::Level {
+    match severity {
+        WarningSeverity::Error => sarif::Level::Error,
+        WarningSeverity::Warning => sarif::Level::Warning,
+        WarningSeverity::Info => sarif::Level::Note,
+    }
+}
+
+/// Accumulates check findings into a SARIF document, registering each distinct
+/// rule once (`tool.driver.rules[]`).
+#[derive(Default)]
+struct SarifAccumulator {
+    rules: BTreeMap<String, sarif::ReportingDescriptor>,
+    results: Vec<sarif::SarifResult>,
+}
+
+impl SarifAccumulator {
+    fn add_warning(&mut self, w: &Warning) {
+        self.rules.entry(w.id.clone()).or_insert_with(|| {
+            sarif::ReportingDescriptor::new(w.id.clone()).short_description(w.title.clone())
+        });
+        let line = u32::try_from(w.location.line).unwrap_or(u32::MAX);
+        let mut region = sarif::Region::line(line);
+        if let Some(col) = w.location.column {
+            region = region.column(u32::try_from(col).unwrap_or(u32::MAX));
+        }
+        let fingerprint = w.fingerprint.clone().unwrap_or_else(|| {
+            sarif::stable_fingerprint(&w.id, &w.location.file, Some(line), &w.message)
+        });
+        let mut result =
+            sarif::SarifResult::new(w.id.clone(), sarif_level(w.severity), w.message.clone())
+                .location(sarif::Location::new(w.location.file.clone(), Some(region)))
+                .fingerprint("anvilFingerprint/v1", fingerprint);
+        if let Some(s) = &w.suppressed {
+            // `check` suppressions are in-source (`@anvil-ignore`) markers.
+            result = result.suppression(
+                sarif::Suppression::new(sarif::SuppressionKind::InSource)
+                    .justification(s.reason.clone()),
+            );
+        }
+        self.results.push(result);
+    }
+
+    fn add_secret(&mut self, f: &SecretFinding) {
+        let id = secret_rule_id(&f.pattern_name);
+        let file = f.file.strip_prefix('/').unwrap_or(&f.file).to_string();
+        self.rules.entry(id.clone()).or_insert_with(|| {
+            sarif::ReportingDescriptor::new(id.clone())
+                .short_description(format!("Potential secret: {}", f.pattern_name))
+        });
+        let line = u32::try_from(f.line).unwrap_or(u32::MAX);
+        let result =
+            sarif::SarifResult::new(id.clone(), sarif::Level::Error, f.redacted_line.clone())
+                .location(sarif::Location::new(
+                    file.clone(),
+                    Some(sarif::Region::line(line)),
+                ))
+                .fingerprint(
+                    "anvilFingerprint/v1",
+                    sarif::stable_fingerprint(&id, &file, Some(line), &f.redacted_line),
+                );
+        self.results.push(result);
+    }
+
+    fn into_log(self) -> sarif::SarifLog {
+        sarif::SarifLog::new(sarif::Run::new(
+            self.rules.into_values().collect(),
+            self.results,
+        ))
     }
 }
 
@@ -593,11 +690,6 @@ fn run_non_source_artifact(
     start: Instant,
 ) -> Result<()> {
     let mode = OutputMode::from_command_format(args.format, global);
-    // SARIFOUT-003 wires the real `anvil check` SARIF adapter; until then,
-    // bail early so `--format sarif` is consistent on the non-source path too.
-    if mode == OutputMode::Sarif {
-        bail!("{}", output::sarif_pending_message("check"));
-    }
 
     if args.all || args.changed_mode() || args.extensions.is_some() {
         bail!(
@@ -714,9 +806,14 @@ fn run_non_source_artifact(
             );
             output::json::print(&json_output)?;
         }
-        // `Sarif` is handled by the early bail above; grouped here only for
-        // match exhaustiveness (SARIFOUT-003 wires real emission).
-        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+        OutputMode::Sarif => {
+            let mut sarif = SarifAccumulator::default();
+            for w in &warning_result.warnings {
+                sarif.add_warning(w);
+            }
+            output::json::print(&sarif.into_log())?;
+        }
+        OutputMode::Plain | OutputMode::Tui => {
             print_human(
                 &warning_result.warnings,
                 &warning_result.summary,
@@ -729,7 +826,7 @@ fn run_non_source_artifact(
     }
 
     if has_blocking {
-        if mode != OutputMode::Json {
+        if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
             output::plain::error("Blocking warnings found (severity meets threshold)");
         }
         Err(output::AlreadyReported.into())
@@ -1938,5 +2035,108 @@ mod tests {
         // that we don't crash, don't double-mark scanned, and surface a
         // clean exit.
         assert!(result.is_ok(), "all-skip-extension inputs should not block");
+    }
+
+    // ── SARIF adapter (SARIFOUT-003) ────────────────────────────────
+
+    fn ap_warning(id: &str, severity: WarningSeverity, suppressed: bool) -> Warning {
+        use anvil_checks::antipattern::{
+            Confidence, Location, Suppression, SuppressionScope, WarningCategory,
+        };
+        Warning {
+            id: id.to_string(),
+            fingerprint: None,
+            category: WarningCategory::AntiPattern,
+            severity,
+            confidence: Confidence::High,
+            title: format!("{id} title"),
+            message: format!("{id} message"),
+            explanation: String::new(),
+            suggestion: "fix it".to_string(),
+            nudge: None,
+            location: Location {
+                file: "src/foo.ts".to_string(),
+                line: 10,
+                column: Some(5),
+                end_line: None,
+                end_column: None,
+            },
+            pattern: Some(id.to_string()),
+            suppressed: suppressed.then(|| Suppression {
+                reason: "baseline-accepted".to_string(),
+                author: None,
+                timestamp: None,
+                scope: SuppressionScope::Line,
+            }),
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+        }
+    }
+
+    #[test]
+    fn sarif_adapter_emits_schema_valid_document_with_suppressions() {
+        let mut acc = SarifAccumulator::default();
+        acc.add_warning(&ap_warning("AP-003", WarningSeverity::Warning, false));
+        acc.add_warning(&ap_warning("AP-006", WarningSeverity::Error, true));
+        acc.add_secret(&SecretFinding {
+            file: "/src/config.ts".to_string(),
+            line: 7,
+            finding_type: anvil_checks::secret::FindingType::Pattern,
+            pattern_name: "OpenAI key".to_string(),
+            redacted_match: "sk-…".to_string(),
+            redacted_line: "const k = \"sk-…\"".to_string(),
+        });
+        let value = serde_json::to_value(acc.into_log()).expect("serialise");
+
+        // Schema validation against the bundled upstream 2.1.0 schema.
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../output/sarif-schema-2.1.0.json"))
+                .expect("schema json");
+        let validator = jsonschema::validator_for(&schema).expect("compile schema");
+        let errors: Vec<String> = validator
+            .iter_errors(&value)
+            .map(|e| format!("{} at {}", e, e.instance_path()))
+            .collect();
+        assert!(errors.is_empty(), "schema errors:\n{}", errors.join("\n"));
+
+        let results = value["runs"][0]["results"].as_array().expect("results");
+        assert_eq!(results.len(), 3, "one result per finding");
+
+        // The suppressed antipattern carries an in-source suppression with its
+        // reason; the secret's id and leading-slash stripping match the JSON
+        // projection; rules are deduplicated.
+        let suppressed = results
+            .iter()
+            .find(|r| r["ruleId"] == "AP-006")
+            .expect("AP-006 result");
+        assert_eq!(suppressed["suppressions"][0]["kind"], "inSource");
+        assert_eq!(
+            suppressed["suppressions"][0]["justification"],
+            "baseline-accepted"
+        );
+        assert_eq!(suppressed["level"], "error");
+
+        assert!(
+            results.iter().any(|r| r["ruleId"] == "SECRET-OPENAI-KEY"),
+            "secret rule id matches the JSON projection"
+        );
+        let secret = results
+            .iter()
+            .find(|r| r["ruleId"] == "SECRET-OPENAI-KEY")
+            .unwrap();
+        assert_eq!(
+            secret["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+            "src/config.ts"
+        );
+
+        let rules = value["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules");
+        assert_eq!(rules.len(), 3, "AP-003, AP-006, SECRET-OPENAI-KEY deduped");
+
+        // Non-suppressed result has no suppressions key (omitted when empty).
+        let plain = results.iter().find(|r| r["ruleId"] == "AP-003").unwrap();
+        assert!(plain.get("suppressions").is_none());
     }
 }

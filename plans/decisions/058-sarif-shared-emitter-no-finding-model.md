@@ -77,7 +77,8 @@ refactor that nothing else currently needs.
 
 ## Consequences
 
-- **Positive:** A reusable SARIF emitter for any future machine-output format;
+- **Positive:** A reusable SARIF emitter shared across the finding-emitting
+  commands (and any future SARIF output);
   per-command adapters land independently; no engine churn; deterministic
   `partialFingerprints` + a schema-validation gate by construction.
 - **Negative:** `level` / `ruleId` vocabulary is mapped per command (three small
