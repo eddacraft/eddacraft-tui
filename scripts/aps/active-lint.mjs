@@ -60,17 +60,28 @@ if (listFiles) {
 }
 
 if (files.length === 0) {
-  if (json) console.log(JSON.stringify({ files: [], status: 0 }, null, 2));
+  if (json) console.log(JSON.stringify({ files: [], status: 0, results: [] }, null, 2));
   else console.log('[aps-active-lint] no active APS files found');
   process.exit(0);
 }
 
-const result = spawnSync(apsBin, ['lint', ...files], {
-  cwd: root,
-  stdio: json ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-  encoding: 'utf8',
-});
-const exitStatus = result.error ? 2 : (result.status ?? 1);
+// CIB-037: canonical `aps lint` only honours its final path argument, so passing
+// the whole active set in a single invocation silently validated one file (the
+// last). Lint each file in its own invocation and aggregate the results so every
+// active APS surface is actually checked.
+const results = [];
+let spawnError;
+for (const file of files) {
+  const r = spawnSync(apsBin, ['lint', file], { cwd: root, encoding: 'utf8' });
+  if (r.error) {
+    spawnError = r.error;
+    results.push({ file, status: 2, stdout: '', stderr: '', error: r.error.message });
+    break;
+  }
+  results.push({ file, status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' });
+}
+
+const exitStatus = aggregateStatus(results, spawnError);
 
 if (json) {
   console.log(
@@ -78,22 +89,50 @@ if (json) {
       {
         files,
         status: exitStatus,
-        stdout: result.stdout ?? '',
-        stderr: result.stderr ?? '',
-        error: result.error?.message,
+        results,
+        stdout: results.map((r) => r.stdout).join(''),
+        stderr: results.map((r) => r.stderr).join(''),
+        error: spawnError?.message,
       },
       null,
       2
     )
   );
-}
-
-if (result.error) {
-  if (!json) console.error(`[aps-active-lint] failed to invoke ${apsBin}: ${result.error.message}`);
   process.exit(exitStatus);
 }
 
+let withFindings = 0;
+for (const r of results) {
+  const failed = r.status !== 0 || r.stderr.trim() !== '';
+  if (!failed) continue;
+  withFindings += 1;
+  const out = `${r.stdout}${r.stderr}`.trim();
+  if (out) console.log(out);
+}
+
+if (spawnError) {
+  console.error(`[aps-active-lint] failed to invoke ${apsBin}: ${spawnError.message}`);
+  process.exit(exitStatus);
+}
+
+if (exitStatus === 0) {
+  console.log(`[aps-active-lint] ${results.length} files checked, all clean`);
+} else {
+  console.log(`[aps-active-lint] ${results.length} files checked, ${withFindings} with findings`);
+}
 process.exit(exitStatus);
+
+// Aggregate per-file exit codes into a single status: 2 if any invocation failed
+// to spawn; 0 if every file linted clean; the shared code when all failures
+// returned the same non-zero status (preserves a single file's exact code); 1
+// otherwise.
+function aggregateStatus(perFile, hadSpawnError) {
+  if (hadSpawnError) return 2;
+  const failedCodes = perFile.filter((r) => r.status !== 0).map((r) => r.status);
+  if (failedCodes.length === 0) return 0;
+  const distinct = new Set(failedCodes);
+  return distinct.size === 1 ? [...distinct][0] : 1;
+}
 
 function activeApsFiles(projectRoot) {
   const plans = join(projectRoot, 'plans');

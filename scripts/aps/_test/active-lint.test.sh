@@ -53,10 +53,14 @@ if (!doc.files.includes("plans/modules/active.aps.md")) {
 }
 '
 
+# CIB-037: active-lint invokes `aps lint` once per file, so the fake appends its
+# argv (>>) across invocations rather than overwriting; every active file must
+# appear, and a uniform non-zero child status (7) must propagate as the aggregate
+# exit status.
 fake_aps="$tmp/fake-aps"
 cat >"$fake_aps" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "$@" >"$FAKE_APS_ARGS"
+printf '%s\n' "$@" >>"$FAKE_APS_ARGS"
 exit 7
 SH
 chmod +x "$fake_aps"
@@ -68,7 +72,7 @@ status=$?
 set -e
 
 if [[ "$status" -ne 7 ]]; then
-  printf 'expected fake aps exit status 7, got %s\n' "$status" >&2
+  printf 'expected uniform fake aps exit status 7 to propagate, got %s\n' "$status" >&2
   exit 1
 fi
 
@@ -82,8 +86,18 @@ require_argv() {
 
 require_argv 'lint'
 require_argv 'plans/index.aps.md'
+require_argv 'plans/issues.md'
 require_argv 'plans/modules/active.aps.md'
 require_argv 'plans/execution/ACTIVE-001.actions.md'
+
+# Each active file must get its own `aps lint` invocation (CIB-037 fix): one
+# `lint` token per file. The tmp fixture has 4 active files.
+lint_invocations="$(grep -cx 'lint' "$args_log")"
+if [[ "$lint_invocations" -ne 4 ]]; then
+  printf 'expected 4 per-file lint invocations, got %s\nargv:\n%s\n' \
+    "$lint_invocations" "$(cat "$args_log")" >&2
+  exit 1
+fi
 
 missing_json="$tmp/missing-aps.json"
 set +e

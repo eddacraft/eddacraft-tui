@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 23/38    |
+| CIB | —     | In Progress | 24/38    |
 
 ## Purpose
 
@@ -787,75 +787,54 @@ archive.
 ### CIB-036: Active APS modules fail canonical `aps lint` (missing `## Work Items` section)
 
 - **Status:** Draft
-- **Intent:** Make the phase-style active APS modules pass canonical `aps lint`
-  structural checks (`## Work Items` section + ID/Status metadata table). (The
-  `aps:active-lint` scope is broader than modules — it also covers
-  `plans/index.aps.md`, `plans/issues.md`, and execution `.actions.md` files —
-  but the E002/E003 failures are confined to these modules.)
-- **Expected Outcome:** `aps lint plans/modules/weave.aps.md` no longer reports
-  `E002: Missing ## Work Items section`, and the other phase-style modules that
-  share the defect are likewise conformant.
-- **Affected modules:** `weave.aps.md` organises its `WEAVE-NNN` items under
-  `## Phase 0..4` headings with no canonical `## Work Items` (or legacy
-  `## Tasks`) section, so the validator emits `E002`. Direct `aps lint` runs
-  confirm it is not alone — `graph-v2-foundation.aps.md` (E002) and
-  `email-broadcast.aps.md` (E002 **plus** `E003: Missing ID/Status metadata
-  table`) fail the same way; `early-access-migration`, `early-access-tests`,
-  `graph-context-delivery`, `rust-mcp-full-port`, and `unified-config-format`
-  use the same phase-only layout. (`tui-dashboard-render` carries a `## Tasks`
-  section, so it passes E002.) The full set is not yet known because the
-  active-lint gate currently checks only one file — see CIB-037.
-- **Triage decision needed:** either (a) restructure the phase-style modules to
-  a canonical `## Work Items` section (phases become subsections or annotations),
-  or (b) confirm whether canonical `anvil-plan-spec` is meant to accept phase
-  groupings — if so, the gap is in the validator, not the modules.
-- **Validation:** `aps lint plans/modules/weave.aps.md` exits 0 with no E002;
-  after CIB-037 lands, `pnpm aps:active-lint` is green across the full active
-  set; `pnpm format:check` for any docs touched.
-- **Identified From:** Surfaced 2026-05-29 while reconciling CIB-002 (PR #2079) —
-  `pnpm aps:active-lint` reported a lone `E002` on `weave.aps.md`. `active-lint`
-  is local-only (not a CI gate), so this is advisory friction, not a release
-  blocker.
-- **Coordinates with:** CIB-037 (the lint-coverage bug that masked the full
-  scope); APSCAN (canonical `anvil-plan-spec` adoption boundary,
+- **Intent:** Resolve the repo-wide divergence between Anvil's active APS module
+  corpus and the canonical `aps lint` structural contract (`## Work Items`
+  section, ID/Status metadata table, per-item Intent/Outcome/Validation fields).
+- **Scope (measured 2026-05-29 once the CIB-037 fix un-masked it):** of 102
+  active APS files, **only 13 pass** — **89 have findings**: **85 missing
+  `## Work Items` (E002)**, 18 also missing the ID/Status metadata table (E003),
+  3 missing per-item fields (E005), plus stray E001/E010/E011. The 13 clean
+  files are the recent canonical migrations (`ATC`/`CPOL`/`PATT`/`TRUST`
+  `.actions.md`, `index.aps.md`, `schema-contracts`,
+  `adversarial-testing-catalog`, `aps-dashboard-starter`,
+  `contextual-policy-assertions`, `markdown-governance`, `native-tui-dashboards`,
+  `prompt-attack-regression-packs`, `trust-center-automation`). `weave.aps.md`
+  (phase-style, E002) is just one instance.
+- **This is a dialect-boundary question, not a few-module fix:** 85/102 missing
+  `## Work Items` means the corpus broadly predates / diverges from the canonical
+  `anvil-plan-spec` structure (Anvil uses `## Tasks`, `## Phase N`, and richer
+  headers). The call belongs with APSCAN's hybrid adoption boundary
+  (`plans/specs/2026-05-25-aps-cli-adoption-boundary.md`): either (a) bulk-migrate
+  the corpus to canonical `## Work Items` (large, touches ~85 files), or (b) treat
+  the canonical `aps` validator as out-of-scope for Anvil's local dialect — lint
+  with Anvil's own `scripts/aps/*` rules and reserve canonical `aps lint` for the
+  already-migrated subset.
+- **Validation:** once decided — either `pnpm aps:active-lint` is green across the
+  active set (option a), or the gate is repointed at the Anvil-dialect validator
+  and documents the canonical-subset boundary (option b).
+- **Identified From:** Surfaced 2026-05-29 reconciling CIB-002 (PR #2079) as a
+  lone `E002` on `weave.aps.md`; the CIB-037 fix then revealed the 89/102 scope.
+  `active-lint` is local-only (not a CI gate), so this is advisory friction today.
+- **Coordinates with:** CIB-037 (the coverage fix that exposed the scope — Done);
+  APSCAN (canonical `anvil-plan-spec` adoption boundary,
   `plans/specs/2026-05-25-aps-cli-adoption-boundary.md`); the `## Work Items`
   vs legacy `## Tasks` parser contract.
-- **Confidence:** medium — detection is concrete, but the fix shape (restructure
-  modules vs. validator behaviour) needs a triage call.
+- **Confidence:** medium — the scope is now measured, but the resolution is a
+  significant directional call (bulk migration vs. dialect boundary) for an owner.
 
 ### CIB-037: `aps lint` validates only one file when given multiple arguments
 
-- **Status:** Draft
-- **Intent:** Make `pnpm aps:active-lint` actually validate every active APS
-  file instead of silently one.
-- **Expected Outcome:** `aps lint <f1> <f2> …` validates all file arguments (or
-  `active-lint.mjs` invokes it per file), and `pnpm aps:active-lint` reports
-  `N files checked` where N is the full active-APS-file count from `--list-files`
-  — modules **plus** `plans/index.aps.md`, `plans/issues.md`, and execution
-  `.actions.md` (currently 101), not just the module count — rather than
-  `1 file checked`.
-- **Defect:** `aps lint <f1> <f2> …` reports `1 file checked` and findings for
-  only the *last* argument regardless of how many are passed (verified by
-  reordering args — the reported file tracks the last position).
-  `scripts/aps/active-lint.mjs` passes the whole active set
-  (`activeApsFiles` → 101 files: modules + index + issues + execution
-  `.actions.md`) in a single `spawnSync(apsBin, ['lint', ...files])`, so the
-  gate has been validating only the last-sorted active file (currently
-  `weave.aps.md`, the last of all 101 entries); every other active APS file's
-  canonical-lint state is unchecked.
-- **Fix options:** loop `aps lint` per file in `active-lint.mjs` (cheap, in-repo,
-  no binary change), or fix the `aps` binary's multi-arg handling upstream
-  (canonical `anvil-plan-spec` CLI). Per-file looping is the smaller fix.
-- **Validation:** a multi-file `aps lint` invocation over a known-bad + known-good
-  pair reports findings for *both*; `pnpm aps:active-lint`'s `N files checked`
-  matches the `--list-files` count.
-- **Identified From:** Surfaced 2026-05-29 during CIB-036 triage — investigating
-  why only `weave.aps.md` flagged E002 revealed the gate was checking a single
-  file. This is why CIB-036's true module scope is unknown.
-- **Coordinates with:** CIB-036 (the masked module-structure failures);
-  `scripts/aps/active-lint.mjs`; canonical `aps` CLI behaviour.
-- **Confidence:** high — the defect is reproducible and the in-repo per-file fix
-  is concrete; only the upstream-vs-local fix choice needs a call.
+- **Status:** Done
+- **Summary:** Canonical `aps lint <f1> <f2> …` only honoured its *last* path
+  argument (reported `1 file checked`), so `scripts/aps/active-lint.mjs` — which
+  passed the whole active set in one `spawnSync(apsBin, ['lint', ...files])` —
+  silently validated a single module (`weave.aps.md`, last in sort order). Fixed
+  in PR #2084 by invoking `aps lint` per file and aggregating exit status
+  (uniform non-zero propagates, mixed → 1, spawn error → 2);
+  `pnpm aps:active-lint` now reports `102 files checked` across the full
+  `--list-files` scope. `scripts/aps/_test/active-lint.test.sh` updated to assert
+  one invocation per file. Un-masked CIB-036's true scope (89/102 files with
+  findings). Pending merge — PR #2084 is blocked by CIB-038.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
