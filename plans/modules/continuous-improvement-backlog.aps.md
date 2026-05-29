@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 25/39    |
+| CIB | —     | In Progress | 25/40    |
 
 ## Purpose
 
@@ -877,3 +877,28 @@ archive.
 - **Confidence:** medium — the archival mechanics are well-understood
   (`git mv` + relink + index repoint + docs index regen), but the trigger
   (all findings closed) is not yet met and is owned outside this item.
+### CIB-040: Full CLIC-010 help-text layout pass for all commands
+
+- **Status:** Draft
+- **Intent:** Apply the uniform CLIC-010 layout to every command's `--help`
+  output: one-line imperative summary, a when-to-use hint, common flag
+  descriptions, and a pointer to the relevant runbook or docs page.
+- **Expected Outcome:** `cargo run -p anvil-cli -- <cmd> --help` for every
+  non-hidden command follows the same four-section structure that answers "what
+  does this do, when should I run it, and where do I learn more?" — with no
+  internal identifiers, ADR references, or work-item IDs in user-visible text. A
+  new CLI lint (proposed in the coherence spec as CLIC-010) asserts the layout
+  in CI.
+- **Validation:** `cargo run -p anvil-cli -- --help` and spot-checks of at least
+  10 commands show the four-section layout. The CLIC-010 CI lint passes without
+  exclusions.
+- **Identified From:** Specified in
+  `plans/specs/2026-05-07-cli-surface-coherence.md` §9 CLIC-010 as the full
+  layout rewrite, explicitly deferred until after the light consistency pass.
+  The light pass and `docs/runbooks/cli-surface.md` landed first in the
+  `chore/cli-help-standardization` branch (2026-05-29).
+- **Coordinates with:** `plans/specs/2026-05-07-cli-surface-coherence.md` §9;
+  `docs/runbooks/cli-surface.md` (the companion runbook that documents current
+  command intent and can serve as the source of truth for when-to-use hints).
+- **Confidence:** high — the spec is clear on scope; the blocker was the light
+  pass landing first.
