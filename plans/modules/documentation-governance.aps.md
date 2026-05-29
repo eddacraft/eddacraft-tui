@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 9/11     |
+| DOCGOV | —     | In Progress | 9/12     |
 
 ## Purpose
 
@@ -457,4 +457,51 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
 - **Coordinates with:** DOCGOV-009 (same rubric and metadata contract),
   DOCGOV-010 (metadata authority/type tags drive reorganisation placement)
+- **Confidence:** high
+
+### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
+
+- **Status:** Draft
+- **Authorisation:** Not yet authorised for implementation — filed as a tracked
+  backlog item from the 2026-05-29 clawpatch periodic scan. Needs the normal
+  operator/APS go-ahead (or a hotfix decision) before code work begins.
+- **Intent:** Make the DOCGOV-owned `scripts/docs` validation surfaces fail
+  safely: a malformed link or a partial surface failure should produce a labelled
+  finding or abort cleanly, never silently lose baseline data or crash the
+  orchestrator.
+- **Expected Outcome:** Three confirmed/contract defects are fixed:
+  1. `--update-baseline` (`docs-check.mjs` `regenerateBaseline`) preserves or
+     reloads existing baseline entries for any surface that failed to produce
+     valid JSON, skips the final write unless regeneration fully succeeded, and
+     exits non-zero when a baselineable surface fails — so a partial failure can
+     no longer overwrite `docs/governance/docs-check.baseline.json` with dropped
+     entries.
+  2. `docs-check.mjs` only forwards baseline flags (e.g. `--no-baseline`) to
+     surfaces where `surface.baselineable` is true, so non-baselineable surfaces
+     like `check-index-freshness` / `docs-index.mjs` are no longer handed a flag
+     they reject.
+  3. `check-links.mjs` `resolveLink` wraps percent-decoding so a malformed
+     percent escape yields a labelled ERROR finding for the link/file/line rather
+     than an uncaught `URIError`.
+- **Validation:** Fixture tests for each defect — a forced invalid-JSON surface
+  that asserts `--update-baseline` fails without dropping an existing entry; an
+  orchestrator `--no-baseline` run that does not fail index-freshness on an
+  unknown option; a `check-links` malformed-percent-escape fixture that asserts a
+  labelled ERROR and non-zero exit. Then
+  `pnpm docs:check && pnpm docs:index:check && pnpm format:check`.
+- **Identified From:** 2026-05-29 clawpatch periodic scan
+  (`plans/audits/2026-05-29-clawpatch-periodic-scan.json`, findings
+  `fnd_sig-feat-library-34bc4660c0-5f3f` /
+  `fnd_sig-feat-library-34bc4660c0-d3a8` /
+  `fnd_sig-feat-library-34bc4660c0-2aa7`); triage at
+  `plans/reviews/2026-05-29-clawpatch-triage.md`. Defect 1 corroborates the
+  hand-noted `--update-baseline` overwrite friction in
+  `plans/reviews/continuous-improvement-log.md`, which was never filed.
+- **Dependencies:** DOCGOV-005 (built `docs:check`), DOCGOV-007 (index-freshness
+  surface)
+- **Files:** `scripts/docs/docs-check.mjs`, `scripts/docs/check-links.mjs`,
+  `docs/governance/docs-check.baseline.json` (only if regeneration semantics
+  change require it), plus fixture tests under the docs-check test surface.
+- **Coordinates with:** DOCGOV-006/-007 (same surface family); GH tracking issue
+  pending operator confirmation.
 - **Confidence:** high

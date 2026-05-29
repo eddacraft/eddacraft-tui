@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 21/34    |
+| CIB | —     | In Progress | 21/35    |
 
 ## Purpose
 
@@ -785,3 +785,29 @@ archive.
 - **Confidence:** medium — the trust value is clear for a public mirror, but the
   implementation must draw the sanitisation boundary carefully and prove exact
   artefact-to-ref alignment rather than merely reporting nearby CI.
+
+### CIB-035: drift-check crashes on invalid release records instead of staying advisory
+
+- **Status:** Draft
+- **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
+  / exit-0 architecture principle when handed a malformed input, so a bad release
+  record degrades to an advisory finding rather than an uncaught crash.
+- **Expected Outcome:** When the release record passed to drift-check is missing,
+  unreadable, or not valid JSON, the check emits a JSON advisory finding such as
+  `release-record-unreadable` or `release-record-invalid-json` and preserves
+  exit 0, consistent with the rest of `drift-check`. A genuine read/parse failure
+  never aborts the advisory run.
+- **Validation:** A drift-check fixture that passes an invalid release-record
+  path/content asserts exit status 0 plus the JSON advisory finding; a valid
+  record is unaffected.
+- **Identified From:** 2026-05-29 clawpatch periodic scan
+  (`plans/audits/2026-05-29-clawpatch-periodic-scan.json`, finding
+  `fnd_sig-feat-library-ae662c437a-fe21_879e585035`); triage at
+  `plans/reviews/2026-05-29-clawpatch-triage.md`. Distinct from CIB-023, which
+  covers the implemented-but-draft drift class rather than input robustness.
+- **Files:** `scripts/aps/drift-check.mjs` release-record loading/error handling;
+  a drift-check fixture test.
+- **Coordinates with:** CIB-023 (same script, different drift class); the
+  architecture warnings-over-blocks principle in `.claude/rules/architecture.md`.
+- **Confidence:** high — the defect and the minimal fix scope are both concrete
+  and the advisory exit-0 contract is unambiguous.
