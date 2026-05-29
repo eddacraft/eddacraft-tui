@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 25/38    |
+| CIB | —     | In Progress | 25/39    |
 
 ## Purpose
 
@@ -849,3 +849,31 @@ archive.
   design).
 - **Confidence:** high — the block is reproduced and the duplicate-name cause is
   pinned via GraphQL; the exact filler-dedup approach needs a small design call.
+
+### CIB-039: Archive clawpatch-pre-tag-v0.7.0-beta once its findings are closed out
+
+- **Status:** Blocked
+- **Blocked on:** clawpatch findings closure — the module still carries ~47
+  `Draft` plus `Deferred`/`Ship` CLAWP-NNN findings; it cannot be archived until
+  those are resolved/merged or explicitly dispositioned.
+- **Intent:** Retire the v0.7.0-beta pre-tag release-findings tracker once its
+  findings are closed, and drop the canonical-lint carve-out added for it.
+- **Expected Outcome:** `plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md` is
+  `git mv`-d to `plans/archive/modules/`, its entry is removed from
+  `NON_CANONICAL_MODULES` in `scripts/aps/active-lint.mjs` (the exclusion exists
+  only because it was an active non-module doc), and the index row is repointed
+  to the archive path. `pnpm aps:active-lint` stays green without the exclusion.
+- **Validation:** after archival, `pnpm aps:active-lint` is green with no
+  `clawpatch` entry in `NON_CANONICAL_MODULES`; the archive cascade passes
+  (`docs:check`/check-links, `aps:index:check`); the module is confirmed
+  included in (or moot for) the relevant release tag before marking Complete.
+- **Identified From:** CIB-036 — the canonical-lint migration carved clawpatch
+  out as a release-findings tracker (CLAWP-NNN = bug findings, not work items)
+  rather than forcing it into the work-item shape; archival is the proper
+  end-state once the findings close.
+- **Coordinates with:** CIB-036 (the exclusion this removes);
+  `scripts/aps/active-lint.mjs` `NON_CANONICAL_MODULES`; the APS module-archive
+  cascade in `plans/aps-rules.md`.
+- **Confidence:** medium — the archival mechanics are well-understood
+  (`git mv` + relink + index repoint + docs index regen), but the trigger
+  (all findings closed) is not yet met and is owned outside this item.
