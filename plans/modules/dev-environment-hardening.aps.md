@@ -43,7 +43,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-001: Trim dev/test debug info to shrink each target at the base
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Wave:** 1 (harden now)
 - **Intent:** Cut the ~100 GB-per-`target/` base bloat at its dominant source
   (full DWARF) without changing build location or behaviour.

@@ -125,6 +125,26 @@ must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
+# DEVENV-001 (ADR-057): trim dev + test debug info to shrink each worktree's
+# `target/` at the base. With no `[profile.dev]`, both inherited cargo's default
+# `debug = 2` (full DWARF) — the dominant contributor to ~100 GB targets on the
+# shared concurrent-agent box. `line-tables-only` keeps file:line in panics and
+# backtraces but drops variable/type DWARF: interactive `gdb`/`lldb` local-
+# variable inspection on dev builds is degraded — use
+# `RUSTFLAGS=-Cdebuginfo=2 cargo build` for a full-debug build when needed.
+# Unwinding / `catch_unwind` (ADR-051) is control-flow and is unaffected.
+# `incremental` is left at the default `true` (turning it off would slow
+# iterative agent builds); relocation + eviction (DEVENV-002/-004) handle the
+# space axis. `split-debuginfo` is pinned to the Linux default `unpacked` so the
+# profile stays deterministic if a future toolchain flips the default.
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.test]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
 [profile.release]
 lto = true
 codegen-units = 1
