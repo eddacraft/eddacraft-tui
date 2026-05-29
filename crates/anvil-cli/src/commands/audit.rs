@@ -788,20 +788,21 @@ fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
         rules
             .entry(issue.category.clone())
             .or_insert_with(|| sarif::ReportingDescriptor::new(issue.category.clone()));
-        let line = u32::try_from(issue.line).unwrap_or(u32::MAX);
+        // Audit uses `line: 0` for whole-file findings (e.g. `.env` files);
+        // SARIF `startLine` has `minimum: 1`, so omit the region in that case
+        // and point at the artifact only.
+        let line = (issue.line > 0).then(|| u32::try_from(issue.line).unwrap_or(u32::MAX));
+        let region = line.map(sarif::Region::line);
         results.push(
             sarif::SarifResult::new(
                 issue.category.clone(),
                 audit_sarif_level(issue.severity),
                 issue.message.clone(),
             )
-            .location(sarif::Location::new(
-                issue.file.clone(),
-                Some(sarif::Region::line(line)),
-            ))
+            .location(sarif::Location::new(issue.file.clone(), region))
             .fingerprint(
                 "anvilFingerprint/v1",
-                sarif::stable_fingerprint(&issue.category, &issue.file, Some(line), &issue.message),
+                sarif::stable_fingerprint(&issue.category, &issue.file, line, &issue.message),
             ),
         );
     }
@@ -1665,6 +1666,9 @@ mod tests {
                 issue(IssueSeverity::Critical, "hardcoded-secret", "src/a.ts", 4),
                 issue(IssueSeverity::Medium, "large-file", "src/b.ts", 1),
                 issue(IssueSeverity::Info, "large-file", "src/c.ts", 9),
+                // Whole-file finding: line 0 must NOT emit `startLine: 0`
+                // (schema `minimum: 1`) — the region is omitted instead.
+                issue(IssueSeverity::High, "env-committed", ".env", 0),
             ],
             historical_scores: Vec::new(),
             next_steps: Vec::new(),
@@ -1682,7 +1686,7 @@ mod tests {
         assert!(errors.is_empty(), "schema errors:\n{}", errors.join("\n"));
 
         let results = value["runs"][0]["results"].as_array().expect("results");
-        assert_eq!(results.len(), 3, "one result per audit issue");
+        assert_eq!(results.len(), 4, "one result per audit issue");
         // category → ruleId, severity → level (Critical→error, Medium→warning,
         // Info→note).
         let crit = results
@@ -1708,8 +1712,24 @@ mod tests {
         let rules = value["runs"][0]["tool"]["driver"]["rules"]
             .as_array()
             .expect("rules");
-        assert_eq!(rules.len(), 2, "hardcoded-secret + large-file deduped");
+        assert_eq!(
+            rules.len(),
+            3,
+            "hardcoded-secret + large-file (deduped) + env-committed"
+        );
         // Audit has no suppression model.
         assert!(results.iter().all(|r| r.get("suppressions").is_none()));
+
+        // The whole-file finding (line 0) omits the region (no `startLine: 0`).
+        let whole_file = results
+            .iter()
+            .find(|r| r["ruleId"] == "env-committed")
+            .unwrap();
+        assert!(
+            whole_file["locations"][0]["physicalLocation"]
+                .get("region")
+                .is_none(),
+            "line-0 finding must not emit a region"
+        );
     }
 }
