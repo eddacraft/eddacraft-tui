@@ -16,7 +16,6 @@ pub struct InsightsArgs {
 
     /// Show the drift trend: new cross-boundary edges per week over the
     /// last 8 weeks, as a sparkline derived from `anvil drift` snapshots.
-    /// [INSIGHTS-003]
     #[arg(long, conflicts_with = "suppressions")]
     pub drift: bool,
 }
