@@ -386,9 +386,31 @@ The crate is on crates.io and cannot be un-published, only yanked. Decide:
   to retry. Instead, push **only the tag** manually with a short-lived App token
   (not a PAT):
   ```bash
-  # One-shot installation token via gh + jwt + the App private key.
-  # See docs.github.com authentication-as-a-github-app for the JWT
-  # signing helper; in a pinch a fresh workflow_dispatch is faster.
+  # INSTALL_TOKEN is a short-lived eddacraft-mirror-bot installation token —
+  # the same credential CI mints via actions/create-github-app-token. Minting
+  # one by hand needs the App's numeric ID (the EDDACRAFT_MIRROR_BOT_APP_ID
+  # repo secret) and a PEM private key for the App (generate one per the
+  # "eddacraft-mirror-bot App private key" section below). In a pinch, a fresh
+  # workflow_dispatch of the publish workflow is faster than minting locally.
+  app_id=<EDDACRAFT_MIRROR_BOT_APP_ID>      # numeric App ID
+  pem=/path/to/eddacraft-mirror-bot.pem     # PEM private key for the App
+  b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+  now=$(date +%s)
+  jwt_h=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
+  jwt_p=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' \
+      "$((now - 60))" "$((now + 540))" "$app_id" | b64url)
+  jwt="${jwt_h}.${jwt_p}"
+  jwt="${jwt}.$(printf '%s' "$jwt" | openssl dgst -sha256 -sign "$pem" -binary | b64url)"
+  # Resolve the App's eddacraft installation, then mint the token (≤1h TTL):
+  install_id=$(curl -fsS -H "Authorization: Bearer ${jwt}" \
+      -H 'Accept: application/vnd.github+json' \
+      https://api.github.com/app/installations \
+      | jq -r '.[] | select(.account.login == "eddacraft") | .id')
+  INSTALL_TOKEN=$(curl -fsS --request POST \
+      -H "Authorization: Bearer ${jwt}" \
+      -H 'Accept: application/vnd.github+json' \
+      "https://api.github.com/app/installations/${install_id}/access_tokens" \
+      | jq -r '.token')
   #
   # `base64 -w0` is GNU-only and fails on macOS/BSD base64 (no -w
   # flag). The `tr -d '\n'` form strips the line-wrap on either
@@ -398,7 +420,7 @@ The crate is on crates.io and cannot be un-published, only yanked. Decide:
       push \
       https://github.com/eddacraft/eddacraft-tui.git \
       "refs/tags/eddacraft-tui-vX.Y.Z:refs/tags/eddacraft-tui-vX.Y.Z"
-  unset INSTALL_TOKEN basic
+  unset INSTALL_TOKEN basic app_id pem jwt jwt_h jwt_p install_id
   ```
   Do NOT use `--force` — if the tag already exists on the mirror, investigate
   before pushing (someone may have pushed a different SHA).
