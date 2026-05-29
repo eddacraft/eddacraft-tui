@@ -548,10 +548,11 @@ impl SarifAccumulator {
             sarif::ReportingDescriptor::new(w.id.clone()).short_description(w.title.clone())
         });
         let line = u32::try_from(w.location.line).unwrap_or(u32::MAX);
-        let mut region = sarif::Region::line(line);
-        if let Some(col) = w.location.column {
-            region = region.column(u32::try_from(col).unwrap_or(u32::MAX));
-        }
+        // `Warning.location.column` is a 0-based byte offset, but SARIF
+        // `startColumn` is 1-based and the schema rejects 0; column is optional
+        // in our pinned subset, so we emit line-only regions rather than risk an
+        // invalid (or semantically wrong) `startColumn`.
+        let region = sarif::Region::line(line);
         let fingerprint = w.fingerprint.clone().unwrap_or_else(|| {
             sarif::stable_fingerprint(&w.id, &w.location.file, Some(line), &w.message)
         });
