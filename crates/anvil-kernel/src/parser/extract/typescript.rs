@@ -285,8 +285,26 @@ fn extract_export_clause(
             } else {
                 continue;
             };
-            if let Some(sym) = symbols.iter_mut().find(|s| s.name == local_name) {
-                sym.visibility = Visibility::Public;
+            let matched_kind = symbols
+                .iter()
+                .find(|s| s.name == local_name)
+                .map(|s| s.kind);
+            if let Some(kind) = matched_kind {
+                // Mark the named symbol Public. If it is a class, its methods
+                // (emitted as `Owner.method`, TS-G2) are part of the same
+                // exported surface, so flip them too — otherwise method
+                // visibility would wrongly depend on whether the class was
+                // exported inline (`export class`) or via a clause
+                // (`export { Foo }`).
+                let method_prefix = format!("{local_name}.");
+                for sym in symbols.iter_mut() {
+                    let is_owned_method = kind == SymbolKind::Class
+                        && sym.kind == SymbolKind::Method
+                        && sym.name.starts_with(&method_prefix);
+                    if sym.name == local_name || is_owned_method {
+                        sym.visibility = Visibility::Public;
+                    }
+                }
             } else {
                 // No local symbol found — create a public export node so the
                 // public API surface is correctly tracked. This handles cases
@@ -623,6 +641,35 @@ export class Api {
             .find(|s| s.kind == SymbolKind::Method && s.name == "Api.handle")
             .expect("Api.handle method symbol");
         assert_eq!(method.visibility, Visibility::Public);
+    }
+
+    #[test]
+    fn methods_are_public_when_class_exported_via_clause() {
+        // `export { Service }` must flip the class AND its methods Public —
+        // method visibility should not depend on inline-vs-clause export syntax.
+        let source = b"
+class Service {
+    run(): void {}
+}
+export { Service };
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let vis = |name: &str| {
+            symbols
+                .symbols
+                .iter()
+                .find(|s| s.name == name)
+                .map(|s| s.visibility)
+        };
+        assert_eq!(vis("Service"), Some(Visibility::Public));
+        assert_eq!(
+            vis("Service.run"),
+            Some(Visibility::Public),
+            "clause-exported class's methods must be Public too"
+        );
     }
 
     #[test]
