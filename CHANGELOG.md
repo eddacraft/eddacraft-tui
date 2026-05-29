@@ -25,8 +25,8 @@ engineering maintenance are recorded in the
   (layer boundaries, violations, and rule compliance), **Drift Snapshots**
   (snapshot history and new-edge deltas vs baseline), and **Suppressions**
   (active suppressions with scope, file, reason, and expiry). Run
-  `anvil dashboard` for an interactive picker, or `anvil dashboard <name>` to
-  open one directly.
+  `anvil dashboard` for an interactive picker, or
+  `anvil dashboard <architecture|drift|suppressions>` to open one directly.
 - **`anvil insights --suppressions` — suppressions health view.** Lists every
   active inline suppression in the project
   ([#1996](https://github.com/eddacraft/anvil-001/issues/1996)).
