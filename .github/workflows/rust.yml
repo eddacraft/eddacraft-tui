@@ -112,9 +112,9 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
@@ -127,11 +127,11 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     steps:
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
@@ -170,11 +170,11 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     steps:
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
@@ -298,9 +298,9 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
         with:
           components: clippy
@@ -317,11 +317,11 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     steps:
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
@@ -359,9 +359,9 @@ jobs:
       'ubuntu-latest' }}
     needs: check
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -388,9 +388,9 @@ jobs:
     # moved (manifests, lockfile, toolchain, or this workflow file).
     if: needs.detect-rust-changes.outputs.rust-deps-changed == 'true'
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -413,9 +413,9 @@ jobs:
     # graph changes; pure source edits cannot drift it.
     if: needs.detect-rust-changes.outputs.rust-deps-changed == 'true'
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
