@@ -140,24 +140,32 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-005: Align Node version + fix the oxfmt shadow + nx cache key
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Wave:** 1 (harden now)
 - **Intent:** Remove the four-way Node drift (and its `better-sqlite3` ABI
   failures) and the stale-global-`oxfmt` false failures, with a single cache-bust.
-- **Expected Outcome:** `.nvmrc`, `engines.node`, the CI Node matrix, and the box
-  agree on one `better-sqlite3`-compatible Node version; the repo-pinned `oxfmt`
-  0.51 wins over any stale global. The nx cache key gains a `runtime` input on the
-  Node version (a Node change busts the key), batched into this same commit so the
-  toolchain-alignment cache-bust happens once. Adopting `mise`/`.tool-versions` is
-  explicitly **not** in this item (DEVENV-008).
-- **Validation:** A fresh `pnpm install` + `pnpm test` on a clean worktree builds
-  `better-sqlite3`/edda-stack without ABI error; `pnpm format:check` uses 0.51;
-  changing the Node version produces an nx cache miss on a native-dep target.
-- **Files:** `.nvmrc`, `package.json` (`engines`), `.github/workflows/*` (Node
-  matrix + `setup-workspace`), `nx.json` (cache key input), a documented PATH/shim
-  fix for `oxfmt`.
-- **Confidence:** medium — picking the single Node version requires confirming
-  `better-sqlite3` prebuild availability.
+- **Expected Outcome:** Standardise on **Node 24** (it's `.nvmrc`'s value, current
+  LTS, already in the nightly matrix, and has `better-sqlite3` 12.10.0 prebuilds):
+  `engines.node` → `>=24.0.0`, CI's `setup-workspace` default `22` → `24`, the
+  `ci-nightly` matrix → `24.x`. The box keeps multiple Node majors via **`fnm`**
+  (`--use-on-cd`): it auto-selects `.nvmrc`'s 24 inside anvil while a global 26
+  stays for other work (documented in `worktree-policy.md`) — so no manual
+  downgrade, and `mise`/devcontainer stays in the DEVENV-008 spike. The stale
+  global `oxfmt` is defeated by prepending `node_modules/.bin` in `.envrc`
+  (CIB-032). The nx cache key gains a `{ "runtime": "node --version" }` input in
+  `sharedGlobals` so a Node change busts the JS-task cache (closes the cross-Node
+  cache-poisoning gap surfaced by the 2026-05-29 clawpatch scan / ADV-6). Specialised
+  workflows pinned to explicit Node 22 (`napi`, `security`, `infra`,
+  `release-harness`) are left as-is — N-API is ABI-stable and they aren't the
+  `better-sqlite3` path; they can migrate later.
+- **Validation:** CI re-runs green on Node 24; a fresh `pnpm install` + edda-stack
+  test on Node 24 builds `better-sqlite3` without ABI error; a Node change produces
+  an nx cache miss.
+- **Files:** `package.json` (`engines`), `.github/actions/setup-workspace/action.yml`,
+  `.github/workflows/ci-nightly.yml`, `nx.json` (cache-key input), `.envrc`
+  (pinned-bin PATH), `docs/guides/worktree-policy.md` (fnm + box guidance).
+  `.nvmrc` already = 24.
+- **Confidence:** medium — the CI-wide Node-24 bump re-proves all jobs on 24.
 
 ### DEVENV-006: Fix worktree creation + bootstrap in `.config/wt.toml`
 

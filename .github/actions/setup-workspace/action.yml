@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: 'Node.js version'
     required: false
-    default: '22'
+    default: '24'
   azure-login:
     description: 'Enable Azure login for Nx remote cache'
     required: false

@@ -182,6 +182,30 @@ If you use **neither** direnv nor `wt` in a shell, cargo builds into the in-tree
 eviction lands with DEVENV-004). The relocation is inert on CI runners (no
 direnv, no `wt`), so the nx/Azure build cache is unaffected.
 
+## Node version (DEVENV-005)
+
+anvil standardises on **Node 24** — `.nvmrc` = 24, `engines.node` `>=24.0.0`,
+and CI's `setup-workspace` default = 24. The native `better-sqlite3` (in
+`@eddacraft/anvil-edda-stack`) only has prebuilt binaries for the versions the
+project targets; running a different major (e.g. Node 26) triggers the ABI
+mismatch that fails `edda-stack` tests.
+
+You don't have to give up other Node versions globally. Use **`fnm`** with
+auto-switch so the anvil repo picks up `.nvmrc` (24) while your global default
+(e.g. 26) stays for everything else:
+
+```bash
+# one-time shell setup (zsh): auto-switch on cd into a dir with .nvmrc
+eval "$(fnm env --use-on-cd)"
+fnm install 24            # once
+# then, in any anvil worktree, fnm selects 24 automatically on cd.
+# after first switching a worktree to 24, rebuild the native module:
+pnpm rebuild better-sqlite3   # or: pnpm install
+```
+
+This composes with the `.envrc` above (fnm owns the Node version; direnv owns
+`CARGO_TARGET_DIR` + the pinned-tool PATH).
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)

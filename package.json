@@ -2,7 +2,7 @@
   "name": "@eddacraft/anvil-source",
   "version": "0.7.2-beta",
   "engines": {
-    "node": ">=22.13.0",
+    "node": ">=24.0.0",
     "pnpm": ">=10.20.0",
     "git": ">=2.54.0"
   },

@@ -27,7 +27,8 @@
       "{workspaceRoot}/pnpm-workspace.yaml",
       "{workspaceRoot}/Cargo.toml",
       "{workspaceRoot}/Cargo.lock",
-      "{workspaceRoot}/rust-toolchain.toml"
+      "{workspaceRoot}/rust-toolchain.toml",
+      { "runtime": "node --version" }
     ]
   },
   "generators": {
