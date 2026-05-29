@@ -1,0 +1,33 @@
+name: 'Free disk space'
+description: >-
+  Reclaim disk on GitHub-hosted ubuntu runners by removing preinstalled toolchains the Rust CI jobs
+  never use (dotnet, GHC/ghcup, Android SDK, CodeQL bundles, Swift). The stock ubuntu-latest image
+  leaves only ~14 GB free on /, which a full Cargo target dir plus the rust-cache restore routinely
+  exhausts — surfacing as intermittent "No space left on device" failures that kill jobs mid-setup,
+  on a different job each run. Linux-only; a no-op on macOS/Windows.
+
+runs:
+  using: composite
+  steps:
+    - name: Reclaim runner disk
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" != "Linux" ]; then
+          echo "Runner OS is $RUNNER_OS, not Linux; skipping disk reclaim."
+          exit 0
+        fi
+        echo "Disk before reclaim:"
+        df -h / || true
+        # Preinstalled toolchains none of the Rust jobs touch (~25-30 GB).
+        # Each path is removed best-effort so an image layout change can
+        # never fail the build — at worst we reclaim a little less.
+        sudo rm -rf \
+          /usr/share/dotnet \
+          /usr/local/lib/android \
+          /opt/ghc \
+          /usr/local/.ghcup \
+          /opt/hostedtoolcache/CodeQL \
+          /usr/share/swift || true
+        sudo docker image prune --all --force >/dev/null 2>&1 || true
+        echo "Disk after reclaim:"
+        df -h / || true
