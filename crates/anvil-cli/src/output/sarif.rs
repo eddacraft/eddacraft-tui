@@ -11,6 +11,11 @@
 //! The bundled upstream SARIF 2.1.0 JSON Schema
 //! (`sarif-schema-2.1.0.json`, vendored verbatim from schemastore) is the
 //! validation gate: the test module checks emitted documents against it.
+//!
+//! User-facing docs for `--format sarif` live in the GitHub integration guide
+//! (`docs/public/anvil/integrations/github.md`, "Code Scanning (SARIF)"); the
+//! out-of-band Code Scanning upload check is
+//! `docs/runbooks/sarif-code-scanning-upload.md`.
 
 // The `anvil check` adapter (SARIFOUT-003) consumes most of this API; the
 // remaining surface (e.g. `SuppressionKind::External`, `Level::None`,
