@@ -216,9 +216,8 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::insights::tests::drift_trend_matches_fixture`
   - `cargo test -p eddacraft-anvil commands::insights::tests::insufficient_data_reports_clearly`
-- **Status:** Merged 2026-05-29 via PR
-  [#2111](https://github.com/eddacraft/anvil-001/pull/2111) — `anvil insights
-  --drift` renders the per-week new-cross-boundary-edge sparkline from the
+- **Status:** Merged 2026-05-29 via PR [#2111](https://github.com/eddacraft/anvil-001/pull/2111)
+  — `anvil insights --drift` renders the per-week new-cross-boundary-edge sparkline from the
   existing `.anvil/snapshots/` drift store (merge commit `4c3ea6b10`).
   Awaiting release-tag evidence to advance to Released/Shipped.
 - **Dependencies:** INSIGHTS-001
