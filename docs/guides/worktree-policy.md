@@ -206,6 +206,16 @@ pnpm rebuild better-sqlite3   # or: pnpm install
 This composes with the `.envrc` above (fnm owns the Node version; direnv owns
 `CARGO_TARGET_DIR` + the pinned-tool PATH).
 
+> **If another manager shadows fnm:** fnm only wins if its shims sit ahead of
+> any other `node` on `PATH`. A Homebrew (`brew install node`) or system node
+> linked into a higher-priority `bin` will shadow it, so `--use-on-cd` switches
+> fnm's dir but `node` still resolves to the other one. Fix with
+> `brew unlink node` (not `brew uninstall` — Homebrew formulae like `corepack`
+> and `neonctl` depend on node; unlink keeps it in the Cellar for them while
+> removing the `PATH` shadow). Confirm with `command -v node` resolving under
+> `~/.local/state/fnm_multishells/…`. After switching a worktree to 24, rebuild
+> the native module: `pnpm rebuild better-sqlite3`.
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)
