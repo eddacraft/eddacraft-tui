@@ -7,9 +7,9 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 # Dev Environment Hardening
 
-| ID     | Owner | Status   | Progress |
-| ------ | ----- | -------- | -------- |
-| DEVENV | —     | Proposed | 0/8      |
+| ID     | Owner | Status      | Progress |
+| ------ | ----- | ----------- | -------- |
+| DEVENV | —     | In Progress | 1/8      |
 
 ## Purpose
 
@@ -43,7 +43,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-001: Trim dev/test debug info to shrink each target at the base
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2090
 - **Wave:** 1 (harden now)
 - **Intent:** Cut the ~100 GB-per-`target/` base bloat at its dominant source
   (full DWARF) without changing build location or behaviour.
