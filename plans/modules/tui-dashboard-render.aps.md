@@ -212,7 +212,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-002: Component registry trait and infrastructure
 
-- **Status:** Todo
+- **Status:** In Progress
 - **Intent:** Define the `TuiComponent` trait and `TuiRegistry` that maps
   component type names to Ratatui widget implementations
 - **Expected Outcome:** Trait with `render()` and `layout_children()` methods.
