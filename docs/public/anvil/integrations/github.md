@@ -63,6 +63,52 @@ For Windows runners, use the PowerShell installer:
 | `3`  | Auth required    | Check credentials |
 | `4`  | Config error     | Fix configuration |
 
+## Code Scanning (SARIF)
+
+`anvil check`, `anvil gate`, and `anvil audit` can emit
+[SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+with `--format sarif`, so their findings can be uploaded to GitHub Code Scanning
+and shown in the **Security** tab.
+
+```yaml
+- name: anvil check (SARIF)
+  run: anvil check --all --format sarif > anvil.sarif
+
+- name: Upload to Code Scanning
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: anvil.sarif
+```
+
+`--format` is the canonical output selector
+(`auto | tui | plain | json | sarif`) on these three commands. `--json` keeps
+working as an alias for `--format json`; `sarif` must be requested explicitly
+(it is never auto-selected) and is rejected on commands that do not emit
+findings. SARIF emission is **exit-code-neutral** — a failing `gate` still exits
+`2` — so capture stdout to a file rather than gating the upload on the exit
+code.
+
+### What is in the SARIF
+
+Anvil emits the GitHub Code Scanning ingest subset of SARIF 2.1.0:
+`runs[].tool.driver` (named `anvil`) with the encountered `rules[]`, and
+`results[]` with `ruleId`, `level`, `message`, `locations[]`, and a stable
+`partialFingerprints` entry so Code Scanning dedupes findings across runs.
+
+- **`anvil check`** — one result per warning (anti-pattern or secret); `ruleId`
+  is the pattern id or a `SECRET-*` id; `locations[]` carry file + line.
+  `@anvil-ignore`-suppressed findings render under `suppressions[]`.
+- **`anvil audit`** — one result per audit issue; `ruleId` is the issue
+  category; `locations[]` carry file + line (omitted for whole-file findings).
+- **`anvil gate`** — one result per failed or config-needed check; `ruleId` is
+  the check name; results are repo-level with no location (gate findings are
+  per-check aggregates). Config-needed checks are reported at `note` level so
+  they do not inflate the failure set.
+
+Gate results have no file location, so some Code Scanning views may not surface
+them. Full SARIF 2.1.0 conformance (code flows, taxonomies, fixes, multi-run) is
+out of scope.
+
 ## PR Comments
 
 Anvil does not post PR comments by itself. If you want a comment, run with JSON

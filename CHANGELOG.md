@@ -6,6 +6,21 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [Unreleased]
+
+### Added
+
+- **SARIF 2.1.0 output** for the finding-emitting commands. `anvil check`,
+  `anvil gate`, and `anvil audit` accept `--format sarif` and emit the GitHub
+  Code Scanning subset of SARIF 2.1.0, so Anvil findings can be uploaded to Code
+  Scanning (and other SARIF tools) without a per-command adapter. `check`'s
+  `@anvil-ignore`-suppressed findings render under `suppressions[]`. The new
+  `--format <auto|tui|plain|json|sarif>` flag on these commands is the canonical
+  output selector; `--json` continues to work as an alias, and SARIF is never
+  auto-selected. SARIF emission is exit-code-neutral. See the
+  [GitHub integration guide](./docs/public/anvil/integrations/github.md) and the
+  [SARIF upload runbook](./docs/runbooks/sarif-code-scanning-upload.md).
+
 ## [0.7.2-beta] — 2026-05-25 — Save-Time Scanning & Tooling Honesty (Boring Week Patch 2)
 
 `v0.7.2-beta` is the second Boring-Week patch tag on the `v0.7.0-beta`

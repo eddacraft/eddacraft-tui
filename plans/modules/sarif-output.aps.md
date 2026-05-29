@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 4/6      |
+| SARIFOUT | —     | In Progress | 5/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -112,7 +112,7 @@ with SARIFOUT-002).
 > shared model) were ratified by the operator on 2026-05-29, promoting this
 > module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 Merged
 > via PR #2105; SARIFOUT-003 via PR #2107; SARIFOUT-004 via PR #2112;
-> SARIFOUT-005 In Progress; SARIFOUT-006 Ready. Flag surface landed per-command
+> SARIFOUT-005 via PR #2115; SARIFOUT-006 In Progress. Flag surface landed per-command
 > (not
 > global) — see ADR-056's Amendment.
 
@@ -209,7 +209,7 @@ with SARIFOUT-002).
 
 ### SARIFOUT-005: `anvil gate` SARIF adapter (per-check results)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2115
 - **Intent:** `anvil gate --format sarif` emits schema-valid SARIF for gate
   check results, handling the config-gap case coherently.
 - **Expected Outcome:** `build_gate_sarif` maps `GateResult.checks[]` to SARIF
@@ -237,18 +237,24 @@ with SARIFOUT-002).
 
 ### SARIFOUT-006: Docs, CHANGELOG, and manual Code Scanning upload smoke check
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The SARIF surface is documented and validated end-to-end against a
   real Code Scanning consumer out-of-band.
-- **Expected Outcome:** User docs describe `--format sarif` on the three
-  commands and the pinned subset; CHANGELOG records the additive mode; a runbook
-  records a manual upload of emitted SARIF to a GitHub Code Scanning sandbox repo
-  confirming findings render (manual, out-of-band — **not** a CI test, because it
-  is a non-deterministic external dependency).
-- **Validation:** `pnpm docs:check && pnpm format:check`; manual upload check
-  recorded in the runbook with date + sandbox repo reference.
-- **Files:** `docs/` (path at impl), `CHANGELOG.md`, a runbook under
-  `docs/runbooks/`.
+- **Expected Outcome:** the GitHub integration guide gains a **Code Scanning
+  (SARIF)** section describing `--format sarif` on the three commands, the
+  pinned 2.1.0 subset, the per-command result/location/suppression mapping, and
+  the gate location-less-result limitation; the CHANGELOG `Unreleased` section
+  records the additive mode; a runbook
+  (`docs/runbooks/sarif-code-scanning-upload.md`) documents the manual upload to
+  a Code Scanning sandbox with an empty **Verification record** for an operator
+  to fill in (manual, out-of-band — **not** a CI test, since it is a
+  non-deterministic external dependency, so it ships un-run by design).
+- **Validation:** `pnpm docs:check && pnpm format:check` (+ `docs:index:check`
+  for the new runbook in the generated indexes); the manual upload check is
+  recorded in the runbook's Verification record when an operator performs it.
+- **Files:** `docs/public/anvil/integrations/github.md`,
+  `docs/runbooks/sarif-code-scanning-upload.md`, `CHANGELOG.md`,
+  `docs/indexes/*` (regenerated).
 - **Dependencies:** SARIFOUT-003, SARIFOUT-004, SARIFOUT-005
 - **Confidence:** medium
 

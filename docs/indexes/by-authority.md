@@ -27,6 +27,7 @@
 | [PocketFlow Capabilities](../../docs/architecture/references/pocketflow-capabilities.md)                                | `docs/architecture/references/pocketflow-capabilities.md` | Guide   | Advisory  | KIND     | Live   |
 | [PocketFlow Integration](../../docs/architecture/references/pocketflow-vendoring.md)                                    | `docs/architecture/references/pocketflow-vendoring.md`    | Guide   | Advisory  | KIND     | Live   |
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                           | `docs/guides/release-doc-checklist.md`                    | Guide   | Advisory  | DOCGOV   | Live   |
+| [SARIF → GitHub Code Scanning Upload Runbook](../../docs/runbooks/sarif-code-scanning-upload.md)                        | `docs/runbooks/sarif-code-scanning-upload.md`             | Runbook | Advisory  | SARIFOUT | Live   |
 | [The Ultimate Feature: A Real-Time Deterministic Semantic Guardian](../../docs/vision/aspirational-ultimate-feature.md) | `docs/vision/aspirational-ultimate-feature.md`            | Guide   | Advisory  | VISION   | Draft  |
 | [weave: Internal Agent Harness](../../docs/internal/weave-feature-brief.md)                                             | `docs/internal/weave-feature-brief.md`                    | Spec    | Advisory  | WEAVE    | Draft  |
 

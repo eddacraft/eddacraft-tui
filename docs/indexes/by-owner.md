@@ -236,6 +236,12 @@
 | [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)    | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
 | [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md) | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
 
+## SARIFOUT
+
+| Document                                                                                         | Path                                          | Type    | Authority | Owner    | Status |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------- | --------- | -------- | ------ |
+| [SARIF → GitHub Code Scanning Upload Runbook](../../docs/runbooks/sarif-code-scanning-upload.md) | `docs/runbooks/sarif-code-scanning-upload.md` | Runbook | Advisory  | SARIFOUT | Live   |
+
 ## SCAN
 
 | Document                                                            | Path                                  | Type  | Authority     | Owner | Status |
