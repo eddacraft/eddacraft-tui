@@ -193,28 +193,50 @@ K1 ADR) were resolved inline above.
 - **Evidence:**
   [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).
 
-### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — Ready
+### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close audit gap TS-G5 by adding the cross-cutting Zod-creep
   rules so escape hatches in schema definitions trip the gate the same way
   the existing `any` / `as any` / `@ts-ignore` rules do.
+- **Spec reconciliation (2026-05-30):** Council review during
+  implementation corrected two points before merge:
+  - **Renumbered to AP-015 / AP-016.** The obvious next id `AP-010` is a
+    retired HTML/CSS pattern id (`AP-010..AP-013`) guarded by
+    `crates/anvil-checks/src/antipattern/patterns.rs::retired_html_css_patterns_are_absent`,
+    and is independently claimed by a different rule in
+    `crates/anvil-policy/src/library.rs`. `AP-014` is a TUI test fixture.
+    The new rules take the next clear ids, AP-015 and AP-016.
+  - **`z.unknown()` split to an opt-in rule.** Flagging all three patterns
+    on by default mis-calibrates: `z.unknown()` has 16 idiomatic
+    first-party uses (`z.record(z.string(), z.unknown())`) and is the
+    *recommended* safe alternative to `any` — the antipattern scanner does
+    not baseline, so an on-by-default rule would warn on legitimate code
+    from day one. So **AP-015** (`z.any()` + a Zod-anchored `.passthrough()`)
+    ships on by default at `warning`, and **AP-016** (`z.unknown()`) ships
+    `opt_in: true` (off by default, `confidence: medium`) for teams that
+    want every schema field to carry a contract. All three patterns the
+    spec names are still detectable. `.passthrough()` is anchored to a Zod
+    receiver on the same line to avoid firing on non-Zod `.passthrough()`
+    (streams, mocks).
 - **Expected Outcome:** New rules detect `z.any()`, `z.unknown()`, and
-  `.passthrough()` and ship in the compiled pattern registry with a family
-  entry, mirroring how LANGTS-006 shipped the `dynamic-execution` family.
-  Severity matches the audit's TS T2 placement (alongside the existing
-  type-evasion rules).
-- **Scope:** a `patterns/<family>/` source directory (Zod-creep fits the
-  existing `type-system-evasion` family or a new sibling family directory
-  under `patterns/`) plus the regenerated `patterns/compiled/registry.json`
-  entry.
+  `.passthrough()` and ship in the compiled pattern registry under the
+  `type-system-evasion` family. AP-015 (`z.any()` + Zod `.passthrough()`)
+  is on by default at `severity: warning` (matching AP-003's TS T2
+  placement); AP-016 (`z.unknown()`) is opt-in.
+- **Scope:** `patterns/type-system-evasion/AP-015.anvil` + `AP-016.anvil`,
+  the family `definition.anvil` rule list/prose, the regenerated
+  `patterns/compiled/registry.json`, and scanner code-scoping /
+  eslint-suppression parity for the new ids.
 - **Non-scope:** Extractor changes (LANGTS-002); the kernel-prereq work
   (LANGTS-005).
 - **Dependencies:** LANGTS-001 (Done).
-- **Validation:** A fixture test asserts each of `z.any()`, `z.unknown()`,
-  and `.passthrough()` fires the rule, while a plain typed Zod schema
-  (`z.object({ id: z.string() })`) does not — same fixture-pair shape the
-  LANGTS-006 `dynamic-execution` rules used to avoid false positives.
+- **Validation:** Gate + scanner fixture tests assert `z.any()` and a Zod
+  `.passthrough()` fire AP-015 by default, `z.unknown()` fires AP-016 only
+  under opt-in (and is quiet by default), a non-Zod `.passthrough()` does
+  not fire, and a plain typed schema (`z.object({ id: z.string() })`) is
+  clean — same fixture-pair shape the LANGTS-006 `dynamic-execution` rules
+  used to avoid false positives.
 - **Confidence:** high — registry edit + family doc page is a well-trodden
   path (FLAGCAT-independent; LANGTS-006 is the working precedent).
 

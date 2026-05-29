@@ -1,0 +1,53 @@
+---
+id: AP-015
+type: rule
+family: type-system-evasion
+title: Zod schema escape hatch (z.any / .passthrough)
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**', '**/*.setup.ts', '**/*.setup.js', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '\bz\.any\s*\(|\bz\..*\.passthrough\s*\('
+
+related: [AP-003, AP-016]
+enabled: true
+opt_in: false
+---
+
+Don't reach for a Zod escape hatch here. `z.any()` accepts any value
+without validating it, and `.passthrough()` lets unvalidated keys flow
+through untouched — each one punches a hole in the very schema you
+reached for to close. A Zod schema that bottoms out in `z.any()` gives
+the caller the same false confidence as `: any` (AP-003): the type says
+"validated", the runtime validates nothing.
+
+If the field has a known shape, model it — `z.object({ ... })`,
+`z.string()`, `z.enum([...])`, a discriminated union. If only part of
+the value is load-bearing, validate that part and narrow the rest behind
+a type guard rather than passing the whole value through unchecked.
+
+For unknown keys, `.strict()` (reject them) or an explicit
+`.catchall(schema)` (validate them) is almost always the contract you
+want instead of `.passthrough()`.
+
+The `.passthrough()` arm is anchored to a Zod receiver on the same line
+(`z.…().passthrough(`) so a `.passthrough()` method on a non-Zod object
+(streams, mocks) does not false-fire — at the cost of missing a
+`.passthrough()` chained onto its own line. The detector is line-based,
+not AST-aware: aliased imports (`import { z as zod }`), bracket notation
+(`z["any"]()`), and a `z.any(` inside a comment or string are not
+distinguished. Use the standard suppression directive or the per-file
+allowlist for the rare false positive.
+
+`z.unknown()` is handled separately by the opt-in rule AP-016 — it is
+the least-bad of the escape hatches (consumers must still narrow) and is
+idiomatic as a leaf in a typed record (`z.record(z.string(),
+z.unknown())`), so it is off by default.

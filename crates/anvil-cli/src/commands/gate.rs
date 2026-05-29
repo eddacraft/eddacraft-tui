@@ -3151,6 +3151,90 @@ rules: []
         assert!(!result.message.contains("AP-008"));
     }
 
+    // ── LANGTS-004 / TS-G5: Zod-creep rules ──────────────────────────
+
+    #[test]
+    fn antipattern_check_detects_zod_creep() {
+        // AP-015 — the on-by-default Zod escape hatches (`z.any()` and a
+        // Zod `.passthrough()`) must trip the type-system-evasion gate the
+        // same way `: any` (AP-003) does. Each fixture runs on its own so a
+        // regex that only caught one alternative would fail here.
+        for snippet in [
+            "export const S = z.any();\n",
+            "export const S = z.object({ id: z.string() }).passthrough();\n",
+        ] {
+            let tmp = tempfile::TempDir::new().unwrap();
+            std::fs::write(tmp.path().join("schema.ts"), snippet).unwrap();
+
+            let result = run_check_antipattern(
+                "antipattern-scan",
+                tmp.path(),
+                &std::collections::HashSet::new(),
+            );
+
+            assert!(
+                !result.passed,
+                "AP-015 must trip on Zod escape hatch `{snippet}`"
+            );
+            assert!(
+                result.message.contains("AP-015"),
+                "expected AP-015 for `{snippet}`, got: {}",
+                result.message
+            );
+        }
+    }
+
+    #[test]
+    fn antipattern_check_skips_zod_unknown_by_default() {
+        // `z.unknown()` is the opt-in rule AP-016 (idiomatic as a typed-record
+        // leaf), so the default gate must stay quiet on it.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("schema.ts"),
+            "export const Meta = z.record(z.string(), z.unknown());\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(
+            result.passed,
+            "z.unknown() (AP-016 opt-in) must not trip the default gate; got: {}",
+            result.message
+        );
+        assert!(!result.message.contains("AP-016"));
+    }
+
+    #[test]
+    fn antipattern_check_skips_typed_zod_schema() {
+        // A fully-typed Zod schema must NOT fire AP-015 — the rule targets
+        // the escape hatches, not Zod itself (Zod is the recommended fix
+        // for `: any`, per the type-system-evasion family doc).
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("schema.ts"),
+            "export const User = z.object({ id: z.string(), age: z.number() });\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+        );
+
+        assert!(
+            result.passed,
+            "typed Zod schema must not trip the gate; got: {}",
+            result.message
+        );
+        assert!(!result.message.contains("AP-015"));
+    }
+
     #[test]
     fn antipattern_check_skips_when_no_supported_files_exist() {
         let tmp = tempfile::TempDir::new().unwrap();

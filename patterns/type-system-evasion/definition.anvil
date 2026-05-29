@@ -6,7 +6,7 @@ category: type-evasion
 targets: [source]
 related: [guardrail-suppression]
 tensions: []
-rules: [AP-003]
+rules: [AP-003, AP-015, AP-016]
 ---
 
 ## What It Is
@@ -50,8 +50,11 @@ message to read — the developer needs to reason about the data.
 
 ## The Spectrum
 
-This family currently has a single rule (AP-003) but covers a range
-of motivations:
+This family has three rules: AP-003 (`any` in the type annotation),
+AP-015 (the `z.any()` / `.passthrough()` Zod escape hatches, on by
+default), and AP-016 (`z.unknown()` in a schema, opt-in). All share one
+shape — opting out of a guarantee the type or schema system was there to
+provide — but cover a range of motivations:
 
 1. **Laziness** — The developer doesn't want to figure out the type.
    This is the most common case and the easiest to fix: think about
@@ -74,6 +77,19 @@ of motivations:
    correct type when wrapping an untyped library. The fix is to write
    better type definitions, but this is sometimes genuinely out of
    scope.
+
+**Schema-boundary evasion (AP-015 / AP-016).** The same instinct
+reappears one layer out, in runtime validators. Zod is the canonical fix
+for untyped external data (see the "Best" example below) — but
+`z.any()`, `.passthrough()`, and `z.unknown()` opt back out of it. A
+schema that accepts anything, or lets arbitrary keys through, gives the
+caller a type that claims to be validated while the runtime validates
+nothing. This is `: any` wearing a schema's clothes — exactly the escape
+hatch the recommended fix was supposed to remove. AP-015 flags `z.any()`
+and `.passthrough()` on by default. `z.unknown()` is the least-bad of
+the three (consumers must still narrow) and is genuinely idiomatic as a
+typed-record leaf, so it lives in the **opt-in** rule AP-016 rather than
+firing by default.
 
 The distinction between "I don't know the type" (evasion) and "I know
 the type but I'm overriding it" (`as any` — suppression) is important.
@@ -112,6 +128,12 @@ for "I don't want to deal with types right now."
 - `Promise<any>` — async result with no type information
 - Multiple `any` declarations in one file — systemic evasion
 - `any` in non-test, non-declaration files — highest signal
+- `z.any()` in a Zod schema (AP-015) — validation disabled at the
+  boundary the schema was meant to guard
+- `.passthrough()` on a Zod object (AP-015) — unvalidated keys flow
+  through; prefer `.strict()` or an explicit `.catchall(schema)`
+- `z.unknown()` in a Zod schema (AP-016, opt-in) — accepts anything;
+  idiomatic as a typed-record leaf, so off by default
 
 ## Example
 

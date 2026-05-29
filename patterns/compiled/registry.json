@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-05-21T06:02:24.807Z",
+  "compiled_at": "2026-05-29T19:26:44.451Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -251,6 +251,76 @@
       "explanation": "- Runtime code execution from a dynamic string is the textbook\n  arbitrary-code-execution antipattern. Any path that lets an\n  attacker influence the input — query params, request bodies,\n  localStorage, hostnames — becomes a remote-code-execution vector.\n  Static analysis cannot prove the input is benign.\n- The dynamically-compiled code runs in the surrounding scope's\n  privileges. In a browser, that includes the user's session\n  cookies, DOM, and IndexedDB; in Node, the filesystem, network,\n  and child-process surface. There is no sandbox.\n- Bundlers, minifiers, and tree-shakers cannot reason about\n  dynamically-evaluated code. References inside the string look\n  unused to the static graph, so production builds can silently\n  strip the only callers and crash at runtime — or worse, leave\n  the eval'd code paths un-minified and traceable.\n- Performance: most JavaScript engines deoptimise enclosing\n  functions when `eval` appears in scope, because the engine can\n  no longer prove that local variable accesses won't be intercepted\n  by the eval'd code. The cost falls on the surrounding hot path,\n  not just the eval call.\n- AI agents reach for `eval(input)` when asked to \"make this\n  string of code execute\" — the answer to a metaprogramming\n  question almost always has a safer constructor (a function map,\n  a JSON parser, a template engine with an escape contract). The\n  rule's job is to surface the catch and route the agent to those\n  alternatives.",
       "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
       "definition_ref": "patterns/dynamic-execution/definition.anvil",
+      "tensions": [],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
+      "id": "AP-015",
+      "family": "type-system-evasion",
+      "title": "Zod schema escape hatch (z.any / .passthrough)",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 2,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\bz\\.any\\s*\\(|\\bz\\..*\\.passthrough\\s*\\("
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "*.d.ts",
+        "**/__mocks__/**",
+        "**/test/**/*.ts",
+        "**/__tests__/**",
+        "**/*.setup.ts",
+        "**/*.setup.js",
+        "**/explain/**"
+      ],
+      "nudge": "Don't reach for a Zod escape hatch here. `z.any()` accepts any value\nwithout validating it, and `.passthrough()` lets unvalidated keys flow\nthrough untouched — each one punches a hole in the very schema you\nreached for to close. A Zod schema that bottoms out in `z.any()` gives\nthe caller the same false confidence as `: any` (AP-003): the type says\n\"validated\", the runtime validates nothing.\n\nIf the field has a known shape, model it — `z.object({ ... })`,\n`z.string()`, `z.enum([...])`, a discriminated union. If only part of\nthe value is load-bearing, validate that part and narrow the rest behind\na type guard rather than passing the whole value through unchecked.\n\nFor unknown keys, `.strict()` (reject them) or an explicit\n`.catchall(schema)` (validate them) is almost always the contract you\nwant instead of `.passthrough()`.\n\nThe `.passthrough()` arm is anchored to a Zod receiver on the same line\n(`z.…().passthrough(`) so a `.passthrough()` method on a non-Zod object\n(streams, mocks) does not false-fire — at the cost of missing a\n`.passthrough()` chained onto its own line. The detector is line-based,\nnot AST-aware: aliased imports (`import { z as zod }`), bracket notation\n(`z[\"any\"]()`), and a `z.any(` inside a comment or string are not\ndistinguished. Use the standard suppression directive or the per-file\nallowlist for the rare false positive.\n\n`z.unknown()` is handled separately by the opt-in rule AP-016 — it is\nthe least-bad of the escape hatches (consumers must still narrow) and is\nidiomatic as a leaf in a typed record (`z.record(z.string(),\nz.unknown())`), so it is off by default.",
+      "related": ["AP-003", "AP-016"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Type System Evasion",
+      "category": "type-evasion",
+      "explanation": "- Type checking is disabled for the value and everything derived from\n  it. `any` propagates — assign an `any` to a variable, and that\n  variable is now `any` too. One `any` at the top of a data flow can\n  gut type safety for an entire module.\n- Refactoring becomes unsafe. The type system can't tell you what\n  breaks when you change a type, because the `any` values won't\n  generate errors. You find out at runtime, in production.\n- IDE features degrade. Autocomplete, go-to-definition, and inline\n  errors all depend on type information. `any` gives them nothing to\n  work with.\n- It hides design decisions. When a function parameter is `any`, the\n  contract is \"I accept anything\" — but that's almost never true. The\n  actual contract is implicit and undocumented.\n- AI agents reach for `any` as the path of least resistance. When an\n  agent encounters a complex generic signature or a type mismatch, `any`\n  is the fastest way to make the error disappear. The code compiles,\n  the tests pass (if they exist), and the type safety hole goes\n  unnoticed until something breaks.",
+      "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown`, not `any`.\n   `unknown` forces you to narrow before use, which is exactly the\n   right behavior for a value whose shape you don't know.",
+      "definition_ref": "patterns/type-system-evasion/definition.anvil",
+      "tensions": [],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
+      "id": "AP-016",
+      "family": "type-system-evasion",
+      "title": "Zod z.unknown() in a schema (opt-in)",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 3,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\bz\\.unknown\\s*\\("
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "*.d.ts",
+        "**/__mocks__/**",
+        "**/test/**/*.ts",
+        "**/__tests__/**",
+        "**/*.setup.ts",
+        "**/*.setup.js",
+        "**/explain/**"
+      ],
+      "nudge": "`z.unknown()` in a Zod schema accepts any value and validates nothing,\njust like `z.any()` (AP-015) — but it is the least-bad escape hatch\nbecause the resulting type is `unknown`, which forces consumers to\nnarrow before use rather than silently spreading like `any`. It is also\ngenuinely idiomatic as a leaf in a typed container — `z.record(z.string(),\nz.unknown())` for a metadata bag, `value: z.unknown()` in a generic\ncache schema — and this family's own guidance recommends parsing\nexternal data into `unknown` and narrowing it.\n\nFor those reasons this rule is **opt-in** (`opt_in: true`): it is off by\ndefault and only fires under `--include-opt-in` / a profile that\nrequests it. Enable it on a codebase that wants every schema field to\ncarry a real contract, where a `z.unknown()` signals an unfinished\nschema rather than a deliberate one.\n\nWhen it does fire: give the field the shape you actually depend on, or\nkeep `z.unknown()` and leave a `// TODO(types): ...` with a tracking\nreference so the gap is visible rather than permanent. Like AP-015 the\ndetector is line-based, so a `z.unknown(` in a comment or string, or an\naliased Zod import, is not distinguished.",
+      "related": ["AP-003", "AP-015"],
+      "enabled": true,
+      "opt_in": true,
+      "family_name": "Type System Evasion",
+      "category": "type-evasion",
+      "explanation": "- Type checking is disabled for the value and everything derived from\n  it. `any` propagates — assign an `any` to a variable, and that\n  variable is now `any` too. One `any` at the top of a data flow can\n  gut type safety for an entire module.\n- Refactoring becomes unsafe. The type system can't tell you what\n  breaks when you change a type, because the `any` values won't\n  generate errors. You find out at runtime, in production.\n- IDE features degrade. Autocomplete, go-to-definition, and inline\n  errors all depend on type information. `any` gives them nothing to\n  work with.\n- It hides design decisions. When a function parameter is `any`, the\n  contract is \"I accept anything\" — but that's almost never true. The\n  actual contract is implicit and undocumented.\n- AI agents reach for `any` as the path of least resistance. When an\n  agent encounters a complex generic signature or a type mismatch, `any`\n  is the fastest way to make the error disappear. The code compiles,\n  the tests pass (if they exist), and the type safety hole goes\n  unnoticed until something breaks.",
+      "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown`, not `any`.\n   `unknown` forces you to narrow before use, which is exactly the\n   right behavior for a value whose shape you don't know.",
+      "definition_ref": "patterns/type-system-evasion/definition.anvil",
       "tensions": [],
       "related_families": ["guardrail-suppression"]
     },
@@ -608,7 +678,7 @@
       "name": "Type System Evasion",
       "category": "type-evasion",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
-      "rules": ["AP-003"],
+      "rules": ["AP-003", "AP-015", "AP-016"],
       "related": ["guardrail-suppression"],
       "tensions": []
     }

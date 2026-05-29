@@ -1,0 +1,44 @@
+---
+id: AP-016
+type: rule
+family: type-system-evasion
+title: Zod z.unknown() in a schema (opt-in)
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**', '**/*.setup.ts', '**/*.setup.js', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '\bz\.unknown\s*\('
+
+related: [AP-003, AP-015]
+enabled: true
+opt_in: true
+---
+
+`z.unknown()` in a Zod schema accepts any value and validates nothing,
+just like `z.any()` (AP-015) — but it is the least-bad escape hatch
+because the resulting type is `unknown`, which forces consumers to
+narrow before use rather than silently spreading like `any`. It is also
+genuinely idiomatic as a leaf in a typed container — `z.record(z.string(),
+z.unknown())` for a metadata bag, `value: z.unknown()` in a generic
+cache schema — and this family's own guidance recommends parsing
+external data into `unknown` and narrowing it.
+
+For those reasons this rule is **opt-in** (`opt_in: true`): it is off by
+default and only fires under `--include-opt-in` / a profile that
+requests it. Enable it on a codebase that wants every schema field to
+carry a real contract, where a `z.unknown()` signals an unfinished
+schema rather than a deliberate one.
+
+When it does fire: give the field the shape you actually depend on, or
+keep `z.unknown()` and leave a `// TODO(types): ...` with a tracking
+reference so the gap is visible rather than permanent. Like AP-015 the
+detector is line-based, so a `z.unknown(` in a comment or string, or an
+aliased Zod import, is not distinguished.

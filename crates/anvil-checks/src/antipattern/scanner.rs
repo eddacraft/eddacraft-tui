@@ -308,10 +308,21 @@ fn eslint_rule_suppresses_anvil(eslint_rule: Option<&str>, anvil_id: &str) -> bo
         // Bare `eslint-disable-next-line` with no rule — broad opt-out.
         None => matches!(
             anvil_id,
-            "AP-001" | "AP-002" | "AP-003" | "AP-004" | "AP-005" | "AP-006" | "AP-007" | "GS-001"
+            "AP-001"
+                | "AP-002"
+                | "AP-003"
+                | "AP-004"
+                | "AP-005"
+                | "AP-006"
+                | "AP-007"
+                | "AP-015"
+                | "AP-016"
+                | "GS-001"
         ),
         Some(rule) => match rule {
-            "@typescript-eslint/no-explicit-any" => anvil_id == "AP-003",
+            // `z.any()` (AP-015) is the Zod surface of explicit-any, so the
+            // same eslint opt-out suppresses it alongside AP-003.
+            "@typescript-eslint/no-explicit-any" => anvil_id == "AP-003" || anvil_id == "AP-015",
             "@typescript-eslint/ban-ts-comment" => anvil_id == "AP-004" || anvil_id == "AP-005",
             "@typescript-eslint/no-non-null-assertion" => anvil_id == "GS-001",
             "no-empty" => anvil_id == "AP-006",
@@ -808,7 +819,10 @@ fn gs001_is_guarded_map_get(
 /// `lexical_scope` field on the compiled registry so each rule declares its
 /// own scope — is tracked as a follow-up on #1914.
 fn rule_is_code_scoped(rule_id: &str) -> bool {
-    matches!(rule_id, "AP-003" | "GS-001")
+    // AP-015/AP-016 (Zod escape hatches) join AP-003 here: a `z.any(` or
+    // `z.unknown(` mentioned in a comment or string literal is a false
+    // positive, so they run against the comment/string-masked view too.
+    matches!(rule_id, "AP-003" | "AP-015" | "AP-016" | "GS-001")
 }
 
 fn find_match_columns(
@@ -1037,6 +1051,91 @@ mod tests {
         };
         let result = scan_file("src/app.ts", "console.log('x')", Some(&options));
         assert!(result.warnings.iter().any(|warning| warning.id == "AP-007"));
+    }
+
+    // ── LANGTS-004 / TS-G5: Zod-creep rules (AP-015 default, AP-016 opt-in) ──
+
+    #[test]
+    fn zod_any_and_passthrough_fire_ap_015_by_default() {
+        let any = scan_file("src/schema.ts", "export const S = z.any();", None);
+        assert!(
+            any.warnings.iter().any(|w| w.id == "AP-015"),
+            "z.any() must fire AP-015 by default"
+        );
+
+        let pass = scan_file(
+            "src/schema.ts",
+            "export const S = z.object({ id: z.string() }).passthrough();",
+            None,
+        );
+        assert!(
+            pass.warnings.iter().any(|w| w.id == "AP-015"),
+            ".passthrough() on a Zod schema must fire AP-015 by default"
+        );
+    }
+
+    #[test]
+    fn zod_unknown_is_opt_in_only() {
+        // Off by default (AP-016 opt_in)...
+        let default = scan_file("src/schema.ts", "export const S = z.unknown();", None);
+        assert!(
+            !default
+                .warnings
+                .iter()
+                .any(|w| w.id == "AP-016" || w.id == "AP-015"),
+            "z.unknown() must be silent by default; got {:?}",
+            default.warnings
+        );
+
+        // ...and fires AP-016 when opt-in is requested.
+        let options = ScanOptions {
+            patterns: None,
+            include_opt_in: true,
+        };
+        let opted = scan_file(
+            "src/schema.ts",
+            "export const S = z.unknown();",
+            Some(&options),
+        );
+        assert!(
+            opted.warnings.iter().any(|w| w.id == "AP-016"),
+            "z.unknown() must fire AP-016 when opt-in is enabled"
+        );
+    }
+
+    #[test]
+    fn passthrough_on_non_zod_receiver_does_not_fire() {
+        // The .passthrough() arm is anchored to a Zod receiver on the same
+        // line, so a non-Zod `.passthrough()` (streams, mocks) is quiet.
+        let result = scan_file(
+            "src/stream.ts",
+            "const s = makeStream();\ns.passthrough();\n",
+            None,
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.id == "AP-015"),
+            "non-Zod .passthrough() must not fire AP-015; got {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn typed_zod_record_with_unknown_leaf_is_quiet_by_default() {
+        // The idiomatic metadata-bag pattern must stay quiet by default
+        // (z.unknown is opt-in AP-016; the typed object is not a hit).
+        let result = scan_file(
+            "src/schema.ts",
+            "export const Meta = z.record(z.string(), z.unknown());\n",
+            None,
+        );
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.id == "AP-015" || w.id == "AP-016"),
+            "z.record(z.string(), z.unknown()) must be quiet by default; got {:?}",
+            result.warnings
+        );
     }
 
     #[test]
