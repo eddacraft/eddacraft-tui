@@ -19,12 +19,20 @@ export const meta = {
 //   noMerge   : if true, stop after opening PRs — do NOT merge (human merge gate)
 //   date      : ISO date used in "Merged <date> via PR #N" status flips
 // ---------------------------------------------------------------------------
+// Workflow args may arrive as strings (e.g. "5"); coerce to a positive int.
+const toPosInt = (v) => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
+  return Number.isInteger(n) && n > 0 ? n : null
+}
 const DEFAULT_ELIGIBLE = ['CIB-014', 'CIB-016', 'CIB-026', 'CIB-029', 'CIB-030']
 const REQUESTED = (args && Array.isArray(args.items) && args.items.length) ? args.items : DEFAULT_ELIGIBLE
-const MAX_ITEMS = (args && Number.isInteger(args.maxItems)) ? args.maxItems : 5
+const MAX_ITEMS = (args && toPosInt(args.maxItems)) || 5
 const DRY_RUN = !!(args && args.dryRun)
 const NO_MERGE = !!(args && args.noMerge)
-const DATE = (args && typeof args.date === 'string') ? args.date : '2026-05-29'
+// Date for "Merged <date> via PR #N" flips. No default stamp — Date is
+// unavailable in workflow scripts, so when unset the merge agent runs
+// `date +%F` itself at flip time rather than baking in a stale constant.
+const DATE = (args && typeof args.date === 'string') ? args.date : null
 const CIB_PATH = 'plans/modules/continuous-improvement-backlog.aps.md'
 const CI_LOG = 'plans/reviews/continuous-improvement-log.md'
 
@@ -361,8 +369,10 @@ if (NO_MERGE || DRY_RUN) {
   // edits (CIB module status line, CI log) reconcile deterministically.
   for (const g of openedPRs) {
     const m = await agent(
-      `Merge a reviewed, green CIB PR into main — sequentially and safely. main is NOT branch-protected, so YOU are
-the merge gate: do not merge until CI is confirmed green.
+      `Merge a reviewed, green CIB PR into main — sequentially and safely. YOU are the merge gate: do not merge
+until CI is confirmed green. main MAY be branch-protected (required reviews and/or status checks). Never bypass
+protections — no admin override, no force-merge. If the merge is blocked by required reviews or insufficient
+permissions, STOP and report it as a blocker (this is expected, not a failure).
 
 Worktree: ${g.impl.worktreePath}
 Branch: ${g.impl.branch}
@@ -372,7 +382,7 @@ Item: ${g.item.id} — ${g.item.title}
 ${REPO_RULES}
 
 Procedure (from inside the worktree):
-1. In ${CIB_PATH}, flip ${g.item.id}'s own Status line to "Merged ${DATE} via PR #${g.pr.prNumber}" and add a one-line
+1. In ${CIB_PATH}, flip ${g.item.id}'s own Status line to "Merged ${DATE ?? '<today>'} via PR #${g.pr.prNumber}"${DATE ? '' : ' (run `date +%F` for <today>)'} and add a one-line
    "Summary:" compacting the item (matching the repo's compacted-done convention). Commit it onto the branch so the
    status flip lands in the merged history (NOT a later reconcile PR).
 2. \`git fetch origin\` then rebase the branch onto \`origin/main\`. Resolve conflicts (the CIB module + CI log are the
@@ -381,8 +391,9 @@ Procedure (from inside the worktree):
 3. Confirm \`gh pr view #${g.pr.prNumber} --json mergeable,mergeStateStatus\` is clean and poll \`gh pr checks ${g.pr.prNumber}\`
    until all required checks pass (give CI a reasonable window). If a required check fails or stays pending too long,
    STOP: set merged=false, ciVerified=false, and report — do NOT merge a red/unknown PR.
-4. Only when CI is green: \`gh pr merge ${g.pr.prNumber} --rebase --delete-branch\`. Confirm the PR shows MERGED and
-   capture the merge commit.
+4. Only when CI is green: attempt \`gh pr merge ${g.pr.prNumber} --rebase --delete-branch\`. If it succeeds, confirm
+   the PR shows MERGED and capture the merge commit. If it is rejected by branch protection (required reviews/checks
+   or insufficient permissions), STOP: set merged=false, ciVerified=true, and report the blocker — do NOT bypass it.
 5. Offer-safe cleanup: if the worktree is now safe (merged, branch deleted), \`wt remove\` it. Never remove an
    unmerged/dirty worktree.
 

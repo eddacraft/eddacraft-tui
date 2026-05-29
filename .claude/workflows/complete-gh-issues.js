@@ -16,7 +16,12 @@ export const meta = {
 //   dryRun   : if true, stop after local gates+council — do NOT open PRs
 //   issues   : explicit issue-number allowlist (skips auto-triage selection)
 // ---------------------------------------------------------------------------
-const MAX_UNITS = (args && Number.isInteger(args.maxUnits)) ? args.maxUnits : 4
+// Workflow args may arrive as strings (e.g. "3"); coerce to a positive int.
+const toPosInt = (v) => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+const MAX_UNITS = (args && toPosInt(args.maxUnits)) || 4
 const DRY_RUN = !!(args && args.dryRun)
 const ISSUE_ALLOWLIST = (args && Array.isArray(args.issues)) ? args.issues : null
 

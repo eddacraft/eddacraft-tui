@@ -19,7 +19,12 @@ export const meta = {
 //   modules : explicit filename allowlist (skips filesystem discovery)
 //   date    : ISO date stamp for the report (skips `date +%F` discovery)
 // ---------------------------------------------------------------------------
-const BATCH = (args && Number.isInteger(args.batch) && args.batch > 0) ? args.batch : 8
+// Workflow args may arrive as strings (e.g. "8"); coerce to a positive int.
+const toPosInt = (v) => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+const BATCH = (args && toPosInt(args.batch)) || 8
 
 const DISCOVERY_SCHEMA = {
   type: 'object',
@@ -88,7 +93,7 @@ const VERDICT_SCHEMA = {
 
 phase('Discover')
 const discovery =
-  args && args.modules && args.date
+  args && Array.isArray(args.modules) && args.modules.length && typeof args.date === 'string'
     ? { date: args.date, modules: args.modules }
     : await agent(
         `From the repo root, return today's date and the active APS module set:
