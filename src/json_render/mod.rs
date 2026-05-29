@@ -2,9 +2,10 @@
 //!
 //! This is the generic, Anvil-agnostic engine for the `@json-render/core` flat
 //! element spec format, per [ADR-054]: parse a JSON dashboard spec into typed
-//! Rust structures and validate it against a component [`Catalog`]. Component
-//! rendering (the registry trait, tree walker, and Ratatui widgets) builds on
-//! these types in later TUIDASH work items.
+//! Rust structures and validate it against a component [`Catalog`]. The
+//! [`TuiComponent`] trait and [`TuiRegistry`] map component type names to
+//! renderers on top of these types; the tree walker and Ratatui widget mappings
+//! build on them in later TUIDASH work items.
 //!
 //! ```
 //! use eddacraft_tui::json_render::{self, Catalog};
@@ -25,11 +26,15 @@
 //! [ADR-054]: the json-render TUI engine home decision — generic engine in
 //! `eddacraft-tui` behind this feature, Anvil catalogue + surface in `anvil-tui`.
 
+mod component;
+mod registry;
 mod spec;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+pub use component::TuiComponent;
+pub use registry::TuiRegistry;
 pub use spec::{Element, PropValue, Props, RenderSpec, parse, to_json_pretty};
 
 /// The set of component type names a [`RenderSpec`] is allowed to reference.
