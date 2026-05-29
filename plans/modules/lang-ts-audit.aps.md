@@ -152,9 +152,9 @@ K1 ADR) were resolved inline above.
 - **Evidence:**
   [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).
 
-### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — Ready
+### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the two extraction gaps the audit marked Medium so the TS
   symbol graph carries the shapes Track 4 packs will reason about, and record
   the deferral decision for the rest.

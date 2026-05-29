@@ -51,6 +51,16 @@ fn extract_from_node(
     match node.kind() {
         "function_declaration" => extract_function(node, source, file, symbols, next_id),
         "class_declaration" => extract_class(node, source, file, symbols, next_id),
+        // TS-G1: type-shape declarations become first-class symbols.
+        "interface_declaration" => {
+            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::Interface);
+        }
+        "type_alias_declaration" => {
+            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::TypeAlias);
+        }
+        "enum_declaration" => {
+            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::Enum);
+        }
         "export_statement" => extract_export(node, source, file, symbols, imports, next_id),
         "import_statement" => extract_import(node, source, file, imports),
         "call_expression" => extract_require(node, source, file, imports),
@@ -103,12 +113,64 @@ fn extract_class(
     symbols: &mut Vec<SymbolNode>,
     next_id: &mut u64,
 ) {
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return;
+    };
+    let class_name = node_text(name_node, source);
+    symbols.push(SymbolNode {
+        id: *next_id,
+        kind: SymbolKind::Class,
+        name: class_name.clone(),
+        visibility: Visibility::Internal,
+        file: file.to_string(),
+        trust_level: TrustLevel::default(),
+    });
+    *next_id += 1;
+
+    // TS-G2: surface each class method as its own symbol, qualifying the name
+    // with the owning class (`Owner.method`) so the parent is recoverable
+    // without a structural parent edge (deferred — see `SymbolKind::Method`).
+    // `class_declaration` is excluded from the generic child recursion in
+    // `extract_from_node`, so methods are emitted only here (no double-count).
+    if let Some(body) = node.child_by_field_name("body") {
+        for i in 0..u32::try_from(body.named_child_count()).unwrap_or(0) {
+            let Some(member) = body.named_child(i) else {
+                continue;
+            };
+            if member.kind() != "method_definition" {
+                continue;
+            }
+            if let Some(method_name) = member.child_by_field_name("name") {
+                symbols.push(SymbolNode {
+                    id: *next_id,
+                    kind: SymbolKind::Method,
+                    name: format!("{class_name}.{}", node_text(method_name, source)),
+                    visibility: Visibility::Internal,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::default(),
+                });
+                *next_id += 1;
+            }
+        }
+    }
+}
+
+/// Emit a single named declaration — interface / type alias / enum (TS-G1) —
+/// as a symbol of `kind`. Visibility defaults to `Internal`; an enclosing
+/// `export_statement` upgrades it to `Public` via [`extract_export`].
+fn extract_named_decl(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+    kind: SymbolKind,
+) {
     if let Some(name_node) = node.child_by_field_name("name") {
-        let name = node_text(name_node, source);
         symbols.push(SymbolNode {
             id: *next_id,
-            kind: SymbolKind::Class,
-            name,
+            kind,
+            name: node_text(name_node, source),
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
@@ -449,6 +511,108 @@ class Greeter {
             .collect();
 
         assert!(classes.contains(&"Greeter"));
+    }
+
+    // --- TS-G1: interface / type-alias / enum declarations ---
+
+    #[test]
+    fn extracts_interface_type_alias_and_enum_symbols() {
+        let source = b"
+interface Shape { area(): number; }
+type Id = string | number;
+enum Color { Red, Green, Blue }
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let by_kind = |k: SymbolKind| -> Vec<&str> {
+            symbols
+                .symbols
+                .iter()
+                .filter(|s| s.kind == k)
+                .map(|s| s.name.as_str())
+                .collect()
+        };
+        assert_eq!(by_kind(SymbolKind::Interface), ["Shape"], "TS-G1 interface");
+        assert_eq!(by_kind(SymbolKind::TypeAlias), ["Id"], "TS-G1 type alias");
+        assert_eq!(by_kind(SymbolKind::Enum), ["Color"], "TS-G1 enum");
+    }
+
+    #[test]
+    fn exported_type_shapes_are_public() {
+        let source = b"
+export interface Public {}
+interface Internal {}
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let vis = |name: &str| {
+            symbols
+                .symbols
+                .iter()
+                .find(|s| s.name == name)
+                .map(|s| s.visibility)
+        };
+        assert_eq!(vis("Public"), Some(Visibility::Public));
+        assert_eq!(vis("Internal"), Some(Visibility::Internal));
+    }
+
+    // --- TS-G2: class methods as separate symbols, parent encoded in the name ---
+
+    #[test]
+    fn extracts_class_methods_with_qualified_names() {
+        let source = b"
+class Service {
+    constructor() {}
+    start(): void {}
+    private stop(): void {}
+}
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let methods: Vec<&str> = symbols
+            .symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Method)
+            .map(|s| s.name.as_str())
+            .collect();
+
+        // Each method is surfaced as `Owner.method` so the owning class is
+        // recoverable from the name (TS-G2 parent link).
+        assert!(methods.contains(&"Service.start"), "got {methods:?}");
+        assert!(methods.contains(&"Service.stop"), "got {methods:?}");
+        assert!(methods.contains(&"Service.constructor"), "got {methods:?}");
+        // The class itself is still emitted as a Class symbol.
+        assert!(
+            symbols
+                .symbols
+                .iter()
+                .any(|s| s.kind == SymbolKind::Class && s.name == "Service")
+        );
+    }
+
+    #[test]
+    fn methods_of_exported_class_are_public() {
+        let source = b"
+export class Api {
+    handle(): void {}
+}
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let method = symbols
+            .symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Method && s.name == "Api.handle")
+            .expect("Api.handle method symbol");
+        assert_eq!(method.visibility, Visibility::Public);
     }
 
     #[test]

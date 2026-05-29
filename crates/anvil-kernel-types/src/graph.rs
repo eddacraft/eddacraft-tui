@@ -8,6 +8,17 @@ pub enum SymbolKind {
     Class,
     Module,
     Export,
+    /// A `type` / `interface` declaration's type-shape symbol (TS-G1).
+    Interface,
+    /// A `type X = …` alias declaration (TS-G1).
+    TypeAlias,
+    /// An `enum` declaration (TS-G1).
+    Enum,
+    /// A class/impl method, surfaced as a separate symbol. The owning type is
+    /// encoded in the symbol name as `Owner.method` (TS-G2); a structural
+    /// parent edge is deferred — `SymbolNode` carries no parent field and
+    /// `FileSymbols` no symbol-edge channel, both out of LANGTS-002's scope.
+    Method,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,7 +274,7 @@ mod tests {
 
     #[test]
     fn invalid_symbol_kind_fails() {
-        let result = serde_json::from_str::<SymbolKind>("\"Interface\"");
+        let result = serde_json::from_str::<SymbolKind>("\"NotARealKind\"");
         assert!(result.is_err());
     }
 

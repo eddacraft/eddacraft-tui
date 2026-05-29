@@ -167,6 +167,27 @@ expresses them:
       `__import__` in Python) captured as edges where statically
       resolvable; documented N/A otherwise.** Closes TS-G3 partly.
 
+### 2.4 Deferred gaps (first T3 iteration)
+
+LANGTS-002 closed the two Medium audit gaps — **TS-G1** (interface /
+type-alias / enum symbols) and **TS-G2** (class methods as `Owner.method`
+symbols). The remaining audit gaps are **deferred for the
+first T3 iteration** so RSTLAN / PYLAN are **not** required to extract the
+analogous shapes while this note stands:
+
+- **TS-G3 — dynamic `import()` edges.** Static `import` edges are captured;
+  runtime `import('…')` call-site edges are deferred.
+- **TS-G4 — namespace re-exports** (`export * as ns from './m'`). Deferred.
+- **TS-G6 — per-specifier re-export names.** `export { foo } from './m'`
+  still emits a single re-export symbol rather than one per specifier;
+  deferred.
+- **TS-G7 — entry-point auto-detection.** Documentation-only for the first
+  T3 iteration; no extraction work required.
+
+TS-G2's owning-class link is encoded in the method symbol name
+(`Owner.method`); a structural parent edge is deferred (the graph carries no
+symbol-edge channel for it yet).
+
 ---
 
 ## 3. Architecture analysis requirements
