@@ -828,13 +828,13 @@ archive.
 - **Summary:** Canonical `aps lint <f1> <f2> …` only honoured its *last* path
   argument (reported `1 file checked`), so `scripts/aps/active-lint.mjs` — which
   passed the whole active set in one `spawnSync(apsBin, ['lint', ...files])` —
-  silently validated a single module (`weave.aps.md`, last in sort order). Fixed
-  in PR #2084 by invoking `aps lint` per file and aggregating exit status
-  (uniform non-zero propagates, mixed → 1, spawn error → 2);
+  silently validated a single module (`weave.aps.md`, last in sort order). Filed
+  in PR #2084; fixed in PR #2089 by invoking `aps lint` per file and aggregating
+  exit status (uniform non-zero propagates, mixed → 1, spawn error → 2);
   `pnpm aps:active-lint` now reports `102 files checked` across the full
   `--list-files` scope. `scripts/aps/_test/active-lint.test.sh` updated to assert
   one invocation per file. Un-masked CIB-036's true scope (89/102 files with
-  findings). Pending merge — PR #2084 is blocked by CIB-038.
+  findings). Pending merge — PR #2089 is blocked by CIB-038.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 

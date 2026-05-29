@@ -72,7 +72,14 @@ if (files.length === 0) {
 const results = [];
 let spawnError;
 for (const file of files) {
-  const r = spawnSync(apsBin, ['lint', file], { cwd: root, encoding: 'utf8' });
+  // maxBuffer: per-file output is small, but a pathologically large lint report
+  // must not overflow the default 1 MiB buffer and be misreported as a spawn
+  // failure (which would surface as exit 2 below).
+  const r = spawnSync(apsBin, ['lint', file], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (r.error) {
     spawnError = r.error;
     results.push({ file, status: 2, stdout: '', stderr: '', error: r.error.message });
