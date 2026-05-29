@@ -32,6 +32,11 @@ ratatui-image = { version = "10", default-features = false, features = [
 ], optional = true }
 tui-big-text = { version = "0.8", optional = true }
 image = { version = "0.25", default-features = false, optional = true }
+# `json-render` engine deps. Gated behind the `json-render` feature so the core
+# widget library stays serde-free; they only enter the dependency graph for
+# consumers that render json-render dashboard specs (TUIDASH).
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [features]
 test-utils = []
@@ -46,6 +51,11 @@ test-utils = []
 # features; the `Check (all-features)` row uses stable Rust.
 image = ["dep:ratatui-image", "dep:image"]
 big-text = ["dep:tui-big-text"]
+# json-render spec engine (TUIDASH): serde spec types, parser, and catalogue
+# validation for the flat element format produced by `@json-render/core`. Off
+# by default — the dependent product surface opts in to keep the core library
+# serde-free.
+json-render = ["dep:serde", "dep:serde_json"]
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
