@@ -90,12 +90,12 @@ impl Parser {
                 // `ParseError::LanguageInit` keeps the parse path panic-free
                 // (load-bearing for daemon mode, LANGTS-005 K4).
                 let mut parser = tree_sitter::Parser::new();
-                parser
-                    .set_language(&lang.ts_language())
-                    .map_err(|source| ParseError::LanguageInit {
+                parser.set_language(&lang.ts_language()).map_err(|source| {
+                    ParseError::LanguageInit {
                         language: lang,
                         source,
-                    })?;
+                    }
+                })?;
                 Ok(e.insert(parser))
             }
         }
