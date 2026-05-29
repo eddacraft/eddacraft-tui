@@ -151,7 +151,7 @@ These showed up in my candidate scan but on inspection are live or near-live. Ba
 - `docs/architecture/rust-mcp-server-spec.md` — `Status: Ready`, owner `RMCPF-002` (active module).
 - `docs/architecture/jsts-release-surfaces.md` — already governed, `Status: Live`, freshness 2026-05-20.
 - `docs/architecture/oss-surface.md` — describes the public eddacraft OSS posture. Still authoritative.
-- `docs/specs/watch-output-contract.md` — governed, `Status: Draft`, active WOUT module owner.
+- `docs/specs/watch-output-contract.md` — governed, active WOUT module owner; status was `Draft` during the DOCGOV-008 audit and is now `Live`.
 - `docs/observability/local-tracing.md`, `docs/observability/namespace-registry.md` — live observability surface.
 - `docs/strategy/borrow-adopt-candidates.md`, `docs/strategy/competitor-tier2-tracking.md` — live tracking docs with their own workflow.
 - All `docs/policies/**` — release-cadence, resource-budget, editor-coexistence — current policy.

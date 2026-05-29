@@ -86,21 +86,22 @@ Wrap your agent invocation:
 #!/bin/bash
 # run-agent.sh
 
-# Start anvil in watch mode with JSON output (background)
+# Start anvil in watch mode with JSON output (background).
 # --json is a global flag and must precede the subcommand
-anvil --json watch --source > anvil.log &
+anvil --json watch --source > anvil.ndjson 2> anvil.watch.log &
 ANVIL_PID=$!
+trap 'kill "$ANVIL_PID" 2>/dev/null || true' EXIT
 
 # Run agent
 your-agent-cli "$@"
 
-# Check anvil results (WatchEvent uses snake_case fields)
-if grep -q '"event_type":"violation"' anvil.log; then
+# Check anvil results by parsing the NDJSON event stream.
+if jq -e 'select(.event_type == "violation")' anvil.ndjson >/dev/null; then
   echo "Agent produced failing code"
   exit 1
 fi
 
-kill $ANVIL_PID
+kill "$ANVIL_PID"
 ```
 
 ### Pattern 2: MCP Integration

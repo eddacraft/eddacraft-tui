@@ -20,6 +20,9 @@ sidebar_position: 4
 stdout. You can pipe it into `jq`, a shell loop, or a small reader process
 without coupling to terminal output.
 
+`--json` is a global flag, so place it before the subcommand: use
+`anvil --json watch`, not `anvil watch --json`.
+
 The initial scan builds baseline/readiness state. It emits progress and snapshot
 events, but existing repository contents are not reported as new violations
 until a later file change introduces or re-surfaces them.
@@ -50,7 +53,7 @@ Every line on stdout deserialises to:
 | Field            | Notes                                                                                                                                       |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema_version` | Pin to the `anvil.watch.event.v1` prefix. Refuse other values.                                                                              |
-| `seq`            | Monotonic per process. Use to detect dropped lines.                                                                                         |
+| `seq`            | Unique per process. Use to detect dropped or reordered lines.                                                                               |
 | `timestamp`      | ISO 8601 UTC, second precision today (e.g. `2026-05-14T10:21:33Z`), may gain sub-second precision in additive releases. Always ends in `Z`. |
 | `event_type`     | One of `progress`, `snapshot`, `violation`, `error`. New values may appear; treat unknowns as informational.                                |
 | `payload`        | Always an object. Shape depends on `event_type`.                                                                                            |
@@ -195,7 +198,7 @@ import subprocess
 proc = subprocess.Popen(
     ["anvil", "--json", "watch"],
     stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,  # or capture and drain this in a separate thread
     text=True,
 )
 
@@ -224,7 +227,7 @@ A producer (Anvil itself) commits to:
 1. Never removing or renaming a required field within v1.
 2. Only adding optional fields and additional `event_type` values within v1.
 3. Bumping the `schema_version` to `anvil.watch.event.v2` for any breaking
-   change, and emitting one final v1-compatible release before doing so.
+   change.
 
 ## Limits
 

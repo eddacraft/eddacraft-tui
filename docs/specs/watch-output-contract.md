@@ -2,14 +2,14 @@
 
 | Type | Authority     | Owner                                                                                                   | Status | Freshness                                                                                          |
 | ---- | ------------- | ------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](../../plans/modules/watch-output-contract.aps.md)) | Draft  | Last reviewed 2026-05-14 against `main`; implementation state WOUT-001..006 landing in WOUT module |
+| Spec | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](../../plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-29 against `main`; WOUT-001..006 implemented and documented as the stable v1 watch stream |
 
 | Upstream                                                                                                                                          | Downstream                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-kernel-types/src/watch_event.rs` (`WatchEventEnvelope`), `crates/anvil-kernel-types/src/events.rs` (`EngineEvent` in-process shape) | `crates/anvil-cli/src/commands/watch.rs` (serialisation site), [`docs/public/anvil/integrations/watch-output.md`](../public/anvil/integrations/watch-output.md), `crates/anvil-cli/tests/watch_json_output.rs` |
 
-**Version:** 1.0.0 **Status:** Draft (WOUT-001) **Created:** 2026-05-14 **Last
-Updated:** 2026-05-14
+**Version:** 1.0.0 **Status:** Live **Created:** 2026-05-14 **Last Updated:**
+2026-05-29
 
 ---
 
@@ -29,7 +29,7 @@ It complements:
 
 - `crates/anvil-kernel-types/src/events.rs` — the in-process Rust `EngineEvent`
   shape consumed by the TUI surface and other in-tree readers.
-- `docs/specs/2026-04-26-diagnostic-envelope-coordination.md` — the
+- `plans/specs/2026-04-26-diagnostic-envelope-coordination.md` — the
   `anvil.diagnostic.v1` shape used by gate and intercept envelopes. WOUT reuses
   the _style_ (snake_case fields, `schema_version` string, additive evolution
   rule) but defines its own outer envelope because watch is a streaming surface,
@@ -186,7 +186,7 @@ A producer MUST:
 | Field         | Type         | Required | Notes                                                                                                                                                                                                                                                                 |
 | ------------- | ------------ | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `code`        | string       |   yes    | One of `ParseError`, `ConfigError`, `Internal` — **PascalCase, pinned**. New codes require a spec amendment. The casing is deliberately _not_ snake_case (unlike `event_type`); the values are the Rust variant names and renaming them is a v2-only breaking change. |
-| `file`        | string\|null | optional | Workspace-relative path when the error has a file anchor. `null` for engine-wide errors.                                                                                                                                                                              |
+| `file`        | string\|null | optional | Workspace-relative path when the error has a file anchor. Omitted or `null` for engine-wide errors.                                                                                                                                                                   |
 | `message`     | string       |   yes    | Human-readable detail.                                                                                                                                                                                                                                                |
 | `recoverable` | boolean      |   yes    | `true` if the watcher continues after this error; `false` if the watcher will exit.                                                                                                                                                                                   |
 
@@ -284,8 +284,8 @@ read it was relying on implementation detail.
 ## Open Questions
 
 1. Should `anvil.watch.event.v1` also publish a JSON Schema under
-   `packages/anvil/contracts` for non-Rust consumers? **Deferred to WOUT-005** —
-   fixtures land first; schema export is a separate decision.
+   `packages/anvil/contracts` for non-Rust consumers? **Still deferred.** WOUT-005
+   landed golden fixtures first; schema export remains a separate future work item.
 2. Should JSON mode emit a terminal `shutdown` / `stopped` event on Ctrl-C? **No
    for v1.** EOF terminates the stream; revisit if v2 work shows a need.
 3. Should action child `stderr` become an explicit `action_output` event? **Not
