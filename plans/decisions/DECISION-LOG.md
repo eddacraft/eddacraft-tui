@@ -66,6 +66,7 @@ These define how Anvil behaves by default. All features must align.
 | [023](023-shared-packages-restructure.md) | Retire `packages/platform/`, consolidate into `packages/shared/` | Proposed |
 | [044](044-mcp-entry-activation-owned.md) | `mcpServers.anvil` MCP entries are owned by the activation flow; backend swaps overwrite in place on next `anvil start` with a one-line notice; `--keep-mcp` opts out; protocol-shape changes still route through `anvil migrate` | Proposed |
 | [049](049-cross-language-build-contract.md) | Cross-language `^build` contract: defer to nxrust D-009 (binding upstream); Anvil enforces the seam at the script layer (`pnpm test:js && pnpm test:rust`, PR #1729) until adopting nxrust generators that enforce at the generator boundary; no parallel Anvil recipe | Accepted |
+| [057](057-dev-environment-hardening.md) | Local dev-environment hardening for the concurrent-agent box: layered Rust target relocation (committed `.cargo/config.toml` floor on `/home` + per-worktree `CARGO_TARGET_DIR` override), `[profile.dev]` debuginfo trim, nx-rust executor `CARGO_TARGET_DIR`-awareness + `.anvil-building` sentinel, disk-pressure eviction timer, Node version alignment, and `.config/wt.toml` worktree-lifecycle + parity fixes (wave 1); reproducible base (mise/devcontainer/Nix) + nx-cache/sccache dedup deferred to a go/no-go spike (DEVENV). Council `plan-6b3be127` | Accepted |
 
 ## Intercept and Enforcement
 
