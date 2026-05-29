@@ -126,8 +126,8 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   duration of any build/check/test/clippy, so no plugin-emitted sentinel is
   needed) or its newest mtime is within a freshness window. The script asserts a
   hard `$ANVIL_TARGET_BASE` prefix and **fails closed**, ships **dry-run/log-only**
-  first, and orphaned in-tree reclaim is an opt-in `wt clean-stale-targets` (not a
-  blind sweep).
+  first (`--apply` to delete), and orphaned in-tree reclaim stays a deliberate
+  manual `cargo clean` per worktree (documented in the runbook — not a blind sweep).
 - **Validation:** Dry-run logs over one cycle never select a building dir; with the
   `.cargo-lock` held the dir is skipped; a path outside `$ANVIL_TARGET_BASE` is
   refused with a non-zero exit.
