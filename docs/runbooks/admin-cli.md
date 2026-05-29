@@ -613,6 +613,7 @@ logs request/response metadata in the Vercel logs for 7 days.
 
 ## Related
 
+- Canonical CLI surface reference (all commands): `docs/runbooks/cli-surface.md`
 - Historical Node admin CLI design spec:
   `plans/specs/2026-04-16-admin-cli-design.md`
 - Historical Node admin CLI module plan (archived):

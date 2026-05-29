@@ -166,3 +166,7 @@ a `verbose` source that reflects the user's `--verbose` choice.
 
 See issue #1017 and council review `council-8a7372c7` (finding C-009) for the
 original motivating case in the tutorial watcher.
+
+## Related
+
+- Canonical CLI surface reference (all commands and flags): `docs/runbooks/cli-surface.md`
