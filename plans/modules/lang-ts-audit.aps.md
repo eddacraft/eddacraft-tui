@@ -214,9 +214,9 @@ K1 ADR) were resolved inline above.
 - **Confidence:** high — registry edit + family doc page is a well-trodden
   path (FLAGCAT-independent; LANGTS-006 is the working precedent).
 
-### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — Ready
+### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Land the load-bearing kernel-prereq work (council §16.5 #3) so
   the parser layer can host three anchor languages plus a tail wave without an
   `if lang == …` cascade, without latent cache corruption, without a parse-path

@@ -15,6 +15,17 @@ pub enum ParseError {
     UnsupportedLanguage(PathBuf),
     #[error("tree-sitter parse failed for {0}")]
     ParseFailed(PathBuf),
+    /// The tree-sitter grammar could not be loaded for a language, almost
+    /// always an ABI version mismatch between the `tree-sitter` runtime and a
+    /// generated grammar crate. Surfaced as a `Result` rather than a panic
+    /// (LANGTS-005 K4) because the parse path is load-bearing for daemon mode —
+    /// a long-running daemon must degrade gracefully, not abort the process.
+    #[error("failed to load {language:?} grammar (tree-sitter version mismatch): {source}")]
+    LanguageInit {
+        language: Language,
+        #[source]
+        source: tree_sitter::LanguageError,
+    },
     #[error("IO error reading {path}: {source}")]
     Io {
         path: PathBuf,
@@ -32,6 +43,24 @@ pub struct ParseResult {
 }
 
 /// Incremental parser with per-language tree-sitter instances and AST cache.
+///
+/// # Thread-safety strategy (LANGTS-005 K3)
+///
+/// A `tree_sitter::Parser` is `Send` but not `Sync`, so a single [`Parser`]
+/// must not be shared across threads behind a shared reference. The adopted
+/// strategy is **audit option (1): a thread-local parser per worker** — each
+/// thread constructs and owns its own [`Parser`] (and therefore its own
+/// per-language `tree_sitter::Parser` pool and AST cache). The orchestration
+/// layers (`watch.rs`, `embedded.rs`) already create a `Parser` per scan/owner
+/// rather than sharing one across worker threads, so no shared mutable parser
+/// ever crosses a thread boundary.
+///
+/// This keeps each `tree_sitter::Parser` confined to one thread for its whole
+/// lifetime, which is exactly the invariant the C grammar runtime requires. A
+/// shared global parser pool behind a mutex was rejected (audit option (2)) as
+/// it would serialise all parsing; per-thread ownership scales with workers.
+/// The choice is recorded here per the T3 checklist §1, and exercised by the
+/// `concurrent_parses_across_languages_are_isolated` regression test below.
 pub struct Parser {
     parsers: HashMap<Language, tree_sitter::Parser>,
     cache: AstCache,
@@ -46,27 +75,30 @@ impl Parser {
     }
 
     /// Get or create a tree-sitter parser for the given language.
-    fn get_parser(&mut self, lang: Language) -> &mut tree_sitter::Parser {
-        self.parsers.entry(lang).or_insert_with(|| {
-            let mut parser = tree_sitter::Parser::new();
-            parser
-                .set_language(&lang.ts_language())
-                .expect("language version mismatch");
-            parser
-        })
+    ///
+    /// Returns a [`ParseError::LanguageInit`] instead of panicking when the
+    /// grammar cannot be loaded (LANGTS-005 K4) — load-bearing for daemon mode.
+    fn get_parser(&mut self, lang: Language) -> Result<&mut tree_sitter::Parser, ParseError> {
+        use std::collections::hash_map::Entry;
+
+        match self.parsers.entry(lang) {
+            Entry::Occupied(e) => Ok(e.into_mut()),
+            Entry::Vacant(e) => Ok(e.insert(build_parser(lang, &lang.ts_language())?)),
+        }
     }
 
     /// Parse a file from its content bytes. Uses the AST cache to skip
-    /// reparsing if the content hash matches.
+    /// reparsing if the content hash AND grammar version match.
     pub fn parse_bytes(&mut self, path: &Path, content: &[u8]) -> Result<ParseResult, ParseError> {
         let lang = Language::from_path(path)
             .ok_or_else(|| ParseError::UnsupportedLanguage(path.to_path_buf()))?;
 
         let content_hash = hash_content(content);
+        let grammar_version = lang.grammar_version();
         let path_buf = path.to_path_buf();
 
-        // Check cache
-        if let Some(tree) = self.cache.get(&path_buf, content_hash) {
+        // Check cache (keyed on content hash AND grammar version, K2).
+        if let Some(tree) = self.cache.get(&path_buf, content_hash, grammar_version) {
             return Ok(ParseResult {
                 path: path_buf,
                 language: lang,
@@ -76,13 +108,17 @@ impl Parser {
         }
 
         // Parse
-        let parser = self.get_parser(lang);
+        let parser = self.get_parser(lang)?;
         let tree = parser
             .parse(content, None)
             .ok_or_else(|| ParseError::ParseFailed(path_buf.clone()))?;
 
-        self.cache
-            .insert(path_buf.clone(), content_hash, tree.clone());
+        self.cache.insert(
+            path_buf.clone(),
+            content_hash,
+            grammar_version,
+            tree.clone(),
+        );
 
         Ok(ParseResult {
             path: path_buf,
@@ -115,6 +151,36 @@ impl Parser {
 impl Default for Parser {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Build a tree-sitter parser for `lang` using the given grammar, mapping a
+/// grammar/ABI mismatch to [`ParseError::LanguageInit`] instead of panicking
+/// (LANGTS-005 K4). Factored out of [`Parser::get_parser`] so the
+/// error-mapping seam ([`map_language_init_err`]) is unit-testable.
+fn build_parser(
+    lang: Language,
+    grammar: &tree_sitter::Language,
+) -> Result<tree_sitter::Parser, ParseError> {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(grammar)
+        .map_err(|source| map_language_init_err(lang, source))?;
+    Ok(parser)
+}
+
+/// Map a tree-sitter grammar-load failure to a [`ParseError`] (LANGTS-005 K4).
+///
+/// `tree_sitter::Parser::set_language` returns `Err(LanguageError::Version)` on
+/// an ABI mismatch — the case the old code `expect`-panicked on. This pure
+/// mapper is the seam that turns that mismatch into a recoverable `Result`
+/// error, so the parse path never aborts the process (load-bearing for daemon
+/// mode). Kept separate so the conversion is unit-testable without a fabricated
+/// incompatible grammar.
+fn map_language_init_err(lang: Language, source: tree_sitter::LanguageError) -> ParseError {
+    ParseError::LanguageInit {
+        language: lang,
+        source,
     }
 }
 
@@ -205,5 +271,70 @@ module.exports = { add };
 
         parser.invalidate(path);
         assert_eq!(parser.cache_size(), 0);
+    }
+
+    // --- K4: parse path surfaces a grammar mismatch as a Result, not a panic ---
+
+    #[test]
+    fn language_mismatch_maps_to_parse_error_not_panic() {
+        // A grammar/ABI mismatch is exactly what `set_language` reports via
+        // `LanguageError::Version`, and what the old code `expect`-panicked on.
+        // The mapper must turn it into a recoverable `ParseError::LanguageInit`
+        // (no panic, no process abort — load-bearing for daemon mode).
+        let err = map_language_init_err(
+            Language::TypeScript,
+            tree_sitter::LanguageError::Version(99),
+        );
+        match err {
+            ParseError::LanguageInit { language, .. } => {
+                assert_eq!(language, Language::TypeScript);
+            }
+            other => panic!("expected LanguageInit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_path_returns_result_without_panicking() {
+        // Smoke: the real parse path is fully Result-based end to end; a
+        // healthy grammar parses to Ok, and the only error-producing branch
+        // (`build_parser`) yields Err rather than unwinding.
+        let mut parser = Parser::new();
+        let ok = parser.parse_bytes(Path::new("src/greet.ts"), TS_SOURCE);
+        assert!(ok.is_ok());
+
+        // build_parser with a valid grammar succeeds; with a mismatch it would
+        // return Err (proven by the mapper test above) instead of panicking.
+        let built = build_parser(Language::TypeScript, &Language::TypeScript.ts_language());
+        assert!(built.is_ok());
+    }
+
+    // --- K3: per-thread parser ownership; concurrent parses across languages ---
+
+    #[test]
+    fn concurrent_parses_across_languages_are_isolated() {
+        // Each thread owns its own Parser (audit option (1)); concurrent parses
+        // across TS and JS must complete without data races or panics. Run many
+        // iterations to give a thread-confinement violation a chance to surface
+        // under the test harness.
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                std::thread::spawn(move || {
+                    let mut parser = Parser::new();
+                    for _ in 0..50 {
+                        let (path, src): (&Path, &[u8]) = if i % 2 == 0 {
+                            (Path::new("src/greet.ts"), TS_SOURCE)
+                        } else {
+                            (Path::new("src/add.js"), JS_SOURCE)
+                        };
+                        let result = parser.parse_bytes(path, src).unwrap();
+                        assert!(!result.tree.root_node().has_error());
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("worker thread panicked");
+        }
     }
 }

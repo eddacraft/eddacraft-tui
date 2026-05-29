@@ -1,50 +1,42 @@
-use std::path::Path;
+//! TypeScript / JavaScript symbol extractor.
+//!
+//! This is the canonical TS-family [`LanguageExtractor`] impl. It is a verbatim
+//! port of the original `extract.rs` walker (LANGTS-005 K1) — the parity test
+//! in this module asserts the emitted [`FileSymbols`] are identical to the
+//! pre-refactor behaviour.
 
 use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
 
-/// Extracted symbols from a single file.
-#[derive(Debug, Clone)]
-pub struct FileSymbols {
-    pub file: String,
-    pub symbols: Vec<SymbolNode>,
-    pub imports: Vec<ImportEdge>,
-}
+use super::{FileSymbols, ImportEdge, LanguageExtractor};
 
-/// An import edge from one file to another.
-#[derive(Debug, Clone)]
-pub struct ImportEdge {
-    pub from_file: String,
-    pub to_source: String,
-    /// 1-based line number of the import statement (0 = unknown).
-    pub line: u32,
-}
+/// Extractor for the TypeScript / TSX / JavaScript / JSX family.
+///
+/// The tree-sitter TS and JS grammars share the node kinds this walker
+/// inspects (`function_declaration`, `class_declaration`, `export_statement`,
+/// `import_statement`, CJS `require` / `module.exports`), so a single impl
+/// covers the whole family. Rust / Python anchors get their own modules.
+pub struct TypeScriptExtractor;
 
-/// Extract symbols from a tree-sitter AST.
-pub fn extract_symbols(
-    tree: &tree_sitter::Tree,
-    source: &[u8],
-    file_path: &Path,
-    id_offset: u64,
-) -> FileSymbols {
-    let file = file_path.to_string_lossy().to_string();
-    let root = tree.root_node();
-    let mut symbols = Vec::new();
-    let mut imports = Vec::new();
-    let mut next_id = id_offset;
+impl LanguageExtractor for TypeScriptExtractor {
+    fn extract(
+        &self,
+        tree: &tree_sitter::Tree,
+        source: &[u8],
+        file: &str,
+        id_offset: u64,
+    ) -> FileSymbols {
+        let root = tree.root_node();
+        let mut symbols = Vec::new();
+        let mut imports = Vec::new();
+        let mut next_id = id_offset;
 
-    extract_from_node(
-        root,
-        source,
-        &file,
-        &mut symbols,
-        &mut imports,
-        &mut next_id,
-    );
+        extract_from_node(root, source, file, &mut symbols, &mut imports, &mut next_id);
 
-    FileSymbols {
-        file,
-        symbols,
-        imports,
+        FileSymbols {
+            file: file.to_string(),
+            symbols,
+            imports,
+        }
     }
 }
 
@@ -408,8 +400,13 @@ fn node_text(node: tree_sitter::Node, source: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::path::Path;
+
+    use anvil_kernel_types::{SymbolKind, SymbolNode, Visibility};
+
+    use super::{LanguageExtractor, TypeScriptExtractor};
     use crate::parser::Parser;
+    use crate::parser::extract::extract_symbols;
 
     #[test]
     fn extracts_functions_from_typescript() {
@@ -776,5 +773,79 @@ module.exports = foo;
             .find(|i| i.to_source == "./helpers")
             .unwrap();
         assert_eq!(helpers_import.line, 2, "re-export from ./helpers on line 2");
+    }
+
+    /// K1 parity: the TS extractor, after the `LanguageExtractor`-trait
+    /// refactor, must produce byte-for-byte the same `FileSymbols` (symbol ids,
+    /// kinds, names, visibilities, and import edges with line numbers) as the
+    /// pre-refactor walker. The expected values below were captured from the
+    /// original `extract.rs` walker against this fixture; any drift here is a
+    /// behavioural regression in the port, not a test that needs updating.
+    #[test]
+    fn ts_extractor_parity_snapshot() {
+        // A fixture exercising the breadth of the walker: ESM function/class
+        // exports, an internal symbol, an arrow-fn const, a named import, and
+        // a re-export.
+        let source = b"import { dep } from './dep';\n\
+export function greet(name: string): string { return name; }\n\
+function internal() {}\n\
+export class Greeter {}\n\
+const add = (a: number, b: number) => a + b;\n\
+export { foo } from './other';\n";
+
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("src/mod.ts"), source).unwrap();
+        let fs = extract_symbols(&result.tree, source, Path::new("src/mod.ts"), 0);
+
+        // --- Symbols: id / kind / name / visibility, in emission order ---
+        let got: Vec<(u64, SymbolKind, &str, Visibility)> = fs
+            .symbols
+            .iter()
+            .map(|s| (s.id, s.kind, s.name.as_str(), s.visibility))
+            .collect();
+        let expected: Vec<(u64, SymbolKind, &str, Visibility)> = vec![
+            (0, SymbolKind::Function, "greet", Visibility::Public),
+            (1, SymbolKind::Function, "internal", Visibility::Internal),
+            (2, SymbolKind::Class, "Greeter", Visibility::Public),
+            (3, SymbolKind::Function, "add", Visibility::Internal),
+            (4, SymbolKind::Export, "foo", Visibility::Public),
+        ];
+        assert_eq!(
+            got, expected,
+            "symbol parity drifted from pre-refactor walker"
+        );
+
+        // Every symbol is attributed to the file.
+        assert!(fs.symbols.iter().all(|s| s.file == "src/mod.ts"));
+
+        // --- Imports: source + 1-based line, in emission order ---
+        let imports: Vec<(&str, u32)> = fs
+            .imports
+            .iter()
+            .map(|i| (i.to_source.as_str(), i.line))
+            .collect();
+        assert_eq!(
+            imports,
+            vec![("./dep", 1), ("./other", 6)],
+            "import-edge parity drifted from pre-refactor walker"
+        );
+        assert!(fs.imports.iter().all(|i| i.from_file == "src/mod.ts"));
+    }
+
+    /// K1: the orchestrator routes through `TypeScriptExtractor` for every
+    /// member of the TS family (.ts/.tsx/.js/.jsx) and yields identical results
+    /// to calling the extractor directly.
+    #[test]
+    fn orchestrator_dispatch_matches_direct_extractor_call() {
+        let source = b"export function f() {}\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.ts"), source).unwrap();
+
+        let via_orchestrator = extract_symbols(&result.tree, source, Path::new("a.ts"), 0);
+        let via_trait = TypeScriptExtractor.extract(&result.tree, source, "a.ts", 0);
+
+        assert_eq!(via_orchestrator.symbols.len(), via_trait.symbols.len());
+        assert_eq!(via_orchestrator.symbols[0].name, "f");
+        assert_eq!(via_trait.symbols[0].name, "f");
     }
 }
