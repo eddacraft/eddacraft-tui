@@ -323,7 +323,13 @@ $ anvil start --new-identity
 **Class:** Setup **Purpose:** Run an interactive guided tutorial. **When to
 use:** First time using Anvil, or to revisit the onboarding flow.
 
-**Synopsis:** `anvil tutorial`
+**Synopsis:** `anvil tutorial [--reset]`
+
+**Flags:**
+
+| Flag      | Description              |
+| --------- | ------------------------ |
+| `--reset` | Reset tutorial progress. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -340,7 +346,13 @@ $ anvil tutorial
 **Class:** Setup **Purpose:** Show the welcome screen with quick-start options.
 **When to use:** To access the Anvil main menu and onboarding options.
 
-**Synopsis:** `anvil welcome`
+**Synopsis:** `anvil welcome [--reset]`
+
+**Flags:**
+
+| Flag      | Description                                                  |
+| --------- | ------------------------------------------------------------ |
+| `--reset` | Reset onboarding state and re-run the first-time experience. |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -358,7 +370,13 @@ $ anvil welcome
 **When to use:** To create an initial `.anvilrc` / `.anvil.<ext>` configuration
 in a repo that doesn't have one yet.
 
-**Synopsis:** `anvil init`
+**Synopsis:** `anvil init [--force]`
+
+**Flags:**
+
+| Flag      | Description                                         |
+| --------- | --------------------------------------------------- |
+| `--force` | Overwrite existing configuration without prompting. |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required), 4 (config error)
 
@@ -376,13 +394,14 @@ $ anvil init
 **When to use:** To review your weekly Anvil activity and suppression health
 without a network dependency.
 
-**Synopsis:** `anvil insights [--suppressions]`
+**Synopsis:** `anvil insights [--suppressions | --drift]`
 
 **Flags:**
 
-| Flag             | Description                                                                |
-| ---------------- | -------------------------------------------------------------------------- |
-| `--suppressions` | Show the suppression health view — stale `@anvil-ignore` directives first. |
+| Flag             | Description                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `--suppressions` | Show the suppression health view — stale `@anvil-ignore` directives first.                      |
+| `--drift`        | Show the drift trend — new cross-boundary edges per week over the last 8 weeks, as a sparkline. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -528,7 +547,13 @@ $ anvil l4-validate abc123..def456 --repo /path/to/repo
 third-party licence attribution. **When to use:** To inspect bundled dependency
 licences, e.g. for compliance review.
 
-**Synopsis:** `anvil licenses`
+**Synopsis:** `anvil licenses [--format <plain|markdown>]`
+
+**Flags:**
+
+| Flag             | Description                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `--format <fmt>` | Output format: `plain` (version banner + ACKNOWLEDGEMENTS, default) or `markdown` (raw). |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -551,18 +576,19 @@ Planned: `anvil mcp-config` will eventually consolidate into `anvil mcp config`
 (subsystem rename per the CLI surface coherence spec).
 
 **Synopsis:**
-`anvil mcp-config --target <editor> [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>]`
+`anvil mcp-config --target <editor> [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>] [--yes]`
 
 **Flags:**
 
-| Flag                 | Description                                                 |
-| -------------------- | ----------------------------------------------------------- |
-| `--target <editor>`  | Editor target: `cursor` or `claude-code`. Required.         |
-| `--transport <t>`    | Transport: `stdio` (default) or `http`.                     |
-| `--port <n>`         | Port for `--transport http`. Default: `7616`.               |
-| `--write`            | Write the generated config to the target's well-known path. |
-| `--verify`           | Inspect the existing config entry without writing.          |
-| `--workspace <path>` | Override the workspace root for resolving config paths.     |
+| Flag                 | Description                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `--target <editor>`  | Editor target: `cursor` or `claude-code`. Required.                                                    |
+| `--transport <t>`    | Transport: `stdio` (default) or `http`.                                                                |
+| `--port <n>`         | Port for `--transport http`. Default: `7616`.                                                          |
+| `--write`            | Write the generated config to the target's well-known path.                                            |
+| `--verify`           | Inspect the existing config entry without writing.                                                     |
+| `--workspace <path>` | Override the workspace root for resolving config paths.                                                |
+| `--yes`              | Skip the "outside workspace root" confirmation (required for non-interactive writes to a custom path). |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -670,7 +696,19 @@ $ anvil dashboard suppressions
 **Class:** Setup **Purpose:** Scaffold a new project from a template. **When to
 use:** To bootstrap a new project with Anvil pre-configured.
 
-**Synopsis:** `anvil new`
+**Synopsis:**
+`anvil new [<template-id>] [--list] [--category <c>] [--output <path>] [--force] [--var <key=value>]`
+
+**Flags:**
+
+| Flag                     | Description                                                   |
+| ------------------------ | ------------------------------------------------------------- |
+| `<template-id>`          | Template to scaffold from (omit for the interactive browser). |
+| `--list` / `-l`          | List all available templates without launching the browser.   |
+| `--category <c>` / `-c`  | Filter templates by category.                                 |
+| `--output <path>` / `-o` | Output file path (default: `<template-id>.md`).               |
+| `--force` / `-f`         | Overwrite an existing output file.                            |
+| `--var <key=value>`      | Set a template variable (repeatable).                         |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -880,6 +918,14 @@ Planned: `anvil hooks` (plural) will eventually align with `anvil hook`
 | `--pre-push-only`   | Only install the pre-push hook.                            |
 | `--husky`           | Install hooks in the `.husky` directory.                   |
 | `--config`          | Install via Git 2.54 native `hook.<event>.command` config. |
+
+**`uninstall` flags:**
+
+| Flag                | Description                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `--pre-commit-only` | Only remove the pre-commit hook.                                                    |
+| `--pre-push-only`   | Only remove the pre-push hook.                                                      |
+| `--config`          | Remove Git 2.54 native `hook.<event>.command` config entries instead of hook files. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -1107,14 +1153,19 @@ $ anvil update --version 0.6.1
 clean up Anvil from a project, or use `--global` to remove user state and the
 daemon. Safe to run even with expired or missing credentials.
 
-**Synopsis:** `anvil uninstall [--global] [--dry-run]`
+**Synopsis:**
+`anvil uninstall [--global] [--dry-run] [--yes] [--force] [--keep-mcp] [--keep-daemon]`
 
 **Flags:**
 
-| Flag        | Description                                     |
-| ----------- | ----------------------------------------------- |
-| `--global`  | Remove user state and the daemon as well.       |
-| `--dry-run` | Preview what would be removed without deleting. |
+| Flag               | Description                                               |
+| ------------------ | --------------------------------------------------------- |
+| `--global`         | Remove user state and the daemon as well.                 |
+| `--dry-run` / `-n` | Preview what would be removed without deleting.           |
+| `--yes` / `-y`     | Skip the interactive confirmation prompt.                 |
+| `--force`          | Continue past per-step errors instead of stopping.        |
+| `--keep-mcp`       | Do not edit MCP config files even when `--global` is set. |
+| `--keep-daemon`    | Do not attempt to stop the running daemon.                |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -1134,7 +1185,15 @@ $ anvil uninstall --global
 format, hash integrity). **When to use:** To check a plan file before committing
 or submitting it. Does not require authentication.
 
-**Synopsis:** `anvil validate <file>`
+**Synopsis:** `anvil validate <file> [--format <fmt>] [--no-validate-hash]`
+
+**Flags:**
+
+| Flag                 | Description                                                    |
+| -------------------- | -------------------------------------------------------------- |
+| `<file>`             | Plan file path to validate (positional, required).             |
+| `--format <fmt>`     | Explicitly specify the input format (bypasses auto-detection). |
+| `--no-validate-hash` | Skip hash integrity validation.                                |
 
 **Exit codes:** 0 (valid), 1 (invalid or error)
 
