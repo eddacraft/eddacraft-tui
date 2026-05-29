@@ -1287,3 +1287,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Second candidate ADR (shared SARIF emitter / no shared
   finding-model) still to author alongside SARIFOUT-002.
 
+
+### 2026-05-29 — claude
+
+- **Task:** Build a reusable Workflow (`.claude/workflows/complete-gh-issues.js`) that triages open GitHub issues, clusters related ones, and drives the highest-value unambiguous units through the full dev-workflow lifecycle; run it once.
+- **Outcome:** Workflow runs in 4 phases (triage → APS gate → implement pipeline → report). Live run assessed 38 open issues, selected 4 units, opened PRs #2062 (preflight version gate, #1871), #2058 (jsonrpc liveness, #1749), #2061 (anvil_suppress containment, #1756), #2064 (broadcast preview-token, #1926). All CI green/clean; the other 25 units were skipped or held with explicit reasons (ambiguity/value/risk/blocked).
+- **Worked:** Per-issue parallel assessment + a clustering synthesiser produced honest eligibility calls (correctly deferred infra signing #900, IPC #1794, umbrellas #1826/#1740, time-gated dev-branch delete #1419). Council-reviewer stage + green-gate guard meant no broken branch reached a PR.
+- **Failed:** `args.maxUnits: 3` did not thread through to the script — it fell back to the default of 4, so 4 PRs opened instead of 3. Not a cap-logic bug; the args value did not arrive as an integer.
+- **Friction:** The PR-opening stage wrote post-merge metadata (PR number, changed-path description) before the PR existed, so it guessed — Copilot flagged wrong PR numbers (#2064 plan said #2048) and a stale path claim (#2058 body). All nits, no code defects.
+- **Improvement:** (1) PR-stage agents must fill PR number AFTER `gh pr create` and derive the path/scope description from the actual `git diff`, not the unit plan. (2) The workflow stops at PR-open; it does not run the rule-8/9 closure loop — add an optional closure stage or hand off to `addressing-pr-reviews`. (3) Verify `args` integer threading before relying on `maxUnits`.
+- **Follow-up:** Closure loop on the 4 PRs (3 trivial doc/metadata fixes pending) is unrun; merge is a human gate (branch protection = review required).
+
