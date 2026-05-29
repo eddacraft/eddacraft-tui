@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
@@ -2030,6 +2031,51 @@ fn check_name_to_category(name: &str) -> Category {
     }
 }
 
+/// Build a SARIF document from gate results (SARIFOUT-005).
+///
+/// Gate findings are per-check aggregates, not per-location warnings, so each
+/// emitted `result` is repo-level (no `locations[]`). Failed checks map to
+/// `error`-level results; config-gap checks (`requires_config`) map to
+/// `note`-level results so they surface without inflating the failure set;
+/// passed checks are not findings and are omitted. `ruleId` is the check name.
+/// SARIF emission does not affect the gate exit code.
+fn build_gate_sarif(result: &GateResult) -> crate::output::sarif::SarifLog {
+    use crate::output::sarif;
+
+    let mut rules: BTreeMap<String, sarif::ReportingDescriptor> = BTreeMap::new();
+    let mut results = Vec::new();
+    for check in &result.checks {
+        // A passing, fully-configured check is not a finding.
+        if check.passed && !check.requires_config {
+            continue;
+        }
+        let level = if check.requires_config {
+            sarif::Level::Note
+        } else {
+            sarif::Level::Error
+        };
+        let message = if check.message.is_empty() {
+            if check.requires_config {
+                format!("{} requires configuration to run", check.name)
+            } else {
+                format!("{} did not pass", check.name)
+            }
+        } else {
+            check.message.clone()
+        };
+        rules
+            .entry(check.name.clone())
+            .or_insert_with(|| sarif::ReportingDescriptor::new(check.name.clone()));
+        results.push(
+            sarif::SarifResult::new(check.name.clone(), level, message.clone()).fingerprint(
+                "anvilFingerprint/v1",
+                sarif::stable_fingerprint(&check.name, "", None, &message),
+            ),
+        );
+    }
+    sarif::SarifLog::new(sarif::Run::new(rules.into_values().collect(), results))
+}
+
 /// Resolve the gate command's output mode.
 ///
 /// An explicit, non-`auto` `--format` wins outright (including over the
@@ -2078,12 +2124,6 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
         std::io::stdout().is_terminal(),
     );
 
-    // SARIFOUT-005 wires the real `anvil gate` SARIF adapter; until then, bail
-    // before running checks so `--format sarif` is consistent and cheap.
-    if mode == OutputMode::Sarif {
-        bail!("{}", crate::output::sarif_pending_message("gate"));
-    }
-
     let start = std::time::Instant::now();
     let checks = run_checks(args)?;
 
@@ -2116,9 +2156,8 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
                 crate::output::json::print(&result)?;
             }
         }
-        // `Sarif` is handled by the early bail above; grouped here only for
-        // match exhaustiveness (SARIFOUT-005 wires real emission).
-        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+        OutputMode::Sarif => crate::output::json::print(&build_gate_sarif(&result))?,
+        OutputMode::Plain | OutputMode::Tui => {
             // TUI surface for gate is not yet implemented; fall back to plain.
             use crate::output::plain;
 
@@ -3711,5 +3750,66 @@ rules: []
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
         assert!(checks.contains("secret-detection"));
+    }
+
+    // ── SARIF adapter (SARIFOUT-005) ────────────────────────────────
+
+    fn check_result(name: &str, passed: bool, requires_config: bool, message: &str) -> CheckResult {
+        CheckResult {
+            name: name.to_string(),
+            passed,
+            score: if passed { 100.0 } else { 0.0 },
+            message: message.to_string(),
+            requires_config,
+        }
+    }
+
+    #[test]
+    fn gate_sarif_maps_failed_and_config_gap_checks_only() {
+        let result = GateResult {
+            overall: false,
+            score: 50.0,
+            checks: vec![
+                check_result("secret-detection", false, false, "2 hardcoded secrets"),
+                check_result("policy", false, true, "needs .anvil/policy"),
+                check_result("antipattern-scan", true, false, ""),
+            ],
+            notifications: Vec::new(),
+            duration_ms: 1,
+        };
+        let value = serde_json::to_value(build_gate_sarif(&result)).expect("serialise");
+
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../output/sarif-schema-2.1.0.json"))
+                .expect("schema json");
+        let validator = jsonschema::validator_for(&schema).expect("compile schema");
+        let errors: Vec<String> = validator
+            .iter_errors(&value)
+            .map(|e| format!("{} at {}", e, e.instance_path()))
+            .collect();
+        assert!(errors.is_empty(), "schema errors:\n{}", errors.join("\n"));
+
+        let results = value["runs"][0]["results"].as_array().expect("results");
+        // Passing, fully-configured checks are not findings.
+        assert_eq!(results.len(), 2, "failed + config-gap only");
+
+        let failed = results
+            .iter()
+            .find(|r| r["ruleId"] == "secret-detection")
+            .unwrap();
+        assert_eq!(failed["level"], "error");
+        // Repo-level aggregate: no physical location.
+        assert!(failed.get("locations").is_none());
+
+        let config_gap = results.iter().find(|r| r["ruleId"] == "policy").unwrap();
+        assert_eq!(
+            config_gap["level"], "note",
+            "config-gap does not inflate failures"
+        );
+
+        assert!(
+            !results.iter().any(|r| r["ruleId"] == "antipattern-scan"),
+            "passing check omitted"
+        );
     }
 }

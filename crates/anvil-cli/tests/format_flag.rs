@@ -70,26 +70,26 @@ fn format_json_accepted_as_alias_on_finding_command() {
     );
 }
 
-/// `gate` is the only finding command not yet wired for SARIF (SARIFOUT-005);
-/// `--format sarif` reports the pending state. `check` (SARIFOUT-003) and
-/// `audit` (SARIFOUT-004) emit SARIF and are covered separately below.
+/// SARIFOUT-005: `anvil gate --format sarif` emits a well-formed SARIF 2.1.0
+/// document on stdout. Gate is exit-code-neutral under SARIF (it may still exit
+/// non-zero when gates fail), so we assert on the document, not the exit code.
 #[test]
-fn format_sarif_reports_pending_on_gate() {
-    let dir = temp_workdir("sarif-gate");
+fn gate_format_sarif_emits_well_formed_document() {
+    let dir = temp_workdir("gate-sarif");
     let out = anvil(&dir)
         .args(["--no-tui", "gate", "--format", "sarif"])
         .output()
         .expect("failed to invoke anvil");
-    assert!(
-        !out.status.success(),
-        "`gate --format sarif` should report not-yet-available; stdout:\n{}",
-        String::from_utf8_lossy(&out.stdout)
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("`gate --format sarif` stdout must be valid JSON ({e}); got:\n{stdout}")
+    });
+    assert_eq!(doc["version"], "2.1.0", "SARIF version");
+    assert_eq!(
+        doc["runs"][0]["tool"]["driver"]["name"], "anvil",
+        "tool.driver.name"
     );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("SARIF output for `anvil gate` is not yet available"),
-        "expected the SARIF-pending message for gate, got stderr:\n{stderr}"
-    );
+    assert!(doc["runs"][0]["results"].is_array(), "results[] present");
 }
 
 /// SARIFOUT-003: `anvil check --format sarif` emits a well-formed SARIF 2.1.0

@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 3/6      |
+| SARIFOUT | —     | In Progress | 4/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -111,8 +111,9 @@ with SARIFOUT-002).
 > Status: In Progress. The three design decisions (flag surface, module home,
 > shared model) were ratified by the operator on 2026-05-29, promoting this
 > module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 Merged
-> via PR #2105; SARIFOUT-003 via PR #2107; SARIFOUT-004 In Progress;
-> SARIFOUT-005..006 Ready. Flag surface landed per-command (not
+> via PR #2105; SARIFOUT-003 via PR #2107; SARIFOUT-004 via PR #2112;
+> SARIFOUT-005 In Progress; SARIFOUT-006 Ready. Flag surface landed per-command
+> (not
 > global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
@@ -188,7 +189,7 @@ with SARIFOUT-002).
 
 ### SARIFOUT-004: `anvil audit` SARIF adapter
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2112
 - **Intent:** `anvil audit --format sarif` emits schema-valid SARIF for audit
   issues.
 - **Expected Outcome:** `build_audit_sarif` maps each `AuditData` issue to one
@@ -208,21 +209,31 @@ with SARIFOUT-002).
 
 ### SARIFOUT-005: `anvil gate` SARIF adapter (per-check results)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `anvil gate --format sarif` emits schema-valid SARIF for gate
   check results, handling the config-gap case coherently.
-- **Expected Outcome:** `GateResult.checks[]` map to SARIF `results[]` (one per
-  failed / needs-config check) with check `name` → `ruleId`; `requires_config`
-  config-gap checks are represented without inflating the failure set
-  (suppression or notification, decided at impl); SARIF emission does not alter
-  gate exit codes.
-- **Validation:** `cargo test -p anvil-cli` — golden + schema-validation fixture
-  covering a failing check and a config-gap check.
+- **Expected Outcome:** `build_gate_sarif` maps `GateResult.checks[]` to SARIF
+  `results[]`, one per **failed** (`error`) or **config-gap** (`requires_config`
+  → `note`) check; passed, fully-configured checks are omitted (not findings).
+  Check `name` → `ruleId`. **Impl decisions (the medium-confidence flag):**
+  (1) config-gap checks are `note`-level results — they surface without
+  inflating the failure set (chosen over a suppression, since a config-gap is a
+  "couldn't run" state, not an accepted finding); (2) results are **repo-level
+  with no `locations[]`** (gate findings are per-check aggregates, not
+  per-location) — the emitter now omits empty `locations`. SARIF emission does
+  not alter gate exit codes (still `Ok(overall)` → `EXIT_GATE_FAIL` on failure).
+  Known limitation: GitHub Code Scanning may not surface location-less results;
+  noted for the SARIFOUT-006 docs.
+- **Validation:** `cargo test -p eddacraft-anvil` — `gate.rs` unit test builds a
+  `GateResult` (failed + config-gap + passed checks) and validates against the
+  bundled schema (failed→error, config-gap→note, passed omitted, no locations);
+  `tests/format_flag.rs` runs `gate --format sarif` end to end.
 - **Files:** `crates/anvil-cli/src/commands/gate.rs`,
-  `crates/anvil-cli/src/output/sarif.rs`.
+  `crates/anvil-cli/src/output/sarif.rs` (locations now skip-when-empty),
+  `crates/anvil-cli/tests/format_flag.rs`.
 - **Dependencies:** SARIFOUT-001, SARIFOUT-002
-- **Confidence:** medium — gate findings are per-check aggregates, so the
-  SARIF result granularity needs an impl-time decision recorded in the PR.
+- **Confidence:** medium — gate findings are per-check aggregates; the
+  granularity + config-gap decisions are recorded above.
 
 ### SARIFOUT-006: Docs, CHANGELOG, and manual Code Scanning upload smoke check
 

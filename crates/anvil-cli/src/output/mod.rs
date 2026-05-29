@@ -124,15 +124,6 @@ impl OutputMode {
     }
 }
 
-/// User-facing message for `--format sarif` on a finding-emitting command whose
-/// SARIF adapter has not landed yet (intermediate state across the SARIFOUT
-/// waves; replaced by real emission in SARIFOUT-003/004/005).
-pub fn sarif_pending_message(command: &str) -> String {
-    format!(
-        "SARIF output for `anvil {command}` is not yet available; tracking in the SARIFOUT module"
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

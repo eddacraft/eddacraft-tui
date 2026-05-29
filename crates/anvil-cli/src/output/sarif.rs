@@ -165,6 +165,9 @@ pub struct SarifResult {
     rule_id: String,
     level: Level,
     message: Message,
+    // Omitted when empty: gate findings are repo-level aggregates with no
+    // physical location (SARIFOUT-005).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     locations: Vec<Location>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     suppressions: Vec<Suppression>,
