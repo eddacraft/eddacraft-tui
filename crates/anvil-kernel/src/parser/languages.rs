@@ -46,8 +46,16 @@ impl Language {
     /// exactly the invariant the cache needs.
     pub fn grammar_version(&self) -> u64 {
         let lang = self.ts_language();
-        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        // Distinct FNV-1a seed from `cache::hash_content` so the two `u64`
+        // cache-key fields (content hash vs grammar version) are never built
+        // from the same constants — they occupy separate slots and must not be
+        // accidentally interchangeable. The `Language` discriminant is folded in
+        // first so variants that share one tree-sitter grammar (JavaScript/Jsx)
+        // — or any two grammars that happen to share structural counts — still
+        // produce distinct fingerprints.
+        let mut hash: u64 = 0x517c_c1b7_2722_0a95;
         for part in [
+            *self as u64,
             lang.abi_version() as u64,
             lang.node_kind_count() as u64,
             lang.field_count() as u64,
@@ -63,6 +71,35 @@ impl Language {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn grammar_versions_are_distinct_per_language() {
+        // The fingerprint is a cache *discriminator*: every supported language
+        // must hash to a different value, including JavaScript vs Jsx which
+        // share one tree-sitter grammar (distinguished only by the folded
+        // discriminant). A collision would let a cached tree for one grammar be
+        // served for another on the same content hash — the exact K2 bug.
+        let versions = [
+            Language::TypeScript.grammar_version(),
+            Language::Tsx.grammar_version(),
+            Language::JavaScript.grammar_version(),
+            Language::Jsx.grammar_version(),
+        ];
+        for (i, a) in versions.iter().enumerate() {
+            for b in &versions[i + 1..] {
+                assert_ne!(a, b, "grammar_version collision between languages");
+            }
+        }
+    }
+
+    #[test]
+    fn grammar_version_is_deterministic() {
+        assert_eq!(
+            Language::TypeScript.grammar_version(),
+            Language::TypeScript.grammar_version(),
+            "same grammar build must hash identically (determinism principle)"
+        );
+    }
 
     #[test]
     fn detects_typescript() {

@@ -294,9 +294,7 @@ fn extract_cjs_export(
         // If the RHS is not an object literal or is too complex, fall back to
         // marking all symbols as Public (conservative).
         let rhs = node.child_by_field_name("right");
-        let rhs_kind = rhs.map(|n| n.kind());
-        if rhs_kind == Some("object") {
-            let rhs_node = rhs.unwrap();
+        if let Some(rhs_node) = rhs.filter(|n| n.kind() == "object") {
             let mut property_names = Vec::new();
             for i in 0..u32::try_from(rhs_node.named_child_count()).unwrap_or(0) {
                 if let Some(child) = rhs_node.named_child(i) {

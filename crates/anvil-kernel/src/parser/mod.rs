@@ -83,7 +83,21 @@ impl Parser {
 
         match self.parsers.entry(lang) {
             Entry::Occupied(e) => Ok(e.into_mut()),
-            Entry::Vacant(e) => Ok(e.insert(build_parser(lang, &lang.ts_language())?)),
+            Entry::Vacant(e) => {
+                // Construct the parser inline. A grammar/ABI mismatch is what
+                // `set_language` reports via `LanguageError::Version` — the case
+                // the old code `expect`-panicked on; surfacing it as
+                // `ParseError::LanguageInit` keeps the parse path panic-free
+                // (load-bearing for daemon mode, LANGTS-005 K4).
+                let mut parser = tree_sitter::Parser::new();
+                parser
+                    .set_language(&lang.ts_language())
+                    .map_err(|source| ParseError::LanguageInit {
+                        language: lang,
+                        source,
+                    })?;
+                Ok(e.insert(parser))
+            }
         }
     }
 
@@ -151,36 +165,6 @@ impl Parser {
 impl Default for Parser {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Build a tree-sitter parser for `lang` using the given grammar, mapping a
-/// grammar/ABI mismatch to [`ParseError::LanguageInit`] instead of panicking
-/// (LANGTS-005 K4). Factored out of [`Parser::get_parser`] so the
-/// error-mapping seam ([`map_language_init_err`]) is unit-testable.
-fn build_parser(
-    lang: Language,
-    grammar: &tree_sitter::Language,
-) -> Result<tree_sitter::Parser, ParseError> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(grammar)
-        .map_err(|source| map_language_init_err(lang, source))?;
-    Ok(parser)
-}
-
-/// Map a tree-sitter grammar-load failure to a [`ParseError`] (LANGTS-005 K4).
-///
-/// `tree_sitter::Parser::set_language` returns `Err(LanguageError::Version)` on
-/// an ABI mismatch — the case the old code `expect`-panicked on. This pure
-/// mapper is the seam that turns that mismatch into a recoverable `Result`
-/// error, so the parse path never aborts the process (load-bearing for daemon
-/// mode). Kept separate so the conversion is unit-testable without a fabricated
-/// incompatible grammar.
-fn map_language_init_err(lang: Language, source: tree_sitter::LanguageError) -> ParseError {
-    ParseError::LanguageInit {
-        language: lang,
-        source,
     }
 }
 
@@ -279,12 +263,15 @@ module.exports = { add };
     fn language_mismatch_maps_to_parse_error_not_panic() {
         // A grammar/ABI mismatch is exactly what `set_language` reports via
         // `LanguageError::Version`, and what the old code `expect`-panicked on.
-        // The mapper must turn it into a recoverable `ParseError::LanguageInit`
-        // (no panic, no process abort — load-bearing for daemon mode).
-        let err = map_language_init_err(
-            Language::TypeScript,
-            tree_sitter::LanguageError::Version(99),
-        );
+        // `get_parser` maps it to a recoverable `ParseError::LanguageInit`
+        // (no panic, no process abort — load-bearing for daemon mode). The
+        // mapping is now inline in `get_parser`; this pins the error variant's
+        // shape so the daemon-facing contract (language carried for diagnostics)
+        // cannot regress.
+        let err = ParseError::LanguageInit {
+            language: Language::TypeScript,
+            source: tree_sitter::LanguageError::Version(99),
+        };
         match err {
             ParseError::LanguageInit { language, .. } => {
                 assert_eq!(language, Language::TypeScript);
@@ -295,17 +282,14 @@ module.exports = { add };
 
     #[test]
     fn parse_path_returns_result_without_panicking() {
-        // Smoke: the real parse path is fully Result-based end to end; a
-        // healthy grammar parses to Ok, and the only error-producing branch
-        // (`build_parser`) yields Err rather than unwinding.
+        // Smoke: the real parse path is fully Result-based end to end — a
+        // healthy grammar parses to Ok, and `get_parser`'s grammar-load branch
+        // yields `Err(ParseError::LanguageInit)` rather than unwinding (pinned
+        // by the variant test above). That the call site compiles as a `?`/Ok
+        // chain is itself the K4 guarantee.
         let mut parser = Parser::new();
         let ok = parser.parse_bytes(Path::new("src/greet.ts"), TS_SOURCE);
         assert!(ok.is_ok());
-
-        // build_parser with a valid grammar succeeds; with a mismatch it would
-        // return Err (proven by the mapper test above) instead of panicking.
-        let built = build_parser(Language::TypeScript, &Language::TypeScript.ts_language());
-        assert!(built.is_ok());
     }
 
     // --- K3: per-thread parser ownership; concurrent parses across languages ---

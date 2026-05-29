@@ -79,10 +79,23 @@ pub fn extract_symbols(
         Some(Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx) => {
             typescript::TypeScriptExtractor.extract(tree, source, &file, id_offset)
         }
-        None => FileSymbols {
-            file,
-            symbols: Vec::new(),
-            imports: Vec::new(),
-        },
+        None => {
+            // Reaching here means a caller passed a tree whose path has no
+            // known grammar — `parse_bytes` rejects those up front, so every
+            // real call site is pre-filtered. Assert the invariant in debug
+            // builds so a future caller that bypasses the parser surfaces the
+            // mismatch loudly instead of silently losing all symbols; release
+            // builds still degrade to an empty result rather than panicking.
+            debug_assert!(
+                false,
+                "extract_symbols called on unsupported path `{file}` — caller \
+                 must pre-filter via Language::from_path / parse_bytes"
+            );
+            FileSymbols {
+                file,
+                symbols: Vec::new(),
+                imports: Vec::new(),
+            }
+        }
     }
 }
