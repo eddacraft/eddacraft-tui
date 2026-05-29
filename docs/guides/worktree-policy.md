@@ -60,7 +60,19 @@ Examples:
 
 ## Branch Creation Rules
 
-1. Create normal work branches from `main`.
+1. Create normal work branches from a **fresh** `origin/main`.
+   `wt switch --create` bases new branches on the _local_ default-branch ref,
+   which on a long-lived checkout is routinely behind the remote — so a worktree
+   created without fetching first starts behind the integration target and
+   conflicts on merge (bit PR #2070). Use the committed wrapper, which fetches
+   first (DEVENV-006):
+
+   ```bash
+   scripts/dev/wt-new.sh feat/my-branch        # = fetch origin main, then base off it
+   # equivalent, by hand:
+   git fetch origin main && wt switch --create feat/my-branch --base origin/main
+   ```
+
 2. Create `release/*` only when `main` cannot be tagged directly and the branch
    has an explicit expiry.
 3. Create `hotfix/*` from `main`, or from the latest good tag only for an
@@ -215,6 +227,35 @@ This composes with the `.envrc` above (fnm owns the Node version; direnv owns
 > removing the `PATH` shadow). Confirm with `command -v node` resolving under
 > `~/.local/state/fnm_multishells/…`. After switching a worktree to 24, rebuild
 > the native module: `pnpm rebuild better-sqlite3`.
+
+## Worktree bootstrap (DEVENV-006)
+
+`wt`-managed worktrees run a `post-start` chain defined in `.config/wt.toml`.
+Three behaviours matter for a clean fresh worktree:
+
+- **Branch off a fresh `origin/main`.** See
+  [Branch Creation Rules](#branch-creation-rules) — use
+  `scripts/dev/wt-new.sh <branch>` (it fetches before
+  `wt switch --create … --base origin/main`). `wt` has no pre-create hook, so
+  the fetch cannot live in `.config/wt.toml`; it has to happen at create time,
+  which is what the wrapper is for.
+- **Workspace symlinks are fully reconciled before `typecheck`.** The `copy`
+  step seeds `node_modules` wholesale from a sibling worktree, which can be
+  internally inconsistent — some per-consumer `workspace:*` symlinks present,
+  others missing. A plain `pnpm install` trusts the copied
+  `node_modules/.modules.yaml` and does a partial pass that leaves the missing
+  links missing (e.g. `apps/anvil-api` without
+  `@eddacraft/anvil-observability`), so a first `pnpm typecheck` fails on
+  untouched files with `TS2307: Cannot find module`. The `install` post-start
+  therefore removes `.modules.yaml` first, forcing pnpm to relink every importer
+  from the warm global store in one pass (a few seconds, no re-fetch). Package
+  `dist/` itself is carried over by the `copy` step, so this is specifically
+  about the symlinks, not build output.
+- **Bootstrap failures are loud, not swallowed.** The `rust` and `dist`
+  post-start steps no longer send stderr to `/dev/null` or `|| true` their
+  failures; a broken bootstrap prints a `WARNING (DEVENV-006)` line with the
+  build output above it. The steps stay non-fatal on purpose — a transient break
+  should not lock you out of the very worktree you need to fix it in.
 
 ## Related Docs
 

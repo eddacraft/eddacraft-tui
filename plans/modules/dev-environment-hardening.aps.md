@@ -169,22 +169,31 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-006: Fix worktree creation + bootstrap in `.config/wt.toml`
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Wave:** 1 (harden now)
 - **Intent:** Make a fresh worktree start from `origin/main`, build cleanly, and
   fail loudly when it doesn't.
 - **Expected Outcome:** New worktrees branch off `origin/main` (fetch-before-create,
-  not stale local main); post-start warms the dist-producing workspace packages so
-  `dist/` and pnpm workspace symlinks exist before `typecheck`; and the `rust`
-  post-start stops swallowing failures (`2>/dev/null || true` removed/narrowed) so
-  a broken bootstrap is visible.
+  not stale local main, via the committed `scripts/dev/wt-new.sh` wrapper since
+  `wt` has no pre-create hook); the post-start `install` fully reconciles pnpm
+  workspace symlinks before `typecheck`; and the `rust` post-start stops swallowing
+  failures (`2>/dev/null || true` removed) so a broken bootstrap is visible.
+  Implementation note: the planned cause ("`dist/` missing, warm it") was wrong —
+  on a `wt` worktree `dist/` is carried over by `copy-ignored`; the real fault is
+  that `copy-ignored` seeds an inconsistent `node_modules` and a single
+  `pnpm install` trusts the copied `.modules.yaml` and skips re-linking the missing
+  per-consumer `workspace:*` symlinks (e.g. `anvil-api` → `@eddacraft/anvil-observability`),
+  so the first `typecheck` fails `TS2307`. Fixed by removing `.modules.yaml` before
+  install to force a one-pass relink from the warm global store.
 - **Validation:** A freshly created worktree's first `pnpm typecheck` passes on
   untouched files; the branch's merge-base is `origin/main`'s tip; a deliberately
   broken build surfaces in post-start output instead of being swallowed.
-- **Files:** `.config/wt.toml`; worktree-creation guidance in the dev-workflow
-  docs.
-- **Confidence:** medium — `wt`'s control over the branch base point needs
-  confirming (config vs a thin create wrapper).
+- **Files:** `.config/wt.toml`, `scripts/dev/wt-new.sh` (new fetch-then-create
+  wrapper), `docs/guides/worktree-policy.md` (branch-creation rules + bootstrap
+  section).
+- **Confidence:** resolved — `wt` accepts a remote-tracking ref as `--base`, so the
+  thin `wt-new.sh` wrapper (fetch → `wt switch --create --base origin/main`) is the
+  branch-base fix; no `wt` config knob exists for it.
 
 ### DEVENV-007: Wire change-scoped parity into the wt pre-commit + classifier
 

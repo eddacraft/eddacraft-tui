@@ -2,14 +2,28 @@
 [[post-start]]
 copy = "wt step copy-ignored"
 
+# Reconcile dependencies. DEVENV-006 (ADR-057): the `copy` step above seeds this
+# worktree's node_modules wholesale from a sibling, which can be internally
+# inconsistent (some per-consumer workspace symlinks present, others missing).
+# A plain `pnpm install` trusts the copied `node_modules/.modules.yaml` and does
+# a partial pass that does NOT re-link the missing workspace symlinks — e.g.
+# apps/anvil-api ends up without `@eddacraft/anvil-observability`, so the first
+# `pnpm typecheck` fails on untouched files (it took a second install to fix).
+# Removing `.modules.yaml` makes pnpm distrust the copied layout and fully
+# relink every importer from the (warm, hardlinked) global store in one pass —
+# a few seconds, no re-fetch.
 [[post-start]]
-install = "pnpm install"
+install = "rm -f node_modules/.modules.yaml; pnpm install"
 
 # Build Rust crates. DEVENV-002 (ADR-057): relocate the target/ off the full
 # Projects mount onto /home before building, per-worktree (lock-free). Mirrors
 # .envrc for agents that drive `wt` without a direnv-hooked shell.
+# DEVENV-006: stderr is no longer sent to /dev/null and the build no longer
+# `|| true`-swallows failures — a broken bootstrap now prints a loud warning
+# instead of vanishing. Still non-fatal so a transient break doesn't lock you
+# out of the worktree you need in order to fix it.
 [[post-start]]
-rust = "export CARGO_TARGET_DIR=\"${HOME}/.cache/anvil-targets/$(basename \"$PWD\")\"; mkdir -p \"$CARGO_TARGET_DIR\"; cargo build --workspace 2>/dev/null || true"
+rust = "export CARGO_TARGET_DIR=\"${HOME}/.cache/anvil-targets/$(basename \"$PWD\")\"; mkdir -p \"$CARGO_TARGET_DIR\"; cargo build --workspace || echo 'WARNING (DEVENV-006): rust post-start build failed — see output above. The worktree is usable; fix the build before relying on it.'"
 
 # Kill dev server for this worktree on remove
 [pre-remove]
