@@ -171,7 +171,7 @@ expresses them:
 
 LANGTS-002 closed the two Medium audit gaps — **TS-G1** (interface /
 type-alias / enum symbols) and **TS-G2** (class methods as `Owner.method`
-symbols). The remaining audit gaps are **deferred for the
+symbols) via PR #2106. The remaining audit gaps are **deferred for the
 first T3 iteration** so RSTLAN / PYLAN are **not** required to extract the
 analogous shapes while this note stands:
 

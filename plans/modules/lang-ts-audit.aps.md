@@ -5,11 +5,13 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | In Progress | 4/6  |
+| LANGTS | —     | In Progress | 5/6  |
 
-**Last reviewed:** 2026-05-29 — LANGTS-005 (kernel-prerequisite refactor,
-K1–K4) Merged via PR #2096, advancing the done count to **4/6**
-(LANGTS-001, -003, -005, -006 done; -002, -004 Ready). Earlier, 2026-05-28:
+**Last reviewed:** 2026-05-29 — LANGTS-002 (TS extraction gaps TS-G1/TS-G2:
+interface/type/enum + class-method symbols) Merged via PR #2106, advancing
+the done count to **5/6** (LANGTS-001, -002, -003, -005, -006 done; -004
+Ready). Earlier the same day LANGTS-005 (kernel-prerequisite refactor,
+K1–K4) Merged via PR #2096 (4/6). Earlier, 2026-05-28:
 the two bounded open questions were resolved inline (single module, no
 `lang-ts-prereq` split; K1 extractor-trait ADR deferred to RSTLAN per the
 audit §8 decision), promoting LANGTS-002, -004, and -005 from
@@ -152,9 +154,9 @@ K1 ADR) were resolved inline above.
 - **Evidence:**
   [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).
 
-### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — In Progress
+### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2106
 - **Intent:** Close the two extraction gaps the audit marked Medium so the TS
   symbol graph carries the shapes Track 4 packs will reason about, and record
   the deferral decision for the rest.
