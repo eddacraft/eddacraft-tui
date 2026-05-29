@@ -30,9 +30,18 @@ die() {
   exit 1
 }
 
+# Print the comment header (lines 2-18) as help — stop before `set -euo pipefail`.
 usage() {
-  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
+}
+
+# Emit array elements as a JSON list body: "a","b" (nothing when empty, so the
+# caller's [ ... ] is a valid empty array, not [""]).
+json_list() {
+  local out="" e
+  for e in "$@"; do out+="\"${e}\","; done
+  printf '%s' "${out%,}"
 }
 
 while (($#)); do
@@ -124,9 +133,9 @@ done < <(find "$base_real" -mindepth 1 -maxdepth 1 -type d -printf '%T@\t%p\0' |
 
 if $json; then
   printf '{"used_pct_start":%s,"applied":%s,"evicted":[' "$(used_pct)" "$apply"
-  printf '%s' "$(printf '"%s",' "${evicted[@]:-}" | sed 's/,$//')"
+  printf '%s' "$(json_list ${evicted[@]+"${evicted[@]}"})"
   printf '],"skipped":['
-  printf '%s' "$(printf '"%s",' "${skipped[@]:-}" | sed 's/,$//')"
+  printf '%s' "$(json_list ${skipped[@]+"${skipped[@]}"})"
   printf ']}\n'
 else
   mode=$($apply && echo "evicted" || echo "WOULD evict (dry-run; pass --apply)")

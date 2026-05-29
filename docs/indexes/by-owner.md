@@ -71,6 +71,12 @@
 | [Command Safety Configuration Reference](../../docs/guides/command-safety-configuration.md) | `docs/guides/command-safety-configuration.md` | Guide | Authoritative | CMDSH | Live   |
 | [Command Safety Validation](../../docs/guides/command-safety.md)                            | `docs/guides/command-safety.md`               | Guide | Authoritative | CMDSH | Live   |
 
+## DEVENV
+
+| Document                                                                      | Path                                     | Type    | Authority | Owner  | Status |
+| ----------------------------------------------------------------------------- | ---------------------------------------- | ------- | --------- | ------ | ------ |
+| [Cargo Target Eviction Runbook](../../docs/runbooks/cargo-target-eviction.md) | `docs/runbooks/cargo-target-eviction.md` | Runbook | Advisory  | DEVENV | Live   |
+
 ## DISTRIB (plans/modules/distribution-and-update.aps.md)
 
 | Document                                                                     | Path                               | Type  | Authority     | Owner                                                  | Status |
