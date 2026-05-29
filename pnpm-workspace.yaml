@@ -26,8 +26,6 @@ packages:
   - packages/tooling/*
   # Tools
   - tools/*
-  # nxrust now resolves from npm; keep the historical vendored copy out of the workspace.
-  - '!tools/nx-rust'
   # ATTRIB-015 devtools manifest. Excluded from the pnpm-workspace so
   # `npm ci` inside `tools/dev` produces an isolated `license-checker`
   # dependency tree — pnpm workspace hoisting otherwise resolves a `glob`

@@ -40,7 +40,7 @@
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["archive/**", "tools/nx-rust/**", "tools/test-harness/**"],
+      "exclude": ["archive/**", "tools/test-harness/**"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -54,14 +54,14 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "exclude": ["archive/**", "tools/nx-rust/**", "tools/test-harness/**"],
+      "exclude": ["archive/**", "tools/test-harness/**"],
       "options": {
         "targetName": "lint"
       }
     },
     {
       "plugin": "@nx/vite/plugin",
-      "exclude": ["archive/**", "tools/nx-rust/**", "tools/test-harness/**"],
+      "exclude": ["archive/**", "tools/test-harness/**"],
       "options": {
         "testTarget": "test"
       }

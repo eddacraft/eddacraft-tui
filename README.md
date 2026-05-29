@@ -305,13 +305,12 @@ Archived integrations retained for historical context:
 
 ### Tools
 
-| Directory          | Description                                                                             |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `tools/scripts`    | Build and utility scripts                                                               |
-| `tools/generators` | NX code generators                                                                      |
-| `tools/codemods`   | Codemod transformations                                                                 |
-| `tools/nx-rust`    | Historical vendored nxrust copy; active plugin resolves from npm as `@eddacraft/nxrust` |
-| `tools/test-utils` | Shared test utilities and fixtures                                                      |
+| Directory          | Description                        |
+| ------------------ | ---------------------------------- |
+| `tools/scripts`    | Build and utility scripts          |
+| `tools/generators` | NX code generators                 |
+| `tools/codemods`   | Codemod transformations            |
+| `tools/test-utils` | Shared test utilities and fixtures |
 
 ### Plans
 

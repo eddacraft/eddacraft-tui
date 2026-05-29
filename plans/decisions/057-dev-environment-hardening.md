@@ -97,6 +97,19 @@ separate PRs; this ADR fixes the design.
    builds). Without this, relocation silently breaks the nx/Azure cache and
    leaves nx builds unguarded against eviction. Touches ADR-021 territory.
 
+   > **Amended during DEVENV-003 investigation.** The active plugin is
+   > `@eddacraft/nxrust`, resolved from the registry — the in-house plugin was
+   > extracted to the public `eddacraft/nxrust` repo; anvil's `tools/nx-rust`
+   > vendored copy was dead code (referenced by nothing) and is **removed**. So
+   > this cannot be fixed in anvil; it must land in `eddacraft/nxrust`'s
+   > in-flight caching work (PRs #15/#16). It is also **not** correctness-
+   > critical after all: `@eddacraft/nxrust` already lists `CARGO_TARGET_DIR` in
+   > its cache-key env allowlist, so a relocated build cannot take a stale
+   > non-relocated hit — the residual gap is benign cache *reuse* only.
+   > DEVENV-003 is therefore **Blocked on the upstream release** (then anvil
+   > bumps + verifies), and the `.anvil-building` sentinel is dropped in favour
+   > of cargo's own `.cargo-lock` flock for the DEVENV-004 eviction guard.
+
 4. **Disk-pressure eviction (race-safe, self-enforcing).** A `systemd --user`
    timer runs `scripts/cache/anvil-target-evict.sh`, high-water-mark gated
    (act only above a `/home` threshold), LRU-by-mtime. A dir is skipped if a

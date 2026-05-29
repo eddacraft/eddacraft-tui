@@ -86,26 +86,32 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 - **Files:** `.envrc` (new), `.config/wt.toml`, `docs/guides/worktree-policy.md`.
 - **Confidence:** high
 
-### DEVENV-003: Make nx-rust executors relocation-aware + sentinel-emitting
+### DEVENV-003: nx-rust relocation-aware build outputs (upstream)
 
-- **Status:** Proposed
+- **Status:** Blocked
 - **Wave:** 1 (harden now)
-- **Intent:** Keep the nx build cache (local + Azure remote) correct under target
-  relocation, and let eviction detect nx-driven builds.
-- **Expected Outcome:** The `@eddacraft/nx-rust` build/test/check/clippy executors
-  resolve `CARGO_TARGET_DIR` from the env and pass it as `--target-dir` (so nx's
-  declared `outputs` match where cargo actually writes), and `touch` a
-  `.anvil-building` sentinel in the target dir before spawning cargo and remove it
-  in a `finally`-equivalent after. The `build` target's cache-hit restore lands at
-  the relocated path, not `{workspaceRoot}/target`.
-- **Validation:** `nx run <crate>:build` with `CARGO_TARGET_DIR` set produces a
-  cache entry keyed to and restored at the relocated dir; a sentinel exists during
-  the build and is gone after.
-- **Coordinates with:** ADR-021 (in-house nx-rust plugin) — this changes its
-  executors; ADR-049 (`^build` contract).
-- **Files:** `tools/nx-rust/src/**` (executors + `utils/target-configs.ts`).
-- **Confidence:** medium — executor change interacts with nx output tracking and
-  the Powerpack Azure cache; needs careful cache-correctness tests.
+- **Intent:** Make the active nx-rust plugin cache the *relocated* Rust build
+  outputs so local `nx build` caching is correct under DEVENV-002 relocation.
+- **Expected Outcome:** The active plugin is `@eddacraft/nxrust`, resolved from the
+  registry — the in-house plugin (ADR-021) was extracted to the public
+  `eddacraft/nxrust` repo, and anvil's old `tools/nx-rust` vendored copy was dead
+  code (referenced by nothing) and is **removed in this work**. The
+  reloc-awareness — inject `CARGO_TARGET_DIR` as the build target's `target-dir`
+  option so the cached `outputs` follow where cargo writes — must land in
+  `eddacraft/nxrust`'s in-flight caching work (open PRs #15 cache inputs / #16
+  narrow build outputs, CACHE-001/002), after which anvil bumps the
+  `@eddacraft/nxrust` dep and verifies. **anvil-001 cannot fix this locally.**
+- **Validation:** after the nxrust bump, `nx build <crate>` with `CARGO_TARGET_DIR`
+  set caches/restores at the relocated dir (not `{workspaceRoot}/target`).
+- **Blocked on:** `eddacraft/nxrust` shipping `CARGO_TARGET_DIR`-aware build
+  outputs (coordinate with its CACHE work) + a published release.
+- **Note:** the cache-*correctness* gap is already mitigated upstream —
+  `@eddacraft/nxrust` lists `CARGO_TARGET_DIR` in its cache-key env allowlist, so a
+  relocated build cannot take a stale non-relocated cache hit. The residual gap is
+  cache *reuse* only, and benign (agents build via raw cargo; `check`/`test`/
+  `clippy` have empty outputs). Low priority until the nxrust CACHE work ships.
+- **Coordinates with:** ADR-021, ADR-049; `eddacraft/nxrust` CACHE-001/002.
+- **Confidence:** medium — dependent on external release cadence.
 
 ### DEVENV-004: Disk-pressure target eviction (race-safe, dry-run-first)
 
@@ -116,16 +122,18 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   no-ops.
 - **Expected Outcome:** `scripts/cache/anvil-target-evict.sh` + a `systemd --user`
   timer evict LRU-by-mtime above a `/home` high-water mark. A dir is skipped if a
-  non-blocking `flock -n` on its `.cargo-lock` fails, its newest mtime is within a
-  freshness window, or a fresh `.anvil-building` sentinel is present. The script
-  asserts a hard `$ANVIL_TARGET_BASE` prefix and **fails closed**, ships
-  **dry-run/log-only** first, and orphaned in-tree reclaim is an opt-in
-  `wt clean-stale-targets` (not a blind sweep).
-- **Validation:** Dry-run logs over one cycle never select a building dir; with a
-  sentinel/lock present the dir is skipped; a path outside `$ANVIL_TARGET_BASE` is
+  non-blocking `flock -n` on its `.cargo-lock` fails (cargo holds that lock for the
+  duration of any build/check/test/clippy, so no plugin-emitted sentinel is
+  needed) or its newest mtime is within a freshness window. The script asserts a
+  hard `$ANVIL_TARGET_BASE` prefix and **fails closed**, ships **dry-run/log-only**
+  first, and orphaned in-tree reclaim is an opt-in `wt clean-stale-targets` (not a
+  blind sweep).
+- **Validation:** Dry-run logs over one cycle never select a building dir; with the
+  `.cargo-lock` held the dir is skipped; a path outside `$ANVIL_TARGET_BASE` is
   refused with a non-zero exit.
-- **Dependencies:** DEVENV-003 (the `.anvil-building` sentinel) and DEVENV-002
-  (the relocated base path).
+- **Dependencies:** DEVENV-002 (the relocated base path). Not blocked on
+  DEVENV-003 — the original `.anvil-building` sentinel is replaced by cargo's own
+  `.cargo-lock` flock, which requires no plugin change.
 - **Files:** `scripts/cache/anvil-target-evict.sh` (new), `systemd --user` unit
   files (operator-installed, documented in the runbook), `.config/wt.toml`.
 - **Confidence:** medium

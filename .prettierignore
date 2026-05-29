@@ -1,9 +1,5 @@
 # Add files here to ignore them from prettier formatting
 /dist
-# Vendored Nx plugin compiles to dist/ that we commit (so Nx can load the
-# plugin at startup before any install-time build step). Skip formatting
-# on its compiled output — source under tools/nx-rust/src/ stays formatted.
-tools/nx-rust/dist/
 **/coverage
 /.nx/cache
 /.nx/workspace-data
