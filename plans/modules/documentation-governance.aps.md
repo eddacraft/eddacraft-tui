@@ -77,7 +77,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 `pnpm docs:index:check`. DOCGOV-006 and DOCGOV-007 have replaced the planned
 `asbuilt-paths` and `index-freshness` stubs with real validators.
 
-## Tasks
+## Work Items
 
 ### DOCGOV-001: Establish documentation workflow and closeout rules
 

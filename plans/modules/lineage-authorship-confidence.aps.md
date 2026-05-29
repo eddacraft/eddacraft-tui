@@ -62,7 +62,7 @@ Provide deterministic, auditable attribution for code changes at file/line granu
 - [x] Dependencies identified
 - [x] At least one task defined
 
-## Tasks
+## Work Items
 
 ### LAC-001: Define canonical line attribution schema
 - **Intent:** Standardize the attribution contract used across collection, storage, and query.

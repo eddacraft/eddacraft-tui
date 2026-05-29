@@ -203,7 +203,7 @@ under a follow-up if not.*
 requires founder review. The contract doc lives in
 `docs/observability/`, separate from code, so a PR diff is visible.
 
-## Tasks
+## Work Items
 
 > Status: Draft. No tasks Committed. USAGE-001 is the launch-blocker
 > path if the founder wants pre-launch usage visibility; USAGE-002 and

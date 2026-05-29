@@ -85,7 +85,7 @@ Change status to **Ready** when:
 **Wave 2** — Can begin after Wave 1 (DASH) completes. Runs in parallel with
 DASHCORE.
 
-## Tasks
+## Work Items
 
 ### DASHARCH-001: Architecture overview with layer diagram
 

@@ -97,7 +97,7 @@ discovery.
 
 ---
 
-## Tasks
+## Work Items
 
 ### V060F-001: admin command parity for `anvil admin` (nomination)
 

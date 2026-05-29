@@ -77,7 +77,7 @@ Change status to **Ready** when:
 - [ ] External codebase validation candidate identified.
 - [ ] Owner named.
 
-## Tasks
+## Work Items
 
 Anticipated:
 

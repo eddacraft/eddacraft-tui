@@ -3,7 +3,7 @@
 
 # Organisational Policy Hierarchy
 
-| Scope   | Owner | Priority | Status |
+| ID   | Owner | Priority | Status |
 | ------- | ----- | -------- | ------ |
 | ORGHIER | —     | high     | Draft  |
 
@@ -70,7 +70,7 @@ controlled override and exemption semantics at each level.
 | Conflicting policies confuse users   | Conflict report with provenance per rule        |
 | Migration burden for existing setups | Auto-detect single-tier and skip hierarchy      |
 
-## Tasks
+## Work Items
 
 ### ORGHIER-001: Hierarchy configuration schema
 

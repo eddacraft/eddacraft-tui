@@ -80,7 +80,7 @@ archive.
 - **Confidence:** low | medium | high
 ```
 
-## Tasks
+## Work Items
 
 > **Completed items are compacted.** Items in a done state (`Done` / `Complete`
 > / `Merged` / `Released/Shipped` — the `DONE_PATTERNS` in

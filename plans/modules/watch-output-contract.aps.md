@@ -68,7 +68,7 @@ WOUT turns the existing JSON-lines behaviour into a durable consumer surface:
   - fixture-backed JSON examples for consumers
   - parseable stdout behaviour for piped integrations
 
-## Tasks
+## Work Items
 
 ### WOUT-001: Watch JSON Contract Spec
 

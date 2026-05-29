@@ -103,7 +103,7 @@ as canonical output selector, (2) shared SARIF emitter + per-command adapters
 with no unified finding model. File **Proposed** alongside SARIFOUT-001/-002
 after design sign-off; run `pnpm adr:check` for the next number.
 
-## Tasks
+## Work Items
 
 > Status: Proposed. This module stays Proposed until the three design decisions
 > (flag surface, module home, shared model) are signed off. Work items are

@@ -86,7 +86,7 @@ precomputed architectural-index checks. Those rules must consume GV2 hot indexes
 only; they must not query the general graph registry or perform traversal on the
 daemon hot path.
 
-## Tasks
+## Work Items
 
 ### INTR-001: InterceptRule Trait
 

@@ -77,7 +77,7 @@ Change status to **Ready** when:
 - [ ] `apps/anvil-api` baselined.
 - [ ] Owner named.
 
-## Tasks
+## Work Items
 
 Anticipated:
 

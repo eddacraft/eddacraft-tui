@@ -3,7 +3,7 @@
 
 # Feature Flag Catalogue
 
-| Scope   | Owner | Priority | Status | Progress |
+| ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
 | FLAGCAT | —     | medium   | Ready  | 2/8      |
 
@@ -239,7 +239,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 | Migration lands partially and the duplicate definitions sit on `dev` | Each work item is behaviour-preserving and ships independently; no cutover needs both halves landed in the same PR |
 | Clawpatch feature mapping is mistaken for product truth      | Keep it in FLAGCAT-001 discovery only: copy any useful observations into the design note, then manually curate manifest entries under APS and feature-flag governance |
 
-## Tasks
+## Work Items
 
 ### FLAGCAT-001: Design note — manifest layout, Rust codegen, consistency check — Complete
 

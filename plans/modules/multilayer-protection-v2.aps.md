@@ -293,7 +293,7 @@ task's `Source:` line cites the Council finding IDs.
 - **ADR-038** — Hook surface + noise discipline.
 - **ADR-039** — Baseline policy + hard-pinned rule classes.
 
-## Tasks
+## Work Items
 
 ### A. Daemon enforcement + observation integration
 

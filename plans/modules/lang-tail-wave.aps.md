@@ -86,7 +86,7 @@ Change status to **Ready** when:
 - [ ] At least one fixture file identified per included language.
 - [ ] Owner named.
 
-## Tasks
+## Work Items
 
 Tasks will be defined when this module moves to Ready. Anticipated shape:
 

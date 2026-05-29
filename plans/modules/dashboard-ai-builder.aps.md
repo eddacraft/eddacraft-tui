@@ -91,7 +91,7 @@ Change status to **Ready** when:
 
 **Wave 4** — Final wave. Begins after Wave 2 (DASHCORE, DASHARCH) ships.
 
-## Tasks
+## Work Items
 
 ### DASHAI-001: json-render runtime integration
 

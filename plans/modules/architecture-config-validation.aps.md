@@ -3,7 +3,7 @@
 
 # Architecture Config Validation
 
-| Scope   | Owner | Priority | Status |
+| ID   | Owner | Priority | Status |
 | ------- | ----- | -------- | ------ |
 | ARCHCFG | —     | high     | Draft  |
 
@@ -55,7 +55,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - [ ] Typical config validates in < 100ms
 - [ ] Gate preflight can block architecture checks when validation fails
 
-## Tasks
+## Work Items
 
 ### ARCHCFG-001: Semantic validation rules
 

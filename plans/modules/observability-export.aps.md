@@ -78,7 +78,7 @@ is ephemeral debugging context, not source-of-truth.
 - The chosen sink, its credentials story, its sampling defaults, and
   the operational runbook for it.
 
-## Tasks
+## Work Items
 
 > Status: Draft. EXPORT remains Draft until a paying customer or first
 > production incident motivates the sink choice. Pre-launch this module

@@ -53,7 +53,7 @@ Create an Anvil-native workspace for compliance evidence mapping that links cont
 - [x] Dependencies identified
 - [x] At least one task defined
 
-## Tasks
+## Work Items
 
 ### CEWS-001: Define control-evidence data model
 - **Intent:** Establish canonical entities for controls, evidence, ownership, and status.

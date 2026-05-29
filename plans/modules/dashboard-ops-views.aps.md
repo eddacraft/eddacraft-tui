@@ -71,7 +71,7 @@ Change status to **Ready** when:
 
 **Wave 3** — Can begin once Wave 2 is well underway. May overlap late Wave 2.
 
-## Tasks
+## Work Items
 
 ### DASHOPS-001: Audit log viewer
 

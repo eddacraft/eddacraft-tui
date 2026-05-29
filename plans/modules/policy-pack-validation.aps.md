@@ -3,7 +3,7 @@
 
 # Policy Pack Validation
 
-| Scope  | Owner | Priority | Status |
+| ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
 | POLVAL | —     | high     | Draft  |
 
@@ -56,7 +56,7 @@ before gate evaluation so policies do not fail silently.
 - [ ] Typical pack validates in < 200ms
 - [ ] Gate preflight can block policy evaluation when validation fails
 
-## Tasks
+## Work Items
 
 ### POLVAL-001: Policy metadata schema
 

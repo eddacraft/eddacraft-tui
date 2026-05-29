@@ -163,7 +163,7 @@ PocketFlow gateway does NOT:
 - [ ] Decision needed: where does the gateway package live (new package vs. extension of existing)
 - [ ] Decision needed: how does the gateway consume Kindling (npm dep vs. Rust binary IPC)
 
-## Tasks
+## Work Items
 
 ### PFGW-001: Define gateway package structure
 

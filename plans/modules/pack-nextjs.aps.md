@@ -77,7 +77,7 @@ Change status to **Ready** when:
 - [ ] External Next.js validation candidate identified.
 - [ ] Owner named.
 
-## Tasks
+## Work Items
 
 Anticipated:
 

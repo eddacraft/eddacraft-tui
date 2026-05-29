@@ -104,7 +104,7 @@ Change status to **Ready** when:
 
 **Wave 1** — Must complete before Waves 2–4 can begin.
 
-## Tasks
+## Work Items
 
 ### DASH-001: Dashboard route group and layout shell
 

@@ -49,7 +49,7 @@ are tracked here for v0.5.0-beta / next sweep.
 This module exists so the deferral does not silently rot. None of these
 require a coordinated bundle — pick them off in any order.
 
-## Work items
+## Work Items
 
 ### V050F-001: Pin cargo-dist installer by SHA256 in the release workflow
 

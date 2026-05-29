@@ -157,7 +157,7 @@ This module is **Ready** when:
       reference, satisfying the "tried in anger" bar adversarial-reviewer
       raised during planning council session plan-b00c16c7.
 
-## Tasks
+## Work Items
 
 > Status: In Progress. TRACE-001 Complete 2026-04-30. TRACE-004 Complete
 > 2026-05-11 via PR #1435.

@@ -91,7 +91,9 @@ runs against a frozen reference — not a moving sidecar.
 - Graph-context features depend on GV2/GCTX and must not become accidental scope
   in this module
 
-## Phase 1 Readiness Checklist
+## Work Items
+
+### Phase 1 Readiness Checklist
 
 RMCPF has started because RMCPF-001 and RMCPF-002 are complete. Before claiming
 the implementation phases are ready to run, close the remaining client and
@@ -106,9 +108,9 @@ retirement decisions:
 
 ---
 
-## Phase 0 — Inventory and Compatibility
+### Phase 0 — Inventory and Compatibility
 
-### RMCPF-001: Existing MCP surface inventory
+#### RMCPF-001: Existing MCP surface inventory
 
 - **Status:** Done
 - **Intent:** Create the compatibility matrix for every current TS MCP tool,
@@ -131,7 +133,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-002: Rust MCP parity architecture spec
+#### RMCPF-002: Rust MCP parity architecture spec
 
 - **Status:** Done
 - **Intent:** Define the post-launch Rust MCP architecture and how it relates to
@@ -172,7 +174,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-003: Phase 1 readiness decision closure
+#### RMCPF-003: Phase 1 readiness decision closure
 
 - **Status:** Done
 - **Intent:** Close the remaining client, transport, and TypeScript archive
@@ -203,9 +205,9 @@ retirement decisions:
 
 ---
 
-## Phase 1 — Tool Parity
+### Phase 1 — Tool Parity
 
-### RMCPF-010: Port check/gate/status tools
+#### RMCPF-010: Port check/gate/status tools
 
 - **Status:** Done
 - **Intent:** Move the core read-only validation tools from the TS MCP server to
@@ -306,7 +308,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-011: Port fix/suppress/boundary tools
+#### RMCPF-011: Port fix/suppress/boundary tools
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Move mutation and architecture-query tools to Rust with safe
@@ -379,7 +381,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-012: Port or retire MCP prompts
+#### RMCPF-012: Port or retire MCP prompts
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Decide whether existing TS MCP prompts should move to Rust or be
@@ -432,9 +434,9 @@ retirement decisions:
 
 ---
 
-## Phase 2 — Resources and Transports
+### Phase 2 — Resources and Transports
 
-### RMCPF-020: Port MCP resources
+#### RMCPF-020: Port MCP resources
 
 - **Status:** Draft
 - **Intent:** Move existing MCP resources to Rust or retire those that no longer
@@ -458,7 +460,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-021: Transport parity decision and implementation
+#### RMCPF-021: Transport parity decision and implementation
 
 - **Status:** Draft
 - **Intent:** Decide whether the Rust MCP server needs Streamable HTTP parity in
@@ -476,9 +478,9 @@ retirement decisions:
 
 ---
 
-## Phase 3 — Cutover
+### Phase 3 — Cutover
 
-### RMCPF-030: Compatibility test harness and migration docs
+#### RMCPF-030: Compatibility test harness and migration docs
 
 - **Status:** Draft
 - **Intent:** Prove users can move from the TS MCP server to the Rust MCP server
@@ -498,7 +500,7 @@ retirement decisions:
 
 ---
 
-### RMCPF-031: Retire or archive TypeScript MCP server
+#### RMCPF-031: Retire or archive TypeScript MCP server
 
 - **Status:** Draft
 - **Intent:** Remove the split MCP runtime once Rust parity is sufficient.

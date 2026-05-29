@@ -3,7 +3,7 @@
 
 # Compliance Reporting
 
-| Scope  | Owner | Priority | Status |
+| ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
 | COMPLY | —     | medium   | Draft  |
 
@@ -88,7 +88,7 @@ exports evidence in formats auditors accept.
 | Report volume overwhelms auditors         | Executive summary with drill-down sections   |
 | Privacy concerns in evidence data         | Aggregate metrics only; no individual code   |
 
-## Tasks
+## Work Items
 
 ### COMPLY-001: Compliance framework registry
 

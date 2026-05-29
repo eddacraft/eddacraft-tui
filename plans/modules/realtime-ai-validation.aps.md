@@ -240,7 +240,7 @@ convention" section). Concretely:
 - **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
   (drivers-on-daemon architecture authority).
 
-## Tasks
+## Work Items
 
 > Status: Ready. RTAI-001 completed the Phase-0 spike and promoted this module
 > to Ready. The current-release path is RMCP-first: RTAI owns validation

@@ -3,7 +3,7 @@
 
 # Compliance Policy Packs
 
-| Scope  | Owner | Priority | Status |
+| ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
 | CPACKS | —     | high     | Draft  |
 
@@ -127,7 +127,7 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 
 ---
 
-## Tasks
+## Work Items
 
 ### Phase A: Foundation & Common Infrastructure
 

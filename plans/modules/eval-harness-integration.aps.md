@@ -46,7 +46,7 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 - [x] Dependencies identified
 - [x] At least one task defined
 
-## Tasks
+## Work Items
 
 ### EVAL-001: Define EvalHarnessPort
 - **Intent:** Define a stable adapter contract for harness execution and result retrieval.

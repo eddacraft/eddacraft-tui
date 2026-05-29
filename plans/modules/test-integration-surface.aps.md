@@ -99,7 +99,7 @@ Change status to **Ready** when:
 > because Phase 3 and TINT-005 carry unresolved scope decisions (see their
 > per-item notes). Promote the module to Ready once those are settled.
 
-## Tasks
+## Work Items
 
 ### Phase 1 — TS↔Rust Boundary
 

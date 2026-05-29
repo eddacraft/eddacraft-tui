@@ -57,7 +57,7 @@ Change status to **Ready** when:
 - [x] Dependencies identified
 - [x] At least one task defined
 
-## Tasks
+## Work Items
 
 ### OPAG-001: Define orchestration contract
 - **Intent:** Establish the canonical contract for agent-driven policy orchestration.

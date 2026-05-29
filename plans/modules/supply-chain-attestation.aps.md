@@ -96,7 +96,7 @@ for mapping/policy; SLSA provenance attestation.
 - Whether the attribution kit grows a `tool = "cyclonedx-*"` per-block
   variant, or SBOM generation stays entirely in this module's stage.
 
-## Tasks
+## Work Items
 
 This module is **Proposed**; tasks are sketched, not Ready. They become
 Ready once the graph-ingestion prerequisite lands.

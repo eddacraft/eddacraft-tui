@@ -104,7 +104,7 @@ Change status to **Ready** when:
 - [ ] Re-scoring gate snapshot recorded; Rust still anchor #2 after TS.
 - [ ] Owner named for the anchor work.
 
-## Tasks
+## Work Items
 
 Tasks will be defined when this module moves to Ready. Anticipated shape:
 

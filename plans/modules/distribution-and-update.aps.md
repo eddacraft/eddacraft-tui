@@ -79,7 +79,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - Documented release cadence and EOL policy
   - Automated Homebrew formula bump on tag
 
-## Tasks
+## Work Items
 
 ### DISTRIB-001: Harden `anvil update` Resolution Chain And Signature Verification
 

@@ -60,7 +60,7 @@ results, but the remote execution scope owns the protection claim.
 - **ADR-038** — hook surface and noise discipline
 - **ADR-043** — SSH remote host daemon
 
-## Tasks
+## Work Items
 
 ### SSHREMOTE-001: Finalise Remote-Host Daemon Decision
 

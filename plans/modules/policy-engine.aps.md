@@ -148,7 +148,7 @@ post-rust engine question. POLENG is the answer.
 | Single-vendor risk on regorus                                     | Facade isolates engine; downstream depends on `anvil-policy-engine`, never on `regorus` (ADR-040 D-1)   |
 | Bench parity gate fails on real policy mix                        | ADR-040 is revisited per its D-5; module stays Draft until parity established                           |
 
-## Tasks
+## Work Items
 
 ### POLENG-001: Engine facade crate skeleton
 

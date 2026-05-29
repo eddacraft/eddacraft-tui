@@ -20,7 +20,7 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 - Risk taxonomy and severity model
 - Policy integration for enforce/warn modes
 
-## Tasks
+## Work Items
 
 ### IORISK-001: Define IO risk taxonomy
 - **Intent:** Standardize categories, severity, and confidence for IO risk findings.

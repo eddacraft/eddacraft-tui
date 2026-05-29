@@ -44,7 +44,7 @@ Deferred items from the Council review of `perf/discovery-scan-parallel`
 (2026-04-20). See PR description for the full verdict. Individual task notes
 reference the council finding IDs where relevant.
 
-## Tasks
+## Work Items
 
 ### SCAN-001: Apply parallel scan pattern to remaining call-sites
 

@@ -110,7 +110,7 @@ Change status to **Ready** when:
 - [ ] At least one execution task approved for the active release window — OBS is
       post-launch hardening and is not currently in a release wave
 
-## Tasks
+## Work Items
 
 ### OBS-001: Observability signal inventory and contract
 

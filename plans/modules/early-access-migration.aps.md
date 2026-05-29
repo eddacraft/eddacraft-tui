@@ -3,7 +3,7 @@
 
 # Early Access Migration
 
-| Scope | Owner | Priority | Status |
+| ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
 | EAMIG | —     | Medium   | In Progress |
 
@@ -38,9 +38,11 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 1 — Kernel Types (slice 1)
+## Work Items
 
-### EAMIG-001 — NodeId newtype for SymbolNode.id
+### Phase 1 — Kernel Types (slice 1)
+
+#### EAMIG-001 — NodeId newtype for SymbolNode.id
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -51,7 +53,7 @@ but they represent genuine improvements that should be addressed before GA.
   format is identical (serde transparent).
 - **Files:** `crates/anvil-kernel-types/src/graph.rs`
 
-### EAMIG-002 — Enforce EventType/EventPayload consistency
+#### EAMIG-002 — Enforce EventType/EventPayload consistency
 
 - **Status:** Ready
 - **Priority:** Low
@@ -64,9 +66,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 2 — Checks (slice 2)
+### Phase 2 — Checks (slice 2)
 
-### EAMIG-003 — Surface invalid custom pattern errors in secret scanning
+#### EAMIG-003 — Surface invalid custom pattern errors in secret scanning
 
 - **Status:** Done
 - **Priority:** High
@@ -82,7 +84,7 @@ but they represent genuine improvements that should be addressed before GA.
   Regression test `compile_custom_patterns_separates_invalid_from_valid`
   locks the behaviour.
 
-### EAMIG-004 — Expand git scanner file extension coverage
+#### EAMIG-004 — Expand git scanner file extension coverage
 
 - **Status:** Merged 2026-05-26 via PR #1994
 - **Priority:** High
@@ -92,7 +94,7 @@ but they represent genuine improvements that should be addressed before GA.
   extensions or remove the glob filter entirely.
 - **Files:** `crates/anvil-checks/src/secret/git_scanner.rs`
 
-### EAMIG-005 — Credit card pattern false-positive mitigation
+#### EAMIG-005 — Credit card pattern false-positive mitigation
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -102,7 +104,7 @@ but they represent genuine improvements that should be addressed before GA.
   rather than default.
 - **Files:** `crates/anvil-checks/src/secret/patterns.rs`
 
-### EAMIG-006 — Dedup key collision on same-line multi-match
+#### EAMIG-006 — Dedup key collision on same-line multi-match
 
 - **Status:** Ready
 - **Priority:** Low
@@ -112,7 +114,7 @@ but they represent genuine improvements that should be addressed before GA.
   redacted match in the key.
 - **Files:** `crates/anvil-checks/src/secret/check.rs`
 
-### EAMIG-007 — Pre-compile command safety arg patterns
+#### EAMIG-007 — Pre-compile command safety arg patterns
 
 - **Status:** Ready
 - **Priority:** Low
@@ -121,7 +123,7 @@ but they represent genuine improvements that should be addressed before GA.
   compile when rules are loaded and store alongside the `CommandRule`.
 - **Files:** `crates/anvil-checks/src/command_safety/matcher.rs`
 
-### EAMIG-008 — Expand rm-rf-home pattern to absolute paths
+#### EAMIG-008 — Expand rm-rf-home pattern to absolute paths
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -130,7 +132,7 @@ but they represent genuine improvements that should be addressed before GA.
   `/home/user` and `/Users/user` paths.
 - **Files:** `crates/anvil-checks/src/command_safety/rules/filesystem_rules.rs`
 
-### EAMIG-009 — Empty catch regex multiline support
+#### EAMIG-009 — Empty catch regex multiline support
 
 - **Status:** Ready
 - **Priority:** Low
@@ -141,9 +143,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 3 — Policy (slice 3)
+### Phase 3 — Policy (slice 3)
 
-### EAMIG-010 — Distinguish OPA error from empty evaluation result
+#### EAMIG-010 — Distinguish OPA error from empty evaluation result
 
 - **Status:** Ready
 - **Priority:** High
@@ -153,7 +155,7 @@ but they represent genuine improvements that should be addressed before GA.
   differentiate the two states.
 - **Files:** `crates/anvil-policy/src/opa.rs`, `crates/anvil-policy/src/evaluator.rs`
 
-### EAMIG-011 — Restrict load_bundle visibility
+#### EAMIG-011 — Restrict load_bundle visibility
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -163,7 +165,7 @@ but they represent genuine improvements that should be addressed before GA.
   parameter.
 - **Files:** `crates/anvil-policy/src/bundle.rs`
 
-### EAMIG-012 — Remove dead _find_opa_binary and which dependency
+#### EAMIG-012 — Remove dead _find_opa_binary and which dependency
 
 - **Status:** Ready
 - **Priority:** Low
@@ -172,7 +174,7 @@ but they represent genuine improvements that should be addressed before GA.
   dependency from Cargo.toml, or wire it up in `OpaExecutor::new()`.
 - **Files:** `crates/anvil-policy/src/opa.rs`, `crates/anvil-policy/Cargo.toml`
 
-### EAMIG-013 — Validate exception glob patterns on add
+#### EAMIG-013 — Validate exception glob patterns on add
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -181,7 +183,7 @@ but they represent genuine improvements that should be addressed before GA.
   Validate in `ExceptionStore::add()` and return an error on invalid syntax.
 - **Files:** `crates/anvil-policy/src/exceptions.rs`
 
-### EAMIG-014 — Fix fingerprint hash collision
+#### EAMIG-014 — Fix fingerprint hash collision
 
 - **Status:** Ready
 - **Priority:** Low
@@ -191,7 +193,7 @@ but they represent genuine improvements that should be addressed before GA.
   separator between fields.
 - **Files:** `crates/anvil-policy/src/opa.rs`
 
-### EAMIG-015 — Normalise bundle error handling in list_bundles
+#### EAMIG-015 — Normalise bundle error handling in list_bundles
 
 - **Status:** Ready
 - **Priority:** Low
@@ -200,7 +202,7 @@ but they represent genuine improvements that should be addressed before GA.
   listing. Both should be treated the same (skip and warn, or collect all).
 - **Files:** `crates/anvil-policy/src/bundle.rs`
 
-### EAMIG-016 — Use OsStr for OPA paths instead of to_string_lossy
+#### EAMIG-016 — Use OsStr for OPA paths instead of to_string_lossy
 
 - **Status:** Ready
 - **Priority:** Low
@@ -211,9 +213,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 4 — Architecture (slice 4)
+### Phase 4 — Architecture (slice 4)
 
-### EAMIG-017 — Migrate from deprecated serde_yaml 0.9
+#### EAMIG-017 — Migrate from deprecated serde_yaml 0.9
 
 - **Status:** Ready
 - **Priority:** High
@@ -224,7 +226,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Files:** `crates/anvil-architecture/Cargo.toml`, all YAML parsing code
 - **Dependencies:** Evaluate impact on anvil-policy (also uses serde_yaml)
 
-### EAMIG-018 — Merge_with_template additive layer merge
+#### EAMIG-018 — Merge_with_template additive layer merge
 
 - **Status:** Draft
 - **Priority:** Medium
@@ -234,7 +236,7 @@ but they represent genuine improvements that should be addressed before GA.
   gaps. Design decision needed.
 - **Files:** `crates/anvil-architecture/src/yaml_parser.rs`
 
-### EAMIG-019 — Monorepo template meaningful layer separation
+#### EAMIG-019 — Monorepo template meaningful layer separation
 
 - **Status:** Draft
 - **Priority:** Medium
@@ -243,7 +245,7 @@ but they represent genuine improvements that should be addressed before GA.
   defeating cross-app boundary enforcement. Split into meaningful layers.
 - **Files:** `crates/anvil-architecture/src/yaml_parser.rs`
 
-### EAMIG-020 — Auto-update baseline updated_at on save
+#### EAMIG-020 — Auto-update baseline updated_at on save
 
 - **Status:** Ready
 - **Priority:** Low
@@ -254,9 +256,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 5 — RCLI Deferred Items
+### Phase 5 — RCLI Deferred Items
 
-### EAMIG-021 — Deduplicate ANVIL_DIR constant (RCLI-047)
+#### EAMIG-021 — Deduplicate ANVIL_DIR constant (RCLI-047)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -265,7 +267,7 @@ but they represent genuine improvements that should be addressed before GA.
   constant definitions. Extract to a shared constants module.
 - **Files:** Multiple crates
 
-### EAMIG-022 — Deduplicate file-tree walks in gate command (RCLI-053)
+#### EAMIG-022 — Deduplicate file-tree walks in gate command (RCLI-053)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -274,7 +276,7 @@ but they represent genuine improvements that should be addressed before GA.
   near-identical. Consolidate into single walk, saving ~300-500ms per run.
 - **Files:** `crates/anvil-cli/src/commands/gate.rs`
 
-### EAMIG-023 — Preserve underlying error in evaluate_auth (RCLI-041)
+#### EAMIG-023 — Preserve underlying error in evaluate_auth (RCLI-041)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -283,7 +285,7 @@ but they represent genuine improvements that should be addressed before GA.
   server feedback. Capture and surface the reason.
 - **Files:** `crates/anvil-cli/src/auth/device_flow.rs`
 
-### EAMIG-024 — Improve secret scan robustness (RCLI-040)
+#### EAMIG-024 — Improve secret scan robustness (RCLI-040)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -292,7 +294,7 @@ but they represent genuine improvements that should be addressed before GA.
   identified during the parity rework council.
 - **Files:** `crates/anvil-checks/src/secret/`
 
-### EAMIG-025 — Document exit codes for CI consumers (RCLI-042)
+#### EAMIG-025 — Document exit codes for CI consumers (RCLI-042)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -301,7 +303,7 @@ but they represent genuine improvements that should be addressed before GA.
   facing location. Add to CLI help and docs.
 - **Files:** `crates/anvil-cli/src/main.rs`, docs
 
-### EAMIG-026 — Deprecation notice for old credential files (RCLI-043)
+#### EAMIG-026 — Deprecation notice for old credential files (RCLI-043)
 
 - **Status:** Ready
 - **Priority:** Low
@@ -310,7 +312,7 @@ but they represent genuine improvements that should be addressed before GA.
   (`~/.anvil/auth.json`, `~/.anvil/license`).
 - **Files:** `crates/anvil-cli/src/auth/credentials.rs`
 
-### EAMIG-027 — Restrict credential permissions on non-Unix (RCLI-044)
+#### EAMIG-027 — Restrict credential permissions on non-Unix (RCLI-044)
 
 - **Status:** Ready
 - **Priority:** Low
@@ -319,7 +321,7 @@ but they represent genuine improvements that should be addressed before GA.
   Windows ACL restriction or document the limitation.
 - **Files:** `crates/anvil-cli/src/auth/credentials.rs`
 
-### EAMIG-028 — Deduplicate credential file-write logic (RCLI-037)
+#### EAMIG-028 — Deduplicate credential file-write logic (RCLI-037)
 
 - **Status:** Ready
 - **Priority:** Low
@@ -330,9 +332,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 6 — Kernel (slice 5)
+### Phase 6 — Kernel (slice 5)
 
-### EAMIG-029 — Use StableGraph for symbol graph removals
+#### EAMIG-029 — Use StableGraph for symbol graph removals
 
 - **Status:** Ready
 - **Priority:** High
@@ -342,7 +344,7 @@ but they represent genuine improvements that should be addressed before GA.
   `NodeIndex` values are never invalidated on removal.
 - **Files:** `crates/anvil-kernel/src/graph/symbol_graph.rs`
 
-### EAMIG-030 — Fix import edge sourcing for multi-symbol files
+#### EAMIG-030 — Fix import edge sourcing for multi-symbol files
 
 - **Status:** Ready
 - **Priority:** High
@@ -352,7 +354,7 @@ but they represent genuine improvements that should be addressed before GA.
   edges with a per-file representative node or the Module node.
 - **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
 
-### EAMIG-031 — Surface GraphDelta errors to emitter
+#### EAMIG-031 — Surface GraphDelta errors to emitter
 
 - **Status:** Ready
 - **Priority:** High
@@ -361,7 +363,7 @@ but they represent genuine improvements that should be addressed before GA.
   dropped. Emit `ErrorCode::Internal` events for each error.
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 
-### EAMIG-032 — Key previously_public/privileged on (file, name)
+#### EAMIG-032 — Key previously_public/privileged on (file, name)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -372,7 +374,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Files:** `crates/anvil-kernel/src/graph/incremental.rs`,
   `crates/anvil-kernel/src/policy/invariants/privilege_expansion.rs`
 
-### EAMIG-033 — Evaluate cross-layer invariants on reverse edges
+#### EAMIG-033 — Evaluate cross-layer invariants on reverse edges
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -382,7 +384,7 @@ but they represent genuine improvements that should be addressed before GA.
   when `infra/db.ts` changes but `domain/user.ts` imports it.
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 
-### EAMIG-034 — Use filter_entry for initial_scan directory pruning
+#### EAMIG-034 — Use filter_entry for initial_scan directory pruning
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -392,7 +394,7 @@ but they represent genuine improvements that should be addressed before GA.
   `node_modules` and `target`.
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 
-### EAMIG-035 — Monotonic next_id counter instead of max recomputation
+#### EAMIG-035 — Monotonic next_id counter instead of max recomputation
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -401,7 +403,7 @@ but they represent genuine improvements that should be addressed before GA.
   file). Replace with a monotonic counter incremented by symbol count.
 - **Files:** `crates/anvil-kernel/src/watch.rs`, `crates/anvil-kernel/src/embedded.rs`
 
-### EAMIG-036 — Replace hand-rolled now_iso8601 with time crate
+#### EAMIG-036 — Replace hand-rolled now_iso8601 with time crate
 
 - **Status:** Ready
 - **Priority:** Low
@@ -410,7 +412,7 @@ but they represent genuine improvements that should be addressed before GA.
   off-by-one errors near century-year boundaries. Use `time` or `chrono`.
 - **Files:** `crates/anvil-kernel/src/protocol/emitter.rs`
 
-### EAMIG-037 — Consolidate duplicate POOL_INIT rayon statics
+#### EAMIG-037 — Consolidate duplicate POOL_INIT rayon statics
 
 - **Status:** Ready
 - **Priority:** Low
@@ -419,7 +421,7 @@ but they represent genuine improvements that should be addressed before GA.
   both call `build_global()`. Extract to a shared `crate::pool` module.
 - **Files:** `crates/anvil-kernel/src/watch.rs`, `crates/anvil-kernel/src/embedded.rs`
 
-### EAMIG-038 — Remove or gate unimplemented WatchConfig patterns
+#### EAMIG-038 — Remove or gate unimplemented WatchConfig patterns
 
 - **Status:** Ready
 - **Priority:** Low
@@ -431,9 +433,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 7 — TUI (slice 6)
+### Phase 7 — TUI (slice 6)
 
-### EAMIG-039 — Fix LogPanel next_match/prev_match index semantics
+#### EAMIG-039 — Fix LogPanel next_match/prev_match index semantics
 
 - **Status:** Ready
 - **Priority:** High
@@ -443,7 +445,7 @@ but they represent genuine improvements that should be addressed before GA.
   the match set is a strict subset of filtered entries.
 - **Files:** `archive/eddacraft-tui-local/src/widgets/log_panel.rs` [archived local copy from before `eddacraft-tui` was extracted to a published crate (workspace dep `eddacraft-tui = "0.1.0"`); re-target before working — the live widget set in `crates/anvil-tui/src/widgets/` is Anvil-specific]
 
-### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
+#### EAMIG-040 — Remove render-time filter.search overwrite in LogPanel
 
 - **Status:** Done
 - **Priority:** Medium
@@ -455,9 +457,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 8 — Distribution (slice 11)
+### Phase 8 — Distribution (slice 11)
 
-### EAMIG-041 — Add checksum verification to install.sh
+#### EAMIG-041 — Add checksum verification to install.sh
 
 - **Status:** Ready
 - **Priority:** High
@@ -468,7 +470,7 @@ but they represent genuine improvements that should be addressed before GA.
   installer directly which has its own verification.
 - **Files:** `install.sh`
 
-### EAMIG-042 — Scope ANVIL_RELEASES_TOKEN to step-level env
+#### EAMIG-042 — Scope ANVIL_RELEASES_TOKEN to step-level env
 
 - **Status:** Ready
 - **Priority:** High
@@ -479,7 +481,7 @@ but they represent genuine improvements that should be addressed before GA.
   and eddacraft/homebrew-tap.
 - **Files:** `.github/workflows/release.yml`
 
-### EAMIG-043 — Add artefact attestation to release workflow
+#### EAMIG-043 — Add artefact attestation to release workflow
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -488,7 +490,7 @@ but they represent genuine improvements that should be addressed before GA.
   `actions/attest-build-provenance` to generate SLSA provenance for free.
 - **Files:** `.github/workflows/release.yml`
 
-### EAMIG-044 — Add tag protection rules
+#### EAMIG-044 — Add tag protection rules
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -497,7 +499,7 @@ but they represent genuine improvements that should be addressed before GA.
   creating a version tag. Configure GitHub tag protection rules.
 - **Files:** Repository settings (not code)
 
-### EAMIG-045 — Verify cargo-dist bootstrap integrity
+#### EAMIG-045 — Verify cargo-dist bootstrap integrity
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -508,9 +510,9 @@ but they represent genuine improvements that should be addressed before GA.
 
 ---
 
-## Phase 9 — Bench (slice 12)
+### Phase 9 — Bench (slice 12)
 
-### EAMIG-046 — Add publish = false to anvil-bench
+#### EAMIG-046 — Add publish = false to anvil-bench
 
 - **Status:** Done
 - **Priority:** High
@@ -522,7 +524,7 @@ but they represent genuine improvements that should be addressed before GA.
 - **Notes:** Already shipped — `publish = false` is present in
   `crates/anvil-bench/Cargo.toml:7`. APS entry was stale.
 
-### EAMIG-047 — Fix graph_memory per-step measurement
+#### EAMIG-047 — Fix graph_memory per-step measurement
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -531,7 +533,7 @@ but they represent genuine improvements that should be addressed before GA.
   Either accumulate graphs or annotate metrics as net-of-dealloc.
 - **Files:** `crates/anvil-bench/src/scenarios/graph_memory.rs`
 
-### EAMIG-048 — Fix cold_start warm-cache measurement
+#### EAMIG-048 — Fix cold_start warm-cache measurement
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -540,7 +542,7 @@ but they represent genuine improvements that should be addressed before GA.
   cache). Rename metric or drop caches before measurement.
 - **Files:** `crates/anvil-bench/src/scenarios/cold_start_scaling.rs`
 
-### EAMIG-049 — Fix watcher_saturation settle_time double-count
+#### EAMIG-049 — Fix watcher_saturation settle_time double-count
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -549,7 +551,7 @@ but they represent genuine improvements that should be addressed before GA.
   overhead in the wall-clock metric.
 - **Files:** `crates/anvil-bench/src/scenarios/watcher_saturation.rs`
 
-### EAMIG-050 — Rename policy_scaling violations to matches
+#### EAMIG-050 — Rename policy_scaling violations to matches
 
 - **Status:** Ready
 - **Priority:** Low
@@ -558,7 +560,7 @@ but they represent genuine improvements that should be addressed before GA.
   naming is inverted compared to policy engine semantics.
 - **Files:** `crates/anvil-bench/src/scenarios/policy_scaling.rs`
 
-### EAMIG-051 — Stream git-history secret scan output
+#### EAMIG-051 — Stream git-history secret scan output
 
 - **Status:** Proposed
 - **Priority:** Low

@@ -135,7 +135,7 @@ Change status to **Ready** when:
       checklist is referenced from user-facing docs; the spec location
       keeps it next to the audit evidence for now.*
 
-## Tasks
+## Work Items
 
 LANGTS-001 and LANGTS-003 carry audit-completed evidence. LANGTS-002, -004,
 and -005 were promoted from anticipated-shape bullets to Ready work items

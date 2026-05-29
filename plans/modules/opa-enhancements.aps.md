@@ -103,7 +103,7 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 | Remote bundles security concerns  | Mandatory signature verification          |
 | Users bypass exceptions           | Audit trail, manager notifications        |
 
-## Tasks
+## Work Items
 
 ### Phase A: YAML-First Architecture Rules
 

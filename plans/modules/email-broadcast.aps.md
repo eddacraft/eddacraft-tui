@@ -3,7 +3,7 @@
 
 # Email Broadcast Surface
 
-| Scope | Owner | Priority | Status |
+| ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
 | EMAIL | —     | Medium   | Ready  |
 
@@ -204,9 +204,11 @@ in the same change.
 
 ---
 
-## Phase 1 — Audience and Registry Foundation
+## Work Items
 
-### EMAIL-001 — Audience resolver registry
+### Phase 1 — Audience and Registry Foundation
+
+#### EMAIL-001 — Audience resolver registry
 
 - **Status:** Done
 - **Priority:** Medium
@@ -235,7 +237,7 @@ in the same change.
 - **releaseScope:** none
 - **releaseNote:** audience `none`
 
-### EMAIL-002 — Generalise snapshot table to broadcasts
+#### EMAIL-002 — Generalise snapshot table to broadcasts
 
 - **Status:** Done
 - **Priority:** Medium
@@ -275,7 +277,7 @@ in the same change.
   parser-level reap loop (`queries.ts:840`) must update in the same PR or
   the loop targets a missing table.
 
-### EMAIL-003 — Email template registry with kind discrimination
+#### EMAIL-003 — Email template registry with kind discrimination
 
 - **Status:** Done
 - **Priority:** Medium
@@ -308,7 +310,7 @@ in the same change.
 - **releaseScope:** none
 - **releaseNote:** audience `none`
 
-### EMAIL-004 — `sendReleaseAnnouncement` helper
+#### EMAIL-004 — `sendReleaseAnnouncement` helper
 
 - **Status:** Done
 - **Priority:** Medium
@@ -350,9 +352,9 @@ in the same change.
   surface; lib change is internal to the API deploy)
 - **releaseNote:** audience `none`
 
-## Phase 2 — Broadcast Endpoint
+### Phase 2 — Broadcast Endpoint
 
-### EMAIL-005 — `POST /admin/broadcast` handler
+#### EMAIL-005 — `POST /admin/broadcast` handler
 
 - **Status:** Done
 - **Priority:** Medium
@@ -396,7 +398,7 @@ in the same change.
   template + audience + counts + previewToken. Full anvil-api suite
   382/382 across 20 files; typecheck clean.
 
-### EMAIL-006 — `/admin/send-migration` back-compat shim
+#### EMAIL-006 — `/admin/send-migration` back-compat shim
 
 - **Status:** Done
 - **Priority:** Medium
@@ -435,7 +437,7 @@ in the same change.
   addresses; admin-CLI behaviour otherwise unchanged. Full anvil-api
   suite 382/382 across 20 files; typecheck clean.
 
-### EMAIL-007 — Council review remediation (Wave 1)
+#### EMAIL-007 — Council review remediation (Wave 1)
 
 - **Status:** Done
 - **Priority:** Medium
@@ -509,7 +511,7 @@ in the same change.
   operator to 8 after applying severity-pushback (see Phase 6 for
   the deferred 31).
 
-### EMAIL-008 — Council review remediation (Wave 2 — defensive hardening + observability)
+#### EMAIL-008 — Council review remediation (Wave 2 — defensive hardening + observability)
 
 - **Status:** Done
 - **Priority:** Medium
@@ -566,7 +568,7 @@ in the same change.
   loop. Operators mid-preview at deploy time must re-run --dry-run
   after deploy completes; documented in the migration comment.
 
-### EMAIL-009 — Council Wave 3 — regressions + missed gaps
+#### EMAIL-009 — Council Wave 3 — regressions + missed gaps
 
 - **Status:** Done
 - **Priority:** Medium
@@ -623,7 +625,7 @@ in the same change.
 - **Notes:** Landed 2026-05-24. 6 new tests; full anvil-api suite
   407/407 across 20 files (was 401/401); typecheck clean.
 
-### EMAIL-010 — Preview-token-only real-send contract
+#### EMAIL-010 — Preview-token-only real-send contract
 
 - **Status:** Ready
 - **Priority:** High
@@ -651,7 +653,7 @@ in the same change.
   endpoint-table gap into the same fix, rather than opening a separate
   docs-only issue.
 
-## Phase 6 — Council Follow-Ups (Not Tasked Yet)
+### Phase 6 — Council Follow-Ups (Not Tasked Yet)
 
 The full council review on 2026-05-24 surfaced 39 findings. 8 landed
 in EMAIL-007 above; the remaining 31 are catalogued here for later

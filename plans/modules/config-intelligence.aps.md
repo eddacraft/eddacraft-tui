@@ -112,7 +112,7 @@ defines project references, `go.mod` exposes the dependency graph.
 - **Parsers:** 7-10 config format parsers
 - **Effort:** 2-3 weeks
 
-## Tasks
+## Work Items
 
 - CFGINT-001: Config parser framework (format detection, streaming parse)
 - CFGINT-002: JavaScript/TypeScript ecosystem (package.json, tsconfig, pnpm-workspace)

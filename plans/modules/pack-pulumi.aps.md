@@ -90,7 +90,7 @@ Change status to **Ready** when:
 - [ ] Acceptance bar agreed (FP rate < N% on Anvil's `infra/` AND
       ≥ 1 external Pulumi program validation).
 
-## Tasks
+## Work Items
 
 Anticipated:
 

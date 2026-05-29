@@ -3,7 +3,7 @@
 
 # Skill Discovery & Observability
 
-| Scope | Owner | Priority | Status |
+| ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
 | SKOBS | —     | Medium   | Draft  |
 
@@ -79,7 +79,7 @@ through standard interfaces. Skill observability closes this gap.
 
 ---
 
-## Tasks
+## Work Items
 
 ### Phase A: Discovery & Inventory
 

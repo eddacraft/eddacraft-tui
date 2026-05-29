@@ -134,7 +134,7 @@ Ready (see status lines below).
 
 ---
 
-## Tasks
+## Work Items
 
 #### Phase 1 — Edda & Ember (Core Domain)
 

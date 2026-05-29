@@ -96,7 +96,7 @@ audit binding. Detailed design lives in
 - `pnpm docs:check && pnpm docs:index:check` green after recipe files
   land.
 
-## Work items
+## Work Items
 
 | ID | Title | Status | Confidence |
 |---|---|---|---|

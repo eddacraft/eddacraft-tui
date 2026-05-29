@@ -62,7 +62,7 @@ number visible to the user, not just to a future post-release survey.
   - `.anvil/insights/` cache directory containing aggregated weekly rollups
     (regenerable from witness chain)
 
-## Tasks
+## Work Items
 
 ### INSIGHTS-001: `anvil insights` Weekly Summary
 

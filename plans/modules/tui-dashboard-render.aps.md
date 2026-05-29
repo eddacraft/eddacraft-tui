@@ -183,7 +183,7 @@ TDASH — architecture/drift/suppressions + picker). TUIDASH-009 no longer
 *creates* the command; it adds a spec-rendering path (`anvil dashboard <spec>`
 rendering `.anvil/dashboards/*.json`) to the existing surface.
 
-## Tasks
+## Work Items
 
 **Phase 1 — Spec Parser & Registry**
 

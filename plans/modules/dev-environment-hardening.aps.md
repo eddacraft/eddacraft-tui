@@ -39,7 +39,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 - Product behaviour, CI gate semantics, or release mechanics
 - `sccache` / nx-cache-as-dedup adoption — deferred to the spike
 
-## Tasks
+## Work Items
 
 ### DEVENV-001: Trim dev/test debug info to shrink each target at the base
 

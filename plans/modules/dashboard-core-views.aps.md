@@ -69,7 +69,7 @@ Change status to **Ready** when:
 **Wave 2** — Can begin after Wave 1 (DASH) completes. Runs in parallel with
 DASHARCH.
 
-## Tasks
+## Work Items
 
 ### DASHCORE-001: Overview — metric cards row
 

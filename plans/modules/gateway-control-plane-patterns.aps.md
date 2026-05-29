@@ -49,7 +49,7 @@ Define deployable gateway control-plane patterns for central policy enforcement,
 - Control-plane policy enforcement points
 - Observability and audit signal contracts
 
-## Tasks
+## Work Items
 
 <!-- Audit 2026-04-26: Tasks not zero-padded per APS convention; convention is GATE-001 etc. — IDs already correct. Validation commands updated for Rust crates per ADR-026. -->
 

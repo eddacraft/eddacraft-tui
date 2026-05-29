@@ -69,7 +69,7 @@ and v6:
 - v4 task/checklist document types — supporting files, not primary documents
 - v4 distribution bundle format (`dist/`)
 
-## Tasks
+## Work Items
 
 ### BMAD4-001: Add v4 folder constants and path detection
 

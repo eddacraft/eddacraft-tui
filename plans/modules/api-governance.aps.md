@@ -61,7 +61,7 @@ deprecation policy, or consistent error shapes.
 
 - **Effort:** 1-2 weeks
 
-## Tasks
+## Work Items
 
 ### APGOV-001: API versioning strategy and URL prefix convention
 

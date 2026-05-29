@@ -158,12 +158,14 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 0 — Spike (Validation)
+## Work Items
+
+### Phase 0 — Spike (Validation)
 
 Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 `crates/`.
 
-### WEAVE-001: Validate minimal agent loop with mock provider
+#### WEAVE-001: Validate minimal agent loop with mock provider
 
 - **Intent:** Confirm the two-level loop architecture (inner: tool calls, outer:
   follow-ups) works correctly with a mock provider and mock tools
@@ -176,7 +178,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-002: Validate JSONL session tree with branching
+#### WEAVE-002: Validate JSONL session tree with branching
 
 - **Intent:** Confirm append-only JSONL tree supports write, read, branch, and
   context building without data loss
@@ -190,7 +192,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-003: Validate standalone repo builds independently
+#### WEAVE-003: Validate standalone repo builds independently
 
 - **Intent:** Confirm `weave` builds, tests, and lints cleanly as a standalone
   crate outside any Cargo workspace
@@ -203,9 +205,9 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-## Phase 1 — Core Runtime (weave)
+### Phase 1 — Core Runtime (weave)
 
-### WEAVE-010: Core types (Message, Content, Context, Model, StreamEvent)
+#### WEAVE-010: Core types (Message, Content, Context, Model, StreamEvent)
 
 - **Intent:** Define the foundational type system for messages, tool calls, LLM
   context, model metadata, and streaming events
@@ -219,7 +221,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-011: Tool trait and execution pipeline
+#### WEAVE-011: Tool trait and execution pipeline
 
 - **Intent:** Define the Tool trait with async execution, read-only distinction,
   JSON Schema parameters, and a tool dispatch pipeline that parallelises
@@ -233,7 +235,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-012: Provider trait and streaming abstraction
+#### WEAVE-012: Provider trait and streaming abstraction
 
 - **Intent:** Define the Provider trait that converts Context into an async
   stream of StreamEvents, with a provider registry for runtime selection
@@ -246,7 +248,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-013: Agent state and event system
+#### WEAVE-013: Agent state and event system
 
 - **Intent:** Define AgentState (system prompt, model, messages, tools),
   steering/follow-up queues, and the EventHandler trait for lifecycle
@@ -260,7 +262,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-014: Agent loop (two-level iteration)
+#### WEAVE-014: Agent loop (two-level iteration)
 
 - **Intent:** Implement the core message loop: inner loop processes tool calls
   and steering messages, outer loop handles follow-up messages
@@ -274,7 +276,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-015: SessionStore trait and JSONL-tree implementation
+#### WEAVE-015: SessionStore trait and JSONL-tree implementation
 
 - **Intent:** Define the SessionStore trait and implement a default JSONL-tree
   backend with append-only persistence, parentId-based branching, and context
@@ -289,7 +291,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-016: Compactor trait hook
+#### WEAVE-016: Compactor trait hook
 
 - **Intent:** Define a Compactor trait that the agent loop calls when context
   approaches the model's window limit, allowing consumers to provide their own
@@ -303,9 +305,9 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-## Phase 2 — Providers
+### Phase 2 — Providers
 
-### WEAVE-020: Anthropic provider (feature-gated)
+#### WEAVE-020: Anthropic provider (feature-gated)
 
 - **Intent:** Implement the Anthropic Messages API provider behind a
   `provider-anthropic` feature flag, converting Context to Anthropic wire
@@ -321,7 +323,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-021: OpenAI provider (feature-gated)
+#### WEAVE-021: OpenAI provider (feature-gated)
 
 - **Intent:** Implement the OpenAI Chat Completions API provider behind a
   `provider-openai` feature flag, with the same normalised streaming interface
@@ -335,9 +337,9 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-## Phase 3 — Anvil Integration (anvil-weave)
+### Phase 3 — Anvil Integration (anvil-weave)
 
-### WEAVE-030: anvil-weave crate scaffold
+#### WEAVE-030: anvil-weave crate scaffold
 
 - **Intent:** Create the `crates/anvil-weave/` crate with dependencies on
   weave and anvil-kernel-types
@@ -350,7 +352,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-031: GraphQueryTool — semantic graph queries
+#### WEAVE-031: GraphQueryTool — semantic graph queries
 
 - **Intent:** Implement a Tool that queries the kernel's petgraph semantic graph
   with zero-copy access, supporting queries like "what imports this symbol",
@@ -364,7 +366,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-032: PolicyEvalTool — policy evaluation
+#### WEAVE-032: PolicyEvalTool — policy evaluation
 
 - **Intent:** Implement a Tool that evaluates a structural policy against the
   current graph state and returns violations with context
@@ -377,7 +379,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-033: Standard tools (read, edit, bash)
+#### WEAVE-033: Standard tools (read, edit, bash)
 
 - **Intent:** Implement standard file-operation and shell-execution tools for
   anvil-weave, with sandboxing appropriate for a governance context
@@ -390,7 +392,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-034: Kernel event → agent trigger wiring
+#### WEAVE-034: Kernel event → agent trigger wiring
 
 - **Intent:** Wire kernel EngineEvents (violations, snapshot completions) to
   trigger agent reasoning, so the agent reacts to structural changes
@@ -404,7 +406,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-035: AnvilHarness — pre-wired agent configuration
+#### WEAVE-035: AnvilHarness — pre-wired agent configuration
 
 - **Intent:** Provide a convenience struct that wires weave Agent with
   Anvil tools, a configured provider, and session persistence into a
@@ -418,9 +420,9 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-## Phase 4 — Validation
+### Phase 4 — Validation
 
-### WEAVE-040: CI workflow for weave-rs repo
+#### WEAVE-040: CI workflow for weave-rs repo
 
 - **Intent:** Set up GitHub Actions CI for `eddacraft/weave-rs` with check,
   test, clippy, and dependency audit
@@ -433,7 +435,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-041: Integration test — full agent conversation
+#### WEAVE-041: Integration test — full agent conversation
 
 - **Intent:** End-to-end test: mock provider, real tools, real session
   persistence, multi-turn conversation with tool calls and branching
@@ -446,7 +448,7 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 ---
 
-### WEAVE-042: Integration test — anvil-weave violation remediation
+#### WEAVE-042: Integration test — anvil-weave violation remediation
 
 - **Intent:** End-to-end test: kernel detects violation → anvil-weave receives
   trigger → agent queries graph → agent proposes remediation

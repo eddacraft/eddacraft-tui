@@ -69,7 +69,7 @@ zero APS coverage.
 
 - **Effort:** 1 week
 
-## Tasks
+## Work Items
 
 - TEST-001: Coverage target policy and gate check thresholds
 - TEST-002: E2E test matrix definition (what to test where)

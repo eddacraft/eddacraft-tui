@@ -98,7 +98,7 @@ Change status to **Ready** when:
 - [ ] Owner named for the anchor work.
 - [ ] User C's framework choice documented (informs Phase 3 pack scheduling).
 
-## Tasks
+## Work Items
 
 Tasks will be defined when this module moves to Ready. Anticipated shape:
 

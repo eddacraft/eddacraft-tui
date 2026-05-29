@@ -64,7 +64,7 @@ architecture / runbook freshness now live under DOCGOV.
 
 - **Effort:** 2 weeks
 
-## Tasks
+## Work Items
 
 ### Rust CLI Migration (0.3.0-beta)
 

@@ -126,7 +126,7 @@ interface IntentLedgerRecord {
 }
 ```
 
-## Tasks
+## Work Items
 
 ### ILGOV-001: Define `IntentLedgerRecord` + validation contract
 

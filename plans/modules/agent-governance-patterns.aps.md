@@ -3,7 +3,7 @@
 
 # Agent Governance Patterns
 
-| Scope | Owner | Priority | Status |
+| ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
 | AGOV  | —     | Medium   | Draft  |
 
@@ -122,7 +122,7 @@ comprehensive governance layer for teams using AI coding tools.
 
 ---
 
-## Tasks
+## Work Items
 
 ### Phase A: Detection & Gate Checks
 

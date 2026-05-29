@@ -56,7 +56,7 @@ runtime gate can verify.
 - Modifying Anvil's existing attestation format
 - Adding LLMs to Anvil's runtime enforcement path (Anvil stays deterministic)
 
-## Tasks
+## Work Items
 
 | ID          | Task                                          | Status  |
 |-------------|-----------------------------------------------|---------|

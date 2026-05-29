@@ -108,9 +108,11 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 0 — Delivery Contract
+## Work Items
 
-### GCTX-001: Assistant graph projection contract
+### Phase 0 — Delivery Contract
+
+#### GCTX-001: Assistant graph projection contract
 
 - **Status:** Draft
 - **Intent:** Define exactly which GV2 queries are safe and useful to expose to
@@ -128,7 +130,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-002: MCP delivery target decision
+#### GCTX-002: MCP delivery target decision
 
 - **Status:** Draft
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
@@ -144,9 +146,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 1 — Graph Query Tools
+### Phase 1 — Graph Query Tools
 
-### GCTX-010: `anvil_search_symbols` tool
+#### GCTX-010: `anvil_search_symbols` tool
 
 - **Status:** Draft
 - **Intent:** Let assistants find symbols by name, kind, file, language, and
@@ -161,7 +163,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-011: Caller and dependent traversal tools
+#### GCTX-011: Caller and dependent traversal tools
 
 - **Status:** Draft
 - **Intent:** Let assistants inspect local blast radius without expensive or
@@ -177,7 +179,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-012: `anvil_impact_of_change` tool
+#### GCTX-012: `anvil_impact_of_change` tool
 
 - **Status:** Draft
 - **Intent:** Given changed files or proposed edits, return affected symbols,
@@ -193,7 +195,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-013: `anvil_affected_tests` tool
+#### GCTX-013: `anvil_affected_tests` tool
 
 - **Status:** Draft
 - **Intent:** Let assistants ask which tests are likely relevant to a change.
@@ -208,9 +210,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 2 — Context Slicing
+### Phase 2 — Context Slicing
 
-### GCTX-020: Token-count estimator
+#### GCTX-020: Token-count estimator
 
 - **Status:** Draft
 - **Intent:** Provide a deterministic token estimator for source snippets and
@@ -225,7 +227,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-021: Symbol snippet extractor
+#### GCTX-021: Symbol snippet extractor
 
 - **Status:** Draft
 - **Intent:** Return source spans for symbols selected by graph queries without
@@ -241,7 +243,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-022: Budget-bounded context slicer
+#### GCTX-022: Budget-bounded context slicer
 
 - **Status:** Draft
 - **Intent:** Convert graph query results into the smallest useful code context
@@ -257,7 +259,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-023: `anvil_symbol_context` tool
+#### GCTX-023: `anvil_symbol_context` tool
 
 - **Status:** Draft
 - **Intent:** Provide the headline assistant context tool: given a symbol or file,
@@ -272,9 +274,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 3 — Resources, Benchmarks, Docs
+### Phase 3 — Resources, Benchmarks, Docs
 
-### GCTX-030: `graph://` MCP resources
+#### GCTX-030: `graph://` MCP resources
 
 - **Status:** Draft
 - **Intent:** Expose safe graph summaries and stats as read-only MCP resources.
@@ -288,7 +290,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-031: Token-reduction benchmark harness
+#### GCTX-031: Token-reduction benchmark harness
 
 - **Status:** Draft
 - **Intent:** Measure whether graph context delivery reduces assistant context
@@ -304,7 +306,7 @@ Change status to **Ready** when:
 
 ---
 
-### GCTX-032: User guide for assistant graph context
+#### GCTX-032: User guide for assistant graph context
 
 - **Status:** Draft
 - **Intent:** Document how users should wire graph-context tools into assistant

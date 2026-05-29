@@ -83,12 +83,14 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 1 — Config Crate and Loader
+## Work Items
+
+### Phase 1 — Config Crate and Loader
 
 New `crates/anvil-config/` crate with the unified config type and
 `SectionOrSource<T>` delegation.
 
-### UCFG-001: Scaffold anvil-config crate
+#### UCFG-001: Scaffold anvil-config crate
 
 - **Status:** Proposed
 - **Intent:** Create `crates/anvil-config/` with `Cargo.toml`, workspace
@@ -103,7 +105,7 @@ New `crates/anvil-config/` crate with the unified config type and
 
 ---
 
-### UCFG-002: Define AnvilConfig struct
+#### UCFG-002: Define AnvilConfig struct
 
 - **Status:** Proposed
 - **Intent:** Define the unified `AnvilConfig` with `ProjectConfig`,
@@ -124,7 +126,7 @@ New `crates/anvil-config/` crate with the unified config type and
 
 ---
 
-### UCFG-003: SectionOrSource<T> with custom deserializer
+#### UCFG-003: SectionOrSource<T> with custom deserializer
 
 - **Status:** Proposed
 - **Intent:** Implement `SectionOrSource<T>` enum (Inline(T) | Delegated(SourceRef))
@@ -145,7 +147,7 @@ New `crates/anvil-config/` crate with the unified config type and
 
 ---
 
-### UCFG-004: Config loader with source resolution
+#### UCFG-004: Config loader with source resolution
 
 - **Status:** Proposed
 - **Intent:** Implement `load_config(workspace: &Path) -> Result<AnvilConfig>`
@@ -166,7 +168,7 @@ New `crates/anvil-config/` crate with the unified config type and
 
 ---
 
-### UCFG-005: Template defaults for architecture section
+#### UCFG-005: Template defaults for architecture section
 
 - **Status:** Proposed
 - **Intent:** Port the template default logic from
@@ -187,12 +189,12 @@ New `crates/anvil-config/` crate with the unified config type and
 
 ---
 
-## Phase 2 — Command Integration
+### Phase 2 — Command Integration
 
 Wire the unified config into existing CLI commands, replacing per-command
 config loading.
 
-### UCFG-006: Update anvil init
+#### UCFG-006: Update anvil init
 
 - **Status:** Proposed
 - **Intent:** Replace `AnvilConfig` in `init.rs` with the unified config from
@@ -213,7 +215,7 @@ config loading.
 
 ---
 
-### UCFG-007: Update anvil gate-config
+#### UCFG-007: Update anvil gate-config
 
 - **Status:** Proposed
 - **Intent:** Replace `gate_config.rs` config loading with reads/writes to the
@@ -232,7 +234,7 @@ config loading.
 
 ---
 
-### UCFG-008: Update anvil gate
+#### UCFG-008: Update anvil gate
 
 - **Status:** Proposed
 - **Intent:** Replace the gate command's independent config loading
@@ -253,7 +255,7 @@ config loading.
 
 ---
 
-### UCFG-009: Update anvil watch
+#### UCFG-009: Update anvil watch
 
 - **Status:** Proposed
 - **Intent:** Replace the watch command's architecture.yaml existence check
@@ -271,7 +273,7 @@ config loading.
 
 ---
 
-### UCFG-010: Update anvil architecture commands
+#### UCFG-010: Update anvil architecture commands
 
 - **Status:** Proposed
 - **Intent:** Update `architecture.rs`, `architecture-validate.rs`, and any
@@ -292,7 +294,7 @@ config loading.
 
 ---
 
-### UCFG-011: Update anvil doctor
+#### UCFG-011: Update anvil doctor
 
 - **Status:** Proposed
 - **Intent:** Replace the existing config-exists and config-valid checks in
@@ -313,11 +315,11 @@ config loading.
 
 ---
 
-## Phase 3 — Cleanup and Documentation
+### Phase 3 — Cleanup and Documentation
 
 Remove legacy config paths and update all documentation.
 
-### UCFG-012: Remove legacy config loading
+#### UCFG-012: Remove legacy config loading
 
 - **Status:** Proposed
 - **Intent:** Delete all code paths that read `.anvil/gate-config.json` and
@@ -342,7 +344,7 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-### UCFG-013: Update public documentation
+#### UCFG-013: Update public documentation
 
 - **Status:** Proposed
 - **Intent:** Rewrite `docs/public/anvil/operations/config.md` to document the
@@ -368,7 +370,7 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-### UCFG-014: Update MCP server config resources
+#### UCFG-014: Update MCP server config resources
 
 - **Status:** Proposed
 - **Intent:** Update the MCP server (`archive/anvil-mcp-server/`) to read from
@@ -388,7 +390,7 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-### UCFG-015: Update VS Code extension config
+#### UCFG-015: Update VS Code extension config
 
 - **Status:** Proposed
 - **Intent:** Update the VS Code extension's config reading to parse `.anvilrc`
@@ -404,9 +406,9 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-## Phase 4 — Hardening
+### Phase 4 — Hardening
 
-### UCFG-016: Fuzz the config loader
+#### UCFG-016: Fuzz the config loader
 
 - **Status:** Proposed
 - **Intent:** Add `cargo-fuzz` targets for the config loader: malformed TOML,
@@ -424,7 +426,7 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-### UCFG-017: Config schema documentation in binary
+#### UCFG-017: Config schema documentation in binary
 
 - **Status:** Proposed
 - **Intent:** Add `anvil config schema` command that prints the expected TOML
@@ -442,7 +444,7 @@ Remove legacy config paths and update all documentation.
 
 ---
 
-### UCFG-018: CI workflow updates
+#### UCFG-018: CI workflow updates
 
 - **Status:** Proposed
 - **Intent:** Update `.github/workflows/rust.yml` and `ci.yml` to use unified

@@ -153,7 +153,7 @@ Remaining non-registry slices move to **Ready** when:
       surface + anonymisation policy authored, but the telemetry **destination**
       remains a design decision (stays Draft until resolved).
 
-## Tasks
+## Work Items
 
 ### OPSUP-001 — Check-ID registry
 

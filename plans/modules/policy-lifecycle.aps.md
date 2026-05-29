@@ -3,7 +3,7 @@
 
 # Policy Lifecycle Management
 
-| Scope | Owner | Priority | Status |
+| ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
 | POLLC | —     | medium   | Draft  |
 
@@ -72,7 +72,7 @@ that rule changes never surprise developers.
 | Grace period abused to defer fixes    | Grace period max duration enforced by schema  |
 | Rollback causes policy gap            | Rollback re-activates previous version atomic |
 
-## Tasks
+## Work Items
 
 ### POLLC-001: Policy version schema
 

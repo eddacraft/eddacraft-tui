@@ -124,9 +124,11 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 0 — Architecture and Contracts
+## Work Items
 
-### GV2-001: Graph v2 architecture spec and taxonomy
+### Phase 0 — Architecture and Contracts
+
+#### GV2-001: Graph v2 architecture spec and taxonomy
 
 - **Status:** Draft
 - **Intent:** Define the joined-graph model Anvil will use for enforcement,
@@ -143,7 +145,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-002: Stable graph identity model
+#### GV2-002: Stable graph identity model
 
 - **Status:** Draft
 - **Intent:** Provide stable identifiers for files, symbols, edges, sessions,
@@ -162,7 +164,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-003: Complete graph delta and event contract
+#### GV2-003: Complete graph delta and event contract
 
 - **Status:** Draft
 - **Intent:** Make graph changes observable as complete, deterministic deltas
@@ -181,9 +183,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 1 — Graph Schemas
+### Phase 1 — Graph Schemas
 
-### GV2-010: Semantic code graph v2 schema
+#### GV2-010: Semantic code graph v2 schema
 
 - **Status:** Draft
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
@@ -201,7 +203,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-011: Dependency/impact graph and hot indexes
+#### GV2-011: Dependency/impact graph and hot indexes
 
 - **Status:** Draft
 - **Intent:** Define derived file/module dependency state and the warmed indexes
@@ -219,7 +221,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-012: Trust and policy graph contract
+#### GV2-012: Trust and policy graph contract
 
 - **Status:** Draft
 - **Intent:** Separate trust/policy semantics from the raw semantic graph while
@@ -238,7 +240,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-013: Control and session graph contract
+#### GV2-013: Control and session graph contract
 
 - **Status:** Draft
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
@@ -257,7 +259,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-014: Plan and provenance graph contract
+#### GV2-014: Plan and provenance graph contract
 
 - **Status:** Draft
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
@@ -276,9 +278,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 2 — Runtime Substrate
+### Phase 2 — Runtime Substrate
 
-### GV2-020: Multi-graph registry and typed query traits
+#### GV2-020: Multi-graph registry and typed query traits
 
 - **Status:** Draft
 - **Intent:** Provide one typed in-process entry point for querying joined graph
@@ -296,7 +298,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-021: ADR — graph persistence and snapshot strategy
+#### GV2-021: ADR — graph persistence and snapshot strategy
 
 - **Status:** Draft
 - **Intent:** Record the persistence decision for Graph v2, reconciling the
@@ -314,7 +316,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-022: Hot-path read API and latency guardrails
+#### GV2-022: Hot-path read API and latency guardrails
 
 - **Status:** Draft
 - **Intent:** Expose the specific warmed reads the daemon and drivers may use
@@ -333,7 +335,7 @@ Change status to **Ready** when:
 
 ---
 
-### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
+#### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
 
 - **Status:** Draft
 - **Intent:** Define the graph query boundary that downstream consumers use so

@@ -3,7 +3,7 @@
 
 # Policy Federation
 
-| Scope  | Owner | Priority | Status | Progress |
+| ID  | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
 | POLFED | —     | medium   | Draft  | 0/8      |
 
@@ -110,7 +110,7 @@ fleet-wide compliance visibility.
 | Fleet data privacy across teams          | Aggregate scores only; no raw violation data  |
 | Git-based registry scalability           | Shallow clones; bundle caching per OPAE-034   |
 
-## Tasks
+## Work Items
 
 ### POLFED-001: Policy channel schema
 

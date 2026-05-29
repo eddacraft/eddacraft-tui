@@ -78,7 +78,7 @@ multi-persona council deduplication, and hook/skill/agent decomposition.
 - Auto-commit, auto-PR, or auto-fix loops that bypass the existing
   Council/PR review gates
 
-## Tasks
+## Work Items
 
 | ID       | Task                                                     | Status   |
 | -------- | -------------------------------------------------------- | -------- |

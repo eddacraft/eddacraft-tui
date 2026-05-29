@@ -117,7 +117,7 @@ Change status to **Ready** when:
 - [x] Phase 1 tasks validated against current untested surface (all 8
       commands now have in-file unit tests)
 
-## Tasks
+## Work Items
 
 ### Phase 1 — Rust CLI Commands
 

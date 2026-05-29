@@ -3,7 +3,7 @@
 
 # Policy Action Taxonomy & YAML Authoring Tier
 
-| Scope | Owner | Priority | Status   |
+| ID | Owner | Priority | Status   |
 | ----- | ----- | -------- | -------- |
 | ACTAX | —     | medium   | Proposed |
 
@@ -128,7 +128,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 
 ---
 
-## Tasks
+## Work Items
 
 > All tasks are **Proposed**. None executable until module status advances
 > to Ready and IORISK / CPOL coordination is resolved.

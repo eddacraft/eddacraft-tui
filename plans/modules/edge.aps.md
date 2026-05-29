@@ -101,7 +101,7 @@ migration.
   (per-host cutover with soak). Phase 4: ~1 week post-launch.
 - **Total LOC estimate:** ~1,400 across IaC, app middleware, runbooks, tests.
 
-## Tasks
+## Work Items
 
 > Status discipline: each work item lists its phase. Phase 0 + 1 must be Done
 > before Phase 2 starts. Phase 3 cuts are gated on Phase 2 alerts being live AND

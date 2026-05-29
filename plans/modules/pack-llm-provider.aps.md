@@ -107,7 +107,7 @@ standard policy-hook mechanism once their FP profile is known.
 - [ ] Phase 1 shipped and FP profile known.
 - [ ] Decision recorded: one pack with two substrates, or two packs.
 
-## Tasks
+## Work Items
 
 Anticipated (Phase 1):
 

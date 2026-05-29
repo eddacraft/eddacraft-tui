@@ -45,7 +45,7 @@ specifications that can be converted to APS plans for execution.
 - `createOpenSpecAdapter()` factory function
 - `detect()`, `parse()`, `serialize()`, `validate()` methods
 
-## Tasks
+## Work Items
 
 ### OPENSPEC-001: Research open-spec format structure
 

@@ -3,7 +3,7 @@
 
 # Early Access Tests
 
-| Scope  | Owner | Priority | Status      | Progress |
+| ID  | Owner | Priority | Status      | Progress |
 | ------ | ----- | -------- | ----------- | -------- |
 | EATEST | —     | High     | In Progress | 6/38     |
 
@@ -37,9 +37,11 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 1 — Kernel Types (slice 1)
+## Work Items
 
-### EATEST-001 — Wire-format pinning tests for EngineEvent
+### Phase 1 — Kernel Types (slice 1)
+
+#### EATEST-001 — Wire-format pinning tests for EngineEvent
 
 - **Status:** Ready
 - **Priority:** High
@@ -49,7 +51,7 @@ that would have caught bugs found during council review.
   field renames or serde attribute changes that round-trip tests miss.
 - **Files:** `crates/anvil-kernel-types/tests/type_invariants.rs`
 
-### EATEST-002 — Deserialise from external JSON literals
+#### EATEST-002 — Deserialise from external JSON literals
 
 - **Status:** Ready
 - **Priority:** High
@@ -59,7 +61,7 @@ that would have caught bugs found during council review.
   independently of the serialiser.
 - **Files:** `crates/anvil-kernel-types/tests/type_invariants.rs`
 
-### EATEST-003 — ErrorPayload with file: None round-trip
+#### EATEST-003 — ErrorPayload with file: None round-trip
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -68,7 +70,7 @@ that would have caught bugs found during council review.
   serialising, deserialising, asserting `err.file.is_none()`.
 - **Files:** `crates/anvil-kernel-types/tests/type_invariants.rs`
 
-### EATEST-004 — Visibility invalid variant rejection
+#### EATEST-004 — Visibility invalid variant rejection
 
 - **Status:** Ready
 - **Priority:** Low
@@ -79,9 +81,9 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 2 — Checks (slice 2)
+### Phase 2 — Checks (slice 2)
 
-### EATEST-005 — Integration test harness for checks crate
+#### EATEST-005 — Integration test harness for checks crate
 
 - **Status:** Ready
 - **Priority:** High
@@ -92,7 +94,7 @@ that would have caught bugs found during council review.
   flag, and findings match expected values for known-bad and known-good inputs.
 - **Files:** `crates/anvil-checks/tests/integration.rs` (new)
 
-### EATEST-006 — Git history scanning with real repository
+#### EATEST-006 — Git history scanning with real repository
 
 - **Status:** Ready
 - **Priority:** High
@@ -102,7 +104,7 @@ that would have caught bugs found during council review.
   extensions are excluded.
 - **Files:** `crates/anvil-checks/tests/secret_detection.rs`
 
-### EATEST-007 — glob_to_regex unit tests
+#### EATEST-007 — glob_to_regex unit tests
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -112,7 +114,7 @@ that would have caught bugs found during council review.
   directory names, Windows-style path separators.
 - **Files:** `crates/anvil-checks/src/antipattern/scanner.rs`
 
-### EATEST-008 — Credit card false-positive regression test
+#### EATEST-008 — Credit card false-positive regression test
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -122,7 +124,7 @@ that would have caught bugs found during council review.
   Documents the known limitation if the test is expected to fail.
 - **Files:** `crates/anvil-checks/tests/secret_detection.rs`
 
-### EATEST-009 — Sudo wrapper e2e check
+#### EATEST-009 — Sudo wrapper e2e check
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -131,7 +133,7 @@ that would have caught bugs found during council review.
   assert blocked with finding referencing `git-reset-hard`.
 - **Files:** `crates/anvil-checks/tests/command_safety_validation.rs`
 
-### EATEST-010 — Entropy duplicate-match assertion
+#### EATEST-010 — Entropy duplicate-match assertion
 
 - **Status:** Ready
 - **Priority:** Low
@@ -140,7 +142,7 @@ that would have caught bugs found during council review.
   entropy matches. Assert deduplication behaviour is explicit.
 - **Files:** `crates/anvil-checks/src/secret/entropy.rs`
 
-### EATEST-011 — AntipatternCheckConfig severity_threshold=Info
+#### EATEST-011 — AntipatternCheckConfig severity_threshold=Info
 
 - **Status:** Ready
 - **Priority:** Low
@@ -151,9 +153,9 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 3 — Policy (slice 3)
+### Phase 3 — Policy (slice 3)
 
-### EATEST-012 — OPA evaluate happy path integration test
+#### EATEST-012 — OPA evaluate happy path integration test
 
 - **Status:** Ready
 - **Priority:** High
@@ -164,7 +166,7 @@ that would have caught bugs found during council review.
   would have caught the double-wait() bug.
 - **Files:** `crates/anvil-policy/tests/` (new)
 
-### EATEST-013 — OPA timeout enforcement test
+#### EATEST-013 — OPA timeout enforcement test
 
 - **Status:** Ready
 - **Priority:** High
@@ -174,7 +176,7 @@ that would have caught bugs found during council review.
   child process is killed.
 - **Files:** `crates/anvil-policy/tests/` (new)
 
-### EATEST-014 — Exception filtering with active suppressions
+#### EATEST-014 — Exception filtering with active suppressions
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -183,7 +185,7 @@ that would have caught bugs found during council review.
   is reduced and `suppressed_count` is correct.
 - **Files:** `crates/anvil-policy/src/exceptions.rs`
 
-### EATEST-015 — Empty OPA stdout handling
+#### EATEST-015 — Empty OPA stdout handling
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -192,7 +194,7 @@ that would have caught bugs found during council review.
   (`{"result": []}`) — verify empty violations vec, no panic.
 - **Files:** `crates/anvil-policy/src/opa.rs`
 
-### EATEST-016 — Bundle symlink escape rejection
+#### EATEST-016 — Bundle symlink escape rejection
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -201,7 +203,7 @@ that would have caught bugs found during council review.
   reference in manifest, assert `load_bundle()` returns Validation error.
 - **Files:** `crates/anvil-policy/src/bundle.rs`
 
-### EATEST-017 — Missing package declaration warning test
+#### EATEST-017 — Missing package declaration warning test
 
 - **Status:** Done
 - **Priority:** Medium
@@ -211,7 +213,7 @@ that would have caught bugs found during council review.
   during council fix round.
 - **Files:** `crates/anvil-policy/src/loader.rs`
 
-### EATEST-018 — Profile case-insensitive parsing
+#### EATEST-018 — Profile case-insensitive parsing
 
 - **Status:** Ready
 - **Priority:** Low
@@ -222,9 +224,9 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 4 — Architecture (slice 4)
+### Phase 4 — Architecture (slice 4)
 
-### EATEST-019 — Legacy line=0 backward-compat in is_existing_violation
+#### EATEST-019 — Legacy line=0 backward-compat in is_existing_violation
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Priority:** High
@@ -235,7 +237,7 @@ that would have caught bugs found during council review.
   compat fallback.
 - **Files:** `crates/anvil-architecture/src/baseline.rs`
 
-### EATEST-020 — YAML size limit boundary test
+#### EATEST-020 — YAML size limit boundary test
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Priority:** Medium
@@ -245,7 +247,7 @@ that would have caught bugs found during council review.
   off-by-one.
 - **Files:** `crates/anvil-architecture/src/yaml_parser.rs`
 
-### EATEST-021 — Multi-layer file match determinism
+#### EATEST-021 — Multi-layer file match determinism
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Priority:** Medium
@@ -255,7 +257,7 @@ that would have caught bugs found during council review.
   the BTreeMap ordering behaviour.
 - **Files:** `crates/anvil-architecture/src/validator.rs`
 
-### EATEST-022 — merge_violations duplicate ID collision
+#### EATEST-022 — merge_violations duplicate ID collision
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Priority:** Medium
@@ -265,7 +267,7 @@ that would have caught bugs found during council review.
   `new_violations` (new-wins). Pins the precedence semantics.
 - **Files:** `crates/anvil-architecture/src/baseline.rs`
 
-### EATEST-023 — Schema version forward-compat test
+#### EATEST-023 — Schema version forward-compat test
 
 - **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Priority:** Medium
@@ -275,7 +277,7 @@ that would have caught bugs found during council review.
   tolerance behaviour.
 - **Files:** `crates/anvil-architecture/src/definition.rs`
 
-### EATEST-024 — ESM extension swap resolution
+#### EATEST-024 — ESM extension swap resolution
 
 - **Status:** Ready
 - **Priority:** Low
@@ -285,7 +287,7 @@ that would have caught bugs found during council review.
   correctly.
 - **Files:** `crates/anvil-architecture/src/validator.rs`
 
-### EATEST-025 — Monorepo cross-app boundary test
+#### EATEST-025 — Monorepo cross-app boundary test
 
 - **Status:** Ready
 - **Priority:** Low
@@ -297,9 +299,9 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 5 — Kernel (slice 5)
+### Phase 5 — Kernel (slice 5)
 
-### EATEST-026 — remove_file with 3+ interleaved symbol indices
+#### EATEST-026 — remove_file with 3+ interleaved symbol indices
 
 - **Status:** Ready
 - **Priority:** High
@@ -309,7 +311,7 @@ that would have caught bugs found during council review.
   symbol from B is still retrievable with correct metadata.
 - **Files:** `crates/anvil-kernel/src/graph/symbol_graph.rs`
 
-### EATEST-027 — Cross-layer violation on reverse edge (importing file)
+#### EATEST-027 — Cross-layer violation on reverse edge (importing file)
 
 - **Status:** Ready
 - **Priority:** High
@@ -319,7 +321,7 @@ that would have caught bugs found during council review.
   domain.ts is emitted (tests reverse-edge evaluation).
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 
-### EATEST-028 — initial_scan node_modules exclusion
+#### EATEST-028 — initial_scan node_modules exclusion
 
 - **Status:** Ready
 - **Priority:** High
@@ -328,7 +330,7 @@ that would have caught bugs found during council review.
   initial_scan, assert no symbols from `node_modules/` appear in graph.
 - **Files:** `crates/anvil-kernel/src/watch.rs`
 
-### EATEST-029 — Same symbol name across files (false-negative test)
+#### EATEST-029 — Same symbol name across files (false-negative test)
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -338,7 +340,7 @@ that would have caught bugs found during council review.
   raised for B.
 - **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
 
-### EATEST-030 — update_file import edges for multi-symbol files
+#### EATEST-030 — update_file import edges for multi-symbol files
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -347,7 +349,7 @@ that would have caught bugs found during council review.
   `update_file`, assert edge_count >= 1 and edge originates correctly.
 - **Files:** `crates/anvil-kernel/src/graph/incremental.rs`
 
-### EATEST-031 — Debounce max-hold starvation
+#### EATEST-031 — Debounce max-hold starvation
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -356,7 +358,7 @@ that would have caught bugs found during council review.
   (window=50ms), assert at least one batch emitted within first 200ms.
 - **Files:** `crates/anvil-kernel/src/watcher/debounce.rs`
 
-### EATEST-032 — now_iso8601 century-year boundary correctness
+#### EATEST-032 — now_iso8601 century-year boundary correctness
 
 - **Status:** Ready
 - **Priority:** Low
@@ -365,7 +367,7 @@ that would have caught bugs found during council review.
   assert the returned string is exactly correct.
 - **Files:** `crates/anvil-kernel/src/protocol/emitter.rs`
 
-### EATEST-033 — WatchHandle stop during concurrent rapid changes
+#### EATEST-033 — WatchHandle stop during concurrent rapid changes
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -376,9 +378,9 @@ that would have caught bugs found during council review.
 
 ---
 
-## Phase 6 — TUI (slice 6)
+### Phase 6 — TUI (slice 6)
 
-### EATEST-034 — LogPanel render with empty entries
+#### EATEST-034 — LogPanel render with empty entries
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -387,7 +389,7 @@ that would have caught bugs found during council review.
   entries' message appears and no panic.
 - **Files:** `archive/eddacraft-tui-local/src/widgets/log_panel.rs` [archived local copy from before `eddacraft-tui` was extracted to a published crate (workspace dep `eddacraft-tui = "0.1.0"`); re-target EATEST-034..-038 before working — the live widget set in `crates/anvil-tui/src/widgets/` is Anvil-specific (`results_dashboard.rs`, `quick_wins_panel.rs`)]
 
-### EATEST-035 — LogPanel next_match with active search filter
+#### EATEST-035 — LogPanel next_match with active search filter
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -396,7 +398,7 @@ that would have caught bugs found during council review.
   twice, assert selected_index lands on correct filtered position.
 - **Files:** `archive/eddacraft-tui-local/src/widgets/log_panel.rs` [archived local copy of the LogPanel implementation; the live `eddacraft-tui` is a published workspace dep, not a local crate]
 
-### EATEST-036 — TextInput multi-byte Unicode delete
+#### EATEST-036 — TextInput multi-byte Unicode delete
 
 - **Status:** Ready
 - **Priority:** Medium
@@ -405,7 +407,7 @@ that would have caught bugs found during council review.
   delete, assert value and cursor correct.
 - **Files:** `archive/eddacraft-tui-local/src/widgets/text_input.rs` [archived local copy of the TextInput implementation; the live `eddacraft-tui` is a published workspace dep, not a local crate]
 
-### EATEST-037 — ParallelProgress show_overall=false show_eta=true
+#### EATEST-037 — ParallelProgress show_overall=false show_eta=true
 
 - **Status:** Ready
 - **Priority:** Low
@@ -414,7 +416,7 @@ that would have caught bugs found during council review.
   and ETA line appears.
 - **Files:** `archive/eddacraft-tui-local/src/widgets/parallel_progress.rs` [archived local copy of the ParallelProgress implementation; the live `eddacraft-tui` is a published workspace dep, not a local crate]
 
-### EATEST-038 — StatusBar render test
+#### EATEST-038 — StatusBar render test
 
 - **Status:** Ready
 - **Priority:** Low
