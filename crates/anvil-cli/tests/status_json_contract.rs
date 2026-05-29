@@ -40,7 +40,6 @@ fn run_status_json(workdir: &Path, home: &Path) -> Output {
     cmd.output().expect("failed to invoke anvil binary")
 }
 
-#[cfg(not(target_os = "windows"))]
 fn workspace_root() -> std::path::PathBuf {
     // CARGO_MANIFEST_DIR points at crates/anvil-cli; ascend two levels
     // to reach the workspace root so the schema file resolves from
@@ -53,7 +52,6 @@ fn workspace_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
-#[cfg(not(target_os = "windows"))]
 fn load_schema() -> serde_json::Value {
     let path = workspace_root().join("schemas/anvil-status.v1.json");
     let bytes = std::fs::read(&path)
