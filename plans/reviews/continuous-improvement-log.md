@@ -1307,3 +1307,37 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** PR #2081 was squash-merged (with branch-delete) by a sibling/auto-merge MID-EDIT; my follow-up `git push` silently RE-CREATED the deleted branch as an orphan with no open PR — `* [new branch]` in the push output was the only tell. Recovered by re-applying the change on a fresh branch off `origin/main` and deleting the orphan. Same family as the known "branches move under you on this shared repo" hazard, but the failure mode was branch *resurrection*, not clobber.
 - **Improvement:** (1) Fixed the Verify gap in #2087 — feed the baseline into the verifier, add a count/status verify step that re-derives the count and reads `modules.mjs`, plus a hard rule against asserting gate behaviour without reading the script that turn. (2) Scope a downgrade heuristic to exactly what its evidence proves: the #2087 fix itself initially lumped `status-body-mismatch` into the count downgrade (a status contradiction can be real at 0 count drift), and review caught it — the same failure one level up. (3) Before pushing a follow-up commit on this repo, check `gh pr view` merge state first; a push can resurrect a just-deleted branch.
 - **Follow-up:** `complete-gh-issues` / `complete-cib-items` carry analogous council/verify stages worth auditing for the same "no ground-truth procedure → confabulation" gap; not yet done.
+### 2026-05-29 — opencode
+
+- **Task:** Sweep open Dependabot alerts and open one draft PR per fix group.
+- **Outcome:** Opened draft PRs for Nx/tooling, `ws`, and
+  `webpack-dev-server`; post-PR audit checks showed the later split PRs are
+  blocked by the earlier `tmp` group until #2071 lands.
+- **Worked:** Keeping one branch per alert group made review scope clear and
+  isolated each dependency strategy.
+- **Failed:** Whole-repo Trivy audit checks do not isolate PR-diff dependency
+  changes, so independent split PRs can fail on vulnerabilities fixed only in a
+  sibling PR.
+- **Friction:** Security PR grouping and whole-repo audit gates have an implicit
+  merge-order dependency that is not visible when the PRs are opened.
+- **Improvement:** For future multi-PR dependency sweeps, name the merge order in
+  the PR bodies or use a temporary stacked sequence when audit gates are
+  whole-repo rather than diff-scoped.
+- **Follow-up:** Merge #2071 first, then re-run or rebase #2073 and #2077 to
+  confirm their only audit blocker was the resolved `tmp` finding.
+
+### 2026-05-29 — opencode
+
+- **Task:** Polish WOUT `anvil --json watch` usage documentation after a
+  read-only documentation quality check.
+- **Outcome:** Clarified global `--json` placement, made stderr handling safer in
+  consumer examples, moved the WOUT spec status to `Live`, regenerated docs
+  indexes, and passed `pnpm docs:check`.
+- **Worked:** Running `pnpm docs:check` caught the generated-index stale state
+  immediately after the manual status change.
+- **Failed:** Nothing substantive.
+- **Friction:** Generated docs indexes are easy to miss when changing only a
+  frontmatter/status table.
+- **Improvement:** Treat document status changes as index-generating edits and
+  run `pnpm docs:index` before the final docs gate.
+- **Follow-up:** none

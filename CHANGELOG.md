@@ -64,6 +64,56 @@ engineering maintenance are recorded in the
 - **Workflow installs now require explicit consent**, and workflow file writes
   are hardened against unintended overwrites
   ([#2003](https://github.com/eddacraft/anvil-001/issues/2003)).
+Changes landed on `main` since `v0.7.2-beta`, not yet cut to a release tag.
+
+### Added
+
+- **`anvil dashboard` — native read-only TUI dashboards.** A new command with
+  three live surfaces: **Architecture Health** (layer boundaries, violations,
+  and rule compliance), **Drift Snapshots** (snapshot history and new-edge
+  deltas vs baseline), and **Suppressions** (active suppressions with scope,
+  file, reason, and expiry). Run `anvil dashboard` for an interactive picker, or
+  `anvil dashboard <name>` to open one directly (TDASH-001..004).
+- **`anvil insights --suppressions` — suppressions health view.** Lists every
+  active inline suppression in the project
+  ([#1996](https://github.com/eddacraft/anvil-001/issues/1996)).
+- **`anvil migrate schema` subcommand.** Reads the project's
+  `created_by_version` and migrates the config schema forward
+  ([#1984](https://github.com/eddacraft/anvil-001/issues/1984)).
+- **Secret scanning now covers on-disk content, not just git history.** The
+  secret scan that previously inspected commit history now also scans the
+  working tree ([#1994](https://github.com/eddacraft/anvil-001/issues/1994)).
+- **`anvil welcome` surfaces the count of files skipped via `.gitignore`** in
+  its discovery output, so the scan scope is no longer silent.
+
+### Changed
+
+- **Policy engine hardened.** The Rego evaluation path behind the experimental
+  `anvil policy eval` now catches panics at the regorus facade, enforces a
+  determinism fence and bounds, and emits tracing on the eval path
+  ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)). The `anvil
+  policy eval` surface remains a preview — its output shape may still change.
+
+### Fixed
+
+- **`anvil update` no longer silently drops `--insecure-skip-verify` on the
+  sidecar update path.** The flag was accepted by `clap` and honoured on the
+  library-fallback path but silently ignored on the sidecar path; it now emits a
+  loud warning when set on that path
+  ([#1735](https://github.com/eddacraft/anvil-001/issues/1735)).
+- **Scanners preserve distinct findings on the same line.** Multiple separate
+  findings sharing a line are no longer collapsed into one.
+- **Workflow installs now require explicit consent** and workflow file writes
+  are hardened against unintended overwrites
+  ([#2003](https://github.com/eddacraft/anvil-001/issues/2003)).
+
+### Notes
+
+- A `--format` selector is now present on the finding commands (`check`,
+  `audit`, `gate`, `drift`) ahead of SARIF support, but `--format sarif` is not
+  yet functional — it reports "SARIF output … is not yet available" while the
+  per-command adapters land (SARIFOUT-003/004/005). Not yet usable; tracked for
+  a future release.
 
 ## [0.7.2-beta] — 2026-05-25 — Save-Time Scanning & Tooling Honesty (Boring Week Patch 2)
 
