@@ -82,23 +82,21 @@ pub struct AuditChainArgs {
     /// 5 — matches the nightly-workflow default.
     #[arg(long, default_value_t = 5)]
     threshold: usize,
-    /// MLP2-055: re-run the rule engine across history. v1 audit-chain
-    /// is a witness-presence check; this opt-in flag also re-evaluates
-    /// each commit against the current rule set and reports any
-    /// commits that today's rules would refuse. Off by default — the
-    /// nightly cron should stay cheap; operators opt in when they
-    /// suspect rule drift.
+    /// Re-run the rule engine across history in addition to checking
+    /// witness presence. Reports commits that today's rules would
+    /// refuse even though they were allowed historically. Off by
+    /// default — the nightly cron stays cheap; operators opt in when
+    /// they suspect rule drift.
     ///
     /// With the default no-op validation engine the rescan reports
-    /// no drift (the engine returns `EngineUnavailable`); the field
-    /// becomes meaningful once a real engine wires into L4 validate.
+    /// no drift; the field becomes meaningful once a real engine is
+    /// configured.
     #[arg(long, default_value_t = false)]
     rescan: bool,
-    /// MLP2-056: wall-clock cap on the audit walk in seconds.
-    /// Unbounded by default to preserve the pre-flag surface; set
-    /// when the nightly cron needs a runtime ceiling so the workflow
-    /// never runs away on very long histories. On cap, the audit
-    /// stops walking and reports `partial: true`.
+    /// Wall-clock cap on the audit walk in seconds. Unbounded by
+    /// default; set when the nightly cron needs a runtime ceiling so
+    /// the workflow never runs away on very long histories. On cap,
+    /// the audit stops walking and reports `partial: true`.
     #[arg(long)]
     max_runtime: Option<u64>,
 }

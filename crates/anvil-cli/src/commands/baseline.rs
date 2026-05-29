@@ -73,47 +73,37 @@ pub struct BaselineArgs {
     /// (e.g. `verify`) is given.
     #[arg(long)]
     refresh: bool,
-    /// MLP2-033: mint a fresh `project_uuid` and record the previous
-    /// one as `forked_from`. Use after `git clone`-ing a repo whose
+    /// Mint a fresh project UUID and record the previous one as
+    /// `forked_from`. Use after cloning a repo whose
     /// `anvil/project-id` was inherited from the parent and you want
-    /// the fork to carry its own identity. Destructive on the prior
-    /// `forked_from` field — the chain is single-deep by design.
+    /// the fork to carry its own identity.
     #[arg(long = "new-identity")]
     new_identity: bool,
-    /// MLP2-035: override the adversarial-refresh detector's drop-
-    /// ratio threshold (default 0.75). Refresh runs that remove
-    /// ≥ratio × `old_total` findings AND ≥`--suspicion-min-removed`
-    /// findings refuse to save until the operator re-runs with
+    /// Override the adversarial-refresh detector's drop-ratio
+    /// threshold (default 0.75). Refresh runs that remove
+    /// ≥ratio × old findings AND ≥`--suspicion-min-removed` findings
+    /// refuse to save until the operator re-runs with
     /// `--accept-suspicious`. Set above `1.0` (e.g. `1.01`) to
-    /// disable the detector entirely; a value of exactly `1.0`
-    /// still fires on a 100% drop because the comparison is
-    /// `ratio ≥ threshold`.
+    /// disable the detector entirely.
     #[arg(long = "suspicion-ratio")]
     suspicion_ratio: Option<f64>,
-    /// MLP2-035: override the adversarial-refresh detector's
-    /// minimum-removed gate (default 10). Prevents the alert from
-    /// firing on tiny baselines where a 100% drop is statistically
-    /// meaningless.
+    /// Override the adversarial-refresh detector's minimum-removed
+    /// gate (default 10). Prevents the alert from firing on tiny
+    /// baselines where a 100% drop is statistically meaningless.
     #[arg(long = "suspicion-min-removed")]
     suspicion_min_removed: Option<usize>,
-    /// MLP2-035: explicit acknowledgement that a suspicious-looking
-    /// refresh (large finding drop) is intentional. Without this
-    /// flag, `anvil baseline --refresh` refuses to save when both
-    /// the ratio and minimum-removed thresholds are crossed —
-    /// otherwise an adversarial whitewash would land silently.
+    /// Explicitly acknowledge that a suspicious-looking refresh
+    /// (large finding drop) is intentional. Without this flag,
+    /// `anvil baseline --refresh` refuses to save when both the
+    /// ratio and minimum-removed thresholds are crossed.
     #[arg(long = "accept-suspicious")]
     accept_suspicious: bool,
-    /// MLP2-036: cap the number of files scanned in a single
-    /// `anvil baseline` invocation. When the worktree exceeds the
-    /// budget, the baseline is written as `partial=true` with a
-    /// `continuation` cursor naming the next file to pick up; a
-    /// follow-up `anvil baseline` call resumes from that cursor and
-    /// merges into the existing record. Default 50000 — large
-    /// enough that no realistic single-language project trips it,
-    /// small enough that 100k+-file monorepos can adopt
-    /// incrementally without timing out. Zero is rejected at the
-    /// CLI boundary because it would produce an infinite partial-
-    /// resume loop (Council #C-2).
+    /// Cap the number of files scanned in a single `anvil baseline`
+    /// invocation. When the worktree exceeds the budget, the
+    /// baseline is written as `partial=true` with a cursor naming
+    /// the next file to pick up; a follow-up call resumes from that
+    /// cursor. Default 50000. Zero is rejected because it would
+    /// produce a never-converging resume loop.
     #[arg(long = "scan-budget", value_parser = parse_scan_budget)]
     scan_budget: Option<usize>,
 }

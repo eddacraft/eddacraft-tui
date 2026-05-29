@@ -19,22 +19,16 @@ use crate::config_summary::render_rule_mode_summary;
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
-    /// Print only the activation diagnostic (LAUNCH-008 / LAUNCH-012).
-    ///
-    /// Equivalent to `anvil start --verify`'s status mode — a
-    /// non-mutating layered probe of the activation pipeline that
-    /// reports the literal protection state (`protecting`,
-    /// `ready_restart_required`, `watching`, `needs_action`,
-    /// `unsupported`, or `error`) without touching config.
+    /// Run a non-mutating activation probe — reports the current
+    /// protection state (`protecting`, `ready_restart_required`,
+    /// `watching`, `needs_action`, `unsupported`, or `error`)
+    /// without touching config. Equivalent to `anvil start --verify`.
     #[arg(long)]
     pub verify: bool,
-    /// MLP2-051g — print per-tier activation evidence to **stderr**
-    /// alongside the normal verdict on stdout. Mirrors the same flag
-    /// on `anvil start`. Only meaningful with `--verify` (the TUI /
-    /// `--json` paths have their own diagnostic surfaces) — clap
-    /// enforces the pairing so `anvil status --why` without
-    /// `--verify` errors at parse time rather than silently
-    /// no-op'ing (review feedback on PR #1909).
+    /// Print per-tier activation evidence to stderr alongside the
+    /// normal verdict on stdout. Only meaningful with `--verify`
+    /// (the TUI and `--json` paths have their own diagnostic
+    /// surfaces). Mirrors the same flag on `anvil start`.
     #[arg(long, requires = "verify")]
     pub why: bool,
 }

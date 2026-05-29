@@ -37,8 +37,8 @@ pub struct UpdateArgs {
 
     /// Skip signature verification of the downloaded artefact. Dangerous —
     /// only use when the release public key is known to be temporarily
-    /// unavailable and the user explicitly accepts the risk. Logs a loud
-    /// warning. See ADR-045.
+    /// unavailable and the user explicitly accepts the risk. Logs a
+    /// loud warning.
     #[arg(long, hide = true)]
     pub insecure_skip_verify: bool,
 }

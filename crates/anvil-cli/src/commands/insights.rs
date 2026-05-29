@@ -11,7 +11,6 @@ use crate::{
 pub struct InsightsArgs {
     /// Show the suppression health view: every active `@anvil-ignore`
     /// suppression with stale ones (underlying violation gone) first.
-    /// [INSIGHTS-002]
     #[arg(long)]
     pub suppressions: bool,
 

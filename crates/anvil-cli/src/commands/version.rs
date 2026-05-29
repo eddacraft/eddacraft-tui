@@ -38,10 +38,10 @@ pub struct VersionArgs {
     /// running version, in addition to the latest-version check.
     /// Requires network unless `--offline`. When offline, advisories
     /// are reported as `unavailable` rather than empty so the user
-    /// knows the absence is not a positive result. See DISTRIB-002.
+    /// knows the absence is not a positive result.
     ///
-    /// `anvil status` and the watch TUI also probe for the same
-    /// hint on every invocation (rate-limited to once per 24h per
+    /// `anvil status` and the watch TUI also probe for the same hint
+    /// on every invocation (rate-limited to once per 24h per
     /// advertised version). Opt out of that ambient probe with
     /// `ANVIL_DISABLE_UPDATE_HINT=1` in the environment.
     #[arg(long)]

@@ -29,11 +29,10 @@ pub struct MigrateArgs {
 #[derive(Debug, Subcommand)]
 pub enum MigrateCommand {
     /// Migrate a legacy `.anvilrc` to the multi-format `.anvil.<ext>`
-    /// surface (yaml / yml / json / toml). [MLP2-040]
+    /// surface (yaml / yml / json / toml).
     Format(FormatArgs),
-    /// Reconcile an existing config's schema across anvil versions,
+    /// Reconcile an existing config's schema across Anvil versions,
     /// applying any registered migration for the version delta.
-    /// [DISTRIB-005]
     Schema(SchemaArgs),
 }
 

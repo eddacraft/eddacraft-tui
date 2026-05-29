@@ -14,7 +14,7 @@ pub struct PolicyArgs {
 
 #[derive(Debug, clap::Subcommand)]
 enum PolicyCommand {
-    /// Evaluate a Rego policy against an input document (POLENG)
+    /// Evaluate a Rego policy against an input document.
     Eval(eval::EvalArgs),
     /// List available policies
     List {

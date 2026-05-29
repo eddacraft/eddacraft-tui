@@ -20,21 +20,20 @@ pub struct InterceptArgs {
 
 #[derive(Debug, Subcommand)]
 enum InterceptCommand {
-    /// Start the intercept daemon. Currently only `--foreground` is
-    /// supported; backgrounded launch arrives with INTD-002.
+    /// Start the intercept daemon. Use `--foreground` to keep it in
+    /// the terminal; logs stream to stdout/stderr.
     Start(StartArgs),
     /// Print the daemon's status snapshot — sessions, fences, and
-    /// the mid-edit `validation.service` p50/p95 latency rollup
-    /// (INTD-011).
+    /// the mid-edit validation-service latency rollup.
     Status(StatusArgs),
     /// Clear fence state from the daemon. Two distinct modes:
     ///
-    /// 1. **Per-fence (RCLI3-017b):** `--worktree <PATH>` removes a
-    ///    single fenced worktree from in-memory state and disk
-    ///    persistence. `--all` clears every fence. `--dry-run`
-    ///    previews without modifying state. Idempotent.
+    /// 1. **Per-fence:** `--worktree <PATH>` removes a single fenced
+    ///    worktree from in-memory state and disk persistence. `--all`
+    ///    clears every fence. `--dry-run` previews without modifying
+    ///    state. Idempotent.
     ///
-    /// 2. **Cascade (MLP2-026):** positional `<WORKTREE>` plus
+    /// 2. **Cascade:** positional `<WORKTREE>` plus
     ///    `--acknowledge-cascade` clears a worktree's
     ///    `degraded:fence-cascade` engaged state. The two modes
     ///    target different daemon state and do NOT overlap.
@@ -60,32 +59,29 @@ struct StatusArgs {
 
 #[derive(Debug, Args)]
 struct UnblockArgs {
-    /// Legacy positional path used by the MLP2-026 cascade form
+    /// Legacy positional worktree path for cascade clearing
     /// (`anvil intercept unblock <WORKTREE> --acknowledge-cascade`).
     /// Prefer the `--worktree` flag for new invocations.
     #[arg(value_name = "WORKTREE", conflicts_with_all = ["worktree", "all"])]
     worktree_arg: Option<std::path::PathBuf>,
-    /// RCLI3-017b: per-fence unblock. Removes the worktree's fence
-    /// record from the daemon's in-memory state and disk
-    /// persistence. Idempotent — re-running on an unfenced worktree
-    /// exits zero with an informational note. Runbook §3.1 path.
+    /// Remove a single worktree's fence record from the daemon's
+    /// in-memory state and disk persistence. Idempotent — re-running
+    /// on an unfenced worktree exits zero with an informational note.
     #[arg(long = "worktree", value_name = "PATH",
           conflicts_with_all = ["worktree_arg", "all", "acknowledge_cascade"])]
     worktree: Option<std::path::PathBuf>,
-    /// RCLI3-017b: clear every fenced worktree in one call. Cannot
-    /// be combined with `--acknowledge-cascade` (cascade state is
-    /// a distinct concern and must be cleared per-worktree).
+    /// Clear every fenced worktree in one call. Cannot be combined
+    /// with `--acknowledge-cascade` (cascade state is a distinct
+    /// concern and must be cleared per-worktree).
     #[arg(long, conflicts_with_all = ["worktree_arg", "worktree", "acknowledge_cascade"])]
     all: bool,
-    /// RCLI3-017b: print what would be cleared without modifying
-    /// daemon state. Honoured for both `--worktree` and `--all`.
+    /// Print what would be cleared without modifying daemon state.
+    /// Honoured for both `--worktree` and `--all`.
     #[arg(long)]
     dry_run: bool,
-    /// MLP2-026 cascade-clearing affordance — confirms operator
-    /// intent on the command line. The audit-of-record is the
-    /// `OperatorContext` the daemon derives from the IPC peer
-    /// credentials; this flag is UX only and is NOT sent on the
-    /// wire. Spec §3.4 + §10 Q2.
+    /// Confirm intent to clear a worktree's `degraded:fence-cascade`
+    /// engaged state. Required when using the positional worktree
+    /// path form.
     #[arg(long)]
     acknowledge_cascade: bool,
 }

@@ -152,12 +152,11 @@ struct BootstrapArgs {
     /// Print the plan rather than executing.
     #[arg(long)]
     dry_run: bool,
-    /// MLP2-037: walk `<remote>..HEAD` after bootstrap and write a
-    /// retroactive witness for each commit that hasn't already been
-    /// witnessed. Recovers from a worktree-bootstrap failure where
-    /// the hooks never fired (e.g. fresh clone before `pnpm install`
-    /// installed the runtime). Each retroactive line is tagged
-    /// [`BOOTSTRAP_RECOVERY_VALIDATION_AT`].
+    /// Walk `<remote>..HEAD` after bootstrap and write a retroactive
+    /// witness for each commit that hasn't already been witnessed.
+    /// Recovers from a worktree-bootstrap failure where the hooks
+    /// never fired (e.g. fresh clone before the runtime was
+    /// installed).
     #[arg(long)]
     witness_recent: bool,
 }

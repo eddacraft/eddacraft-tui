@@ -72,39 +72,34 @@ use crate::warmup_cache::write_watch_warmup_cache;
 // lint's recommended remediation does not apply here.
 #[allow(clippy::struct_excessive_bools)]
 pub struct StartArgs {
-    /// Run a non-mutating activation probe — skip init, first-scan, and
-    /// the MCP install step. Forwards to the same backend as `anvil
-    /// status --verify` (LAUNCH-012).
+    /// Run a non-mutating activation probe — skip init, first-scan,
+    /// and the MCP install step. Produces the same output as
+    /// `anvil status --verify`.
     #[arg(long)]
     pub verify: bool,
     /// After activation, run the save-time watch fallback when MCP
-    /// cannot pre-write attach. Streams kernel watch events on stdout
-    /// until Ctrl-C. Honest fallback only — never claimed equivalent
-    /// to MCP pre-write validation. LAUNCH-011.
+    /// cannot pre-write attach. Streams watch events on stdout until
+    /// Ctrl-C. An honest fallback — never equivalent to MCP pre-write
+    /// validation.
     #[arg(long)]
     pub watch: bool,
-    /// MLP2-039 — pick a config file format for first-run activation.
-    /// When set, the orchestrator writes `.anvil.<ext>` (yaml / yml /
-    /// json / toml) using MLP-011's multi-format surface instead of the
-    /// legacy `.anvilrc`. Omit to keep the current `.anvilrc` writer.
+    /// Pick a config file format for first-run activation. When set,
+    /// the orchestrator writes `.anvil.<ext>` (yaml / yml / json /
+    /// toml) instead of the legacy `.anvilrc`.
     #[arg(long, value_enum)]
     pub format: Option<StartFormat>,
-    /// MLP2-033 — mint a fresh `project_uuid` and record the previous
-    /// one as `forked_from`. Use after `git clone`-ing a repo whose
-    /// `anvil/project-id` was inherited from the parent and you want
-    /// the fork to carry its own identity. Mutates `anvil/project-id`
-    /// before the orchestrator's idempotent identity check runs;
-    /// incompatible with `--verify` (read-only).
+    /// Mint a fresh project UUID and record the previous one as
+    /// `forked_from`. Use after cloning a repo whose
+    /// `anvil/project-id` was inherited from the parent. Incompatible
+    /// with `--verify` (read-only).
     #[arg(long = "new-identity")]
     pub new_identity: bool,
-    /// MLP2-051g — print per-tier activation evidence to **stderr**
-    /// alongside the normal verdict on stdout. Most useful when
-    /// `--verify` stalls at `ready_restart_required` and the operator
-    /// needs to see which tier is the missing piece (config, command,
-    /// handshake, daemon). Mirrors `cargo --explain`; named `--why`
-    /// (not `--verbose`) to avoid colliding with the log-verbosity
-    /// convention. Stdout is byte-identical with or without this flag
-    /// — scripted consumers of `anvil start --verify` are unaffected.
+    /// Print per-tier activation evidence to stderr alongside the
+    /// normal verdict on stdout. Most useful when `--verify` stalls
+    /// at `ready_restart_required` and you need to see which tier is
+    /// the missing piece. Stdout is byte-identical with or without
+    /// this flag — scripted consumers of `anvil start --verify` are
+    /// unaffected.
     #[arg(long)]
     pub why: bool,
 }

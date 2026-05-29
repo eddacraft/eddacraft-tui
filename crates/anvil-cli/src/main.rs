@@ -120,10 +120,12 @@ struct Cli {
 enum Commands {
     /// Run a full project audit.
     Audit(commands::audit::AuditArgs),
-    /// L5 witness-chain audit — walk the branch and report commits
-    /// that lack an L3 witness. Catches bypassed protection (admin
-    /// overrides, force-push manipulation). Nightly via the
-    /// `anvil-audit` workflow template; on-demand from the CLI.
+    /// Audit the witness chain for commits that bypassed protection.
+    ///
+    /// Walks the branch and reports commits that lack a witness record.
+    /// Catches bypassed protection (admin overrides, force-push
+    /// manipulation). Run nightly via the `anvil-audit` workflow
+    /// template or on-demand from the CLI.
     AuditChain(commands::audit_chain::AuditChainArgs),
     /// Scan files for anti-patterns and hardcoded secrets (planless mode).
     ///
@@ -156,16 +158,20 @@ enum Commands {
     Init(commands::init::InitArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
-    /// Migrate Anvil config. `format` (MLP2-040) converts a legacy
-    /// `.anvilrc` to the multi-format `.anvil.<ext>` surface; `schema`
-    /// (DISTRIB-005) reconciles an existing config across anvil versions.
-    /// Bare `anvil migrate` runs `format` for back-compat.
+    /// Migrate Anvil config to a new format or schema version.
+    ///
+    /// `format` converts a legacy `.anvilrc` to the multi-format
+    /// `.anvil.<ext>` surface; `schema` reconciles an existing config
+    /// across Anvil versions. Bare `anvil migrate` runs `format` for
+    /// back-compat.
     Migrate(commands::migrate::MigrateArgs),
     /// Manage the Anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),
-    /// MLP2-046: validate one or more commits against `anvil/policy.yml`
-    /// using the L4 rule engine. Dedicated binary surface for CI /
-    /// Marketplace lanes that don't sit inside git's pre-push hook.
+    /// Validate commits against policy using the L4 rule engine.
+    ///
+    /// Dedicated surface for CI lanes that don't sit inside git's
+    /// pre-push hook. Accepts an explicit commit range instead of
+    /// reading git's pre-push stdin.
     #[command(name = "l4-validate")]
     L4Validate(commands::l4_validate::L4ValidateArgs),
     /// Show Anvil's acknowledgements and third-party licence attribution.
