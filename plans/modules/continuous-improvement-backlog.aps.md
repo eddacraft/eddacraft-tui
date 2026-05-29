@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 24/38    |
+| CIB | —     | In Progress | 25/38    |
 
 ## Purpose
 
@@ -421,7 +421,7 @@ archive.
 - **Planning council (2026-05-27, direction-validate):** unanimous **AMEND** —
   direction valid, mechanism not Ready. Record:
   [`2026-05-27-cib-025-planning-council`](../brainstorms/2026-05-27-cib-025-planning-council.md).
-- **Expected Outcome (design pass picks one shape):**
+- **Expected Outcome:** A design pass picks one of these shapes:
   1. **Count-only rows (cheapest).** Drop the curated prose from index rows so
      the only shared token is `N/M`, and stop hand-editing `N/M` — the per-item
      `Status:` lines (distinct lines → no cross-PR conflict) are the source and
@@ -462,7 +462,7 @@ archive.
 - **Migration:** must be waved — never a single ~107-row rewrite (that PR is the
   ultimate conflict magnet, an acute form of the disease it cures). Stage:
   additive generator first (rows frozen), then batched relocation, then cutover.
-- **Validation (corrected):** two branches completing items **in the same
+- **Validation:** (corrected) two branches completing items **in the same
   module** rebase/merge with zero conflict on the count; the generated/auto count
   matches module sources; `aps:index:check` green; a fixture with `|` in a module
   title does not corrupt the table; an unparseable module fails the generator
@@ -786,41 +786,21 @@ archive.
 
 ### CIB-036: Active APS modules fail canonical `aps lint` (missing `## Work Items` section)
 
-- **Status:** Draft
-- **Intent:** Resolve the repo-wide divergence between Anvil's active APS module
-  corpus and the canonical `aps lint` structural contract (`## Work Items`
-  section, ID/Status metadata table, per-item Intent/Outcome/Validation fields).
-- **Scope (measured 2026-05-29 once the CIB-037 fix un-masked it):** of 102
-  active APS files, **only 13 pass** — **89 have findings**: **85 missing
-  `## Work Items` (E002)**, 18 also missing the ID/Status metadata table (E003),
-  3 missing per-item fields (E005), plus stray E001/E010/E011. The 13 clean
-  files are the recent canonical migrations (`ATC`/`CPOL`/`PATT`/`TRUST`
-  `.actions.md`, `index.aps.md`, `schema-contracts`,
-  `adversarial-testing-catalog`, `aps-dashboard-starter`,
-  `contextual-policy-assertions`, `markdown-governance`, `native-tui-dashboards`,
-  `prompt-attack-regression-packs`, `trust-center-automation`). `weave.aps.md`
-  (phase-style, E002) is just one instance.
-- **This is a dialect-boundary question, not a few-module fix:** 85/102 missing
-  `## Work Items` means the corpus broadly predates / diverges from the canonical
-  `anvil-plan-spec` structure (Anvil uses `## Tasks`, `## Phase N`, and richer
-  headers). The call belongs with APSCAN's hybrid adoption boundary
-  (`plans/specs/2026-05-25-aps-cli-adoption-boundary.md`): either (a) bulk-migrate
-  the corpus to canonical `## Work Items` (large, touches ~85 files), or (b) treat
-  the canonical `aps` validator as out-of-scope for Anvil's local dialect — lint
-  with Anvil's own `scripts/aps/*` rules and reserve canonical `aps lint` for the
-  already-migrated subset.
-- **Validation:** once decided — either `pnpm aps:active-lint` is green across the
-  active set (option a), or the gate is repointed at the Anvil-dialect validator
-  and documents the canonical-subset boundary (option b).
-- **Identified From:** Surfaced 2026-05-29 reconciling CIB-002 (PR #2079) as a
-  lone `E002` on `weave.aps.md`; the CIB-037 fix then revealed the 89/102 scope.
-  `active-lint` is local-only (not a CI gate), so this is advisory friction today.
-- **Coordinates with:** CIB-037 (the coverage fix that exposed the scope — Done);
-  APSCAN (canonical `anvil-plan-spec` adoption boundary,
-  `plans/specs/2026-05-25-aps-cli-adoption-boundary.md`); the `## Work Items`
-  vs legacy `## Tasks` parser contract.
-- **Confidence:** medium — the scope is now measured, but the resolution is a
-  significant directional call (bulk migration vs. dialect boundary) for an owner.
+- **Status:** Done
+- **Summary:** Resolved the repo-wide divergence between Anvil's module corpus
+  and the canonical `aps lint` structural contract. Per maintainer decision the
+  corpus was bulk-migrated to canonical `## Work Items` (not forking the
+  validator): PR #2095 mechanically migrated 84 modules (`## Tasks`→`## Work
+  Items`, casing, phase-nesting, `Scope`→`ID`); the cleanup PR added the
+  remaining metadata tables, per-item field fills, and fixed `issues.md`
+  section headings. Where `aps` was genuinely unfit it was changed instead of
+  contorting modules: anvil-plan-spec PR #56 exempts terminal
+  (Done/Complete/Merged/Released/Shipped) work items from E005, matching Anvil's
+  done-item compaction. `clawpatch-pre-tag-v0.7.0-beta` (a release-findings
+  tracker, not a feature module) is excluded from `aps:active-lint` with
+  rationale, pending archival once its findings close out. `pnpm aps:active-lint`
+  is now green across the active corpus and wired into CI.
+
 
 ### CIB-037: `aps lint` validates only one file when given multiple arguments
 

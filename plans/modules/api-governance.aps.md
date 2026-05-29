@@ -136,12 +136,12 @@ deprecation policy, or consistent error shapes.
 - **Coordinates with:** APGOV-002 (error contract), APGOV-004 (OpenAPI spec),
   and `observability-foundation` OBS-001/OBS-002 (health signals, Neon
   instrumentation).
-- **Expected Outcome (deferred — set once the shape is decided):** the live
-  `/api/v1/health` response matches the agreed contract and the agreed
-  dependency set, and is documented in the OpenAPI spec.
-- **Validation (deferred):** `curl localhost:3000/api/v1/health | jq .status`
-  returns `"ok"` against the agreed shape, plus a route test asserting the
-  degraded path returns 503.
+- **Expected Outcome:** the live `/api/v1/health` response matches the agreed
+  contract and the agreed dependency set, and is documented in the OpenAPI
+  spec (specific shape deferred until the owner decision above lands).
+- **Validation:** `curl localhost:3000/api/v1/health | jq .status` returns
+  `"ok"` against the agreed shape, plus a route test asserting the degraded
+  path returns 503 (concrete assertions finalised once the shape is decided).
 
 ### APGOV-007: CORS policy documentation and configuration
 

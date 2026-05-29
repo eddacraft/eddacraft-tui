@@ -1,6 +1,10 @@
 # Open-Spec Adapter
 
-**Scope:** OPENSPEC **Owner:** @team **Priority:** medium **Status:** Draft
+| ID       | Owner | Status |
+| -------- | ----- | ------ |
+| OPENSPEC | @team | Draft  |
+
+**Priority:** medium
 
 **Last reviewed:** 2026-04-26
 
@@ -49,60 +53,73 @@ specifications that can be converted to APS plans for execution.
 
 ### OPENSPEC-001: Research open-spec format structure
 
-**Intent:** Understand the open-spec format to design the parser correctly
-**Expected Outcome:** Documentation of open-spec structure and mapping to APSPlan
-**Confidence:** high
-**Scopes:** research, documentation
-**Tags:** research
+- **Status:** Draft
+- **Intent:** Understand the open-spec format to design the parser correctly.
+- **Expected Outcome:** Documentation of open-spec structure and mapping to
+  APSPlan.
+- **Validation:** Review the documented open-spec structure and APSPlan mapping
+  before parser implementation begins.
+- **Confidence:** high
+- **Scopes:** research, documentation
+- **Tags:** research
 
 ### OPENSPEC-002: Implement open-spec detection
 
-**Intent:** Detect open-spec format with confidence scoring
-**Expected Outcome:** `detect()` method returns confidence score based on format indicators
-**Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*detect"`
-**Confidence:** high
-**Scopes:** adapters
-**Tags:** parser
+- **Status:** Draft
+- **Intent:** Detect open-spec format with confidence scoring.
+- **Expected Outcome:** `detect()` method returns confidence score based on
+  format indicators.
+- **Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*detect"`
+- **Confidence:** high
+- **Scopes:** adapters
+- **Tags:** parser
 
 ### OPENSPEC-003: Implement open-spec parser
 
-**Intent:** Parse open-spec documents to internal representation
-**Expected Outcome:** `parseOpenSpecDocument()` extracts structure from open-spec markdown
-**Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*parse"`
-**Confidence:** medium
-**Scopes:** adapters
-**Dependencies:** OPENSPEC-001, OPENSPEC-002
-**Tags:** parser
+- **Status:** Draft
+- **Intent:** Parse open-spec documents to internal representation.
+- **Expected Outcome:** `parseOpenSpecDocument()` extracts structure from
+  open-spec markdown.
+- **Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*parse"`
+- **Confidence:** medium
+- **Scopes:** adapters
+- **Dependencies:** OPENSPEC-001, OPENSPEC-002
+- **Tags:** parser
 
 ### OPENSPEC-004: Implement open-spec to APS conversion
 
-**Intent:** Convert parsed open-spec to APSPlan schema
-**Expected Outcome:** `openSpecToAPS()` produces valid APSPlan with proposed_changes
-**Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*APS"`
-**Confidence:** medium
-**Scopes:** adapters
-**Dependencies:** OPENSPEC-003
-**Tags:** conversion
+- **Status:** Draft
+- **Intent:** Convert parsed open-spec to APSPlan schema.
+- **Expected Outcome:** `openSpecToAPS()` produces valid APSPlan with
+  proposed_changes.
+- **Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*APS"`
+- **Confidence:** medium
+- **Scopes:** adapters
+- **Dependencies:** OPENSPEC-003
+- **Tags:** conversion
 
 ### OPENSPEC-005: Implement APS to open-spec serialisation
 
-**Intent:** Serialise APSPlan back to open-spec format
-**Expected Outcome:** `serialize()` method produces valid open-spec markdown
-**Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*serialize"`
-**Confidence:** medium
-**Scopes:** adapters
-**Dependencies:** OPENSPEC-004
-**Tags:** serialization
+- **Status:** Draft
+- **Intent:** Serialise APSPlan back to open-spec format.
+- **Expected Outcome:** `serialize()` method produces valid open-spec markdown.
+- **Validation:** `pnpm nx run adapters:test -- --grep "OpenSpec.*serialize"`
+- **Confidence:** medium
+- **Scopes:** adapters
+- **Dependencies:** OPENSPEC-004
+- **Tags:** serialization
 
 ### OPENSPEC-006: Register adapter in format registry
 
-**Intent:** Make open-spec adapter discoverable via format registry
-**Expected Outcome:** `FormatRegistry.detect()` includes open-spec in auto-detection
-**Validation:** `pnpm nx run adapters:test -- --grep "registry.*openspec"`
-**Confidence:** high
-**Scopes:** adapters
-**Dependencies:** OPENSPEC-005
-**Tags:** integration
+- **Status:** Draft
+- **Intent:** Make open-spec adapter discoverable via format registry.
+- **Expected Outcome:** `FormatRegistry.detect()` includes open-spec in
+  auto-detection.
+- **Validation:** `pnpm nx run adapters:test -- --grep "registry.*openspec"`
+- **Confidence:** high
+- **Scopes:** adapters
+- **Dependencies:** OPENSPEC-005
+- **Tags:** integration
 
 ## Decisions
 

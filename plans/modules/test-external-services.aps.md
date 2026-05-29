@@ -104,7 +104,7 @@ Change status to **Ready** when:
   scoping)
 - [ ] At least one service fully scoped with tasks
 
-## Preliminary Task Sketch
+## Work Items
 
 > Tasks below are directional. Full task definitions will be written once the
 > Ready Checklist is complete and the service inventory is done.

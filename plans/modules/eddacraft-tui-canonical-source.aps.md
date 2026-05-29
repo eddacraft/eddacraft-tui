@@ -108,14 +108,12 @@ the public mirror keeps the trust and reuse benefits of the open-source surface.
 
 **Status:** open
 
-**Intent:** Establish the exact public source, version, tags, release workflow,
-and crates.io state that will be imported into Anvil.
-
-**Outcome:** A recorded baseline for `eddacraft-tui` source, package metadata,
-tags, and workflows before relocation.
-
-**Validation:** `cargo test` in the standalone `eddacraft-tui` repo; `cargo
-publish --dry-run --all-features` where credentials are not required.
+- **Intent:** Establish the exact public source, version, tags, release workflow,
+  and crates.io state that will be imported into Anvil.
+- **Expected Outcome:** A recorded baseline for `eddacraft-tui` source, package
+  metadata, tags, and workflows before relocation.
+- **Validation:** `cargo test` in the standalone `eddacraft-tui` repo; `cargo
+  publish --dry-run --all-features` where credentials are not required.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -125,13 +123,11 @@ publish --dry-run --all-features` where credentials are not required.
 
 **Status:** open
 
-**Intent:** Add the public crate source under `crates/eddacraft-tui/` without
-changing behaviour.
-
-**Outcome:** Anvil contains the canonical crate source with package metadata,
-docs, tests, examples, and feature flags preserved.
-
-**Validation:** `cargo test -p eddacraft-tui --all-features`.
+- **Intent:** Add the public crate source under `crates/eddacraft-tui/` without
+  changing behaviour.
+- **Expected Outcome:** Anvil contains the canonical crate source with package
+  metadata, docs, tests, examples, and feature flags preserved.
+- **Validation:** `cargo test -p eddacraft-tui --all-features`.
 
 **changeType:** internal
 **releaseIntent:** hold
@@ -143,13 +139,11 @@ automation is ready.
 
 **Status:** open
 
-**Intent:** Replace the crates.io dependency used by Anvil with the imported
-workspace/path crate.
-
-**Outcome:** `crates/anvil-tui/` and other Anvil consumers resolve
-`eddacraft-tui` from the workspace.
-
-**Validation:** `cargo test -p eddacraft-anvil-tui`; `cargo test --workspace`.
+- **Intent:** Replace the crates.io dependency used by Anvil with the imported
+  workspace/path crate.
+- **Expected Outcome:** `crates/anvil-tui/` and other Anvil consumers resolve
+  `eddacraft-tui` from the workspace.
+- **Validation:** `cargo test -p eddacraft-anvil-tui`; `cargo test --workspace`.
 
 **changeType:** internal
 **releaseIntent:** candidate
@@ -159,14 +153,12 @@ workspace/path crate.
 
 **Status:** open
 
-**Intent:** Mirror `crates/eddacraft-tui/` to `eddacraft/eddacraft-tui:main`
-using the established public-mirror pattern.
-
-**Outcome:** A least-privilege workflow can publish the subtree to the public
-repository without rewriting release tags.
-
-**Validation:** Manual workflow dispatch against `main` succeeds; public mirror
-tree matches `crates/eddacraft-tui/`.
+- **Intent:** Mirror `crates/eddacraft-tui/` to `eddacraft/eddacraft-tui:main`
+  using the established public-mirror pattern.
+- **Expected Outcome:** A least-privilege workflow can publish the subtree to the
+  public repository without rewriting release tags.
+- **Validation:** Manual workflow dispatch against `main` succeeds; public mirror
+  tree matches `crates/eddacraft-tui/`.
 
 **changeType:** internal
 **releaseIntent:** never
@@ -176,14 +168,12 @@ tree matches `crates/eddacraft-tui/`.
 
 **Status:** open
 
-**Intent:** Document and wire the process for publishing `eddacraft-tui` from
-Anvil while preserving independent semver from the Anvil product.
-
-**Outcome:** Maintainers have an executable release path for crates.io that does
-not imply an Anvil product release.
-
-**Validation:** Release workflow dry-run or documented manual dry-run proves the
-crate package contents and version source.
+- **Intent:** Document and wire the process for publishing `eddacraft-tui` from
+  Anvil while preserving independent semver from the Anvil product.
+- **Expected Outcome:** Maintainers have an executable release path for crates.io
+  that does not imply an Anvil product release.
+- **Validation:** Release workflow dry-run or documented manual dry-run proves the
+  crate package contents and version source.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -193,14 +183,13 @@ crate package contents and version source.
 
 **Status:** open
 
-**Intent:** Make `eddacraft/eddacraft-tui` accurately describe itself as a
-read-only mirror after mirror automation is active.
-
-**Outcome:** Public README/CONTRIBUTING/SECURITY or equivalent docs explain the
-mirror model, crates.io consumption path, issue policy, and contribution path.
-
-**Validation:** Public mirror docs contain the mirror notice after a successful
-sync.
+- **Intent:** Make `eddacraft/eddacraft-tui` accurately describe itself as a
+  read-only mirror after mirror automation is active.
+- **Expected Outcome:** Public README/CONTRIBUTING/SECURITY or equivalent docs
+  explain the mirror model, crates.io consumption path, issue policy, and
+  contribution path.
+- **Validation:** Public mirror docs contain the mirror notice after a successful
+  sync.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -210,14 +199,12 @@ sync.
 
 **Status:** open
 
-**Intent:** Sweep Anvil docs and plans for stale claims that `eddacraft-tui` is
-independently canonical outside Anvil.
-
-**Outcome:** ADRs, architecture docs, and relevant module references consistently
-describe the accepted topology.
-
-**Validation:** `pnpm docs:check`; `pnpm adr:check`; targeted search for
-`eddacraft-tui` topology claims.
+- **Intent:** Sweep Anvil docs and plans for stale claims that `eddacraft-tui` is
+  independently canonical outside Anvil.
+- **Expected Outcome:** ADRs, architecture docs, and relevant module references
+  consistently describe the accepted topology.
+- **Validation:** `pnpm docs:check`; `pnpm adr:check`; targeted search for
+  `eddacraft-tui` topology claims.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -227,14 +214,12 @@ describe the accepted topology.
 
 **Status:** open
 
-**Intent:** Prove that the in-repo crate, Anvil consumers, mirror, and publish
-path work as one operating model.
-
-**Outcome:** Final verification evidence is captured; module can advance toward
-Done once PRs merge and mirror/public docs are live.
-
-**Validation:** `cargo test --workspace`; `pnpm adr:check`; `pnpm docs:check`;
-mirror tree comparison; crate package dry-run.
+- **Intent:** Prove that the in-repo crate, Anvil consumers, mirror, and publish
+  path work as one operating model.
+- **Expected Outcome:** Final verification evidence is captured; module can advance
+  toward Done once PRs merge and mirror/public docs are live.
+- **Validation:** `cargo test --workspace`; `pnpm adr:check`; `pnpm docs:check`;
+  mirror tree comparison; crate package dry-run.
 
 **changeType:** internal
 **releaseIntent:** candidate

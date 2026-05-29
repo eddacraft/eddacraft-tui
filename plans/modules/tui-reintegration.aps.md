@@ -884,24 +884,22 @@ zero hits.
 ### TUIR-008: End-to-end verification and TUIMIRROR retirement
 
 - **Status:** open
-
-**Intent:** Prove the in-repo crate, Anvil consumers, mirror, publish
-path, and policy docs work as one operating model, and archive the
-superseded TUIMIRROR module.
-
-**Outcome:** A full dry-run cuts a candidate `eddacraft-tui-v0.2.3`
-tag in Anvil, the mirror propagates with the `pre-canonical-archive`
-branch (D-TUIR-010) preserved, `cargo publish --dry-run` succeeds, no
-Anvil product release is implied, the public mirror reflects the
-canonical tree (banner-swapped), and existing unprefixed `v0.x.y`
-tags remain untouched (D-TUIR-011). The previous crates.io publish
-token used by the standalone repo is identified and revoked after the
-first real publish. The standalone repo is set to read-only with a
-notice pointing at the canonical source, but not deleted (preserves
-emergency-rollback path per Risks). TUIMIRROR is `git mv`'d to
-`plans/archive/modules/` with a redirect note pointing at TUIR.
-
-**Validation:**
+- **Intent:** Prove the in-repo crate, Anvil consumers, mirror, publish
+  path, and policy docs work as one operating model, and archive the
+  superseded TUIMIRROR module.
+- **Expected Outcome:** A full dry-run cuts a candidate
+  `eddacraft-tui-v0.2.3` tag in Anvil, the mirror propagates with the
+  `pre-canonical-archive` branch (D-TUIR-010) preserved, `cargo publish
+  --dry-run` succeeds, no Anvil product release is implied, the public
+  mirror reflects the canonical tree (banner-swapped), and existing
+  unprefixed `v0.x.y` tags remain untouched (D-TUIR-011). The previous
+  crates.io publish token used by the standalone repo is identified and
+  revoked after the first real publish. The standalone repo is set to
+  read-only with a notice pointing at the canonical source, but not
+  deleted (preserves emergency-rollback path per Risks). TUIMIRROR is
+  `git mv`'d to `plans/archive/modules/` with a redirect note pointing
+  at TUIR.
+- **Validation:**
 - `cargo test --workspace`;
 - `pnpm adr:check`;
 - `pnpm docs:check`;

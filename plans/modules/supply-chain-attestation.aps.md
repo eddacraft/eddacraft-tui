@@ -108,6 +108,9 @@ Ready once the graph-ingestion prerequisite lands.
   step, and where it runs (release pipeline vs CI stage).
 - **Expected Outcome:** A design doc + APS sub-tasks; no code until the
   graph-ingestion prerequisite is confirmed.
+- **Validation:** Design doc reviewed; it names the per-ecosystem
+  CycloneDX generators, the merge step, and where the stage runs, and the
+  follow-on APS sub-tasks exist (manual review).
 
 ### SCA-002: Dependency-graph ingestion + mapping
 
@@ -115,6 +118,9 @@ Ready once the graph-ingestion prerequisite lands.
 - **Intent:** Feed the merged SBOM's components + edges into Anvil's
   graph/witness layer for mapping and provenance queries.
 - **Expected Outcome:** Design + sub-tasks; gated on the graph layer.
+- **Validation:** Design reviewed; it shows the merged SBOM's components
+  and edges loading into the graph/witness layer with provenance queries
+  resolving (manual review, pending graph-layer prerequisite).
 
 ### SCA-003: New-edges-only dependency policy (L4)
 
@@ -122,6 +128,9 @@ Ready once the graph-ingestion prerequisite lands.
 - **Intent:** Baseline the dependency graph; warn on new edges / licence
   changes / known-vuln versions via L4 policy (warnings-over-blocks).
 - **Expected Outcome:** Design + sub-tasks; gated on SCA-002.
+- **Validation:** Design reviewed; it shows a baselined dependency graph
+  emitting warnings on new edges / licence changes / known-vuln versions
+  under L4 policy at exit 0 (manual review, gated on SCA-002).
 
 ## Notes
 

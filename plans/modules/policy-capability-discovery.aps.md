@@ -1,13 +1,15 @@
 # Policy Capability Discovery (POLCAP)
 
-**Status:** Proposed
-**Scope:** POLCAP
+| ID     | Owner | Status   |
+| ------ | ----- | -------- |
+| POLCAP | —     | Proposed |
+
 **Created:** 2026-05-24
 **Promotion gate:** Planning Council required before any task is marked
   Ready. Cross-boundary surface (policy + intercept daemon + witness chain
   + agent runtime + driver-client) — design needs multi-persona review.
 
-## Intent
+## Purpose
 
 Give a governed agent a deterministic, signed, machine-readable view of the
 action families it may attempt in the current session — before it commits

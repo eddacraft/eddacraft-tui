@@ -49,13 +49,13 @@
 | `resolved` | Addressed without a module work item; evidence link required.    |
 | `wontfix`  | Deliberately not actioned; one-line rationale required.          |
 
-## Issues (ISS-NNN)
+## Issues
 
 | ID | Status | Summary | Source / Evidence |
 | -- | ------ | ------- | ----------------- |
 | _none yet_ | — | First `ISS-NNN` will be filed during canonical-alignment migration waves. | — |
 
-## Questions (Q-NNN)
+## Questions
 
 | ID | Status | Question | Resolution / Evidence |
 | -- | ------ | -------- | --------------------- |

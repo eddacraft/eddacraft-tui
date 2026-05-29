@@ -16,6 +16,8 @@ touch "$tmp/plans/execution/ACTIVE-001.actions.md"
 touch "$tmp/plans/execution/ACTIVE-001.steps.md"
 touch "$tmp/plans/archive/modules/old.aps.md"
 touch "$tmp/plans/archive/legacy/aps-phases/phase-0-foundation.aps.md"
+# Non-canonical module (release-findings tracker) — must be excluded from scope.
+touch "$tmp/plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md"
 
 files="$(${CHECK[@]} --root "$tmp" --list-files)"
 
@@ -43,6 +45,7 @@ require_file 'plans/execution/ACTIVE-001.actions.md'
 reject_file 'plans/execution/ACTIVE-001.steps.md'
 reject_file 'plans/archive/modules/old.aps.md'
 reject_file 'plans/archive/legacy/aps-phases/phase-0-foundation.aps.md'
+reject_file 'plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md'
 
 json="$(${CHECK[@]} --root "$tmp" --list-files --json)"
 printf '%s' "$json" | node -e '

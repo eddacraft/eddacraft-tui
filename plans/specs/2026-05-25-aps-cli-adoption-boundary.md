@@ -152,6 +152,32 @@ None. The decision is recorded; the implementation is the existing local layer.
 Future canonical-CLI version bumps that change semantics will reopen the
 question via a new APSCAN item.
 
+## Amendment — 2026-05-29 (CIB-036: corpus brought to canonical conformance)
+
+The original decision reserved canonical `aps lint` for an already-migrated
+subset. CIB-036 resolved the remaining divergence in favour of **full corpus
+conformance to canonical `## Work Items`** (option a), so canonical `aps lint`
+is now authoritative over the whole active module corpus, not just a subset:
+
+- The active corpus was migrated to canonical structure — `## Work Items`
+  section, `| ID | … | Status |` metadata table, per-item fields — via PR #2095
+  (mechanical: `## Tasks`→`## Work Items`, casing, phase-nesting, `Scope`→`ID`)
+  plus a cleanup pass (metadata tables, field fills, `issues.md` headings).
+  Phase-grouped modules keep their phases nested under `## Work Items`.
+- **Where canonical `aps` was genuinely unfit, the spec was changed rather than
+  the modules contorted** (consistent with Anvil being the canonical `aps`
+  consumer): anvil-plan-spec PR #56 exempts terminal work items
+  (Done/Complete/Merged/Released/Shipped) from the E005 required-field check,
+  matching Anvil's done-item compaction convention.
+- **Non-module document types stay out of canonical scope.**
+  `clawpatch-pre-tag-v0.7.0-beta.aps.md` is a release-findings tracker (bug
+  findings with Severity/Resolution, not Intent/Outcome/Validation work items);
+  it is listed in `NON_CANONICAL_MODULES` in `scripts/aps/active-lint.mjs` and
+  excluded, pending archival once its findings close out.
+- `pnpm aps:active-lint` now passes across the active corpus and is wired as a
+  CI gate, so structural drift cannot silently return (it previously could —
+  see CIB-037, which fixed `aps lint` only validating one file).
+
 ## Related
 
 - [APSCAN-001](../archive/modules/aps-canonical-alignment.aps.md): defined the active

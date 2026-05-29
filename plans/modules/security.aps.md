@@ -205,6 +205,12 @@ security concerns.
 - **Intent:** Add HTTP security headers (CSP, HSTS, `X-Content-Type-Options`,
   `X-Frame-Options`, referrer policy) to the `anvil-api` Hono app, which
   currently sets none.
+- **Expected Outcome:** Once the APGOV↔SEC ownership boundary is set, the
+  `anvil-api` responds with the agreed security-header set on all routes, with
+  CSP scoped to the API's actual needs (it serves JSON, not HTML, so the CSP can
+  be strict).
+- **Validation:** `curl -I` against a route shows the agreed headers and a route
+  test asserts their presence (both deferred until ownership is set).
 - **Reality on `main`:** `apps/anvil-api/src/index.ts` wires `cors`, `logger`,
   `traceContext`, and `rateLimiter` middleware but no `secureHeaders`
   equivalent — a grep for `secureHeaders`/`Content-Security-Policy`/`hsts`
@@ -224,6 +230,12 @@ security concerns.
 
 - **Status:** Deferred — **do not implement here.** SBOM generation is owned by
   `supply-chain-attestation` (SCA-001). See the overlap callout above.
+- **Intent:** Keep SEC pointing at the single SBOM owner (SCA) rather than
+  duplicating SBOM generation under SEC.
+- **Expected Outcome:** SEC retains only a pointer to SCA-001/SCA-002 for the
+  SBOM story; no SBOM generation is implemented in this module.
+- **Validation:** Manual review — this item carries only the SCA pointer and the
+  posture doc (SEC-001) links the SBOM story via SCA without re-scoping it.
 - **Intent (historical):** Generate a software bill of materials for release
   artefacts.
 - **Why deferred:** SCA-001 already scopes per-ecosystem CycloneDX SBOM
@@ -240,6 +252,18 @@ security concerns.
 **Status:** In Progress
 **Owner:** Josh Boys
 **Tracking:** GH issue #1672 (DeepSec `20260517012618-52306118d7d9df6a`)
+
+- **Intent:** Make admin token revocation atomic across access and refresh
+  tokens so a revoked user cannot re-mint a licence via `/session/refresh` or
+  any login path until reactivated.
+- **Expected Outcome:** `POST /admin/revoke` revokes refresh sessions atomically
+  with access tokens, and account-level revocation (by email) suspends the user
+  so the OAuth / OTP / device login paths cannot re-mint licences until an admin
+  reactivates the account.
+- **Validation:** `pnpm --filter @eddacraft/anvil-api test` — regression tests
+  cover admin-revoke-by-email and admin-revoke-by-token both yielding 401 on
+  `/session/refresh`, plus account-level revoke flipping status to `suspended`;
+  `pnpm format:check && pnpm lint:check && pnpm typecheck`.
 
 **Outcome:** `POST /admin/revoke` revokes refresh sessions atomically with
 access tokens, and account-level revocation (by email) lifts the user out of
@@ -302,7 +326,7 @@ established the original revoke endpoints.
 
 ### SEC-008: Named-pattern secret detection for AWS / GitHub / Slack tokens
 
-**Status:** Merged
+- **Status:** Merged
 **Tracking:** GH issue [#1800](https://github.com/eddacraft/anvil-001/issues/1800)
 **Evidence:** Merged via PR [#1815](https://github.com/eddacraft/anvil-001/pull/1815)
 (`fix(checks): flag textbook AWS access keys`). Root cause was post-match
@@ -370,7 +394,7 @@ they are not silently swallowed by an auth-gate response.
 
 ### SEC-009: Private docs entitlement gate for signed licences
 
-**Status:** Done
+- **Status:** Done
 **Tracking:** GH issue [#1673](https://github.com/eddacraft/anvil-001/issues/1673)
 **Identified From:** DeepSec run `20260517012618-52306118d7d9df6a`, finding
 `acl-check`.

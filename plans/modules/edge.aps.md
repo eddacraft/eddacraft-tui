@@ -1,3 +1,9 @@
+# Edge Architecture (Azure Front Door)
+
+| ID   | Owner | Status |
+| ---- | ----- | ------ |
+| EDGE | —     | Ready  |
+
 <!--
 APS Module: Edge Architecture (Azure Front Door)
 =================================================
@@ -18,7 +24,6 @@ convention, references to these surfaces are explicit on each work item.
 See: plans/aps-rules.md
 -->
 
-# Edge Architecture (Azure Front Door)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |

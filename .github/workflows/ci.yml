@@ -106,6 +106,22 @@ jobs:
       - name: Run docs-check fixture tests
         run: pnpm run test:docs-check
 
+      - name: Run active-lint self-test
+        run: pnpm run test:aps-active-lint
+
+      # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
+      # the canonical CLI (anvil-plan-spec) pinned to main and point
+      # APS_CANONICAL_BIN at it, rather than piping a curl|bash installer.
+      - name: Check out canonical aps CLI
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: EddaCraft/anvil-plan-spec
+          ref: main
+          path: .aps-cli
+
+      - name: Canonical APS lint (CIB-036)
+        run: APS_CANONICAL_BIN="$GITHUB_WORKSPACE/.aps-cli/bin/aps" pnpm run aps:active-lint
+
   # Skip-twin for `Docs Lint`. Reports the same check name on PRs that don't
   # touch any `.md` files, so the required check in the `main` ruleset always
   # has a status to satisfy. Mirrors the `lint-skip` / `typecheck-skip` /

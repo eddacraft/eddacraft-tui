@@ -286,44 +286,37 @@ TUIN module resolve.
 ### TUIN-002: Survey downstream consumers for lifecycle, CLI, and runner expectations
 
 - **Status:** open
-
-**Intent:** Before D-TUIN-003 / D-TUIN-001 land code, capture what
-each known downstream consumer (`eddacraft-skills` plus any
-documented external consumers from TUIR-001 baseline) expects from
-terminal lifecycle ownership, CLI helpers, AND the turn-key
-`runner` contract ADR-050 locks — do they own lifecycle, want it
-managed, or wrap it; do they bring their own parser, want one for
-free, or have no CLI today; what shape would their `App: TerminalApp`
-implementation take.
-
-**Outcome:**
-`plans/specs/2026-XX-XX-eddacraft-tui-post-migration-survey.md`
-with one section per consumer documenting:
-- current behaviour (does it have a CLI / TUI / either / neither);
-- desired behaviour under TUIN — adopt runner / adopt lifecycle
-  helpers only / stay fully bespoke;
-- the rough shape of what the consumer would pass into
-  `launch_default(app)` — what `App: TerminalApp` impl carries
-  (event type, render frame call, exit conditions);
-- which default flags (`--help`, `--version`, `--theme`, `--no-tui`)
-  are sufficient vs need extension via `RunnerOptions`;
-- any pain points or constraints (Windows-only widgets, custom
-  panic-restore needs, alt-screen incompatibility).
-
-The survey explicitly covers **library-shaped consumers without a
-CLI today** (`eddacraft-skills`, future Rust ports of
-`anvil-plan-spec` and other current TS-only packages) as the
-primary `runner` target, and Anvil-shaped consumers
-(`crates/anvil-tui/`, `crates/anvil-cli/`) as the
-already-has-its-own-CLI counter-example that the runner must
-*not* try to absorb (per ADR-050's Anvil non-adoption note).
-Survey output drives the `TerminalApp` trait shape that TUIN-003 /
-TUIN-004 implement; gaps flagged for follow-up.
-
-**Validation:** survey doc lists each known consumer from the
-TUIR-001 baseline plus any new ones identified via the runner
-framing; gaps explicitly flagged for follow-up; ADR-050 referenced
-as the locking decision the survey informs.
+- **Intent:** Before D-TUIN-003 / D-TUIN-001 land code, capture what
+  each known downstream consumer (`eddacraft-skills` plus any
+  documented external consumers from TUIR-001 baseline) expects from
+  terminal lifecycle ownership, CLI helpers, AND the turn-key
+  `runner` contract ADR-050 locks — do they own lifecycle, want it
+  managed, or wrap it; do they bring their own parser, want one for
+  free, or have no CLI today; what shape would their `App: TerminalApp`
+  implementation take.
+- **Expected Outcome:**
+  `plans/specs/2026-XX-XX-eddacraft-tui-post-migration-survey.md`
+  with one section per consumer documenting current behaviour (CLI /
+  TUI / either / neither), desired behaviour under TUIN (adopt runner /
+  adopt lifecycle helpers only / stay fully bespoke), the rough shape
+  of what the consumer would pass into `launch_default(app)` (event
+  type, render frame call, exit conditions), which default flags
+  (`--help`, `--version`, `--theme`, `--no-tui`) suffice vs need
+  extension via `RunnerOptions`, and any pain points or constraints
+  (Windows-only widgets, custom panic-restore needs, alt-screen
+  incompatibility). The survey explicitly covers library-shaped
+  consumers without a CLI today (`eddacraft-skills`, future Rust ports
+  of `anvil-plan-spec` and other current TS-only packages) as the
+  primary `runner` target, and Anvil-shaped consumers
+  (`crates/anvil-tui/`, `crates/anvil-cli/`) as the
+  already-has-its-own-CLI counter-example the runner must *not* absorb
+  (per ADR-050's Anvil non-adoption note). Survey output drives the
+  `TerminalApp` trait shape that TUIN-003 / TUIN-004 implement; gaps
+  flagged for follow-up.
+- **Validation:** survey doc lists each known consumer from the
+  TUIR-001 baseline plus any new ones identified via the runner
+  framing; gaps explicitly flagged for follow-up; ADR-050 referenced
+  as the locking decision the survey informs.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -332,23 +325,20 @@ as the locking decision the survey informs.
 ### TUIN-003: Implement CLI mode-detection helpers in core
 
 - **Status:** open
-
-**Intent:** Land TTY / alt-screen capability / colour-depth / terminfo
-probes in `eddacraft-tui` core per D-TUIN-002, with zero new
-dependencies and typed-enum return values.
-
-**Outcome:** New module under `crates/eddacraft-tui/src/mode/` with
-typed enums (`TtyKind`, `AltScreenSupport`, `ColourDepth`, etc.).
-Anvil's mode resolver delegates to the shared helpers behind a
-`cfg(feature = "lifecycle")`-free path (these are core, not behind
-the lifecycle flag). `crates/anvil-cli/` mode-detection paths
-delegate too.
-
-**Validation:** `cargo test -p eddacraft-tui --all-features`; `cargo
-test -p eddacraft-tui --no-default-features`; `cargo tree -p
-eddacraft-tui --prefix=none --edges normal` shows zero new
-dependencies vs the TUIR-001 baseline; Anvil mode resolver tests
-still pass.
+- **Intent:** Land TTY / alt-screen capability / colour-depth / terminfo
+  probes in `eddacraft-tui` core per D-TUIN-002, with zero new
+  dependencies and typed-enum return values.
+- **Expected Outcome:** New module under `crates/eddacraft-tui/src/mode/`
+  with typed enums (`TtyKind`, `AltScreenSupport`, `ColourDepth`, etc.).
+  Anvil's mode resolver delegates to the shared helpers behind a
+  `cfg(feature = "lifecycle")`-free path (these are core, not behind
+  the lifecycle flag). `crates/anvil-cli/` mode-detection paths
+  delegate too.
+- **Validation:** `cargo test -p eddacraft-tui --all-features`; `cargo
+  test -p eddacraft-tui --no-default-features`; `cargo tree -p
+  eddacraft-tui --prefix=none --edges normal` shows zero new
+  dependencies vs the TUIR-001 baseline; Anvil mode resolver tests
+  still pass.
 
 **changeType:** internal
 **releaseIntent:** candidate
@@ -357,23 +347,21 @@ still pass.
 ### TUIN-004: Implement lifecycle helpers behind opt-in feature flag
 
 - **Status:** open
-
-**Intent:** Land the `lifecycle` feature flag in `eddacraft-tui` with
-alt-screen enter/exit, raw mode set/clear, panic-restore handler, and
-signal-driven cleanup helpers per D-TUIN-003.
-
-**Outcome:** New module under `crates/eddacraft-tui/src/lifecycle/`
-exposed behind `#[cfg(feature = "lifecycle")]`. The `Cargo.toml`
-declares `lifecycle = []` with no transitive feature pulls. Anvil
-consumers unchanged (they keep their own lifecycle). At least one
-example under `crates/eddacraft-tui/examples/` demonstrates the
-helper so downstream readers see the wiring.
-
-**Validation:** `cargo test -p eddacraft-tui --features lifecycle`;
-`cargo test -p eddacraft-tui --no-default-features` (must still pass
-— the feature is genuinely opt-in); `cargo test --workspace`;
-panic-restore behaviour covered by a dedicated integration test
-under `crates/eddacraft-tui/tests/lifecycle_panic.rs` (or similar).
+- **Intent:** Land the `lifecycle` feature flag in `eddacraft-tui` with
+  alt-screen enter/exit, raw mode set/clear, panic-restore handler, and
+  signal-driven cleanup helpers per D-TUIN-003.
+- **Expected Outcome:** New module under
+  `crates/eddacraft-tui/src/lifecycle/` exposed behind
+  `#[cfg(feature = "lifecycle")]`. The `Cargo.toml` declares
+  `lifecycle = []` with no transitive feature pulls. Anvil consumers
+  unchanged (they keep their own lifecycle). At least one example under
+  `crates/eddacraft-tui/examples/` demonstrates the helper so downstream
+  readers see the wiring.
+- **Validation:** `cargo test -p eddacraft-tui --features lifecycle`;
+  `cargo test -p eddacraft-tui --no-default-features` (must still pass
+  — the feature is genuinely opt-in); `cargo test --workspace`;
+  panic-restore behaviour covered by a dedicated integration test
+  under `crates/eddacraft-tui/tests/lifecycle_panic.rs` (or similar).
 
 **changeType:** internal
 **releaseIntent:** candidate
@@ -382,19 +370,16 @@ under `crates/eddacraft-tui/tests/lifecycle_panic.rs` (or similar).
 ### TUIN-005: Ship widget examples; forbid `[[bin]]`
 
 - **Status:** open
-
-**Intent:** Cover each major widget family with a runnable example per
-D-TUIN-004, deliberately keeping the crate `[[bin]]`-free.
-
-**Outcome:** `crates/eddacraft-tui/examples/` gains one example per
-widget family (counts seeded by TUIR-001 baseline). Each example is
-self-contained — no `clap`, no hidden runtime config. `Cargo.toml`
-declares no `[[bin]]` target. README links each example.
-
-**Validation:** `cargo build --examples -p eddacraft-tui` succeeds;
-`grep -F '[[bin]]' crates/eddacraft-tui/Cargo.toml` returns no
-matches; examples list reproduced in the published README (verified
-via `cargo package` extract + diff).
+- **Intent:** Cover each major widget family with a runnable example per
+  D-TUIN-004, deliberately keeping the crate `[[bin]]`-free.
+- **Expected Outcome:** `crates/eddacraft-tui/examples/` gains one
+  example per widget family (counts seeded by TUIR-001 baseline). Each
+  example is self-contained — no `clap`, no hidden runtime config.
+  `Cargo.toml` declares no `[[bin]]` target. README links each example.
+- **Validation:** `cargo build --examples -p eddacraft-tui` succeeds;
+  `grep -F '[[bin]]' crates/eddacraft-tui/Cargo.toml` returns no
+  matches; examples list reproduced in the published README (verified
+  via `cargo package` extract + diff).
 
 **changeType:** docs
 **releaseIntent:** candidate
@@ -403,23 +388,20 @@ via `cargo package` extract + diff).
 ### TUIN-006: Mark widget / theme extension surface stability
 
 - **Status:** open
-
-**Intent:** Annotate stable vs unstable items on the widget trait
-surface and theme override hook per D-TUIN-005. Establish a docs
-convention so reviewers can spot drift.
-
-**Outcome:** Public rustdoc items in `eddacraft-tui` carry a
-`# Stability` section: `stable`, `unstable`, or `experimental`.
-Snapshot harness items in `test-utils` are marked `experimental`.
-CHANGELOG notes the stability declaration as a soft commitment (no
-major version bump). `docs/runbooks/eddacraft-tui-release.md` gains a
-"breaking-change checklist" referencing the stability markers. A CI
-grep flags newly added public items lacking a stability marker
-(warn-only initially per Anvil's warnings-over-blocks rule).
-
-**Validation:** `cargo doc --no-deps -p eddacraft-tui` succeeds with
-stability sections visible in rustdoc output; stability-marker CI
-grep runs as a non-blocking check; CHANGELOG entry merged.
+- **Intent:** Annotate stable vs unstable items on the widget trait
+  surface and theme override hook per D-TUIN-005. Establish a docs
+  convention so reviewers can spot drift.
+- **Expected Outcome:** Public rustdoc items in `eddacraft-tui` carry a
+  `# Stability` section: `stable`, `unstable`, or `experimental`.
+  Snapshot harness items in `test-utils` are marked `experimental`.
+  CHANGELOG notes the stability declaration as a soft commitment (no
+  major version bump). `docs/runbooks/eddacraft-tui-release.md` gains a
+  "breaking-change checklist" referencing the stability markers. A CI
+  grep flags newly added public items lacking a stability marker
+  (warn-only initially per Anvil's warnings-over-blocks rule).
+- **Validation:** `cargo doc --no-deps -p eddacraft-tui` succeeds with
+  stability sections visible in rustdoc output; stability-marker CI
+  grep runs as a non-blocking check; CHANGELOG entry merged.
 
 **changeType:** docs
 **releaseIntent:** candidate
@@ -428,22 +410,20 @@ grep runs as a non-blocking check; CHANGELOG entry merged.
 ### TUIN-007: Post-migration API stability checkpoint
 
 - **Status:** open
-
-**Intent:** Capture the post-TUIR API state, downstream feedback from
-three shipped releases, and recommend (or reject) a `0.3.0`
-stabilisation pass per D-TUIN-006.
-
-**Outcome:** `docs/runbooks/eddacraft-tui-api-checkpoint.md`
-documenting (a) what shipped in `0.2.x` post-TUIR, (b) downstream
-consumer feedback collected via TUIN-002 follow-up touchpoints, (c)
-breaking-change debt accumulated since TUIR-008, (d) recommendation:
-hold at `0.2.x`, stabilise to `0.3.0`, or pre-emptive `1.0`. The
-checkpoint is a decision document only — any recommended action
-becomes its own follow-up module.
-
-**Validation:** document review with at least one downstream consumer
-touchpoint cited; checkpoint linked from `plans/decisions/DECISION-LOG.md`
-under a "Pending follow-ups" section.
+- **Intent:** Capture the post-TUIR API state, downstream feedback from
+  three shipped releases, and recommend (or reject) a `0.3.0`
+  stabilisation pass per D-TUIN-006.
+- **Expected Outcome:** `docs/runbooks/eddacraft-tui-api-checkpoint.md`
+  documenting (a) what shipped in `0.2.x` post-TUIR, (b) downstream
+  consumer feedback collected via TUIN-002 follow-up touchpoints, (c)
+  breaking-change debt accumulated since TUIR-008, (d) recommendation:
+  hold at `0.2.x`, stabilise to `0.3.0`, or pre-emptive `1.0`. The
+  checkpoint is a decision document only — any recommended action
+  becomes its own follow-up module.
+- **Validation:** document review with at least one downstream consumer
+  touchpoint cited; checkpoint linked from
+  `plans/decisions/DECISION-LOG.md` under a "Pending follow-ups"
+  section.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -452,19 +432,16 @@ under a "Pending follow-ups" section.
 ### TUIN-008: Retrospective and follow-up backlog
 
 - **Status:** open
-
-**Intent:** After TUIN-001..TUIN-007 land, capture what worked, what
-didn't, what should be standing guidance, and what the next post-
-migration module ("TUI 3") should inherit.
-
-**Outcome:** Short retrospective at
-`plans/retrospectives/tui-reintegration-and-next.md` covering both
-TUIR and TUIN, with cross-links to any new feedback memories worth
-extracting. Any items deferred from TUIN land in a clearly-named
-backlog section so they can be picked up without re-discovery.
-
-**Validation:** retrospective exists; cross-links resolve; deferred
-items have explicit "needs follow-up module" notes.
+- **Intent:** After TUIN-001..TUIN-007 land, capture what worked, what
+  didn't, what should be standing guidance, and what the next post-
+  migration module ("TUI 3") should inherit.
+- **Expected Outcome:** Short retrospective at
+  `plans/retrospectives/tui-reintegration-and-next.md` covering both
+  TUIR and TUIN, with cross-links to any new feedback memories worth
+  extracting. Any items deferred from TUIN land in a clearly-named
+  backlog section so they can be picked up without re-discovery.
+- **Validation:** retrospective exists; cross-links resolve; deferred
+  items have explicit "needs follow-up module" notes.
 
 **changeType:** docs
 **releaseIntent:** never
@@ -522,32 +499,29 @@ to tier 1 / tier 0 otherwise.
 ### TUIN-010: Triage remaining tuie port candidates
 
 - **Status:** Proposed
-
-**Intent:** Capture the non-colour tuie features surfaced during the
-TUIN-009 spike session as a backlog item so the assessment isn't lost,
-with a port / reimplement-the-idea / skip decision for each. No
-implementation authority until triaged and the TUIN gate opens.
-
-**Outcome:** A triage note (this work-item body, promoted to its own spec
-if any candidate advances) recording, per candidate:
-
-- **Chord ergonomics** (tuie `input/chord.rs` + the `chord!` macro) —
-  human-readable chord strings (`<C-a>`) and key+modifier matching.
-  Recommendation: port the *idea* — map chord strings onto `crossterm`
-  key events feeding the existing keyboard binding table — not tuie's
-  proc-macro, which is bound to tuie's own key/trigger/modifier types.
-- **Image stack** (kitty / sixel / half-block + tmux passthrough, shared
-  memory transport) — **skip:** `eddacraft-tui` already depends on
-  `ratatui-image`, which covers this.
-- **Layout (flex / split / grid), virtualized list, async runtime, dirty
-  tracking, GUI / GPU mode, editor (vi / emacs)** — **skip:** these are
-  tuie's *architecture* (a retained widget tree), not detachable features;
-  lifting them onto Ratatui is a rewrite, and Ratatui already provides
-  `List` / `StatefulWidget` plus `tui-textarea`.
-
-**Validation:** triage note lists each candidate with a port/skip decision
-and rationale; any "port" decision spawns its own `Ready` work item once
-the gate opens.
+- **Intent:** Capture the non-colour tuie features surfaced during the
+  TUIN-009 spike session as a backlog item so the assessment isn't lost,
+  with a port / reimplement-the-idea / skip decision for each. No
+  implementation authority until triaged and the TUIN gate opens.
+- **Expected Outcome:** A triage note (this work-item body, promoted to
+  its own spec if any candidate advances) recording, per candidate:
+  - **Chord ergonomics** (tuie `input/chord.rs` + the `chord!` macro) —
+    human-readable chord strings (`<C-a>`) and key+modifier matching.
+    Recommendation: port the *idea* — map chord strings onto `crossterm`
+    key events feeding the existing keyboard binding table — not tuie's
+    proc-macro, which is bound to tuie's own key/trigger/modifier types.
+  - **Image stack** (kitty / sixel / half-block + tmux passthrough,
+    shared memory transport) — **skip:** `eddacraft-tui` already depends
+    on `ratatui-image`, which covers this.
+  - **Layout (flex / split / grid), virtualized list, async runtime,
+    dirty tracking, GUI / GPU mode, editor (vi / emacs)** — **skip:**
+    these are tuie's *architecture* (a retained widget tree), not
+    detachable features; lifting them onto Ratatui is a rewrite, and
+    Ratatui already provides `List` / `StatefulWidget` plus
+    `tui-textarea`.
+- **Validation:** triage note lists each candidate with a port/skip
+  decision and rationale; any "port" decision spawns its own `Ready`
+  work item once the gate opens.
 
 **changeType:** docs
 **releaseIntent:** never

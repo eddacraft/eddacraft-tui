@@ -1,3 +1,9 @@
+# v0.6.0-beta Release Candidates
+
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| V060F | —     | In Progress |
+
 <!--
 APS Module: v0.6.0-beta Release Candidates
 ==========================================
@@ -26,7 +32,6 @@ target tag once chosen.
 See: plans/aps-rules.md
 -->
 
-# v0.6.0-beta Release Candidates
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |

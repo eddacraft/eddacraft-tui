@@ -4,6 +4,18 @@ import { join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 
+// Files under plans/modules/ that are intentionally NOT canonical work-item
+// modules and are therefore excluded from canonical `aps lint`. Keep this list
+// tiny and justified — each entry is a different document *type*, not a module
+// that merely needs migrating.
+const NON_CANONICAL_MODULES = new Set([
+  // Release-findings tracker (release-council pass output), not a feature
+  // module: its CLAWP-NNN entries are bug findings with Severity/Resolution,
+  // not Intent/Outcome/Validation work items. Retire/archive once the
+  // v0.7.0-beta findings are closed out (CIB-036).
+  'plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md',
+]);
+
 const args = process.argv.slice(2);
 
 function usage() {
@@ -149,6 +161,7 @@ function activeApsFiles(projectRoot) {
   return candidates
     .filter((path) => existsSync(path))
     .map((path) => relative(projectRoot, path).replaceAll('\\', '/'))
+    .filter((rel) => !NON_CANONICAL_MODULES.has(rel))
     .sort();
 }
 
