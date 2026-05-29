@@ -210,4 +210,32 @@ mod tests {
                 .is_empty()
         );
     }
+
+    #[test]
+    fn default_layout_children_more_children_than_rows() {
+        // 5 children but only 2 rows: the default gives the first 2 children one
+        // row each and omits the rest — never a zero-height rect, so the walker's
+        // `children.zip(rects)` draws exactly the 2 that fit (the "fewer rects =
+        // not drawn" contract).
+        let component = MockComponent;
+        let area = Rect::new(0, 0, 10, 2);
+        let rects = component.layout_children(&Props::new(), area, 5);
+        assert_eq!(rects.len(), 2, "at most one row per available line");
+        assert!(rects.iter().all(|r| r.height == 1), "no zero-height rects");
+        let total: u16 = rects.iter().map(|r| r.height).sum();
+        assert_eq!(total, area.height, "the rows still tile the area exactly");
+    }
+
+    #[test]
+    fn wrong_prop_type_renders_placeholder_without_panic() {
+        // The no-panic contract covers ill-typed props, not just absent ones:
+        // a numeric `label` must degrade via `as_str() -> None`, not panic.
+        let mut registry = TuiRegistry::new();
+        registry.register("Mock", Box::new(MockComponent));
+        let component = registry.get("Mock").expect("registered");
+        let props: Props = json!({ "label": 42 }).as_object().expect("object").clone();
+        draw_with(20, 3, |frame| {
+            component.render(&props, frame, frame.area());
+        });
+    }
 }
