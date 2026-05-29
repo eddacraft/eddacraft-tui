@@ -145,18 +145,21 @@ The disk failure has two independent axes — **location** (where the live
 (relocation) and base size (profile trim); reuse (nx-cache/sccache) is deferred
 because it is a larger, measurable trade-off the spike should own.
 
-The layered floor reconciles two requirements the council found to be in tension:
-per-worktree isolation (no cargo dir-lock serialising concurrent agents) versus
-bypass-proofness (an env-only relocation is porous — an agent skipping
-`direnv`/`wt` re-fills the disk). A committed config floor is always honoured;
-the per-worktree env is a strict improvement layered on top.
+The council originally sought a committed config floor to make relocation
+bypass-proof, but implementation proved that impossible (cargo config does not
+expand `$HOME` — see the Decision amendment). The accepted resolution is
+env-driven relocation (direnv/`wt`): always per-worktree-isolated, never a
+shared cargo dir-lock, fully committed, and inert on CI runners. The residual
+porousness — a shell using neither direnv nor `wt` builds onto the full mount —
+is bounded by a loud guard (direnv's allow-nag + a `wt` pre-commit warning), a
+trade-off the operator accepted in exchange for correctness and CI-safety.
 
 ### Alternatives Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Layered floor + per-worktree override (chosen)** | Bypass-proof (config floor) *and* isolated on the normal path (env override); honours "immediate repo-root config" and "per-worktree" together | Two mechanisms to understand; bypass path falls back to a shared dir with cargo's lock |
-| Pure per-worktree (env only) | Always isolated, never a shared lock | Porous: any agent skipping direnv/wt silently re-fills the Projects mount (ENOSPC returns) |
+| **Env-only per-worktree relocation + loud guard (chosen)** | Always isolated (no shared cargo dir-lock); fully committed; inert on CI (nx/Azure cache unaffected); honours "per-worktree" | Porous — a shell using neither direnv nor `wt` builds onto the full mount; bounded by direnv's allow-nag + a `wt` pre-commit warning |
+| Committed `.cargo/config.toml` bypass-proof floor (originally planned) | Would catch every bypass regardless of shell | **Not implementable** — cargo config doesn't expand `$HOME` (creates a literal `$HOME/` dir); a hardcoded `/home/...` path isn't committable; a parent-dir operator config would relocate sibling projects too |
 | Single shared `CARGO_TARGET_DIR` | Maximal dedup, simplest config | Cargo dir-lock serialises all concurrent agent builds; cross-branch fingerprint thrash; needs eviction |
 | `sccache` as the wave-1 core | Compile reuse without lock contention | Extra moving parts; operator-skeptical; doesn't relocate the live target (disk axis unsolved) — better evaluated in the spike |
 | Adopt `mise`/Nix now | One determinism substrate immediately | Changes every agent's env at once on a shared box mid-flight; the reproducible base is exactly what the spike must evaluate, not pre-empt |
@@ -165,11 +168,12 @@ the per-worktree env is a strict improvement layered on top.
 
 - **Positive:** ENOSPC stops recurring; each `target/` shrinks at the base; fresh
   worktrees stop failing typecheck on untouched files; local validation matches
-  CI's classifier; latent E2E breaks surface pre-merge; the nx/Azure cache stays
-  correct under relocation.
-- **Negative:** Two cache-relocation mechanisms to reason about; the bypass
-  fallback reintroduces cargo's dir-lock (serialised builds) for agents that skip
-  `direnv`/`wt`; the profile trim degrades local-variable debugging on dev builds
+  CI's classifier; latent E2E breaks surface pre-merge; the nx/Azure build cache
+  is unaffected because relocation is inert on CI runners.
+- **Negative:** Relocation is env-driven (direnv/`wt`), so a shell using neither
+  builds onto the full mount until the guard warns — residual porousness, since
+  the committed bypass-proof floor proved unimplementable; the profile trim
+  degrades local-variable debugging on dev builds
   (`gdb`/`lldb` locals — override with `RUSTFLAGS=-Cdebuginfo=2` when needed; does
   not affect `panic = "unwind"`/`catch_unwind` per ADR-051).
 - **Risks:** Landing shared-state changes under concurrent agents; a profile or
