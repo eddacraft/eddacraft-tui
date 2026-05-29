@@ -76,6 +76,9 @@ which = "8"
 # test suite. Pulled in solely for unit/integration tests; never compiled
 # into a shipped binary.
 minisign = "0.9"
+# SARIFOUT-002: validate emitted SARIF against the bundled upstream 2.1.0
+# schema. Test-only; the emitter itself has no schema-validation dependency.
+jsonschema = "0.45"
 
 [lints]
 workspace = true

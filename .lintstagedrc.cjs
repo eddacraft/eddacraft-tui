@@ -11,7 +11,12 @@ const normalisePath = (file) => file.replace(/\\/g, '/');
 const isVendoredOutput = (file) => {
   const normalised = normalisePath(file);
   return (
-    normalised.includes('/tools/nx-rust/dist/') || normalised.startsWith('tools/nx-rust/dist/')
+    normalised.includes('/tools/nx-rust/dist/') ||
+    normalised.startsWith('tools/nx-rust/dist/') ||
+    // Vendored upstream SARIF 2.1.0 schema (SARIFOUT): kept byte-identical to
+    // upstream and listed in .prettierignore, so oxfmt rejects it as an
+    // excluded target. Filter it here like other vendored output.
+    normalised.endsWith('crates/anvil-cli/src/output/sarif-schema-2.1.0.json')
   );
 };
 

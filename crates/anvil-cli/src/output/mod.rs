@@ -1,5 +1,6 @@
 pub mod json;
 pub mod plain;
+pub mod sarif;
 
 /// Sentinel error: the command already printed its output and only needs
 /// `main` to exit with `EXIT_ERROR` without reprinting the message.

@@ -35,6 +35,10 @@ crates/workspace-hack/Cargo.toml
 # checked by the harness itself — they each carry their own prettier /
 # eslint / ruff configs.
 tools/test-harness/editor-coexistence/fixtures/
+# Vendored upstream SARIF 2.1.0 JSON Schema (SARIFOUT). Bundled verbatim from
+# schemastore for the schema-validation harness; must stay byte-identical to
+# upstream (no schema fork), so it is not reformatted.
+crates/anvil-cli/src/output/sarif-schema-2.1.0.json
 # Token-cost experiment artifacts must stay byte-exact: source.md is a
 # frozen snapshot of plans/modules/tui-dashboard-render.aps.md and the two
 # HTML files are the comparison output of convert.mjs. Formatting them

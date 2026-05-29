@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 0/6      |
+| SARIFOUT | —     | In Progress | 1/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -98,22 +98,25 @@ table. No engine-crate refactor.
 
 ## Candidate ADRs
 
-Two decisions warrant ADRs (see the design doc): (1) the `--format` value-enum
-as canonical output selector — **[ADR-056](../decisions/056-format-flag-output-selector.md),
-Accepted 2026-05-29** (amended to per-command scope during SARIFOUT-001);
-(2) shared SARIF emitter + per-command adapters with no unified finding model —
-to be filed alongside SARIFOUT-002.
+Both ADRs are filed and **Accepted 2026-05-29**: (1) the `--format` value-enum
+as canonical output selector —
+**[ADR-056](../decisions/056-format-flag-output-selector.md)** (amended to
+per-command scope during SARIFOUT-001); (2) shared SARIF emitter + per-command
+adapters with no unified finding model —
+**[ADR-058](../decisions/058-sarif-shared-emitter-no-finding-model.md)** (filed
+with SARIFOUT-002).
 
 ## Work Items
 
 > Status: In Progress. The three design decisions (flag surface, module home,
 > shared model) were ratified by the operator on 2026-05-29, promoting this
-> module out of Proposed. SARIFOUT-001 is In Progress; SARIFOUT-002..006 are
-> Ready. Flag surface landed per-command (not global) — see ADR-056's Amendment.
+> module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 In
+> Progress; SARIFOUT-003..006 Ready. Flag surface landed per-command (not
+> global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2099
 - **Intent:** A single canonical output selector supports SARIF without breaking
   the existing `--json` / `--no-tui` contract.
 - **Expected Outcome:** A `--format <auto|tui|plain|json|sarif>` flag on the
@@ -137,18 +140,23 @@ to be filed alongside SARIFOUT-002.
 
 ### SARIFOUT-002: Shared SARIF 2.1.0 emitter and schema-validation harness
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** A bounded, reusable SARIF document emitter exists with a
   deterministic schema-validation gate, independent of any command wiring.
 - **Expected Outcome:** `crates/anvil-cli/src/output/sarif.rs` produces a SARIF
   2.1.0 document covering the pinned subset (`runs`/`tool.driver`/`rules`/
   `results`/`locations`/`suppressions`/`partialFingerprints`); the upstream 2.1.0
-  JSON Schema is bundled in-repo; a test validates a hand-built document against
-  the schema. No command is wired yet.
-- **Validation:** `cargo test -p anvil-cli` — schema-validation test on a
-  fixture document; the pinned-subset shape is golden-snapshotted.
-- **Files:** `crates/anvil-cli/src/output/sarif.rs`, bundled schema asset under
-  `crates/anvil-cli/` (path decided at impl), `crates/anvil-cli/src/output/mod.rs`.
+  JSON Schema is bundled in-repo (verbatim, no fork); a test validates a
+  hand-built document against the schema; `partialFingerprints` are deterministic
+  (stable SHA-256-derived digest). No command is wired yet (dead-code-allowed
+  until the SARIFOUT-003 adapter consumes it). Pattern recorded in ADR-058.
+- **Validation:** `cargo test -p eddacraft-anvil --bins sarif::` — schema
+  validation against the bundled schema, golden pinned-subset snapshot, and a
+  fingerprint determinism test.
+- **Files:** `crates/anvil-cli/src/output/sarif.rs`,
+  `crates/anvil-cli/src/output/sarif-schema-2.1.0.json` (vendored schema),
+  `crates/anvil-cli/src/output/mod.rs`, `crates/anvil-cli/Cargo.toml`
+  (`jsonschema` dev-dep), `.prettierignore`.
 - **Dependencies:** —
 - **Confidence:** high
 
