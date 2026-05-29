@@ -168,13 +168,16 @@ impl std::error::Error for ValidationError {}
 
 /// Validate a parsed spec against a component [`Catalog`].
 ///
-/// All problems are accumulated (the check is not fail-fast) so a caller can
-/// surface every issue at once:
+/// The reference and catalogue checks accumulate (not fail-fast), so a caller
+/// sees every one at once:
 ///
 /// - the [`root`](RenderSpec::root) id resolves to an element;
 /// - every element's `type` is registered in `catalog`;
-/// - every `children` id reference resolves to an element;
-/// - the `children` graph is acyclic (see [`ValidationError::CyclicReference`]).
+/// - every `children` id reference resolves to an element.
+///
+/// Finally the `children` graph is checked for cycles; the **first** cycle found
+/// is reported as a single [`ValidationError::CyclicReference`] (cycle detection
+/// stops at the first back-edge rather than enumerating every distinct cycle).
 ///
 /// This is structural/catalogue validation only; per-component prop schemas are
 /// owned by the (web-side) catalogue and are out of scope here.

@@ -9,6 +9,17 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Added
+
+- **`json-render` feature** (off by default): a `json_render` module that parses
+  the `@json-render/core` flat element spec format into typed `RenderSpec` /
+  `Element` / `PropValue` structures and validates a spec against a component
+  `Catalog` (unknown component types, dangling/cyclic `children` references,
+  missing root). `serde`/`serde_json` are optional and only enter the dependency
+  graph when the feature is enabled, so the core widget library stays
+  serde-free. This is the parser foundation for rendering json-render dashboard
+  specs in a terminal (TUIDASH).
+
 ## [0.2.3] - 2026-05-27
 
 First release published from the canonical source in the Anvil monorepo

@@ -16,6 +16,8 @@ docs/README.md
 docs/animations.md
 src/animation.rs
 src/compat.rs
+src/json_render/mod.rs
+src/json_render/spec.rs
 src/keyboard/handler.rs
 src/keyboard/mod.rs
 src/lib.rs
@@ -56,3 +58,8 @@ src/widgets/text_input.rs
 src/widgets/toast.rs
 src/widgets/tree.rs
 src/widgets/wrappers.rs
+tests/fixtures/json_render/README.md
+tests/fixtures/json_render/architecture-health.dashboard.json
+tests/fixtures/json_render/gate-summary.dashboard.json
+tests/fixtures/json_render/watch-session.dashboard.json
+tests/json_render_specs.rs
