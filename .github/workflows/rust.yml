@@ -15,6 +15,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/actions/setup-workspace/**'
+      - '.github/actions/free-disk-space/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -29,6 +30,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/actions/setup-workspace/**'
+      - '.github/actions/free-disk-space/**'
       - '.github/workflows/rust.yml'
   # CICD-008: explicit operator path to run the cross-compile matrix
   # against any ref (release-gate dry runs, post-incident verification,
@@ -97,6 +99,7 @@ jobs:
               - 'Cargo.lock'
               - 'dist-workspace.toml'
               - 'rust-toolchain.toml'
+              - '.github/actions/free-disk-space/**'
               - '.github/workflows/rust.yml'
             rust-deps:
               - 'Cargo.toml'
