@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 22/35    |
+| CIB | —     | In Progress | 23/35    |
 
 ## Purpose
 
@@ -100,29 +100,14 @@ archive.
 
 ### CIB-002: Establish definitive skill and agent list for the anvil repo
 
-- **Status:** In Progress
-- **Intent:** Produce a single authoritative inventory of the skills and agents
-  this repository expects to be available, distinguishing repo-local from global
-  surfaces and recording authority and source for each entry.
-- **Expected Outcome:** A checked-in list (location decided during triage —
-  candidates: `docs/guides/agent-surface-inventory.md` or a section inside
-  `AGENTS.md`) names every skill and agent the anvil workflow depends on, marks
-  repo-local versus global, identifies the canonical source for each global
-  entry (e.g. `joshuaboys/code-env`), and is linked from `AGENTS.md`. Drift
-  between this list and `.claude/` plus external skill repos is detectable by a
-  documented manual check until automated validation is added.
-- **Validation:** Manual inventory cross-check against `.claude/agents/`,
-  `.claude/skills/` (where present), the global Claude skill directory, and
-  current `AGENTS.md` references; `pnpm format:check` for any in-repo docs
-  touched.
-- **Identified From:** Session review 2026-05-11 — repeated drift between
-  expected skills (e.g. `dev-workflow`, `council`, `release`) and what is
-  current or correct, with no single source of truth available to detect it.
-- **Coordinates with:** CIB-001 (drift sweep informs entries), DOCGOV-002
-  (taxonomy and metadata),
-  `plans/specs/2026-05-09-agentic-execution-ecosystem-architecture.md`
-  (Phase 1: Inventory And Declare Authority).
-- **Confidence:** medium
+- **Status:** Merged 2026-05-12 via PR #1453
+- **Summary:** Authoritative skill/agent/command inventory shipped at
+  `docs/guides/agent-surface-inventory.md` (PR #1453, `7c59b2ee`) — it marks
+  repo-local versus global surfaces, names the canonical source for each global
+  entry (`joshuaboys/code-env`), and is linked from `AGENTS.md`. Drift is caught
+  by a documented manual cross-check; automated inventory validation is separate
+  follow-up. Status reconciled 2026-05-29 (the work shipped but was left
+  `In Progress`).
 
 ### CIB-003: Harden PR remediation against partial closure
 
