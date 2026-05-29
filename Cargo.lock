@@ -1524,6 +1524,8 @@ dependencies = [
  "insta",
  "ratatui",
  "ratatui-image",
+ "serde",
+ "serde_json",
  "tempfile",
  "textwrap",
  "tui-big-text",

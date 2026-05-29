@@ -188,6 +188,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 **Phase 1 — Spec Parser & Registry**
 
 ### TUIDASH-001: JSON spec parser crate
+- **Status:** In Progress
 - **Intent:** Deserialise json-render's flat element format into typed Rust
   structures using serde
 - **Expected Outcome:** `RenderSpec`, `Element`, `PropValue` types that
@@ -197,13 +198,17 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
   - `crates/eddacraft-tui/src/json_render/mod.rs`
   - `crates/eddacraft-tui/src/json_render/spec.rs`
   - `crates/eddacraft-tui/Cargo.toml` (`json-render` feature)
-- **Validation:** Once a sample dashboard-templates directory exists (target
-  path under `apps/website/data/dashboard-templates/`, owned by DASHAI),
-  parse the sample JSON specs and verify round-trip fidelity
+- **Validation:** Parse the template dashboard specs
+  (`packages/libs/render/specs/{gate-summary,watch-session,architecture-health}.dashboard.json`,
+  vendored in-crate under `crates/eddacraft-tui/tests/fixtures/json_render/`)
+  and verify semantic round-trip fidelity plus catalogue validation.
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** Work item that introduces
-  `apps/website/data/dashboard-templates/` sample dashboard JSON specs
+- **Dependencies:** Met — the template specs exist at
+  `packages/libs/render/specs/` (Ready Checklist; PR #701). The pre-ADR-054
+  `apps/website/data/dashboard-templates/` path (DASHAI-owned) is superseded:
+  ADR-054 re-homed the spec contract to `packages/libs/render/` and the TUI
+  engine consumes those specs independently of the web dashboard.
 
 ### TUIDASH-002: Component registry trait and infrastructure
 
