@@ -72,9 +72,16 @@ pub trait TuiComponent {
     /// `child_count` is the number of child ids the element declares. The
     /// returned rectangles are consumed in child order; returning fewer than
     /// `child_count` simply means trailing children are not given space (and so
-    /// are not drawn). The default implementation lays children out as equal
-    /// vertical rows, which is a sane fallback for container-like components;
-    /// leaf components should override it to return an empty vector.
+    /// are not drawn) — so the walker can pair `children.zip(rects)` and draw
+    /// exactly the rects it gets, without guarding against zero-height areas.
+    /// The default implementation lays children out as equal vertical rows,
+    /// which is a sane fallback for container-like components; leaf components
+    /// should override it to return an empty vector.
+    ///
+    /// When there are more children than rows (`child_count > area.height`), the
+    /// default gives the first `area.height` children one row each and omits the
+    /// rest — it never returns a zero-height rect, keeping the "fewer rects =
+    /// not drawn" contract exact.
     ///
     /// This method performs no drawing — it is pure layout geometry, so the
     /// walker can compute child areas before recursing.
@@ -83,14 +90,21 @@ pub trait TuiComponent {
             return Vec::new();
         }
         // Equal vertical division, distributing the remainder to the leading
-        // rows so the rows tile `area` exactly with no gap or overrun.
+        // rows so the rows tile `area` exactly with no gap or overrun. Children
+        // beyond `area.height` would get a zero-height row, so they are omitted
+        // rather than emitted as empty rects (see the contract above).
         let count = u16::try_from(child_count).unwrap_or(u16::MAX);
         let base = area.height / count;
         let extra = area.height % count;
-        let mut rects = Vec::with_capacity(child_count);
+        let mut rects = Vec::with_capacity(child_count.min(area.height as usize));
         let mut y = area.y;
         for i in 0..count {
             let h = base + u16::from(i < extra);
+            if h == 0 {
+                // base == 0 and the remainder is exhausted: every subsequent
+                // row is also zero-height, so we can stop.
+                break;
+            }
             rects.push(Rect::new(area.x, y, area.width, h));
             y = y.saturating_add(h);
         }
