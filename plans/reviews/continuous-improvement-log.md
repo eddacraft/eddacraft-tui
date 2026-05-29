@@ -1229,5 +1229,24 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The `/home/aneki/Projects` disk was 100% full — ~14 sibling worktrees each carry a full ~100G Rust `target/` (1.7T total), so even writing a source file hit ENOSPC. The TUIDASH-001 APS `Dependencies:`/`Validation:` lines were stale (pre-ADR-054, pointed at a dropped `apps/website/data/dashboard-templates/` path).
 - **Improvement:** Worktree tooling should share one `CARGO_TARGET_DIR` (or the post-start `rust` hook should) instead of a per-worktree 100G target — the current layout oversubscribes the Projects disk and intermittently ENOSPC-blocks every agent. Worked around by reclaiming only my own worktree's target and building to an external target dir on the roomy disk; touched no sibling worktree.
 - **Follow-up:** shared-target worktree config is a real recurring infra fix — candidate CIB item if it recurs.
+### 2026-05-29 — claude
+
+- **Task:** Re-verify and correct CIB-030's release-ordering premise (Expected
+  Outcome point 3) before it was actioned.
+- **Outcome:** Re-scoped CIB-030 to its two sound doc-gate sub-points and dropped
+  point 3; added a dated correction note. The `gh release create` step in
+  `publish-eddacraft-tui.yml` is already the final step (post-`cargo publish`,
+  post tag-propagation) and has been since the workflow's creation, so the
+  proposed reordering was a no-op against a false premise.
+- **Worked:** Reading the workflow and its full `git log` before editing caught a
+  factually wrong backlog premise that would have produced an empty fix PR.
+- **Failed:** Nothing substantive.
+- **Friction:** The stray `eddacraft-tui-v0.2.3` Release was confidently
+  attributed to a cause the code did not support; the misattribution rode along
+  in the backlog item unchallenged until a readiness review.
+- **Improvement:** Backlog items asserting "today the workflow does X" should
+  cite a file+line or commit so the premise is verifiable before it is actioned.
+- **Follow-up:** The stray `eddacraft-tui-v0.2.3` Release origin needs separate
+  re-tracing — it was not caused by early release creation in this workflow.
 
 

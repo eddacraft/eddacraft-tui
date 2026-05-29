@@ -605,10 +605,20 @@ archive.
 - **Confidence:** high — small documentation/API-contract alignment with a named
   parser behaviour.
 
-### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs, release ordering)
+### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
 - **Status:** Draft
-- **Intent:** Close three latent gaps in the `eddacraft-tui` publish workflow
+- **Correction 2026-05-29:** A readiness review found the original point 3's
+  premise did not hold on `main`. The `Create GitHub Release on anvil-001`
+  step in `publish-eddacraft-tui.yml` is ALREADY the final step — it runs
+  after `cargo publish` AND after the mirror tag-propagation step, and has
+  been positioned there since the workflow's creation
+  (`24884c1de`). There is no early `gh release create` to move, so point 3 is
+  dropped. The stray `eddacraft-tui-v0.2.3` GitHub Release was therefore NOT
+  caused by early release creation in this workflow; its true origin needs
+  separate re-tracing before any remediation. This item is re-scoped to the
+  two sound doc-gate sub-points.
+- **Intent:** Close two latent gaps in the `eddacraft-tui` publish workflow
   and PR-side doc gate that let two `broken_intra_doc_links` errors reach the
   live publish run (`26549955604`, 2026-05-28) and fail it at the `cargo doc`
   step, after `#2018` had been merged green. The fix PR `#2029` repaired the
@@ -630,28 +640,22 @@ archive.
      `widgets/image_pane.rs` under the `image` feature) are invisible to
      it. Switching to `--all-features` requires fixing the pre-existing
      all-features rustdoc lints in `image`-gated code first.
-  3. **Publish workflow creates the GitHub Release only after `cargo
-     publish` succeeds.** Today `publish-eddacraft-tui.yml` creates the
-     `eddacraft-tui-v*` Release early in the job, so a failed publish
-     (e.g. run `26549955604`) leaves a stray non-draft GitHub Release
-     advertising a version that is not on crates.io. The `gh release
-     create` step should move after the `cargo publish` step (and after
-     tag propagation to the mirror) so a failure leaves nothing public.
 - **Validation:**
   - `.github/workflows/rust.yml`'s `cargo doc` step has
     `env: RUSTDOCFLAGS: -D warnings` (or equivalent).
   - `.github/workflows/publish-eddacraft-tui.yml`'s doc step passes
     `--all-features`; `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps
     -p eddacraft-tui --all-features` is green on `main`.
-  - `gh release create` step in the publish workflow is positioned after
-    the `cargo publish` step and after tag propagation.
   - A deliberately broken intra-doc link in a doc-only PR fails the
     PR-side `cargo doc` gate (manual smoke).
 - **Identified From:** TUIR-008 first publish attempt (run `26549955604`,
   2026-05-28) failed at the doc gate with two `broken_intra_doc_links` after
-  `#2018` merged green; a stray `eddacraft-tui-v0.2.3` GitHub Release
-  (`github-actions[bot]`, 2026-05-28T01:57:43Z) was left behind by the
-  failed run. Surfaced while opening `#2029`.
+  `#2018` merged green. Surfaced while opening `#2029`. A stray
+  `eddacraft-tui-v0.2.3` GitHub Release (`github-actions[bot]`,
+  2026-05-28T01:57:43Z) was observed at the time and originally attributed to
+  early release creation in this workflow; the 2026-05-29 correction above
+  showed that attribution was wrong (the release step is already the final
+  step), so the stray Release's origin is untraced and tracked separately.
 - **Files:** `.github/workflows/rust.yml`,
   `.github/workflows/publish-eddacraft-tui.yml`,
   `crates/eddacraft-tui/src/widgets/image_pane.rs` (and any sibling
