@@ -787,9 +787,11 @@ archive.
 ### CIB-036: Active APS modules fail canonical `aps lint` (missing `## Work Items` section)
 
 - **Status:** Draft
-- **Intent:** Make the active `plans/modules/*.aps.md` set pass canonical
-  `aps lint` structural checks (`## Work Items` section + ID/Status metadata
-  table).
+- **Intent:** Make the phase-style active APS modules pass canonical `aps lint`
+  structural checks (`## Work Items` section + ID/Status metadata table). (The
+  `aps:active-lint` scope is broader than modules — it also covers
+  `plans/index.aps.md`, `plans/issues.md`, and execution `.actions.md` files —
+  but the E002/E003 failures are confined to these modules.)
 - **Expected Outcome:** `aps lint plans/modules/weave.aps.md` no longer reports
   `E002: Missing ## Work Items section`, and the other phase-style modules that
   share the defect are likewise conformant.
@@ -824,18 +826,23 @@ archive.
 ### CIB-037: `aps lint` validates only one file when given multiple arguments
 
 - **Status:** Draft
-- **Intent:** Make `pnpm aps:active-lint` actually validate every active module
-  instead of silently one.
+- **Intent:** Make `pnpm aps:active-lint` actually validate every active APS
+  file instead of silently one.
 - **Expected Outcome:** `aps lint <f1> <f2> …` validates all file arguments (or
   `active-lint.mjs` invokes it per file), and `pnpm aps:active-lint` reports
-  `N files checked` (N = active module count) rather than `1 file checked`.
+  `N files checked` where N is the full active-APS-file count from `--list-files`
+  — modules **plus** `plans/index.aps.md`, `plans/issues.md`, and execution
+  `.actions.md` (currently 101), not just the module count — rather than
+  `1 file checked`.
 - **Defect:** `aps lint <f1> <f2> …` reports `1 file checked` and findings for
   only the *last* argument regardless of how many are passed (verified by
   reordering args — the reported file tracks the last position).
-  `scripts/aps/active-lint.mjs` passes the whole active set in a single
-  `spawnSync(apsBin, ['lint', ...files])`, so the gate has been validating only
-  the last-sorted module (`weave.aps.md`); every other active module's
-  canonical-lint state is currently unchecked.
+  `scripts/aps/active-lint.mjs` passes the whole active set
+  (`activeApsFiles` → 101 files: modules + index + issues + execution
+  `.actions.md`) in a single `spawnSync(apsBin, ['lint', ...files])`, so the
+  gate has been validating only the last-sorted active file (currently
+  `weave.aps.md`, the last of all 101 entries); every other active APS file's
+  canonical-lint state is unchecked.
 - **Fix options:** loop `aps lint` per file in `active-lint.mjs` (cheap, in-repo,
   no binary change), or fix the `aps` binary's multi-arg handling upstream
   (canonical `anvil-plan-spec` CLI). Per-file looping is the smaller fix.
