@@ -2,7 +2,7 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | In Progress | 1/12 |
+| TUIDASH | —     | In Progress | 2/12 |
 
 **Last reviewed:** 2026-05-27
 
@@ -212,7 +212,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-002: Component registry trait and infrastructure
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2097
 - **Intent:** Define the `TuiComponent` trait and `TuiRegistry` that maps
   component type names to Ratatui widget implementations
 - **Expected Outcome:** Trait with `render()` and `layout_children()` methods.

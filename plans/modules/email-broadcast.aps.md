@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| EMAIL | —     | Medium   | Ready  |
+| EMAIL | —     | Medium   | In Progress |
 
 **Last reviewed:** 2026-05-25 (Clawpatch delta triage added EMAIL-010; GH #1926)
 
@@ -627,7 +627,7 @@ in the same change.
 
 #### EMAIL-010 — Preview-token-only real-send contract
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-29 via PR #2064
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Restore the documented `POST /admin/broadcast` real-send

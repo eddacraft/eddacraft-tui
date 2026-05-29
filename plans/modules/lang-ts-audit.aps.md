@@ -5,7 +5,7 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | Ready  | 3/6  |
+| LANGTS | —     | In Progress | 4/6  |
 
 **Last reviewed:** 2026-05-28 — the two bounded open questions are resolved
 inline (single module, no `lang-ts-prereq` split; K1 extractor-trait ADR
@@ -214,9 +214,9 @@ K1 ADR) were resolved inline above.
 - **Confidence:** high — registry edit + family doc page is a well-trodden
   path (FLAGCAT-independent; LANGTS-006 is the working precedent).
 
-### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — In Progress
+### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2096
 - **Intent:** Land the load-bearing kernel-prereq work (council §16.5 #3) so
   the parser layer can host three anchor languages plus a tail wave without an
   `if lang == …` cascade, without latent cache corruption, without a parse-path
