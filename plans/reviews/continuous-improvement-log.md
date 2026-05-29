@@ -1250,4 +1250,23 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** The stray `eddacraft-tui-v0.2.3` Release origin needs separate
   re-tracing — it was not caused by early release creation in this workflow.
 
+### 2026-05-29 — claude
+
+- **Task:** Promote CIB-014 (SARIF output) into approved, design-resolved APS
+  work via the planning-workflow.
+- **Outcome:** New `plans/specs/2026-05-29-sarif-output-design.md` design + new
+  `sarif-output.aps.md` (SARIFOUT, 6 items / 4 waves) wired into the index;
+  CIB-014 closed Done with a `Promoted to:` note; two candidate ADRs flagged.
+- **Worked:** Grounding the three readiness gates in the live code (output enum,
+  the three distinct result shapes) made the flag-surface and no-shared-model
+  recommendations concrete rather than speculative.
+- **Failed:** Nothing substantive.
+- **Friction:** The CIB-014 line citations in the task brief had drifted
+  (`CheckResult` is now `build_json_output`/`JsonWarning`; gate envelope is
+  `AiGateResultEnvelope`); had to re-locate every anchor before writing.
+- **Improvement:** Promotion docs should cite code by symbol name plus a
+  confirmed line, since line numbers rot between the readiness review and the
+  planning pass.
+- **Follow-up:** Author the two candidate ADRs (`--format` value-enum;
+  shared-emitter/no-finding-model) alongside SARIFOUT-001/-002 after sign-off.
 

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 21/35    |
+| CIB | —     | In Progress | 22/35    |
 
 ## Purpose
 
@@ -248,46 +248,26 @@ archive.
 
 ### CIB-014: SARIF output for `anvil check` / `anvil gate` / `anvil audit`
 
-- **Status:** Draft
-- **Intent:** Make Anvil findings consumable by GitHub Code Scanning
-  and the standard SARIF tool ecosystem (Sonar, DefectDojo, security
-  dashboards) without bespoke adapters. Findings already exist; this
-  is a pure additive output mode.
-- **Expected Outcome:** `--format sarif` (or `--output sarif`) on
-  `anvil check`, `anvil gate`, and `anvil audit` emits SARIF 2.1.0
-  conforming to the `results[]` + `rules[]` + `locations[]` subset
-  (the parts GitHub Code Scanning ingests). Baseline-suppressed
-  findings render under SARIF `suppressions[]` (§3.35) so reviewers
-  can see what was deliberately accepted at baseline time. The
-  supported SARIF subset is pinned in the spec so the maintenance
-  surface stays bounded; full SARIF 2.1.0 conformance is **not** the
-  goal. Existing JSON / human output modes are unchanged.
-- **Validation:** Fixture tests that emit SARIF from each of the
-  three commands and validate against the SARIF 2.1.0 JSON Schema;
-  round-trip smoke test that uploads the emitted SARIF to a GitHub
-  Code Scanning sandbox repo and confirms findings render. `pnpm
-  format:check` for any in-repo doc touched.
-- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
-  §4 Borrow A — single highest-leverage borrow from the Drako
-  ladder. Drako cited as parallel evolution, not dependency.
-- **Files:** `crates/anvil-cli/src/commands/check.rs`,
-  `crates/anvil-cli/src/commands/gate.rs`,
-  `crates/anvil-cli/src/commands/audit.rs`,
-  `crates/anvil-cli/src/output/` (likely new `sarif.rs` module
-  alongside the existing emitters).
-- **Coordinates with:** CIB-008 / CIB-009 (both now **Merged** —
-  `anvil check` / `audit` dispatcher consistency; SARIF output must
-  reflect the same finding set as JSON, and both surfaces are now in
-  their target state, so SARIF won't mirror the old bug);
-  COMPLY (compliance-reporting) — SARIF is upstream of framework
-  mapping, not a substitute for it.
-- **Out of Scope:** Full SARIF 2.1.0 conformance (only the GitHub
-  Code Scanning subset). Framework-mapped compliance evidence
-  (lives in COMPLY). Runtime / proxy enforcement (out per
-  `docs/vision/anvil-scope-guard.md` and the 2026-05-22 Proxilion
-  decline).
-- **Confidence:** high — well-scoped output mode, deterministic
-  findings already exist, standard schema, low blast radius.
+- **Status:** Done
+- **Promoted to:** [`sarif-output`](sarif-output.aps.md) (SARIFOUT module,
+  Proposed) on 2026-05-29.
+- **Summary:** Promoted out of the backlog into a dedicated APS module per the
+  CIB intake rule ("promote into a dedicated APS module"). The 2026-05-29
+  design pass
+  ([`plans/specs/2026-05-29-sarif-output-design.md`](../specs/2026-05-29-sarif-output-design.md))
+  resolved the three readiness gates that deferred this item: flag surface
+  (`--format` value-enum with `--json` kept as a backward-compatible alias;
+  SARIF never auto-selected by TTY), module home (new dedicated SARIFOUT module
+  under Engineering Platform — explicitly not EXPORT, which is a telemetry sink
+  per ADR-035, and not COMPLY, which SARIF is upstream of), and shared finding
+  model (a thin shared SARIF emitter plus per-command adapters; no
+  `anvil-checks`/`anvil-policy-engine`/`anvil-rules` refactor — SARIF itself is
+  the shared target shape). Scoped to the GitHub Code Scanning subset of SARIF
+  2.1.0 (results/rules/locations/suppressions) and split into six single-purpose
+  work items across four waves (SARIFOUT-001..-006); schema-validation tests are
+  in-repo/CI, the GitHub upload check is manual/out-of-band. Two candidate ADRs
+  (`--format` value-enum convention; shared-emitter/no-finding-model decision)
+  flagged for sign-off. Execution tracking now lives in SARIFOUT-001..-006.
 
 ### CIB-015: Triage `anvil bom` surface before filing as APS
 
