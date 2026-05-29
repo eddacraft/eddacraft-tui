@@ -135,15 +135,15 @@ missing_panics_doc = "allow"
 # Unwinding / `catch_unwind` (ADR-051) is control-flow and is unaffected.
 # `incremental` is left at the default `true` (turning it off would slow
 # iterative agent builds); relocation + eviction (DEVENV-002/-004) handle the
-# space axis. `split-debuginfo` is pinned to the Linux default `unpacked` so the
-# profile stays deterministic if a future toolchain flips the default.
+# space axis. `split-debuginfo` is intentionally NOT set: it controls debuginfo
+# layout, not size, so it adds nothing to the trim, and `[profile.*]` applies to
+# every target (Windows-msvc defaults to `packed`, not `unpacked`) — pinning it
+# here would silently change non-Linux behaviour for no benefit.
 [profile.dev]
 debug = "line-tables-only"
-split-debuginfo = "unpacked"
 
 [profile.test]
 debug = "line-tables-only"
-split-debuginfo = "unpacked"
 
 [profile.release]
 lto = true
