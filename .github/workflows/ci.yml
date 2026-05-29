@@ -110,13 +110,17 @@ jobs:
         run: pnpm run test:aps-active-lint
 
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
-      # the canonical CLI (anvil-plan-spec) pinned to main and point
-      # APS_CANONICAL_BIN at it, rather than piping a curl|bash installer.
+      # the canonical CLI (anvil-plan-spec) pinned to an IMMUTABLE commit and
+      # point APS_CANONICAL_BIN at it, rather than piping a curl|bash installer
+      # or tracking the mutable `main` ref. Bump this SHA intentionally when
+      # adopting new canonical `aps` semantics, per the APS adoption-boundary
+      # spec (plans/specs/2026-05-25-aps-cli-adoption-boundary.md).
       - name: Check out canonical aps CLI
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: EddaCraft/anvil-plan-spec
-          ref: main
+          # anvil-plan-spec@main as of the E005 terminal-item exemption (PR #56).
+          ref: 202d2a148538f0322727164c6fdc403952999fa0
           path: .aps-cli
 
       - name: Canonical APS lint (CIB-036)
