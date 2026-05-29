@@ -1,4 +1,3 @@
-use std::io::IsTerminal;
 use std::path::Path;
 
 use anvil_kernel_types::{
@@ -17,33 +16,43 @@ use crate::services::interactive_fix::{
 use crate::util::is_ignored_dir_name;
 
 #[derive(Debug, Args)]
-pub struct AuditArgs {}
+pub struct AuditArgs {
+    /// Output format: auto (default), tui, plain, json, or sarif. `json` is the
+    /// `--json` alias; `sarif` emits SARIF 2.1.0 and is never auto-selected.
+    #[arg(long, value_enum)]
+    format: Option<crate::output::Format>,
+}
 
-pub fn run(_args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    use crate::output::OutputMode;
+
     let data = run_audit(Path::new("."));
 
-    if global.json {
-        print_json(&data)?;
-    } else if !global.no_tui && std::io::stdout().is_terminal() {
-        let mut state = AuditState::new(data);
-        loop {
-            state = crate::tui::run_surface(state)?;
-            if let Some(request) = state.pending_fix.take() {
-                let selected = state.selected_item;
-                if matches!(
-                    apply_fix_request(&request, None),
-                    FixOutcome::Applied { .. }
-                ) {
-                    state.data = collect_audit_data();
-                    state.selected_item = selected.min(state.data.issues.len().saturating_sub(1));
-                    state.expanded = false;
+    match OutputMode::from_command_format(args.format, global) {
+        OutputMode::Json => print_json(&data)?,
+        // SARIFOUT-004 wires the real `anvil audit` SARIF adapter here.
+        OutputMode::Sarif => anyhow::bail!("{}", crate::output::sarif_pending_message("audit")),
+        OutputMode::Tui => {
+            let mut state = AuditState::new(data);
+            loop {
+                state = crate::tui::run_surface(state)?;
+                if let Some(request) = state.pending_fix.take() {
+                    let selected = state.selected_item;
+                    if matches!(
+                        apply_fix_request(&request, None),
+                        FixOutcome::Applied { .. }
+                    ) {
+                        state.data = collect_audit_data();
+                        state.selected_item =
+                            selected.min(state.data.issues.len().saturating_sub(1));
+                        state.expanded = false;
+                    }
+                    continue;
                 }
-                continue;
+                break;
             }
-            break;
         }
-    } else {
-        print_plain(&data);
+        OutputMode::Plain => print_plain(&data),
     }
 
     Ok(())

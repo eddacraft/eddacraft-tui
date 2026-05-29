@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use anvil_kernel_types::{
@@ -46,6 +47,11 @@ pub struct GateArgs {
     /// List available gate profiles
     #[arg(long)]
     list_profiles: bool,
+
+    /// Output format: auto (default), tui, plain, json, or sarif. `json` is the
+    /// `--json` alias; `sarif` emits SARIF 2.1.0 and is never auto-selected.
+    #[arg(long, value_enum)]
+    format: Option<crate::output::Format>,
 }
 
 const PROFILES: &[(&str, &str, &[&str])] = &[
@@ -2028,6 +2034,30 @@ fn check_name_to_category(name: &str) -> Category {
 ///
 /// Returns `Ok(true)` when every check passes and `Ok(false)` when at
 /// least one check fails (caller maps this to `EXIT_GATE_FAIL`).
+/// Resolve the gate command's output mode.
+///
+/// An explicit, non-`auto` `--format` wins outright (including over the
+/// AI-guardrail JSON default). `--format auto` and an absent `--format` are
+/// equivalent "use the defaults" requests: with the AI guardrail profile they
+/// keep the JSON default (unless `--no-tui`), otherwise the legacy `--json` /
+/// `--no-tui` / TTY resolver applies.
+fn resolve_gate_output_mode(
+    format: Option<crate::output::Format>,
+    profile_is_ai: bool,
+    ai_json_default: bool,
+    global: &GlobalArgs,
+    is_tty: bool,
+) -> crate::output::OutputMode {
+    use crate::output::{Format, OutputMode};
+    match format {
+        Some(f) if f != Format::Auto => {
+            OutputMode::resolve_format(Some(f), global.json, global.no_tui, is_tty)
+        }
+        _ if profile_is_ai && ai_json_default && !global.no_tui => OutputMode::Json,
+        _ => OutputMode::resolve(global.json, global.no_tui, is_tty),
+    }
+}
+
 pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     use crate::output::OutputMode;
 
@@ -2040,14 +2070,19 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     // consumers reading the gate result get the documented schema
     // without a flag. Callers can still opt out with `--no-tui` (which
     // resolves to plain text) when they pass `--profile ai`.
-    let mode = if args.profile.as_deref() == Some(AiGuardrailProfile::NAME)
-        && AiGuardrailProfile::DEFAULT.json_output_default
-        && !global.no_tui
-    {
-        OutputMode::Json
-    } else {
-        OutputMode::from_global(global)
-    };
+    let mode = resolve_gate_output_mode(
+        args.format,
+        args.profile.as_deref() == Some(AiGuardrailProfile::NAME),
+        AiGuardrailProfile::DEFAULT.json_output_default,
+        global,
+        std::io::stdout().is_terminal(),
+    );
+
+    // SARIFOUT-005 wires the real `anvil gate` SARIF adapter; until then, bail
+    // before running checks so `--format sarif` is consistent and cheap.
+    if mode == OutputMode::Sarif {
+        bail!("{}", crate::output::sarif_pending_message("gate"));
+    }
 
     let start = std::time::Instant::now();
     let checks = run_checks(args)?;
@@ -2081,7 +2116,9 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
                 crate::output::json::print(&result)?;
             }
         }
-        OutputMode::Plain | OutputMode::Tui => {
+        // `Sarif` is handled by the early bail above; grouped here only for
+        // match exhaustiveness (SARIFOUT-005 wires real emission).
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             // TUI surface for gate is not yet implemented; fall back to plain.
             use crate::output::plain;
 
@@ -2235,6 +2272,50 @@ mod tests {
         let profile = AiGuardrailProfile::DEFAULT;
         assert!(profile.strict_config);
         assert!(profile.json_output_default);
+    }
+
+    #[test]
+    fn gate_output_mode_honours_ai_default_and_explicit_format() {
+        use crate::output::{Format, OutputMode};
+        let global = GlobalArgs::default();
+
+        // `--format auto` and an absent `--format` both keep the AI-profile
+        // JSON default — auto must NOT be treated as an explicit override.
+        assert_eq!(
+            resolve_gate_output_mode(Some(Format::Auto), true, true, &global, true),
+            OutputMode::Json,
+        );
+        assert_eq!(
+            resolve_gate_output_mode(None, true, true, &global, true),
+            OutputMode::Json,
+        );
+
+        // An explicit, non-auto `--format` overrides the AI JSON default.
+        assert_eq!(
+            resolve_gate_output_mode(Some(Format::Plain), true, true, &global, true),
+            OutputMode::Plain,
+        );
+        assert_eq!(
+            resolve_gate_output_mode(Some(Format::Sarif), true, true, &global, true),
+            OutputMode::Sarif,
+        );
+
+        // `--no-tui` opts out of the AI JSON default to plain text.
+        let no_tui = GlobalArgs {
+            no_tui: true,
+            ..GlobalArgs::default()
+        };
+        assert_eq!(
+            resolve_gate_output_mode(None, true, true, &no_tui, true),
+            OutputMode::Plain,
+        );
+
+        // Without the AI profile, auto/absent falls through to the legacy
+        // resolver (TTY → Tui).
+        assert_eq!(
+            resolve_gate_output_mode(None, false, true, &global, true),
+            OutputMode::Tui,
+        );
     }
 
     #[test]

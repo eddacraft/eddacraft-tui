@@ -1,8 +1,11 @@
-# ADR-056: Global `--format` value-enum as the canonical output selector
+# ADR-056: `--format` value-enum as the canonical output selector
 
 ## Status
 
-Proposed
+Accepted (2026-05-29). Amended the same day during `SARIFOUT-001`
+implementation — see [Amendment](#amendment-per-command-not-global-2026-05-29).
+The three SARIFOUT design decisions (flag surface, module home, shared model)
+were ratified by the operator on 2026-05-29.
 
 ## Date
 
@@ -37,8 +40,11 @@ in `SARIFOUT-001`. The operator ratified this direction on 2026-05-29.
 
 ## Decision
 
-Introduce a global `--format <FORMAT>` value-enum as the single canonical output
-selector. Value space: `auto | tui | plain | json | sarif`. Default: `auto`.
+Introduce a `--format <FORMAT>` value-enum as the canonical output selector on
+the finding-emitting commands. Value space: `auto | tui | plain | json | sarif`.
+Default: `auto`. (Originally specified as a *global* flag — narrowed to
+per-command during implementation; see
+[Amendment](#amendment-per-command-not-global-2026-05-29).)
 
 1. `OutputMode` gains a `Sarif` variant. A single resolver replaces the
    boolean truth table. **Precedence:** an explicit `--format` wins; else legacy
@@ -55,6 +61,54 @@ selector. Value space: `auto | tui | plain | json | sarif`. Default: `auto`.
    value-parse error rather than silently degrading.
 4. **Convention:** future machine-output formats are added as new `--format`
    enum values, not as new top-level booleans.
+
+## Amendment — per-command, not global (2026-05-29)
+
+Implementing `SARIFOUT-001` surfaced a blocker the design pass missed: `--format`
+is **already a per-command flag** with unrelated semantics on two existing
+commands —
+
+- `anvil export --format <llms.txt|mcp-resource|prompt-fragment>` (constraint
+  export target), and
+- `anvil validate --format <aps|json|yaml>` (input plan format override).
+
+`clap` rejects a `global = true` argument whose long name collides with a
+subcommand-local one (it panics while building the command tree). A global
+output `--format` is therefore not implementable without renaming those two
+public flags — a breaking change well outside SARIFOUT scope.
+
+**Resolution (operator-ratified 2026-05-29):** add the output `--format`
+value-enum as a **per-command flag on the three finding-emitting commands only**
+(`check`, `gate`, `audit`), which have no pre-existing `--format`. `--json` /
+`--no-tui` stay global and unchanged. Everything else in this ADR — the value
+space, the precedence rules, `--json` as an alias, SARIF being opt-in and never
+TTY-auto-selected, and the "future formats are enum values" convention — is
+unchanged.
+
+Consequences of the narrowing:
+
+- The "reject `--format sarif` on a non-finding command" guarantee now falls out
+  of `clap` for free: `--format` simply does not exist on non-finding commands,
+  so any `--format …` there is an `unexpected argument` error. No central
+  allowlist or pre-dispatch validation is needed (this also removes the
+  allowlist-drift risk noted under Risks).
+- `--format json|plain|tui` is **not** accepted on non-finding commands; their
+  output selector remains `--json` / `--no-tui` (the global aliases). No
+  capability is lost — `sarif` is only meaningful where findings are emitted.
+- The resolver lives in `output/mod.rs` (`resolve_format` +
+  `from_command_format`); `from_global` is retained unchanged for the
+  non-finding commands and can never yield `Sarif`.
+
+Future option (not taken now): if a truly universal selector is ever wanted,
+a non-colliding `--output-format` global flag could be introduced; deferred
+until there is demand.
+
+Known limitation (deferred): `--format tui` forces the TUI even when stdout is
+not a terminal, so piping a `--format tui` invocation surfaces a raw crossterm
+"enable raw mode" error rather than a friendly message. This is pre-existing
+`TerminalGuard` behaviour, now reachable via an explicit flag; forcing the TUI
+to a pipe is a misuse and degrading `tui` → `plain` would make `tui` equivalent
+to `auto`, so it is left as-is and tracked as a follow-up nicety.
 
 ## Rationale
 

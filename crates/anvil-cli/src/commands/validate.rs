@@ -173,7 +173,7 @@ pub fn run(args: &ValidateArgs, global: &GlobalArgs) -> Result<()> {
             };
             output::json::print(&output)?;
         }
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             print_human(
                 &file_display,
                 &detected,

@@ -95,6 +95,11 @@ pub struct CheckArgs {
     /// `--since`, and `--extensions`.
     #[arg(long, default_value = "source")]
     artifact: String,
+
+    /// Output format: auto (default), tui, plain, json, or sarif. `json` is the
+    /// `--json` alias; `sarif` emits SARIF 2.1.0 and is never auto-selected.
+    #[arg(long, value_enum)]
+    format: Option<output::Format>,
 }
 
 impl CheckArgs {
@@ -165,7 +170,14 @@ struct JsonWarning {
 
 #[allow(clippy::too_many_lines)] // Linear phase pipeline (parse → gather → dispatch → render).
 pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
-    let mode = OutputMode::from_global(global);
+    let mode = OutputMode::from_command_format(args.format, global);
+    // SARIFOUT-003 replaces this guard with the real `anvil check` SARIF
+    // adapter. Bail early — before file-selection short-circuits and the
+    // blocking-warning handling — so `--format sarif` behaves consistently
+    // regardless of how many files match.
+    if mode == OutputMode::Sarif {
+        bail!("{}", output::sarif_pending_message("check"));
+    }
     let start = Instant::now();
 
     // Validate mutually exclusive flags. `--staged` and `--since` imply
@@ -355,7 +367,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             );
             output::json::print(&json_output)?;
         }
-        OutputMode::Plain | OutputMode::Tui => {
+        // `Sarif` is handled by the early bail above; grouped here only for
+        // match exhaustiveness (SARIFOUT-003 wires real emission).
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             print_human(
                 &aggregated_warnings_for_print(&aggregated_warnings),
                 &summary,
@@ -578,7 +592,12 @@ fn run_non_source_artifact(
     kind: ArtifactKind,
     start: Instant,
 ) -> Result<()> {
-    let mode = OutputMode::from_global(global);
+    let mode = OutputMode::from_command_format(args.format, global);
+    // SARIFOUT-003 wires the real `anvil check` SARIF adapter; until then,
+    // bail early so `--format sarif` is consistent on the non-source path too.
+    if mode == OutputMode::Sarif {
+        bail!("{}", output::sarif_pending_message("check"));
+    }
 
     if args.all || args.changed_mode() || args.extensions.is_some() {
         bail!(
@@ -695,7 +714,9 @@ fn run_non_source_artifact(
             );
             output::json::print(&json_output)?;
         }
-        OutputMode::Plain | OutputMode::Tui => {
+        // `Sarif` is handled by the early bail above; grouped here only for
+        // match exhaustiveness (SARIFOUT-003 wires real emission).
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             print_human(
                 &warning_result.warnings,
                 &warning_result.summary,
@@ -1447,6 +1468,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
         let exts = resolve_extensions(None);
         let (files, source) = gather_files(&args, &exts).unwrap();
@@ -1466,6 +1488,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
         let exts = resolve_extensions(None);
         assert!(gather_files(&args, &exts).is_err());
@@ -1483,6 +1506,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
         let exts = resolve_extensions(None);
         let err = gather_files(&args, &exts).unwrap_err();
@@ -1540,6 +1564,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "not-a-kind".to_string(),
+            format: None,
         };
         assert!(parse_artifact_kind(&args.artifact).is_err());
     }
@@ -1556,6 +1581,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "pr-description".to_string(),
+            format: None,
         };
         let global = GlobalArgs::default();
         let result =
@@ -1576,6 +1602,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "pr-description".to_string(),
+            format: None,
         };
         let global = GlobalArgs::default();
         let result =
@@ -1596,6 +1623,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "pr-description".to_string(),
+            format: None,
         };
         let global = GlobalArgs::default();
         let result =
@@ -1631,6 +1659,7 @@ mod tests {
             severity: "error".to_string(),
             include_opt_in: false,
             artifact: "pr-description".to_string(),
+            format: None,
         };
         let global = GlobalArgs::default();
         let result =
@@ -1658,6 +1687,7 @@ mod tests {
             severity: "warning".to_string(),
             include_opt_in: false,
             artifact: "pr-description".to_string(),
+            format: None,
         };
         let global = GlobalArgs::default();
         let err =
@@ -1764,6 +1794,7 @@ mod tests {
             severity: "error".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
 
         // `run()` needs `git_toplevel` to resolve workspace root; the tmp
@@ -1847,6 +1878,7 @@ mod tests {
             severity: "error".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
 
         let global = GlobalArgs {
@@ -1893,6 +1925,7 @@ mod tests {
             severity: "error".to_string(),
             include_opt_in: false,
             artifact: "source".to_string(),
+            format: None,
         };
 
         let global = GlobalArgs {

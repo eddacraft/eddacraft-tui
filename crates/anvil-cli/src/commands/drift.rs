@@ -261,7 +261,7 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
 
     match mode {
         OutputMode::Json => output::json::print(&snapshot)?,
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             output::plain::success(&format!("Snapshot saved: {filename}"));
             output::plain::blank();
             output::plain::section("Metrics");
@@ -293,7 +293,9 @@ fn run_compare(name1: &str, name2: &str, global: &GlobalArgs) -> Result<()> {
 
     match mode {
         OutputMode::Json => output::json::print(&comparison)?,
-        OutputMode::Plain | OutputMode::Tui => print_comparison(&comparison, &before, &after),
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+            print_comparison(&comparison, &before, &after);
+        }
     }
     Ok(())
 }
@@ -337,7 +339,7 @@ fn run_report(since: Option<&str>, global: &GlobalArgs) -> Result<()> {
 
     match mode {
         OutputMode::Json => output::json::print(&comparison)?,
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             output::plain::success("Drift report");
             print_comparison(&comparison, &before, &after);
         }
@@ -367,7 +369,7 @@ fn run_list(limit: Option<usize>, global: &GlobalArgs) -> Result<()> {
 
     match mode {
         OutputMode::Json => output::json::print(&entries)?,
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             output::plain::blank();
             output::plain::section(&format!(
                 "{}  {}  {}",

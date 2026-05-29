@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | Proposed | 0/6      |
+| SARIFOUT | —     | In Progress | 0/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -99,36 +99,45 @@ table. No engine-crate refactor.
 ## Candidate ADRs
 
 Two decisions warrant ADRs (see the design doc): (1) the `--format` value-enum
-as canonical output selector, (2) shared SARIF emitter + per-command adapters
-with no unified finding model. File **Proposed** alongside SARIFOUT-001/-002
-after design sign-off; run `pnpm adr:check` for the next number.
+as canonical output selector — **[ADR-056](../decisions/056-format-flag-output-selector.md),
+Accepted 2026-05-29** (amended to per-command scope during SARIFOUT-001);
+(2) shared SARIF emitter + per-command adapters with no unified finding model —
+to be filed alongside SARIFOUT-002.
 
 ## Work Items
 
-> Status: Proposed. This module stays Proposed until the three design decisions
-> (flag surface, module home, shared model) are signed off. Work items are
-> drafted to Ready quality but are not execution-authorised until promotion.
+> Status: In Progress. The three design decisions (flag surface, module home,
+> shared model) were ratified by the operator on 2026-05-29, promoting this
+> module out of Proposed. SARIFOUT-001 is In Progress; SARIFOUT-002..006 are
+> Ready. Flag surface landed per-command (not global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** A single canonical output selector supports SARIF without breaking
   the existing `--json` / `--no-tui` contract.
-- **Expected Outcome:** A global `--format <auto|tui|plain|json|sarif>` flag
-  resolves through one precedence-ordered resolver; `--json` behaves exactly as
-  `--format json`; `--format sarif` is a clap-level error on commands that do not
-  emit findings; SARIF is never auto-selected by TTY detection.
-- **Validation:** `cargo test -p anvil-cli output::` — resolver precedence
-  tests, `--json`/`--format json` parity test, and a reject test for `sarif` on a
-  non-finding command. Existing `output/mod.rs` tests stay green.
+- **Expected Outcome:** A `--format <auto|tui|plain|json|sarif>` flag on the
+  three finding-emitting commands (`check`/`gate`/`audit`) resolves through one
+  precedence-ordered resolver (`OutputMode::resolve_format` /
+  `from_command_format`); `--json` behaves exactly as `--format json`; `--format`
+  on a non-finding command is a clap `unexpected argument` error (the flag does
+  not exist there); SARIF is never auto-selected by TTY detection. Until the
+  adapters land, `--format sarif` reports a pending state. **Per-command, not
+  global** — see ADR-056's Amendment (collision with `export`/`validate`).
+- **Validation:** `cargo test -p eddacraft-anvil --bins output::` (the crate
+  package name is `eddacraft-anvil`; the dir is `anvil-cli`) — resolver
+  precedence, `--json`/`--format json` parity, and never-auto-select-SARIF unit
+  tests; `tests/format_flag.rs` integration tests for the reject + alias +
+  sarif-path wiring. Existing `output/mod.rs` tests stay green.
 - **Files:** `crates/anvil-cli/src/output/mod.rs`,
-  `crates/anvil-cli/src/main.rs`.
+  `crates/anvil-cli/src/commands/{check,gate,audit}.rs`,
+  `crates/anvil-cli/tests/format_flag.rs`.
 - **Dependencies:** —
 - **Confidence:** high
 
 ### SARIFOUT-002: Shared SARIF 2.1.0 emitter and schema-validation harness
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** A bounded, reusable SARIF document emitter exists with a
   deterministic schema-validation gate, independent of any command wiring.
 - **Expected Outcome:** `crates/anvil-cli/src/output/sarif.rs` produces a SARIF
@@ -145,7 +154,7 @@ after design sign-off; run `pnpm adr:check` for the next number.
 
 ### SARIFOUT-003: `anvil check` SARIF adapter with `suppressions[]`
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** `anvil check --format sarif` emits schema-valid SARIF including
   baseline / `@anvil-ignore`-suppressed findings under `suppressions[]`.
 - **Expected Outcome:** `check` warnings map to SARIF `results[]` with
@@ -165,7 +174,7 @@ after design sign-off; run `pnpm adr:check` for the next number.
 
 ### SARIFOUT-004: `anvil audit` SARIF adapter
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** `anvil audit --format sarif` emits schema-valid SARIF for audit
   issues.
 - **Expected Outcome:** `AuditOutput.issues[]` map to SARIF `results[]` with
@@ -180,7 +189,7 @@ after design sign-off; run `pnpm adr:check` for the next number.
 
 ### SARIFOUT-005: `anvil gate` SARIF adapter (per-check results)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** `anvil gate --format sarif` emits schema-valid SARIF for gate
   check results, handling the config-gap case coherently.
 - **Expected Outcome:** `GateResult.checks[]` map to SARIF `results[]` (one per
@@ -198,7 +207,7 @@ after design sign-off; run `pnpm adr:check` for the next number.
 
 ### SARIFOUT-006: Docs, CHANGELOG, and manual Code Scanning upload smoke check
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** The SARIF surface is documented and validated end-to-end against a
   real Code Scanning consumer out-of-band.
 - **Expected Outcome:** User docs describe `--format sarif` on the three

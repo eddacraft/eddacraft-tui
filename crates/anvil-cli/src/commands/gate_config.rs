@@ -101,7 +101,7 @@ fn run_list(workspace: &Path, mode: OutputMode, verbose: bool) -> Result<()> {
 
     match mode {
         OutputMode::Json => output::json::print(&config)?,
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             output::plain::blank();
             output::plain::section("Gate Configuration");
 
@@ -158,7 +158,7 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
                 "check": canonical_name,
             }))?;
         }
-        OutputMode::Plain | OutputMode::Tui => {
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
             output::plain::success(&format!("{action} check: {canonical_name}"));
         }
     }

@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner | Status   | Freshness          |
 | ------ | --------- | ----- | -------- | ------------------ |
-| Design | Proposal  | —     | Proposed | Authored 2026-05-29 |
+| Design | Proposal  | —     | Accepted | Authored 2026-05-29; three decisions ratified 2026-05-29 |
 
 | Upstream                                                                          | Downstream                          |
 | --------------------------------------------------------------------------------- | ----------------------------------- |
@@ -272,9 +272,17 @@ ahead of sign-off on this design.
 
 ## Open Decisions Flagged For Human Sign-Off
 
-1. **Flag surface** — accept `--format` value-enum (with `--json` as alias) vs.
-   keeping `--json` plus a separate `--sarif` boolean.
-2. **Module home** — accept new `SARIFOUT` module vs. an item under an existing
-   Engineering Platform module.
-3. **Shared model** — accept thin shared SARIF emitter + per-command adapters
-   (no engine refactor) vs. introducing a unified finding model first.
+All three were **ratified by the operator on 2026-05-29** with the recommended
+options:
+
+1. **Flag surface** — accepted the `--format` value-enum (with `--json` as
+   alias). **Implementation note:** narrowed from a *global* flag to a
+   **per-command** flag on `check` / `gate` / `audit`, because `--format` already
+   collides with the existing domain flags on `anvil export` and `anvil validate`
+   (`clap` rejects a colliding global arg). See ADR-056's Amendment. All other
+   semantics (value space, precedence, `--json` alias, SARIF opt-in) are
+   unchanged.
+2. **Module home** — accepted the new dedicated `SARIFOUT` module.
+3. **Shared model** — accepted the thin shared SARIF emitter + per-command
+   adapters (no engine refactor); the second ADR for this lands with
+   `SARIFOUT-002`.
