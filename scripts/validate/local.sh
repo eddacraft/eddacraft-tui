@@ -92,7 +92,7 @@ detect_paths() {
       git diff --cached --name-only --diff-filter=ACMR >"${path_file}"
       ;;
     changed)
-      local base_ref="${VALIDATE_BASE_REF:-origin/dev}"
+      local base_ref="${VALIDATE_BASE_REF:-origin/main}"
       local merge_base
       merge_base=$(git merge-base "${base_ref}" HEAD 2>/dev/null || true)
       if [[ -z "${merge_base}" ]]; then

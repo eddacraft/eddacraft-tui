@@ -5,7 +5,7 @@
 set -euo pipefail
 
 MODE=""
-BASE_REF="origin/dev"
+BASE_REF="origin/main"
 OUTPUT="text"
 FILES_FROM=""
 SOURCE=""
@@ -16,7 +16,7 @@ Usage: scripts/agent/guidance.sh [--staged|--branch|--pr|--files-from <path>] [-
 
 Modes:
   --staged            Use staged files.
-  --branch           Use changed files from <base>...HEAD. Default base: origin/dev.
+  --branch           Use changed files from <base>...HEAD. Default base: origin/main.
   --pr               Use PR changed files via gh when available; falls back to branch mode.
   --files-from PATH  Read newline-delimited paths from PATH. Intended for tests/CI fixtures.
 
