@@ -75,7 +75,17 @@ fn extract_from_node(
     // are visited by extract_require.
     if !matches!(
         node.kind(),
-        "function_declaration" | "class_declaration" | "export_statement"
+        "function_declaration"
+            | "class_declaration"
+            | "export_statement"
+            // TS-G1 declarations are fully handled by extract_named_decl; their
+            // bodies hold only type-level members (method/property signatures,
+            // enum members) we don't extract, and skipping recursion prevents a
+            // nested initialiser expression (e.g. `require(...)` inside an enum
+            // member) from emitting a spurious edge.
+            | "interface_declaration"
+            | "type_alias_declaration"
+            | "enum_declaration"
     ) {
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {

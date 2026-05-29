@@ -18,6 +18,11 @@ pub enum SymbolKind {
     /// encoded in the symbol name as `Owner.method` (TS-G2); a structural
     /// parent edge is deferred — `SymbolNode` carries no parent field and
     /// `FileSymbols` no symbol-edge channel, both out of LANGTS-002's scope.
+    /// Name fidelity is best-effort: a computed name (`[Symbol.iterator]`)
+    /// keeps its brackets, and a getter/setter is indistinguishable from a
+    /// plain method of the same name. A literal top-level symbol named
+    /// `Owner.method` would also collide — improbable in real TS, accepted
+    /// under the deferral.
     Method,
 }
 
@@ -77,16 +82,23 @@ mod tests {
 
     // --- SymbolKind ---
 
+    /// Every `SymbolKind` variant. Update when a variant is added so the
+    /// distinctness + serde round-trip tests stay exhaustive.
+    const ALL_SYMBOL_KINDS: [SymbolKind; 8] = [
+        SymbolKind::Function,
+        SymbolKind::Class,
+        SymbolKind::Module,
+        SymbolKind::Export,
+        SymbolKind::Interface,
+        SymbolKind::TypeAlias,
+        SymbolKind::Enum,
+        SymbolKind::Method,
+    ];
+
     #[test]
     fn symbol_kind_all_variants_distinct() {
-        let variants = [
-            SymbolKind::Function,
-            SymbolKind::Class,
-            SymbolKind::Module,
-            SymbolKind::Export,
-        ];
-        for (i, a) in variants.iter().enumerate() {
-            for (j, b) in variants.iter().enumerate() {
+        for (i, a) in ALL_SYMBOL_KINDS.iter().enumerate() {
+            for (j, b) in ALL_SYMBOL_KINDS.iter().enumerate() {
                 assert_eq!(i == j, a == b);
             }
         }
@@ -101,12 +113,7 @@ mod tests {
 
     #[test]
     fn symbol_kind_serde_round_trip() {
-        for variant in [
-            SymbolKind::Function,
-            SymbolKind::Class,
-            SymbolKind::Module,
-            SymbolKind::Export,
-        ] {
+        for variant in ALL_SYMBOL_KINDS {
             let json = serde_json::to_string(&variant).unwrap();
             let back: SymbolKind = serde_json::from_str(&json).unwrap();
             assert_eq!(variant, back);
