@@ -7,12 +7,14 @@
 | ------ | ----- | ------ | ---- |
 | LANGTS | —     | In Progress | 4/6  |
 
-**Last reviewed:** 2026-05-28 — the two bounded open questions are resolved
-inline (single module, no `lang-ts-prereq` split; K1 extractor-trait ADR
-deferred to RSTLAN per the audit §8 decision), so LANGTS-002, -004, and -005
-are promoted from anticipated-shape bullets to Ready work items with grounded
-Intent / Outcome / Scope / Validation. Done count unchanged at 3/6
-(LANGTS-001, -003, -006 done; -002, -004, -005 now Ready).
+**Last reviewed:** 2026-05-29 — LANGTS-005 (kernel-prerequisite refactor,
+K1–K4) Merged via PR #2096, advancing the done count to **4/6**
+(LANGTS-001, -003, -005, -006 done; -002, -004 Ready). Earlier, 2026-05-28:
+the two bounded open questions were resolved inline (single module, no
+`lang-ts-prereq` split; K1 extractor-trait ADR deferred to RSTLAN per the
+audit §8 decision), promoting LANGTS-002, -004, and -005 from
+anticipated-shape bullets to Ready work items with grounded Intent / Outcome
+/ Scope / Validation.
 
 > **Anchor re-scoring gate run 2026-04-26 (solo, self-review):**
 > - **TS still anchor zero** — confirmed. Demand profile unchanged since
