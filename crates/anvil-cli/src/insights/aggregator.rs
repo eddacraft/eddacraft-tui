@@ -4,8 +4,10 @@ use std::{
 };
 
 use anvil_witness::{WitnessLine, witness_paths};
-use chrono::{DateTime, Duration, SecondsFormat, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
+
+use super::{format_utc, truncate_to_seconds};
 
 pub const INSIGHTS_SCHEMA_VERSION: &str = "anvil.insights.v1";
 
@@ -61,12 +63,4 @@ pub fn weekly_summary(repo_root: &Path, now: DateTime<Utc>) -> anyhow::Result<We
         baseline_edges_added: 0,
         daemon_uptime_percentage: 0,
     })
-}
-
-fn format_utc(ts: DateTime<Utc>) -> String {
-    ts.to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
-fn truncate_to_seconds(ts: DateTime<Utc>) -> DateTime<Utc> {
-    DateTime::from_timestamp(ts.timestamp(), 0).expect("valid UTC timestamp")
 }

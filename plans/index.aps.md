@@ -103,7 +103,7 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | LANGTS-004 — Zod-creep rules in the TS T2 anti-pattern catalogue | Do now | [`lang-ts-audit`](./modules/lang-ts-audit.aps.md) | Last open LANGTS work item (5/6); LANGTS-002/-005 merged this session. Closing it completes the TS anchor's first T3 pass — the acceptance-checklist gate the founder-priority RSTLAN Rust anchor depends on. | Add the Zod-creep AP rules per the module and validate the LANGTS suite. |
-| 2 | INSIGHTS-003 — Drift Trend Sparkline | Schedule | [`usage-insights`](./modules/usage-insights.aps.md#insights-003-drift-trend-sparkline) | Directly supports the index drift success criterion and extends the shipped local-only insights path. | Reconcile status/readiness, then promote or revise before execution. |
+| 2 | INSIGHTS-003 — Drift Trend Sparkline | In Progress | [`usage-insights`](./modules/usage-insights.aps.md#insights-003-drift-trend-sparkline) | Directly supports the index drift success criterion and extends the shipped local-only insights path. | Reconciled 2026-05-29 (data source corrected to the existing `.anvil/snapshots/` drift store); `anvil insights --drift` implemented on `feat/insights-003-drift-trend`, PR pending. |
 | 3 | CIB-031 — Scope dependency-audit for Rust-only lockfile changes | Schedule | [`continuous-improvement-backlog`](./modules/continuous-improvement-backlog.aps.md#cib-031-scope-the-dependency-audit-gate-so-rust-only-lockfile-changes-skip-the-npm-trivy-audit) | Removes recurring red-X noise on Rust-only PRs and protects real npm audit signal. | Design the classifier contract and promote to Ready if the route is clear. |
 
 ## Release Plan

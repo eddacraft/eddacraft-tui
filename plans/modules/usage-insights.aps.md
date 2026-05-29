@@ -161,18 +161,62 @@ number visible to the user, not just to a future post-release survey.
 
 - **Intent:** Show the user the actual drift signal Anvil exists to slow —
   new cross-boundary edges per week — as a simple visible trend.
+- **Spec reconciliation (2026-05-29):** APS truth-validation before
+  implementation found the data-source premise was wrong (same class of fix
+  as INSIGHTS-002 / DISTRIB-005 — the spec named a data path that does not
+  exist); corrected contract below:
+  - **"baseline diff entries" carry no per-week edge history.**
+    `BaselineDiff.added` (`crates/anvil-baseline/src/store.rs`) is computed
+    in-memory on demand and never persisted; `anvil/baseline.json` is a
+    single snapshot atomically overwritten on every refresh, with no
+    per-finding timestamps; the witness chain records a per-commit `ts` but
+    carries no edge/finding payload, so it cannot be replayed into a weekly
+    edge count. INSIGHTS-001 zero-fills `baseline_edges_added` for exactly
+    this reason. An 8-week trend cannot be backfilled from any of these.
+  - **The real durable source is the existing `anvil drift` snapshot store.**
+    `anvil drift snapshot` writes timestamped
+    `.anvil/snapshots/snapshot-*.json`
+    (`DriftSnapshot { created_at, metrics.boundary_violations, violations[] }`),
+    where each `SnapshotViolation { from_layer, to_layer, from_file, to_file,
+    id }` is a cross-boundary edge. `commands::drift::compare_snapshots`
+    already diffs violations by stable `id` to count added/removed; -003
+    reuses that identity to count **new** edges week-over-week. No new
+    on-disk format is introduced.
+  - **Weekly bucketing + new-edge attribution:** snapshots are ordered
+    oldest→newest; for each adjacent pair the added-edge count
+    (`ids(curr) − ids(prev)`, by violation `id`, set-deduped on both sides)
+    is attributed to the calendar week of the later snapshot and summed
+    within each of the 8 trailing weekly buckets. The snapshot immediately
+    preceding the window seeds the first in-window week's baseline when
+    present. The metric is **edge introductions per week**, not a net
+    end-of-week delta: an edge added then resolved within the same week
+    still counts once (it was new drift that week), and an edge that
+    reappears after being removed in an earlier week counts again. This
+    keeps the signal honest about churn the user is trying to slow.
+  - **Sporadic-snapshot reality:** snapshots are operator-triggered, so a
+    week with no snapshot has *no data* (rendered distinctly from a measured
+    zero). "Fewer than 2 weeks of data" is made concrete as **fewer than 2
+    of the 8 trailing weeks containing at least one snapshot** → the command
+    prints an explicit insufficient-data message instead of a misleading
+    line.
 - **Expected Outcome:** `anvil insights --drift` shows a per-week count of
   new cross-boundary edges over the last 8 weeks as a terminal sparkline,
-  with the per-week numeric values listed below. Data is derived from
-  baseline diff entries. If fewer than 2 weeks of data exist, the command
-  reports that explicitly rather than rendering a misleading line.
+  with the per-week numeric values listed below (weeks without a snapshot
+  marked as no-data, not zero). Data is derived from the existing
+  `.anvil/snapshots/` drift-snapshot store. When fewer than 2 of the 8
+  trailing weeks contain a snapshot, the command reports that explicitly
+  rather than rendering a misleading line. `--json` emits a schema-versioned
+  `anvil.drift_trend.v1` document.
 - **Files:**
-  - `crates/anvil-cli/src/commands/insights.rs`
-  - `crates/anvil-cli/src/insights/drift_trend.rs` (NEW)
+  - `crates/anvil-cli/src/commands/insights.rs` (MODIFY — `--drift` flag +
+    render)
+  - `crates/anvil-cli/src/insights/drift_trend.rs` (NEW — snapshot-derived
+    weekly trend)
+  - `crates/anvil-cli/src/insights/mod.rs` (MODIFY — module decl)
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::insights::tests::drift_trend_matches_fixture`
   - `cargo test -p eddacraft-anvil commands::insights::tests::insufficient_data_reports_clearly`
-- **Status:** Draft
+- **Status:** In Progress
 - **Dependencies:** INSIGHTS-001
 - **changeType:** feature
 - **releaseIntent:** candidate
