@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anvil_kernel_types::{
@@ -28,17 +29,11 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mode = OutputMode::from_command_format(args.format, global);
 
-    // SARIFOUT-004 wires the real `anvil audit` SARIF adapter; until then, bail
-    // before the (full-repository) audit scan so `--format sarif` is cheap and
-    // consistent with `check` / `gate`.
-    if mode == OutputMode::Sarif {
-        anyhow::bail!("{}", crate::output::sarif_pending_message("audit"));
-    }
-
     let data = run_audit(Path::new("."));
 
     match mode {
         OutputMode::Json => print_json(&data)?,
+        OutputMode::Sarif => crate::output::json::print(&build_audit_sarif(&data))?,
         OutputMode::Tui => {
             let mut state = AuditState::new(data);
             loop {
@@ -59,9 +54,7 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 break;
             }
         }
-        // `Sarif` is handled by the early bail above; grouped here only for
-        // match exhaustiveness (SARIFOUT-004 wires real emission).
-        OutputMode::Plain | OutputMode::Sarif => print_plain(&data),
+        OutputMode::Plain => print_plain(&data),
     }
 
     Ok(())
@@ -768,6 +761,51 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
         next_steps: data.next_steps.clone(),
         notifications: notifications_for_audit(data),
     }
+}
+
+// ── SARIF adapter (SARIFOUT-004) ────────────────────────────────────
+
+/// Map an audit `IssueSeverity` onto a SARIF `level`.
+fn audit_sarif_level(severity: IssueSeverity) -> crate::output::sarif::Level {
+    use crate::output::sarif::Level;
+    match severity {
+        IssueSeverity::Critical | IssueSeverity::High => Level::Error,
+        IssueSeverity::Medium => Level::Warning,
+        IssueSeverity::Low | IssueSeverity::Info => Level::Note,
+    }
+}
+
+/// Build a SARIF document from audit findings. Each issue maps to one
+/// `results[]` entry (`category` → `ruleId`, severity → `level`, `file`/`line`
+/// → `locations[].physicalLocation.region`); the result set matches the JSON
+/// output's `issues[]`. Audit has no suppression model, so no `suppressions[]`.
+fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
+    use crate::output::sarif;
+
+    let mut rules: BTreeMap<String, sarif::ReportingDescriptor> = BTreeMap::new();
+    let mut results = Vec::with_capacity(data.issues.len());
+    for issue in &data.issues {
+        rules
+            .entry(issue.category.clone())
+            .or_insert_with(|| sarif::ReportingDescriptor::new(issue.category.clone()));
+        let line = u32::try_from(issue.line).unwrap_or(u32::MAX);
+        results.push(
+            sarif::SarifResult::new(
+                issue.category.clone(),
+                audit_sarif_level(issue.severity),
+                issue.message.clone(),
+            )
+            .location(sarif::Location::new(
+                issue.file.clone(),
+                Some(sarif::Region::line(line)),
+            ))
+            .fingerprint(
+                "anvilFingerprint/v1",
+                sarif::stable_fingerprint(&issue.category, &issue.file, Some(line), &issue.message),
+            ),
+        );
+    }
+    sarif::SarifLog::new(sarif::Run::new(rules.into_values().collect(), results))
 }
 
 fn print_json(data: &AuditData) -> anyhow::Result<()> {
@@ -1603,5 +1641,75 @@ mod tests {
             critical_findings, 3,
             "all Critical findings must survive truncation",
         );
+    }
+
+    // ── SARIF adapter (SARIFOUT-004) ────────────────────────────────
+
+    fn issue(severity: IssueSeverity, category: &str, file: &str, line: usize) -> AuditIssue {
+        AuditIssue {
+            severity,
+            category: category.to_string(),
+            message: format!("{category} finding"),
+            file: file.to_string(),
+            line,
+            fixable: false,
+        }
+    }
+
+    #[test]
+    fn audit_sarif_is_schema_valid_and_maps_severity() {
+        let data = AuditData {
+            project_name: "demo".to_string(),
+            total_files: 2,
+            issues: vec![
+                issue(IssueSeverity::Critical, "hardcoded-secret", "src/a.ts", 4),
+                issue(IssueSeverity::Medium, "large-file", "src/b.ts", 1),
+                issue(IssueSeverity::Info, "large-file", "src/c.ts", 9),
+            ],
+            historical_scores: Vec::new(),
+            next_steps: Vec::new(),
+        };
+        let value = serde_json::to_value(build_audit_sarif(&data)).expect("serialise");
+
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../output/sarif-schema-2.1.0.json"))
+                .expect("schema json");
+        let validator = jsonschema::validator_for(&schema).expect("compile schema");
+        let errors: Vec<String> = validator
+            .iter_errors(&value)
+            .map(|e| format!("{} at {}", e, e.instance_path()))
+            .collect();
+        assert!(errors.is_empty(), "schema errors:\n{}", errors.join("\n"));
+
+        let results = value["runs"][0]["results"].as_array().expect("results");
+        assert_eq!(results.len(), 3, "one result per audit issue");
+        // category → ruleId, severity → level (Critical→error, Medium→warning,
+        // Info→note).
+        let crit = results
+            .iter()
+            .find(|r| r["ruleId"] == "hardcoded-secret")
+            .unwrap();
+        assert_eq!(crit["level"], "error");
+        assert_eq!(
+            crit["locations"][0]["physicalLocation"]["region"]["startLine"],
+            4
+        );
+        assert!(
+            results
+                .iter()
+                .any(|r| r["ruleId"] == "large-file" && r["level"] == "warning")
+        );
+        assert!(
+            results
+                .iter()
+                .any(|r| r["ruleId"] == "large-file" && r["level"] == "note")
+        );
+        // `large-file` appears twice but is registered once in rules[].
+        let rules = value["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules");
+        assert_eq!(rules.len(), 2, "hardcoded-secret + large-file deduped");
+        // Audit has no suppression model.
+        assert!(results.iter().all(|r| r.get("suppressions").is_none()));
     }
 }

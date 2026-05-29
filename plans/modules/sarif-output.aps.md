@@ -11,7 +11,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 2/6      |
+| SARIFOUT | —     | In Progress | 3/6      |
 
 **Last reviewed:** 2026-05-29
 
@@ -111,8 +111,8 @@ with SARIFOUT-002).
 > Status: In Progress. The three design decisions (flag surface, module home,
 > shared model) were ratified by the operator on 2026-05-29, promoting this
 > module out of Proposed. SARIFOUT-001 Merged via PR #2099; SARIFOUT-002 Merged
-> via PR #2105; SARIFOUT-003 In Progress; SARIFOUT-004..006 Ready. Flag surface
-> landed per-command (not
+> via PR #2105; SARIFOUT-003 via PR #2107; SARIFOUT-004 In Progress;
+> SARIFOUT-005..006 Ready. Flag surface landed per-command (not
 > global) — see ADR-056's Amendment.
 
 ### SARIFOUT-001: `--format` value-enum and `OutputMode::Sarif` resolver
@@ -163,7 +163,7 @@ with SARIFOUT-002).
 
 ### SARIFOUT-003: `anvil check` SARIF adapter with `suppressions[]`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2107
 - **Intent:** `anvil check --format sarif` emits schema-valid SARIF including
   `@anvil-ignore`-suppressed findings under `suppressions[]`.
 - **Expected Outcome:** both `check` paths (source scan + non-source artifact)
@@ -188,16 +188,21 @@ with SARIFOUT-002).
 
 ### SARIFOUT-004: `anvil audit` SARIF adapter
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `anvil audit --format sarif` emits schema-valid SARIF for audit
   issues.
-- **Expected Outcome:** `AuditOutput.issues[]` map to SARIF `results[]` with
-  `category` → `ruleId`, severity → `level`, and `file`/`line` →
-  `locations[].physicalLocation.region`; the result set matches the JSON
-  output's issue set.
-- **Validation:** `cargo test -p anvil-cli` — golden + schema-validation fixture.
+- **Expected Outcome:** `build_audit_sarif` maps each `AuditData` issue to one
+  SARIF `result` (`category` → `ruleId`, `IssueSeverity` →
+  `level` [Critical/High→error, Medium→warning, Low/Info→note], `file`/`line` →
+  `region`, deterministic `partialFingerprints`); rules deduped by category; no
+  `suppressions[]` (audit has no suppression model). The result set matches the
+  JSON output's `issues[]`. Empty cwd → empty-but-valid document.
+- **Validation:** `cargo test -p eddacraft-anvil` — `audit.rs` unit test
+  validates the document against the bundled schema (severity→level, dedup,
+  no-suppressions); `tests/format_flag.rs` runs `audit --format sarif` end to
+  end.
 - **Files:** `crates/anvil-cli/src/commands/audit.rs`,
-  `crates/anvil-cli/src/output/sarif.rs`.
+  `crates/anvil-cli/src/output/sarif.rs` (consumer), `crates/anvil-cli/tests/format_flag.rs`.
 - **Dependencies:** SARIFOUT-001, SARIFOUT-002
 - **Confidence:** high
 

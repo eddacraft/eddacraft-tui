@@ -70,30 +70,26 @@ fn format_json_accepted_as_alias_on_finding_command() {
     );
 }
 
-/// The not-yet-wired finding commands report the pending state via their own
-/// `--format sarif` (both bail before any work, so no project setup needed).
-/// `check` is wired in SARIFOUT-003 and covered separately below.
+/// `gate` is the only finding command not yet wired for SARIF (SARIFOUT-005);
+/// `--format sarif` reports the pending state. `check` (SARIFOUT-003) and
+/// `audit` (SARIFOUT-004) emit SARIF and are covered separately below.
 #[test]
-fn format_sarif_reports_pending_on_unwired_commands() {
-    for command in ["gate", "audit"] {
-        let dir = temp_workdir(&format!("sarif-{command}"));
-        let out = anvil(&dir)
-            .args(["--no-tui", command, "--format", "sarif"])
-            .output()
-            .expect("failed to invoke anvil");
-        assert!(
-            !out.status.success(),
-            "`{command} --format sarif` should report not-yet-available; stdout:\n{}",
-            String::from_utf8_lossy(&out.stdout)
-        );
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        assert!(
-            stderr.contains(&format!(
-                "SARIF output for `anvil {command}` is not yet available"
-            )),
-            "expected the SARIF-pending message for `{command}`, got stderr:\n{stderr}"
-        );
-    }
+fn format_sarif_reports_pending_on_gate() {
+    let dir = temp_workdir("sarif-gate");
+    let out = anvil(&dir)
+        .args(["--no-tui", "gate", "--format", "sarif"])
+        .output()
+        .expect("failed to invoke anvil");
+    assert!(
+        !out.status.success(),
+        "`gate --format sarif` should report not-yet-available; stdout:\n{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("SARIF output for `anvil gate` is not yet available"),
+        "expected the SARIF-pending message for gate, got stderr:\n{stderr}"
+    );
 }
 
 /// SARIFOUT-003: `anvil check --format sarif` emits a well-formed SARIF 2.1.0
@@ -109,6 +105,28 @@ fn check_format_sarif_emits_well_formed_document() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
         panic!("`check --format sarif` stdout must be valid JSON ({e}); got:\n{stdout}")
+    });
+    assert_eq!(doc["version"], "2.1.0", "SARIF version");
+    assert_eq!(
+        doc["runs"][0]["tool"]["driver"]["name"], "anvil",
+        "tool.driver.name"
+    );
+    assert!(doc["runs"][0]["results"].is_array(), "results[] present");
+}
+
+/// SARIFOUT-004: `anvil audit --format sarif` emits a well-formed SARIF 2.1.0
+/// document on stdout, end to end (audit scans the cwd, so an empty dir yields
+/// an empty-but-valid document).
+#[test]
+fn audit_format_sarif_emits_well_formed_document() {
+    let dir = temp_workdir("audit-sarif");
+    let out = anvil(&dir)
+        .args(["--no-tui", "audit", "--format", "sarif"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("`audit --format sarif` stdout must be valid JSON ({e}); got:\n{stdout}")
     });
     assert_eq!(doc["version"], "2.1.0", "SARIF version");
     assert_eq!(
