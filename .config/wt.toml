@@ -5,13 +5,21 @@ copy = "wt step copy-ignored"
 [[post-start]]
 install = "pnpm install"
 
-# Build Rust crates
+# Build Rust crates. DEVENV-002 (ADR-057): relocate the target/ off the full
+# Projects mount onto /home before building, per-worktree (lock-free). Mirrors
+# .envrc for agents that drive `wt` without a direnv-hooked shell.
 [[post-start]]
-rust = "cargo build --workspace 2>/dev/null || true"
+rust = "export CARGO_TARGET_DIR=\"${HOME}/.cache/anvil-targets/$(basename \"$PWD\")\"; mkdir -p \"$CARGO_TARGET_DIR\"; cargo build --workspace 2>/dev/null || true"
 
 # Kill dev server for this worktree on remove
 [pre-remove]
 server = "lsof -ti :{{ branch | hash_port }} -sTCP:LISTEN | xargs kill 2>/dev/null || true"
+
+# DEVENV-002 (ADR-057): loud, non-blocking guard — warn if cargo builds in this
+# worktree are NOT relocated (CARGO_TARGET_DIR unset means they hit the full
+# Projects mount). `direnv allow` or the wt rust post-start set it.
+[[pre-commit]]
+target-reloc = "test -n \"${CARGO_TARGET_DIR:-}\" || echo 'WARNING (DEVENV-002): CARGO_TARGET_DIR is unset — cargo builds write to the in-tree target/ on the full Projects mount. Run: direnv allow'"
 
 # Quick checks on every commit
 [[pre-commit]]

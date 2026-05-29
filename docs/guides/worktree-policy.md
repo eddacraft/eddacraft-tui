@@ -160,6 +160,28 @@ git symbolic-ref refs/remotes/origin/HEAD     # must print refs/remotes/origin/m
 
 Without this, `gh pr create` may still propose `dev` as the default base.
 
+## Cargo target relocation (DEVENV-002)
+
+Per-worktree Rust `target/` dirs are large (~100 GB each) and the Projects mount
+fills fast — a full mount means `ENOSPC` for every worktree at once. To keep
+builds off that mount, each worktree relocates its Cargo target onto `/home` via
+`CARGO_TARGET_DIR=$HOME/.cache/anvil-targets/<worktree-dir-name>` (per-worktree,
+so no shared cargo build lock).
+
+Two committed mechanisms set it:
+
+- **direnv** — the committed `.envrc` exports it. Run `direnv allow` once per
+  worktree. Until you do, direnv prints a loud "blocked" nag on every `cd` —
+  that nag is the intended guard against silently building onto the full mount.
+- **`wt`** — the `.config/wt.toml` `rust` post-start exports the same, so
+  `wt`-driven worktrees relocate even without a direnv-hooked shell. A
+  non-blocking `wt` pre-commit warning fires if `CARGO_TARGET_DIR` is unset.
+
+If you use **neither** direnv nor `wt` in a shell, cargo builds into the in-tree
+`target/` on the full mount — reclaim a stray one with `cargo clean` (automated
+eviction lands with DEVENV-004). The relocation is inert on CI runners (no
+direnv, no `wt`), so the nx/Azure build cache is unaffected.
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)

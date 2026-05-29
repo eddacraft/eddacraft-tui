@@ -68,16 +68,24 @@ separate PRs; this ADR fixes the design.
    a **single combined commit** merged in a low-activity window.
 
 2. **Layered cache relocation off the full mount.**
-   - **Floor (bypass-proof):** a committed `.cargo/config.toml` with
-     `[build] target-dir = "$HOME/.cache/anvil-targets/shared"`. Cargo honours
-     this regardless of shell/agent, so an agent that bypasses `direnv`/`wt`
-     still writes off the Projects mount instead of re-filling it.
    - **Override (per-worktree isolation):** a committed `.envrc` and the
      `.config/wt.toml` `rust` post-start export a per-worktree
-     `CARGO_TARGET_DIR=$HOME/.cache/anvil-targets/<worktree-slug>`. When present
-     (the normal path), each worktree gets an isolated target with no cargo
-     dir-lock contention; the env var wins over the config floor.
-   The floor uses `$HOME` (cargo-expanded) so CI is unaffected.
+     `CARGO_TARGET_DIR=$HOME/.cache/anvil-targets/<worktree-slug>` on `/home`.
+     Each worktree gets an isolated target with no cargo dir-lock contention.
+   - **Floor (bypass guard):** a loud, non-blocking guard — direnv's own
+     "blocked, run `direnv allow`" nag, plus a `wt` pre-commit warning when
+     `CARGO_TARGET_DIR` is unset.
+
+   > **Amended during DEVENV-002 implementation (PR #2090-series).** The original
+   > "bypass-proof floor = committed `.cargo/config.toml` `target-dir`" is **not
+   > implementable**: cargo's config `target-dir` does **not** expand `$HOME`
+   > (verified — it creates a literal `$HOME/` dir), a hardcoded `/home/...` path
+   > is not committable, and a parent-dir operator config would relocate sibling
+   > projects too. Relocation is therefore env-driven (direnv/`wt`), with the
+   > operator accepting the residual porousness (a shell using neither) in
+   > exchange for a fully-committed, CI-safe change. Because nothing relocates on
+   > CI runners (no direnv, no `wt`), the nx/Azure cache is unaffected and the
+   > DEVENV-002→DEVENV-003 hard dependency is dissolved (DEVENV-003 deferred).
 
 3. **nx-rust executor relocation-awareness (correctness, not optional).** The
    `@eddacraft/nx-rust` `build` target is `cache: true` with

@@ -59,22 +59,31 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-002: Layered Rust target relocation off the Projects mount
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Wave:** 1 (harden now)
-- **Intent:** Stop ENOSPC by moving live `target/` dirs onto `/home`, bypass-proof
-  yet per-worktree-isolated on the normal path.
-- **Expected Outcome:** A committed `.cargo/config.toml` sets
-  `[build] target-dir = "$HOME/.cache/anvil-targets/shared"` as the bypass-proof
-  floor (honoured regardless of shell). A committed `.envrc` and the
-  `.config/wt.toml` `rust` post-start export a per-worktree
-  `CARGO_TARGET_DIR=$HOME/.cache/anvil-targets/<worktree-slug>` that overrides the
-  floor when present, giving lock-free isolation. CI is unaffected (`$HOME`-relative).
-- **Validation:** In a worktree with `direnv`/`wt` active, `cargo` writes to the
-  per-slug dir; in a raw shell with neither, it writes to the shared floor — never
-  into the in-tree `target/` on the Projects mount.
-- **Dependencies:** DEVENV-003 (nx must be relocation-aware before relocation is
-  advertised, or the nx/Azure cache breaks).
-- **Files:** `.cargo/config.toml` (new), `.envrc` (new), `.config/wt.toml`.
+- **Intent:** Stop ENOSPC by moving live `target/` dirs onto `/home`,
+  per-worktree-isolated (lock-free).
+- **Expected Outcome:** A committed `.envrc` (direnv) and the `.config/wt.toml`
+  `rust` post-start export a per-worktree
+  `CARGO_TARGET_DIR=$HOME/.cache/anvil-targets/<worktree-slug>` on `/home`. A
+  loud, non-blocking guard (direnv's own "blocked, run `direnv allow`" nag, plus
+  a `wt` pre-commit warning when `CARGO_TARGET_DIR` is unset) catches the case
+  where a build would hit the full mount. **Design change from the original ADR
+  plan:** the committed `.cargo/config.toml` "bypass-proof floor" was dropped —
+  cargo's config `target-dir` does NOT expand `$HOME` (verified: it creates a
+  literal `$HOME/` dir), a hardcoded `/home/...` path isn't committable, and a
+  parent-dir operator config would relocate sibling projects too. So relocation
+  is env-driven; the operator accepted the residual porousness (an agent using
+  neither direnv nor `wt`) in exchange for a fully-committed, CI-safe change.
+- **Validation:** `.envrc` resolves `CARGO_TARGET_DIR` to a per-worktree dir on
+  `/home` and creates it; the guard warns when unset and is silent when set;
+  everything is inert on CI runners (no direnv / no `wt`) so the nx/Azure build
+  cache is unaffected.
+- **Dependencies:** None blocking. DEVENV-003 (nx relocation-awareness) is **not**
+  required for CI correctness — relocation never happens on CI runners — and is
+  deferred; it remains needed for local nx `build`-target caching under
+  relocation and for the DEVENV-004 eviction sentinel.
+- **Files:** `.envrc` (new), `.config/wt.toml`, `docs/guides/worktree-policy.md`.
 - **Confidence:** high
 
 ### DEVENV-003: Make nx-rust executors relocation-aware + sentinel-emitting
