@@ -64,6 +64,12 @@
 | ------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----- | ------ |
 | [CLI Output Stream Policy](../../docs/guides/cli-output-streams.md) | `docs/guides/cli-output-streams.md` | Guide | Authoritative | CLAR  | Live   |
 
+## CLIC
+
+| Document                                                    | Path                           | Type    | Authority     | Owner | Status |
+| ----------------------------------------------------------- | ------------------------------ | ------- | ------------- | ----- | ------ |
+| [CLI Surface Reference](../../docs/runbooks/cli-surface.md) | `docs/runbooks/cli-surface.md` | Runbook | Authoritative | CLIC  | Live   |
+
 ## CMDSH
 
 | Document                                                                                    | Path                                          | Type  | Authority     | Owner | Status |

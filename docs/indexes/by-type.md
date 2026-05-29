@@ -90,6 +90,7 @@
 | [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                             | `docs/runbooks/anvil-adoption.md`              | Runbook | Authoritative | @aneki          | Live   |
 | [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                        | `docs/runbooks/anvil-air-gapped.md`            | Runbook | Authoritative | @aneki          | Live   |
 | [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                                  | `docs/runbooks/release-runbook.md`             | Runbook | Authoritative | RELORCH         | Live   |
+| [CLI Surface Reference](../../docs/runbooks/cli-surface.md)                                      | `docs/runbooks/cli-surface.md`                 | Runbook | Authoritative | CLIC            | Live   |
 | [Cargo Target Eviction Runbook](../../docs/runbooks/cargo-target-eviction.md)                    | `docs/runbooks/cargo-target-eviction.md`       | Runbook | Advisory      | DEVENV          | Live   |
 | [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)           | `docs/runbooks/homebrew-publish.md`            | Runbook | Authoritative | @aneki          | Live   |
 | [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)             | `docs/runbooks/anvil-hook-coexistence.md`      | Runbook | Authoritative | @aneki          | Live   |
