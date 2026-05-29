@@ -19,11 +19,13 @@ for a follow-up reconciliation PR.
 There is real work to do here, but it is bookkeeping, not feature risk: most
 items are stale cross-references to archived modules, contradictory
 `Released/Shipped` provenance lines tied to `v0.7.0-beta`, and header/body or
-narrative/count mismatches. Two findings carry systemic value — one off-by-one
-count that the count gate is structurally blind to (`####` task headings), and
-the lone `active-lint` structural error on `weave`.
+narrative/count mismatches. Two findings carry systemic value — the lone
+`active-lint` structural error on `weave`, and a class insight: the
+deterministic gates validate the derived header/index counts but not the
+*narrative* prose, so stale done/total figures written into module narratives
+(e.g. MLP2) can drift from the correct derived count undetected.
 
-## Actionable drift (prioritized)
+## Actionable drift (prioritised)
 
 ### High
 
@@ -40,7 +42,7 @@ the lone `active-lint` structural error on `weave`.
 
 | Module | Kind | Claim | Suggested fix |
 | --- | --- | --- | --- |
-| `multilayer-protection-v2.aps.md` | count-narrative-mismatch | Header `70/87`; narrative says total 86 / done 65 | True off-by-one: ground-truth is 71 done / 87 total. Set header (line 5) and the `index.aps.md` MLP2 row to `71/87`, drop the stale "done 65 / 3 released-shipped counted separately" narrative. **Root cause:** `extractModule` only matches `###` headings, so 8 `####`-using modules (MLP2 + compliance-policy-packs, opa-enhancements, policy-action-taxonomy, test-coverage-uplift, test-external-services, agent-governance-patterns, skill-discovery-observability) skip the count gate; widen the regex in `scripts/aps/lib/modules.mjs` or normalise to `###`. |
+| `multilayer-protection-v2.aps.md` | narrative-prose-drift | Module narrative says done 65 / total 86 (lines 10, 19, …) and the `index.aps.md` slate prose (line 133) reads `MLP2 70/86`, but the header (line 5) and derived count are `71/87` | The header/index count is correct and already passes the count gate — `extractModule` matches `#{3,4}` headings (`scripts/aps/lib/modules.mjs:62`), so MLP2's `#### ID-NNN:` items are counted (no `####` blind spot). The drift is stale **narrative prose** only: refresh the module's running done/total tallies and the `index.aps.md` line-133 slate figure to `71/87`. No regex or gate change needed. |
 | `compliance-evidence-workspace.aps.md` | archived-ref | NOTE(post-rust) says `policy-lifecycle` is archived | `policy-lifecycle` is Draft and live (not archived) and is still a live Depends-on (line 42); remove the false "archived" assertion in the NOTE block (line 17). |
 | `compliance-reporting.aps.md` | archived-ref | NOTE says opa-architecture-integration, drift-reporting, suppressions, `policy-lifecycle` are "all archived" | First three are archived; `policy-lifecycle` is still active (line 57). Edit the NOTE (lines 20-22) to exclude `policy-lifecycle` from the archived list. |
 | `config-intelligence.aps.md` | archived-ref | Lists SURFENV (`surface-env-files`) under "Consumed by (live planning modules)" | SURFENV is archived; repoint references (lines 28, 38, 100) to `plans/archive/modules/surface-env-files.aps.md` and move it out of the live-modules list with an "(archived)" note. |
@@ -90,6 +92,9 @@ justified the apparent drift.
 - **PR/tag claims used `gh`/`git` best-effort.** Where a finding states a tag or
   commit "verifies", it was checked against ancestry of `v0.7.0-beta`
   (`d7873161`); treat as best-effort, not a release audit.
-- **Known gate blind spot:** `drift-check.mjs`/`index-counts.mjs` skip the count
-  gate for modules using `####` task headings (8 modules, see the MLP2 finding),
-  so some count drift can pass the deterministic floor undetected.
+- **Known gate blind spot:** the deterministic gates validate the *derived*
+  header/index counts (`extractModule` matches both `###` and `####` work-item
+  headings — `scripts/aps/lib/modules.mjs:62`) but do not validate **narrative
+  prose**, so stale running done/total tallies written into module bodies or the
+  `index.aps.md` slate text can drift from the correct count undetected (see the
+  MLP2 finding).
