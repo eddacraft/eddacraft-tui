@@ -186,8 +186,14 @@ fn apply_env_propagation(cmd: &mut Command, session_id: &SessionId, agent_tag: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    // `PathBuf` and `dummy_tag` are consumed only by the `#[cfg(unix)]` tests
+    // below (Unix-first shell integration per INTL-006). Without matching cfg
+    // gates they are unused on Windows, which trips `-D warnings` in the
+    // `Cross (x86_64-pc-windows-msvc)` CI job.
+    #[cfg(unix)]
     use std::path::PathBuf;
 
+    #[cfg(unix)]
     fn dummy_tag() -> AgentTag {
         AgentTag::new("anvil-run", "claude-1", 1_700_000_000)
     }
