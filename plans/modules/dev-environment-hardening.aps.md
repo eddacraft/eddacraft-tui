@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 3/8      |
+| DEVENV | —     | In Progress | 4/8      |
 
 ## Purpose
 
@@ -140,7 +140,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-005: Align Node version + fix the oxfmt shadow + nx cache key
 
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2104
 - **Wave:** 1 (harden now)
 - **Intent:** Remove the four-way Node drift (and its `better-sqlite3` ABI
   failures) and the stale-global-`oxfmt` false failures, with a single cache-bust.
