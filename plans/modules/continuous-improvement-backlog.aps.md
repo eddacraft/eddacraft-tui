@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 23/35    |
+| CIB | —     | In Progress | 23/36    |
 
 ## Purpose
 
@@ -783,3 +783,51 @@ archive.
   architecture warnings-over-blocks principle in `.claude/rules/architecture.md`.
 - **Confidence:** high — the defect and the minimal fix scope are both concrete
   and the advisory exit-0 contract is unambiguous.
+
+### CIB-036: Active APS modules fail canonical `aps lint` (`## Work Items` section), masked by a multi-file lint bug
+
+- **Status:** Draft
+- **Intent:** Make `pnpm aps:active-lint` (the canonical `aps lint` validator)
+  pass on the active module set, and make it actually validate every active
+  module rather than silently one.
+- **Expected Outcome:** `pnpm aps:active-lint` validates each active
+  `plans/modules/*.aps.md` and is green. `aps lint plans/modules/weave.aps.md`
+  no longer reports `E002: Missing ## Work Items section`, and the other
+  phase-style modules that share the defect are likewise conformant.
+- **Two coupled problems (the second is why the first looked weave-only):**
+  1. **Module structure:** `weave.aps.md` organises its `WEAVE-NNN` items under
+     `## Phase 0..4` headings with no canonical `## Work Items` (or legacy
+     `## Tasks`) section, so the canonical validator emits `E002`. It is not
+     alone — direct `aps lint` runs confirm `graph-v2-foundation.aps.md` (E002)
+     and `email-broadcast.aps.md` (E002 **plus** `E003: Missing ID/Status
+     metadata table`) fail the same way; `early-access-migration`,
+     `early-access-tests`, `graph-context-delivery`, `rust-mcp-full-port`, and
+     `unified-config-format` use the same phase-only layout. (`tui-dashboard-render`
+     carries a `## Tasks` section, so it passes E002.)
+  2. **Lint masking bug (likely file separately):** `aps lint <f1> <f2> …`
+     only validates ONE file — it reports `1 file checked` and findings for the
+     *last* argument regardless of how many are passed (verified by reordering
+     args). `scripts/aps/active-lint.mjs` passes the whole active set in a
+     single `spawnSync(apsBin, ['lint', ...files])`, so the gate has been
+     checking only the last-sorted module (`weave.aps.md`). Until this is fixed
+     (loop `aps lint` per file, or fix the binary's multi-arg handling), the
+     true count of non-conformant active modules is unknown.
+- **Triage decision needed:** either (a) restructure the phase-style modules to
+  a canonical `## Work Items` section (phases become subsections or annotations),
+  or (b) confirm whether canonical `anvil-plan-spec` is meant to accept phase
+  groupings — if so, the gap is in the validator, not the modules.
+- **Validation:** `aps lint plans/modules/weave.aps.md` exits 0 with no E002;
+  after the per-file fix, `pnpm aps:active-lint` reports `N files checked`
+  (N = active module count) and is green; `pnpm format:check` for any docs
+  touched.
+- **Identified From:** Surfaced 2026-05-29 while reconciling CIB-002 (PR #2079) —
+  `pnpm aps:active-lint` reported a lone `E002` on `weave.aps.md`; investigating
+  why only one module flagged uncovered the `aps lint` multi-file masking bug and
+  the broader phase-style non-conformance. `active-lint` is local-only (not a CI
+  gate), so this is advisory friction, not a release blocker.
+- **Coordinates with:** APSCAN (canonical `anvil-plan-spec` adoption boundary,
+  `plans/specs/2026-05-25-aps-cli-adoption-boundary.md`); the `## Work Items`
+  vs legacy `## Tasks` parser contract.
+- **Confidence:** medium — detection is concrete, but the fix shape (restructure
+  modules vs. validator behaviour) needs a triage call, and the masking bug means
+  the full set of failing modules is unknown until the per-file fix lands.
