@@ -2,7 +2,7 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | Ready  | 0/12     |
+| TUIDASH | —     | In Progress | 1/12 |
 
 **Last reviewed:** 2026-05-27
 
@@ -188,7 +188,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 **Phase 1 — Spec Parser & Registry**
 
 ### TUIDASH-001: JSON spec parser crate
-- **Status:** In Progress
+- **Status:** Merged 2026-05-29 via PR #2068
 - **Intent:** Deserialise json-render's flat element format into typed Rust
   structures using serde
 - **Expected Outcome:** `RenderSpec`, `Element`, `PropValue` types that

@@ -1219,3 +1219,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When a worktree is cut from `origin/main` while local `main` is stale, trust `git diff origin/main..HEAD` and the GitHub-computed PR file list over `--branch`/guidance diffs — the latter inflate the change set and mis-route the review tier.
 - **Follow-up:** none (CLAWP-017 still in flight with its owner; CLAWP-024's test merged to main but its APS status was left Draft by the sibling — their bookkeeping to close).
 
+
+### 2026-05-29 — claude (#2068)
+
+- **Task:** "complete NBI via /dev-workflow" — NBI = Next Best Item from the new `plans/index.aps.md` NBI index. Rank-1 (EMAIL-010) and my own first picks (CIB-029/-026) were already open sibling PRs; user chose the top *unclaimed* Do-now NBI: TUIDASH-001 (json-render spec parser).
+- **Outcome:** Shipped the `json_render` engine in published `eddacraft-tui` behind a default-off `json-render` feature (RenderSpec/Element/PropValue + Catalog + validate); PR #2068, TUIDASH 0/12 → 1/12, NBI Rank-3 advanced to TUIDASH-002. Council (standard pack) converged: 4 fixed (headline: iterative cycle detection), 2 resolved-with-rationale.
+- **Worked:** Reading `packages/libs/render/` (the real `@json-render/core` contract + 3 template specs) before coding pinned the exact wire format; vendoring those specs as in-crate fixtures gave real round-trip fidelity while keeping the published crate self-contained. Council caught a genuine MAJOR (cyclic `children` → stack-overflow vs the module's must-not-panic constraint) that all three reviewers flagged.
+- **Failed:** Nothing substantive; one serde gotcha (`Option<Value>` maps JSON `null` → `None`) flipped a test red first, which clarified the correct `visible` null-collapse contract.
+- **Friction:** The `/home/aneki/Projects` disk was 100% full — ~14 sibling worktrees each carry a full ~100G Rust `target/` (1.7T total), so even writing a source file hit ENOSPC. The TUIDASH-001 APS `Dependencies:`/`Validation:` lines were stale (pre-ADR-054, pointed at a dropped `apps/website/data/dashboard-templates/` path).
+- **Improvement:** Worktree tooling should share one `CARGO_TARGET_DIR` (or the post-start `rust` hook should) instead of a per-worktree 100G target — the current layout oversubscribes the Projects disk and intermittently ENOSPC-blocks every agent. Worked around by reclaiming only my own worktree's target and building to an external target dir on the roomy disk; touched no sibling worktree.
+- **Follow-up:** shared-target worktree config is a real recurring infra fix — candidate CIB item if it recurs.
+
+
