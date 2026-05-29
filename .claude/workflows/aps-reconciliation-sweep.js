@@ -157,14 +157,20 @@ Finding:
   claim:    ${f.claim}
   evidence: ${f.evidence}
 
+Deterministic baseline already computed for this repo (the mechanical floor — trust it over the finding's own quoted numbers):
+${baseline}
+
 Steps:
 1. Read the relevant section of plans/modules/${f.module}. Check for an "Audit note"/"Rescope"/status-extension block that intentionally accounts for the state. If present, the finding is likely intentional.
 2. kind 'pr-claim-unverified': run \`gh pr view <N> --json state,mergedAt,title 2>/dev/null\` or \`git log --oneline --grep "#<N>"\`. ALSO check project convention before flagging a commit hash as "wrong": grep other modules for the same "Released/Shipped via <tag>" line — if they uniformly cite the same commit, that is the RELEASE-TAG commit by convention and is CORRECT, not drift.
 3. kind 'archived-ref': confirm the referenced module is actually under plans/archive/modules/ via \`ls plans/archive/modules/\`.
 4. kind 'prod-wireup-unverified': do NOT try to prove wire-up; mark real only if the module asserts "live/shipped" with zero referenced evidence.
 5. kind 'stale-review-date': real only if the module is Ready/In Progress AND the date is genuinely old.
+6. kind 'count-narrative-mismatch' / 'status-body-mismatch': do NOT trust the numbers quoted in the finding — establish ground truth yourself. The DERIVED progress count comes from work-item headings, which the gate matches as \`#{3,4}\` (BOTH \`###\` and \`####\`) — READ \`scripts/aps/lib/modules.mjs\` to confirm exactly what it counts before asserting anything about gate behaviour. Then read the module's own header line and its \`plans/index.aps.md\` row, and re-derive the count. If the baseline above reports 0 count drifts, the header and index ALREADY agree with the derived count, so any remaining mismatch lives ONLY in NARRATIVE PROSE (running tallies in the body, slate/summary descriptions) — which the deterministic gates do not validate. Tag it as prose drift and point the fix at the prose. Real only if a quoted ground-truth number is genuinely wrong.
 
-Set real, intentional, a one-line reason, and a concrete suggested_fix (exact status flip, link repoint, or "verify X") — or suggested_fix "none" if not real.`,
+Hard rule: never assert how a deterministic gate or script behaves (what it counts, skips, or is "blind to") unless you READ the relevant script (e.g. \`scripts/aps/lib/modules.mjs\`) during THIS verification and can cite it. If you did not read it, omit any tooling root-cause from suggested_fix — describe only the observed drift.
+
+Set real, intentional, a one-line reason, and a concrete suggested_fix (exact status flip, link repoint, prose figure to refresh, or "verify X") — or suggested_fix "none" if not real.`,
           { label: `verify:${f.module}:${f.kind}`, phase: 'Verify', schema: VERDICT_SCHEMA, agentType: 'general-purpose' },
         ).then((v) => ({ ...f, verdict: v })),
       ),
