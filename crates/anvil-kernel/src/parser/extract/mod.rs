@@ -63,11 +63,16 @@ pub trait LanguageExtractor {
 
 /// Extract symbols from a tree-sitter AST.
 ///
-/// Language-agnostic: dispatches to the matching [`LanguageExtractor`] based on
-/// the file extension. Unknown extensions yield an empty [`FileSymbols`] (the
-/// parser layer rejects unsupported files up front via
-/// [`Language::from_path`], so in practice this path is only reached for files
-/// that already parsed under a known grammar).
+/// Language-agnostic: dispatches to the matching [`LanguageExtractor`] keyed on
+/// the file's extension via [`Language::from_path`].
+///
+/// In normal flow `tree` comes from [`Parser::parse_bytes`](crate::parser::Parser::parse_bytes), which rejects
+/// unsupported extensions up front — so `file_path` always maps to a known
+/// language and the dispatch always reaches an extractor. The
+/// unsupported-extension arm is therefore purely defensive against direct
+/// misuse (a caller handing in a tree whose path has no known grammar): it
+/// returns an empty [`FileSymbols`] and trips a `debug_assert!` in debug
+/// builds rather than silently losing symbols.
 pub fn extract_symbols(
     tree: &tree_sitter::Tree,
     source: &[u8],
