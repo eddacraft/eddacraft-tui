@@ -1389,10 +1389,10 @@ section above; this block focuses on the build-time runtime surface.
 | @jest/diff-sequences | 30.0.1 | MIT | https://github.com/jestjs/jest |
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
 | @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
-| @nx/nx-linux-x64-gnu | 22.7.3 | MIT | https://github.com/nrwl/nx |
+| @nx/nx-linux-x64-gnu | 22.7.5 | MIT | https://github.com/nrwl/nx |
 | @oxc-project/types | 0.132.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxfmt/binding-linux-x64-gnu | 0.51.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxlint/binding-linux-x64-gnu | 1.66.0 | MIT | https://github.com/oxc-project/oxc |
+| @oxfmt/binding-linux-x64-gnu | 0.52.0 | MIT | https://github.com/oxc-project/oxc |
+| @oxlint/binding-linux-x64-gnu | 1.67.0 | MIT | https://github.com/oxc-project/oxc |
 | @playwright/test | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
 | @rolldown/binding-linux-x64-gnu | 1.0.2 | MIT | https://github.com/rolldown/rolldown |
 | @rolldown/pluginutils | 1.0.1 | MIT | https://github.com/rolldown/plugins |
@@ -1432,7 +1432,6 @@ section above; this block focuses on the build-time runtime surface.
 | base64-js | 1.5.1 | MIT | https://github.com/beatgammit/base64-js |
 | bl | 4.1.0 | MIT | https://github.com/rvagg/bl |
 | brace-expansion | 1.1.14 | MIT | https://github.com/juliangruber/brace-expansion |
-| brace-expansion | 5.0.5 | MIT | https://github.com/juliangruber/brace-expansion |
 | brace-expansion | 5.0.6 | MIT | https://github.com/juliangruber/brace-expansion |
 | buffer | 5.7.1 | MIT | https://github.com/feross/buffer |
 | call-bind-apply-helpers | 1.0.2 | MIT | https://github.com/ljharb/call-bind-apply-helpers |
@@ -1579,7 +1578,7 @@ section above; this block focuses on the build-time runtime surface.
 | normalize-package-data | 2.5.0 | BSD-2-Clause | https://github.com/npm/normalize-package-data |
 | npm-normalize-package-bin | 1.0.1 | ISC | https://github.com/npm/npm-normalize-package-bin |
 | npm-run-path | 4.0.1 | MIT | https://github.com/sindresorhus/npm-run-path |
-| nx | 22.7.3 | MIT | https://github.com/nrwl/nx |
+| nx | 22.7.5 | MIT | https://github.com/nrwl/nx |
 | obug | 2.1.1 | MIT | https://github.com/sxzz/obug |
 | once | 1.4.0 | ISC | https://github.com/isaacs/once |
 | onetime | 5.1.2 | MIT | https://github.com/sindresorhus/onetime |
@@ -1588,8 +1587,8 @@ section above; this block focuses on the build-time runtime surface.
 | os-homedir | 1.0.2 | MIT | https://github.com/sindresorhus/os-homedir |
 | os-tmpdir | 1.0.2 | MIT | https://github.com/sindresorhus/os-tmpdir |
 | osenv | 0.1.5 | ISC | https://github.com/npm/osenv |
-| oxfmt | 0.51.0 | MIT | https://github.com/oxc-project/oxc |
-| oxlint | 1.66.0 | MIT | https://github.com/oxc-project/oxc |
+| oxfmt | 0.52.0 | MIT | https://github.com/oxc-project/oxc |
+| oxlint | 1.67.0 | MIT | https://github.com/oxc-project/oxc |
 | parse-entities | 4.0.2 | MIT | https://github.com/wooorm/parse-entities |
 | path-is-absolute | 1.0.1 | MIT | https://github.com/sindresorhus/path-is-absolute |
 | path-key | 3.1.1 | MIT | https://github.com/sindresorhus/path-key |
@@ -1645,7 +1644,7 @@ section above; this block focuses on the build-time runtime surface.
 | tinyglobby | 0.2.16 | MIT | https://github.com/SuperchupuDev/tinyglobby |
 | tinypool | 2.1.0 | MIT | https://github.com/tinylibs/tinypool |
 | tinyrainbow | 3.1.0 | MIT | https://github.com/tinylibs/tinyrainbow |
-| tmp | 0.2.4 | MIT | https://github.com/raszi/node-tmp |
+| tmp | 0.2.6 | MIT | https://github.com/raszi/node-tmp |
 | tree-kill | 1.2.2 | MIT | https://github.com/pkrumins/node-tree-kill |
 | treeify | 1.1.0 | MIT | https://github.com/notatestuser/treeify |
 | tsconfig-paths | 4.2.0 | MIT | https://github.com/dividab/tsconfig-paths |
@@ -1662,7 +1661,7 @@ section above; this block focuses on the build-time runtime surface.
 | wrap-ansi | 7.0.0 | MIT | https://github.com/chalk/wrap-ansi |
 | wrappy | 1.0.2 | ISC | https://github.com/npm/wrappy |
 | y18n | 5.0.8 | ISC | https://github.com/yargs/y18n |
-| yaml | 2.8.0 | ISC | https://github.com/eemeli/yaml |
+| yaml | 2.9.0 | ISC | https://github.com/eemeli/yaml |
 | yargs-parser | 21.1.1 | ISC | https://github.com/yargs/yargs-parser |
 | yargs | 17.7.2 | MIT | https://github.com/yargs/yargs |
 <!-- END AUTO-GENERATED node-devtools -->
