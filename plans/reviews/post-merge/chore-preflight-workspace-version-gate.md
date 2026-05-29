@@ -15,7 +15,7 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Step 2 — Confirm the live gate passes against the current workspace
       version on `main`:
       `bash scripts/release/preflight.sh --json | node -e 'const j=JSON.parse(require("fs").readFileSync(0));const g=j.data.gates.find(x=>x.id==="cargo-version");console.log(g.status)'`
-      reports `passed` (the workspace `Cargo.toml` version differs from the
+      reports `pass` (the workspace `Cargo.toml` version differs from the
       latest existing release tag and matches root `package.json`) (agent: yes)
 - [ ] Step 3 — At the next release cut, exercise the gate end-to-end: invoke
       `bash scripts/release/preflight.sh --version <vX.Y.Z>` with the intended
