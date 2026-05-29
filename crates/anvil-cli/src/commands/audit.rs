@@ -26,12 +26,19 @@ pub struct AuditArgs {
 pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     use crate::output::OutputMode;
 
+    let mode = OutputMode::from_command_format(args.format, global);
+
+    // SARIFOUT-004 wires the real `anvil audit` SARIF adapter; until then, bail
+    // before the (full-repository) audit scan so `--format sarif` is cheap and
+    // consistent with `check` / `gate`.
+    if mode == OutputMode::Sarif {
+        anyhow::bail!("{}", crate::output::sarif_pending_message("audit"));
+    }
+
     let data = run_audit(Path::new("."));
 
-    match OutputMode::from_command_format(args.format, global) {
+    match mode {
         OutputMode::Json => print_json(&data)?,
-        // SARIFOUT-004 wires the real `anvil audit` SARIF adapter here.
-        OutputMode::Sarif => anyhow::bail!("{}", crate::output::sarif_pending_message("audit")),
         OutputMode::Tui => {
             let mut state = AuditState::new(data);
             loop {
@@ -52,7 +59,9 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 break;
             }
         }
-        OutputMode::Plain => print_plain(&data),
+        // `Sarif` is handled by the early bail above; grouped here only for
+        // match exhaustiveness (SARIFOUT-004 wires real emission).
+        OutputMode::Plain | OutputMode::Sarif => print_plain(&data),
     }
 
     Ok(())

@@ -2030,10 +2030,6 @@ fn check_name_to_category(name: &str) -> Category {
     }
 }
 
-/// Run gate checks and return whether all gates passed.
-///
-/// Returns `Ok(true)` when every check passes and `Ok(false)` when at
-/// least one check fails (caller maps this to `EXIT_GATE_FAIL`).
 /// Resolve the gate command's output mode.
 ///
 /// An explicit, non-`auto` `--format` wins outright (including over the
@@ -2058,6 +2054,10 @@ fn resolve_gate_output_mode(
     }
 }
 
+/// Run gate checks and return whether all gates passed.
+///
+/// Returns `Ok(true)` when every check passes and `Ok(false)` when at
+/// least one check fails (caller maps this to `EXIT_GATE_FAIL`).
 pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     use crate::output::OutputMode;
 
