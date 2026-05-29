@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 2/8      |
+| DEVENV | —     | In Progress | 3/8      |
 
 ## Purpose
 
@@ -115,7 +115,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-004: Disk-pressure target eviction (race-safe, dry-run-first)
 
-- **Status:** Proposed
+- **Status:** Merged 2026-05-29 via PR #2101
 - **Wave:** 1 (harden now)
 - **Intent:** Keep `/home` bounded by reclaiming idle relocated targets without
   ever deleting a target a build is using, given the PreToolUse safety hooks are
