@@ -169,4 +169,5 @@ original motivating case in the tutorial watcher.
 
 ## Related
 
-- Canonical CLI surface reference (all commands and flags): `docs/runbooks/cli-surface.md`
+- Canonical CLI surface reference (all commands and flags):
+  `docs/runbooks/cli-surface.md`

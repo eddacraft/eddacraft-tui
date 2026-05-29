@@ -1,44 +1,48 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                     |
-| ------- | ------------- | ----- | ------ | --------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Created 2026-05-29 from current command set   |
+| Type    | Authority     | Owner | Status | Freshness                                   |
+| ------- | ------------- | ----- | ------ | ------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Created 2026-05-29 from current command set |
 
-| Upstream                                                    | Downstream                                                 |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
+| Upstream                                                         | Downstream                                                  |
+| ---------------------------------------------------------------- | ----------------------------------------------------------- |
 | `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/commands/` | Operator procedures, onboarding docs, CI integration guides |
 
-Canonical per-command reference for the `anvil` CLI. Documents the **current** command set; the spec (`plans/specs/2026-05-07-cli-surface-coherence.md`) describes planned future renames and consolidations — each entry notes these where relevant.
+Canonical per-command reference for the `anvil` CLI. Documents the **current**
+command set; the spec (`plans/specs/2026-05-07-cli-surface-coherence.md`)
+describes planned future renames and consolidations — each entry notes these
+where relevant.
 
 **Global flags** available on every command:
 
-| Flag        | Description                                         |
-| ----------- | --------------------------------------------------- |
-| `--json`    | Output results as JSON instead of human-readable text. |
-| `--no-tui`  | Disable TUI rendering; use plain text output.       |
-| `--verbose` / `-v` | Enable verbose logging.                      |
+| Flag               | Description                                            |
+| ------------------ | ------------------------------------------------------ |
+| `--json`           | Output results as JSON instead of human-readable text. |
+| `--no-tui`         | Disable TUI rendering; use plain text output.          |
+| `--verbose` / `-v` | Enable verbose logging.                                |
 
 ---
 
 ## anvil audit
 
-**Class:** User-explicit
-**Purpose:** Run a full project audit.
-**When to use:** On-demand deep scan of the current project for anti-patterns and issues across all source files.
+**Class:** User-explicit **Purpose:** Run a full project audit. **When to use:**
+On-demand deep scan of the current project for anti-patterns and issues across
+all source files.
 
 **Synopsis:** `anvil audit [--format <fmt>]`
 
 **Flags:**
 
-| Flag              | Description                                                |
-| ----------------- | ---------------------------------------------------------- |
-| `--format <fmt>`  | Output format: `auto` (default), `tui`, `plain`, `json`, or `sarif`. |
+| Flag             | Description                                                          |
+| ---------------- | -------------------------------------------------------------------- |
+| `--format <fmt>` | Output format: `auto` (default), `tui`, `plain`, `json`, or `sarif`. |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
 **Common errors:**
 
-- `--format sarif` not yet wired: SARIF output for `audit` is pending — use `check` or `gate` for SARIF today.
+- `--format sarif` not yet wired: SARIF output for `audit` is pending — use
+  `check` or `gate` for SARIF today.
 
 **Examples:**
 
@@ -51,27 +55,30 @@ $ anvil audit --format json | jq .
 
 ## anvil audit-chain
 
-**Class:** User-explicit (on-demand) / Background (CI cron)
-**Purpose:** Audit the witness chain for commits that bypassed protection.
-**When to use:** Nightly in CI to detect force-pushed or admin-overridden commits; on-demand when a bypass is suspected.
+**Class:** User-explicit (on-demand) / Background (CI cron) **Purpose:** Audit
+the witness chain for commits that bypassed protection. **When to use:** Nightly
+in CI to detect force-pushed or admin-overridden commits; on-demand when a
+bypass is suspected.
 
-**Synopsis:** `anvil audit-chain [--branch <ref>] [--since <ref>] [--threshold <n>] [--rescan] [--max-runtime <secs>]`
+**Synopsis:**
+`anvil audit-chain [--branch <ref>] [--since <ref>] [--threshold <n>] [--rescan] [--max-runtime <secs>]`
 
 **Flags:**
 
-| Flag                   | Description                                                                        |
-| ---------------------- | ---------------------------------------------------------------------------------- |
-| `--branch <ref>`       | Branch tip to walk back from. Default: `HEAD`.                                     |
-| `--since <ref>`        | Earliest ancestor to include (walks `<since>..<branch>`).                          |
-| `--threshold <n>`      | Drift count threshold for the `degraded:audit-drift` marker. Default: `5`.         |
-| `--rescan`             | Re-run the rule engine across history in addition to witness-presence checks.      |
-| `--max-runtime <secs>` | Wall-clock cap on the audit walk. Stops with `partial: true` when exceeded.        |
+| Flag                   | Description                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `--branch <ref>`       | Branch tip to walk back from. Default: `HEAD`.                                |
+| `--since <ref>`        | Earliest ancestor to include (walks `<since>..<branch>`).                     |
+| `--threshold <n>`      | Drift count threshold for the `degraded:audit-drift` marker. Default: `5`.    |
+| `--rescan`             | Re-run the rule engine across history in addition to witness-presence checks. |
+| `--max-runtime <secs>` | Wall-clock cap on the audit walk. Stops with `partial: true` when exceeded.   |
 
 **Exit codes:** 0 (clean), 2 (drift threshold exceeded), 1 (scan error)
 
 **Common errors:**
 
-- `degraded:audit-drift`: unwitnessed commit count meets or exceeds `--threshold`. Review with `anvil doctor`.
+- `degraded:audit-drift`: unwitnessed commit count meets or exceeds
+  `--threshold`. Review with `anvil doctor`.
 
 **Examples:**
 
@@ -85,28 +92,31 @@ $ anvil audit-chain --rescan --max-runtime 60
 
 ## anvil check
 
-**Class:** User-explicit
-**Purpose:** Scan files for anti-patterns and hardcoded secrets (planless mode).
-**When to use:** Quick ad-hoc scan of specific files or changed files without a full gate profile. For architecture, policy, and dependency checks use `anvil gate`.
+**Class:** User-explicit **Purpose:** Scan files for anti-patterns and hardcoded
+secrets (planless mode). **When to use:** Quick ad-hoc scan of specific files or
+changed files without a full gate profile. For architecture, policy, and
+dependency checks use `anvil gate`.
 
-**Synopsis:** `anvil check [files...] [--changed] [--staged] [--since <ref>] [--all] [--extensions <exts>] [--severity <level>] [--artifact <kind>] [--format <fmt>]`
+**Synopsis:**
+`anvil check [files...] [--changed] [--staged] [--since <ref>] [--all] [--extensions <exts>] [--severity <level>] [--artifact <kind>] [--format <fmt>]`
 
 **Flags:**
 
-| Flag                   | Description                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `files`                | Files to analyse (positional). Overrides `--changed`/`--staged`/`--since`.              |
-| `--changed`            | Analyse git-changed files only.                                                          |
-| `--staged`             | Analyse only staged files (implies `--changed`).                                         |
-| `--since <ref>`        | Compare against a git ref (implies `--changed`).                                         |
-| `--all`                | Analyse all source files in the project.                                                 |
-| `--extensions <exts>`  | Comma-separated file extensions to analyse (e.g. `.ts,.tsx,.html`).                      |
-| `--severity <level>`   | Minimum severity for blocking: `error`, `warning`, `info`. Default: `error`.             |
-| `--include-opt-in`     | Include opt-in patterns.                                                                 |
-| `--artifact <kind>`    | Artifact kind: `source` (default), `pr-description`, `commit-message`, `agent-output`.  |
-| `--format <fmt>`       | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                                  |
+| Flag                  | Description                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `files`               | Files to analyse (positional). Overrides `--changed`/`--staged`/`--since`.             |
+| `--changed`           | Analyse git-changed files only.                                                        |
+| `--staged`            | Analyse only staged files (implies `--changed`).                                       |
+| `--since <ref>`       | Compare against a git ref (implies `--changed`).                                       |
+| `--all`               | Analyse all source files in the project.                                               |
+| `--extensions <exts>` | Comma-separated file extensions to analyse (e.g. `.ts,.tsx,.html`).                    |
+| `--severity <level>`  | Minimum severity for blocking: `error`, `warning`, `info`. Default: `error`.           |
+| `--include-opt-in`    | Include opt-in patterns.                                                               |
+| `--artifact <kind>`   | Artifact kind: `source` (default), `pr-description`, `commit-message`, `agent-output`. |
+| `--format <fmt>`      | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                                |
 
-**Exit codes:** 0 (no blocking findings), 1 (blocked or error), 2 (gate check failed), 3 (auth required)
+**Exit codes:** 0 (no blocking findings), 1 (blocked or error), 2 (gate check
+failed), 3 (auth required)
 
 **Examples:**
 
@@ -121,19 +131,20 @@ $ anvil check --since main --severity warning
 
 ## anvil doctor
 
-**Class:** User-explicit
-**Purpose:** Run diagnostic checks on your environment.
-**When to use:** When Anvil is behaving unexpectedly or a setup step failed. Also useful as a pre-flight in CI.
+**Class:** User-explicit **Purpose:** Run diagnostic checks on your environment.
+**When to use:** When Anvil is behaving unexpectedly or a setup step failed.
+Also useful as a pre-flight in CI.
 
 **Synopsis:** `anvil doctor [--fix]`
 
 **Flags:**
 
-| Flag    | Description                              |
-| ------- | ---------------------------------------- |
-| `--fix` | Auto-fix issues where possible.          |
+| Flag    | Description                     |
+| ------- | ------------------------------- |
+| `--fix` | Auto-fix issues where possible. |
 
-**Exit codes:** 0 (healthy), 1 (degraded), 2 (gate problem found), 3 (auth required)
+**Exit codes:** 0 (healthy), 1 (degraded), 2 (gate problem found), 3 (auth
+required)
 
 **Examples:**
 
@@ -147,19 +158,18 @@ $ anvil doctor --json | jq .checks
 
 ## anvil config
 
-**Class:** Admin
-**Purpose:** Show, set, and convert Anvil project config.
+**Class:** Admin **Purpose:** Show, set, and convert Anvil project config.
 **When to use:** To inspect or modify rule modes in `.anvilrc` / `.anvil.<ext>`.
 
 **Synopsis:** `anvil config <show|set <rule> <mode>|convert --to <fmt>>`
 
 **Subcommands:**
 
-| Subcommand               | Description                                         |
-| ------------------------ | --------------------------------------------------- |
-| `show`                   | Show the effective Anvil config.                    |
-| `set <rule> <mode>`      | Set a rule mode in the project config.              |
-| `convert --to <fmt>`     | Convert the project config to another format.       |
+| Subcommand           | Description                                   |
+| -------------------- | --------------------------------------------- |
+| `show`               | Show the effective Anvil config.              |
+| `set <rule> <mode>`  | Set a rule mode in the project config.        |
+| `convert --to <fmt>` | Convert the project config to another format. |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
@@ -175,20 +185,20 @@ $ anvil config convert --to yaml
 
 ## anvil drift
 
-**Class:** User-explicit
-**Purpose:** Track architecture drift over time.
-**When to use:** To capture architecture snapshots, compare them, or generate a drift report against a baseline.
+**Class:** User-explicit **Purpose:** Track architecture drift over time. **When
+to use:** To capture architecture snapshots, compare them, or generate a drift
+report against a baseline.
 
 **Synopsis:** `anvil drift <snapshot|compare|report|list>`
 
 **Subcommands:**
 
-| Subcommand                           | Description                              |
-| ------------------------------------ | ---------------------------------------- |
-| `snapshot [--name <name>]`           | Capture current state as a snapshot.     |
-| `compare <snapshot1> <snapshot2>`    | Compare two snapshots.                   |
-| `report [--since <snapshot>]`        | Generate a drift report.                 |
-| `list [--limit <n>]`                 | List available snapshots.                |
+| Subcommand                        | Description                          |
+| --------------------------------- | ------------------------------------ |
+| `snapshot [--name <name>]`        | Capture current state as a snapshot. |
+| `compare <snapshot1> <snapshot2>` | Compare two snapshots.               |
+| `report [--since <snapshot>]`     | Generate a drift report.             |
+| `list [--limit <n>]`              | List available snapshots.            |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -205,29 +215,29 @@ $ anvil drift list
 
 ## anvil edda
 
-**Class:** User-explicit
-**Purpose:** List, show, and trace Edda canonical memories.
-**When to use:** To inspect memories stored in `.anvil/edda/` — useful for debugging APS state and understanding past decisions.
+**Class:** User-explicit **Purpose:** List, show, and trace Edda canonical
+memories. **When to use:** To inspect memories stored in `.anvil/edda/` — useful
+for debugging APS state and understanding past decisions.
 
 **Synopsis:** `anvil edda <list|show>`
 
 **Subcommands:**
 
-| Subcommand                | Description                                   |
-| ------------------------- | --------------------------------------------- |
-| `list` (alias: `ls`)      | List Edda memories with filtering.            |
-| `show <id>`               | Show a single Edda memory with full metadata. |
+| Subcommand           | Description                                   |
+| -------------------- | --------------------------------------------- |
+| `list` (alias: `ls`) | List Edda memories with filtering.            |
+| `show <id>`          | Show a single Edda memory with full metadata. |
 
 **`list` flags:**
 
-| Flag                    | Description                                                |
-| ----------------------- | ---------------------------------------------------------- |
-| `--json`                | Output as JSON.                                            |
-| `--type <TYPE>`         | Filter by memory type (comma-separated).                   |
-| `--status <status>`     | Filter by memory status. Default: `active`.                |
-| `--confidence <LEVEL>`  | Filter by confidence level(s): `low`, `medium`, `high`.    |
-| `--since <DURATION>`    | Filter by age: `30m`, `24h`, `7d`.                         |
-| `--limit <n>`           | Maximum memories to display. Default: 20.                  |
+| Flag                   | Description                                             |
+| ---------------------- | ------------------------------------------------------- |
+| `--json`               | Output as JSON.                                         |
+| `--type <TYPE>`        | Filter by memory type (comma-separated).                |
+| `--status <status>`    | Filter by memory status. Default: `active`.             |
+| `--confidence <LEVEL>` | Filter by confidence level(s): `low`, `medium`, `high`. |
+| `--since <DURATION>`   | Filter by age: `30m`, `24h`, `7d`.                      |
+| `--limit <n>`          | Maximum memories to display. Default: 20.               |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -243,16 +253,16 @@ $ anvil edda show mem_abc123
 
 ## anvil status
 
-**Class:** User-explicit
-**Purpose:** Show project status and health.
-**When to use:** Daily check of Anvil's protection state for the current repo. Also useful in CI as a health probe.
+**Class:** User-explicit **Purpose:** Show project status and health. **When to
+use:** Daily check of Anvil's protection state for the current repo. Also useful
+in CI as a health probe.
 
 **Synopsis:** `anvil status [--verify] [--why]`
 
 **Flags:**
 
-| Flag       | Description                                                                              |
-| ---------- | ---------------------------------------------------------------------------------------- |
+| Flag       | Description                                                                             |
+| ---------- | --------------------------------------------------------------------------------------- |
 | `--verify` | Run a non-mutating activation probe — reports protection state without touching config. |
 | `--why`    | Print per-tier activation evidence to stderr (requires `--verify`).                     |
 
@@ -271,27 +281,30 @@ $ anvil status --json | jq .protection_state
 
 ## anvil start
 
-**Class:** Setup
-**Purpose:** Activate Anvil in this repository.
-**When to use:** First-time setup in a repo, or when re-running activation after a config change. Writes `.anvilrc` if missing and installs MCP config entries for Cursor and Claude Code.
+**Class:** Setup **Purpose:** Activate Anvil in this repository. **When to
+use:** First-time setup in a repo, or when re-running activation after a config
+change. Writes `.anvilrc` if missing and installs MCP config entries for Cursor
+and Claude Code.
 
-**Synopsis:** `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
+**Synopsis:**
+`anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
 
 **Flags:**
 
-| Flag               | Description                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| `--verify`         | Run a read-only activation probe instead of writing files.                                  |
-| `--watch`          | After activation, run the save-time watch fallback when MCP cannot pre-write attach.        |
-| `--format <fmt>`   | Config file format for first-run: `yaml`, `yml`, `json`, or `toml`. Default: `.anvilrc`.   |
-| `--new-identity`   | Mint a fresh project UUID (use after forking a repo). Incompatible with `--verify`.        |
-| `--why`            | Print per-tier activation evidence to stderr alongside the normal verdict.                  |
+| Flag             | Description                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `--verify`       | Run a read-only activation probe instead of writing files.                               |
+| `--watch`        | After activation, run the save-time watch fallback when MCP cannot pre-write attach.     |
+| `--format <fmt>` | Config file format for first-run: `yaml`, `yml`, `json`, or `toml`. Default: `.anvilrc`. |
+| `--new-identity` | Mint a fresh project UUID (use after forking a repo). Incompatible with `--verify`.      |
+| `--why`          | Print per-tier activation evidence to stderr alongside the normal verdict.               |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
 **Common errors:**
 
-- `ready_restart_required`: MCP client must be restarted to pick up the new config — restart your editor.
+- `ready_restart_required`: MCP client must be restarted to pick up the new
+  config — restart your editor.
 - `needs_action`: run `anvil doctor` to identify the missing step.
 
 **Examples:**
@@ -307,9 +320,8 @@ $ anvil start --new-identity
 
 ## anvil tutorial
 
-**Class:** Setup
-**Purpose:** Run an interactive guided tutorial.
-**When to use:** First time using Anvil, or to revisit the onboarding flow.
+**Class:** Setup **Purpose:** Run an interactive guided tutorial. **When to
+use:** First time using Anvil, or to revisit the onboarding flow.
 
 **Synopsis:** `anvil tutorial`
 
@@ -325,8 +337,7 @@ $ anvil tutorial
 
 ## anvil welcome
 
-**Class:** Setup
-**Purpose:** Show the welcome screen with quick-start options.
+**Class:** Setup **Purpose:** Show the welcome screen with quick-start options.
 **When to use:** To access the Anvil main menu and onboarding options.
 
 **Synopsis:** `anvil welcome`
@@ -343,9 +354,9 @@ $ anvil welcome
 
 ## anvil init
 
-**Class:** Setup
-**Purpose:** Initialise Anvil configuration for a project.
-**When to use:** To create an initial `.anvilrc` / `.anvil.<ext>` configuration in a repo that doesn't have one yet.
+**Class:** Setup **Purpose:** Initialise Anvil configuration for a project.
+**When to use:** To create an initial `.anvilrc` / `.anvil.<ext>` configuration
+in a repo that doesn't have one yet.
 
 **Synopsis:** `anvil init`
 
@@ -361,16 +372,16 @@ $ anvil init
 
 ## anvil insights
 
-**Class:** User-explicit
-**Purpose:** Show local-only weekly activity insights.
-**When to use:** To review your weekly Anvil activity and suppression health without a network dependency.
+**Class:** User-explicit **Purpose:** Show local-only weekly activity insights.
+**When to use:** To review your weekly Anvil activity and suppression health
+without a network dependency.
 
 **Synopsis:** `anvil insights [--suppressions]`
 
 **Flags:**
 
-| Flag             | Description                                                            |
-| ---------------- | ---------------------------------------------------------------------- |
+| Flag             | Description                                                                |
+| ---------------- | -------------------------------------------------------------------------- |
 | `--suppressions` | Show the suppression health view — stale `@anvil-ignore` directives first. |
 
 **Exit codes:** 0 (success), 1 (error)
@@ -387,31 +398,31 @@ $ anvil insights --json
 
 ## anvil migrate
 
-**Class:** Admin
-**Purpose:** Migrate Anvil config to a new format or schema version.
-**When to use:** After upgrading Anvil when config format changes are required, or to convert a legacy `.anvilrc` to a multi-format config file.
+**Class:** Admin **Purpose:** Migrate Anvil config to a new format or schema
+version. **When to use:** After upgrading Anvil when config format changes are
+required, or to convert a legacy `.anvilrc` to a multi-format config file.
 
 **Synopsis:** `anvil migrate [format|schema]`
 
 **Subcommands:**
 
-| Subcommand    | Description                                                                       |
-| ------------- | --------------------------------------------------------------------------------- |
-| `format`      | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).              |
-| `schema`      | Reconcile an existing config's schema across Anvil versions (dry-run by default). |
+| Subcommand | Description                                                                       |
+| ---------- | --------------------------------------------------------------------------------- |
+| `format`   | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).               |
+| `schema`   | Reconcile an existing config's schema across Anvil versions (dry-run by default). |
 
 **`format` flags:**
 
-| Flag           | Description                                               |
-| -------------- | --------------------------------------------------------- |
-| `--format <f>` | Target format. Default: `yaml`.                           |
-| `--force`      | Overwrite an existing `.anvil.<ext>` file.                |
-| `--remove-old` | Remove the legacy `.anvilrc` after writing the new file.  |
+| Flag           | Description                                              |
+| -------------- | -------------------------------------------------------- |
+| `--format <f>` | Target format. Default: `yaml`.                          |
+| `--force`      | Overwrite an existing `.anvil.<ext>` file.               |
+| `--remove-old` | Remove the legacy `.anvilrc` after writing the new file. |
 
 **`schema` flags:**
 
-| Flag      | Description                                 |
-| --------- | ------------------------------------------- |
+| Flag      | Description                                             |
+| --------- | ------------------------------------------------------- |
 | `--apply` | Write the migrated config (default is dry-run preview). |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
@@ -428,40 +439,40 @@ $ anvil migrate schema --apply
 
 ## anvil intercept
 
-**Class:** Background (start/ensure) / Admin (stop/status)
-**Purpose:** Manage the Anvil intercept daemon.
-**When to use:** To start, stop, inspect, or unblock the local intercept daemon that enables pre-write MCP validation.
+**Class:** Background (start/ensure) / Admin (stop/status) **Purpose:** Manage
+the Anvil intercept daemon. **When to use:** To start, stop, inspect, or unblock
+the local intercept daemon that enables pre-write MCP validation.
 
 **Synopsis:** `anvil intercept <start|status|unblock>`
 
 **Subcommands:**
 
-| Subcommand  | Description                                                      |
-| ----------- | ---------------------------------------------------------------- |
-| `start`     | Start the intercept daemon. Use `--foreground` to keep it in the terminal. |
-| `status`    | Print the daemon's status snapshot (sessions, fences, latency). |
-| `unblock`   | Clear fence state from the daemon.                              |
+| Subcommand | Description                                                                |
+| ---------- | -------------------------------------------------------------------------- |
+| `start`    | Start the intercept daemon. Use `--foreground` to keep it in the terminal. |
+| `status`   | Print the daemon's status snapshot (sessions, fences, latency).            |
+| `unblock`  | Clear fence state from the daemon.                                         |
 
 **`start` flags:**
 
-| Flag          | Description                            |
-| ------------- | -------------------------------------- |
+| Flag           | Description                                           |
+| -------------- | ----------------------------------------------------- |
 | `--foreground` | Stay in the foreground; logs stream to stdout/stderr. |
 
 **`status` flags:**
 
-| Flag    | Description                                    |
-| ------- | ---------------------------------------------- |
-| `--json` | Emit the raw JSON-RPC `query_status` result.  |
+| Flag     | Description                                  |
+| -------- | -------------------------------------------- |
+| `--json` | Emit the raw JSON-RPC `query_status` result. |
 
 **`unblock` flags:**
 
-| Flag                    | Description                                                          |
-| ----------------------- | -------------------------------------------------------------------- |
-| `--worktree <PATH>`     | Remove a single worktree's fence record from the daemon.            |
-| `--all`                 | Clear every fenced worktree in one call.                            |
-| `--dry-run`             | Print what would be cleared without modifying daemon state.         |
-| `--acknowledge-cascade` | Confirm intent to clear a `degraded:fence-cascade` engaged state.   |
+| Flag                    | Description                                                       |
+| ----------------------- | ----------------------------------------------------------------- |
+| `--worktree <PATH>`     | Remove a single worktree's fence record from the daemon.          |
+| `--all`                 | Clear every fenced worktree in one call.                          |
+| `--dry-run`             | Print what would be cleared without modifying daemon state.       |
+| `--acknowledge-cascade` | Confirm intent to clear a `degraded:fence-cascade` engaged state. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -483,21 +494,23 @@ $ anvil intercept unblock --all --dry-run
 
 ## anvil l4-validate
 
-**Class:** Background (CI lane)
-**Purpose:** Validate commits against policy using the L4 rule engine.
-**When to use:** In CI pipelines that don't sit inside git's pre-push hook and need to validate an explicit commit range against `anvil/policy.yml`.
+**Class:** Background (CI lane) **Purpose:** Validate commits against policy
+using the L4 rule engine. **When to use:** In CI pipelines that don't sit inside
+git's pre-push hook and need to validate an explicit commit range against
+`anvil/policy.yml`.
 
 **Synopsis:** `anvil l4-validate <RANGE> [--branch <name>] [--repo <PATH>]`
 
 **Flags:**
 
-| Flag             | Description                                                                     |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `RANGE`          | Commit range: `<base>..<head>` or bare `<head>` SHA (ancestry walk).           |
+| Flag              | Description                                                                     |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `RANGE`           | Commit range: `<base>..<head>` or bare `<head>` SHA (ancestry walk).            |
 | `--branch <name>` | Branch name for policy resolution. Defaults to `git symbolic-ref --short HEAD`. |
-| `--repo <PATH>`  | Repo root override. Defaults to the current working directory.                  |
+| `--repo <PATH>`   | Repo root override. Defaults to the current working directory.                  |
 
-**Exit codes:** 0 (clean), 2 (one or more commits blocked), 3 (engine unavailable on every commit), 1 (error)
+**Exit codes:** 0 (clean), 2 (one or more commits blocked), 3 (engine
+unavailable on every commit), 1 (error)
 
 **Examples:**
 
@@ -511,9 +524,9 @@ $ anvil l4-validate abc123..def456 --repo /path/to/repo
 
 ## anvil licenses
 
-**Class:** User-explicit
-**Purpose:** Show Anvil's acknowledgements and third-party licence attribution.
-**When to use:** To inspect bundled dependency licences, e.g. for compliance review.
+**Class:** User-explicit **Purpose:** Show Anvil's acknowledgements and
+third-party licence attribution. **When to use:** To inspect bundled dependency
+licences, e.g. for compliance review.
 
 **Synopsis:** `anvil licenses`
 
@@ -530,24 +543,26 @@ $ anvil licenses --json
 
 ## anvil mcp-config
 
-**Class:** Setup / Admin
-**Purpose:** Generate MCP server configuration for AI editors.
-**When to use:** To write or verify the MCP config entry for Cursor or Claude Code so the editor can connect to the Anvil daemon.
+**Class:** Setup / Admin **Purpose:** Generate MCP server configuration for AI
+editors. **When to use:** To write or verify the MCP config entry for Cursor or
+Claude Code so the editor can connect to the Anvil daemon.
 
-Planned: `anvil mcp-config` will eventually consolidate into `anvil mcp config` (subsystem rename per the CLI surface coherence spec).
+Planned: `anvil mcp-config` will eventually consolidate into `anvil mcp config`
+(subsystem rename per the CLI surface coherence spec).
 
-**Synopsis:** `anvil mcp-config --target <editor> [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>]`
+**Synopsis:**
+`anvil mcp-config --target <editor> [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>]`
 
 **Flags:**
 
-| Flag                  | Description                                                     |
-| --------------------- | --------------------------------------------------------------- |
-| `--target <editor>`   | Editor target: `cursor` or `claude-code`. Required.            |
-| `--transport <t>`     | Transport: `stdio` (default) or `http`.                        |
-| `--port <n>`          | Port for `--transport http`. Default: `7616`.                  |
-| `--write`             | Write the generated config to the target's well-known path.    |
-| `--verify`            | Inspect the existing config entry without writing.             |
-| `--workspace <path>`  | Override the workspace root for resolving config paths.        |
+| Flag                 | Description                                                 |
+| -------------------- | ----------------------------------------------------------- |
+| `--target <editor>`  | Editor target: `cursor` or `claude-code`. Required.         |
+| `--transport <t>`    | Transport: `stdio` (default) or `http`.                     |
+| `--port <n>`         | Port for `--transport http`. Default: `7616`.               |
+| `--write`            | Write the generated config to the target's well-known path. |
+| `--verify`           | Inspect the existing config entry without writing.          |
+| `--workspace <path>` | Override the workspace root for resolving config paths.     |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -564,27 +579,27 @@ $ anvil mcp-config --target cursor --transport http --port 7616 --write
 
 ## anvil mcp
 
-**Class:** Background (serve) / User-explicit (install)
-**Purpose:** Manage and serve MCP integrations.
-**When to use:** `serve` is invoked by editors automatically. `install` is used to wire the MCP config for a supported client.
+**Class:** Background (serve) / User-explicit (install) **Purpose:** Manage and
+serve MCP integrations. **When to use:** `serve` is invoked by editors
+automatically. `install` is used to wire the MCP config for a supported client.
 
 **Synopsis:** `anvil mcp <install|serve>`
 
 **Subcommands:**
 
-| Subcommand                       | Description                                        |
-| -------------------------------- | -------------------------------------------------- |
-| `install --client <client>`      | Install Anvil MCP configuration for an editor.    |
-| `serve --stdio`                  | Start an MCP server over stdin/stdout.             |
+| Subcommand                  | Description                                    |
+| --------------------------- | ---------------------------------------------- |
+| `install --client <client>` | Install Anvil MCP configuration for an editor. |
+| `serve --stdio`             | Start an MCP server over stdin/stdout.         |
 
 **`install` flags:**
 
-| Flag                  | Description                                                            |
-| --------------------- | ---------------------------------------------------------------------- |
-| `--client <client>`   | Client to configure: `cursor` or `claude-code`. Required.             |
-| `--verify`            | Verify the existing client config instead of writing it.              |
-| `--command <path>`    | Override the command path written into stdio configs.                  |
-| `--workspace <path>`  | Override the client config root.                                       |
+| Flag                 | Description                                               |
+| -------------------- | --------------------------------------------------------- |
+| `--client <client>`  | Client to configure: `cursor` or `claude-code`. Required. |
+| `--verify`           | Verify the existing client config instead of writing it.  |
+| `--command <path>`   | Override the command path written into stdio configs.     |
+| `--workspace <path>` | Override the client config root.                          |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required for `install`)
 
@@ -600,16 +615,16 @@ $ anvil mcp serve --stdio
 
 ## anvil plan
 
-**Class:** User-explicit
-**Purpose:** Inspect APS planning state.
-**When to use:** To browse active APS work items and module status in a read-only dashboard.
+**Class:** User-explicit **Purpose:** Inspect APS planning state. **When to
+use:** To browse active APS work items and module status in a read-only
+dashboard.
 
 **Synopsis:** `anvil plan dashboard`
 
 **Subcommands:**
 
-| Subcommand  | Description                                   |
-| ----------- | --------------------------------------------- |
+| Subcommand  | Description                                    |
+| ----------- | ---------------------------------------------- |
 | `dashboard` | Show active APS work in a read-only dashboard. |
 
 **Exit codes:** 0 (success), 1 (error)
@@ -625,17 +640,17 @@ $ anvil plan dashboard --json
 
 ## anvil dashboard
 
-**Class:** User-explicit
-**Purpose:** Open a native read-only dashboard over local Anvil state.
-**When to use:** To browse architecture health, drift snapshots, or suppression state in an interactive TUI.
+**Class:** User-explicit **Purpose:** Open a native read-only dashboard over
+local Anvil state. **When to use:** To browse architecture health, drift
+snapshots, or suppression state in an interactive TUI.
 
 **Synopsis:** `anvil dashboard [<name>]`
 
 **Flags:**
 
-| Flag     | Description                                                                              |
-| -------- | ---------------------------------------------------------------------------------------- |
-| `<name>` | Dashboard to open: `architecture`, `drift`, or `suppressions`. Omit for the picker.    |
+| Flag     | Description                                                                         |
+| -------- | ----------------------------------------------------------------------------------- |
+| `<name>` | Dashboard to open: `architecture`, `drift`, or `suppressions`. Omit for the picker. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -652,9 +667,8 @@ $ anvil dashboard suppressions
 
 ## anvil new
 
-**Class:** Setup
-**Purpose:** Scaffold a new project from a template.
-**When to use:** To bootstrap a new project with Anvil pre-configured.
+**Class:** Setup **Purpose:** Scaffold a new project from a template. **When to
+use:** To bootstrap a new project with Anvil pre-configured.
 
 **Synopsis:** `anvil new`
 
@@ -670,9 +684,9 @@ $ anvil new
 
 ## anvil wizard
 
-**Class:** Setup
-**Purpose:** Run a guided project setup wizard.
-**When to use:** For interactive onboarding when `anvil start` or `anvil init` alone isn't enough.
+**Class:** Setup **Purpose:** Run a guided project setup wizard. **When to
+use:** For interactive onboarding when `anvil start` or `anvil init` alone isn't
+enough.
 
 **Synopsis:** `anvil wizard`
 
@@ -688,15 +702,19 @@ $ anvil wizard
 
 ## anvil admin
 
-**Class:** Admin
-**Purpose:** Run administrative commands (approvals, user management).
-**When to use:** Operator tasks: approving waitlist signups, inviting beta users, revoking tokens, browsing the audit log. Requires `ANVIL_ADMIN_KEY`.
+**Class:** Admin **Purpose:** Run administrative commands (approvals, user
+management). **When to use:** Operator tasks: approving waitlist signups,
+inviting beta users, revoking tokens, browsing the audit log. Requires
+`ANVIL_ADMIN_KEY`.
 
-**Synopsis:** `anvil admin <list|show|approve|invite|revoke|audit|send-migration|email-update|auth>`
+**Synopsis:**
+`anvil admin <list|show|approve|invite|revoke|audit|send-migration|email-update|auth>`
 
-See `docs/runbooks/admin-cli.md` for the full operator runbook including credential handling, per-operator keys, and troubleshooting.
+See `docs/runbooks/admin-cli.md` for the full operator runbook including
+credential handling, per-operator keys, and troubleshooting.
 
-**Exit codes:** 0 (success), 1 (command failed), 3 (auth required — `ANVIL_ADMIN_KEY` missing or invalid)
+**Exit codes:** 0 (success), 1 (command failed), 3 (auth required —
+`ANVIL_ADMIN_KEY` missing or invalid)
 
 **Examples:**
 
@@ -711,25 +729,27 @@ $ anvil admin audit --action user.approved
 
 ## anvil gate
 
-**Class:** User-explicit / Background (CI)
-**Purpose:** Run gate checks against the current project.
-**When to use:** Pre-commit, pre-push (via hooks), CI pipelines, or on-demand code quality checks with full profile support.
+**Class:** User-explicit / Background (CI) **Purpose:** Run gate checks against
+the current project. **When to use:** Pre-commit, pre-push (via hooks), CI
+pipelines, or on-demand code quality checks with full profile support.
 
-**Synopsis:** `anvil gate [plan] [--profile <p>] [--skip-checks <checks>] [--only-checks <checks>] [--fail-fast] [--progress] [--format <fmt>]`
+**Synopsis:**
+`anvil gate [plan] [--profile <p>] [--skip-checks <checks>] [--only-checks <checks>] [--fail-fast] [--progress] [--format <fmt>]`
 
 **Flags:**
 
-| Flag                    | Description                                                              |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `plan`                  | Plan file to run gates against (positional; omit for full codebase scan). |
-| `--profile <p>`         | Gate profile: `dev`, `ci`, `production`, `ai`.                          |
-| `--skip-checks <checks>` | Comma-separated list of checks to skip.                                 |
-| `--only-checks <checks>` | Run only the specified checks (comma-separated).                        |
-| `--fail-fast`           | Stop on first check failure.                                             |
-| `--progress`            | Show real-time progress.                                                 |
-| `--format <fmt>`        | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                  |
+| Flag                     | Description                                                               |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `plan`                   | Plan file to run gates against (positional; omit for full codebase scan). |
+| `--profile <p>`          | Gate profile: `dev`, `ci`, `production`, `ai`.                            |
+| `--skip-checks <checks>` | Comma-separated list of checks to skip.                                   |
+| `--only-checks <checks>` | Run only the specified checks (comma-separated).                          |
+| `--fail-fast`            | Stop on first check failure.                                              |
+| `--progress`             | Show real-time progress.                                                  |
+| `--format <fmt>`         | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                   |
 
-**Exit codes:** 0 (all checks passed), 2 (one or more checks failed), 1 (error), 3 (auth required)
+**Exit codes:** 0 (all checks passed), 2 (one or more checks failed), 1 (error),
+3 (auth required)
 
 **Examples:**
 
@@ -744,20 +764,22 @@ $ anvil gate --format sarif > results.sarif
 
 ## anvil gate-config
 
-**Class:** Admin
-**Purpose:** Configure gate check settings and thresholds.
-**When to use:** To enable, disable, or list gate checks stored in `.anvil/gate-config.json`.
+**Class:** Admin **Purpose:** Configure gate check settings and thresholds.
+**When to use:** To enable, disable, or list gate checks stored in
+`.anvil/gate-config.json`.
 
-Planned: `anvil gate-config` will eventually consolidate into `anvil gate config` (subsystem rename per the CLI surface coherence spec).
+Planned: `anvil gate-config` will eventually consolidate into
+`anvil gate config` (subsystem rename per the CLI surface coherence spec).
 
-**Synopsis:** `anvil gate-config [--list] [--enable <check>] [--disable <check>]`
+**Synopsis:**
+`anvil gate-config [--list] [--enable <check>] [--disable <check>]`
 
 **Flags:**
 
-| Flag               | Description                       |
-| ------------------ | --------------------------------- |
-| `--list` / `-l`    | List current gate configuration.  |
-| `--enable <check>` | Enable a specific check.          |
+| Flag                | Description                      |
+| ------------------- | -------------------------------- |
+| `--list` / `-l`     | List current gate configuration. |
+| `--enable <check>`  | Enable a specific check.         |
 | `--disable <check>` | Disable a specific check.        |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
@@ -774,24 +796,26 @@ $ anvil gate-config --disable coverage
 
 ## anvil watch
 
-**Class:** User-explicit
-**Purpose:** Watch files and report save-time findings after the baseline scan.
-**When to use:** During active development as a real-time save-time feedback loop. Falls back gracefully when MCP pre-write validation is not available.
+**Class:** User-explicit **Purpose:** Watch files and report save-time findings
+after the baseline scan. **When to use:** During active development as a
+real-time save-time feedback loop. Falls back gracefully when MCP pre-write
+validation is not available.
 
-**Synopsis:** `anvil watch [--file <path>] [--action <action>] [--plans] [--source] [--all] [--patterns <globs>] [--exclude <globs>] [--debounce <ms>]`
+**Synopsis:**
+`anvil watch [--file <path>] [--action <action>] [--plans] [--source] [--all] [--patterns <globs>] [--exclude <globs>] [--debounce <ms>]`
 
 **Flags:**
 
-| Flag                | Description                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| `--file <path>` / `-f` | File or directory to scope the watcher.                                           |
-| `--action <action>` / `-a` | Action on each change: `check` (default), `gate`, or `none`.                |
-| `--plans`           | Watch planning documents.                                                            |
-| `--source`          | Watch source files.                                                                  |
-| `--all`             | Watch everything except built-in noise/generated/cache directories.                 |
-| `--patterns <globs>` | Glob patterns to watch (comma-separated).                                           |
-| `--exclude <globs>` | Glob patterns to exclude (comma-separated).                                         |
-| `--debounce <ms>`   | Debounce interval in milliseconds.                                                   |
+| Flag                       | Description                                                         |
+| -------------------------- | ------------------------------------------------------------------- |
+| `--file <path>` / `-f`     | File or directory to scope the watcher.                             |
+| `--action <action>` / `-a` | Action on each change: `check` (default), `gate`, or `none`.        |
+| `--plans`                  | Watch planning documents.                                           |
+| `--source`                 | Watch source files.                                                 |
+| `--all`                    | Watch everything except built-in noise/generated/cache directories. |
+| `--patterns <globs>`       | Glob patterns to watch (comma-separated).                           |
+| `--exclude <globs>`        | Glob patterns to exclude (comma-separated).                         |
+| `--debounce <ms>`          | Debounce interval in milliseconds.                                  |
 
 **Exit codes:** 0 (clean exit), 1 (error), 3 (auth required)
 
@@ -808,21 +832,22 @@ $ anvil watch --all --exclude "vendor/**"
 
 ## anvil export
 
-**Class:** User-explicit
-**Purpose:** Export constraints and configuration.
-**When to use:** To export suppression lists, plan files, or configuration in various formats for external tooling.
+**Class:** User-explicit **Purpose:** Export constraints and configuration.
+**When to use:** To export suppression lists, plan files, or configuration in
+various formats for external tooling.
 
-**Synopsis:** `anvil export [source] [--to <fmt>] [--format <fmt>] [--output <path>] [--compact]`
+**Synopsis:**
+`anvil export [source] [--to <fmt>] [--format <fmt>] [--output <path>] [--compact]`
 
 **Flags:**
 
-| Flag             | Description                                                         |
-| ---------------- | ------------------------------------------------------------------- |
-| `source`         | Source file path (for plan conversion, positional).                 |
-| `--to <fmt>`     | Target format: `aps`, `json`, `yaml`.                               |
-| `--format <fmt>` | Output format: `llms.txt`, `mcp-resource`, `prompt-fragment`.       |
-| `--output <path>` / `-o` | Output file path.                                          |
-| `--compact`      | Compact JSON output.                                                |
+| Flag                     | Description                                                   |
+| ------------------------ | ------------------------------------------------------------- |
+| `source`                 | Source file path (for plan conversion, positional).           |
+| `--to <fmt>`             | Target format: `aps`, `json`, `yaml`.                         |
+| `--format <fmt>`         | Output format: `llms.txt`, `mcp-resource`, `prompt-fragment`. |
+| `--output <path>` / `-o` | Output file path.                                             |
+| `--compact`              | Compact JSON output.                                          |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -837,23 +862,24 @@ $ anvil export plan.aps.md --to json
 
 ## anvil hooks
 
-**Class:** Admin / Setup
-**Purpose:** Install and manage git hooks.
-**When to use:** To install or remove Anvil's pre-commit and pre-push git hooks in a repository.
+**Class:** Admin / Setup **Purpose:** Install and manage git hooks. **When to
+use:** To install or remove Anvil's pre-commit and pre-push git hooks in a
+repository.
 
-Planned: `anvil hooks` (plural) will eventually align with `anvil hook` (singular subsystem) per the CLI surface coherence spec.
+Planned: `anvil hooks` (plural) will eventually align with `anvil hook`
+(singular subsystem) per the CLI surface coherence spec.
 
 **Synopsis:** `anvil hooks <install|uninstall|status>`
 
 **`install` flags:**
 
-| Flag              | Description                                                          |
-| ----------------- | -------------------------------------------------------------------- |
-| `--force` / `-f`  | Overwrite existing hooks.                                            |
-| `--pre-commit-only` | Only install the pre-commit hook.                                  |
-| `--pre-push-only` | Only install the pre-push hook.                                     |
-| `--husky`         | Install hooks in the `.husky` directory.                            |
-| `--config`        | Install via Git 2.54 native `hook.<event>.command` config.          |
+| Flag                | Description                                                |
+| ------------------- | ---------------------------------------------------------- |
+| `--force` / `-f`    | Overwrite existing hooks.                                  |
+| `--pre-commit-only` | Only install the pre-commit hook.                          |
+| `--pre-push-only`   | Only install the pre-push hook.                            |
+| `--husky`           | Install hooks in the `.husky` directory.                   |
+| `--config`          | Install via Git 2.54 native `hook.<event>.command` config. |
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -871,31 +897,34 @@ $ anvil hooks status
 
 ## anvil hook
 
-**Class:** Background
-**Purpose:** Runtime hook subcommands invoked by the shell wrapper.
-**When to use:** These are called by git hooks automatically — not invoked directly by users. `bootstrap` is the exception: run it after a fresh clone to recover hook-runtime files.
+**Class:** Background **Purpose:** Runtime hook subcommands invoked by the shell
+wrapper. **When to use:** These are called by git hooks automatically — not
+invoked directly by users. `bootstrap` is the exception: run it after a fresh
+clone to recover hook-runtime files.
 
-**Synopsis:** `anvil hook <pre-commit|pre-push|post-commit|post-merge|post-rewrite|bootstrap>`
+**Synopsis:**
+`anvil hook <pre-commit|pre-push|post-commit|post-merge|post-rewrite|bootstrap>`
 
 **Subcommands:**
 
-| Subcommand      | Description                                                                    |
-| --------------- | ------------------------------------------------------------------------------ |
-| `pre-commit`    | L3 pre-commit hook — validates the staged diff and appends a witness line.    |
-| `pre-push`      | L4 pre-push hook — walks the pushed commit range and applies branch policy.   |
-| `post-commit`   | Records that the commit succeeded.                                             |
-| `post-merge`    | Appends a DAG-aware witness for merge joins.                                   |
-| `post-rewrite`  | Regenerates witnesses for amended or rebased commits.                          |
-| `bootstrap`     | Recover hook-runtime files in a worktree that hasn't been bootstrapped yet.   |
+| Subcommand     | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `pre-commit`   | L3 pre-commit hook — validates the staged diff and appends a witness line.  |
+| `pre-push`     | L4 pre-push hook — walks the pushed commit range and applies branch policy. |
+| `post-commit`  | Records that the commit succeeded.                                          |
+| `post-merge`   | Appends a DAG-aware witness for merge joins.                                |
+| `post-rewrite` | Regenerates witnesses for amended or rebased commits.                       |
+| `bootstrap`    | Recover hook-runtime files in a worktree that hasn't been bootstrapped yet. |
 
 **`bootstrap` flags:**
 
-| Flag               | Description                                                          |
-| ------------------ | -------------------------------------------------------------------- |
-| `--dry-run`        | Print the plan rather than executing.                                |
+| Flag               | Description                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `--dry-run`        | Print the plan rather than executing.                                  |
 | `--witness-recent` | Walk `<remote>..HEAD` after bootstrap and write retroactive witnesses. |
 
-**Exit codes:** 0 (proceed / success), 2 (block decision or internal error), 1 (error)
+**Exit codes:** 0 (proceed / success), 2 (block decision or internal error), 1
+(error)
 
 **Examples:**
 
@@ -909,30 +938,33 @@ $ anvil hook bootstrap --witness-recent
 
 ## anvil baseline
 
-**Class:** Setup (one-shot) / User-explicit (re-runs)
-**Purpose:** Manage the `anvil/baseline.json` adoption record.
-**When to use:** When first adopting Anvil in a repo with existing findings, or to refresh/verify the baseline after a significant code change.
+**Class:** Setup (one-shot) / User-explicit (re-runs) **Purpose:** Manage the
+`anvil/baseline.json` adoption record. **When to use:** When first adopting
+Anvil in a repo with existing findings, or to refresh/verify the baseline after
+a significant code change.
 
-**Synopsis:** `anvil baseline [--refresh] [--new-identity] [--accept-suspicious] [--scan-budget <n>] [verify]`
+**Synopsis:**
+`anvil baseline [--refresh] [--new-identity] [--accept-suspicious] [--scan-budget <n>] [verify]`
 
 **Flags:**
 
-| Flag                      | Description                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| `--refresh`               | Refresh an existing baseline at HEAD; updates `created_at`.                         |
-| `--new-identity`          | Mint a fresh project UUID (use after forking a repo).                               |
-| `--suspicion-ratio <f>`   | Override the adversarial-refresh drop-ratio threshold (default 0.75).               |
-| `--suspicion-min-removed <n>` | Override the minimum-removed gate (default 10).                                 |
-| `--accept-suspicious`     | Acknowledge that a large finding drop is intentional.                               |
-| `--scan-budget <n>`       | Cap the number of files scanned per invocation (default 50000).                     |
+| Flag                          | Description                                                           |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `--refresh`                   | Refresh an existing baseline at HEAD; updates `created_at`.           |
+| `--new-identity`              | Mint a fresh project UUID (use after forking a repo).                 |
+| `--suspicion-ratio <f>`       | Override the adversarial-refresh drop-ratio threshold (default 0.75). |
+| `--suspicion-min-removed <n>` | Override the minimum-removed gate (default 10).                       |
+| `--accept-suspicious`         | Acknowledge that a large finding drop is intentional.                 |
+| `--scan-budget <n>`           | Cap the number of files scanned per invocation (default 50000).       |
 
 **Subcommands:**
 
-| Subcommand | Description                                               |
-| ---------- | --------------------------------------------------------- |
-| `verify`   | Re-read `anvil/baseline.json` and report its contents.   |
+| Subcommand | Description                                            |
+| ---------- | ------------------------------------------------------ |
+| `verify`   | Re-read `anvil/baseline.json` and report its contents. |
 
-**Exit codes:** 0 (clean), 2 (security-class finding refuses to grandfather), 1 (scan failed)
+**Exit codes:** 0 (clean), 2 (security-class finding refuses to grandfather), 1
+(scan failed)
 
 **Examples:**
 
@@ -948,18 +980,18 @@ $ anvil baseline --refresh --accept-suspicious
 
 ## anvil architecture
 
-**Class:** Admin
-**Purpose:** Manage architecture boundary definitions.
-**When to use:** To validate or inspect the architecture definition in `.anvil/architecture.yaml`.
+**Class:** Admin **Purpose:** Manage architecture boundary definitions. **When
+to use:** To validate or inspect the architecture definition in
+`.anvil/architecture.yaml`.
 
 **Synopsis:** `anvil architecture <validate|show>`
 
 **Subcommands:**
 
-| Subcommand              | Description                                       |
-| ----------------------- | ------------------------------------------------- |
-| `validate [--file <f>]` | Validate the architecture definition.            |
-| `show [--file <f>]`     | Show the current architecture definition.        |
+| Subcommand              | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `validate [--file <f>]` | Validate the architecture definition.     |
+| `show [--file <f>]`     | Show the current architecture definition. |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -975,27 +1007,28 @@ $ anvil architecture validate --file .anvil/architecture.yaml
 
 ## anvil auth
 
-**Class:** Admin
-**Purpose:** Authenticate with the Anvil service.
-**When to use:** To log in, log out, check your current identity, or refresh an expired session.
+**Class:** Admin **Purpose:** Authenticate with the Anvil service. **When to
+use:** To log in, log out, check your current identity, or refresh an expired
+session.
 
 **Synopsis:** `anvil auth <login|logout|whoami|refresh>`
 
 **Subcommands:**
 
-| Subcommand | Description                                                                      |
-| ---------- | -------------------------------------------------------------------------------- |
+| Subcommand | Description                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------- |
 | `login`    | Authenticate with the Anvil service. Use `--otp` for email OTP or `--edict` for early-access. |
-| `logout`   | Remove stored credentials.                                                       |
-| `whoami`   | Show the current authenticated user.                                             |
-| `refresh`  | Exchange the stored refresh token for a fresh licence without a full re-login.   |
+| `logout`   | Remove stored credentials.                                                                    |
+| `whoami`   | Show the current authenticated user.                                                          |
+| `refresh`  | Exchange the stored refresh token for a fresh licence without a full re-login.                |
 
 **Exit codes:** 0 (success), 1 (login failed), 3 (auth required — for `whoami`)
 
 **Common errors:**
 
 - Not logged in: run `anvil auth login`.
-- Session expired: run `anvil auth refresh` first; if that fails, run `anvil auth login`.
+- Session expired: run `anvil auth refresh` first; if that fails, run
+  `anvil auth login`.
 
 **Examples:**
 
@@ -1010,22 +1043,21 @@ $ anvil auth logout
 
 ## anvil policy
 
-**Class:** Admin
-**Purpose:** Manage and evaluate policies.
-**When to use:** To evaluate, list, explain, diff, validate, or test Anvil policy files.
+**Class:** Admin **Purpose:** Manage and evaluate policies. **When to use:** To
+evaluate, list, explain, diff, validate, or test Anvil policy files.
 
 **Synopsis:** `anvil policy <eval|list|explain|diff|validate|test>`
 
 **Subcommands:**
 
-| Subcommand                  | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `eval`                      | Evaluate a Rego policy against an input document. |
-| `list [--category <c>] [--enabled]` | List available policies.             |
-| `explain <policy-id>`       | Explain a specific policy.                     |
-| `diff <base> <head>`        | Show policy differences.                       |
-| `validate [file]`           | Validate policy configuration.                 |
-| `test [path] [--list-files]` | Run policy tests.                             |
+| Subcommand                          | Description                                       |
+| ----------------------------------- | ------------------------------------------------- |
+| `eval`                              | Evaluate a Rego policy against an input document. |
+| `list [--category <c>] [--enabled]` | List available policies.                          |
+| `explain <policy-id>`               | Explain a specific policy.                        |
+| `diff <base> <head>`                | Show policy differences.                          |
+| `validate [file]`                   | Validate policy configuration.                    |
+| `test [path] [--list-files]`        | Run policy tests.                                 |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
@@ -1042,21 +1074,22 @@ $ anvil policy test
 
 ## anvil update
 
-**Class:** User-explicit
-**Purpose:** Update Anvil to the latest version.
-**When to use:** To check for or install a newer release. Package-manager installs (Homebrew, Scoop, WinGet) defer to their package manager automatically.
+**Class:** User-explicit **Purpose:** Update Anvil to the latest version. **When
+to use:** To check for or install a newer release. Package-manager installs
+(Homebrew, Scoop, WinGet) defer to their package manager automatically.
 
 **Synopsis:** `anvil update [--check] [--version <ver>] [--force]`
 
 **Flags:**
 
-| Flag             | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `--check`        | Check for updates without installing.               |
-| `--version <ver>` | Install a specific version instead of latest.       |
-| `--force`        | Reinstall even if already on the latest version.     |
+| Flag              | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| `--check`         | Check for updates without installing.            |
+| `--version <ver>` | Install a specific version instead of latest.    |
+| `--force`         | Reinstall even if already on the latest version. |
 
-**Exit codes:** 0 (success or already up to date), 1 (update available when `--check` is used, or install error)
+**Exit codes:** 0 (success or already up to date), 1 (update available when
+`--check` is used, or install error)
 
 **Examples:**
 
@@ -1070,17 +1103,17 @@ $ anvil update --version 0.6.1
 
 ## anvil uninstall
 
-**Class:** Admin
-**Purpose:** Remove project Anvil state.
-**When to use:** To clean up Anvil from a project, or use `--global` to remove user state and the daemon. Safe to run even with expired or missing credentials.
+**Class:** Admin **Purpose:** Remove project Anvil state. **When to use:** To
+clean up Anvil from a project, or use `--global` to remove user state and the
+daemon. Safe to run even with expired or missing credentials.
 
 **Synopsis:** `anvil uninstall [--global] [--dry-run]`
 
 **Flags:**
 
-| Flag        | Description                                    |
-| ----------- | ---------------------------------------------- |
-| `--global`  | Remove user state and the daemon as well.      |
+| Flag        | Description                                     |
+| ----------- | ----------------------------------------------- |
+| `--global`  | Remove user state and the daemon as well.       |
 | `--dry-run` | Preview what would be removed without deleting. |
 
 **Exit codes:** 0 (success), 1 (error)
@@ -1097,9 +1130,9 @@ $ anvil uninstall --global
 
 ## anvil validate
 
-**Class:** User-explicit
-**Purpose:** Validate an APS plan file (structure, task format, hash integrity).
-**When to use:** To check a plan file before committing or submitting it. Does not require authentication.
+**Class:** User-explicit **Purpose:** Validate an APS plan file (structure, task
+format, hash integrity). **When to use:** To check a plan file before committing
+or submitting it. Does not require authentication.
 
 **Synopsis:** `anvil validate <file>`
 
@@ -1116,18 +1149,18 @@ $ anvil validate plans/index.aps.md
 
 ## anvil version
 
-**Class:** User-explicit
-**Purpose:** Show install-method-aware version and upgrade guidance.
-**When to use:** To check the current version, latest available version, install method, and recommended upgrade command.
+**Class:** User-explicit **Purpose:** Show install-method-aware version and
+upgrade guidance. **When to use:** To check the current version, latest
+available version, install method, and recommended upgrade command.
 
 **Synopsis:** `anvil version [--offline] [--check]`
 
 **Flags:**
 
-| Flag        | Description                                                                            |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `--offline` | Skip the network probe for the latest release version.                                |
-| `--check`   | Probe the releases feed for security advisories attached to the running version.       |
+| Flag        | Description                                                                      |
+| ----------- | -------------------------------------------------------------------------------- |
+| `--offline` | Skip the network probe for the latest release version.                           |
+| `--check`   | Probe the releases feed for security advisories attached to the running version. |
 
 **Exit codes:** 0 (success), 1 (error)
 
