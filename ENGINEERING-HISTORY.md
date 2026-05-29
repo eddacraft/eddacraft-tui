@@ -7,6 +7,72 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
+## [Unreleased]
+
+Technical work landed on `main` since `v0.7.2-beta`, not yet cut to a release
+tag. SARIF output (SARIFOUT) is recorded in the [Changelog](./CHANGELOG.md) and
+its engineering notes are tracked separately with that workstream.
+
+### Language extraction (LANGTS)
+
+- **TypeScript symbol coverage widened (LANGTS-002).** `interface`, `type`, and
+  `enum` declarations now emit `Interface` / `TypeAlias` / `Enum` symbols
+  (export-wrapped → `Public`), and class methods emit `Method` symbols named
+  `Owner.method` so the owning class is recoverable without a structural parent
+  edge. Adds `SymbolKind::{Interface, TypeAlias, Enum, Method}` (additive).
+- **Language-extractor trait + grammar-versioned cache (LANGTS-005).**
+  Extraction moves behind a trait with a grammar-versioned parse cache and a
+  non-panicking parse path, so a malformed source file degrades to no-symbols
+  instead of aborting the walk.
+
+### Policy engine hardening (POLENG-009)
+
+- Panics in the Rego evaluation path are caught at the regorus facade under a
+  dedicated unwind profile, so a malformed policy can no longer abort the
+  process.
+- Added a determinism fence and input bounds on `anvil policy eval`, plus
+  hardened findings parsing.
+- Tracing now spans the policy eval path.
+
+### Native TUI dashboards (TDASH / TUIDASH)
+
+- `anvil dashboard` ships as a read-only TUI over persisted `.anvil/` state: the
+  command plus picker scaffold (TDASH-001) and three wired surfaces —
+  architecture-health (TDASH-002), drift-snapshots (TDASH-003), and
+  suppressions-overview (TDASH-004).
+- Dashboard rendering is built on a reusable `TuiComponent` trait +
+  `TuiRegistry` (TUIDASH-002) and a json-render spec parser (TUIDASH-001).
+
+### Secret scanning & finding fidelity
+
+- The git-history secret scan was extended to on-disk (working-tree) coverage
+  (EAMIG-004), with oversize-skip surfacing and portable test hooks.
+- The scan path completed its migration onto the policy walker, and scanners now
+  preserve distinct findings that share a line instead of collapsing them.
+
+### Observability & tracing
+
+- CLI tracing is routed to `stderr` rather than `stdout`, so machine-readable
+  output on `stdout` stays clean.
+- Added a TypeScript trace mirror with a redacting formatter; the API middleware
+  sets response headers via `c.res.headers.set`.
+
+### Activation hardening
+
+- Workflow installs now require explicit operator consent, and workflow file
+  writes are hardened against unintended overwrites.
+
+### Discovery performance
+
+- The `anvil welcome` Phase 1a discovery walk is parallelised (SCAN-006), backed
+  by a new `walk_discovery` benchmark (SCAN-005).
+
+### Build & delivery
+
+- Added a cargo workspace version-match preflight gate, routed the release gate
+  through `test:js` (off the cross-language critical path), and trimmed dev/test
+  debug info to line-tables-only (DEVENV-001) to cut build size.
+
 ## [0.7.0-beta] — 2026-05-21 — Daemon Working End-to-End
 
 ### Multi-Layer Protection v2 (MLP2) — daemon-working integration
