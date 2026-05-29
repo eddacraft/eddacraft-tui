@@ -9,6 +9,17 @@ Proposed
 > Authoritative](./026-rust-scanner-authoritative.md), which was merged first.
 > This ADR was renumbered to fill the previously unassigned ADR-021 slot.
 
+> **Amended (DEVENV-003, 2026-05-29):** the decision (build an in-house Nx-Rust
+> plugin) stands, but the plugin no longer lives **in-repo**. It was extracted
+> to the standalone public repo [`eddacraft/nxrust`](https://github.com/eddacraft/nxrust)
+> and is consumed from the registry as `@eddacraft/nxrust` (registered in
+> `nx.json`). The original vendored `tools/nx-rust/` copy (`@eddacraft/nx-rust`,
+> hyphenated) became dead code — referenced by nothing — and was **removed** in
+> the DEVENV-003 change. Treat `eddacraft/nxrust` as the source of truth;
+> plugin changes (e.g. `CARGO_TARGET_DIR`-aware build outputs) happen there and
+> reach anvil via a dependency bump. See
+> [ADR-057](./057-dev-environment-hardening.md) §3.
+
 ## Date
 
 2026-04-21
