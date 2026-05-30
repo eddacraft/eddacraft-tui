@@ -84,6 +84,32 @@ assert_json_contains "${lockfile}" '.pathClasses | index("lockfile")' 'lockfile 
 assert_json_contains "${lockfile}" '.riskClasses | index("dependencies")' 'dependency risk class'
 assert_json_contains "${lockfile}" '.requiredChecks | index("dependency-audit")' 'dependency audit required'
 
+# CIB-031: scope the dependency-audit gate so Rust-only lockfile changes
+# skip the npm Trivy audit. The classifier contract is a three-row truth
+# table: Rust-only → cargo-deny + no dependency-audit; npm-only →
+# dependency-audit; mixed → both. Rust lockfile/manifest paths already
+# route to the `rust` class (cargo-deny lives in .github/workflows/rust.yml).
+
+# (a) Cargo.lock-only — routes to rust audit, must NOT add dependency-audit.
+cargo_lock_only=$(run_case cargo-lock-only Cargo.lock)
+assert_json_contains "${cargo_lock_only}" '.pathClasses | index("rust")' 'Cargo.lock routes to rust class'
+assert_json_contains "${cargo_lock_only}" '.pathClasses | index("lockfile") == null' 'Cargo.lock does NOT route to lockfile class (CIB-031)'
+assert_json_contains "${cargo_lock_only}" '.requiredChecks | index("dependency-audit") == null' 'Cargo.lock does NOT add dependency-audit (CIB-031)'
+assert_json_contains "${cargo_lock_only}" '.requiredChecks | index("cargo-check")' 'Cargo.lock still requires cargo-check'
+assert_json_contains "${cargo_lock_only}" '.warnings | index("mixed-change-set") == null' 'Cargo.lock alone is not a mixed-change-set'
+
+# (b) pnpm-lock.yaml-only — still adds dependency-audit.
+npm_lock_only=$(run_case npm-lock-only pnpm-lock.yaml)
+assert_json_contains "${npm_lock_only}" '.pathClasses | index("lockfile")' 'pnpm-lock.yaml routes to lockfile class'
+assert_json_contains "${npm_lock_only}" '.requiredChecks | index("dependency-audit")' 'pnpm-lock.yaml adds dependency-audit'
+
+# (c) Mixed Cargo.lock + pnpm-lock.yaml — Rust-only suppression must NOT
+# silence the npm audit when npm also changed.
+mixed_lockfiles=$(run_case mixed-lockfiles Cargo.lock pnpm-lock.yaml)
+assert_json_contains "${mixed_lockfiles}" '.pathClasses | index("rust")' 'mixed adds rust class for Cargo.lock'
+assert_json_contains "${mixed_lockfiles}" '.pathClasses | index("lockfile")' 'mixed adds lockfile class for pnpm-lock.yaml'
+assert_json_contains "${mixed_lockfiles}" '.requiredChecks | index("dependency-audit")' 'mixed still adds dependency-audit (npm presence wins)'
+
 mixed=$(run_case mixed docs/guides/testing.md packages/anvil-core/src/index.ts crates/anvil-cli/src/main.rs)
 assert_json_contains "${mixed}" '.pathClasses | index("mixed")' 'mixed path class'
 assert_json_contains "${mixed}" '.warnings | index("mixed-change-set")' 'mixed warning emitted'

@@ -202,8 +202,15 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # CIB-031: the `lockfile` class drives the `dependency-audit` required
+  # check, which gates the npm-facing Trivy scan and `license-check` in
+  # `.github/workflows/security.yml`. Restrict it to npm manifests/lockfiles
+  # so a Rust-only `Cargo.lock` / `Cargo.toml` change does not run a
+  # whole-repo Trivy scan that surfaces unrelated `pnpm-lock.yaml`
+  # advisories. Rust dependency changes already route to the `rust` class
+  # above (`cargo-deny` lives in `.github/workflows/rust.yml`).
   case "${path}" in
-    pnpm-lock.yaml | package-lock.json | yarn.lock | Cargo.lock | package.json | Cargo.toml | crates/*/Cargo.toml | crates/**/Cargo.toml | packages/*/package.json | packages/**/package.json)
+    pnpm-lock.yaml | package-lock.json | yarn.lock | package.json | packages/*/package.json | packages/**/package.json)
       add_unique path_classes 'lockfile'
       add_unique risk_classes 'dependencies'
       matched=true
