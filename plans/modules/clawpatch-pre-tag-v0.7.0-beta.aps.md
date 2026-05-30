@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 20/64    |
+| CLAWP | @aneki | In Progress | 24/64    |
 
-**Last reviewed:** 2026-05-21 (twenty findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142.)
+**Last reviewed:** 2026-05-21 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159.)
 
 ## Purpose
 
@@ -340,7 +340,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_6e164ac8f1` — Rust integration test eddacraft-anvil-intercept/jsonrpc_conformance
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-29 via PR #2058 (closes #1749) — `oversized_scan_buffer_notification_is_dropped_silently` now recovers the client after the no-response timeout, sends an id-bearing `session.list` on the same stream, and asserts the JSON-RPC result, proving the connection stayed live (not just that it timed out).
 - **Recommendation:** After the no-response timeout, recover the client, write a normal request such as session.list with an id on the same stream, read one line, and assert the expected JSON-RPC result before shutting down.
 - **Evidence:** `crates/anvil-intercept/tests/jsonrpc_conformance.rs:419` (`oversized_scan_buffer_notification_is_dropped_silently`), `crates/anvil-intercept/tests/jsonrpc_conformance.rs:446` (`oversized_scan_buffer_notification_is_dropped_silently`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -453,7 +453,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_dd97196f08` — Rust integration test eddacraft-anvil/mcp_serve_stdio
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-29 via PR #2061 (closes #1756) — added stdio integration tests proving `anvil_suppress` and `anvil_fix` reject a workspaceRoot outside the server root and leave the sibling file unchanged, extending the read-only containment coverage to the file-mutating tools.
 - **Recommendation:** Add stdio integration tests for anvil_suppress and anvil_fix where the server is started in one tempdir, workspaceRoot points at a sibling tempdir, and the response is an error while the sibling file remains unchanged. Apply the same containment pattern to any other workspaceRoot-accepting or file-mutating MCP tool as it is added.
 - **Evidence:** `crates/anvil-cli/tests/mcp_serve_stdio.rs:86` (`mcp_serve_stdio_tools_call_status_rejects_workspace_outside_server_root`), `crates/anvil-cli/tests/mcp_serve_stdio.rs:709` (`mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root`), `crates/anvil-cli/tests/mcp_serve_stdio.rs:1041` (`mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file`), _+1 more in the report_
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -464,7 +464,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_e20f33eb79` — Rust integration test eddacraft-anvil/air_gapped
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2160 (closes #1754) — air-gap tests now parse the `status --verify --json` output, assert the closed-set local-diagnostic shape, and assert the absence of network/auth/update markers, with a structured `last_error` guard that also catches `ProbeError::Timeout` ("no response within Xs").
 - **Recommendation:** Tighten the status assertions to prove the local probe path was used: parse the JSON output and assert the expected local diagnostic shape, assert absence of network/auth/update error markers, or extend the harness to detect socket/connect attempts and fail on any such attempt.
 - **Evidence:** `crates/anvil-cli/tests/air_gapped.rs:5`, `crates/anvil-cli/tests/air_gapped.rs:131` (`anvil_status_verify_json_exits_cleanly_with_no_network`), `crates/anvil-cli/tests/air_gapped.rs:171` (`anvil_status_verify_json_skips_auth_refresh_with_expired_credentials`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -475,7 +475,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_ef1734fc53` — Rust integration test eddacraft-anvil-kernel/architecture_parity
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2159 — added a same-name cross-file collision regression test (two single-file deltas matching `update_file` output) asserting the baselined identity stays suppressed in its own file while the new file's same-name symbol is still flagged. The file/kind/name baseline key was already correct, so no production change was needed — this is regression coverage.
 - **Recommendation:** Add collision fixtures with two distinct symbol IDs and different files but the same symbol name: mark the original as previously public or privileged, add the second symbol in the delta, and assert the expansion violation is still emitted for the new file/symbol identity. If the implementation fails, change baseline keys to include file and/or...
 - **Evidence:** `crates/anvil-kernel/tests/architecture_parity.rs:612` (`previously_public_symbol_suppressed`), `crates/anvil-kernel/tests/architecture_parity.rs:649` (`previously_privileged_symbol_suppressed`), `crates/anvil-kernel/tests/architecture_parity.rs:670` (`baseline_suppresses_known_but_flags_new`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
