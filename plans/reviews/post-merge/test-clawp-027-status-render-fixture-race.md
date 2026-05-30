@@ -1,6 +1,6 @@
 # Post-merge: test-clawp-027-status-render-fixture-race
 
-PR: #NNN
+PR: #2145
 Branch: `test/clawp-027-status-render-fixture-race`
 APS: CLAWP-027 (module `clawpatch-pre-tag-v0.7.0-beta`)
 Merged: <!-- filled by cleanup agent -->

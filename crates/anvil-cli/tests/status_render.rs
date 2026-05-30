@@ -21,9 +21,12 @@
 // file concurrently; several of them write the same fixture paths while others
 // read them. Every fixture file access (read AND write) below funnels through
 // `fixture_io_lock()` so a concurrent reader can never observe a torn or
-// missing file mid-write. The lock is process-wide and held for the duration
-// of a single file operation only, so verify-mode runs stay fully parallel in
-// practice (they never block on a writer because no writes occur).
+// missing file mid-write. The lock is process-wide and held only for the
+// duration of a single file operation (or the directory-count block in
+// `fixture_directory_layout_is_pinned`), so it serialises fixture I/O without
+// serialising the tests' actual work. In verify mode there are no writers, so
+// readers only ever contend briefly with each other on the short lock-hold,
+// never blocking on a write.
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};
