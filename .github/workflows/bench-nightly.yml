@@ -1,18 +1,23 @@
-name: Nightly Stress Tests
+name: Stress Tests (manual)
 
-# BENCH-021: Run stress test scenarios nightly on dedicated hardware.
+# BENCH-021: Run stress test scenarios on dedicated hardware.
 # Requires a self-hosted runner labelled 'bench'.
 #
-# Setup: https://docs.github.com/en/actions/hosting-your-own-runners
+# Manual-only: the nightly `schedule:` trigger was removed because no
+# self-hosted 'bench' runner is currently online, so scheduled runs only
+# queued and were auto-cancelled (dead signal since ~2026-05-22). Dispatch
+# manually once a 'bench' runner is up. To restore the nightly cadence,
+# re-add under `on:`:
+#   schedule:
+#     - cron: '0 19 * * *'   # 03:00 Perth (19:00 UTC prev day; no DST)
+#
+# Runner setup: https://docs.github.com/en/actions/hosting-your-own-runners
 #   1. Settings > Actions > Runners > New self-hosted runner
 #   2. Label the runner 'bench'
 #   3. Install Rust toolchain (rustup)
 #   4. Run as a service: sudo ./svc.sh install && sudo ./svc.sh start
 
 on:
-  schedule:
-    # Every night at 03:00 Perth (19:00 UTC previous day; Perth has no DST)
-    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
       scenario:
