@@ -120,8 +120,9 @@ readiness work on 2026-05-12. The operational release `v0.6.2-beta` is tagged;
 the `v0.6.3-beta` patch (2026-05-15, release record at
 [`plans/releases/v0.6.3-beta.md`](./releases/v0.6.3-beta.md)) rolled WATCHUX
 8/8 and ADOPT-005 `anvil uninstall` on top. The daemon-working product slate
-has since shipped as `v0.7.0-beta` (2026-05-21) plus the `v0.7.1-beta` patch
-(2026-05-23); the current planning window is now the `v0.7.2-beta` candidate.
+has since shipped as `v0.7.0-beta` (2026-05-21) plus the `v0.7.1-beta`
+(2026-05-23) and `v0.7.2-beta` (2026-05-25) Boring Week patches; the current
+planning window is now the `v0.7.3-beta` candidate.
 
 | Area | Status | Progress | Notes |
 | ---- | ------ | -------- | ----- |

@@ -279,7 +279,7 @@ archive.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** `anvil baseline` + `cutoff_commit` already
   distinguish first-scan posture from new regressions mechanically.
   The UX doesn't name that distinction. Adding the phrasing turns
@@ -506,7 +506,7 @@ archive.
 
 ### CIB-027: Define a lightweight review path for cross-repo implementation work
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Give agents a first-class pre-PR review surface when implementation
   work happens in a downstream or sibling repository where Anvil's `/council`
   command is not available.
@@ -529,7 +529,7 @@ archive.
 
 ### CIB-028: Add a safe post-merge worktree cleanup sweep
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Reduce accumulated Worktrunk worktrees left behind after batches of
   merged PRs, without deleting unmerged or still-needed local work.
 - **Expected Outcome:** A documented operator command or script lists
@@ -574,7 +574,7 @@ archive.
 
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
-- **Status:** Draft
+- **Status:** Ready
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating
@@ -688,7 +688,7 @@ archive.
 
 ### CIB-032: Fresh worktrees fall back to a stale global oxfmt, producing false format failures
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** A freshly created `git worktree` has no `node_modules`, so
   `pnpm run format:check` / `pnpm run lint` resolve `oxfmt` from a stale
   **global** install instead of the workspace-pinned `oxfmt@^0.51.0`. The older
@@ -744,7 +744,7 @@ archive.
 
 ### CIB-034: Publish sanitised release evidence for the public release mirror
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Give users of the public release mirror a concise, sanitised trust
   record for each shipped Anvil release, even though the source project itself is
   not public.
@@ -831,7 +831,7 @@ archive.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Let docs/plans-path PRs merge — the `main` ruleset must resolve
   required status checks that currently report a duplicate `success`+`skipped`
   pair under one name.
