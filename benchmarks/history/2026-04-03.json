@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "run": {
+    "date": "2026-04-03",
+    "commit": null,
+    "anvil_version": "0.3.0-beta era",
+    "rustc": null,
+    "samples": 100,
+    "trigger": "manual marketing baseline (reconstructed from vault export)",
+    "host": {
+      "name": "unknown",
+      "note": "different machine and Anvil version than 2026-05-30 — cross-run deltas may reflect environment, not code"
+    },
+    "source": "Vault/projects/anvil/Benchmarks.md (2026-04-03), headline numbers only",
+    "partial": true,
+    "caveats": [
+      "Headline subset only: no 500/1000/5000-file, import_resolution, stress, parallel-scan, ipc/midedit, or resource-budget cases.",
+      "Cold-start 100-file is inconsistent in source: 24.5 ms raw (recorded here) vs 14.5 ms after rayon parallel parse, which is the value used for README/marketing.",
+      "variance_ns unknown (not captured in source); recorded as null."
+    ]
+  },
+  "benches": {
+    "kernel": [
+      { "case": "cold_graph_build/files/10", "ns_per_iter": 1510000, "variance_ns": null },
+      { "case": "cold_graph_build/files/50", "ns_per_iter": 9700000, "variance_ns": null },
+      {
+        "case": "cold_graph_build/files/100",
+        "ns_per_iter": 24500000,
+        "variance_ns": null,
+        "note": "raw value; 14.5 ms rayon-parallel variant used for marketing baseline"
+      },
+      {
+        "case": "incremental_update/single_file_reparse_and_update",
+        "ns_per_iter": 10700,
+        "variance_ns": null
+      },
+      {
+        "case": "policy_evaluation/evaluate_all_invariants",
+        "ns_per_iter": 799,
+        "variance_ns": null
+      },
+      {
+        "case": "event_emission/emit_1000_progress_events",
+        "ns_per_iter": 408000,
+        "variance_ns": null
+      }
+    ],
+    "checks": [
+      { "case": "secret_scan/small_file", "ns_per_iter": 4070000, "variance_ns": null },
+      { "case": "secret_scan/medium_file", "ns_per_iter": 4850000, "variance_ns": null },
+      { "case": "secret_scan/large_file", "ns_per_iter": 9940000, "variance_ns": null },
+      {
+        "case": "entropy/combined",
+        "ns_per_iter": 1400,
+        "variance_ns": null,
+        "note": "source records '<1.4µs'; not split into short/long as in later runs"
+      },
+      {
+        "case": "antipattern/typescript_typical",
+        "ns_per_iter": 1450000,
+        "variance_ns": null,
+        "note": "April labels (typical/large) differ from May small/medium/large — not a 1:1 case match"
+      },
+      { "case": "antipattern/large_file", "ns_per_iter": 6600000, "variance_ns": null },
+      { "case": "command_safety/simple_command", "ns_per_iter": 507, "variance_ns": null },
+      { "case": "command_safety/complex_pipeline", "ns_per_iter": 5180, "variance_ns": null },
+      { "case": "command_safety/rule_matching", "ns_per_iter": 15400, "variance_ns": null }
+    ]
+  }
+}

@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "run": {
+    "date": "2026-05-30",
+    "commit": "be6b04c0c",
+    "rustc": "1.95.0",
+    "trigger": "manual (release-readiness spot check)",
+    "host": {
+      "cpus": 16,
+      "note": "local dev box, load ~2-3 during run"
+    },
+    "source": "scripts/bench cargo bench surfaces, run directly (see benchmarks/README.md)"
+  },
+  "benches": {
+    "kernel": [
+      {
+        "case": "cold_graph_build/files/10",
+        "ns_per_iter": 481936,
+        "variance_ns": 27593
+      },
+      {
+        "case": "cold_graph_build/files/50",
+        "ns_per_iter": 2984943,
+        "variance_ns": 118445
+      },
+      {
+        "case": "cold_graph_build/files/100",
+        "ns_per_iter": 8307622,
+        "variance_ns": 299387
+      },
+      {
+        "case": "cold_graph_build/files/500",
+        "ns_per_iter": 139506577,
+        "variance_ns": 4889307
+      },
+      {
+        "case": "cold_graph_build/files/1000",
+        "ns_per_iter": 522743183,
+        "variance_ns": 6120884
+      },
+      {
+        "case": "cold_graph_build/files/5000",
+        "ns_per_iter": 14205210902,
+        "variance_ns": 1239349801
+      },
+      {
+        "case": "incremental_update/single_file_reparse_and_update",
+        "ns_per_iter": 7765,
+        "variance_ns": 97
+      },
+      {
+        "case": "incremental_update_varied/loc/10",
+        "ns_per_iter": 38803,
+        "variance_ns": 1470
+      },
+      {
+        "case": "incremental_update_varied/loc/100",
+        "ns_per_iter": 289922,
+        "variance_ns": 6359
+      },
+      {
+        "case": "incremental_update_varied/loc/500",
+        "ns_per_iter": 1398666,
+        "variance_ns": 24061
+      },
+      {
+        "case": "incremental_update_varied/loc/1000",
+        "ns_per_iter": 2777061,
+        "variance_ns": 59930
+      },
+      {
+        "case": "symbol_extraction/loc/10",
+        "ns_per_iter": 1376,
+        "variance_ns": 16
+      },
+      {
+        "case": "symbol_extraction/loc/100",
+        "ns_per_iter": 4314,
+        "variance_ns": 85
+      },
+      {
+        "case": "symbol_extraction/loc/500",
+        "ns_per_iter": 17559,
+        "variance_ns": 629
+      },
+      {
+        "case": "symbol_extraction/loc/1000",
+        "ns_per_iter": 34627,
+        "variance_ns": 1061
+      },
+      {
+        "case": "import_resolution/files/100",
+        "ns_per_iter": 782738,
+        "variance_ns": 13011
+      },
+      {
+        "case": "import_resolution/files/1000",
+        "ns_per_iter": 72404868,
+        "variance_ns": 1800730
+      },
+      {
+        "case": "import_resolution/files/10000",
+        "ns_per_iter": 7323014351,
+        "variance_ns": 64699225
+      },
+      {
+        "case": "trust_annotation/files/100",
+        "ns_per_iter": 12805,
+        "variance_ns": 12978
+      },
+      {
+        "case": "trust_annotation/files/1000",
+        "ns_per_iter": 147988,
+        "variance_ns": 244737
+      },
+      {
+        "case": "trust_annotation/files/5000",
+        "ns_per_iter": 761712,
+        "variance_ns": 65607
+      },
+      {
+        "case": "policy_evaluation/evaluate_all_invariants",
+        "ns_per_iter": 1193,
+        "variance_ns": 23
+      },
+      {
+        "case": "policy_scaling/4_invariants/1_symbols",
+        "ns_per_iter": 999,
+        "variance_ns": 9
+      },
+      {
+        "case": "policy_scaling/4_invariants/10_symbols",
+        "ns_per_iter": 10438,
+        "variance_ns": 107
+      },
+      {
+        "case": "policy_scaling/4_invariants/50_symbols",
+        "ns_per_iter": 54213,
+        "variance_ns": 836
+      },
+      {
+        "case": "policy_scaling/10_invariants/1_symbols",
+        "ns_per_iter": 2237,
+        "variance_ns": 40
+      },
+      {
+        "case": "policy_scaling/10_invariants/10_symbols",
+        "ns_per_iter": 22371,
+        "variance_ns": 220
+      },
+      {
+        "case": "policy_scaling/10_invariants/50_symbols",
+        "ns_per_iter": 110601,
+        "variance_ns": 1304
+      },
+      {
+        "case": "policy_scaling/25_invariants/1_symbols",
+        "ns_per_iter": 5217,
+        "variance_ns": 77
+      },
+      {
+        "case": "policy_scaling/25_invariants/10_symbols",
+        "ns_per_iter": 46872,
+        "variance_ns": 434
+      },
+      {
+        "case": "policy_scaling/25_invariants/50_symbols",
+        "ns_per_iter": 251402,
+        "variance_ns": 4662
+      },
+      {
+        "case": "policy_scaling/50_invariants/1_symbols",
+        "ns_per_iter": 10450,
+        "variance_ns": 97
+      },
+      {
+        "case": "policy_scaling/50_invariants/10_symbols",
+        "ns_per_iter": 85108,
+        "variance_ns": 876
+      },
+      {
+        "case": "policy_scaling/50_invariants/50_symbols",
+        "ns_per_iter": 471498,
+        "variance_ns": 4280
+      },
+      {
+        "case": "event_emission/emit_1000_progress_events",
+        "ns_per_iter": 252026,
+        "variance_ns": 4318
+      },
+      {
+        "case": "graph_query/symbols_in_file/1000",
+        "ns_per_iter": 150,
+        "variance_ns": 4
+      },
+      {
+        "case": "graph_query/outgoing_edges/1000",
+        "ns_per_iter": 18,
+        "variance_ns": 0
+      },
+      {
+        "case": "graph_query/symbols_in_file/5000",
+        "ns_per_iter": 154,
+        "variance_ns": 2
+      },
+      {
+        "case": "graph_query/outgoing_edges/5000",
+        "ns_per_iter": 18,
+        "variance_ns": 0
+      },
+      {
+        "case": "graph_query/symbols_in_file/10000",
+        "ns_per_iter": 152,
+        "variance_ns": 2
+      },
+      {
+        "case": "graph_query/outgoing_edges/10000",
+        "ns_per_iter": 18,
+        "variance_ns": 0
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/100",
+        "ns_per_iter": 15881,
+        "variance_ns": 581
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/100",
+        "ns_per_iter": 7537,
+        "variance_ns": 152
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/500",
+        "ns_per_iter": 85775,
+        "variance_ns": 1920
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/500",
+        "ns_per_iter": 41137,
+        "variance_ns": 436
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/1000",
+        "ns_per_iter": 169041,
+        "variance_ns": 1519
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/1000",
+        "ns_per_iter": 82549,
+        "variance_ns": 21827
+      },
+      {
+        "case": "filter_throughput/paths/1000",
+        "ns_per_iter": 78967,
+        "variance_ns": 972
+      },
+      {
+        "case": "filter_throughput/paths/10000",
+        "ns_per_iter": 808510,
+        "variance_ns": 7743
+      },
+      {
+        "case": "filter_throughput/paths/50000",
+        "ns_per_iter": 3964630,
+        "variance_ns": 69699
+      }
+    ],
+    "checks": [
+      {
+        "case": "secret_scan/small_file",
+        "ns_per_iter": 1996204,
+        "variance_ns": 40779
+      },
+      {
+        "case": "secret_scan/medium_file",
+        "ns_per_iter": 2703316,
+        "variance_ns": 35038
+      },
+      {
+        "case": "secret_scan/large_file",
+        "ns_per_iter": 9872748,
+        "variance_ns": 261411
+      },
+      {
+        "case": "secret_scan/clean_file",
+        "ns_per_iter": 2657645,
+        "variance_ns": 43802
+      },
+      {
+        "case": "entropy/short_string",
+        "ns_per_iter": 220,
+        "variance_ns": 2
+      },
+      {
+        "case": "entropy/long_string",
+        "ns_per_iter": 722,
+        "variance_ns": 12
+      },
+      {
+        "case": "antipattern/typescript_small",
+        "ns_per_iter": 37375,
+        "variance_ns": 855
+      },
+      {
+        "case": "antipattern/typescript_medium",
+        "ns_per_iter": 414437,
+        "variance_ns": 6167
+      },
+      {
+        "case": "antipattern/typescript_large",
+        "ns_per_iter": 4057757,
+        "variance_ns": 104684
+      },
+      {
+        "case": "antipattern/html_file",
+        "ns_per_iter": 3540,
+        "variance_ns": 58
+      },
+      {
+        "case": "antipattern/clean_file",
+        "ns_per_iter": 285481,
+        "variance_ns": 8207
+      },
+      {
+        "case": "command_safety/simple_command",
+        "ns_per_iter": 269,
+        "variance_ns": 4
+      },
+      {
+        "case": "command_safety/dangerous_command",
+        "ns_per_iter": 376,
+        "variance_ns": 12
+      },
+      {
+        "case": "command_safety/compound_command",
+        "ns_per_iter": 2667,
+        "variance_ns": 71
+      },
+      {
+        "case": "command_safety/wrapped_command",
+        "ns_per_iter": 757,
+        "variance_ns": 16
+      },
+      {
+        "case": "command_safety/complex_pipeline",
+        "ns_per_iter": 3045,
+        "variance_ns": 67
+      },
+      {
+        "case": "command_safety/rule_matching",
+        "ns_per_iter": 8925,
+        "variance_ns": 220
+      }
+    ],
+    "stress": [
+      {
+        "case": "watcher_saturation/small_burst",
+        "ns_per_iter": 37952209,
+        "variance_ns": 57353
+      },
+      {
+        "case": "graph_memory/small_graph",
+        "ns_per_iter": 286655,
+        "variance_ns": 1722
+      },
+      {
+        "case": "incremental_throughput/sustained_edits",
+        "ns_per_iter": 100112124,
+        "variance_ns": 6177
+      },
+      {
+        "case": "policy_scaling/rule_scaling",
+        "ns_per_iter": 110167,
+        "variance_ns": 229
+      },
+      {
+        "case": "cold_start/scaling",
+        "ns_per_iter": 3570803,
+        "variance_ns": 35368
+      }
+    ],
+    "antipattern_scan": [
+      {
+        "case": "antipattern_scan/parallel_mixed_corpus",
+        "ns_per_iter": 425742,
+        "variance_ns": 23854
+      }
+    ],
+    "secret_scan_parallel": [
+      {
+        "case": "scan/serial_baseline",
+        "ns_per_iter": 5789803009,
+        "variance_ns": 20844644
+      },
+      {
+        "case": "scan/parallel_rollout",
+        "ns_per_iter": 809478311,
+        "variance_ns": 38781369
+      }
+    ],
+    "ipc_roundtrip": [
+      {
+        "case": "validation.service",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.001
+      },
+      {
+        "case": "validation.roundtrip",
+        "samples": 200,
+        "p50_ms": 0.016,
+        "p95_ms": 0.02,
+        "p99_ms": 0.026
+      }
+    ],
+    "midedit_roundtrip": [
+      {
+        "case": "midedit_service/empty",
+        "median": "1.8645 ms"
+      },
+      {
+        "case": "midedit_roundtrip/empty",
+        "median": "2.1374 ms"
+      }
+    ]
+  },
+  "watch_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 0.0,
+    "peak_rss_mib": 10.96,
+    "budget": {
+      "steady_state_cpu_pct": 5.0,
+      "peak_rss_mib": 200.0
+    }
+  }
+}

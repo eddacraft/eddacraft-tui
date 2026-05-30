@@ -28,6 +28,8 @@ assignees: ''
 - [ ] `anvil --version` matches expected version
 - [ ] `pnpm install --frozen-lockfile && pnpm build` succeeds
 - [ ] `pnpm nx run-many -t test --skip-nx-cache` passes
+- [ ] Benchmarks run on a quiet box and reviewed for regressions vs the last
+      `benchmarks/history/` run; new run committed (see `benchmarks/README.md`)
 - [ ] `crates/anvil-cli/Cargo.toml` version is correct
 - [ ] `CHANGELOG.md` has release notes
 
