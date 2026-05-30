@@ -63,8 +63,8 @@ engineering maintenance are recorded in the
   findings sharing a line are no longer collapsed into one.
 - **Workflow installs now require explicit consent**, and workflow file writes
   are hardened against unintended overwrites
-  ([#2003](https://github.com/eddacraft/anvil-001/issues/2003)).
-Changes landed on `main` since `v0.7.2-beta`, not yet cut to a release tag.
+  ([#2003](https://github.com/eddacraft/anvil-001/issues/2003)). Changes landed
+  on `main` since `v0.7.2-beta`, not yet cut to a release tag.
 
 ### Added
 
@@ -91,8 +91,9 @@ Changes landed on `main` since `v0.7.2-beta`, not yet cut to a release tag.
 - **Policy engine hardened.** The Rego evaluation path behind the experimental
   `anvil policy eval` now catches panics at the regorus facade, enforces a
   determinism fence and bounds, and emits tracing on the eval path
-  ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)). The `anvil
-  policy eval` surface remains a preview — its output shape may still change.
+  ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)). The
+  `anvil policy eval` surface remains a preview — its output shape may still
+  change.
 
 ### Fixed
 
