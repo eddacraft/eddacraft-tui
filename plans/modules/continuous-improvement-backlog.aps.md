@@ -633,7 +633,7 @@ archive.
 
 ### CIB-031: Scope the dependency-audit gate so Rust-only lockfile changes skip the npm Trivy audit
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** A PR that changes only `Cargo.lock` (or a crate `Cargo.toml`) is
   classified as a generic `lockfile` change, which the classifier maps to the
   `dependency-audit` signal. In `.github/workflows/security.yml` that signal
@@ -653,10 +653,14 @@ archive.
   distinguishes Rust lockfiles from npm lockfiles.
 - **Validation:** `scripts/ci/classify-changes.test.sh` gains cases asserting
   (a) a `Cargo.lock`-only diff routes to the Rust audit and does NOT add the
-  `dependency-audit` requirement (which gates Trivy + `license-check`), and
-  (b) a `pnpm-lock.yaml` diff still does. A Rust-only-dependency PR shows green
-  `cargo-deny` and no `Dependency Audit` / `license-check` failure attributable
-  to unrelated npm advisories.
+  `dependency-audit` requirement (which gates Trivy + `license-check`),
+  (b) a `pnpm-lock.yaml` diff still does, and (c) a mixed `Cargo.lock` +
+  `pnpm-lock.yaml` diff DOES add `dependency-audit` (the Rust-only suppression
+  must not silence the npm audit when npm also changed). A Rust-only-dependency
+  PR shows green `cargo-deny` and no `Dependency Audit` / `license-check`
+  failure attributable to unrelated npm advisories.
+- **Dependencies:** None (`cargo-deny` job already exists in
+  `.github/workflows/rust.yml`; the discovery PR SCAN-005 #2034 is merged).
 - **Identified From:** SCAN-005 PR #2034 (2026-05-28). Adding `ignore` to
   `anvil-bench` dev-dependencies changed only `Cargo.lock` (no npm files), but
   the `lockfile` classification ran the Trivy `Dependency Audit` (whole-repo
