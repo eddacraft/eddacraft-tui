@@ -4,9 +4,14 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 5/5 |
+| DISTRIB | @aneki | In Progress | 5/6 |
 
-**Last reviewed:** 2026-05-17 (DISTRIB-003 **Merged** via PR #1652 — Homebrew
+**Last reviewed:** 2026-05-31 (DISTRIB-006 filed — promoted from GitHub issue
+[#1726](https://github.com/eddacraft/anvil-001/issues/1726): `ANVIL_HOME` /
+`--anvil-home` install-root override for side-by-side candidate installs, so a
+pre-release Anvil can be tested without releasing it. Filed **Proposed**, gated
+on the ADR-060 project-state design call; module total 5 → 6, done unchanged at
+5, status stays **In Progress**. Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
 workflow, smoke install on macOS arm64/x64, and publish runbook; operator
@@ -25,8 +30,10 @@ Promoted **Proposed → Ready** alongside acceptance of
 Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
 DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
 (`anvil migrate schema` cross-version config reconciliation, subcommand-split
-design). All five items are Merged-or-beyond; the module advances to Complete
-once DISTRIB-005 rides a release tag. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is newly
+**Proposed** (GitHub #1726, gated on ADR-060), so the module no longer advances
+to Complete on the DISTRIB-005 release tag alone — it now also needs DISTRIB-006
+to ship. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
 users.)
 
@@ -55,6 +62,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   on macOS arm64 and x64
 - Release cadence and EOL policy (`docs/policies/release-cadence.md`)
 - `anvil migrate` for config reconciliation across minor versions
+- Install-root override (`ANVIL_HOME` / `--anvil-home`) so a pre-release
+  candidate can run side-by-side with the production install for testing
 
 ## Out of Scope
 
@@ -286,6 +295,90 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - text: "`anvil migrate schema` reconciles config across minor versions
     in one step."
 
+### DISTRIB-006: `ANVIL_HOME` / `--anvil-home` Install-Root Override For Side-By-Side Candidate Installs
+
+- **Intent:** Let an internal developer run a pre-release Anvil candidate
+  alongside the production install — testing a new version without releasing it
+  — by re-rooting all install-owned state (user state, daemon socket, kernel
+  cache/logs) under a single override prefix, so the candidate never collides
+  with the production install's `~/.anvil/`, its daemon socket, or project
+  state.
+- **Source:** GitHub issue
+  [#1726](https://github.com/eddacraft/anvil-001/issues/1726) (filed 2026-05-19
+  by @joshuaboys during `v0.7.0-beta` pre-cut testing). Today no env var or flag
+  re-roots the install: the surveyed overrides (`ANVIL_ADMIN_KEY`,
+  `ANVIL_API_URL`, `ANVIL_LICENSE`, `ANVIL_TEMPLATES_DIR`, `XDG_CONFIG_HOME`, …)
+  leave three concrete collisions — user-state (`~/.anvil/`), daemon-socket, and
+  per-project `.anvil/`. The current workaround (stop prod daemon, symlink
+  `anvil-beta`, test only under `/tmp`, accept the user-state leak) is tolerable
+  one-off but painful for sustained candidate iteration. The daemon
+  single-instance constraint is
+  [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md)
+  (`one daemon per (uid, os)`, PID-file exclusive create), so a distinct socket
+  prefix per `ANVIL_HOME` is precisely what lets two daemons coexist.
+- **Design gate (blocks Ready) — ADR-060 required:** Per-project state
+  resolution is an open design call that MUST be settled in an `Accepted` ADR
+  before this item is promoted to Ready (follow
+  [`docs/guides/adr-process.md`](../../docs/guides/adr-process.md)):
+  - **Option (a)** — keep per-project `.anvil/` resolution unchanged, so a
+    candidate-tested project's witness chain stays durable when you switch back
+    to prod; or
+  - **Option (b)** — re-root project discovery so the candidate sees only
+    projects under `<ANVIL_HOME>/projects/`, preventing accidental
+    cross-pollination of real project state.
+
+  File as `plans/decisions/060-anvil-home-install-root-override.md` and index it
+  in `DECISION-LOG.md`. The witness chain stays with the project in both
+  options; cross-version chain compatibility (a candidate writing a prod chain
+  or vice versa) is explicitly out of scope — that is an `anvil migrate`
+  problem, see DISTRIB-005.
+- **Expected Outcome:** A uniform install-root override that every install-owned
+  state location honours:
+  - `ANVIL_HOME=<path>` re-roots user state (`<path>/user/`), the daemon socket
+    (`<path>/daemon.sock` or the platform equivalent), and kernel cache/logs
+    (`<path>/cache/`); `~/.anvil/` is never touched when it is set.
+  - `--anvil-home <path>` takes precedence over the env var.
+  - Two daemons under different `ANVIL_HOME` prefixes run concurrently with no
+    socket clash.
+  - `anvil status --json` reports the resolved root in a new `installRoot`
+    field so an operator can see which install they are talking to.
+  - Unsetting `ANVIL_HOME` returns to platform-default behaviour
+    byte-for-byte — no regression for users who never set it.
+  - Per-project state behaviour follows whichever option ADR-060 accepts.
+- **Files:**
+  - `crates/anvil-cli/src/main.rs` (MODIFY — global `--anvil-home` flag + env
+    resolution; flag precedence over env)
+  - install-root resolver (NEW — single source of truth the current
+    `dirs::home_dir()` / `~/.anvil/` call sites route through)
+  - daemon socket-path derivation (MODIFY — honour the resolved root)
+  - `crates/anvil-cli/src/commands/status.rs` (MODIFY — `installRoot` JSON field)
+  - `plans/decisions/060-anvil-home-install-root-override.md` (NEW ADR)
+  - `plans/decisions/DECISION-LOG.md` (MODIFY — index ADR-060)
+  - `docs/runbooks/anvil-home-side-by-side.md` (NEW — candidate-testing +
+    Boring Week tester instructions, dropping the "stop prod daemon" step)
+  - `crates/anvil-cli/tests/anvil_home.rs` (NEW — env resolution, flag
+    precedence, two concurrent daemons under different prefixes, missing-path
+    fallback)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil --test anvil_home`
+  - Integration: `ANVIL_HOME=$(mktemp -d) anvil start` writes only under the
+    prefix and never `~/.anvil/`; two prefixes yield two concurrent daemons;
+    unset returns the default surface byte-for-byte.
+  - `pnpm adr:check` green with ADR-060 indexed.
+- **Status:** Proposed (blocked on the ADR-060 design gate above; the acceptance
+  criteria and file list mirror the issue #1726 proposal and are not yet a Ready
+  contract).
+- **Dependencies:** ADR-060 must be `Accepted` before Ready. Coordinates with
+  ADR-036 (daemon single-instance / socket derivation).
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+- **releaseNote:**
+  - audience: operator
+  - type: added
+  - text: "`ANVIL_HOME` / `--anvil-home` re-roots a candidate install so it runs
+    side-by-side with the production install for pre-release testing."
+
 ## Sequencing
 
 1. **DISTRIB-001** is first; everything else assumes signature verification
@@ -295,6 +388,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
    automation does not depend on the update command itself.
 4. **DISTRIB-004** is the policy doc and is independent.
 5. **DISTRIB-005** depends on -002 (it reuses the releases-feed contract).
+6. **DISTRIB-006** is independent of the update/version chain but gated on
+   ADR-060 (per-project state resolution); it does not block -001..-005.
 
 ## Release Notes
 
@@ -310,3 +405,8 @@ releases with a documented support window and clean upgrade path" line in
 - Blocks on: none at module level.
 - DISTRIB-001 signing scheme decision: [`ADR-045`](../decisions/045-update-signing-scheme.md)
   chose minisign for update artefact verification.
+- DISTRIB-006 promoted from GitHub issue
+  [#1726](https://github.com/eddacraft/anvil-001/issues/1726); coordinates with
+  [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md) (daemon
+  single-instance / socket derivation) and is gated on the pending **ADR-060**
+  (per-project state resolution under `ANVIL_HOME`).
