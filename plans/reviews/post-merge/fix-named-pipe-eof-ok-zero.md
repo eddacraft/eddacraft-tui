@@ -1,6 +1,6 @@
 # Post-merge: fix-named-pipe-eof-ok-zero
 
-PR: #NNN
+PR: #2137
 Branch: `fix/named-pipe-eof-ok-zero`
 APS: CLAWP-004 (`plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`)
 Merged: <!-- filled by cleanup agent -->
