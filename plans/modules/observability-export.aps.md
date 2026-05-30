@@ -125,7 +125,7 @@ is ephemeral debugging context, not source-of-truth.
     honoured — a seeded/deterministic sampling decision keeps and drops as
     configured, and the default ratio matches the documented cost budget.
   - **V4 — secrets, no silent default:** a missing or blank connection
-    string disables export with a clear log line and a non-export fall back
+    string disables export with a clear log line and a non-export fallback
     to formatter-only — never a panic and never a silent
     export-to-nowhere (per the operator-config propagation rule).
   - **V5 — end-to-end ingest (manual, staging):** with the exporter
