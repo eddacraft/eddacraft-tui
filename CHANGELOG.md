@@ -44,7 +44,9 @@ existing signal visible and exportable. Release date pending the tag.
   ([#1984](https://github.com/eddacraft/anvil-001/issues/1984)).
 - **Secret scanning now covers on-disk content, not just git history.** The
   secret scan that previously inspected commit history also scans the working
-  tree ([#1994](https://github.com/eddacraft/anvil-001/issues/1994)).
+  tree ([#1994](https://github.com/eddacraft/anvil-001/issues/1994)). The
+  git-history scan also reports the count of oversize lines it skipped, so a "0
+  findings" result can no longer silently hide unscanned content.
 - **`anvil welcome` reports the count of files skipped via `.gitignore`** in its
   discovery output, so the scan scope is no longer silent.
 
@@ -55,9 +57,17 @@ existing signal visible and exportable. Release date pending the tag.
   profile), enforces a determinism fence and input bounds, and emits tracing on
   the eval path ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)).
   `anvil policy eval` remains a preview — its output shape may still change.
+- **`anvil welcome` discovery scan is faster.** The first-run discovery walk is
+  now parallelised, cutting the dominant scan cost on large repositories while
+  preserving deterministic finding order.
 
 ### Fixed
 
+- **CLI diagnostics no longer corrupt `--json` output.** CLI log events
+  (including default-level `warn!`/`error!` and anything enabled via `ANVIL_LOG`
+  / `RUST_LOG`) were written to stdout, interleaving log lines with command
+  output and breaking `anvil … --json` for `jq` and pipeline consumers. CLI
+  diagnostics now go to stderr, leaving stdout reserved for command output.
 - **`anvil update` no longer silently drops `--insecure-skip-verify` on the
   sidecar update path.** The flag was accepted by `clap` and honoured on the
   library-fallback path but silently ignored on the sidecar path; it now emits a

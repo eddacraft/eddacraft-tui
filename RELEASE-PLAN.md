@@ -158,15 +158,18 @@ protection claim. This is freight that accumulated on `main` since
 `v0.7.2-beta`; the bulk is already Merged, so the remaining work is cut hygiene
 and reconciliation, not implementation.
 
-**Version framing (deliberate):** the landed work adds new commands and flags
+**Version framing (deliberate):** `scripts/release/assess.sh` always recommends
+the next minor for a beta cut (`v{major}.{minor+1}.0` — here `v0.8.0-beta`)
+regardless of what changed; its recommendation is mechanical, not
+content-driven, so the version is an operator override in every case. Strict
+semver does point the same way — the landed work adds new commands and flags
 (`anvil dashboard`, `anvil migrate schema`, `--format sarif`, new `insights`
-views), so `scripts/release/assess.sh` recommends a **minor** bump
-(`v0.8.0-beta`). We override that down to a **patch** (`v0.7.3-beta`) to honour
-the Hotfix Iteration Plan's "no minor beta before six weeks post-tag" rule
-(`v0.7.0-beta` shipped 2026-05-21). Pass the version explicitly to `assess.sh` /
-`prepare.sh` so the override is on the record. This is a patch on the sit-on tag
-— **no Boring Week gate applies** (that gates the sit-on claim, not weekly
-patches).
+views), which is feature-additive surface. We override down to a **patch**
+(`v0.7.3-beta`) anyway to honour the Hotfix Iteration Plan's "no minor beta
+before six weeks post-tag" rule (`v0.7.0-beta` shipped 2026-05-21). Pass the
+version explicitly to `assess.sh` / `prepare.sh` so the override is on the
+record. This is a patch on the sit-on tag — **no Boring Week gate applies**
+(that gates the sit-on claim, not weekly patches).
 
 **Scope (all Merged on `main` unless noted):**
 
