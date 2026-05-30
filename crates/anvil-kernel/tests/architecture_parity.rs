@@ -806,6 +806,60 @@ fn same_name_different_file_privileged_symbol_still_flags_new_access() {
     assert_eq!(priv_violations[0].symbol, "sharedPrivilegedName");
 }
 
+/// Collision in a single delta: a baselined symbol and a brand-new symbol
+/// that share the SAME name but live in DIFFERENT files are evaluated
+/// together. A name-only baseline key would suppress both; the file/kind/name
+/// key must suppress only the baselined identity and STILL flag the new file's
+/// symbol. (CLAWP-026 — guards against name-collision suppression regression.)
+#[test]
+fn same_name_collision_in_single_delta_flags_only_new_file() {
+    let config = layered_config();
+    let mut graph = SymbolGraph::new();
+
+    let baselined = sym(
+        88,
+        "collidingName",
+        "src/app/old.ts",
+        Visibility::Public,
+        TrustLevel::Internal,
+    );
+    let newcomer = sym(
+        89,
+        "collidingName",
+        "src/app/added.ts",
+        Visibility::Public,
+        TrustLevel::Internal,
+    );
+
+    // Only the original identity is baselined as previously public.
+    let mut previously_public = HashSet::new();
+    previously_public.insert(GraphDelta::symbol_baseline_key(&baselined));
+
+    graph.add_symbol(baselined).unwrap();
+    graph.add_symbol(newcomer).unwrap();
+
+    // Both same-name symbols are present in the same delta.
+    let delta = GraphDelta {
+        added_symbols: vec![88, 89],
+        file: "src/app/added.ts".to_string(),
+        previously_public,
+        ..Default::default()
+    };
+
+    let mut engine = build_engine();
+    let violations = engine.evaluate(&delta, &graph, &config);
+
+    let api_violations: Vec<_> = violations
+        .iter()
+        .filter(|v| v.policy_id == "public-api-expansion")
+        .collect();
+    // The baselined identity must be suppressed; the new file's identity must
+    // NOT be silently suppressed by the shared name.
+    assert_eq!(api_violations.len(), 1);
+    assert_eq!(api_violations[0].file, "src/app/added.ts");
+    assert_eq!(api_violations[0].symbol, "collidingName");
+}
+
 // ── Layer boundary edge cases ───────────────────────────────────────
 
 /// File outside any layer should not trigger cross-layer.
