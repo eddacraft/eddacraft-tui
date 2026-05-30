@@ -61,11 +61,14 @@
 //!   platform-specific and racy). The contract therefore pins the code
 //!   mapping (`-32603`) but does not yet have a dedicated fixture for
 //!   the spawn-failure path. Wire one in if a portable hook lands.
-//! - **Rule panic in `panic="abort"` builds** — see
-//!   [`assert_rule_panic_response`] for the full caveat. The current
-//!   fixture pins ONLY the `panic="unwind"` behaviour. A second
-//!   contract — `daemon_aborts_on_rule_panic_in_release` — is a
-//!   follow-up requiring a multi-process harness.
+//! - **Rule panic isolation** — see [`assert_rule_panic_response`] for
+//!   the full caveat. The workspace release profile is
+//!   `panic = "unwind"` (ADR-051), so the registry's `catch_unwind`
+//!   isolation holds in release as well as debug / test. The
+//!   previously-tracked abort-path follow-up
+//!   (`daemon_aborts_on_rule_panic_in_release`) is OBSOLETE: release
+//!   no longer aborts, so there is no distinct release contract to
+//!   pin.
 
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -343,27 +346,27 @@ pub fn rule_panic_request() -> Value {
 
 /// Assert the rule-panic response shape.
 ///
-/// **Scope of this contract.** This fixture pins ONLY the
-/// `panic="unwind"` behaviour:
+/// **Scope of this contract.** The workspace release profile is
+/// `panic = "unwind"` (root `Cargo.toml`, per ADR-051 — Accepted), so
+/// the behaviour pinned here is identical in debug, `cargo test`, and
+/// release builds:
 ///
-/// - In `panic="unwind"` builds (debug / `cargo test` by default), the
-///   registry's `catch_unwind` swallows the panic and emits
+/// - The registry's `catch_unwind` swallows the panic and emits
 ///   `result.diagnostics: []` with `result.truncated = false`. There is
 ///   no structured error — the panic isolation contract is "rules
 ///   cannot crash the daemon", not "panics surface as errors". A driver
 ///   MUST therefore treat empty diagnostics as a valid outcome and not
 ///   assume the daemon would have flagged a panicking rule's would-be
 ///   findings.
-/// - In `panic="abort"` builds (the workspace release profile per the
-///   root `Cargo.toml`), the daemon process aborts on the panicking
-///   thread. There is no JSON-RPC response at all; the driver MUST
-///   treat this as a transport disconnect, NOT as `diagnostics: []`.
-///   This fixture does NOT exercise that path. Verifying it requires a
-///   multi-process harness — tracked as a follow-up contract
-///   (`daemon_aborts_on_rule_panic_in_release`).
+/// - Because release unwinds (it does NOT `panic = "abort"`), there is
+///   no separate abort path where the daemon dies on the panicking
+///   thread. The previously-referenced follow-up contract
+///   (`daemon_aborts_on_rule_panic_in_release`, a multi-process abort
+///   fixture) is OBSOLETE — ADR-051 made release behave like the unwind
+///   path asserted below, so no distinct release fixture is meaningful.
 ///
-/// The assertion below is correct for unwind builds. Do not weaken it
-/// to accommodate the abort path; that path needs its own contract.
+/// The assertion below is correct for all profiles. Do not weaken it on
+/// the assumption that release aborts instead of isolating.
 pub fn assert_rule_panic_response(response: &Value) {
     assert_envelope_is_error_or_diagnostics(response);
     assert_eq!(response["jsonrpc"], "2.0");
@@ -645,9 +648,10 @@ where
 /// that panics during diagnostics. Drives the rule-panic-isolated
 /// fixture.
 ///
-/// **Caveat:** panic isolation only works on `panic="unwind"` builds —
-/// the workspace's release profile is `panic="abort"`, which means a
-/// release-mode panic kills the process. See
+/// Panic isolation relies on the binary unwinding rather than aborting
+/// on panic. The workspace release profile is `panic = "unwind"`
+/// (ADR-051 — Accepted), so isolation holds in release as well as debug
+/// / test; a panicking rule never kills the daemon. See
 /// `crates/anvil-intercept-rules/src/registry.rs` module docs and the
 /// scope note on [`assert_rule_panic_response`].
 #[must_use]

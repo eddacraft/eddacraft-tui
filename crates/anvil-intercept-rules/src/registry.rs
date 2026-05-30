@@ -11,23 +11,23 @@
 //!   [`RegistryDecision::Allow`]. Useful for "shadow" rollouts where
 //!   an operator wants to see what would have fired without breaking
 //!   anyone's flow.
-//! - **Panic isolation (unwind builds only)** — every `evaluate` call
-//!   is wrapped in [`std::panic::catch_unwind`]. The trait contract
-//!   says rules MUST NOT panic; the registry is the layer that
-//!   *enforces* that contract under unwind builds, so a misbehaving
-//!   rule cannot abort the daemon's tokio task. A panicking rule is
-//!   treated as if it returned `Allow`.
+//! - **Panic isolation** — every `evaluate` call is wrapped in
+//!   [`std::panic::catch_unwind`]. The trait contract says rules MUST
+//!   NOT panic; the registry is the layer that *enforces* that
+//!   contract, so a misbehaving rule cannot abort the daemon's tokio
+//!   task. A panicking rule is treated as if it returned `Allow`.
 //!
-//!   **Important:** `catch_unwind` only works when the binary is built
-//!   with `panic="unwind"`. The Anvil workspace's `[profile.release]`
-//!   sets `panic="abort"` (see top-level `Cargo.toml`), which means
-//!   release-build rule panics still terminate the process. The
-//!   isolation here is best-effort safety net for development /
-//!   debug / test builds; release-mode crash-safety would require
-//!   either flipping the daemon binary's profile to `panic="unwind"`
-//!   or hardening the rules themselves to be panic-free by
-//!   construction. The trait contract makes the latter the supported
-//!   long-term answer.
+//!   **`catch_unwind` is effective in release too.** It only works
+//!   when the binary unwinds rather than aborts on panic, and the
+//!   Anvil workspace's `[profile.release]` sets `panic = "unwind"`
+//!   (see the top-level `Cargo.toml`, per ADR-051 — Accepted). ADR-051
+//!   chose unwind precisely because `anvil` processes untrusted input
+//!   and a panic must surface as a structured error rather than a
+//!   `SIGABRT`. Consequently this isolation holds in release builds as
+//!   well as debug / test — a panicking rule is caught and treated as
+//!   `Allow` regardless of profile. (The trait contract still asks
+//!   rules to be panic-free by construction as the long-term answer,
+//!   but the registry no longer depends on it for crash-safety.)
 //! - **Cached rule ids** — every rule's [`InterceptRule::rule_id`] is
 //!   sampled once at registration time and stored alongside the rule.
 //!   The hot path never calls `rule_id()` again, so a misbehaving
@@ -226,12 +226,12 @@ impl RuleRegistry {
     /// the panic path become `tracing::warn!` candidates — the eprintln
     /// calls are the minimum-dep fallback.)
     ///
-    /// Panicking rules are isolated under `panic="unwind"`: a panic
-    /// from `evaluate` is caught, reported on stderr, and treated as
-    /// if the rule had returned `Allow`. Under `panic="abort"` (the
-    /// workspace's release profile) this isolation is a no-op — the
-    /// process aborts before unwinding starts. See the module-level
-    /// note for the broader story.
+    /// Panicking rules are isolated via `catch_unwind`: a panic from
+    /// `evaluate` is caught, reported on stderr, and treated as if the
+    /// rule had returned `Allow`. The workspace's release profile is
+    /// `panic = "unwind"` (ADR-051), so this isolation holds in release
+    /// as well as debug / test. See the module-level note for the
+    /// broader story.
     ///
     /// `InterruptReason.rule_id` is normalised to the registry's
     /// cached id for the firing rule before returning or logging. If
