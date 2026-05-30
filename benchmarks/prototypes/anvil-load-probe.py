@@ -54,12 +54,12 @@ def read_rss_mib(pid):
                 if line.startswith("VmRSS:"):
                     return int(line.split()[1]) / 1024.0
     except OSError:
+        # pid exited mid-sample (transient check child); count it as 0 RSS.
         pass
     return 0.0
 
 def make_repo(root, n_files):
-    if os.path.exists(root):
-        shutil.rmtree(root)
+    # Caller guarantees `root` is an empty dir we own (never a user's tree).
     src = os.path.join(root, "src")
     for i in range(n_files):
         d = os.path.join(src, f"mod{i // 50}")
@@ -84,6 +84,7 @@ class Churn(threading.Thread):
                     f.write(f"export const churn{n} = {n};\n")
                     f.write(f"export function edit{n}(x:number){{return x*{n};}}\n")
             except OSError:
+                # Watcher may hold/rotate the file mid-write; skip this tick.
                 pass
             self.stop.wait(self.interval)
 
@@ -126,16 +127,30 @@ def run_cell(binp, src_root, agents, action, settle, measure, churn_ms):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bin", default="/home/aneki/.cache/anvil-targets/anvil-001/release/anvil")
+    # Default to `anvil` on PATH; override with --bin or the ANVIL_BIN env var.
+    ap.add_argument("--bin", default=os.environ.get("ANVIL_BIN", "anvil"))
     ap.add_argument("--files", type=int, default=1500)
     ap.add_argument("--agents", default="1,2,4,8")
     ap.add_argument("--action", default=None, help="single-cell action override")
     ap.add_argument("--settle", type=float, default=4.0)
     ap.add_argument("--measure", type=float, default=12.0)
     ap.add_argument("--churn-ms", type=int, default=200)
-    ap.add_argument("--repo", default=None)
+    ap.add_argument("--repo", default=None,
+                    help="empty/new dir to build the synthetic repo in; "
+                         "kept after the run. Default: a temp dir we create + remove.")
     a = ap.parse_args()
-    repo = a.repo or tempfile.mkdtemp(prefix="anvil-load-")
+    # Only ever delete a directory we created. A user-supplied --repo must be
+    # empty (or absent) so we never clobber an existing checkout.
+    created_tmp = a.repo is None
+    if created_tmp:
+        repo = tempfile.mkdtemp(prefix="anvil-load-")
+    else:
+        repo = a.repo
+        if os.path.isdir(repo) and os.listdir(repo):
+            print(f"# refusing non-empty --repo {repo} (would clobber); "
+                  f"pass an empty or new path", file=sys.stderr)
+            sys.exit(2)
+        os.makedirs(repo, exist_ok=True)
     print(f"# bin={a.bin}\n# files={a.files} ncpu={NCPU} churn={a.churn_ms}ms "
           f"settle={a.settle}s measure={a.measure}s", flush=True)
     print(f"# building {a.files}-file repo at {repo} ...", flush=True)
@@ -151,7 +166,10 @@ def main():
         r = run_cell(a.bin, src, agents, action, a.settle, a.measure, a.churn_ms)
         print(f"{r['agents']:>6} {r['action']:>7} {r['machine_pct']:>8.1f}% "
               f"{r['cores']:>7.2f} {r['peak_rss_parent_mib']:>15.1f}", flush=True)
-    shutil.rmtree(repo, ignore_errors=True)
+    if created_tmp:
+        shutil.rmtree(repo, ignore_errors=True)
+    else:
+        print(f"# left synthetic repo at {repo} (user-provided --repo)", flush=True)
     print("# done", flush=True)
 
 if __name__ == "__main__":
