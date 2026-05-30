@@ -636,20 +636,15 @@ export class BundleManager {
           }
 
           // Never leak credentials across origins. When the redirect crosses
-          // origin, drop the configured auth and any caller-supplied
-          // Authorization header so they are not sent to a different host.
+          // origin, drop the configured auth AND all caller-supplied headers:
+          // `BundleConfig.headers` is arbitrary input that may carry
+          // `Authorization`, `Cookie`, `Proxy-Authorization`, `X-API-Key`,
+          // etc., none of which should reach a different host. Same-origin
+          // redirects keep both. (downloadFile re-adds its own `User-Agent`
+          // and conditional `If-*` headers regardless.)
           const sameOrigin = target.origin === parsedUrl.origin;
           const forwardedAuth = sameOrigin ? auth : undefined;
-          let forwardedHeaders = headers;
-          if (!sameOrigin && headers) {
-            forwardedHeaders = {};
-            for (const [key, value] of Object.entries(headers)) {
-              if (key.toLowerCase() === 'authorization') {
-                continue;
-              }
-              forwardedHeaders[key] = value;
-            }
-          }
+          const forwardedHeaders = sameOrigin ? headers : undefined;
 
           this.downloadFile(
             target.href,

@@ -48,18 +48,33 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
   let serverB: Server | null = null;
   let portA = 0;
   let portB = 0;
-  const captured: { authorization?: string | string[]; path?: string }[] = [];
+  type Captured = {
+    path?: string;
+    authorization?: string | string[];
+    apiKey?: string | string[];
+    cookie?: string | string[];
+  };
+  const captured: Captured[] = [];
+
+  const record = (req: IncomingMessage): void => {
+    captured.push({
+      path: req.url,
+      authorization: req.headers['authorization'],
+      apiKey: req.headers['x-api-key'],
+      cookie: req.headers['cookie'],
+    });
+  };
 
   beforeEach(async () => {
     cacheDir = mkdtempSync(join(tmpdir(), 'anvil-bundle-redirect-test-'));
     manager = new BundleManager({ cacheDir, verifySignatures: false, timeoutMs: 5000 });
     captured.length = 0;
 
-    // Server B: the cross-origin redirect *target*. Records the Authorization
-    // header it sees. Responds with a non-tarball body — the assertions are on
-    // captured headers, not on extraction success.
+    // Server B: the cross-origin redirect *target*. Records the credential
+    // headers it sees. Responds with a non-tarball body — the assertions are
+    // on captured headers, not on extraction success.
     serverB = createServer((req: IncomingMessage, res: ServerResponse) => {
-      captured.push({ authorization: req.headers['authorization'], path: req.url });
+      record(req);
       res.statusCode = 200;
       res.end('not-a-real-bundle');
     });
@@ -88,7 +103,7 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
         res.setHeader('Location', `http://127.0.0.1:${portA}/loop`);
         res.end();
       } else if (req.url === '/capture-same') {
-        captured.push({ authorization: req.headers['authorization'], path: req.url });
+        record(req);
         res.statusCode = 200;
         res.end('not-a-real-bundle');
       } else {
@@ -114,18 +129,22 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
     expect(result.error ?? '').toMatch(/redirect|https/i);
   });
 
-  it('does not forward Authorization to a cross-origin redirect target', async () => {
+  it('does not forward auth or caller credential headers to a cross-origin redirect target', async () => {
     process.env.ANVIL_TEST_BUNDLE_TOKEN = 'super-secret-token';
     try {
       manager.addBundle({
         name: 'xo',
         url: `http://127.0.0.1:${portA}/cross-origin`,
         auth: { type: 'bearer', token_env: 'ANVIL_TEST_BUNDLE_TOKEN' },
+        // Arbitrary caller-supplied headers that commonly carry credentials.
+        headers: { 'X-Api-Key': 'secret-api-key', Cookie: 'session=abc123' },
       });
       await manager.downloadBundle('xo');
       const atB = captured.find((c) => c.path === '/capture');
       expect(atB, 'redirect target should have been reached').toBeDefined();
       expect(atB?.authorization).toBeUndefined();
+      expect(atB?.apiKey).toBeUndefined();
+      expect(atB?.cookie).toBeUndefined();
     } finally {
       delete process.env.ANVIL_TEST_BUNDLE_TOKEN;
     }
@@ -138,18 +157,20 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
     expect(result.error ?? '').toMatch(/too many redirects/i);
   });
 
-  it('preserves Authorization on a same-origin redirect', async () => {
+  it('preserves auth and caller headers on a same-origin redirect', async () => {
     process.env.ANVIL_TEST_BUNDLE_TOKEN = 'super-secret-token';
     try {
       manager.addBundle({
         name: 'so',
         url: `http://127.0.0.1:${portA}/same-origin`,
         auth: { type: 'bearer', token_env: 'ANVIL_TEST_BUNDLE_TOKEN' },
+        headers: { 'X-Api-Key': 'secret-api-key' },
       });
       await manager.downloadBundle('so');
       const atSame = captured.find((c) => c.path === '/capture-same');
       expect(atSame, 'same-origin redirect target should have been reached').toBeDefined();
       expect(atSame?.authorization).toBe('Bearer super-secret-token');
+      expect(atSame?.apiKey).toBe('secret-api-key');
     } finally {
       delete process.env.ANVIL_TEST_BUNDLE_TOKEN;
     }
