@@ -43,7 +43,10 @@ fn filters_out_non_parseable_files() {
 
     let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
 
-    std::thread::sleep(Duration::from_millis(50));
+    // Match the conservative warm-up used by detects_parseable_file_creation;
+    // a 50 ms budget can expire before the OS registers the watch on a loaded
+    // runner, causing the recv_timeout below to return a stale/empty batch.
+    std::thread::sleep(Duration::from_millis(250));
 
     // Create a .md file (not parseable — should be filtered out)
     fs::write(dir.path().join("README.md"), "# Hello").unwrap();

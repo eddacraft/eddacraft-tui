@@ -587,7 +587,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_103d059679` — Rust integration test eddacraft-anvil-kernel/watcher_integration
 - **Severity / Triage / Category:** low / risk / build-release
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via #1742 — aligned the `filters_out_non_parseable_files` warm-up sleep to 250 ms, matching the conservative budget already used by `detects_parseable_file_creation`.
 - **Recommendation:** Use a shared watcher-test helper with the same conservative readiness strategy for both tests, or create a sentinel parseable file and wait until it is observed before starting the actual assertion scenario. At minimum, align the warm-up and recv_timeout values with the more conservative test.
 - **Evidence:** `crates/anvil-kernel/tests/watcher_integration.rs:20` (`detects_parseable_file_creation`), `crates/anvil-kernel/tests/watcher_integration.rs:46` (`filters_out_non_parseable_files`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
