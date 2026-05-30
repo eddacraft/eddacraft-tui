@@ -45,7 +45,7 @@ fixture enforces both directions.
 | `poleng-parity.yml`                   | Assurance             | `pull_request` / `push` to `main` (policy-engine + parity-script paths) plus `workflow_dispatch` — advisory regorus-vs-Go-OPA eval parity gate (ADR-040 D-1); **not** a required check, a red run is an ADR-040 D-5 revisit signal                        | POLENG       |
 | `resource-budget.yml`                 | PR + Integration      | `pull_request` / `push` to `main` (crate and resource-budget policy paths) plus `workflow_dispatch`                                                                                                                                                       | ADOPT        |
 | `editor-coexistence.yml`              | PR + Integration      | `pull_request` / `push` to `main` (anvil-cli/kernel/hook paths, harness, policy doc) plus `workflow_dispatch` — ADOPT-006 LSP/formatter coexistence gate                                                                                                  | ADOPT        |
-| `bench-nightly.yml`                   | Assurance             | `schedule` plus `workflow_dispatch`                                                                                                                                                                                                                       | CICD         |
+| `bench-nightly.yml`                   | Assurance             | `workflow_dispatch` only (manual; nightly `schedule` removed while no `bench` runner is online)                                                                                                                                                           | CICD         |
 | `ci-nightly.yml`                      | Assurance             | `schedule` (daily 02:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node                                                                                                                                       | CICD         |
 | `ci-cost-report.yml`                  | Assurance             | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                           | CICD         |
 | `release-readiness.yml`               | Release candidate     | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials                                                                                                                                              | RELORCH      |
@@ -174,7 +174,10 @@ tests (assess, preflight, prepare, promote) on Ubuntu + macOS.
 ### `bench.yml` / `bench-nightly.yml` — Benchmarks
 
 Rust criterion + stress + midedit benchmarks. `bench.yml` is push-to-`main`
-(release-gate) and dispatch; `bench-nightly.yml` covers scheduled assurance.
+(release-gate) and dispatch; `bench-nightly.yml` is manual-only
+(`workflow_dispatch`) — its nightly `schedule` was removed while no self-hosted
+`bench` runner is online (scheduled runs only queued and were cancelled). Re-add
+the documented cron in the workflow header to restore the nightly cadence.
 
 ### `resource-budget.yml` — Resource Budget
 
