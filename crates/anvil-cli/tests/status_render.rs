@@ -251,6 +251,13 @@ fn fixture_directory_layout_is_pinned() {
         }
     }
 
+    // Hold the serialisation lock across BOTH directory counts: the listing
+    // must not interleave with a concurrent fixture write on another test
+    // thread (sibling tests write the same dirs under ANVIL_UPDATE_FIXTURES=1),
+    // which could otherwise yield a partial count. `assert_or_update_fixture`
+    // above self-locks per write, so the lock is free here; we must not hold it
+    // across those calls (the mutex is non-reentrant).
+    let _guard = fixture_io_lock();
     let worktree_count = fs::read_dir(&worktree_dir)
         .expect("worktree fixture dir present")
         .filter_map(Result::ok)
