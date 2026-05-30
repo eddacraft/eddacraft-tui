@@ -17,7 +17,12 @@ record a trend graph can be built from).
 ```jsonc
 {
   "schema_version": 1,
-  "run": { "date", "commit", "rustc", "trigger", "host", "source" },
+  "run": {
+    "date", "commit", "rustc", "trigger", "host", "source",
+    // optional, run-dependent:
+    //   "anvil_version", "samples",
+    //   "partial": true + "caveats": [...]  // for headline / non-comparable runs
+  },
   "benches": {
     // bencher-format surfaces: array of { case, ns_per_iter, variance_ns }
     //   variance_ns may be null (older runs didn't capture it); an entry may
@@ -45,11 +50,14 @@ record a trend graph can be built from).
 
 ## Comparing across runs
 
-Only compare runs from the **same host and Anvil version**. `2026-04-03.json` is
-a reconstructed marketing-era baseline from a different machine and the
-`0.3.0-beta` era — its deltas vs `2026-05-30.json` may reflect environment or
-version, not code. Such runs carry `"partial": true` and a `caveats` list; treat
-their cross-run direction as indicative, not a regression signal.
+Compare runs from the **same hardware** — that is the axis that has to hold for
+a delta to mean anything. Comparing across Anvil _versions_ on the same box is
+the point: that is how a regression shows up. What breaks comparability is a
+_different machine_: `2026-04-03.json` is a reconstructed marketing-era baseline
+from another machine and the `0.3.0-beta` era, so its deltas vs
+`2026-05-30.json` may reflect environment rather than code. Runs that are not
+hardware-comparable carry `"partial": true` and a `caveats` list — treat their
+cross-run direction as indicative, not a regression signal.
 
 ## Pre-`schema_version:1` data
 
