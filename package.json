@@ -28,7 +28,7 @@
     "bench": "bash scripts/bench/run.sh",
     "projects:rust": "nx show projects --withTarget=check --json | node -p \"JSON.parse(require('node:fs').readFileSync(0, 'utf8')).join(',')\"",
     "lint:rust": "RUST_PROJECTS=$(pnpm -s run projects:rust) && nx run-many -t clippy,fmt-check --projects=\"$RUST_PROJECTS\"",
-    "lint": "oxlint . && nx run-many -t lint && pnpm run lint:rust && markdownlint --ignore-path .markdownlintignore . --fix",
+    "lint": "oxlint . && nx run-many -t lint && pnpm run lint:rust && markdownlint --ignore-path .markdownlintignore .",
     "lint:check": "oxlint . && nx run-many -t lint && pnpm run lint:rust && markdownlint --ignore-path .markdownlintignore .",
     "lint:ox": "oxlint .",
     "format": "oxfmt --write .",
