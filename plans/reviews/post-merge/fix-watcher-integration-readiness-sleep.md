@@ -1,6 +1,6 @@
 # Post-merge: fix-watcher-integration-readiness-sleep
 
-PR: #NNN
+PR: #2136
 Branch: `fix/watcher-integration-readiness-sleep`
 APS: CLAWP-033 (clawpatch-pre-tag-v0.7.0-beta)
 Merged: <!-- filled by cleanup agent -->
