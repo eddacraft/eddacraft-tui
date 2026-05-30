@@ -67,10 +67,14 @@ describe('KindlingService.emit — redaction enforcement (issue #1826)', () => {
     const { store, writes } = spyStore();
     const svc = new KindlingService(store, enabledConfig);
 
-    await svc.emit(makeObservation('ls -la /home/user'));
+    const clean = makeObservation('ls -la /home/user');
+    await svc.emit(clean);
 
     expect(writes).toHaveLength(1);
-    expect(JSON.stringify(writes[0])).toContain('ls -la /home/user');
+    // With no sensitive data, the persisted observation must be identical to
+    // the input — not merely contain the command. Deep-equality guards
+    // against emit() mutating or dropping any other field on the clean path.
+    expect(writes[0]).toEqual(clean);
   });
 
   it('does not persist anything when kindling is disabled', async () => {
