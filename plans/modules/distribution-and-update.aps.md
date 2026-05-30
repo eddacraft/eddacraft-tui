@@ -316,22 +316,20 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md)
   (`one daemon per (uid, os)`, PID-file exclusive create), so a distinct socket
   prefix per `ANVIL_HOME` is precisely what lets two daemons coexist.
-- **Design gate (blocks Ready) — ADR-060 required:** Per-project state
-  resolution is an open design call that MUST be settled in an `Accepted` ADR
-  before this item is promoted to Ready (follow
-  [`docs/guides/adr-process.md`](../../docs/guides/adr-process.md)):
-  - **Option (a)** — keep per-project `.anvil/` resolution unchanged, so a
-    candidate-tested project's witness chain stays durable when you switch back
-    to prod; or
-  - **Option (b)** — re-root project discovery so the candidate sees only
-    projects under `<ANVIL_HOME>/projects/`, preventing accidental
-    cross-pollination of real project state.
-
-  File as `plans/decisions/060-anvil-home-install-root-override.md` and index it
-  in `DECISION-LOG.md`. The witness chain stays with the project in both
-  options; cross-version chain compatibility (a candidate writing a prod chain
-  or vice versa) is explicitly out of scope — that is an `anvil migrate`
-  problem, see DISTRIB-005.
+- **Design gate (blocks Ready) — ADR-060:** Per-project state resolution is the
+  open design call that gates this item. It is now captured in
+  [`ADR-060`](../decisions/060-anvil-home-install-root-override.md) (**Proposed**,
+  2026-05-31), which recommends **Option (a) + a write-guard**: keep per-project
+  `.anvil/` (baseline/cache/witness) + `anvil/project-id` resolving to the
+  project root so candidate tests run against the real repo with witness
+  continuity, but gate durable project-state mutations behind
+  `--touch-project-state` (read-only / dry-run by default under a non-default
+  `ANVIL_HOME`). The rejected alternative is **Option (b)** — re-root project
+  discovery under `<ANVIL_HOME>/projects/` — which isolates fully but defeats the
+  side-by-side purpose. **This item stays Proposed until ADR-060 is `Accepted`**
+  (operator ratification in review). Cross-version chain *format* compatibility
+  (a candidate writing a chain a different anvil version reads) is out of scope —
+  that is an `anvil migrate` problem, see DISTRIB-005.
 - **Expected Outcome:** A uniform install-root override that every install-owned
   state location honours:
   - `ANVIL_HOME=<path>` re-roots user state (`<path>/user/`), the daemon socket
