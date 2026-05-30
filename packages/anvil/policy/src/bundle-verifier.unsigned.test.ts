@@ -109,7 +109,9 @@ describe('BundleVerifier — unsigned files in bundle (issue #1826)', () => {
       const result = await verifier.verifyBundle(bundleDir);
 
       expect(result.verified).toBe(false);
-      expect(result.errors.some((e) => /symbolic link/i.test(e))).toBe(true);
+      // The per-file reason is recorded in fileResults; the top-level errors
+      // array carries the generic "not covered by the signature manifest".
+      expect(result.fileResults.some((r) => /symbolic link/i.test(r.error ?? ''))).toBe(true);
     }
   );
 
