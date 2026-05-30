@@ -73,8 +73,8 @@ Adopt an **OTLP-neutral export architecture** with four parts:
    (`@vercel/otel` / the OTLP collector Vercel exposes), forwarding to the
    backend below. Vercel's own observability retention is too short and its
    trace query surface too limited to be the terminal store for a
-   trust-relevant diagnostic pipe, so Vercel-OTel is treated as a *collector*,
-   not a *sink*.
+   trust-relevant diagnostic pipe, so the Vercel OTEL drain is treated as a
+   *collector*, not a *sink*.
 
 4. **Backend (the actual sink): a managed, OTLP-native trace backend.**
    **Recommended: Honeycomb** as the initial backend — OTLP-native ingest, a
@@ -130,7 +130,7 @@ storage) and one privacy boundary (local vs hosted) into a single five-way
 | **OTLP-neutral → managed backend (Honeycomb), hosted-only, local-stays-local** (chosen) | Swappable backend; best trace query for the cost; zero ops; respects local-first privacy; free tier covers current volume | A vendor relationship to manage; query value is soft lock-in (mitigated by OTLP-in) |
 | Grafana Cloud (managed Tempo) | One vendor for traces+logs+metrics; OTLP-native; free tier | Weaker trace search than Honeycomb; consolidation not yet a need; more moving parts |
 | Self-hosted Tempo or Jaeger | No vendor; full control | Real ops burden + a storage backend to run; contradicts "no observability team"; over-weight for a debugging pipe |
-| Vercel-OTel as the terminal sink | Already on Vercel; minimal wiring | Retention too short, query surface too limited to be the store of record for diagnostics; better used as the collector/drain |
+| Vercel OTEL drain as the terminal sink | Already on Vercel; minimal wiring | Retention too short, query surface too limited to be the store of record for diagnostics; better used as the collector/drain |
 | Export end-user CLI/daemon traces too | "Full" visibility | Privacy violation for a local-first tool; large cost; out of scope for a debugging pipe |
 
 ## Consequences
