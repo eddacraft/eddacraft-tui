@@ -1,6 +1,6 @@
 # Post-merge: test-clawp-038-pool-cap-coverage
 
-PR: #NNN
+PR: #2142
 Branch: `test/clawp-038-pool-cap-coverage`
 APS: CLAWP-038 (module `clawpatch-pre-tag-v0.7.0-beta`)
 Merged: <!-- filled by cleanup agent -->
