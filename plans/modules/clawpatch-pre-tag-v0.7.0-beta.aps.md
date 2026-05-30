@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 14/64    |
+| CLAWP | @aneki | In Progress | 20/64    |
 
-**Last reviewed:** 2026-05-21 (thirteen findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action.)
+**Last reviewed:** 2026-05-21 (twenty findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142.)
 
 ## Purpose
 
@@ -124,7 +124,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_f75344b3ff` — Rust library eddacraft-anvil-intercept-win32
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** high
-- **Status:** Deferred (release-council verdict 2026-05-20, kernel-maintainer; tracked in #1736)
+- **Status:** Merged 2026-05-30 via PR #2137 (closes #1736) — `OwnerOnlyPipeClient::read` now maps both `ERROR_BROKEN_PIPE` and `ERROR_PIPE_NOT_CONNECTED` to `Ok(0)`, honouring the documented named-pipe EOF contract.
 - **Verdict rationale:** Bug confirmed at `crates/anvil-intercept-win32/src/lib.rs:235` (unconditional `Err(last_os_error())` on `ReadFile` returning 0). Windows-only; the only current caller reads a single frame and closes, never observing post-payload EOF. ~15 line fix, post-tag.
 - **Recommendation:** Map the expected pipe EOF condition, at least ERROR_BROKEN_PIPE and any other documented named-pipe EOF status used by this handle mode, to Ok(0). Keep other ReadFile failures as io::Error::last_os_error().
 - **Evidence:** `crates/anvil-intercept-win32/src/lib.rs:218` (`OwnerOnlyPipeClient::read`), `crates/anvil-intercept-win32/src/lib.rs:667` (`tests::connect_owner_only_pipe_client_round_trips_against_local_server`)
@@ -162,7 +162,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_367c2a4c02` — Rust library eddacraft-anvil-intercept
 - **Severity / Triage / Category:** medium / risk / build-release
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2144 (closes #1648) — premise was stale: the release profile is `panic = "unwind"` per ADR-051, so `catch_unwind` rule-panic isolation holds in release too. Corrected the misleading `panic="abort"` doc comments in `midedit_contract.rs` + `registry.rs`; the abort-path multi-process follow-up is obsolete.
 - **Recommendation:** Either build the daemon/rule-execution path with panic="unwind" if catch_unwind is the intended boundary, or move rule execution behind a process boundary so aborting rules cannot terminate the daemon. Add the documented multi-process release fixture before treating the contract as covered.
 - **Evidence:** `crates/anvil-intercept/tests/midedit_contract.rs:347` (`assert_rule_panic_response`), `crates/anvil-intercept/tests/midedit_contract.rs:648` (`panicking_rule_service`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -185,7 +185,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_release_4862937c51` — Package script lint
 - **Severity / Triage / Category:** medium / risk / build-release
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2135 (closes #1743) — dropped `--fix` from the `scripts.lint` markdownlint step so `pnpm lint` no longer mutates Markdown during validation (CI already used `lint:check`).
 - **Recommendation:** Make scripts.lint non-mutating by removing --fix or delegating to pnpm run lint:check. Keep auto-fixing behind lint:md:fix or a dedicated lint:fix script.
 - **Evidence:** `package.json:29` (`scripts.lint`), `package.json:30` (`scripts.lint:check`), `package.json:37` (`scripts.lint:md/lint:md:fix`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -486,7 +486,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_67ce748437` — Rust integration test eddacraft-anvil/status_render
 - **Severity / Triage / Category:** low / confirmed-bug / concurrency
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2145 (closes #1755) — funnelled every fixture read and write (and the directory-count reads) through a process-wide `fixture_io_lock()` so concurrent test threads can no longer interleave a read with an `ANVIL_UPDATE_FIXTURES=1` write.
 - **Recommendation:** Make update mode single-owner and deterministic: either combine generation and verification into one test, skip round-trip verification while updating, use a serial test guard, or document and enforce `-- --test-threads=1` for fixture regeneration. Prefer atomic write-to-temp-then-rename if tests can ever read while updating.
 - **Evidence:** `crates/anvil-cli/tests/status_render.rs:47` (`assert_or_update_fixture`), `crates/anvil-cli/tests/status_render.rs:146` (`fixture_directory_layout_is_pinned`), `crates/anvil-cli/tests/status_render.rs:187` (`every_fixture_round_trips_through_protection_claim`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -564,7 +564,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_cli-command_171a82ab94` — Rust command eddacraft-anvil-run
 - **Severity / Triage / Category:** low / risk / build-release
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2143 (closes #1642) — the shell-integration tests now quote the sourced wrapper path so a checkout path containing spaces or special characters cannot break sourcing.
 - **Recommendation:** Add a small shell-quoting helper for paths embedded in `bash -c` scripts, or avoid string interpolation by passing the script path as an argument/environment variable and sourcing `"$ANVIL_RUN_SCRIPT"`. Apply it consistently at all three call sites.
 - **Evidence:** `crates/anvil-run/tests/shell_integration.rs:86` (`dispatcher_invokes_stub_with_tool_and_trailing_args`), `crates/anvil-run/tests/shell_integration.rs:115` (`anvil_run_disable_bypasses_the_launcher`), `crates/anvil-run/tests/shell_integration.rs:160` (`missing_binary_falls_through_to_the_underlying_command`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -644,7 +644,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_8a1266b4d7` — Rust library eddacraft-anvil-rayon-init
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-05-30 via PR #2142 (closes #1651) — factored the cap into the pure `cap_threads` helper and added `cap_threads_is_half_cores_minimum_one` pinning the `(cores/2).max(1)` policy at the boundaries (a follow-up review dropped a tautological live-machine assertion).
 - **Recommendation:** Add a regression test that validates the cap in an isolated process before any other rayon consumer can initialise the global pool. If direct global-pool testing is too fragile for unit tests, factor the cap calculation into a small pure helper and test that helper, then add one integration or subprocess smoke test for `init_global` applying it...
 - **Evidence:** `crates/anvil-rayon-init/src/lib.rs:61` (`init_global`), `crates/anvil-rayon-init/src/lib.rs:93` (`tests::init_global_is_idempotent`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
