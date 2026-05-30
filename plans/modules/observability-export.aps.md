@@ -80,42 +80,77 @@ is ephemeral debugging context, not source-of-truth.
 
 ## Work Items
 
-> Status: Draft. EXPORT remains Draft until a paying customer or first
-> production incident motivates the sink choice. Pre-launch this module
-> is a placeholder that captures OQ1; post-launch the founder picks it
-> up when triggered.
+> Status: Draft. The sink is chosen and ratified — Azure Monitor +
+> Application Insights ([ADR-059](../decisions/059-production-tracing-sink.md),
+> Accepted 2026-05-30) — and EXPORT-001 is now fully specified with concrete
+> validation. EXPORT execution (wiring the exporter) stays deferred until a
+> paying customer or first production incident justifies it; the architecture
+> and acceptance criteria are settled, so promotion to Ready is a timing call,
+> not a design one.
 
 ### EXPORT-001: Choose, ratify, and wire the production tracing sink
 
-- **Intent:** Anvil's tracing pipe has one chosen production sink with
-  documented sampling, retention, and exporter wiring across both Rust
-  binaries and the TS API.
-- **Expected Outcome:** A new ADR records the sink choice and the
-  trade-offs it accepts (cost, vendor lock-in, sampling shape,
-  ingestion shape). `anvil-observability` and `@anvil/observability`
-  carry the corresponding exporter wiring, gated behind config so local
-  development still uses the formatter-only subscriber. The sink's
-  credentials story is wired through the existing secrets path
-  (Pulumi-managed where appropriate). Sampling defaults match the
-  cost budget the sink choice agreed to.
-- **Coordinates with:** TRACE-001 (subscriber init is the integration
-  point), TRACE-002 (TS-side wiring), TRACE-003 (redaction layer must
-  not be bypassed by the chosen exporter).
-- **Validation:** TBD when picked up — at minimum an integration test
-  that the chosen sink receives an emitted span end-to-end with the
-  configured sampling, and a manual verification that the redaction
-  layer's deny-list is honoured by the sampled output.
-- **Confidence:** low — entire scope is a sink choice that has not been
-  made.
+- **Intent:** Anvil's tracing pipe has its ratified production sink
+  (Azure Monitor + Application Insights per ADR-059) wired for the
+  operator-hosted TS API, with documented sampling and exporter config;
+  the local-first Rust CLI/daemon stay formatter-only and never export.
+- **Expected Outcome:** The sink choice + trade-offs are recorded in
+  [ADR-059](../decisions/059-production-tracing-sink.md) (Azure Monitor +
+  Application Insights, Accepted). `@eddacraft/anvil-observability` and
+  `apps/anvil-api` carry the **Azure Monitor OpenTelemetry exporter**,
+  gated behind config that is **off by default** so local development —
+  and the Rust binaries — stay formatter-only. The App Insights
+  connection string is wired through the existing Pulumi-managed secrets
+  path. Sampling defaults match the cost budget ADR-059 agreed to.
+- **Coordinates with:** [ADR-059](../decisions/059-production-tracing-sink.md)
+  (sink decision + binding constraints), TRACE-001 (subscriber init is the
+  integration point), TRACE-002 (TS-side wiring), TRACE-003 (redaction layer
+  must not be bypassed by the exporter), USAGE (feature-flagged usage is
+  Kindling-of-record, not this pipe — App Insights breadcrumbs only).
+- **Validation:** CI-runnable deterministic tests at the exporter
+  boundary (`pnpm --filter @eddacraft/anvil-observability test`, plus the
+  `apps/anvil-api` tracing-init test), with a single documented manual
+  end-to-end check against a staging Application Insights resource:
+  - **V1 — exporter wiring + gating:** with the export config enabled,
+    tracing init attaches the Azure Monitor OTel trace exporter built from
+    the App Insights connection string; with the config off (the default),
+    no exporter is attached and spans stay formatter-only. Asserted with a
+    captured/in-memory exporter double — no live Azure call.
+  - **V2 — redaction not bypassed (TRACE-003):** a span carrying an
+    attribute whose name matches `SENSITIVE_FIELDS`, run through the
+    exporter pipeline, yields an exported payload in which the denied
+    attribute is redacted/absent. Proves the redaction layer wraps the
+    Azure Monitor exporter rather than the exporter shipping raw spans.
+  - **V3 — sampling applied:** the configured head/parent sampler is
+    honoured — a seeded/deterministic sampling decision keeps and drops as
+    configured, and the default ratio matches the documented cost budget.
+  - **V4 — secrets, no silent default:** a missing or blank connection
+    string disables export with a clear log line and a non-export fall back
+    to formatter-only — never a panic and never a silent
+    export-to-nowhere (per the operator-config propagation rule).
+  - **V5 — end-to-end ingest (manual, staging):** with the exporter
+    enabled against a staging App Insights resource, an emitted span from
+    `apps/anvil-api` is queryable in App Insights within ingestion latency
+    — KQL `union traces, dependencies, requests | where operation_Id == '<traceparent-trace-id>'`
+    returns the span, with sampling applied and no `SENSITIVE_FIELDS`
+    attribute present. Recorded in the EXPORT runbook as the release check.
+- **Confidence:** medium — the sink is decided (ADR-059) and V1–V4 are
+  deterministic CI tests with no live-Azure dependency; the only external
+  variable is provisioning a staging Application Insights resource for the
+  V5 manual ingest check.
 - **Status:** Draft
 
 ## Open questions
 
-- **OQ1 (verbatim from Planning Council session plan-b00c16c7):**
-  Production sink choice — Tempo / Honeycomb / Grafana Cloud /
-  self-hosted Jaeger / OTLP-to-Vercel-OTel — to be decided when first
-  paying customer or first production incident motivates it. EXPORT
-  module stays Draft until then.
+- **OQ1 (from Planning Council session plan-b00c16c7) — RESOLVED
+  2026-05-30 by [ADR-059](../decisions/059-production-tracing-sink.md):**
+  Production sink choice is **Azure Monitor + Application Insights** (the
+  original candidates were Tempo / Honeycomb / Grafana Cloud / self-hosted
+  Jaeger / OTLP-to-Vercel-OTel). The founder ratified the sink ahead of
+  the original "first paying customer / production incident" trigger, so
+  the choice is no longer the gate. The module stays Draft only on
+  **execution timing** — wiring the exporter — not on any open design
+  question.
 
 ## Risks
 
