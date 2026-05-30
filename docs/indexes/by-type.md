@@ -71,9 +71,11 @@
 
 ## Public docs
 
-| Document                                                                  | Path                                             | Type        | Authority     | Owner                                             | Status |
-| ------------------------------------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | ------------------------------------------------- | ------ |
-| [Watch JSON Output](../../docs/public/anvil/integrations/watch-output.md) | `docs/public/anvil/integrations/watch-output.md` | Public docs | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Live   |
+| Document                                                                  | Path                                             | Type        | Authority     | Owner                                              | Status |
+| ------------------------------------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | -------------------------------------------------- | ------ |
+| [Dashboards](../../docs/public/anvil/guides/dashboard.md)                 | `docs/public/anvil/guides/dashboard.md`          | Public docs | Authoritative | TDASH (plans/modules/native-tui-dashboards.aps.md) | Live   |
+| [Insights](../../docs/public/anvil/guides/insights.md)                    | `docs/public/anvil/guides/insights.md`           | Public docs | Authoritative | INSIGHTS (plans/modules/usage-insights.aps.md)     | Live   |
+| [Watch JSON Output](../../docs/public/anvil/integrations/watch-output.md) | `docs/public/anvil/integrations/watch-output.md` | Public docs | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md)  | Live   |
 
 ## README
 

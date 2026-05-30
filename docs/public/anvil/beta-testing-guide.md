@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.7.1-beta
+**Current version:** 0.7.2-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -21,11 +21,18 @@ designed to catch issues before the AI's write lands -- in front of an MCP
 client like Cursor or Claude Code -- and to fall back to save-time signal when
 pre-write attachment is not available.
 
-## What's New in 0.7.1-beta to Focus Testing On
+## What's New to Focus Testing On
 
-These are the highest-leverage flows for this cut. If you only have a short
-session, these are the right places to spend it.
+The current tagged cut is `0.7.2-beta`; a `0.7.3-beta` candidate ("Surfacing the
+Signal") is in flight on dev builds. These are the highest-leverage flows. If
+you only have a short session, these are the right places to spend it.
 
+- **`anvil watch` now runs code-quality checks by default (`0.7.2-beta`).** A
+  bare `anvil watch` previously watched architecture and dependency edges only
+  and ran no code-quality scan, while the dashboard still read "100% pass". It
+  now runs `anvil check --all` on each save. Confirm a save with a real
+  antipattern actually surfaces a finding. Run `anvil watch --action none` to
+  restore the architecture/dependency-only watch.
 - **Wow-start activation (`anvil start`).** `install → cd repo → anvil start` is
   the canonical first minute. The command runs init + first-scan + MCP install
   in one go and ends with a literal protection state (`protecting`,
@@ -49,6 +56,33 @@ session, these are the right places to spend it.
 - **`anvil version` install-method awareness.** Reports current and latest
   version and prints the upgrade command for your install method (Homebrew,
   Scoop, WinGet, installer, dev build).
+
+### Coming in `0.7.3-beta` — Surfacing the Signal
+
+These features are landing on dev builds ahead of the `0.7.3-beta` tag. If you
+run a dev build, they are the freshest surfaces to exercise; if you are on the
+`0.7.2-beta` tag, they are a preview of what is next.
+
+- **`anvil dashboard` — read-only TUI dashboards.** Live views over persisted
+  `.anvil/` state: **Architecture Health**, **Drift Snapshots**, and
+  **Suppressions**. Run `anvil dashboard` for a picker or
+  `anvil dashboard <architecture|drift|suppressions>` to open one directly. See
+  the [dashboards guide](guides/dashboard.md).
+- **`anvil insights` — surface accumulated signal.** A weekly activity summary
+  by default; `--suppressions` for a suppression health view that lists stale
+  suppressions first; `--drift` for an 8-week new-edge sparkline. All support
+  `--json`. See the [insights guide](guides/insights.md).
+- **SARIF 2.1.0 export.** `anvil check`, `anvil gate`, and `anvil audit` accept
+  `--format sarif` and emit the GitHub Code Scanning subset, so findings upload
+  to Code Scanning without a per-command adapter. Emission is exit-code-neutral.
+  See the [GitHub integration guide](integrations/github.md).
+- **Working-tree secret scanning.** The secret scan now inspects on-disk
+  content, not just git history, and reports the count of oversize lines it
+  skipped — a "0 findings" result can no longer silently hide unscanned content.
+- **Clean `--json` output.** CLI diagnostics (warnings, errors, `ANVIL_LOG` /
+  `RUST_LOG` output) now route to stderr, leaving stdout reserved for command
+  output, so `anvil … --json` is safe to pipe into `jq`. `anvil --json watch` is
+  now a stable NDJSON stream (`anvil.watch.event.v1`).
 
 ## What We Need From You
 

@@ -139,6 +139,18 @@ This command owns:
 
 Do not manually edit these files if prepare fails.
 
+**Manual step — bump the "latest tagged release" docs strings.** `prepare.sh`
+regenerates the changelog mirror but does **not** touch the hardcoded "latest
+tagged release" / "current version" claims in the public docs. After prepare,
+update these three to the new tag in the same PR:
+
+- `docs/public/anvil/overview.md` ("the latest tagged release is …")
+- `docs/public/anvil/quickstart.md` ("the latest tagged release is …")
+- `docs/public/anvil/beta-testing-guide.md` ("**Current version:** …")
+
+Leave version-specific historical references (e.g. "requires `v0.7.1-beta` or
+newer") unchanged — only the "latest/current" claims move per release.
+
 #### 4. Open Release PR (stabilisation strategy only)
 
 ```bash

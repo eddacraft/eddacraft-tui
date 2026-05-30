@@ -19,7 +19,7 @@ minutes.
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.7.1-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.7.2-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known

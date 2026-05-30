@@ -9,7 +9,60 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Current Version: 0.7.1-beta
+## Current Version: 0.7.2-beta
+
+## Upgrading to 0.7.2-beta
+
+Drop-in patch upgrade from `0.7.1-beta` (or `0.7.0-beta`). There is no config
+migration and no protection-claim vocabulary change.
+
+```bash
+# Upgrade via the installer (Homebrew-aware)
+sh <(curl -fsSL https://anvil.dev/install)
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's new in 0.7.2-beta
+
+- **`anvil watch` now runs code-quality checks by default.** A bare
+  `anvil watch` previously watched architecture and dependency edges only and
+  ran no code-quality scan, while the dashboard still read "100% pass". It now
+  runs `anvil check --all` on each save. Run `anvil watch --action none` to
+  restore the architecture/dependency-only watch. `anvil start --watch` is
+  unchanged (remains architecture-only).
+- **Antipattern false positives in comments and strings are fixed.** The
+  AP-003/GS-001 scanner now masks comments, string literals, and regex literals
+  before applying code-construct rules, so prose or strings that merely mention
+  `any` or contain a `!` are no longer reported.
+- **`anvil version` warns when a stale `anvil` on `PATH` shadows the running
+  binary** — surfacing the case where an updater reports a new version while an
+  older shadowing install keeps running.
+- **`anvil auth refresh` reports the 90-day refresh window** alongside the
+  shorter access-token expiry, instead of printing only the ~7-day access-token
+  expiry.
+- **`anvil policy` command group (experimental).** New `list`, `explain`,
+  `diff`, `validate`, and `test` subcommands, plus a preview `anvil policy eval`
+  whose output shape may still change.
+
+### Action required
+
+None. This is a drop-in patch.
 
 ## Upgrading to 0.7.1-beta
 

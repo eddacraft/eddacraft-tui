@@ -20,6 +20,30 @@ file today is `.anvilrc`; the architecture file powers import-boundary checks;
 | `.anvil/architecture.yaml` | Active layer and boundary definitions                          |
 | `.anvil/gate-config.json`  | Forward-looking gate composition record, not active gate input |
 
+## Schema Migration
+
+anvil records the version that created a project's config (`created_by_version`)
+and can reconcile that config forward as the schema evolves across anvil
+versions.
+
+```bash
+# Preview the changes for the current version delta (default: dry run)
+anvil migrate schema
+
+# Apply the migrated config to disk
+anvil migrate schema --apply
+```
+
+`anvil migrate schema` is a **dry run by default** — it prints what would change
+and writes nothing. Pass `--apply` to write the migrated config. It only applies
+migrations registered for the version delta between `created_by_version` and the
+running binary, so running it on an already-current project is a no-op.
+
+> This is distinct from `anvil migrate format`, which converts a legacy
+> `.anvilrc` to the multi-format `.anvil.<ext>` surface (a filename/encoding
+> change, not a schema change). A bare `anvil migrate` still routes to `format`
+> for back-compat with a deprecation notice.
+
 ## `.anvilrc`
 
 Created by `anvil init`. Supports JSON, YAML, and TOML formats.

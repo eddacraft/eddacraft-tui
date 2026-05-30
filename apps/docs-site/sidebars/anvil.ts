@@ -37,7 +37,13 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Guides',
       collapsed: true,
-      items: ['guides/solo-dev-flow', 'guides/team-flow', 'guides/agent-harness'],
+      items: [
+        'guides/solo-dev-flow',
+        'guides/team-flow',
+        'guides/agent-harness',
+        'guides/dashboard',
+        'guides/insights',
+      ],
     },
     {
       type: 'category',

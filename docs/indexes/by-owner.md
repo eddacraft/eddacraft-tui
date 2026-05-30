@@ -137,6 +137,12 @@
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | ------------- | ------- | ------ |
 | [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md) | `docs/guides/eddacraft-autonomy-constitution.md` | Guide | Authoritative | HARNESS | Draft  |
 
+## INSIGHTS (plans/modules/usage-insights.aps.md)
+
+| Document                                               | Path                                   | Type        | Authority     | Owner                                          | Status |
+| ------------------------------------------------------ | -------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
+| [Insights](../../docs/public/anvil/guides/insights.md) | `docs/public/anvil/guides/insights.md` | Public docs | Authoritative | INSIGHTS (plans/modules/usage-insights.aps.md) | Live   |
+
 ## KERN
 
 | Document                                                                                                   | Path                                                | Type  | Authority     | Owner | Status   |
@@ -260,6 +266,12 @@
 | ------------------------------------------------------------------------------ | -------------------------------------------- | ----- | --------- | -------- | ------ |
 | [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)    | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
 | [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md) | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
+
+## TDASH (plans/modules/native-tui-dashboards.aps.md)
+
+| Document                                                  | Path                                    | Type        | Authority     | Owner                                              | Status |
+| --------------------------------------------------------- | --------------------------------------- | ----------- | ------------- | -------------------------------------------------- | ------ |
+| [Dashboards](../../docs/public/anvil/guides/dashboard.md) | `docs/public/anvil/guides/dashboard.md` | Public docs | Authoritative | TDASH (plans/modules/native-tui-dashboards.aps.md) | Live   |
 
 ## TEST
 
