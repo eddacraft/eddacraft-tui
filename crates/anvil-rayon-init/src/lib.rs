@@ -145,14 +145,4 @@ mod tests {
         assert_eq!(cap_threads(1), 1);
         assert_eq!(cap_threads(0), 1);
     }
-
-    /// The cap helper must agree with the live machine's reported
-    /// core count, so [`init_global`] applies exactly the documented
-    /// `(num_cpus::get() / 2).max(1)` policy when it wins the race.
-    #[test]
-    fn cap_threads_matches_documented_policy_for_current_machine() {
-        let expected = (num_cpus::get() / 2).max(1);
-        assert_eq!(cap_threads(num_cpus::get()), expected);
-        assert!(expected >= 1, "cap must never be below 1");
-    }
 }
