@@ -7,9 +7,9 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased]
+## [0.7.3-beta] — TBD — Surfacing the Signal
 
-Technical work landed on `main` since `v0.7.2-beta`, not yet cut to a release
+Technical work landed on `main` since `v0.7.2-beta`; release date pending the
 tag. SARIF output (SARIFOUT) is recorded in the [Changelog](./CHANGELOG.md) and
 its engineering notes are tracked separately with that workstream.
 
