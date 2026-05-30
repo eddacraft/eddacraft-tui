@@ -15,7 +15,7 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, FILETIME, HANDLE,
+    CloseHandle, ERROR_ACCESS_DENIED, ERROR_BROKEN_PIPE, ERROR_INVALID_PARAMETER, FILETIME, HANDLE,
     INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
@@ -233,7 +233,15 @@ impl OwnerOnlyPipeClient {
         // u32 out parameter; OVERLAPPED is null for synchronous IO.
         let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr(), len, &mut read, null_mut()) };
         if ok == 0 {
-            return Err(io::Error::last_os_error());
+            let err = io::Error::last_os_error();
+            // A clean named-pipe EOF arrives as `ReadFile` returning 0
+            // with `GetLastError() == ERROR_BROKEN_PIPE`. The documented
+            // contract maps that to `Ok(0)` so callers can treat it as a
+            // normal close rather than an I/O failure.
+            if err.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) {
+                return Ok(0);
+            }
+            return Err(err);
         }
         Ok(read as usize)
     }
@@ -735,6 +743,15 @@ mod tests {
             let mut buf = [0_u8; 64];
             let n = client.read(&mut buf).expect("client read");
             assert_eq!(&buf[..n], payload);
+            // The server `shutdown`s after echoing, so the next read
+            // hits a clean EOF. On Windows that arrives as `ReadFile`
+            // returning 0 with `GetLastError() == ERROR_BROKEN_PIPE`;
+            // pin the documented `Ok(0)` contract so the EOF signal is
+            // never re-surfaced as an OS error.
+            let eof = client
+                .read(&mut buf)
+                .expect("client read at EOF must be Ok");
+            assert_eq!(eof, 0, "post-payload read must report EOF as Ok(0)");
         });
 
         client_thread.join().expect("client thread joins");
