@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 25/40    |
+| CIB | —     | In Progress | 26/40    |
 
 ## Purpose
 
@@ -633,7 +633,13 @@ archive.
 
 ### CIB-031: Scope the dependency-audit gate so Rust-only lockfile changes skip the npm Trivy audit
 
-- **Status:** Ready
+- **Status:** Merged 2026-05-30 via PR
+  [#2128](https://github.com/eddacraft/anvil-001/pull/2128) — the `lockfile`
+  classifier case is now scoped to npm manifests/lockfiles only; a Rust-only
+  `Cargo.lock` change no longer adds `dependency-audit` (and therefore skips
+  the whole-repo Trivy scan + `license-check`). Three new classifier test
+  cases pin the truth table. Awaiting release-tag evidence to advance to
+  Released/Shipped.
 - **Intent:** A PR that changes only `Cargo.lock` (or a crate `Cargo.toml`) is
   classified as a generic `lockfile` change, which the classifier maps to the
   `dependency-audit` signal. In `.github/workflows/security.yml` that signal
@@ -669,10 +675,13 @@ archive.
   (not a required check) so it did not block, but it is persistent red-X noise
   on Rust-only PRs and can mask a genuinely new npm advisory.
 - **Files:** `scripts/ci/classify-changes.sh` (the `lockfile)` classification
-  case and its path→class mapping), `.github/workflows/security.yml` (the
-  `dependency-audit` Trivy job AND the `license-check` job — both gated on
-  `dependency-audit-required`), `.github/actions/detect-changes/action.yml`,
-  `scripts/ci/classify-changes.test.sh`.
+  case and its path→class mapping), `scripts/ci/classify-changes.test.sh`
+  (three new contract cases). Implementation note: the Files list also named
+  `.github/workflows/security.yml` and `.github/actions/detect-changes/action.yml`,
+  but the action.yml is a pure consumer of the bash classifier (calls
+  `classify-changes.sh` and reads `has_check dependency-audit`), and
+  security.yml's gating clause was already correct — so the actual fix needed
+  only the classifier + tests.
 - **Confidence:** medium — must keep the Rust audit (`cargo-deny`) and the
   npm-facing gates (Trivy + `license-check`) correctly routed; touches the
   change-classifier contract, which has its own test suite to extend.
