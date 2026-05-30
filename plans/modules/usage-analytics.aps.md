@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | Draft  | 0/3      |
+| USAGE | @eddacraft | Ready  | 0/3      |
 
 **Last reviewed:** 2026-05-11
 
@@ -205,9 +205,11 @@ requires founder review. The contract doc lives in
 
 ## Work Items
 
-> Status: Draft. No tasks Committed. USAGE-001 is the launch-blocker
-> path if the founder wants pre-launch usage visibility; USAGE-002 and
-> USAGE-003 follow once invocations land.
+> Status: Ready. USAGE-001 authorised Ready 2026-05-30 via operator
+> Draft-readiness review — the founder OQ1 observation-kind decision is
+> folded into the task's scope (Expected Outcome records reuse-vs-new
+> inline). USAGE-002 and USAGE-003 remain Draft and follow once
+> invocations land.
 
 ### USAGE-001: Command-invocation observation kind and producer
 
@@ -267,9 +269,10 @@ requires founder review. The contract doc lives in
   principal never appears in any captured field (only the salted
   hash); (e) the contract test against the registered command/method
   list.
-- **Confidence:** medium — OQ2 and OQ5 are resolved; OQ1 still gates the
-  observation-kind decision.
-- **Status:** Draft
+- **Confidence:** medium — OQ2 and OQ5 are resolved; OQ1 (reuse vs new
+  observation kind) is folded into this task's scope per the 2026-05-30
+  operator authorisation and is decided as the first step of execution.
+- **Status:** Ready
 
 ---
 

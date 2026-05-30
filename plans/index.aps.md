@@ -459,7 +459,7 @@ and USAGE-003 (canned dev-investment query views) follow once invocations land.
 
 | Module                                              | Scope | Status | Progress | Dependencies                                                                                                                                                                                                                |
 | --------------------------------------------------- | ----- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [usage-analytics](./modules/usage-analytics.aps.md) | USAGE | Draft  | 0/3      | Kindling, TRACE-001 (consumes `TraceContext`); coordinates with TRACE-004 (incoming `traceparent` binding), FLAGCAT-007 / ADR-041 (resolved: inline `flag_set`, manifest `key` join, ADR-019 unchanged), TRACE-003 (shared `SENSITIVE_FIELDS` deny-list), OBS-001 (post-launch). Privacy contract + OQ2 anonymisation (hash + per-deployment salt) confirmed 2026-05-11. |
+| [usage-analytics](./modules/usage-analytics.aps.md) | USAGE | Ready  | 0/3      | Kindling, TRACE-001 (consumes `TraceContext`); coordinates with TRACE-004 (incoming `traceparent` binding), FLAGCAT-007 / ADR-041 (resolved: inline `flag_set`, manifest `key` join, ADR-019 unchanged), TRACE-003 (shared `SENSITIVE_FIELDS` deny-list), OBS-001 (post-launch). Privacy contract + OQ2 anonymisation (hash + per-deployment salt) confirmed 2026-05-11. USAGE-001 promoted Ready 2026-05-30 (operator review; OQ1 observation-kind decision folded into the task); USAGE-002/003 stay Draft. |
 
 ### Infrastructure as Code
 
