@@ -58,7 +58,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: pnpm run test -- --run
+        run: |
+          pnpm run test:js -- --run
+          pnpm run test:rust
 
   # ── Multi-version Node tests (Linux only) ──────────────────────
   test-multi-node:
@@ -88,7 +90,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run unit tests
-        run: pnpm run test -- --run
+        run: |
+          pnpm run test:js -- --run
+          pnpm run test:rust
 
   # ── Multi-version build check ──────────────────────────────────
   build-multi-node:
