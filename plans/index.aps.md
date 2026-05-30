@@ -3,15 +3,18 @@
 
 # Anvil — Save-time Trust
 
-> **Latest release tag: `v0.7.1-beta`** (shipped 2026-05-23) — Boring Week
-> Patch 1 (Activation Diagnostic Honesty) on top of `v0.7.0-beta` (shipped
-> 2026-05-21), the daemon-working product slate: MLP v1 18/18, the `anvil-run`
+> **Latest release tag: `v0.7.2-beta`** (shipped 2026-05-25) — Boring Week
+> Patch 2 (Save-Time Scanning & Tooling Honesty) on top of `v0.7.1-beta`
+> (2026-05-23, Activation Diagnostic Honesty) and the `v0.7.0-beta` (shipped
+> 2026-05-21) daemon-working product slate: MLP v1 18/18, the `anvil-run`
 > intercept launcher (INTL 9/9), and the MLP2 integration surface. The earlier
 > operational substrate window closed with `v0.6.2-beta` / `v0.6.3-beta`:
 > OPMODEL 12/12 (archived 2026-05-11; main-first cutover), RELORCH 12/12
 > (archived; deterministic release command surface), and CICD 12/12 (archived
 > 2026-05-12; CI targeting + drift checks + workflow contract map). The next tag
-> candidate is `v0.7.2-beta` (scope still being assembled). See
+> candidate is `v0.7.3-beta` "Surfacing the Signal" (product-surface patch —
+> native TUI dashboards, SARIF export, new `anvil insights` views — scope
+> assembled on `main`, awaiting the cut). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
 > [`ROADMAP.md`](../ROADMAP.md) for thematic context across horizons.
 

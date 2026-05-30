@@ -8,11 +8,16 @@
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.7.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-28 (fact-refresh — latest tag bumped from
-`v0.6.3-beta` to `v0.7.2-beta`; the daemon-working window below shipped as
-`v0.7.0-beta` on 2026-05-21 with patches `v0.7.1-beta` (2026-05-22) and
-`v0.7.2-beta` (2026-05-25); Current State + Next Release Window headings
-updated, strategic reframe of "what's next" pending.)
+**Last updated:** 2026-05-30 (added the `v0.7.3-beta` "Surfacing the Signal"
+next-release window — a product-surface patch on the sit-on slate whose scope is
+already assembled on `main`; resolves the "strategic reframe of what's next
+pending" note from the 2026-05-28 refresh.)
+
+Previous update: 2026-05-28 (fact-refresh — latest tag bumped from `v0.6.3-beta`
+to `v0.7.2-beta`; the daemon-working window below shipped as `v0.7.0-beta` on
+2026-05-21 with patches `v0.7.1-beta` (2026-05-22) and `v0.7.2-beta`
+(2026-05-25); Current State + Next Release Window headings updated, strategic
+reframe of "what's next" pending.)
 
 Previous update: 2026-05-19 (MLP2-025 bullet narrowed to "on Linux" after the
 DeepSec #1671 triage exposed a production wire-up gap closed by PR #1717 —
@@ -139,6 +144,58 @@ The next release should be a **product-surface** release, not another operating
 model release. Its claim moves from "the operating model is executable" to
 "Anvil protects this project end-to-end through the daemon, hooks, witness
 chain, baseline, and wrapped agent launch surfaces."
+
+---
+
+## Next Release Window — `v0.7.3-beta` "Surfacing the Signal"
+
+**Candidate tag:** `v0.7.3-beta` (patch on the `v0.7.0-beta` sit-on slate)
+
+**Claim:** A product-surface **patch** that makes Anvil's existing signal
+**visible and exportable** — native read-only TUI dashboards, SARIF 2.1.0
+findings export, and new `anvil insights` views — without widening the
+protection claim. This is freight that accumulated on `main` since
+`v0.7.2-beta`; the bulk is already Merged, so the remaining work is cut hygiene
+and reconciliation, not implementation.
+
+**Version framing (deliberate):** the landed work adds new commands and flags
+(`anvil dashboard`, `anvil migrate schema`, `--format sarif`, new `insights`
+views), so `scripts/release/assess.sh` recommends a **minor** bump
+(`v0.8.0-beta`). We override that down to a **patch** (`v0.7.3-beta`) to honour
+the Hotfix Iteration Plan's "no minor beta before six weeks post-tag" rule
+(`v0.7.0-beta` shipped 2026-05-21). Pass the version explicitly to `assess.sh` /
+`prepare.sh` so the override is on the record. This is a patch on the sit-on tag
+— **no Boring Week gate applies** (that gates the sit-on claim, not weekly
+patches).
+
+**Scope (all Merged on `main` unless noted):**
+
+| Theme                                                           | Module / source         | State                                                 |
+| --------------------------------------------------------------- | ----------------------- | ----------------------------------------------------- |
+| SARIF 2.1.0 on `check` / `gate` / `audit` + `--format` selector | `sarif-output`          | 6/6 Complete                                          |
+| `anvil dashboard` (architecture / drift / suppressions TUI)     | `native-tui-dashboards` | 4/4                                                   |
+| `anvil insights --suppressions` / `--drift`                     | `usage-insights`        | 3/4 (the two new views Merged; INSIGHTS-004 deferred) |
+| Working-tree secret scanning (not just git history)             | `scan-performance`      | Merged                                                |
+| `anvil migrate schema`; `anvil welcome` gitignore count         | CLI / CIB               | Merged                                                |
+| Policy-engine hardening (panic-catch + determinism fence)       | policy lane (#1952)     | Merged (preview-gated; output shape may still change) |
+
+**Engineering-only churn** (recorded in `ENGINEERING-HISTORY.md`, not the
+customer changelog): `dev-environment-hardening` (disk/worktree),
+`lang-ts-audit` (TS symbol extraction internals), CIB items, CI/dependency-audit
+scoping, `email-broadcast`.
+
+**Tag-time hygiene** (mechanical, tag-blocking):
+
+- Bump `Cargo.toml` `0.7.2-beta` → `0.7.3-beta`.
+- Regenerate `Cargo.lock` + `ACKNOWLEDGEMENTS.md` atomically via
+  `bash tools/starters/acknowledgements/generate-acknowledgements.sh`.
+- `cargo hakari generate` + `cargo hakari verify`.
+- Date-stamp the `## [0.7.3-beta] — TBD` CHANGELOG heading at tag time.
+- Create `plans/releases/v0.7.3-beta.md` from the `v0.7.2-beta.md` template.
+
+**Cut sequence:** the deterministic `scripts/release/*` chain —
+`preflight → assess (--version v0.7.3-beta) → prepare → promote → tag → monitor → verify → closeout`.
+Homebrew formula auto-bump (DISTRIB-003) rides the tag.
 
 ---
 
