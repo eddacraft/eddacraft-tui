@@ -23,13 +23,12 @@
 // entries for surfaces that did not run are preserved unchanged.
 
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync, renameSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
-const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const SURFACES = [
+const DEFAULT_SURFACES = [
   { name: 'metadata', script: 'scripts/docs/check-metadata.mjs', baselineable: true },
   { name: 'tags', script: 'scripts/docs/check-tags.mjs', baselineable: true },
   { name: 'links', script: 'scripts/docs/check-links.mjs', baselineable: true },
@@ -43,7 +42,27 @@ const SURFACES = [
   { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
 ];
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+
+// Test seam: --root and --surfaces let the fixture-level contract tests drive
+// regenerateBaseline() against stub surface scripts without touching the live
+// corpus or the tracked baseline. Neither flag is used by the CI invocation.
+function flagValue(name) {
+  const idx = argv.indexOf(name);
+  return idx !== -1 && idx + 1 < argv.length ? argv[idx + 1] : undefined;
+}
+
+const rootOverride = flagValue('--root');
+const REPO_ROOT = rootOverride
+  ? resolve(rootOverride)
+  : fileURLToPath(new URL('../..', import.meta.url));
+
+const surfacesOverride = flagValue('--surfaces');
+const SURFACES = surfacesOverride
+  ? JSON.parse(readFileSync(resolve(surfacesOverride), 'utf8'))
+  : DEFAULT_SURFACES;
+
 const updateBaseline = args.has('--update-baseline');
 const noBaseline = args.has('--no-baseline');
 const baselinePath = resolve(REPO_ROOT, 'docs/governance/docs-check.baseline.json');
@@ -67,17 +86,25 @@ async function runAll() {
 
 function runSurface(surface, { json, forceNoBaseline }) {
   const scriptPath = resolve(REPO_ROOT, surface.script);
-  const argv = [scriptPath];
-  if (json) argv.push('--json');
+  const childArgv = [scriptPath];
+  if (json) childArgv.push('--json');
+  // The --no-baseline flag is only meaningful for surfaces that actually read
+  // the baseline (surface.baselineable). Non-baselineable surfaces such as
+  // index-freshness forward their argv straight to a generator (docs-index.mjs)
+  // whose strict parseArgs rejects the unknown flag and crashes — so we must NOT
+  // append baseline flags to them.
+  //
   // When regenerating the baseline we must NOT apply the existing one — otherwise
   // previously-baselined errors are downgraded to WARN and dropped by
   // collapseFindings(), so the baseline can only shrink. forceNoBaseline lets
   // regenerateBaseline() bypass the user's --no-baseline flag (which is itself
   // only meaningful for a normal run).
-  if (json && forceNoBaseline) argv.push('--no-baseline');
-  else if (noBaseline) argv.push('--no-baseline');
+  if (surface.baselineable) {
+    if (json && forceNoBaseline) childArgv.push('--no-baseline');
+    else if (noBaseline) childArgv.push('--no-baseline');
+  }
 
-  const result = spawnSync('node', argv, {
+  const result = spawnSync('node', childArgv, {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -122,6 +149,7 @@ async function regenerateBaseline() {
   // that would be self-referential and would let absorbed errors silently drop
   // out of scope on regeneration.
   const next = {};
+  const failures = [];
 
   for (const surface of SURFACES) {
     if (!surface.baselineable) continue;
@@ -129,6 +157,7 @@ async function regenerateBaseline() {
     const result = runSurface(surface, { json: true, forceNoBaseline: true });
     if (!result.stdout.trim()) {
       process.stderr.write(`[docs-check] ${surface.name}: no JSON output\n`);
+      failures.push(surface.name);
       continue;
     }
     let parsed;
@@ -136,6 +165,7 @@ async function regenerateBaseline() {
       parsed = JSON.parse(result.stdout);
     } catch (err) {
       process.stderr.write(`[docs-check] ${surface.name}: JSON parse failed (${err.message})\n`);
+      failures.push(surface.name);
       continue;
     }
     next[surface.name] = collapseFindings(parsed.findings ?? []);
@@ -146,10 +176,42 @@ async function regenerateBaseline() {
     );
   }
 
+  // Data-loss guard (DOCGOV-012): a partial run must NEVER overwrite the tracked
+  // baseline. If any baselineable surface failed to produce valid JSON we leave
+  // the existing baseline untouched and exit non-zero, so the failure is loud
+  // and the operator's known-good entries are preserved.
+  if (failures.length > 0) {
+    process.stderr.write(
+      `[docs-check] baseline NOT written — ${failures.length} surface(s) failed: ` +
+        `${failures.join(', ')}. Existing baseline left unchanged.\n`
+    );
+    process.exit(1);
+  }
+
+  // Carry forward existing entries for non-baselineable surfaces (the
+  // regeneration loop only repopulates baselineable ones) so an unrelated key
+  // is not silently dropped.
+  if (existsSync(baselinePath)) {
+    try {
+      const existing = JSON.parse(readFileSync(baselinePath, 'utf8'));
+      for (const [key, value] of Object.entries(existing)) {
+        if (!(key in next)) next[key] = value;
+      }
+    } catch (err) {
+      process.stderr.write(
+        `[docs-check] could not read existing baseline for carry-forward (${err.message})\n`
+      );
+    }
+  }
+
   // mkdirSync with recursive:true is idempotent and atomic — no need for the
   // race-prone existsSync-then-mkdir guard CodeQL flagged.
   mkdirSync(dirname(baselinePath), { recursive: true });
-  writeFileSync(baselinePath, JSON.stringify(next, null, 2) + '\n');
+  // Write to a sibling temp file then rename, so a crash mid-serialize cannot
+  // leave a truncated baseline behind.
+  const tmpPath = `${baselinePath}.tmp-${process.pid}`;
+  writeFileSync(tmpPath, JSON.stringify(next, null, 2) + '\n');
+  renameSync(tmpPath, baselinePath);
   process.stdout.write(`[docs-check] baseline written to ${baselinePath}\n`);
 }
 

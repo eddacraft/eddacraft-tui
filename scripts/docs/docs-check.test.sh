@@ -268,6 +268,105 @@ else
   fail "orchestrator should exit 0 under live baseline; got ${status}"
 fi
 
+# Case 10 (DOCGOV-012 defect 2): --no-baseline must NOT be forwarded to a
+# non-baselineable surface (index-freshness → docs-index.mjs), whose strict
+# parseArgs rejects the unknown flag and would crash the surface.
+echo "case 10: --no-baseline does not crash the index-freshness surface"
+out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
+if echo "${out}" | grep -qE "Unknown option '--no-baseline'|ERR_PARSE_ARGS_UNKNOWN_OPTION"; then
+  fail "--no-baseline misrouted to index-freshness; got: $(echo "${out}" | grep -iE 'unknown|ERR_PARSE' | head -1)"
+elif echo "${out}" | grep -qE "^  (pass|FAIL) index-freshness$"; then
+  pass "--no-baseline run reaches index-freshness without an unknown-option crash"
+else
+  fail "index-freshness surface missing from --no-baseline summary; tail: $(echo "${out}" | tail -5)"
+fi
+
+# Case 11 (DOCGOV-012 defect 1): --update-baseline must NOT overwrite the
+# tracked baseline when a baselineable surface fails to emit valid JSON. Uses
+# the --root / --surfaces test seam with stub surface scripts so the live
+# corpus and tracked baseline are never touched.
+echo "case 11: --update-baseline preserves the baseline on a partial/failed run"
+bl_root="${tmp_root}/baseline-fixture"
+mkdir -p "${bl_root}/docs/governance"
+cat >"${bl_root}/good-surface.mjs" <<'EOF'
+console.log(JSON.stringify({
+  surface: 'good',
+  findings: [{ severity: 'ERROR', file: 'docs/x.md', message: 'boom' }],
+  summary: { errors: 1, warnings: 0, filesChecked: 1 },
+}));
+EOF
+cat >"${bl_root}/bad-surface.mjs" <<'EOF'
+console.log('this is not json {{{');
+process.exit(1);
+EOF
+cat >"${bl_root}/surfaces.json" <<'EOF'
+[
+  { "name": "good", "script": "good-surface.mjs", "baselineable": true },
+  { "name": "bad", "script": "bad-surface.mjs", "baselineable": true }
+]
+EOF
+baseline_file="${bl_root}/docs/governance/docs-check.baseline.json"
+cat >"${baseline_file}" <<'EOF'
+{
+  "good": { "docs/x.md": ["boom"] },
+  "bad": { "docs/y.md": ["preexisting bad entry"] }
+}
+EOF
+before_hash="$(node -e "process.stdout.write(require('node:fs').readFileSync(process.argv[1],'utf8'))" "${baseline_file}")"
+set +e
+(cd "${repo_root}" && node "${orchestrator}" --update-baseline --root "${bl_root}" --surfaces "${bl_root}/surfaces.json" >/dev/null 2>&1)
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]]; then
+  pass "--update-baseline exits non-zero when a baselineable surface fails"
+else
+  fail "--update-baseline should exit non-zero on surface failure; got ${status}"
+fi
+after_hash="$(node -e "process.stdout.write(require('node:fs').readFileSync(process.argv[1],'utf8'))" "${baseline_file}")"
+if [[ "${before_hash}" == "${after_hash}" ]]; then
+  pass "--update-baseline left the existing baseline unchanged on failure"
+else
+  fail "--update-baseline overwrote the baseline despite a surface failure"
+fi
+# Happy path with the same seam: a fully-successful regeneration DOES write.
+cat >"${bl_root}/surfaces-ok.json" <<'EOF'
+[
+  { "name": "good", "script": "good-surface.mjs", "baselineable": true }
+]
+EOF
+set +e
+(cd "${repo_root}" && node "${orchestrator}" --update-baseline --root "${bl_root}" --surfaces "${bl_root}/surfaces-ok.json" >/dev/null 2>&1)
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && node -e "const b=require(process.argv[1]); process.exit(b.good && b.good['docs/x.md'] && b.bad ? 0 : 1)" "${baseline_file}"; then
+  pass "--update-baseline writes on full success and carries forward untouched keys"
+else
+  fail "--update-baseline happy path failed to write or dropped a carried-forward key"
+fi
+
+# Case 12 (DOCGOV-012 defect 3): a malformed percent escape in a link must
+# produce a labelled ERROR finding and a non-zero exit, never an uncaught
+# URIError that aborts the whole surface.
+echo "case 12: check-links handles malformed percent escapes gracefully"
+link_root="${tmp_root}/link-fixture"
+mkdir -p "${link_root}/docs"
+cat >"${link_root}/docs/bad.md" <<'EOF'
+# Bad Link Doc
+
+See [broken](./foo%zz.md) for details, and [anchor](#sec%) too.
+EOF
+set +e
+out="$(cd "${repo_root}" && node "${links_script}" --root "${link_root}" --no-baseline 2>&1)"
+status=$?
+set -e
+if echo "${out}" | grep -qiE "URIError|URI malformed"; then
+  fail "check-links crashed on malformed percent escape; got: $(echo "${out}" | head -2)"
+elif echo "${out}" | grep -qE "^\[links\] ERROR: docs/bad\.md:[0-9]+ — malformed link " && [[ "${status}" -ne 0 ]]; then
+  pass "check-links emits a labelled ERROR and exits non-zero on malformed percent escape"
+else
+  fail "check-links did not emit a labelled malformed-link ERROR (status ${status}); got: $(echo "${out}" | head -3)"
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
   exit 1

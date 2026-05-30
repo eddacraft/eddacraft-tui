@@ -21,6 +21,19 @@ import { visit } from 'unist-util-visit';
 const SURFACE = 'links';
 const EXTERNAL_RE = /^(?:https?:|mailto:|tel:|ftp:|data:)/i;
 
+// decodeURIComponent throws a URIError on malformed percent escapes (e.g.
+// `%zz` or a lone `%`). A bad link must surface as a labelled ERROR finding,
+// never an uncaught crash that aborts the whole surface (DOCGOV-012). The
+// sentinel lets resolveLink distinguish "decode failed" from a valid decode.
+const DECODE_FAILED = Symbol('decode-failed');
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return DECODE_FAILED;
+  }
+}
+
 const { values } = parseArgs({
   options: {
     root: { type: 'string' },
@@ -167,7 +180,10 @@ async function resolveLink(href, absFile) {
   if (href.startsWith('#')) {
     const slugs = await getHeadings(absFile);
     if (!slugs) return `broken anchor "${href}" — current file unreadable for heading parse`;
-    const anchor = decodeURIComponent(href.slice(1));
+    const anchor = safeDecode(href.slice(1));
+    if (anchor === DECODE_FAILED) {
+      return `malformed link "${href}" — invalid percent-encoding in anchor`;
+    }
     if (!slugs.has(anchor)) {
       return `broken anchor "${href}" — heading "#${anchor}" not found in current file`;
     }
@@ -176,13 +192,22 @@ async function resolveLink(href, absFile) {
 
   const hashIdx = href.indexOf('#');
   const rawPath = hashIdx === -1 ? href : href.slice(0, hashIdx);
-  const anchor = hashIdx === -1 ? null : decodeURIComponent(href.slice(hashIdx + 1));
+  let anchor = null;
+  if (hashIdx !== -1) {
+    anchor = safeDecode(href.slice(hashIdx + 1));
+    if (anchor === DECODE_FAILED) {
+      return `malformed link "${href}" — invalid percent-encoding in anchor`;
+    }
+  }
 
   let targetAbs;
   if (rawPath.startsWith('/')) {
     targetAbs = resolve(root, `.${rawPath}`);
   } else {
-    const decoded = decodeURIComponent(rawPath);
+    const decoded = safeDecode(rawPath);
+    if (decoded === DECODE_FAILED) {
+      return `malformed link "${href}" — invalid percent-encoding in path`;
+    }
     targetAbs = resolve(dirname(absFile), decoded);
   }
 

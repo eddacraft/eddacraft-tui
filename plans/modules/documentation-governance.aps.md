@@ -461,7 +461,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Tracking:** [#2075](https://github.com/eddacraft/anvil-001/issues/2075)
 - **Authorisation:** Authorised as Ready 2026-05-30 via operator Draft-readiness
   review — three confirmed/contract defects, fixture-test validation, and
