@@ -15,7 +15,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { readFile, writeFile, rm, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve, sep, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, createVerify } from 'node:crypto';
 import https from 'node:https';
@@ -158,8 +158,36 @@ export class BundleManager {
     this.bundles = new Map();
     if (config.bundles) {
       for (const bundle of config.bundles) {
+        this.assertSafeBundleName(bundle.name);
         this.bundles.set(bundle.name, bundle);
       }
+    }
+  }
+
+  /**
+   * Reject bundle names that could escape the cache directory when joined
+   * into a filesystem path. The name is used to build `bundleDir` and temp
+   * file paths that are then passed to recursive `rmSync`/`mkdirSync`, so an
+   * unsanitised name containing path separators or `..` could delete or
+   * create directories outside the cache.
+   */
+  private assertSafeBundleName(name: string): void {
+    if (
+      !name ||
+      name === '.' ||
+      name === '..' ||
+      name.includes('/') ||
+      name.includes('\\') ||
+      name.includes('\0') ||
+      isAbsolute(name)
+    ) {
+      throw new Error(`Invalid bundle name: ${JSON.stringify(name)}`);
+    }
+    // Defence in depth: ensure the name cannot resolve outside the cache dir.
+    const base = resolve(this.cacheDir);
+    const resolved = resolve(base, name);
+    if (resolved !== base && !resolved.startsWith(base + sep)) {
+      throw new Error(`Invalid bundle name (path escape): ${JSON.stringify(name)}`);
     }
   }
 
@@ -167,6 +195,7 @@ export class BundleManager {
    * Add or update a bundle configuration
    */
   addBundle(config: BundleConfig): void {
+    this.assertSafeBundleName(config.name);
     this.bundles.set(config.name, config);
   }
 
@@ -213,6 +242,7 @@ export class BundleManager {
     }
 
     try {
+      this.assertSafeBundleName(name);
       await this.ensureCacheDir();
       const index = await this.loadIndex();
 
@@ -389,6 +419,9 @@ export class BundleManager {
    * Invalidate a specific bundle cache, removing downloaded files
    */
   async invalidateBundle(name: string): Promise<boolean> {
+    // Guard against a tampered on-disk index supplying an escaping name that
+    // would target `rmSync` outside the cache directory.
+    this.assertSafeBundleName(name);
     const index = await this.loadIndex();
     const entry = index.entries[name];
 
@@ -529,7 +562,8 @@ export class BundleManager {
     headers?: Record<string, string>,
     etag?: string,
     lastModified?: string,
-    auth?: BundleAuthConfig
+    auth?: BundleAuthConfig,
+    redirectsRemaining = 5
   ): Promise<{ notModified: boolean; etag?: string; lastModified?: string }> {
     return new Promise((resolve, reject) => {
       const parsedUrl = new URL(url);
@@ -569,12 +603,63 @@ export class BundleManager {
       const request = httpModule.request(options, (response) => {
         // Handle redirects
         if (response.statusCode === 301 || response.statusCode === 302) {
-          const redirectUrl = response.headers.location;
-          if (!redirectUrl) {
+          const location = response.headers.location;
+          if (!location) {
             reject(new Error('Redirect without location header'));
             return;
           }
-          this.downloadFile(redirectUrl, dest, headers, etag, lastModified, auth)
+
+          // Bound the redirect chain to avoid an unbounded recursion DoS from
+          // a server that loops (A→B→A) or redirects indefinitely.
+          if (redirectsRemaining <= 0) {
+            reject(new Error('Too many redirects'));
+            return;
+          }
+
+          let target: URL;
+          try {
+            // Resolve relative redirects against the current URL.
+            target = new URL(location, url);
+          } catch {
+            reject(new Error(`Invalid redirect location: ${location}`));
+            return;
+          }
+
+          // A redirect must not downgrade transport security: enforce HTTPS
+          // on the redirect hop (allowing localhost for development/testing,
+          // matching the initial-URL policy in downloadBundle).
+          const targetIsLocalhost =
+            target.hostname === 'localhost' || target.hostname === '127.0.0.1';
+          if (target.protocol !== 'https:' && !targetIsLocalhost) {
+            reject(new Error(`Refusing to follow redirect to non-HTTPS URL: ${target.href}`));
+            return;
+          }
+
+          // Never leak credentials across origins. When the redirect crosses
+          // origin, drop the configured auth and any caller-supplied
+          // Authorization header so they are not sent to a different host.
+          const sameOrigin = target.origin === parsedUrl.origin;
+          const forwardedAuth = sameOrigin ? auth : undefined;
+          let forwardedHeaders = headers;
+          if (!sameOrigin && headers) {
+            forwardedHeaders = {};
+            for (const [key, value] of Object.entries(headers)) {
+              if (key.toLowerCase() === 'authorization') {
+                continue;
+              }
+              forwardedHeaders[key] = value;
+            }
+          }
+
+          this.downloadFile(
+            target.href,
+            dest,
+            forwardedHeaders,
+            etag,
+            lastModified,
+            forwardedAuth,
+            redirectsRemaining - 1
+          )
             .then(resolve)
             .catch(reject);
           return;

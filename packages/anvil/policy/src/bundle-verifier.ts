@@ -5,7 +5,7 @@
  * the OPA signature format specification.
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve, sep, isAbsolute, normalize } from 'node:path';
 import { createHash, createVerify, timingSafeEqual } from 'node:crypto';
@@ -353,6 +353,23 @@ export class BundleVerifier {
       try {
         const isValid = this.verifySignature(signedData, signature, keyConfig);
         if (isValid) {
+          // A valid signature only attests to the files listed in the
+          // manifest. Reject the bundle if it ships any *extra* file the
+          // signature does not cover — otherwise an attacker can smuggle
+          // unsigned `.rego`/data files into an otherwise-valid bundle and
+          // have them loaded as trusted policy.
+          const uncovered = await this.findUncoveredFiles(bundlePath, sigBlock.files);
+          if (uncovered.length > 0) {
+            for (const item of uncovered) {
+              fileResults.push({ file: item.file, verified: false, error: item.reason });
+            }
+            errors.push(
+              `Bundle contains files not covered by the signature manifest: ${uncovered
+                .map((u) => u.file)
+                .join(', ')}`
+            );
+            return { verified: false, errors, fileResults };
+          }
           return { verified: true, errors: [], fileResults };
         }
       } catch (error) {
@@ -364,6 +381,68 @@ export class BundleVerifier {
 
     errors.push('No valid signature found in signature block');
     return { verified: false, errors, fileResults };
+  }
+
+  /**
+   * Enumerate the bundle directory and return every entry that the verifying
+   * signature block does NOT cover (the signature file itself is always
+   * excluded). Each result carries a reason:
+   *  - `unsigned`: a regular file with no matching manifest entry.
+   *  - `symlink`:  a symbolic link. Symlinks are rejected unconditionally —
+   *    even if their name appears in the manifest — because the per-file hash
+   *    check dereferences the link (hashing the target, which may live
+   *    outside the bundle) and a symlinked directory would let unsigned
+   *    files escape enumeration entirely.
+   *
+   * Non-directory bundle paths (e.g. a `.tar.gz` handed directly) cannot be
+   * walked here and return an empty list. This is currently unreachable —
+   * `extractSignatures` only resolves a manifest for directory bundles — but
+   * is NOT a substitute for signature-coverage on tarballs if that path is
+   * ever wired up.
+   */
+  private async findUncoveredFiles(
+    bundlePath: string,
+    signedFiles: SignatureFileEntry[]
+  ): Promise<Array<{ file: string; reason: string }>> {
+    let stats;
+    try {
+      stats = await stat(bundlePath);
+    } catch {
+      return [];
+    }
+    if (!stats.isDirectory()) {
+      return [];
+    }
+
+    const signed = new Set(signedFiles.map((f) => normalize(f.name)));
+    const uncovered: Array<{ file: string; reason: string }> = [];
+
+    const walk = async (dir: string, relPrefix: string): Promise<void> => {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+        // Reject symlinks before any directory/file classification: a symlink
+        // to a directory is NOT an `isDirectory()` entry, so its contents
+        // would otherwise be skipped and never hash-checked.
+        if (entry.isSymbolicLink()) {
+          uncovered.push({ file: rel, reason: 'Symbolic links are not allowed in signed bundles' });
+          continue;
+        }
+        if (entry.isDirectory()) {
+          await walk(join(dir, entry.name), rel);
+          continue;
+        }
+        if (rel === SIGNATURES_FILE) {
+          continue;
+        }
+        if (!signed.has(normalize(rel))) {
+          uncovered.push({ file: rel, reason: 'Unsigned file not covered by signature manifest' });
+        }
+      }
+    };
+
+    await walk(bundlePath, '');
+    return uncovered;
   }
 
   /**
