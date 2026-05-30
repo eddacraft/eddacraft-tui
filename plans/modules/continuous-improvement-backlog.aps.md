@@ -773,7 +773,7 @@ archive.
 
 ### CIB-035: drift-check crashes on invalid release records instead of staying advisory
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
   / exit-0 architecture principle when handed a malformed input, so a bad release
   record degrades to an advisory finding rather than an uncaught crash.
@@ -892,7 +892,7 @@ archive.
   (all findings closed) is not yet met and is owned outside this item.
 ### CIB-040: Full CLIC-010 help-text layout pass for all commands
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Apply the uniform CLIC-010 layout to every command's `--help`
   output: one-line imperative summary, a when-to-use hint, common flag
   descriptions, and a pointer to the relevant runbook or docs page.
