@@ -133,10 +133,16 @@ fn anvil_version_offline_succeeds_with_no_network() {
 /// - `authentication_required` / `auth_check_failed` — the JSON
 ///   auth-gate envelopes (`main.rs`). Either means the auth path ran
 ///   instead of the local probe.
-/// - `auth_error` / `network` — generic markers the issue (#1754)
-///   names as forbidden in the local-diagnostic shape.
-/// - `device-flow` / `refresh` — device-flow / token-refresh attempts
-///   that only happen when the auth path reaches outward.
+/// - `auth_error` — the generic auth marker the issue (#1754) names as
+///   forbidden in the local-diagnostic shape.
+/// - `device-flow` — a device-flow / token-refresh attempt that only
+///   happens when the auth path reaches outward.
+///
+/// Broader network/timeout words (`network`, `connection`, `no response`,
+/// …) are deliberately NOT scanned across the whole stream here: they can
+/// appear benignly in normal output (e.g. "no network access"). They are
+/// instead checked narrowly inside the structured `last_error` field (see
+/// the `last_error` guard in the local-diagnostic-shape assertion below).
 const NETWORK_AUTH_UPDATE_MARKERS: &[&str] = &[
     "authentication_required",
     "auth_check_failed",
@@ -225,7 +231,16 @@ fn assert_local_activation_diagnostic_shape(stdout: &str) {
     // network local cause is acceptable; a network/auth/update token
     // there is the structured form of the air-gap violation.
     if let Some(last_error) = obj.get("last_error").and_then(serde_json::Value::as_str) {
-        for marker in ["network", "timed out", "timeout", "connection", "auth"] {
+        // "no response" catches `ProbeError::Timeout`, which renders as
+        // "no response within Xs" rather than the literal word "timeout".
+        for marker in [
+            "network",
+            "timed out",
+            "timeout",
+            "no response",
+            "connection",
+            "auth",
+        ] {
             assert!(
                 !last_error.to_lowercase().contains(marker),
                 "local diagnostic `last_error` names a network/auth cause `{marker}`: \
