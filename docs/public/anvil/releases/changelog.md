@@ -9,10 +9,24 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
-## [Unreleased]
+## [0.7.3-beta] — TBD — Surfacing the Signal
+
+A product-surface release: native read-only TUI dashboards, SARIF 2.1.0 findings
+export on the scan commands, and new `anvil insights` views make Anvil's
+existing signal visible and exportable. Release date pending the tag.
 
 ### Added
 
+- **SARIF 2.1.0 output** for the finding-emitting commands. `anvil check`,
+  `anvil gate`, and `anvil audit` accept `--format sarif` and emit the GitHub
+  Code Scanning subset of SARIF 2.1.0, so Anvil findings can be uploaded to Code
+  Scanning (and other SARIF tools) without a per-command adapter. `check`'s
+  `@anvil-ignore`-suppressed findings render under `suppressions[]`. The new
+  `--format <auto|tui|plain|json|sarif>` flag on these commands is the canonical
+  output selector; `--json` continues to work as an alias, and SARIF is never
+  auto-selected. SARIF emission is exit-code-neutral. See the
+  [GitHub integration guide](../integrations/github.md) and the
+  [SARIF upload runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/sarif-code-scanning-upload.md).
 - **`anvil --json watch` is now a stable NDJSON consumer surface** — the watch
   event stream pins to `anvil.watch.event.v1`. Every stdout line carries
   `schema_version`, `seq`, `timestamp`, `event_type`, and a typed `payload`.
@@ -22,14 +36,65 @@ All notable changes to anvil are documented here.
   and
   [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md)
   for the normative spec.
+- **`anvil dashboard` — native read-only TUI dashboards.** A new command with
+  three live surfaces over persisted `.anvil/` state: **Architecture Health**
+  (layer boundaries, violations, and rule compliance), **Drift Snapshots**
+  (snapshot history and new-edge deltas vs baseline), and **Suppressions**
+  (active suppressions with scope, file, reason, and expiry). Run
+  `anvil dashboard` for an interactive picker, or
+  `anvil dashboard <architecture|drift|suppressions>` to open one directly.
+- **`anvil insights --suppressions` — suppressions health view.** Lists every
+  active inline suppression in the project
+  ([#1996](https://github.com/eddacraft/anvil-001/issues/1996)).
+- **`anvil insights --drift` — drift trend sparkline.** Renders new
+  cross-boundary edges per week over the last 8 weeks as a terminal sparkline,
+  derived from the `anvil drift` snapshot store. Weeks without a snapshot read
+  as no-data (distinct from a measured zero), and `--json` emits a
+  schema-versioned `anvil.drift_trend.v1` document.
+- **`anvil migrate schema` subcommand.** Reads the project's
+  `created_by_version` and migrates the config schema forward
+  ([#1984](https://github.com/eddacraft/anvil-001/issues/1984)).
+- **Secret scanning now covers on-disk content, not just git history.** The
+  secret scan that previously inspected commit history also scans the working
+  tree ([#1994](https://github.com/eddacraft/anvil-001/issues/1994)). The
+  git-history scan also reports the count of oversize lines it skipped, so a "0
+  findings" result can no longer silently hide unscanned content.
+- **`anvil welcome` reports the count of files skipped via `.gitignore`** in its
+  discovery output, so the scan scope is no longer silent.
 
 ### Changed
 
+- **Policy engine hardened.** The Rego evaluation path behind the experimental
+  `anvil policy eval` now catches panics at the regorus facade (dedicated unwind
+  profile), enforces a determinism fence and input bounds, and emits tracing on
+  the eval path ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)).
+  `anvil policy eval` remains a preview — its output shape may still change.
 - **Watch JSON payloads are typed, not debug strings** — `anvil --json watch`
   previously emitted lines whose `detail` field was a Rust debug-formatted
   string of the kernel event payload. Consumers reading that string MUST migrate
   to the structured `payload` object. The pre-WOUT shape was not guaranteed and
   is no longer produced.
+- **`anvil welcome` discovery scan is faster.** The first-run discovery walk is
+  now parallelised, cutting the dominant scan cost on large repositories while
+  preserving deterministic finding order.
+
+### Fixed
+
+- **CLI diagnostics no longer corrupt `--json` output.** CLI log events
+  (including default-level `warn!`/`error!` and anything enabled via `ANVIL_LOG`
+  / `RUST_LOG`) were written to stdout, interleaving log lines with command
+  output and breaking `anvil … --json` for `jq` and pipeline consumers. CLI
+  diagnostics now go to stderr, leaving stdout reserved for command output.
+- **`anvil update` no longer silently drops `--insecure-skip-verify` on the
+  sidecar update path.** The flag was accepted by `clap` and honoured on the
+  library-fallback path but silently ignored on the sidecar path; it now emits a
+  loud warning when set on that path
+  ([#1735](https://github.com/eddacraft/anvil-001/issues/1735)).
+- **Scanners preserve distinct findings on the same line.** Multiple separate
+  findings sharing a line are no longer collapsed into one.
+- **Workflow installs now require explicit consent**, and workflow file writes
+  are hardened against unintended overwrites
+  ([#2003](https://github.com/eddacraft/anvil-001/issues/2003)).
 
 ## [0.7.2-beta] — 2026-05-25 — Save-Time Scanning & Tooling Honesty
 

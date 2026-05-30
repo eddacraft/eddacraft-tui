@@ -24,6 +24,15 @@ existing signal visible and exportable. Release date pending the tag.
   auto-selected. SARIF emission is exit-code-neutral. See the
   [GitHub integration guide](./docs/public/anvil/integrations/github.md) and the
   [SARIF upload runbook](./docs/runbooks/sarif-code-scanning-upload.md).
+- **`anvil --json watch` is now a stable NDJSON consumer surface** — the watch
+  event stream pins to `anvil.watch.event.v1`. Every stdout line carries
+  `schema_version`, `seq`, `timestamp`, `event_type`, and a typed `payload`.
+  stdout is reserved for event records; warnings, banners, and child action
+  stderr route to stderr. See
+  [Watch JSON Output](./docs/public/anvil/integrations/watch-output.md) for the
+  consumer guide and
+  [`docs/specs/watch-output-contract.md`](./docs/specs/watch-output-contract.md)
+  for the normative spec.
 - **`anvil dashboard` — native read-only TUI dashboards.** A new command with
   three live surfaces over persisted `.anvil/` state: **Architecture Health**
   (layer boundaries, violations, and rule compliance), **Drift Snapshots**
@@ -57,6 +66,11 @@ existing signal visible and exportable. Release date pending the tag.
   profile), enforces a determinism fence and input bounds, and emits tracing on
   the eval path ([#1952](https://github.com/eddacraft/anvil-001/issues/1952)).
   `anvil policy eval` remains a preview — its output shape may still change.
+- **Watch JSON payloads are typed, not debug strings** — `anvil --json watch`
+  previously emitted lines whose `detail` field was a Rust debug-formatted
+  string of the kernel event payload. Consumers reading that string MUST migrate
+  to the structured `payload` object. The pre-WOUT shape was not guaranteed and
+  is no longer produced.
 - **`anvil welcome` discovery scan is faster.** The first-run discovery walk is
   now parallelised, cutting the dominant scan cost on large repositories while
   preserving deterministic finding order.
