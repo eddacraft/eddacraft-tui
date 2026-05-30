@@ -1104,6 +1104,24 @@ mod tests {
     }
 
     #[test]
+    fn passthrough_after_statement_break_does_not_fire() {
+        // Copilot review regression — the .passthrough() span must not
+        // cross a `;`, otherwise `z.string(); stream.passthrough();`
+        // wrongly fires AP-015 because of the unrelated `z.` earlier on
+        // the line.
+        let result = scan_file(
+            "src/mixed.ts",
+            "const s = z.string(); stream.passthrough();\n",
+            None,
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.id == "AP-015"),
+            ".passthrough() after a `;` on the same line must not fire AP-015; got {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
     fn passthrough_on_non_zod_receiver_does_not_fire() {
         // The .passthrough() arm is anchored to a Zod receiver on the same
         // line, so a non-Zod `.passthrough()` (streams, mocks) is quiet.

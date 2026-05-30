@@ -15,7 +15,7 @@ allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**', '
 
 detection:
   type: regex
-  pattern: '\bz\.any\s*\(|\bz\..*\.passthrough\s*\('
+  pattern: '\bz\.any\s*\(|\bz\.[^;]*\.passthrough\s*\('
 
 related: [AP-003, AP-016]
 enabled: true
@@ -39,13 +39,16 @@ For unknown keys, `.strict()` (reject them) or an explicit
 want instead of `.passthrough()`.
 
 The `.passthrough()` arm is anchored to a Zod receiver on the same line
-(`z.…().passthrough(`) so a `.passthrough()` method on a non-Zod object
-(streams, mocks) does not false-fire — at the cost of missing a
-`.passthrough()` chained onto its own line. The detector is line-based,
-not AST-aware: aliased imports (`import { z as zod }`), bracket notation
-(`z["any"]()`), and a `z.any(` inside a comment or string are not
-distinguished. Use the standard suppression directive or the per-file
-allowlist for the rare false positive.
+(`z.…().passthrough(`) and the span cannot cross a `;`, so a
+`.passthrough()` method on a non-Zod object (streams, mocks) does not
+false-fire — at the cost of missing a `.passthrough()` chained onto its
+own line. Comments and string literals are masked (the rule is
+code-scoped), so a `z.any(` mentioned in prose is not flagged. The
+detector is still line-based and not AST-aware: aliased imports
+(`import { z as zod }`), bracket notation (`z["any"]()`), and
+destructured calls (`const { any } = z; any()`) are not distinguished.
+Use the standard suppression directive or the per-file allowlist for the
+rare residual false positive.
 
 `z.unknown()` is handled separately by the opt-in rule AP-016 — it is
 the least-bad of the escape hatches (consumers must still narrow) and is

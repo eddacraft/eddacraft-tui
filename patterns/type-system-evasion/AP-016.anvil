@@ -39,6 +39,7 @@ schema rather than a deliberate one.
 
 When it does fire: give the field the shape you actually depend on, or
 keep `z.unknown()` and leave a `// TODO(types): ...` with a tracking
-reference so the gap is visible rather than permanent. Like AP-015 the
-detector is line-based, so a `z.unknown(` in a comment or string, or an
-aliased Zod import, is not distinguished.
+reference so the gap is visible rather than permanent. Comments and
+string literals are masked (the rule is code-scoped). Like AP-015 the
+detector is still line-based: aliased Zod imports and bracket-notation
+calls are not distinguished.

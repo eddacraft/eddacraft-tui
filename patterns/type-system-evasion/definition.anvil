@@ -115,9 +115,18 @@ for "I don't want to deal with types right now."
    `// TODO(types): ...` comment with a ticket reference. Set a team
    goal for eliminating `any` in migrated modules.
 
-5. **If the type is genuinely unknown:** Use `unknown`, not `any`.
-   `unknown` forces you to narrow before use, which is exactly the
-   right behavior for a value whose shape you don't know.
+5. **If the type is genuinely unknown:** Use `unknown` over `any` in
+   the type annotation (this is what AP-003 nudges toward). `unknown`
+   forces you to narrow before use, which is exactly the right behaviour
+   for a value whose shape you don't know.
+
+   At the *schema boundary*, `z.unknown()` carries the same trade-off:
+   it is the safest Zod escape hatch (consumers must still narrow), but
+   it accepts any value at runtime and gives the schema no contract to
+   validate. AP-015 leaves `z.unknown()` alone by default for exactly
+   that reason; the opt-in rule AP-016 flags it for codebases that want
+   every schema field to carry a contract. Treat `z.unknown()` as
+   debt-with-a-narrowing-discipline, not a destination.
 
 ## Detection Signals
 
