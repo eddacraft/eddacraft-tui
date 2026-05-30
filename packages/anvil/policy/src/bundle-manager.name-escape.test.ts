@@ -91,4 +91,62 @@ describe('BundleManager — bundle name path escape (issue #1826)', () => {
     await expect(poisoned.invalidateBundle('../sentinel')).rejects.toThrow();
     expect(existsSync(join(sentinel, 'keep.txt'))).toBe(true);
   });
+
+  it('getBundle refuses a cache-entry path that escapes the cache dir (tampered index)', async () => {
+    // An attacker who can write index.json uses a safe bundle *name* but an
+    // out-of-cache *path*; getBundle must not hand that path to the loader.
+    const outside = join(tempRoot, 'outside-policies');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, 'evil.rego'), 'package evil');
+
+    writeFileSync(
+      join(cacheDir, 'index.json'),
+      JSON.stringify({
+        version: 1,
+        last_sync: 0,
+        entries: {
+          'safe-name': {
+            name: 'safe-name',
+            url: 'https://example.com/x',
+            path: outside, // escapes cacheDir despite the safe key
+            downloaded_at: 1,
+            expires_at: Date.now() + 60_000,
+            checksum: 'x',
+            size_bytes: 0,
+            signature_verified: true,
+          },
+        },
+      })
+    );
+
+    const poisoned = new BundleManager({ cacheDir, verifySignatures: false });
+    expect(await poisoned.getBundle('safe-name')).toBeNull();
+  });
+
+  it('getBundle returns the path for a legitimately-cached bundle', async () => {
+    const inside = join(cacheDir, 'good-bundle');
+    mkdirSync(inside, { recursive: true });
+    writeFileSync(
+      join(cacheDir, 'index.json'),
+      JSON.stringify({
+        version: 1,
+        last_sync: 0,
+        entries: {
+          'good-bundle': {
+            name: 'good-bundle',
+            url: 'https://example.com/x',
+            path: inside,
+            downloaded_at: 1,
+            expires_at: Date.now() + 60_000,
+            checksum: 'x',
+            size_bytes: 0,
+            signature_verified: true,
+          },
+        },
+      })
+    );
+
+    const mgr = new BundleManager({ cacheDir, verifySignatures: false });
+    expect(await mgr.getBundle('good-bundle')).toBe(inside);
+  });
 });

@@ -192,6 +192,17 @@ export class BundleManager {
   }
 
   /**
+   * Whether a stored cache-entry path is confined to the cache directory.
+   * Used to reject paths from a tampered on-disk index before they are
+   * handed back to callers as a trusted bundle directory.
+   */
+  private isWithinCacheDir(candidate: string): boolean {
+    const base = resolve(this.cacheDir);
+    const resolved = resolve(candidate);
+    return resolved === base || resolved.startsWith(base + sep);
+  }
+
+  /**
    * Add or update a bundle configuration
    */
   addBundle(config: BundleConfig): void {
@@ -393,6 +404,15 @@ export class BundleManager {
     const entry = index.entries[name];
 
     if (!entry) {
+      return null;
+    }
+
+    // Defence in depth: a tampered on-disk index could store a path that
+    // escapes the cache directory under a safe-looking bundle name. The
+    // returned path is handed to the policy loader as a trusted bundle
+    // directory, so never return one that is not confined to the cache dir.
+    if (!this.isWithinCacheDir(entry.path)) {
+      debug(`Bundle ${name} cache entry path escapes cache dir, refusing: ${entry.path}`);
       return null;
     }
 
