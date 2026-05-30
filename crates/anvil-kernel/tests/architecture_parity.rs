@@ -806,13 +806,15 @@ fn same_name_different_file_privileged_symbol_still_flags_new_access() {
     assert_eq!(priv_violations[0].symbol, "sharedPrivilegedName");
 }
 
-/// Collision in a single delta: a baselined symbol and a brand-new symbol
-/// that share the SAME name but live in DIFFERENT files are evaluated
-/// together. A name-only baseline key would suppress both; the file/kind/name
-/// key must suppress only the baselined identity and STILL flag the new file's
-/// symbol. (CLAWP-026 — guards against name-collision suppression regression.)
+/// Same-name collision across two single-file deltas: a baselined symbol and a
+/// brand-new symbol that share the SAME name but live in DIFFERENT files. A
+/// name-only baseline key would suppress both; the file/kind/name key must keep
+/// the baselined identity suppressed in its own file's delta while STILL
+/// flagging the new file's symbol. Deltas are kept single-file because that is
+/// what `update_file` actually emits (`added_symbols` never spans two source
+/// files). (CLAWP-026 — guards against name-collision suppression regression.)
 #[test]
-fn same_name_collision_in_single_delta_flags_only_new_file() {
+fn same_name_collision_across_files_flags_only_new_file() {
     let config = layered_config();
     let mut graph = SymbolGraph::new();
 
@@ -838,23 +840,35 @@ fn same_name_collision_in_single_delta_flags_only_new_file() {
     graph.add_symbol(baselined).unwrap();
     graph.add_symbol(newcomer).unwrap();
 
-    // Both same-name symbols are present in the same delta.
-    let delta = GraphDelta {
-        added_symbols: vec![88, 89],
+    // Delta 1 — the baselined symbol's own file: its identity is baselined, so
+    // no public-api-expansion violation should fire.
+    let old_delta = GraphDelta {
+        added_symbols: vec![88],
+        file: "src/app/old.ts".to_string(),
+        previously_public: previously_public.clone(),
+        ..Default::default()
+    };
+    let old_violations = build_engine().evaluate(&old_delta, &graph, &config);
+    assert!(
+        old_violations
+            .iter()
+            .all(|v| v.policy_id != "public-api-expansion"),
+        "baselined same-name identity must stay suppressed in its own file's delta"
+    );
+
+    // Delta 2 — the new file: same symbol name, different file identity, so it
+    // must NOT be silently suppressed by the shared name.
+    let new_delta = GraphDelta {
+        added_symbols: vec![89],
         file: "src/app/added.ts".to_string(),
         previously_public,
         ..Default::default()
     };
-
-    let mut engine = build_engine();
-    let violations = engine.evaluate(&delta, &graph, &config);
-
-    let api_violations: Vec<_> = violations
+    let new_violations = build_engine().evaluate(&new_delta, &graph, &config);
+    let api_violations: Vec<_> = new_violations
         .iter()
         .filter(|v| v.policy_id == "public-api-expansion")
         .collect();
-    // The baselined identity must be suppressed; the new file's identity must
-    // NOT be silently suppressed by the shared name.
     assert_eq!(api_violations.len(), 1);
     assert_eq!(api_violations[0].file, "src/app/added.ts");
     assert_eq!(api_violations[0].symbol, "collidingName");
