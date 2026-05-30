@@ -55,8 +55,11 @@ fn filters_out_non_parseable_files() {
     std::thread::sleep(Duration::from_millis(20));
     fs::write(dir.path().join("index.ts"), "export {};").unwrap();
 
-    // We should only get the .ts file
-    let batch = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+    // We should only get the .ts file. Use the same generous 10 s receive
+    // window as detects_parseable_file_creation: a loaded CI runner can take
+    // well over 2 s to emit the debounced batch, and a short window here is
+    // the next-most-likely flake after the warm-up sleep was aligned.
+    let batch = rx.recv_timeout(Duration::from_secs(10)).unwrap();
     assert!(batch.changes.iter().all(|c| !c.path.ends_with("README.md")));
     assert!(batch.changes.iter().any(|c| c.path.ends_with("index.ts")));
 }
