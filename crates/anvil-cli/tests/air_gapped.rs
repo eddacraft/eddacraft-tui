@@ -34,6 +34,13 @@ use std::process::Command;
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const SKIP_EXIT_CODE: i32 = 77;
 
+// KEEP-IN-SYNC: `harness_path` + `run_air_gapped` are mirrored in
+// `crates/anvil-run/tests/air_gapped_run.rs` (anvil-run is a separate
+// binary, so its air-gap test cannot share this crate's helper). If
+// the harness protocol changes (skip code, env hygiene, path walk),
+// update both. The duplication is ~25 lines — too small to justify a
+// shared test-util crate.
+
 /// Resolve the workspace-root path to the network-blocked harness.
 ///
 /// `CARGO_MANIFEST_DIR` points at `crates/anvil-cli/`; the harness
@@ -63,6 +70,11 @@ fn run_air_gapped(args: &[&str]) -> Option<std::process::Output> {
     let mut cmd = Command::new(&harness);
     cmd.arg(ANVIL_BIN);
     cmd.args(args);
+    // Close stdin explicitly. `Command::output` already nulls stdin,
+    // but pinning it here means a command that reads stdin (e.g.
+    // `hook pre-push`, which consumes git's pre-push contract) hits
+    // EOF immediately and can never hang the test waiting for input.
+    cmd.stdin(std::process::Stdio::null());
     // Match the rest of the test suite's hygiene env. ANVIL_DEV
     // suppresses dev-only welcome flows; ANVIL_SKIP_WELCOME guards
     // against the welcome screen reaching for state. Neither of
@@ -94,6 +106,7 @@ fn run_air_gapped_without_dev(
     let mut cmd = Command::new(&harness);
     cmd.arg(ANVIL_BIN);
     cmd.args(args);
+    cmd.stdin(std::process::Stdio::null());
     cmd.env_remove("ANVIL_DEV");
     cmd.env_remove("ANVIL_LICENSE");
     cmd.env("ANVIL_SKIP_WELCOME", "1");
@@ -323,6 +336,72 @@ fn anvil_status_verify_json_skips_auth_refresh_with_expired_credentials() {
     // reaching outward.
     assert_local_activation_diagnostic_shape(&stdout);
     assert_no_network_auth_update_markers(&stdout, &stderr);
+}
+
+// #1705 (Council C-011): the air-gap runbook commits every core
+// MLP/INTL protection command to making zero network calls, and its
+// "How to extend the gate" section makes adding a `#[test]` here
+// mandatory for each such command. The three below exercise the
+// v0.7.0-beta surfaces that landed without coverage. Like the
+// `status --verify` case above, success is not enforced — these
+// commands legitimately return non-zero outside an activated
+// workspace. What is enforced is that the process EXITS under the
+// air-gap (`status.code().is_some()`) rather than hanging on a
+// network resolver or being killed by signal.
+
+/// `anvil audit-chain` (MLP-015 + Group K) walks commit history and
+/// consults the local witness chain. It reads local git + witness
+/// state only and must run off-network.
+#[test]
+fn anvil_audit_chain_exits_cleanly_with_no_network() {
+    let Some(out) = run_air_gapped(&["--no-tui", "audit-chain"]) else {
+        return;
+    };
+    assert!(
+        out.status.code().is_some(),
+        "anvil audit-chain was killed by signal under air-gap: {:?}\nstderr={}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+/// `anvil l4-validate <range>` (MLP2-046) is the dedicated L4-policy
+/// validator extracted from the pre-push hook. It walks the commit
+/// range with `git rev-list` and runs the local rule engine — no
+/// network. We pass the empty range `HEAD..HEAD` rather than
+/// `HEAD~1..HEAD`: it is always valid (even on a shallow `--depth 1`
+/// CI checkout where `HEAD~1` does not exist, which would make the
+/// command fail for an unrelated git reason and pass this assertion
+/// vacuously), keeps the walk bounded, and still exercises the
+/// startup → git → rule-engine path that the air-gap contract covers.
+#[test]
+fn anvil_l4_validate_exits_cleanly_with_no_network() {
+    let Some(out) = run_air_gapped(&["--no-tui", "l4-validate", "HEAD..HEAD"]) else {
+        return;
+    };
+    assert!(
+        out.status.code().is_some(),
+        "anvil l4-validate was killed by signal under air-gap: {:?}\nstderr={}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+/// `anvil hook pre-push` (MLP-004) reads git's pre-push stdin contract
+/// and validates the pushed range against local policy. With no stdin
+/// supplied (`Command::output` closes it) there are zero refs to walk,
+/// so it returns quickly — and entirely off-network.
+#[test]
+fn anvil_hook_pre_push_exits_cleanly_with_no_network() {
+    let Some(out) = run_air_gapped(&["--no-tui", "hook", "pre-push"]) else {
+        return;
+    };
+    assert!(
+        out.status.code().is_some(),
+        "anvil hook pre-push was killed by signal under air-gap: {:?}\nstderr={}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
 }
 
 #[test]
