@@ -62,7 +62,8 @@ impl GateArgs {
     /// is resolved later in `resolve_gate_output_mode` and is intentionally
     /// out of scope for the pre-auth check.)
     pub(crate) fn wants_structured_output(&self) -> bool {
-        self.format.is_some_and(crate::output::Format::is_structured)
+        self.format
+            .is_some_and(crate::output::Format::is_structured)
     }
 }
 
