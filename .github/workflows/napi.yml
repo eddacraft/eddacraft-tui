@@ -86,10 +86,13 @@ jobs:
             extra_args: ''
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-latest
-            # Cross-compiles via napi-cross's prebuilt sysroot; avoids
-            # spinning up a full QEMU emulator on the build job. Install
-            # tests on real arm64 hardware are tracked as a follow-up.
-            extra_args: '--use-napi-cross'
+            # Cross-compiles with the Ubuntu-provided aarch64 GNU toolchain
+            # (installed in the step below), not napi-cross's bundled sysroot:
+            # that sysroot's GCC is too old to build aws-lc-sys 0.41 (missing
+            # stdatomic.h, no `armv8.4-a+sha3` -march, undeclared AT_HWCAP2).
+            # The stock toolchain is modern enough and still avoids QEMU.
+            # Install tests on real arm64 hardware are tracked as a follow-up.
+            extra_args: ''
           - target: x86_64-apple-darwin
             # Both darwin targets build on macos-14 (Apple silicon) — the
             # x86_64 build cross-compiles via the `--target` flag below.
@@ -169,6 +172,24 @@ jobs:
 
       - name: Install workspace dependencies
         run: pnpm install --filter @eddacraft/anvil-checks-native --frozen-lockfile
+
+      - name: Install aarch64 Linux cross toolchain
+        # Only the aarch64-linux leg cross-compiles from an x86_64 runner.
+        # Use the distro's modern aarch64 GNU toolchain and point cc-rs +
+        # cargo's linker at it, so aws-lc-sys's BoringSSL C build sees a
+        # compiler new enough for its ARMv8.4 crypto probes and headers.
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          {
+            echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc"
+            echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++"
+            echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar"
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc"
+          } >> "$GITHUB_ENV"
 
       - name: Build napi binding
         # Matrix values are workflow-defined (no user input), but routing
