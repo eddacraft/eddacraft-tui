@@ -433,6 +433,7 @@ mod tests {
             json: false,
             no_tui: true,
             verbose: false,
+            ..Default::default()
         }
     }
 

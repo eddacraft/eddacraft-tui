@@ -1459,6 +1459,7 @@ mod tests {
             json: false,
             no_tui: true,
             verbose: false,
+            ..Default::default()
         }
     }
 
@@ -1739,6 +1740,7 @@ Validate the export command.
             json: true,
             no_tui: true,
             verbose: false,
+            ..Default::default()
         };
         // Should not panic — the JSON output goes to stdout
         export_plan(

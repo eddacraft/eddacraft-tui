@@ -6,6 +6,7 @@ mod config_summary;
 mod config_view;
 mod feature_flags;
 mod insights;
+mod install_root;
 mod l4_engine;
 mod mcp;
 mod output;
@@ -89,6 +90,22 @@ pub struct GlobalArgs {
     /// Enable verbose logging.
     #[arg(long, short, global = true)]
     pub verbose: bool,
+
+    /// Re-root install-owned state (user state, daemon socket/PID, kernel
+    /// cache/logs) under this prefix so a pre-release candidate can run
+    /// side-by-side with the production install (DISTRIB-006). Takes precedence
+    /// over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the
+    /// project root; durable project mutations are gated unless
+    /// `--touch-project-state` is also set (ADR-060).
+    #[arg(long, global = true, value_name = "PATH")]
+    pub anvil_home: Option<std::path::PathBuf>,
+
+    /// Permit durable per-project mutations (baseline refresh, witness append,
+    /// cutoff pinning) while running under a non-default `--anvil-home` /
+    /// `ANVIL_HOME`. Without it such writes run read-only / dry-run so an
+    /// unreleased candidate cannot silently corrupt a real project (ADR-060).
+    #[arg(long, global = true)]
+    pub touch_project_state: bool,
 }
 
 /// Anvil — structural governance for AI-assisted development.
@@ -798,8 +815,95 @@ fn wants_json() -> bool {
     std::env::args().any(|a| a == "--json")
 }
 
+/// Make the DISTRIB-006 `--anvil-home` / `--touch-project-state` flags behave as
+/// the canonical `ANVIL_HOME` / `ANVIL_TOUCH_PROJECT_STATE` environment override.
+///
+/// The crate forbids `unsafe_code`, so we cannot `std::env::set_var` the flag into
+/// the current process — and the env is the only channel that reaches every
+/// consumer coherently: `anvil-intercept`'s socket/PID resolver reads the
+/// environment, and a spawned daemon inherits it. So when a flag would change the
+/// effective environment, re-exec this same binary **once** with the variable set
+/// in the child's environment and forward the child's exit code. The child then
+/// sees a normal inherited `ANVIL_HOME`, giving every downstream resolver and the
+/// daemon one source of truth. When the environment already reflects the flags
+/// (the common case — env-var usage, or the re-exec'd child itself) this returns
+/// `None` and we proceed in-process, so at most one re-exec happens and it always
+/// terminates.
+///
+/// Returns `Some(exit_code)` when a re-exec was performed (the caller must return
+/// it), `None` when execution should continue in this process.
+fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
+    use std::ffi::OsString;
+
+    let mut overrides: Vec<(&'static str, OsString)> = Vec::new();
+
+    if let Some(path) = &global.anvil_home {
+        let abs = if path.is_absolute() {
+            path.clone()
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(path))
+                .unwrap_or_else(|_| path.clone())
+        };
+        let abs = abs.into_os_string();
+        if std::env::var_os(install_root::ANVIL_HOME_ENV).as_ref() != Some(&abs) {
+            overrides.push((install_root::ANVIL_HOME_ENV, abs));
+        }
+    }
+    if global.touch_project_state && !install_root::env_touch_is_truthy() {
+        overrides.push((install_root::TOUCH_PROJECT_STATE_ENV, OsString::from("1")));
+    }
+
+    if overrides.is_empty() {
+        return None; // environment already reflects the flags — run in-process
+    }
+
+    let Some(exe) = std::env::current_exe().ok() else {
+        eprintln!("anvil: --anvil-home unavailable: cannot resolve current executable");
+        return Some(ExitCode::from(EXIT_ERROR));
+    };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(std::env::args_os().skip(1));
+    for (key, value) in &overrides {
+        cmd.env(key, value);
+    }
+    match cmd.status() {
+        Ok(status) => {
+            let code = status.code().unwrap_or(i32::from(EXIT_ERROR));
+            Some(ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR)))
+        }
+        Err(err) => {
+            eprintln!("anvil: failed to apply --anvil-home override: {err}");
+            Some(ExitCode::from(EXIT_ERROR))
+        }
+    }
+}
+
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            let code = err.exit_code();
+            if wants_json() && code != 0 {
+                eprintln!("{}", serde_json::json!({ "error": err.to_string() }));
+            } else {
+                let _ = err.print();
+            }
+            return ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR));
+        }
+    };
+
+    // DISTRIB-006: apply the `--anvil-home` / `--touch-project-state` override
+    // before any heavy init or daemon spawn. The crate forbids `unsafe_code`
+    // (no `set_var`), so a flag that changes the effective environment re-execs
+    // this binary once with the variable set in the child's env — the env is the
+    // single channel every consumer (in-process resolvers, the inherited daemon)
+    // reads. The flag takes precedence over a pre-existing `ANVIL_HOME`.
+    if let Some(exit_code) = reexec_for_install_root(&cli.global) {
+        return exit_code;
+    }
+
     // V050F-007: cap rayon's global pool at half available cores
     // BEFORE any subcommand can dispatch to a rayon-using path
     // (`anvil check`, `anvil watch`, the secret/antipattern scanners,
@@ -820,19 +924,6 @@ fn main() -> ExitCode {
     if let Err(err) = anvil_observability::init_tracing(anvil_observability::BinaryKind::Cli) {
         eprintln!("anvil: tracing subscriber init skipped: {err}");
     }
-
-    let cli = match Cli::try_parse() {
-        Ok(cli) => cli,
-        Err(err) => {
-            let code = err.exit_code();
-            if wants_json() && code != 0 {
-                eprintln!("{}", serde_json::json!({ "error": err.to_string() }));
-            } else {
-                let _ = err.print();
-            }
-            return ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR));
-        }
-    };
 
     let command_name = command_canonical_name(&cli.command);
     let cli_span = tracing::info_span!(
