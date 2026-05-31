@@ -1,8 +1,12 @@
 # Anvil Daemon + Graph V2 — design response
 
-Companion to `WATCH-CPU-PROBLEM.md`. Uncommitted working doc — written to be
-handed to other engineers. Every architectural claim is grounded in a
-`path:line` reference you can open.
+Companion to the save-time CPU field report (GH
+[#2156](https://github.com/eddacraft/anvil-001/issues/2156)),
+[ADR-061](plans/decisions/061-save-time-daemon-delta-validation.md), and the
+[resource-load-benchmarking module](plans/modules/resource-load-benchmarking.aps.md)
+— all grounded in the same load-probe data. Working doc written to be handed to
+other engineers. Every architectural claim is grounded in a `path:line`
+reference you can open.
 
 This responds to the _Anvil Daemon and Graph V2 Acceleration Brief_. It accepts
 the brief's product contract ("save-time Anvil is delta governance; full-repo
@@ -35,22 +39,31 @@ What `anvil intercept` is _today_ (not aspirationally):
 What is genuinely missing (this is the actual project):
 
 1. **`anvil watch` doesn't talk to the daemon.** On every debounced save it
-   builds and spawns a cold `anvil check --all` child
-   (`crates/anvil-cli/src/commands/watch.rs:377` default action → `:433`
-   `build_action_command` → `:441` `Command::new` → `:455` `--all`). That child
-   cold-rebuilds the whole-repo graph and rayon-scans every file. The CPU brief
-   proved this is ~100% of the observed cost.
+   builds and spawns a cold `anvil check` child
+   (`crates/anvil-cli/src/commands/watch.rs:433` `build_action_command` → `:441`
+   `Command::new`). RLB-007 has since scoped that child to the **changed paths**
+   (`scoped_check`, `:461`; `--all` only when the path set is empty, `:462`),
+   which removed most of the per-save cost the CPU brief measured — but the
+   child is still **cold-spawned with no warm graph state**, and the daemon is
+   never consulted. The remaining win (no cold rebuild at all) needs the daemon,
+   not another `watch.rs` tweak.
 2. **No warm graph state in the daemon.** `SessionRegistry` is a session-id map,
    not a repo model. There is no cached `SymbolGraph`/`DependencyGraph` in the
    daemon — the kernel's incremental graph lives in the _watch_ process's memory
    and is thrown away; `check --all` rebuilds cold each time. (`RuleSetCache`
    exists but is explicitly _not wired_ — `lib.rs:204` notes it waits on
    MLP2-014.)
-3. **MCP bypasses the daemon entirely.** `anvil mcp serve --stdio`
-   (`crates/anvil-cli/src/commands/mcp.rs:185`) is a standalone stdio server;
-   `anvil_validate_write` calls the `anvil-checks` library in-process and never
-   touches the daemon. So a repo running watch + MCP has two independent warm
-   models and double-scans.
+3. **MCP only reaches the daemon on Unix, and only for mid-edit buffers.**
+   `anvil mcp serve --stdio` (`crates/anvil-cli/src/commands/mcp.rs:185`)
+   already routes `anvil_validate_write` through `LocalDaemonValidationClient`,
+   which attempts the daemon's `scan_buffer` over the Unix socket and only
+   demotes to the in-process `anvil-checks`/`EnforcementPipeline` when the
+   daemon is `Unavailable` (`crates/anvil-cli/src/mcp/validation.rs:206`,
+   `:545`). Two gaps remain: it has no changed-paths (`validate_paths`) call,
+   and on non-Unix it returns `Unavailable` and always runs embedded
+   (`validation.rs:222`). So a repo running watch and MCP can still end up with
+   two warm models — but the MCP→daemon edge already exists on Unix; it needs
+   **extending, not building** (reinforcing §0's thesis).
 4. **Rayon is capped per-process, not per-host.** Each Anvil process caps its
    pool at `(cores/2).max(1)` (`crates/anvil-rayon-init/src/lib.rs:74`), so N
    processes oversubscribe the box. One daemon = one pool to size.
@@ -58,10 +71,12 @@ What is genuinely missing (this is the actual project):
 So the corrected framing:
 
 > Anvil already has a warm, permissioned, concurrent validation daemon that
-> validates buffers. The save-time CPU fire is that `watch` refuses to use it
-> and cold-spawns whole-repo scans instead. The project is **(a) stop the cold
-> spawn, (b) give the daemon a changed-paths method backed by warm graph state,
-> (c) make watch/MCP/intercept thin clients of it.**
+> validates buffers. The save-time CPU fire was that `watch` cold-spawned a
+> whole-repo scan per save; RLB-007 scoped that to changed paths, but `watch`
+> still refuses to use the daemon and re-spawns a cold child with no warm graph.
+> The project is **(a) stop the cold spawn, (b) give the daemon a changed-paths
+> method backed by warm graph state, (c) make watch/MCP/intercept thin clients
+> of it.**
 
 This is the difference between "build a runtime" and "wire three things into a
 runtime we shipped." It also means the **this-week CPU win needs neither the
@@ -176,11 +191,13 @@ One daemon per workspace owns the warm model and the work budget; the three
 surfaces become thin clients of `validate_paths` / `scan_buffer`:
 
 - **watch** → `validate_paths(changed_paths)` instead of spawning a child.
-- **MCP** `anvil_validate_write` → re-point from its in-process `anvil-checks`
-  call (`crates/anvil-cli/src/mcp/tools/validate_write.rs`) to the daemon's
-  `validate_paths`/`scan_buffer`. A repo with watch + MCP then keeps **one**
-  warm graph and never double-scans. This is consistent with GV2's rule
-  "MCP/agent query surfaces are projections, not the control plane" — MCP
+- **MCP** `anvil_validate_write` already attempts the daemon's `scan_buffer` on
+  Unix via `LocalDaemonValidationClient`
+  (`crates/anvil-cli/src/mcp/validation.rs:206`), demoting to in-process
+  `anvil-checks` only when the daemon is `Unavailable`. The remaining work is to
+  extend it to `validate_paths` and cover non-Unix, so a repo with watch + MCP
+  keeps **one** warm graph and never double-scans. This is consistent with GV2's
+  rule "MCP/agent query surfaces are projections, not the control plane" — MCP
   becomes a client of the authority, it does not _become_ the authority.
 - **intercept** is the daemon; it gains the method.
 
@@ -257,17 +274,20 @@ posture (`.claude/rules/architecture.md`):
 
 ## 8. Smallest migration step that cuts CPU _this week_ (brief Q8)
 
-Two options, in order of size. **Recommend A now, B next** — A needs neither the
-daemon nor Graph V2, so it ships independently and de-risks everything after it.
+Two options, in order of size. **A is already shipped; B is next** — A needed
+neither the daemon nor Graph V2, so it shipped independently and de-risks
+everything after it.
 
-**Option A — scope the per-save check (this week). = RLB-007.** In `watch.rs`,
-change `build_action_command` to pass the debounced **changed paths** to
-`anvil check <paths>` instead of `--all`. The changed-path scoping is already
-flagged as a known gap in that file (`watch.rs:445`). This turns a whole-repo
-cold scan per save into a scan proportional to what changed — the ~7-core
-single-agent number should collapse for the common single-file save. A few
-lines + tests in one crate. No protocol, no daemon, no GV2. **This is the
-bleeding-stopper.**
+**Option A — scope the per-save check. = RLB-007 — already shipped (Merged
+2026-05-31 via PR [#2184](https://github.com/eddacraft/anvil-001/pull/2184)).**
+`build_action_command` now passes the debounced **changed paths** to
+`anvil check <paths>` (`scoped_check`, `watch.rs:461`) and only uses `--all`
+when the changed-path set is empty (`watch.rs:462`). This turned a whole-repo
+cold scan per save into a scan proportional to what changed — the RLB load-probe
+measured the single-file-save number collapse from ~6.55 cores to ~0.08
+(`plans/modules/resource-load-benchmarking.aps.md`). A few lines + tests in one
+crate; no protocol, no daemon, no GV2. **This was the bleeding-stopper — it is
+now the baseline Option B must beat.**
 
 **Option B — route watch through the daemon (next). = RLB-001..005 + the new
 `validate_paths` method.** Add `validate_paths` to the daemon (calls
@@ -321,7 +341,7 @@ already exist; the value is sequencing them against the CPU forcing-function:
 
 | Brief phase                            | Lands as                                                 | Module                              |
 | -------------------------------------- | -------------------------------------------------------- | ----------------------------------- |
-| Phase 1 — stop the bleeding            | scope per-save check (Q8-A)                              | **RLB-007**                         |
+| Phase 1 — stop the bleeding            | scope per-save check (Q8-A) — **shipped, PR #2184**      | **RLB-007**                         |
 | Phase 2 — daemon validation API        | `validate_paths` + watch client (Q1, Q8-B)               | INTD / intercept + **RLB-001..005** |
 | Phase 3 — warm Graph V2 slice          | per-file extract + hot indexes + registry + hot-read API | **GV2-010 / 011 / 020 / 022**       |
 | Phase 4 — global CPU/backpressure      | daemon work budget + per-host rayon                      | **RLB-002**, `anvil-rayon-init`     |
@@ -344,9 +364,9 @@ existing items behind it.
    buffers; framing this as greenfield risks re-implementing transport,
    protocol, and concurrency we already ship and trust. Frame it as _wiring + a
    changed-paths method + warm state._
-2. **Don't couple the this-week CPU win to the daemon or GV2.** Option A
-   (RLB-007) is a few lines in `watch.rs` and delivers most of the relief.
-   Shipping it first means the architecture work isn't on the critical path for
+2. **Don't couple the CPU win to the daemon or GV2.** Option A (RLB-007) was a
+   few lines in `watch.rs` and delivered most of the relief; shipping it first
+   (done, PR #2184) kept the architecture work off the critical path for
    stopping the fire.
 3. **Keep the daemon optional, hard.** The biggest way to get this wrong is to
    make the daemon a _requirement_ and break planless-first. Fallbacks (Q7) are
