@@ -2,9 +2,21 @@
 //
 // Local dev rebuilds the binding via `pnpm build`; CI downloads a fresh
 // artefact into the package dir. Both paths produce a .node whose mtime
-// is newer than src/lib.rs. If a developer edits the binding without
-// rebuilding, this script fires before pnpm test would silently load a
-// stale binary and produce misleading results.
+// is newer than every native build input. If a developer edits the binding
+// (or bumps a dependency) without rebuilding, this script fires before
+// `pnpm test` would silently load a stale binary and produce misleading
+// results.
+//
+// The freshness baseline is the newest mtime across ALL inputs that can
+// change the compiled `.node`, not just `src/`:
+//   - `src/`        — the Rust sources of the binding.
+//   - `Cargo.toml`  — dependency versions and feature flags.
+//   - `build.rs`    — the build script (napi codegen inputs).
+//   - workspace `Cargo.lock` — transitive registry / Rust-dependency pins,
+//     so a `cargo update` or a sibling-crate bump that changes the binding
+//     is caught even when no file under `src/` was touched.
+// Previously only `src/` was considered, so a stale binding survived
+// `Cargo.toml` / lockfile / dependency changes.
 
 import { statSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -13,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = join(here, '..');
 const srcDir = join(pkgDir, 'src');
+// crates/anvil-checks-napi -> repo root (two levels up).
+const workspaceRoot = join(pkgDir, '..', '..');
 
 function newestMtime(dir) {
   let newest = 0;
@@ -22,6 +36,16 @@ function newestMtime(dir) {
     if (mtime > newest) newest = mtime;
   }
   return newest;
+}
+
+// Mtime of a single file, or 0 if it does not exist (optional inputs such as
+// `build.rs` must not hard-fail the guard when absent).
+function fileMtime(path) {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 const nodeFiles = readdirSync(pkgDir).filter((f) => f.endsWith('.node'));
@@ -34,13 +58,24 @@ if (nodeFiles.length === 0) {
   process.exit(1);
 }
 
-const bindingMtime = Math.max(...nodeFiles.map((f) => statSync(join(pkgDir, f)).mtimeMs));
-const srcMtime = newestMtime(srcDir);
+// Use the OLDEST present binding, not the newest. A newer but unrelated
+// `.node` (e.g. a leftover from another target left in the package dir)
+// must not mask a stale binding that tests could actually load — guard on
+// the worst case so any stale `.node` fires.
+const bindingMtime = Math.min(...nodeFiles.map((f) => statSync(join(pkgDir, f)).mtimeMs));
 
-if (bindingMtime < srcMtime) {
-  const lagSec = ((srcMtime - bindingMtime) / 1000).toFixed(0);
+const inputMtime = Math.max(
+  newestMtime(srcDir),
+  fileMtime(join(pkgDir, 'Cargo.toml')),
+  fileMtime(join(pkgDir, 'build.rs')),
+  fileMtime(join(workspaceRoot, 'Cargo.lock'))
+);
+
+if (bindingMtime < inputMtime) {
+  const lagSec = ((inputMtime - bindingMtime) / 1000).toFixed(0);
   console.error(
-    `.node binding is ${lagSec}s older than src/. Rebuild with ` +
+    `.node binding is ${lagSec}s older than a native build input ` +
+      '(src/, Cargo.toml, build.rs, or workspace Cargo.lock). Rebuild with ' +
       '`pnpm --filter @eddacraft/anvil-checks-native build` before running tests.'
   );
   process.exit(1);
