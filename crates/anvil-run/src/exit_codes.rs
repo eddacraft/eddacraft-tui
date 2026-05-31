@@ -22,19 +22,23 @@
 //! exit with values in that range. They DO overlap with forwarded
 //! child statuses in principle: a wrapped tool exiting 69 is
 //! indistinguishable from "daemon unavailable" looking at the exit
-//! code alone. Shell wrappers that must tell the two apart use
-//! stderr — the launcher writes its refusal banner to stderr while
-//! a child controls only its own stdout. Pure exit-code switching is
-//! good enough for the common case; stderr disambiguates the rest.
+//! code alone. A wrapper that must tell the two apart looks for the
+//! launcher's *refusal banner* on stderr specifically: the child
+//! inherits stderr too (`spawn::build_command` sets `Stdio::inherit`),
+//! so stderr content as such is not launcher-owned — but the banner
+//! is distinctive, and a refusal is emitted before any child spawns,
+//! so when the launcher refuses, no child output is interleaved with
+//! it. Pure exit-code switching is good enough for the common case;
+//! matching the banner covers the rest.
 //!
 //! (A `$ANVIL_RUN_REFUSED` env signal was once documented here, but
-//! the wrapper can only set it by inspecting the exit code — which
+//! the wrapper could only set it by inspecting the exit code — which
 //! cannot distinguish a launcher refusal from a forwarded child
 //! status in the overlapping `64..=78` range (these fall within the
 //! `1..127` forwarded-child band in the table above), so it would
-//! carry the same ambiguity it claimed to resolve. stderr is the only
-//! reliable disambiguator and is the documented one. See GH #1707 /
-//! Council C-027.)
+//! carry the same ambiguity it claimed to resolve. Matching the
+//! launcher's refusal banner on stderr is the practical
+//! disambiguator. See GH #1707 / Council C-027.)
 
 /// Bad CLI usage (e.g. missing `--tool` or `--`).
 pub const EXIT_USAGE: i32 = 64;
