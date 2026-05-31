@@ -3,7 +3,7 @@
 **Date:** 2026-05-30
 **Status:** Brainstorm — borrow assessment. **Decision: borrow the _method_
 (match-strength taxonomy, honest-gap discipline, warn-not-block validator,
-deterministic matrix), reframe it as an _evidence importer/normalizer_ that
+deterministic matrix), reframe it as an _evidence importer/normaliser_ that
 feeds enforcement — NOT as a published "Anvil governance vocabulary." Do not
 take a build/runtime dependency on the upstream repo; clean-room reimplement
 the catalogue/prose, reuse the enum tokens as facts. One provenance question
@@ -33,7 +33,7 @@ product-facing design; own the information architecture) or **Adopt directly**
 (name it, take a dependency, file an ADR + APS module).
 
 **Headline: Borrow pattern.** The upstream is a single-maintainer v0.1 draft
-(4 stars). Its _ideas_ are strong; its _artifact_ is not load-bearing. Borrow
+(4 stars). Its _ideas_ are strong; its _artefact_ is not load-bearing. Borrow
 the discipline, reimplement in Anvil's stack, do not depend on the repo.
 
 The scope-guard test (per the `anvil bom` triage,
@@ -90,9 +90,9 @@ vocabulary:
   thin `RiskScore` (IORISK dimensions: destruction, outbound, sensitivity,
   irreversibility, scope) fused into `warn / fence / interrupt` routing.
 - **CEWS** — `EvidenceRecord` / `ControlEvidenceMap` linking policy outcomes to
-  audit artifacts.
+  audit artefacts.
 
-So the in-scope shape is **an importer/normalizer that maps third-party
+So the in-scope shape is **an importer/normaliser that maps third-party
 attestations onto Anvil's _existing deterministic signals_ so external evidence
 can feed enforcement.** Concretely:
 
@@ -111,7 +111,7 @@ gets canonical aliases.
 
 ## 4. Reuse trichotomy
 
-| Artifact | Verdict | Notes |
+| Artefact | Verdict | Notes |
 | --- | --- | --- |
 | 5 `crosswalk_match_types` + one-line defs | **Use directly** | Small, well-calibrated, factual. Most reusable thing. Reimplement clean-room (tokens are facts). |
 | Validator contract (errors→exit 1 block CI; warnings→exit 0; legacy→warn) | **Use directly (as pattern)** | This _is_ Anvil's "warnings over blocks / exit 0 by default." Reimplement in Rust/TS; do not vendor the JS. |
@@ -179,7 +179,7 @@ load-bearing-ness, and exclude internal verdicts from renaming:
 1. **Action taxonomy (ACTAX)** — already canonical + append-only; the natural
    join key; highest leverage.
 2. **Imported third-party attestations + evidence strength** — the import
-   admissibility surface (maps to CEWS `EvidenceRecord`, SUPPLY).
+   admissibility surface (maps to CEWS `EvidenceRecord`, SCA).
 3. **Approval lifecycle** — witness/provenance states (ADR-037).
 4. **Policy verdicts** — canonical aliases _for import comparison only_; do
    **not** rename internal `warn/fence/interrupt` / `allow/interrupt`.
@@ -235,7 +235,7 @@ below `structural` fidelity is `advisory` (warn-only), never blocks;
    a new IMPORT module: an attestation-importer adapter using the adapted
    crosswalk schema; reuse the 5 match types + warn/error contract directly.
 4. **Pilot one round-trip** before generalising: one real external source →
-   one Anvil signal (e.g. SLSA/in-toto supply-chain attestation → SUPPLY/
+   one Anvil signal (e.g. SLSA/in-toto supply-chain attestation → SCA/
    AGOV-006 witness; or external compliance attestation → CEWS `EvidenceRecord`)
    with a deterministic admissibility verdict + a generated coverage matrix.
 5. **Freeze internal envelope values**; only the import edge gets aliases.
