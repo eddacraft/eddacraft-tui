@@ -272,6 +272,7 @@ pub enum IpcError {
 #[cfg(unix)]
 pub fn resolve_socket_dir() -> Result<PathBuf, IpcError> {
     resolve_socket_dir_with_env(
+        std::env::var_os("ANVIL_HOME"),
         std::env::var_os("XDG_RUNTIME_DIR"),
         std::env::var_os("HOME"),
     )
@@ -279,9 +280,18 @@ pub fn resolve_socket_dir() -> Result<PathBuf, IpcError> {
 
 #[cfg(unix)]
 fn resolve_socket_dir_with_env(
+    anvil_home: Option<std::ffi::OsString>,
     xdg_runtime_dir: Option<std::ffi::OsString>,
     home: Option<std::ffi::OsString>,
 ) -> Result<PathBuf, IpcError> {
+    // DISTRIB-006 (ADR-060): a non-empty `ANVIL_HOME` re-roots the daemon socket
+    // directly under the prefix so a pre-release candidate daemon and the
+    // production daemon get distinct sockets and coexist (the per-`(uid, os)`
+    // single-instance rule of ADR-036 keys off the socket/PID path). Takes
+    // precedence over the runtime dir; unset = byte-for-byte default below.
+    if let Some(prefix) = anvil_home.filter(|d| !d.is_empty()) {
+        return Ok(PathBuf::from(prefix));
+    }
     if let Some(dir) = xdg_runtime_dir.filter(|d| !d.is_empty()) {
         return Ok(PathBuf::from(dir).join("anvil"));
     }
@@ -4487,6 +4497,7 @@ mod tests {
     #[test]
     fn resolve_socket_dir_prefers_xdg_runtime_dir() {
         let dir = resolve_socket_dir_with_env(
+            None,
             Some("/run/user/1000".into()),
             Some("/home/somebody".into()),
         )
@@ -4497,23 +4508,49 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn resolve_socket_dir_falls_back_to_home_state() {
-        let dir =
-            resolve_socket_dir_with_env(None, Some("/home/somebody".into())).expect("resolve");
-        assert_eq!(dir, PathBuf::from("/home/somebody/.local/state/anvil"));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn resolve_socket_dir_treats_empty_xdg_as_unset() {
-        let dir = resolve_socket_dir_with_env(Some("".into()), Some("/home/somebody".into()))
+        let dir = resolve_socket_dir_with_env(None, None, Some("/home/somebody".into()))
             .expect("resolve");
         assert_eq!(dir, PathBuf::from("/home/somebody/.local/state/anvil"));
     }
 
     #[cfg(unix)]
     #[test]
+    fn resolve_socket_dir_treats_empty_xdg_as_unset() {
+        let dir = resolve_socket_dir_with_env(None, Some("".into()), Some("/home/somebody".into()))
+            .expect("resolve");
+        assert_eq!(dir, PathBuf::from("/home/somebody/.local/state/anvil"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_anvil_home_re_roots_socket_directly_under_prefix() {
+        // DISTRIB-006: ANVIL_HOME takes precedence over the runtime dir and puts
+        // the socket directly under the prefix, so a candidate daemon coexists.
+        let dir = resolve_socket_dir_with_env(
+            Some("/opt/anvil-beta".into()),
+            Some("/run/user/1000".into()),
+            Some("/home/somebody".into()),
+        )
+        .expect("resolve");
+        assert_eq!(dir, PathBuf::from("/opt/anvil-beta"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_socket_dir_treats_empty_anvil_home_as_unset() {
+        let dir = resolve_socket_dir_with_env(
+            Some("".into()),
+            Some("/run/user/1000".into()),
+            Some("/home/somebody".into()),
+        )
+        .expect("resolve");
+        assert_eq!(dir, PathBuf::from("/run/user/1000/anvil"));
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn resolve_socket_dir_errors_when_no_candidate() {
-        let err = resolve_socket_dir_with_env(None, None).unwrap_err();
+        let err = resolve_socket_dir_with_env(None, None, None).unwrap_err();
         assert!(matches!(err, IpcError::NoSocketDirCandidate));
     }
 

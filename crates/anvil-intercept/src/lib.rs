@@ -428,19 +428,43 @@ impl<T> Drop for AbortOnDropJoinHandle<T> {
 /// back to `$HOME/.local/state/anvil` on Unix-like hosts and
 /// `%LOCALAPPDATA%\anvil` on Windows.
 pub fn default_pid_file_path() -> Result<PathBuf> {
-    if let Some(runtime_dir) = non_empty_env("XDG_RUNTIME_DIR") {
+    default_pid_file_path_from(
+        non_empty_env("ANVIL_HOME"),
+        non_empty_env("XDG_RUNTIME_DIR"),
+        if cfg!(windows) {
+            non_empty_env("LOCALAPPDATA")
+        } else {
+            None
+        },
+        non_empty_env("HOME").or_else(|| non_empty_env("USERPROFILE")),
+    )
+}
+
+/// Pure resolver for [`default_pid_file_path`] — takes the candidate roots
+/// explicitly so it unit-tests without mutating the process environment.
+fn default_pid_file_path_from(
+    anvil_home: Option<PathBuf>,
+    xdg_runtime_dir: Option<PathBuf>,
+    local_app_data: Option<PathBuf>,
+    home: Option<PathBuf>,
+) -> Result<PathBuf> {
+    // DISTRIB-006 (ADR-060): `ANVIL_HOME` re-roots the PID file directly under the
+    // prefix, alongside the daemon socket, so a candidate daemon's PID-file
+    // exclusive-create (ADR-036) does not collide with production's. Precedence
+    // over the runtime dir; unset = byte-for-byte default below.
+    if let Some(prefix) = anvil_home {
+        return Ok(prefix.join("intercept.pid"));
+    }
+
+    if let Some(runtime_dir) = xdg_runtime_dir {
         return Ok(runtime_dir.join("anvil").join("intercept.pid"));
     }
 
-    if cfg!(windows)
-        && let Some(local_app_data) = non_empty_env("LOCALAPPDATA")
-    {
+    if let Some(local_app_data) = local_app_data {
         return Ok(local_app_data.join("anvil").join("intercept.pid"));
     }
 
-    let home = non_empty_env("HOME")
-        .or_else(|| non_empty_env("USERPROFILE"))
-        .context("cannot resolve home directory for anvil intercept PID file")?;
+    let home = home.context("cannot resolve home directory for anvil intercept PID file")?;
     Ok(home
         .join(".local")
         .join("state")
@@ -1079,6 +1103,43 @@ mod tests {
     use tokio::time::{sleep, timeout};
 
     use super::*;
+
+    // DISTRIB-006 (ADR-060): ANVIL_HOME re-roots the daemon PID file directly
+    // under the prefix, taking precedence over the runtime dir, so a candidate
+    // daemon's PID-file exclusive-create cannot collide with production's.
+    #[test]
+    fn default_pid_file_path_anvil_home_re_roots_under_prefix() {
+        let p = default_pid_file_path_from(
+            Some(PathBuf::from("/opt/anvil-beta")),
+            Some(PathBuf::from("/run/user/1000")),
+            None,
+            Some(PathBuf::from("/home/somebody")),
+        )
+        .expect("resolve");
+        assert_eq!(p, PathBuf::from("/opt/anvil-beta/intercept.pid"));
+    }
+
+    #[test]
+    fn default_pid_file_path_falls_back_to_runtime_dir_when_anvil_home_unset() {
+        let p = default_pid_file_path_from(
+            None,
+            Some(PathBuf::from("/run/user/1000")),
+            None,
+            Some(PathBuf::from("/home/somebody")),
+        )
+        .expect("resolve");
+        assert_eq!(p, PathBuf::from("/run/user/1000/anvil/intercept.pid"));
+    }
+
+    #[test]
+    fn default_pid_file_path_falls_back_to_home_state_dir() {
+        let p = default_pid_file_path_from(None, None, None, Some(PathBuf::from("/home/somebody")))
+            .expect("resolve");
+        assert_eq!(
+            p,
+            PathBuf::from("/home/somebody/.local/state/anvil/intercept.pid")
+        );
+    }
 
     // MLP2-071: pin that DaemonState::new constructs a Fanout whose
     // cross-session policy mirrors the operator-configured value. The

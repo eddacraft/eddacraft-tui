@@ -33,6 +33,13 @@ pub struct Credentials {
 /// credentials FROM `~/Library/Application Support/anvil/` TO
 /// `~/.config/anvil/` by always writing to the XDG path.
 pub fn credentials_dir() -> Result<PathBuf> {
+    // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME, user-owned state
+    // (credentials) re-roots to `<ANVIL_HOME>/user/` so a pre-release candidate
+    // never reads or writes the production login. Unset = platform default below.
+    if let Some(user_dir) = crate::install_root::install_root().user_dir() {
+        return Ok(user_dir);
+    }
+
     #[cfg(windows)]
     {
         return dirs::config_dir()
@@ -67,8 +74,11 @@ pub fn credentials_dir() -> Result<PathBuf> {
 pub fn credentials_path() -> Result<PathBuf> {
     let primary = credentials_dir()?.join("credentials.json");
 
+    // DISTRIB-006: under a non-default ANVIL_HOME the candidate is isolated to
+    // `<ANVIL_HOME>/user/` — do not fall back to the production macOS credential
+    // location, or the candidate would read the prod login it is meant to avoid.
     #[cfg(target_os = "macos")]
-    if !primary.exists() {
+    if !primary.exists() && !crate::install_root::install_root().is_overridden() {
         if let Some(home) = dirs::home_dir() {
             let macos_fallback = home
                 .join("Library")
