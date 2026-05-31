@@ -224,11 +224,10 @@ neither is in the `v0.7.3-beta` cut above.
 **Version framing.** `scripts/release/assess.sh` mechanically recommends the
 next minor (`v0.8.0-beta`) for any beta cut regardless of content; the version
 is an operator override in every case. The Hotfix Iteration Plan's "no minor
-beta before six weeks post-tag" rule (`v0.7.0-beta` shipped 2026-05-21 → hold
-through ~2026-07-02) keeps near-term cuts on the `v0.7.x` patch line. So
-additive-surface work that is **internal and default-inert** overrides down to a
-patch — the minor (`v0.8.0-beta`) is reserved for the daemon work that genuinely
-widens the product / protection surface.
+beta before six weeks post-tag" rule keeps near-term cuts on the `v0.7.x` patch
+line. So additive-surface work that is **internal and default-inert** overrides
+down to a patch — the minor (`v0.8.0-beta`) is reserved for the daemon work that
+genuinely widens the product / protection surface.
 
 ### Tier 1 — watch save-time CPU remediation → `v0.7.4-beta`
 
