@@ -43,8 +43,13 @@ function newestMtime(dir) {
 function fileMtime(path) {
   try {
     return statSync(path).mtimeMs;
-  } catch {
-    return 0;
+  } catch (err) {
+    // A genuinely absent optional input (e.g. a crate with no build.rs)
+    // contributes nothing to the baseline. Any other stat failure
+    // (permission, I/O) is a real problem that would silently weaken the
+    // freshness check if treated as "0" — surface it instead.
+    if (err && err.code === 'ENOENT') return 0;
+    throw err;
   }
 }
 
