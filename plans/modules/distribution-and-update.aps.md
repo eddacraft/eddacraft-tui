@@ -316,20 +316,20 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md)
   (`one daemon per (uid, os)`, PID-file exclusive create), so a distinct socket
   prefix per `ANVIL_HOME` is precisely what lets two daemons coexist.
-- **Design gate (blocks Ready) — ADR-060:** Per-project state resolution is the
-  open design call that gates this item. It is now captured in
-  [`ADR-060`](../decisions/060-anvil-home-install-root-override.md) (**Proposed**,
-  2026-05-31), which recommends **Option (a) + a write-guard**: keep per-project
-  `.anvil/` (baseline/cache/witness) + `anvil/project-id` resolving to the
-  project root so candidate tests run against the real repo with witness
+- **Design gate (SATISFIED) — ADR-060:** Per-project state resolution, the open
+  design call that gated this item, is settled in
+  [`ADR-060`](../decisions/060-anvil-home-install-root-override.md) (**Accepted**
+  2026-05-31). The accepted answer is **Option (a) + a write-guard**: keep
+  per-project `.anvil/` (baseline/cache/witness) + `anvil/project-id` resolving
+  to the project root so candidate tests run against the real repo with witness
   continuity, but gate durable project-state mutations behind
   `--touch-project-state` (read-only / dry-run by default under a non-default
-  `ANVIL_HOME`). The rejected alternative is **Option (b)** — re-root project
+  `ANVIL_HOME`). The rejected alternative was **Option (b)** — re-root project
   discovery under `<ANVIL_HOME>/projects/` — which isolates fully but defeats the
-  side-by-side purpose. **This item stays Proposed until ADR-060 is `Accepted`**
-  (operator ratification in review). Cross-version chain *format* compatibility
-  (a candidate writing a chain a different anvil version reads) is out of scope —
-  that is an `anvil migrate` problem, see DISTRIB-005.
+  side-by-side purpose. With the gate satisfied, this item is **eligible for
+  promotion to Ready** (a separate operator call). Cross-version chain *format*
+  compatibility (a candidate writing a chain a different anvil version reads) is
+  out of scope — that is an `anvil migrate` problem, see DISTRIB-005.
 - **Expected Outcome:** A uniform install-root override that every install-owned
   state location honours:
   - `ANVIL_HOME=<path>` re-roots user state (`<path>/user/`), the daemon socket
@@ -363,11 +363,13 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
     prefix and never `~/.anvil/`; two prefixes yield two concurrent daemons;
     unset returns the default surface byte-for-byte.
   - `pnpm adr:check` green with ADR-060 indexed.
-- **Status:** Proposed (blocked on the ADR-060 design gate above; the acceptance
-  criteria and file list mirror the issue #1726 proposal and are not yet a Ready
-  contract).
-- **Dependencies:** ADR-060 must be `Accepted` before Ready. Coordinates with
-  ADR-036 (daemon single-instance / socket derivation).
+- **Status:** Proposed (the ADR-060 design gate is now satisfied — ADR-060
+  Accepted 2026-05-31 — so this item is eligible for promotion to Ready; the
+  acceptance criteria and file list mirror the issue #1726 proposal and should
+  get a final readiness pass at promotion time).
+- **Dependencies:** ADR-060 (Accepted 2026-05-31) was the Ready gate and is now
+  satisfied. Coordinates with ADR-036 (daemon single-instance / socket
+  derivation).
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -406,5 +408,5 @@ releases with a documented support window and clean upgrade path" line in
 - DISTRIB-006 promoted from GitHub issue
   [#1726](https://github.com/eddacraft/anvil-001/issues/1726); coordinates with
   [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md) (daemon
-  single-instance / socket derivation) and is gated on the pending **ADR-060**
-  (per-project state resolution under `ANVIL_HOME`).
+  single-instance / socket derivation) and was gated on **ADR-060**
+  (per-project state resolution under `ANVIL_HOME`), **Accepted** 2026-05-31.

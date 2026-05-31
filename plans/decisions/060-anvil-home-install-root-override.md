@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved (@joshuaboys)
+Accepted (@joshuaboys, 2026-05-31)
 
 ## Date
 
