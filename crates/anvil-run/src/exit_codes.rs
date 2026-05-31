@@ -24,10 +24,17 @@
 //! indistinguishable from "daemon unavailable" looking at the exit
 //! code alone. Shell wrappers that must tell the two apart use
 //! stderr — the launcher writes its refusal banner to stderr while
-//! a child controls only its own stdout — or check
-//! `$ANVIL_RUN_REFUSED` (set by the wrapper script when the launcher
-//! itself emits a refusal). Pure exit-code switching is good enough
-//! for the common case; the dual signal exists for the rest.
+//! a child controls only its own stdout. Pure exit-code switching is
+//! good enough for the common case; stderr disambiguates the rest.
+//!
+//! (A `$ANVIL_RUN_REFUSED` env signal was once documented here, but
+//! the wrapper can only set it by inspecting the exit code — which
+//! cannot distinguish a launcher refusal from a forwarded child
+//! status in the overlapping `64..=78` range (these fall within the
+//! `1..127` forwarded-child band in the table above), so it would
+//! carry the same ambiguity it claimed to resolve. stderr is the only
+//! reliable disambiguator and is the documented one. See GH #1707 /
+//! Council C-027.)
 
 /// Bad CLI usage (e.g. missing `--tool` or `--`).
 pub const EXIT_USAGE: i32 = 64;
