@@ -420,7 +420,15 @@ require a coordinated bundle — pick them off in any order.
   removes the override and runs the postbuild smoke check — if it
   passes, the exception is no longer needed.
 - **Confidence:** medium — depends on upstream cadence
-- **Status:** Todo
+- **Resolution:** `resend@6.12.4` (production-dependencies Dependabot
+  bump, 2026-05-31) dropped `svix` from its dependency tree entirely —
+  `svix` is no longer resolvable in `pnpm-lock.yaml`. The
+  `pnpm.overrides["svix>uuid"]` exception and the `svix: { uuid }`
+  resolution are now dead no-ops; both removed, restoring the uniform
+  `uuid >=14.0.0` security floor. The `check-runtime-cjs.cjs` postbuild
+  guard was repointed from the (now-absent) `svix` probe to `resend`,
+  its declared public CJS entrypoint.
+- **Status:** Done
 
 ### V050F-010: Document `WAITLIST_PAUSED` kill-switch in the operator runbook
 
