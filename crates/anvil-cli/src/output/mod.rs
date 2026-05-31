@@ -57,13 +57,17 @@ pub enum Format {
 }
 
 impl Format {
-    /// Whether this format requests machine-readable (structured) output.
+    /// Whether this format *explicitly* requests machine-readable
+    /// (structured) output.
     ///
-    /// `Json` and `Sarif` are both consumed by tooling rather than a
-    /// human, so the pre-dispatch auth gate must emit a structured JSON
-    /// envelope — not a human-readable line — for these, exactly as it
-    /// already does for the global `--json` flag. `Auto`/`Tui`/`Plain`
-    /// all resolve to human-facing renderers.
+    /// `Json` and `Sarif` are both consumed by tooling rather than a human,
+    /// so the pre-dispatch auth gate must emit a structured JSON envelope —
+    /// not a human-readable line — for these. Only the explicit cases are
+    /// reported here: `Auto` is deliberately excluded because it defers to
+    /// the legacy `--json` / `--no-tui` + TTY truth table (so `Auto` *can*
+    /// still resolve to JSON via global `--json`), and that global path is
+    /// already handled separately by the auth gate. This method exists only
+    /// to fold the per-command `--format` surface into that same signal.
     #[must_use]
     pub fn is_structured(self) -> bool {
         matches!(self, Format::Json | Format::Sarif)

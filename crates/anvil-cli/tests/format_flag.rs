@@ -148,3 +148,53 @@ fn audit_format_sarif_emits_well_formed_document() {
     );
     assert!(doc["runs"][0]["results"].is_array(), "results[] present");
 }
+
+/// SARIFOUT-001 / clawpatch follow-up: a finding command invoked with its own
+/// `--format json` (and NO global `--json`) must be treated as machine output
+/// by the pre-dispatch auth gate — it emits only the structured `authRequired`
+/// envelope and no human chatter / interactive prompt when credentials are
+/// missing. Mirrors `init_post_analysis::json_mode_auth_failure_emits_only_json_error`
+/// for the per-command `--format` surface that this wiring fixes.
+#[test]
+fn format_json_auth_failure_emits_only_json_envelope() {
+    let dir = temp_workdir("format-json-auth");
+    let config_home = temp_workdir("format-json-auth-cfg");
+
+    let output = Command::new(ANVIL_BIN)
+        .args(["check", "--all", "--format", "json"])
+        .current_dir(&dir)
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_LOG", "off")
+        .env("ANVIL_NO_PROMPT", "1")
+        .env("XDG_CONFIG_HOME", &config_home)
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    // Action command: auth-required is an expected state → exit 0.
+    assert!(
+        output.status.success(),
+        "auth-required on an action command should exit 0; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "`check --format json` auth failure must not write stdout: {}",
+        String::from_utf8_lossy(&output.stdout),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let parsed: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap_or_else(|err| {
+        panic!("stderr must be one JSON auth envelope, got {stderr:?}: {err}")
+    });
+    assert_eq!(
+        parsed.get("state").and_then(|v| v.as_str()),
+        Some("authRequired"),
+        "`--format json` must get the structured auth envelope, not human text: {stderr}",
+    );
+    assert_eq!(
+        stderr.trim().lines().count(),
+        1,
+        "stderr should be only the JSON envelope — no human chatter leaked: {stderr}",
+    );
+}
