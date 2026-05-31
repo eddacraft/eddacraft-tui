@@ -4,6 +4,10 @@
 2026-05-31 v0.7.3-beta pre-tag clawpatch sweep, scoped so a fresh session can
 pick them up without prior context.
 
+> **Resolution status (2026-05-31).** This batch was worked end-to-end. See
+> the [Resolution status](#resolution-status-2026-05-31) section at the foot of
+> this doc for the per-item PR map and the `scan_buffer` no-code verdict.
+
 **Source of truth:**
 
 - Audit export: [`plans/audits/2026-05-31-clawpatch-v0.7.3-beta.json`](../audits/2026-05-31-clawpatch-v0.7.3-beta.json) (367 findings)
@@ -82,3 +86,53 @@ Full list:
 ```sh
 jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and .triage=="test-gap") | "\(.evidence[0].path):\(.evidence[0].startLine)\t\(.title)"' plans/audits/2026-05-31-clawpatch-v0.7.3-beta.json
 ```
+
+## Resolution status (2026-05-31)
+
+Worked as a batch of focused, single-purpose PRs (clean worktree off
+`origin/main`, TDD where a test was meaningful, adversarial review per fix,
+scoped `cargo fmt`/`clippy`). None were release-tag-blocking.
+
+| Item | Verdict | PR |
+| ---- | ------- | -- |
+| Tier 1 — credential-load coercion (`anvil-cli`) | Fixed: `Err` arm of `evaluate_auth` now returns `EXIT_CONFIG_ERROR` for genuine load faults | **#2173 (merged)** |
+| Tier 1 — `InterruptReason` 1-based line invariant (`anvil-intercept-rules`) | Fixed: `line` typed `Option<NonZeroU32>`; serde rejects `0` | **#2174 (merged)** |
+| Tier 1 — `EngineEvent` type/payload invariant (`anvil-kernel-types`) | Fixed: `EngineEvent::new` derives the tag + validating `#[serde(try_from)]`; wire bytes unchanged | #2176 |
+| Tier 1 — `--format json` auth-gate output contract (`anvil-cli`) | Fixed: per-command `--format json\|sarif` folded into the json signal for the auth gate **and** the post-dispatch error envelopes | #2180 |
+| Tier 1 — `scan_buffer` session binding (`anvil-intercept`) | **No code change — see verdict below** | — |
+| Tier 2 — Win32 SQOS + process liveness (`anvil-intercept-win32`) | Implemented + cross-compile type/clippy-verified for `x86_64-pc-windows-gnu`; **runtime Windows verification still required** before relying on it | #2182 |
+| Tier 3 — `.node` freshness guard (`anvil-checks-napi`) | Fixed: baseline widened to all native build inputs (`Cargo.toml`, `build.rs`, workspace `Cargo.lock`); guards on the oldest present `.node` | #2181 |
+| Tier 4 — docs-gaps (`anvil-baseline` / `anvil-witness` / `anvil-checks-napi`) | Fixed: scope/contract docs corrected; `AppendOutcome` re-exported | #2178 |
+
+### `scan_buffer` session-binding verdict (no code change)
+
+The finding — "`scan_buffer` has no authenticated session binding; add a
+`sessionId`, validate against the connection" — was investigated and
+adversarially re-checked. Verdict: **the tagged Linux path is already bound by a
+stronger mechanism; the residual gaps are intentional/tracked scope, not a quick
+fix.**
+
+- `ScanBufferRequest` carries `env_agent_tag` (an `AgentTag` containing the
+  session id). The daemon cross-checks it against the **SO_PEERCRED** peer pid
+  lineage via `SessionRegistry::cross_check_env_tag(env_tag, writer_pid)`,
+  short-circuiting to `Cross::Spoofed` **before** the rule engine and recording a
+  persistent side-effect fence (`ipc.rs` `run_spoof_cross_check`; pinned by the
+  `spoof_cross_check_wired` integration test). This is *stronger* than a
+  request-level `sessionId`, which a same-UID peer could simply assert.
+- The two genuine residual gaps an adversarial pass surfaced are **documented,
+  intentional scope boundaries**, not bugs:
+  - **Untagged path** (`Cross::Untagged`) and intra-lineage forgery are
+    "out of scope by design" (`registry.rs` `classify` doc). Content is still
+    scanned/enforced; only attribution is absent.
+  - **macOS/Windows** skip the cross-check (`with_cross_check_context` is
+    `#[cfg(target_os = "linux")]`) because the lineage walk needs `/proc`;
+    explicitly "greenfield (tracked under **MLP2-028**)" in `ipc.rs`.
+- Making session binding mandatory (rejecting untagged) is a backward-incompatible
+  security-model change that belongs in the **MLP2-028** design pass / an ADR,
+  not an ad-hoc fix. The v0.7.3-beta tag is not exposed: the primary IPC attack
+  surface (the Linux daemon, tagged writes) is already fail-closed.
+
+### Not addressed here
+
+- **Tier 5 test-gap tail (~38)** — unchanged; a future hardening batch as the
+  original triage notes. Not tag-blocking.
