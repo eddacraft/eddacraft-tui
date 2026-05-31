@@ -469,7 +469,8 @@ fn watch_loop(
             {
                 snapshot_count += 1;
                 if snapshot_count > 1 {
-                    link.dispatcher.on_snapshot();
+                    link.dispatcher
+                        .on_snapshot(crate::commands::watch::snapshot_changed_path(&engine_event));
                 }
             }
         }

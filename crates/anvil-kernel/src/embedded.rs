@@ -113,7 +113,8 @@ pub fn run_embedded_cancellable(
 
     // 5. Emit snapshot — use parsed_count so coverage reflects actual files scanned,
     //    not total files attempted (some may have been skipped due to parse errors).
-    emitter.snapshot(&graph, parsed_count);
+    //    One-shot embedded scan: no single changed file to scope a follow-up to.
+    emitter.snapshot(&graph, parsed_count, None);
 
     // 6. Run policy engine with all H1 invariants
     let mut engine = PolicyEngine::new();

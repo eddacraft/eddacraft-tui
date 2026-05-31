@@ -114,6 +114,11 @@ impl WatchEventEnvelope {
                 node_count,
                 edge_count,
                 files_watched,
+                // `changed_path` is an internal CLI dispatch hint (RLB-007);
+                // it is deliberately dropped here so the `anvil.watch.event.v1`
+                // Snapshot wire shape stays exactly {node_count, edge_count,
+                // files_watched}. Pinned by `snapshot_wire_shape_omits_changed_path`.
+                changed_path: _,
             } => (
                 WatchEventType::Snapshot,
                 WatchEventPayload::Snapshot {
@@ -221,6 +226,7 @@ mod tests {
                 node_count: 312,
                 edge_count: 845,
                 files_watched: 64,
+                changed_path: None,
             },
             EventType::Snapshot,
             3,
@@ -229,6 +235,41 @@ mod tests {
         let json = serde_json::to_string(&envelope).expect("serialise");
         let back: WatchEventEnvelope = serde_json::from_str(&json).expect("deserialise");
         assert_eq!(back, envelope);
+    }
+
+    /// RLB-007: the internal `EventPayload::Snapshot.changed_path` dispatch
+    /// hint MUST NOT leak onto the `anvil.watch.event.v1` wire envelope. A
+    /// snapshot carrying a `changed_path` still serialises to exactly
+    /// `{node_count, edge_count, files_watched}` so existing NDJSON consumers
+    /// see an unchanged Snapshot shape.
+    #[test]
+    fn snapshot_wire_shape_omits_changed_path() {
+        let event = make_event(
+            EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 2,
+                files_watched: 3,
+                changed_path: Some("/repo/src/changed.ts".to_string()),
+            },
+            EventType::Snapshot,
+            7,
+        );
+        let envelope = WatchEventEnvelope::from_engine_event(&event);
+        let json = serde_json::to_string(&envelope).expect("serialise");
+        let value: Value = serde_json::from_str(&json).expect("parse own output");
+        assert!(
+            value["payload"].get("changed_path").is_none(),
+            "changed_path must not appear on the wire envelope: {value}"
+        );
+        assert_eq!(value["payload"]["node_count"], 1);
+        assert_eq!(value["payload"]["edge_count"], 2);
+        assert_eq!(value["payload"]["files_watched"], 3);
+        // Exactly the three documented fields, nothing more.
+        assert_eq!(
+            value["payload"].as_object().map(serde_json::Map::len),
+            Some(3),
+            "Snapshot wire payload must have exactly 3 fields: {value}"
+        );
     }
 
     /// The spec at `docs/specs/watch-output-contract.md` documents that
@@ -364,6 +405,7 @@ mod tests {
                     node_count: 0,
                     edge_count: 0,
                     files_watched: 0,
+                    changed_path: None,
                 },
                 WatchEventType::Snapshot,
             ),

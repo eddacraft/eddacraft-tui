@@ -87,6 +87,23 @@ pub enum EventPayload {
         node_count: u64,
         edge_count: u64,
         files_watched: u64,
+        /// Repo-absolute path of the file whose save produced this snapshot,
+        /// when it was triggered by a single create/modify change. `None` for
+        /// the initial-scan snapshot, embedded one-shot scans, and
+        /// delete-driven snapshots. This is an internal dispatch hint that
+        /// lets the CLI watch loop scope the per-save `anvil check` to the
+        /// changed file (RLB-007, GH #2156) instead of re-walking the whole
+        /// repo. It is intentionally NOT surfaced on the
+        /// `anvil.watch.event.v1` wire envelope — see
+        /// [`crate::watch_event::WatchEventEnvelope::from_engine_event`].
+        ///
+        /// `#[serde(skip)]` keeps this field entirely outside serde: it can
+        /// never leak onto a serialised `EngineEvent` and can never be
+        /// injected via a crafted JSON payload. It is a purely in-process hint
+        /// carried over the kernel→CLI `mpsc` channel, never across a
+        /// serialisation boundary in production.
+        #[serde(skip)]
+        changed_path: Option<String>,
     },
     Violation {
         policy_id: String,
@@ -163,6 +180,7 @@ mod tests {
                 node_count: 50,
                 edge_count: 120,
                 files_watched: 30,
+                changed_path: None,
             },
         }
     }
@@ -359,16 +377,19 @@ mod tests {
             node_count: 100,
             edge_count: 200,
             files_watched: 50,
+            changed_path: Some("src/a.ts".to_string()),
         };
         match &payload {
             EventPayload::Snapshot {
                 node_count,
                 edge_count,
                 files_watched,
+                changed_path,
             } => {
                 assert_eq!(*node_count, 100);
                 assert_eq!(*edge_count, 200);
                 assert_eq!(*files_watched, 50);
+                assert_eq!(changed_path.as_deref(), Some("src/a.ts"));
             }
             _ => panic!("expected Snapshot variant"),
         }
@@ -405,6 +426,7 @@ mod tests {
                 node_count: 0,
                 edge_count: 0,
                 files_watched: 0,
+                changed_path: None,
             },
             EventPayload::Violation {
                 policy_id: "id".into(),
@@ -562,6 +584,7 @@ mod tests {
                 node_count: 1,
                 edge_count: 2,
                 files_watched: 3,
+                changed_path: None,
             },
         );
         let json = serde_json::to_string(&event).unwrap();

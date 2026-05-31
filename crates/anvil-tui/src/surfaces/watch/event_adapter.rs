@@ -65,6 +65,7 @@ impl WatchEventAdapter {
                 node_count: _,
                 edge_count: _,
                 files_watched,
+                changed_path: _,
             } => {
                 self.handle_snapshot(*files_watched, &event.timestamp, data);
             }
@@ -298,6 +299,7 @@ mod tests {
                 node_count: 10,
                 edge_count: 5,
                 files_watched,
+                changed_path: None,
             },
         }
     }

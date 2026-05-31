@@ -143,6 +143,7 @@ mod tests {
                 node_count: 50,
                 edge_count: 20,
                 files_watched: 35,
+                changed_path: None,
             },
         })
         .unwrap();

@@ -273,7 +273,9 @@ fn build_initial_graph(
     re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
 
-    emitter.snapshot(&state.graph, state.file_count);
+    // Initial-scan snapshot: no single changed file — the CLI skips dispatch
+    // on the first snapshot anyway, and a full re-walk is the safe default.
+    emitter.snapshot(&state.graph, state.file_count, None);
 }
 
 fn parse_initial_file(
@@ -395,7 +397,11 @@ fn process_change(
                 // Remove stale imports for the deleted file
                 state.all_imports.retain(|i| i.from_file != rel_str);
                 annotate_trust(&mut state.graph, &state.all_imports);
-                emitter.snapshot(&state.graph, state.file_count);
+                // Delete-driven snapshot (only emitted when the deleted file
+                // had tracked symbols): `None` so the CLI re-walks with `--all`
+                // — a delete can break imports in *other* files — rather than
+                // scoping to the now-gone path.
+                emitter.snapshot(&state.graph, state.file_count, None);
             }
         }
         ChangeKind::Created | ChangeKind::Modified => {
@@ -419,7 +425,9 @@ fn process_change(
                         state.file_count = state.file_count.saturating_sub(1);
                         state.all_imports.retain(|i| i.from_file != rel_str);
                         annotate_trust(&mut state.graph, &state.all_imports);
-                        emitter.snapshot(&state.graph, state.file_count);
+                        // Rename-away (old path vanished): `None` re-walk, same
+                        // rationale as a delete.
+                        emitter.snapshot(&state.graph, state.file_count, None);
                     }
                     emitter.error(
                         ErrorCode::ParseError,
@@ -480,7 +488,18 @@ fn process_change(
             // a subsequent re-save of the same file reports `was_tracked
             // = true` and we don't double-count the file_count.
             state.tracked_files.insert(rel_str.clone());
-            emitter.snapshot(&state.graph, state.file_count);
+            // RLB-007: carry the absolute changed path so the CLI watch loop
+            // can scope its per-save `anvil check` to exactly this file
+            // instead of re-walking the whole repo (GH #2156). `change.path`
+            // is the watcher's absolute path, so it resolves regardless of the
+            // check child's cwd or any `--file` watch scope.
+            //
+            // Use `to_str()` (not `to_string_lossy()`): a non-UTF-8 path would
+            // otherwise be mangled with U+FFFD replacement chars into a string
+            // that resolves to no real file, so the scoped `anvil check` would
+            // silently scan nothing. `None` for such paths falls back to the
+            // full `--all` walk, which still covers the file.
+            emitter.snapshot(&state.graph, state.file_count, change.path.to_str());
         }
     }
 }

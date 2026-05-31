@@ -32,7 +32,14 @@ impl EventEmitter {
         );
     }
 
-    pub fn snapshot(&self, graph: &SymbolGraph, files_watched: u64) {
+    /// Emit a graph snapshot.
+    ///
+    /// `changed_path` is the repo-absolute path of the single file whose save
+    /// produced this snapshot (RLB-007). Pass `Some(path)` from a watch
+    /// create/modify change so the CLI can scope its per-save `anvil check` to
+    /// that file; pass `None` for the initial scan, embedded one-shot scans,
+    /// and delete-driven snapshots (where a full re-walk is the safe default).
+    pub fn snapshot(&self, graph: &SymbolGraph, files_watched: u64, changed_path: Option<&str>) {
         let stats = graph.stats();
         self.emit(
             EventType::Snapshot,
@@ -40,6 +47,7 @@ impl EventEmitter {
                 node_count: stats.node_count as u64,
                 edge_count: stats.edge_count as u64,
                 files_watched,
+                changed_path: changed_path.map(String::from),
             },
         );
     }
@@ -186,7 +194,7 @@ mod tests {
             })
             .unwrap();
 
-        emitter.snapshot(&graph, 42);
+        emitter.snapshot(&graph, 42, Some("/repo/b.ts"));
 
         let event = rx.recv().unwrap();
         assert_eq!(event.event_type, EventType::Snapshot);
@@ -195,10 +203,12 @@ mod tests {
                 node_count,
                 edge_count,
                 files_watched,
+                changed_path,
             } => {
                 assert_eq!(*node_count, 2);
                 assert_eq!(*edge_count, 0);
                 assert_eq!(*files_watched, 42);
+                assert_eq!(changed_path.as_deref(), Some("/repo/b.ts"));
             }
             _ => panic!("expected Snapshot payload"),
         }

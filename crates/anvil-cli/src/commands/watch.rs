@@ -433,6 +433,7 @@ const fn child_stdio_policy(json: bool, tui_parent: bool) -> (ChildStdio, ChildS
 fn build_action_command(
     exe: &std::path::Path,
     action: &str,
+    check_paths: &[String],
     workspace_root: &std::path::Path,
     json: bool,
     no_tui: bool,
@@ -442,16 +443,23 @@ fn build_action_command(
     cmd.arg(action);
     // `anvil check` requires an explicit file scope or it exits with
     // "No files specified" — so a bare `check` dispatch would fail every
-    // cycle and never scan. Use `--all` rather than `--changed`: `--changed`
-    // is git-diff based, so it bails outside a git repo and skips untracked
-    // files — a freshly-created file you just saved would be silently
-    // unscanned, reintroducing the false-assurance #1913 set out to remove.
-    // `--all` walks the filesystem, so it covers untracked/new files and
-    // works without git. (Scoping to exactly the watcher's changed paths —
-    // which would also honour the watch's own `--file`/`--patterns` scope —
-    // needs the kernel to surface changed paths to the dispatcher; tracked as
-    // a follow-up.) `gate` self-scopes via git status, so it needs no flag.
-    if action == "check" {
+    // cycle and never scan.
+    //
+    // RLB-007 (GH #2156): when the kernel surfaces the files that changed this
+    // cycle, scope `check` to exactly those paths instead of re-walking the
+    // whole repo. The full-repo `check --all` per save was ~100% of the
+    // watch CPU cost the beta tester reported (one agent ≈ 7 of 16 cores).
+    // `check_paths` are absolute, so they resolve regardless of the child's
+    // cwd and honour any `--file`/`--patterns` watch scope.
+    //
+    // Empty `check_paths` falls back to `--all`: that covers the delete-driven
+    // and initial dispatches (a delete can break imports in *other* files, so
+    // a full walk is the safe default), and preserves the #1913 contract that
+    // a bare `check` dispatch always scans untracked/new files and works
+    // without git (unlike `--changed`). `gate` self-scopes via git status, so
+    // it ignores `check_paths` and needs no flag.
+    let scoped_check = action == "check" && !check_paths.is_empty();
+    if action == "check" && check_paths.is_empty() {
         cmd.arg("--all");
     }
     if json {
@@ -459,6 +467,15 @@ fn build_action_command(
     }
     if no_tui || tui_parent {
         cmd.arg("--no-tui");
+    }
+    // Scoped paths go LAST, behind a `--` end-of-options separator, so a file
+    // whose absolute path could ever be mistaken for a flag is parsed as a
+    // positional. (Absolute paths start with `/` today, so this is defence in
+    // depth, but it keeps the contract robust if the path form ever changes.)
+    // Must follow `--json`/`--no-tui`: everything after `--` is positional.
+    if scoped_check {
+        cmd.arg("--");
+        cmd.args(check_paths);
     }
     cmd.current_dir(workspace_root);
     let (stdout_policy, stderr_policy) = child_stdio_policy(json, tui_parent);
@@ -533,6 +550,13 @@ struct DispatcherInner {
     running: AtomicBool,
     pending: AtomicBool,
     cancel: AtomicBool,
+    /// RLB-007: absolute paths of files changed since the last dispatch
+    /// drained them. `on_snapshot` accumulates here so coalesced reruns scope
+    /// `anvil check` to every file that changed while a prior scan was in
+    /// flight, not just the most recent. A `BTreeSet` dedups repeated saves of
+    /// the same file and gives the child a deterministic argument order.
+    /// Drained (taken) at the start of each `check` dispatch.
+    pending_paths: std::sync::Mutex<std::collections::BTreeSet<String>>,
     /// In-flight child process. Held in a mutex so `shutdown()` can kill
     /// it from another thread while the worker is polling `try_wait()`.
     in_flight: std::sync::Mutex<Option<std::process::Child>>,
@@ -574,6 +598,7 @@ impl ActionDispatcher {
             running: AtomicBool::new(false),
             pending: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
+            pending_paths: std::sync::Mutex::new(std::collections::BTreeSet::new()),
             in_flight: std::sync::Mutex::new(None),
             worker: std::sync::Mutex::new(None),
             #[cfg(test)]
@@ -584,12 +609,22 @@ impl ActionDispatcher {
     /// Trigger a dispatch (or mark a pending rerun if one is in flight).
     /// Called from the watch loop on each post-initial Snapshot event.
     ///
+    /// `changed_path` (RLB-007) is the absolute path of the file whose save
+    /// produced this snapshot, or `None` for delete-driven snapshots. It is
+    /// recorded *before* the trigger dance so that a path arriving while a scan
+    /// is in flight is guaranteed to be in `pending_paths` when the coalesced
+    /// rerun drains it — no save can be silently dropped from the next scan's
+    /// scope.
+    ///
     /// Race repair (council finding: kernel-maintainer): if the worker is
     /// in the narrow window between `pending.swap(false)` and
     /// `running.store(false)`, a `pending=true` write here would otherwise
     /// be lost. The worker re-checks `pending` after releasing `running` —
     /// see the worker loop below — so the pending bit is recovered.
-    pub(crate) fn on_snapshot(&self) {
+    pub(crate) fn on_snapshot(&self, changed_path: Option<&str>) {
+        if let Some(path) = changed_path {
+            recover(self.0.pending_paths.lock()).insert(path.to_string());
+        }
         if self.0.running.swap(true, Ordering::SeqCst) {
             self.0.pending.store(true, Ordering::SeqCst);
             return;
@@ -693,9 +728,29 @@ impl DispatcherInner {
             );
             return;
         };
+        // RLB-007: drain the paths accumulated since the last dispatch and
+        // scope `check` to them. Taking (clearing) here means a save that
+        // arrives after this point lands in `pending_paths` *and* sets the
+        // `pending` bit, so the worker's coalescing rerun picks it up — a path
+        // is at worst scanned twice, never skipped.
+        let check_paths: Vec<String> = {
+            let mut guard = recover(self.pending_paths.lock());
+            std::mem::take(&mut *guard).into_iter().collect()
+        };
+        // Observability for the "why didn't watch catch X" support case: record
+        // whether this dispatch was scoped to changed paths or fell back to a
+        // full `--all` walk, and how many paths it covered.
+        if self.action == "check" {
+            tracing::debug!(
+                scoped = !check_paths.is_empty(),
+                path_count = check_paths.len(),
+                "watch check dispatch scope"
+            );
+        }
         let mut cmd = build_action_command(
             &exe,
             &self.action,
+            &check_paths,
             &self.workspace_root,
             self.json,
             self.no_tui_arg,
@@ -853,6 +908,7 @@ impl ActionDispatcher {
             running: AtomicBool::new(false),
             pending: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
+            pending_paths: std::sync::Mutex::new(std::collections::BTreeSet::new()),
             in_flight: std::sync::Mutex::new(None),
             worker: std::sync::Mutex::new(None),
             exe_override,
@@ -1045,7 +1101,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     {
                         snapshot_count += 1;
                         if snapshot_count > 1 {
-                            d.on_snapshot();
+                            d.on_snapshot(snapshot_changed_path(&event));
                         }
                     }
                 }
@@ -1117,6 +1173,23 @@ fn should_use_warmup_cache(
     watch_root == workspace_root && include_patterns.is_empty()
 }
 
+/// RLB-007: extract the per-save changed-path dispatch hint from an event.
+///
+/// Returns the absolute path of the file whose save produced a snapshot, or
+/// `None` for non-snapshot events and for snapshots without a single changed
+/// file (the initial scan and delete-driven snapshots). The CLI watch loop
+/// feeds this to `ActionDispatcher::on_snapshot` so `anvil check` scopes to
+/// the changed file instead of re-walking the whole repo.
+///
+/// Called from both watch loops: the non-TUI loop in this module and the TUI
+/// loop in `crate::tui::run_watch`.
+pub(crate) fn snapshot_changed_path(event: &anvil_kernel_types::EngineEvent) -> Option<&str> {
+    match &event.payload {
+        anvil_kernel_types::EventPayload::Snapshot { changed_path, .. } => changed_path.as_deref(),
+        _ => None,
+    }
+}
+
 fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
     use anvil_kernel_types::{EventPayload, EventType};
 
@@ -1143,6 +1216,7 @@ fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
             node_count,
             edge_count,
             files_watched,
+            ..
         } => {
             println!(
                 "{prefix} Snapshot: {node_count} nodes, {edge_count} edges, {files_watched} files"
@@ -1239,6 +1313,7 @@ mod tests {
                 node_count: 312,
                 edge_count: 845,
                 files_watched: 64,
+                changed_path: None,
             },
         };
         let v = assert_envelope_invariants(&snapshot, "snapshot");
@@ -1479,7 +1554,7 @@ mod tests {
         let ws = PathBuf::from("/project");
 
         // `gate` self-scopes (git status) so it needs no file flag.
-        let cmd = build_action_command(&exe, "gate", &ws, false, false, false);
+        let cmd = build_action_command(&exe, "gate", &[], &ws, false, false, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(args, vec![std::ffi::OsStr::new("gate")]);
 
@@ -1487,7 +1562,7 @@ mod tests {
         // "No files specified" and never scans (GH #1913 / council F-001).
         // `--all` (not `--changed`) so untracked/new files and non-git repos
         // are still scanned (Copilot review on #1933).
-        let cmd = build_action_command(&exe, "check", &ws, true, true, false);
+        let cmd = build_action_command(&exe, "check", &[], &ws, true, true, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
@@ -1504,7 +1579,7 @@ mod tests {
     fn build_action_command_scopes_check_to_all_even_plain() {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/project");
-        let cmd = build_action_command(&exe, "check", &ws, false, false, false);
+        let cmd = build_action_command(&exe, "check", &[], &ws, false, false, false);
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(
             args,
@@ -1513,11 +1588,172 @@ mod tests {
         );
     }
 
+    // --- RLB-007: per-save check is scoped to changed paths (GH #2156) ---
+
+    #[test]
+    fn watch_action_scope_check_uses_changed_paths_not_all() {
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let paths = vec![
+            "/project/src/a.ts".to_string(),
+            "/project/src/b.ts".to_string(),
+        ];
+        let cmd = build_action_command(&exe, "check", &paths, &ws, false, false, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsStr::new("check"),
+                // `--` end-of-options guard, then the changed files positionally.
+                std::ffi::OsStr::new("--"),
+                std::ffi::OsStr::new("/project/src/a.ts"),
+                std::ffi::OsStr::new("/project/src/b.ts"),
+            ],
+            "scoped check must pass the changed files positionally (after --), not --all"
+        );
+        assert!(
+            !args.iter().any(|a| *a == std::ffi::OsStr::new("--all")),
+            "scoped check must NOT re-walk the whole repo with --all, got {args:?}"
+        );
+    }
+
+    #[test]
+    fn watch_action_scope_flags_precede_path_separator() {
+        // The `--` end-of-options guard must come AFTER --json/--no-tui,
+        // otherwise those flags would be parsed as positional file paths.
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let paths = vec!["/project/src/a.ts".to_string()];
+        let cmd = build_action_command(&exe, "check", &paths, &ws, true, true, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![
+                std::ffi::OsStr::new("check"),
+                std::ffi::OsStr::new("--json"),
+                std::ffi::OsStr::new("--no-tui"),
+                std::ffi::OsStr::new("--"),
+                std::ffi::OsStr::new("/project/src/a.ts"),
+            ]
+        );
+    }
+
+    #[test]
+    fn watch_action_scope_check_empty_paths_falls_back_to_all() {
+        // Delete-driven / initial dispatch: no changed file to scope to, so a
+        // full walk stays the safe default (a delete can break imports
+        // elsewhere; #1913 still requires untracked/new files are covered).
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let cmd = build_action_command(&exe, "check", &[], &ws, false, false, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![std::ffi::OsStr::new("check"), std::ffi::OsStr::new("--all")]
+        );
+    }
+
+    #[test]
+    fn watch_action_scope_gate_ignores_changed_paths() {
+        // `gate` self-scopes via git status, so changed paths must not leak
+        // onto its argv (and it must never carry --all).
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let paths = vec!["/project/src/a.ts".to_string()];
+        let cmd = build_action_command(&exe, "gate", &paths, &ws, false, false, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(args, vec![std::ffi::OsStr::new("gate")]);
+    }
+
+    #[test]
+    fn watch_action_scope_extracts_changed_path_from_event() {
+        use anvil_kernel_types::{EngineEvent, EngineId, EventPayload, EventType};
+
+        let snap = |changed: Option<&str>| EngineEvent {
+            event_type: EventType::Snapshot,
+            seq: 1,
+            timestamp: "t".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 0,
+                files_watched: 1,
+                changed_path: changed.map(str::to_string),
+            },
+        };
+        assert_eq!(
+            snapshot_changed_path(&snap(Some("/p/x.ts"))),
+            Some("/p/x.ts")
+        );
+        // Delete / initial snapshot → no path to scope to.
+        assert_eq!(snapshot_changed_path(&snap(None)), None);
+        // Non-snapshot events never carry a scope hint.
+        let progress = EngineEvent {
+            event_type: EventType::Progress,
+            seq: 2,
+            timestamp: "t".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Progress {
+                phase: "p".into(),
+                current: 0,
+                total: 1,
+            },
+        };
+        assert_eq!(snapshot_changed_path(&progress), None);
+    }
+
+    /// While a scan is in flight, further saves accumulate (and dedup) in
+    /// `pending_paths` so the coalesced rerun scopes to every file that
+    /// changed meanwhile — none is dropped. Deterministic and subprocess-free:
+    /// pre-marking `running` drives `on_snapshot` down its in-flight branch
+    /// (record + set pending, no new worker) without spawning a child.
+    #[test]
+    fn watch_action_scope_accumulates_paths_while_in_flight() {
+        let dispatcher = ActionDispatcher::new(
+            "check".to_string(),
+            PathBuf::from("/project"),
+            false,
+            false,
+            false,
+            None,
+        );
+        // Simulate a scan already running so on_snapshot records paths for the
+        // coalesced rerun instead of spawning a worker.
+        dispatcher.0.running.store(true, Ordering::SeqCst);
+
+        dispatcher.on_snapshot(Some("/project/src/b.ts"));
+        dispatcher.on_snapshot(Some("/project/src/b.ts")); // duplicate save
+        dispatcher.on_snapshot(Some("/project/src/a.ts"));
+        dispatcher.on_snapshot(None); // a delete contributes no path
+
+        let pending: Vec<String> = recover(dispatcher.0.pending_paths.lock())
+            .iter()
+            .cloned()
+            .collect();
+        // BTreeSet → deduped and deterministically ordered.
+        assert_eq!(
+            pending,
+            vec![
+                "/project/src/a.ts".to_string(),
+                "/project/src/b.ts".to_string(),
+            ],
+            "in-flight saves must accumulate + dedup for the coalesced rerun"
+        );
+        assert!(
+            dispatcher.0.pending.load(Ordering::SeqCst),
+            "an in-flight save must set the pending bit so the worker reruns"
+        );
+
+        // No worker was ever spawned; release the simulated running flag so
+        // Drop's shutdown() is a clean no-op.
+        dispatcher.0.running.store(false, Ordering::SeqCst);
+    }
+
     #[test]
     fn build_action_command_sets_cwd() {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/my/project");
-        let cmd = build_action_command(&exe, "gate", &ws, false, false, false);
+        let cmd = build_action_command(&exe, "gate", &[], &ws, false, false, false);
         assert_eq!(
             cmd.get_current_dir(),
             Some(std::path::Path::new("/my/project"))
@@ -1535,7 +1771,13 @@ mod tests {
         let ws = PathBuf::from("/project");
 
         let cmd = build_action_command(
-            &exe, "gate", &ws, false, /* no_tui */ false, /* tui_parent */ true,
+            &exe,
+            "gate",
+            &[],
+            &ws,
+            false,
+            /* no_tui */ false,
+            /* tui_parent */ true,
         );
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert!(
@@ -1550,7 +1792,13 @@ mod tests {
         let ws = PathBuf::from("/project");
 
         let cmd = build_action_command(
-            &exe, "gate", &ws, false, /* no_tui */ true, /* tui_parent */ true,
+            &exe,
+            "gate",
+            &[],
+            &ws,
+            false,
+            /* no_tui */ true,
+            /* tui_parent */ true,
         );
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         let count = args
@@ -1569,7 +1817,13 @@ mod tests {
         let ws = PathBuf::from("/project");
 
         let cmd = build_action_command(
-            &exe, "gate", &ws, false, /* no_tui */ false, /* tui_parent */ false,
+            &exe,
+            "gate",
+            &[],
+            &ws,
+            false,
+            /* no_tui */ false,
+            /* tui_parent */ false,
         );
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert!(
@@ -1598,7 +1852,7 @@ mod tests {
             Some(PathBuf::from("/bin/sleep")),
         );
 
-        dispatcher.on_snapshot();
+        dispatcher.on_snapshot(None);
 
         // Wait briefly for the worker to spawn /bin/sleep and park it in
         // the in_flight slot. 250 ms is generous; the child usually appears
@@ -1764,7 +2018,7 @@ mod tests {
             Some(PathBuf::from("/bin/sleep")),
         );
 
-        dispatcher.on_snapshot();
+        dispatcher.on_snapshot(None);
 
         // Give the worker time to spawn the child, complete it, and reach
         // the blocking send. 200 ms is plenty for /bin/sleep 0.
@@ -1803,7 +2057,7 @@ mod tests {
                 None,
                 Some(PathBuf::from("/bin/sleep")),
             );
-            dispatcher.on_snapshot();
+            dispatcher.on_snapshot(None);
 
             // Wait for the child to park.
             let waited = std::time::Instant::now();

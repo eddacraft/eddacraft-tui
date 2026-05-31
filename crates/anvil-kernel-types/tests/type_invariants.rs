@@ -125,6 +125,7 @@ fn full_event_with_nested_types_round_trips() {
             node_count: 500,
             edge_count: 1200,
             files_watched: 80,
+            changed_path: Some("/repo/src/changed.ts".into()),
         },
     };
 
@@ -140,10 +141,16 @@ fn full_event_with_nested_types_round_trips() {
             node_count,
             edge_count,
             files_watched,
+            changed_path,
         } => {
             assert_eq!(*node_count, 500);
             assert_eq!(*edge_count, 1200);
             assert_eq!(*files_watched, 80);
+            // `changed_path` is `#[serde(skip)]`: the `Some(...)` set above is
+            // intentionally dropped by serialisation, so it never survives a
+            // round-trip. This pins that the internal dispatch hint cannot
+            // leak onto — or be injected through — the serialised form.
+            assert_eq!(changed_path.as_deref(), None);
         }
         _ => panic!("expected Snapshot payload"),
     }
