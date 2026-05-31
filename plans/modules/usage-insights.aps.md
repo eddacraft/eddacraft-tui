@@ -142,11 +142,12 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil insights::suppressions::tests`
   - `cargo test -p eddacraft-anvil commands::insights::tests`
-- **Status:** Merged 2026-05-27 via PR
-  [#1996](https://github.com/eddacraft/anvil-001/pull/1996) — `anvil insights
+- **Status:** Released/Shipped via v0.7.3-beta (tag `8bfd48c4d` · 2026-05-31;
+  Merged 2026-05-27 via PR
+  [#1996](https://github.com/eddacraft/anvil-001/pull/1996)) — `anvil insights
   --suppressions` lists inline `@anvil-ignore` directives (stale-first) from a
   live antipattern scan; directive-primary `classify` (Council + Copilot
-  review). Awaiting release-tag evidence to advance to Released/Shipped.
+  review).
 - **Dependencies:** INSIGHTS-001
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -216,10 +217,10 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::insights::tests::drift_trend_matches_fixture`
   - `cargo test -p eddacraft-anvil commands::insights::tests::insufficient_data_reports_clearly`
-- **Status:** Merged 2026-05-29 via PR [#2111](https://github.com/eddacraft/anvil-001/pull/2111)
+- **Status:** Released/Shipped via v0.7.3-beta (tag `8bfd48c4d` · 2026-05-31;
+  Merged 2026-05-29 via PR [#2111](https://github.com/eddacraft/anvil-001/pull/2111))
   — `anvil insights --drift` renders the per-week new-cross-boundary-edge sparkline from the
   existing `.anvil/snapshots/` drift store (merge commit `4c3ea6b10`).
-  Awaiting release-tag evidence to advance to Released/Shipped.
 - **Dependencies:** INSIGHTS-001
 - **changeType:** feature
 - **releaseIntent:** candidate

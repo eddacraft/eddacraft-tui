@@ -11,9 +11,9 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 | ID      | Owner | Status   | Progress |
 | ------- | ----- | -------- | -------- |
-| SARIFOUT | —     | In Progress | 6/6      |
+| SARIFOUT | —     | Complete    | 6/6      |
 
-**Last reviewed:** 2026-05-29
+**Last reviewed:** 2026-05-31
 
 > **Provenance:** Promoted from
 > [CIB-014](continuous-improvement-backlog.aps.md) on 2026-05-29. Source
@@ -108,8 +108,8 @@ with SARIFOUT-002).
 
 ## Work Items
 
-> Status: In Progress (all six work items Merged; module advances to Complete
-> when release evidence is recorded, per the dev-workflow lifecycle). The three
+> Status: Complete (all six work items Merged and Released/Shipped in
+> v0.7.3-beta, tag `8bfd48c4d` on 2026-05-31). The three
 > design decisions (flag surface, module home, shared model) were ratified by the
 > operator on 2026-05-29, promoting this module out of Proposed. SARIFOUT-001
 > Merged via PR #2099; SARIFOUT-002 via PR #2105; SARIFOUT-003 via PR #2107;

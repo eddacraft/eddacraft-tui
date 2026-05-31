@@ -2,9 +2,10 @@
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| SCAN | @team | In Progress | 6/6      |
+| SCAN | @team | Complete    | 6/6      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-05-31 (all six items Merged; Released/Shipped in
+v0.7.3-beta, tag `8bfd48c4d` on 2026-05-31 — module Complete)
 
 ## Purpose
 

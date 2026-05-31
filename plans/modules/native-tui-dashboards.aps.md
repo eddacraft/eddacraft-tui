@@ -5,9 +5,10 @@
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| TDASH | joshuaboys | Done   | 4/4      |
+| TDASH | joshuaboys | Complete | 4/4    |
 
-**Last reviewed:** 2026-05-26
+**Last reviewed:** 2026-05-31 (all four items Merged; Released/Shipped in
+v0.7.3-beta, tag `8bfd48c4d` on 2026-05-31 — module Complete)
 
 ## Purpose
 
