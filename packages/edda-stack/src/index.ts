@@ -12,6 +12,8 @@
  * @module @eddacraft/anvil-edda-stack
  */
 
+import { readFileSync } from 'node:fs';
+
 // Re-export all contracts
 export * from './contracts/index.js';
 
@@ -24,6 +26,13 @@ export * from './ember/index.js';
 // Re-export Edda service layer
 export * from './edda/index.js';
 
-// Package metadata
-export const PACKAGE_VERSION = '0.1.0';
-export const PACKAGE_NAME = '@eddacraft/anvil-edda-stack';
+// Package metadata, read from package.json so the exported version never drifts
+// from the manifest the release tooling bumps. Resolves relative to this module,
+// which works identically from `dist/` (built) and `src/` (tests) since both sit
+// one level under the package root.
+const packageManifest = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+) as { name: string; version: string };
+
+export const PACKAGE_VERSION: string = packageManifest.version;
+export const PACKAGE_NAME: string = packageManifest.name;
