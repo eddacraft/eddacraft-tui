@@ -6,7 +6,7 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
-## [0.7.3-beta] — TBD — Surfacing the Signal
+## [0.7.3-beta] — 2026-05-31 — Surfacing the Signal
 
 A product-surface release: native read-only TUI dashboards, SARIF 2.1.0 findings
 export on the scan commands, and new `anvil insights` views make Anvil's
