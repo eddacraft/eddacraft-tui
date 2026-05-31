@@ -62,9 +62,12 @@ conflated.
 
 ## Decision
 
-**Save-time governance is delta validation mediated by the per-workspace daemon
-over warm graph state. A whole-repo scan is never the default reaction to a
-single save.** Specifically:
+**Save-time governance is delta validation mediated by the intercept daemon over
+warm graph state. A whole-repo scan is never the default reaction to a single
+save.** The daemon is scoped per ADR-036 — one daemon per `(uid, os)` execution
+scope, serving every workspace under it; "warm model", work budget, and
+assurance state below are **per-workspace state held inside that one daemon**,
+not one daemon per repo. Specifically:
 
 1. **Remove `check --all` from the per-save hot path.** The default save-time
    action in `watch.rs` stops spawning a cold whole-repo child. Whole-repo scans
@@ -82,10 +85,11 @@ single save.** Specifically:
    `validate_paths` calls `run_antipattern_check` (and sibling check libraries)
    with the **changed paths only**, against warm graph indexes.
 
-3. **Watch, MCP, and intercept are thin clients of one daemon.** `anvil watch`
-   sends changed paths to `validate_paths`; `anvil mcp serve`'s
-   `anvil_validate_write` re-points from its own in-process scan to the daemon so
-   a repo running watch + MCP keeps one warm model and never double-scans. This
+3. **Watch, MCP, and intercept are thin clients of the one daemon** in that
+   execution scope. `anvil watch` sends changed paths to `validate_paths`;
+   `anvil mcp serve`'s `anvil_validate_write` re-points from its own in-process
+   scan to the daemon so a repo running watch + MCP keeps one warm model
+   (per-workspace) and never double-scans. This
    keeps MCP a *projection/client* of the authority, consistent with the Graph V2
    rule that MCP is not the control plane.
 
@@ -175,6 +179,5 @@ architecture.
 - APS modules: RLB-001/002/005/007/008 (resource-load-benchmarking),
   GV2-010/011/020/021/022 (graph-v2-foundation), INTD (intercept daemon), DRVR
   (surface-drivers)
-- Working docs (uncommitted): `WATCH-CPU-PROBLEM.md`,
-  `ANVIL-DAEMON-DESIGN-RESPONSE.md`
-- Prototype: `benchmarks/prototypes/anvil-load-probe.py`; tracking issue #2156
+- Evidence: process-tree load probe `benchmarks/prototypes/anvil-load-probe.py`
+  (in-repo); CPU field report and tester-diagnostics tracking in issue #2156
