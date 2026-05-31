@@ -56,6 +56,20 @@ pub enum Format {
     Sarif,
 }
 
+impl Format {
+    /// Whether this format requests machine-readable (structured) output.
+    ///
+    /// `Json` and `Sarif` are both consumed by tooling rather than a
+    /// human, so the pre-dispatch auth gate must emit a structured JSON
+    /// envelope — not a human-readable line — for these, exactly as it
+    /// already does for the global `--json` flag. `Auto`/`Tui`/`Plain`
+    /// all resolve to human-facing renderers.
+    #[must_use]
+    pub fn is_structured(self) -> bool {
+        matches!(self, Format::Json | Format::Sarif)
+    }
+}
+
 /// Determines how command output is rendered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {

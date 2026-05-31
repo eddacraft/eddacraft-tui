@@ -301,6 +301,23 @@ fn requires_auth(cmd: &Commands) -> bool {
     feature_flags::command_needs_licence_gate(command_canonical_name(cmd))
 }
 
+/// Whether the command requested machine-readable output via its own
+/// `--format json|sarif` flag (distinct from the global `--json`).
+///
+/// The pre-dispatch auth gate uses this so a structured consumer of, e.g.,
+/// `anvil check --format json` receives a JSON auth envelope rather than a
+/// human-readable line — the global `--json` flag alone did not cover the
+/// per-command `--format` surface. Only the finding-emitting commands
+/// (`check` / `audit` / `gate`) expose `--format`.
+fn command_requests_structured_output(cmd: &Commands) -> bool {
+    match cmd {
+        Commands::Check(args) => args.wants_structured_output(),
+        Commands::Audit(args) => args.wants_structured_output(),
+        Commands::Gate(args) => args.wants_structured_output(),
+        _ => false,
+    }
+}
+
 fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
     matches!(cmd, Commands::Status(args) if args.verify)
 }
@@ -669,7 +686,15 @@ fn run_interactive_login() -> anyhow::Result<()> {
 /// problem is missing or expired credentials, offers to launch the
 /// device-code login flow inline so first-time users don't bounce off a
 /// terse "Run `anvil auth login`" error.
-fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
+fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) -> Result<(), u8> {
+    // `wants_json` folds the global `--json` flag together with a
+    // per-command `--format json|sarif` request: both mean a machine is
+    // reading the output, so human-readable auth chatter must be
+    // suppressed and the interactive login prompt skipped. Resolving it
+    // here (rather than reading only `global.json`) is what keeps
+    // `anvil check --format json` from leaking a human line onto the
+    // stream instead of the structured auth envelope.
+    let json_mode = global.json || wants_json;
     // Local dev bypass: ANVIL_DEV=1 resolves through the shared resolver's
     // local-override precedence on `cli.licence-gate`. Routing via the
     // resolver (rather than an inline env-var read) means override
@@ -680,7 +705,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
     if let Some(details) = feature_flags::cli_dev_bypass_active() {
-        if !global.json {
+        if !json_mode {
             eprintln!(
                 "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
                 details.flag_key, details.variant, details.reason
@@ -700,7 +725,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
         && auth::credentials::is_expired(creds)
         && creds.refresh_token.is_some()
     {
-        match try_silent_refresh(creds, global.verbose, !global.json) {
+        match try_silent_refresh(creds, global.verbose, !json_mode) {
             SilentRefreshOutcome::Refreshed => loaded = auth::credentials::load(),
             SilentRefreshOutcome::PermanentFailure => {
                 refresh_reason_already_printed = true;
@@ -710,7 +735,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
     }
 
     let suppress_interactive =
-        global.json || global.no_tui || !allow_interactive || is_non_interactive_env();
+        json_mode || global.no_tui || !allow_interactive || is_non_interactive_env();
     let tty_ok = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
 
     if should_offer_interactive_login(suppress_interactive, tty_ok, &loaded) {
@@ -729,7 +754,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
                     // handing off to the command — guards against clock
                     // skew or partial writes that would otherwise silently
                     // pass the local gate and fail server-side.
-                    return evaluate_auth(&auth::credentials::load(), global.verbose, !global.json);
+                    return evaluate_auth(&auth::credentials::load(), global.verbose, !json_mode);
                 }
                 Err(err) => {
                     // Distinct from EXIT_AUTH_REQUIRED: the user
@@ -764,7 +789,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool) -> Result<(), u8> {
         return Err(EXIT_AUTH_REQUIRED);
     }
 
-    evaluate_auth(&loaded, global.verbose, !global.json)
+    evaluate_auth(&loaded, global.verbose, !json_mode)
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -821,13 +846,17 @@ fn main() -> ExitCode {
     let _cli_span_guard = cli_span.enter();
     tracing::info!(target: "anvil_cli", "cli command parsed");
 
+    let wants_json = cli.global.json || command_requests_structured_output(&cli.command);
     if requires_auth(&cli.command)
         && !skips_auth_for_local_probe(&cli.command)
-        && let Err(code) = check_auth(&cli.global, allows_interactive_auth_prompt(&cli.command))
+        && let Err(code) = check_auth(
+            &cli.global,
+            allows_interactive_auth_prompt(&cli.command),
+            wants_json,
+        )
     {
         tracing::warn!(target: "anvil_cli", "cli command authentication required");
-        let (exit_code, json_envelope) =
-            auth_required_response(&cli.command, code, cli.global.json);
+        let (exit_code, json_envelope) = auth_required_response(&cli.command, code, wants_json);
         if let Some(envelope) = json_envelope {
             eprintln!("{envelope}");
         }
@@ -840,7 +869,7 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::from(EXIT_OK),
             Err(err) if err.is::<commands::update::UpdateAvailable>() => ExitCode::from(EXIT_ERROR),
             Err(err) => {
-                if cli.global.json {
+                if wants_json {
                     eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
                 } else {
                     eprintln!("Error: {err:#}");
@@ -856,7 +885,9 @@ fn main() -> ExitCode {
             Ok(true) => ExitCode::from(EXIT_OK),
             Ok(false) => ExitCode::from(EXIT_GATE_FAIL),
             Err(err) => {
-                if cli.global.json {
+                // Match the auth gate: a `--format json|sarif` consumer gets a
+                // structured error envelope, not a human `Error:` line.
+                if wants_json {
                     eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
                 } else {
                     eprintln!("Error: {err:#}");
@@ -918,7 +949,12 @@ fn main() -> ExitCode {
             if err.is::<output::AuthRequired>() {
                 return ExitCode::from(EXIT_AUTH_REQUIRED);
             }
-            if cli.global.json {
+            // Universal runtime-error envelope for action commands. Honour a
+            // per-command `--format json|sarif` (not just global `--json`) so
+            // a structured consumer of `check`/`audit` gets a JSON error
+            // envelope rather than a human `Error:` line — same contract as
+            // the pre-dispatch auth gate above.
+            if wants_json {
                 eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
             } else {
                 eprintln!("Error: {err:#}");
@@ -1372,6 +1408,43 @@ mod tests {
         assert!(envelope.get("state").is_none());
     }
 
+    // ── command_requests_structured_output ───────────────────────
+
+    #[test]
+    fn structured_output_detected_for_format_json_commands() {
+        // The pre-dispatch auth gate must treat `--format json|sarif` on a
+        // finding-emitting command as machine output, so the auth envelope
+        // is structured rather than a human line on the wrong stream.
+        for cmd in [
+            &["check", "--all", "--format", "json"][..],
+            &["check", "--all", "--format", "sarif"][..],
+            &["audit", "--format", "json"][..],
+            &["gate", "--format", "json"][..],
+        ] {
+            assert!(
+                command_requests_structured_output(&parse_command(cmd)),
+                "{cmd:?} should be detected as structured output"
+            );
+        }
+    }
+
+    #[test]
+    fn structured_output_not_detected_for_human_or_absent_format() {
+        for cmd in [
+            &["check", "--all"][..],
+            &["check", "--all", "--format", "plain"][..],
+            &["check", "--all", "--format", "tui"][..],
+            &["audit"][..],
+            // A command with no `--format` surface is never structured here.
+            &["status"][..],
+        ] {
+            assert!(
+                !command_requests_structured_output(&parse_command(cmd)),
+                "{cmd:?} should NOT be detected as structured output"
+            );
+        }
+    }
+
     // ── evaluate_auth ────────────────────────────────────────────
 
     use crate::auth::credentials::Credentials;
@@ -1451,7 +1524,7 @@ mod tests {
         // Without credentials, auth normally fails — but not in dev mode.
         temp_env::with_var("ANVIL_DEV", Some("1"), || {
             assert!(
-                check_auth(&GlobalArgs::default(), true).is_ok(),
+                check_auth(&GlobalArgs::default(), true, false).is_ok(),
                 "ANVIL_DEV=1 should bypass auth check"
             );
         });
@@ -1470,7 +1543,7 @@ mod tests {
             ],
             || {
                 assert_eq!(
-                    check_auth(&GlobalArgs::default(), true),
+                    check_auth(&GlobalArgs::default(), true, false),
                     Err(EXIT_AUTH_REQUIRED)
                 );
             },

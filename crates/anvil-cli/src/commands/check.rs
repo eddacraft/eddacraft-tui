@@ -103,6 +103,12 @@ pub struct CheckArgs {
 }
 
 impl CheckArgs {
+    /// True when `--format json|sarif` requests structured output, so the
+    /// pre-dispatch auth gate emits a JSON envelope rather than human text.
+    pub(crate) fn wants_structured_output(&self) -> bool {
+        self.format.is_some_and(output::Format::is_structured)
+    }
+
     /// True when any flag selects the git-changed files mode. `--staged` and
     /// `--since` imply `--changed`, so all three collapse to a single mode.
     fn changed_mode(&self) -> bool {

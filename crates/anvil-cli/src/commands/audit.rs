@@ -24,6 +24,14 @@ pub struct AuditArgs {
     format: Option<crate::output::Format>,
 }
 
+impl AuditArgs {
+    /// True when `--format json|sarif` requests structured output, so the
+    /// pre-dispatch auth gate emits a JSON envelope rather than human text.
+    pub(crate) fn wants_structured_output(&self) -> bool {
+        self.format.is_some_and(crate::output::Format::is_structured)
+    }
+}
+
 pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     use crate::output::OutputMode;
 

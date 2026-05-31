@@ -55,6 +55,17 @@ pub struct GateArgs {
     format: Option<crate::output::Format>,
 }
 
+impl GateArgs {
+    /// True when an explicit `--format json|sarif` requests structured
+    /// output, so the pre-dispatch auth gate emits a JSON envelope rather
+    /// than human text. (The AI-guardrail profile's implicit JSON default
+    /// is resolved later in `resolve_gate_output_mode` and is intentionally
+    /// out of scope for the pre-auth check.)
+    pub(crate) fn wants_structured_output(&self) -> bool {
+        self.format.is_some_and(crate::output::Format::is_structured)
+    }
+}
+
 const PROFILES: &[(&str, &str, &[&str])] = &[
     (
         "dev",
