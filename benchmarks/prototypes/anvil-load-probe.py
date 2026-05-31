@@ -3,9 +3,13 @@
 
 Reproduces the field "expensive CPU" report by exercising what the
 watch_resource_budget bench does NOT: real file churn, the default `check`
-action (per-save `anvil check --all` subprocess), the whole process tree
+action (a per-save `anvil check` subprocess), the whole process tree
 (parent utime+stime + reaped-children cutime+cstime), and a ramp of N
 concurrent "agents" (independent watch pipelines) to find saturation.
+
+Linux only: CPU sampling reads /proc. The harness exits early on other
+platforms. Cleans up spawned `anvil watch` agents and the synthetic temp
+repo on normal exit AND on Ctrl-C / SIGTERM.
 
 Usage:
   anvil-load-probe.py [--bin PATH] [--files N] [--agents "1,2,4,8"]
@@ -24,10 +28,42 @@ First run (2026-05-30, anvil 0.7.2-beta, 16-core box, 800 files, 200ms churn):
      `anvil check --all` subprocess is ~100% of the cost. This is the seed
      for RLB-001 (see plans/modules/resource-load-benchmarking.aps.md, GH #2156).
 """
-import argparse, os, shutil, signal, subprocess, sys, tempfile, threading, time
+import argparse, atexit, os, shutil, signal, subprocess, sys, tempfile, threading, time
 
 CLK = os.sysconf("SC_CLK_TCK")
 NCPU = os.cpu_count() or 1
+
+# Live resources so a Ctrl-C / SIGTERM between cells (or mid-build, before a
+# cell's own teardown runs) never orphans `anvil watch` agents or leaks the
+# synthetic temp repo. run_cell registers its procs/churns here and clears them
+# on normal completion; _cleanup is idempotent.
+_LIVE = {"procs": [], "churns": [], "repo": None, "created_tmp": False}
+
+def _cleanup():
+    for c in _LIVE["churns"]:
+        c.stop.set()
+    for p in _LIVE["procs"]:
+        try:
+            p.send_signal(signal.SIGINT)
+        except OSError:
+            pass
+    for p in _LIVE["procs"]:
+        try:
+            p.wait(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            try:
+                p.kill()
+            except OSError:
+                pass
+    _LIVE["procs"].clear()
+    _LIVE["churns"].clear()
+    if _LIVE["created_tmp"] and _LIVE["repo"]:
+        shutil.rmtree(_LIVE["repo"], ignore_errors=True)
+        _LIVE["repo"] = None
+
+def _signal_cleanup(_signum, _frame):
+    _cleanup()
+    raise SystemExit(130)
 
 def read_total_cpu():
     with open("/proc/stat") as f:
@@ -94,6 +130,10 @@ def run_cell(binp, src_root, agents, action, settle, measure, churn_ms):
     if action != "check":
         args += ["--action", action]
     procs, churns = [], []
+    # Publish to the live registry as we spawn so an interrupt mid-cell still
+    # reaps every agent (the lists are shared references, updated in place).
+    _LIVE["procs"] = procs
+    _LIVE["churns"] = churns
     for k in range(agents):
         p = subprocess.Popen(args, cwd=os.path.dirname(src_root), env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -119,6 +159,9 @@ def run_cell(binp, src_root, agents, action, settle, measure, churn_ms):
     for p in procs:
         try: p.wait(timeout=5)
         except subprocess.TimeoutExpired: p.kill()
+    # Cell torn down cleanly — drop it from the live registry.
+    _LIVE["procs"] = []
+    _LIVE["churns"] = []
     dp, dt = (t1_proc - t0_proc), (t1_tot - t0_tot)
     machine_pct = 100.0 * dp / dt if dt else 0.0
     cores = NCPU * dp / dt if dt else 0.0
@@ -126,6 +169,19 @@ def run_cell(binp, src_root, agents, action, settle, measure, churn_ms):
             "cores": cores, "peak_rss_parent_mib": peak_rss}
 
 def main():
+    # CPU sampling reads /proc; bail clearly on non-Linux BEFORE spawning
+    # anything (so we never leave orphaned agents on an unsupported platform).
+    # Cross-platform coverage is tracked separately as RLB-006.
+    if not os.path.exists("/proc/stat"):
+        print("# anvil-load-probe requires Linux /proc for CPU sampling; "
+              f"unsupported platform {sys.platform} (RLB-006 tracks portability)",
+              file=sys.stderr)
+        sys.exit(3)
+    # Reap agents + temp repo on Ctrl-C / SIGTERM / normal exit.
+    atexit.register(_cleanup)
+    signal.signal(signal.SIGINT, _signal_cleanup)
+    signal.signal(signal.SIGTERM, _signal_cleanup)
+
     ap = argparse.ArgumentParser()
     # Default to `anvil` on PATH; override with --bin or the ANVIL_BIN env var.
     ap.add_argument("--bin", default=os.environ.get("ANVIL_BIN", "anvil"))
@@ -144,6 +200,9 @@ def main():
     created_tmp = a.repo is None
     if created_tmp:
         repo = tempfile.mkdtemp(prefix="anvil-load-")
+        # Hand the temp repo to the cleanup path so an interrupt removes it.
+        _LIVE["repo"] = repo
+        _LIVE["created_tmp"] = True
     else:
         repo = a.repo
         if os.path.isdir(repo) and os.listdir(repo):
