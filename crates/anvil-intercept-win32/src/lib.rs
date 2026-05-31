@@ -691,6 +691,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn exited_process_with_open_handle_reports_not_live() {
+        // Regression for the bug this fix closes: the kernel process object
+        // outlives the process while any handle to it is open, so a bare
+        // `OpenProcess` success would mis-report an exited process as live.
+        // Hold the `Child` handle open (do not drop it) so the object — and
+        // thus the PID → object mapping `OpenProcess` resolves — survives the
+        // exit, then assert `process_exists` consults `GetExitCodeProcess`
+        // and reports the process as not-live.
+        let mut child = std::process::Command::new("cmd")
+            .args(["/C", "exit", "0"])
+            .spawn()
+            .expect("spawn short-lived child");
+        let pid = child.id();
+        child.wait().expect("wait for child to exit");
+
+        assert!(
+            !process_exists(pid).expect("query liveness of exited process"),
+            "an exited process (handle still open) must report not-live",
+        );
+
+        drop(child);
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn creates_owner_only_pipe_server() {
         let pipe_name = format!(
