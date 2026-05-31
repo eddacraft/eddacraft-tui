@@ -152,6 +152,12 @@ fn is_anvil_managed(path: &Path) -> bool {
 }
 
 fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Result<HookResult> {
+    // DISTRIB-006 (ADR-060): installing a git hook into `.git/hooks` / `.husky`
+    // is a durable per-project mutation. Refuse under a gated ANVIL_HOME without
+    // `--touch-project-state`. The read-only `--config` advice mode does not reach
+    // here.
+    crate::install_root::ensure_project_write_allowed("hooks install")?;
+
     let path = hooks_dir.join(name);
     let existed_before = path.exists();
 
@@ -193,6 +199,10 @@ fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Res
 }
 
 fn uninstall_hook(hooks_dir: &Path, name: &str) -> Result<HookResult> {
+    // DISTRIB-006 (ADR-060): removing a git hook is a durable per-project
+    // mutation — refuse under a gated ANVIL_HOME without `--touch-project-state`.
+    crate::install_root::ensure_project_write_allowed("hooks uninstall")?;
+
     let path = hooks_dir.join(name);
     if !path.exists() {
         return Ok(HookResult {

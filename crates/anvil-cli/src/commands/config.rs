@@ -69,6 +69,11 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
         );
     }
 
+    // DISTRIB-006 (ADR-060): writing a rule mode rewrites the project config
+    // (`.anvilrc` / `.anvil.<ext>`) that the production binary reads. Refuse under
+    // a gated ANVIL_HOME without `--touch-project-state`.
+    crate::install_root::ensure_project_write_allowed("config set")?;
+
     let mut config = load_project_config(root)?;
     ensure_rule_mode(&mut config.value, rule, mode);
     RuleModes::from_value(&config.value).with_context(|| format!("invalid rule mode `{mode}`"))?;

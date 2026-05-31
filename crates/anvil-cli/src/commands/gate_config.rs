@@ -197,6 +197,11 @@ fn normalize_check_names(config: &mut GateConfig) {
 }
 
 fn save_config(workspace: &Path, config: &GateConfig) -> Result<()> {
+    // DISTRIB-006 (ADR-060): the gate config is durable per-project state the
+    // production binary reads. Refuse to persist it under a gated ANVIL_HOME
+    // without `--touch-project-state`.
+    crate::install_root::ensure_project_write_allowed("gate-config write")?;
+
     let path = resolve_config_path(workspace);
 
     // Ensure parent dir exists.
