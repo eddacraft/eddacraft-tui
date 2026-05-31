@@ -7,7 +7,7 @@ single-author, 0-adoption repo). Borrow the policy/evidence source-quality
 *drift-as-evidence* model and advisory provenance discipline — already
 adjudicated *In* / *advisory-only* by the scope guard. Decline the indexer /
 FTS / knowledge-graph search surface (scope guard: *Out*). Companion decision:
-[ADR-060](../decisions/060-policy-evidence-drift-as-evidence.md) (Proposed).
+[ADR-062](../decisions/062-policy-evidence-drift-as-evidence.md) (Proposed).
 Exact module touch list + gaps in §7; suggested CIB filings (next-available
 numbers) in §7.3.**
 **Source:** https://github.com/Detective-XH/DocGraph (MIT, Go, v0.2.3)
@@ -176,7 +176,7 @@ opaque RAG).
 - **Finding-model boundary.** [ADR-058](../decisions/058-sarif-shared-emitter-no-finding-model.md)
   rejected a *unified cross-command* finding model. These are **domain findings
   on the evidence record**, mapped to SARIF per-command — *not* that. State the
-  boundary explicitly (ADR-060 does).
+  boundary explicitly (ADR-062 does).
 - **CEWS is downstream.** CEWS (Draft) depends on COMPLY (Draft); the
   end-to-end slice is staged, not immediately executable.
 - **Code-anchoring premature.** Don't build `code.*` before a symbol graph.
@@ -189,7 +189,7 @@ opaque RAG).
 **Decline DocGraph code/runtime adoption. Borrow the policy/evidence
 drift-as-evidence model + advisory-enrichment discipline, reimplemented in Rust,
 landing on existing modules. Cite DocGraph as parallel evolution; no
-dependency.** Land [ADR-060](../decisions/060-policy-evidence-drift-as-evidence.md)
+dependency.** Land [ADR-062](../decisions/062-policy-evidence-drift-as-evidence.md)
 (Proposed) to record the boundaries.
 
 ### 7.1 APS modules to update (exact list)
@@ -213,14 +213,14 @@ tool-call interception.
 ### 7.2 Gaps identified
 
 1. **No single owner for "evidence source-quality drift."** It spans CEWS
-   (record), MDGOV (computation), DOCGOV (conventions). Decision (ADR-060):
+   (record), MDGOV (computation), DOCGOV (conventions). Decision (ADR-062):
    **MDGOV computes, CEWS records, DOCGOV supplies conventions.** Without this it
    falls between modules.
 2. **`evidence_strength` does not exist.** No `evidence_strength` /
    `evidence_verification` literal in `crates/` today. Net-new; home = CEWS;
    needs the deterministic rule.
 3. **Naming collisions unresolved.** `DriftFinding` / `Finding` / `drift` are
-   taken (§6). Needs an `evidence_*` namespace decision (in ADR-060).
+   taken (§6). Needs an `evidence_*` namespace decision (in ADR-062).
 4. **`policy_source` collision** with the eval.rs local — use `policy_source_ref`.
 5. **Finding-model boundary** must be stated so this doesn't reopen ADR-058.
 6. **Code-anchoring has no near-term home** — depends on `graph-v2-foundation`;
@@ -263,4 +263,4 @@ race):
 > **policy/research drift as advisory evidence that downgrades `evidence_strength`**
 > — already adjudicated *In* by the scope guard — computed in MDGOV M2, recorded
 > on the CEWS `EvidenceRecord`, with authored-wins provenance in LAC. No
-> dependency; clean-room; boundaries in ADR-060.
+> dependency; clean-room; boundaries in ADR-062.

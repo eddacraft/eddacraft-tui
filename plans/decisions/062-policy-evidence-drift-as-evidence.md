@@ -1,4 +1,4 @@
-# ADR-060: Policy & evidence source-quality drift as first-class evidence
+# ADR-062: Policy & evidence source-quality drift as first-class evidence
 
 ## Status
 
