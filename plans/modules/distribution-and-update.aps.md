@@ -9,8 +9,9 @@
 **Last reviewed:** 2026-05-31 (DISTRIB-006 filed — promoted from GitHub issue
 [#1726](https://github.com/eddacraft/anvil-001/issues/1726): `ANVIL_HOME` /
 `--anvil-home` install-root override for side-by-side candidate installs, so a
-pre-release Anvil can be tested without releasing it. Filed **Proposed**, gated
-on the ADR-060 project-state design call; module total 5 → 6, done unchanged at
+pre-release Anvil can be tested without releasing it. Filed **Proposed**; its
+ADR-060 project-state design gate is now **satisfied** (ADR-060 **Accepted**
+2026-05-31); module total 5 → 6, done unchanged at
 5, status stays **In Progress**. Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
@@ -31,7 +32,8 @@ Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
 DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
 (`anvil migrate schema` cross-version config reconciliation, subcommand-split
 design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is newly
-**Proposed** (GitHub #1726, gated on ADR-060), so the module no longer advances
+**Proposed** (GitHub #1726; ADR-060 design gate **satisfied**, Accepted
+2026-05-31), so the module no longer advances
 to Complete on the DISTRIB-005 release tag alone — it now also needs DISTRIB-006
 to ship. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
@@ -342,7 +344,10 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
     field so an operator can see which install they are talking to.
   - Unsetting `ANVIL_HOME` returns to platform-default behaviour
     byte-for-byte — no regression for users who never set it.
-  - Per-project state behaviour follows whichever option ADR-060 accepts.
+  - Per-project `.anvil/` (baseline/cache/witness) stays rooted at the project
+    root per ADR-060 **Option (a)**; durable project-state mutations are gated
+    behind `--touch-project-state` (read-only / dry-run by default under a
+    non-default `ANVIL_HOME`).
 - **Files:**
   - `crates/anvil-cli/src/main.rs` (MODIFY — global `--anvil-home` flag + env
     resolution; flag precedence over env)
@@ -388,8 +393,9 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
    automation does not depend on the update command itself.
 4. **DISTRIB-004** is the policy doc and is independent.
 5. **DISTRIB-005** depends on -002 (it reuses the releases-feed contract).
-6. **DISTRIB-006** is independent of the update/version chain but gated on
-   ADR-060 (per-project state resolution); it does not block -001..-005.
+6. **DISTRIB-006** is independent of the update/version chain; its ADR-060
+   per-project-state gate is **satisfied** (Accepted 2026-05-31), and it does
+   not block -001..-005.
 
 ## Release Notes
 
