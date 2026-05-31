@@ -145,7 +145,7 @@ mod tests {
         match decision {
             RuleDecision::Interrupt(reason) => {
                 assert_eq!(reason.rule_id, APPEAL_TO_AUTHORITY_RULE_ID);
-                assert_eq!(reason.line, Some(1));
+                assert_eq!(reason.line, std::num::NonZeroU32::new(1));
                 assert!(reason.message.contains("appeals to authority"));
             }
             RuleDecision::Allow => panic!("reasoning fixture should interrupt"),

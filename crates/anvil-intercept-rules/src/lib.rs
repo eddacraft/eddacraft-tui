@@ -22,6 +22,7 @@ pub mod reasoning;
 pub mod registry;
 pub mod secret;
 
+use std::num::NonZeroU32;
 use std::path::Path;
 
 use anvil_kernel_types::diagnostics::KnownMode;
@@ -91,7 +92,13 @@ pub struct InterruptReason {
     /// Optional 1-based line number inside `path` where the violation
     /// was found. `None` for path-only rules and for content-bearing
     /// rules that cannot localise.
-    pub line: Option<u32>,
+    ///
+    /// Typed `NonZeroU32` so the 1-based invariant is unrepresentable
+    /// rather than merely asserted: a `line: 0` (almost always an
+    /// off-by-one from a 0-based parser index) cannot be constructed,
+    /// and serde rejects it on deserialise instead of letting a phantom
+    /// `line: 0` diagnostic through.
+    pub line: Option<NonZeroU32>,
 }
 
 impl RuleDecision {
@@ -127,8 +134,7 @@ impl RuleDecision {
     /// a phantom `line: 0` diagnostic.
     #[must_use]
     pub fn interrupt_at(rule_id: impl Into<String>, message: impl Into<String>, line: u32) -> Self {
-        assert!(
-            line > 0,
+        let line = NonZeroU32::new(line).expect(
             "RuleDecision::interrupt_at requires a 1-based line number; \
              got 0 — convert from a 0-based parser index by adding 1, \
              or use RuleDecision::interrupt() if the rule cannot localise.",
@@ -226,14 +232,14 @@ fn interrupt_reason_to_diagnostic(path: &Path, reason: InterruptReason, mode: Mo
             "diag_intercept_{}_{}_{}_{}",
             mode_id_part(&mode),
             sanitise_id_part(path.as_ref()),
-            reason.line.unwrap_or(0),
+            reason.line.map_or(0, NonZeroU32::get),
             sanitise_id_part(&reason.rule_id)
         ),
         Severity::Error,
         reason.message,
         Location {
             file: path.into_owned(),
-            line: reason.line,
+            line: reason.line.map(NonZeroU32::get),
             column: None,
             end_line: None,
             end_column: None,
@@ -370,7 +376,7 @@ mod tests {
             RuleDecision::Interrupt(reason) => {
                 assert_eq!(reason.rule_id, "secret-detection");
                 assert_eq!(reason.message, "potential secret");
-                assert_eq!(reason.line, Some(4));
+                assert_eq!(reason.line, NonZeroU32::new(4));
             }
             RuleDecision::Allow => panic!("expected Interrupt, got Allow"),
         }
@@ -415,7 +421,7 @@ mod tests {
         let interrupt = RuleDecision::Interrupt(InterruptReason {
             rule_id: "secret-detection".into(),
             message: "potential secret".into(),
-            line: Some(4),
+            line: NonZeroU32::new(4),
         });
         let payload = serde_json::to_value(&interrupt).expect("serialise interrupt");
         assert_eq!(
@@ -427,6 +433,41 @@ mod tests {
                 "line": 4,
             })
         );
+    }
+
+    #[test]
+    fn interrupt_reason_rejects_zero_line_on_deserialise() {
+        // The 1-based line invariant is now carried by the type
+        // (`Option<NonZeroU32>`), so a `line: 0` that slipped past a
+        // producing rule cannot round-trip — serde refuses to build the
+        // phantom diagnostic rather than letting it through.
+        let zero_line = serde_json::json!({
+            "decision": "interrupt",
+            "rule_id": "secret-detection",
+            "message": "potential secret",
+            "line": 0,
+        });
+        let parsed: Result<RuleDecision, _> = serde_json::from_value(zero_line);
+        assert!(
+            parsed.is_err(),
+            "line: 0 must be rejected on deserialise, got {parsed:?}"
+        );
+
+        // A genuine 1-based line still round-trips cleanly.
+        let one_line = serde_json::json!({
+            "decision": "interrupt",
+            "rule_id": "secret-detection",
+            "message": "potential secret",
+            "line": 1,
+        });
+        let parsed: RuleDecision =
+            serde_json::from_value(one_line).expect("1-based line round-trips");
+        match parsed {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.line, NonZeroU32::new(1));
+            }
+            RuleDecision::Allow => panic!("expected Interrupt"),
+        }
     }
 
     /// A rule that violates the trait's "MUST NOT panic" contract.

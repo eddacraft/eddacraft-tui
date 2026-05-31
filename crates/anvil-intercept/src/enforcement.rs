@@ -240,7 +240,10 @@ fn evaluate_one(
         RegistryDecision::Interrupt(reason) => Some(InterruptDecision {
             rule_id: reason.rule_id,
             message: reason.message,
-            line: reason.line,
+            // `InterruptReason.line` is `NonZeroU32`-typed to make the
+            // 1-based invariant unrepresentable; `InterruptDecision` keeps
+            // the wire-facing `Option<u32>`, so widen at the boundary.
+            line: reason.line.map(std::num::NonZeroU32::get),
             affected_paths: affected_paths.to_vec(),
         }),
     }

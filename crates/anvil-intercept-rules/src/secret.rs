@@ -163,7 +163,7 @@ mod tests {
         match decision {
             RuleDecision::Interrupt(reason) => {
                 assert_eq!(reason.rule_id, SECRET_RULE_ID);
-                assert_eq!(reason.line, Some(2));
+                assert_eq!(reason.line, std::num::NonZeroU32::new(2));
                 assert!(reason.message.contains("Potential secret detected"));
                 assert!(!reason.message.contains("abcdEFGH1234567890"));
             }
@@ -213,7 +213,7 @@ mod tests {
         match decision {
             RuleDecision::Interrupt(reason) => {
                 assert_eq!(reason.rule_id, SECRET_RULE_ID);
-                assert_eq!(reason.line, Some(1));
+                assert_eq!(reason.line, std::num::NonZeroU32::new(1));
             }
             RuleDecision::Allow => panic!("mixed invalid UTF-8 secret fixture should interrupt"),
         }
