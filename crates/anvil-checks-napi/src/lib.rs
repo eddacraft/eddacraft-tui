@@ -33,10 +33,11 @@
 //! Because of the embedded fallback, a *missing* on-disk registry is **not**
 //! a hard failure: the binding falls through to the embedded catalogue and
 //! scans normally. Entry points return a `GenericFailure` only when a
-//! registry actually resolved but could not be parsed / schema-validated (a
-//! real corruption signal), or — pathologically — when even the embedded
-//! catalogue fails to load. What they never do is silently return an empty
-//! catalogue or a zero-warning scan: the silent-empty failure mode the
+//! registry actually resolved but could not be loaded — an I/O read error, or
+//! a parse / schema-validation failure (a real corruption signal) — or,
+//! pathologically, when even the embedded catalogue fails to load. What they
+//! never do is silently return an empty catalogue or a zero-warning scan: the
+//! silent-empty failure mode the
 //! 2026-04-24 council review flagged as critical C1.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -93,9 +94,10 @@ struct ScanResultOutput<'a> {
 /// This helper inverts that default. Note that the compile-time-embedded
 /// catalogue (resolution step 4) normally covers a *missing* on-disk
 /// registry, so the common path still succeeds; `load_compiled_registry`
-/// only yields `registry: None` when a resolved registry fails to parse /
-/// validate, or the embedded fallback itself is broken. In that case JS
-/// callers receive a `GenericFailure` with the loader's warning strings so
+/// only yields `registry: None` when a resolved registry fails to load —
+/// an I/O read error, or a parse / schema-validation failure — or the
+/// embedded fallback itself is broken. In that case JS callers receive a
+/// `GenericFailure` with the loader's warning strings so
 /// the editor / CLI surface can tell the user what to do (run `anvil
 /// doctor`, rebuild the registry, point `registry_path` somewhere valid).
 fn load_registry_or_err(opts: &LoadRegistryOptions) -> Result<CompiledRegistry> {
