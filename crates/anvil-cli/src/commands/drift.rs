@@ -193,6 +193,11 @@ pub fn run(args: &DriftArgs, global: &GlobalArgs) -> Result<()> {
 // ── Snapshot subcommand ─────────────────────────────────────────────
 
 fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
+    // DISTRIB-006 (ADR-060): a drift snapshot persists `.anvil/snapshots/*.json`
+    // that `anvil drift compare` later reads — durable per-project state. Refuse
+    // under a gated ANVIL_HOME; `drift compare` is read-only and unaffected.
+    crate::install_root::ensure_project_write_allowed("drift snapshot")?;
+
     let mode = OutputMode::from_global(global);
     let cwd = std::env::current_dir()?;
 

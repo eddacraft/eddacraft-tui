@@ -223,6 +223,15 @@ pub(crate) fn emit_audit_kindling_row(
     report: &AuditReport,
     duration_ms: u64,
 ) -> Result<()> {
+    // DISTRIB-006 (ADR-060): the kindling observation row is appended under the
+    // project root (`anvil/kindling/`). Skip it under a gated ANVIL_HOME so a
+    // candidate does not write a real project's audit sidecar — the audit output
+    // itself (read-only) is unaffected and the caller already treats this as
+    // best-effort.
+    if crate::install_root::project_writes_gated() {
+        return Ok(());
+    }
+
     let session_id = Uuid::new_v4().to_string();
     let gate_eval_id = format!("audit-chain-{}", Uuid::new_v4());
     let timestamp = Utc::now().to_rfc3339();

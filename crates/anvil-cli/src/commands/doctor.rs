@@ -34,6 +34,11 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut checks = run_all_checks();
 
     if args.fix {
+        // DISTRIB-006 (ADR-060): `--fix` writes `.anvilrc`, `.anvil/`, and
+        // `plans/` into the project — durable per-project state. Refuse under a
+        // gated ANVIL_HOME; the read-only diagnostic (without `--fix`) is
+        // unaffected.
+        crate::install_root::ensure_project_write_allowed("doctor --fix")?;
         apply_fixes(&mut checks, global.json);
     }
 

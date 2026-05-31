@@ -55,6 +55,13 @@ pub fn run(args: &InitArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// through the process-CWD-bound `run` entrypoint, which makes the
 /// orchestration unit-testable against a temp dir.
 pub(crate) fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
+    // DISTRIB-006 (ADR-060): `anvil init` (and the onboarding flow that composes
+    // it) seeds `.anvilrc` + `.anvil/` — durable per-project config the production
+    // binary reads. Refuse under a non-default ANVIL_HOME without
+    // `--touch-project-state`. The orchestrator's own init step is separately
+    // short-circuited before reaching here, so this only refuses the direct path.
+    crate::install_root::ensure_project_write_allowed("init")?;
+
     // Use the shared `config_exists_in` helper so `init` and the onboarding
     // flow agree on whether a config exists — they previously diverged on
     // zero-byte `.anvilrc` files, leaving onboarding calling `init` and

@@ -100,6 +100,11 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
+    // DISTRIB-006 (ADR-060): rewriting the project config (`.anvil.<ext>` /
+    // `.anvilrc`) is a durable per-project mutation. Refuse under a gated
+    // ANVIL_HOME without `--touch-project-state`.
+    crate::install_root::ensure_project_write_allowed("migrate format")?;
+
     let format = parse_target_format(&args.format)?;
 
     let old = root.join(".anvilrc");
@@ -260,6 +265,11 @@ pub(crate) fn run_schema_in(
         );
         return Ok(());
     }
+
+    // DISTRIB-006 (ADR-060): `--apply` rewrites the discovered config in place —
+    // durable per-project state. Refuse under a gated ANVIL_HOME (the dry-run
+    // above is read-only and already returned).
+    crate::install_root::ensure_project_write_allowed("migrate schema")?;
 
     anvil_config::apply_steps(&steps, &mut value);
     let serialised = serialise_to_format(&value, discovered.format).with_context(|| {

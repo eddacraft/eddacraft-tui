@@ -1198,11 +1198,16 @@ fn print_json(
 
     // DISTRIB-006: one environment snapshot drives both install-root fields, so
     // they can never disagree (e.g. install_root present but gated-flag absent).
+    // The gated flag derives from the SAME `root` value via `_from`, not a second
+    // `install_root()` env read.
     let install_root_section = {
         let root = crate::install_root::install_root();
-        let gated = root
-            .is_overridden()
-            .then(crate::install_root::project_writes_gated);
+        let gated = root.is_overridden().then(|| {
+            crate::install_root::project_writes_gated_from(
+                &root,
+                std::env::var_os(crate::install_root::TOUCH_PROJECT_STATE_ENV).as_deref(),
+            )
+        });
         (root.prefix().map(|p| p.display().to_string()), gated)
     };
 

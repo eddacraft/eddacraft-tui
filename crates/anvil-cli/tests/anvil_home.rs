@@ -226,6 +226,29 @@ fn start_under_gated_anvil_home_does_not_seed_project_state() {
 }
 
 #[test]
+fn init_refused_under_gated_anvil_home_leaves_no_anvilrc() {
+    // Representative of the secondary mutation commands (init / doctor --fix /
+    // migrate --apply / drift snapshot) gated after Council review.
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+
+    let (ok, out) = run_anvil(project.path(), Some(home.path()), &["init"]);
+
+    assert!(
+        !ok,
+        "init must be refused under a gated ANVIL_HOME; out: {out}"
+    );
+    assert!(
+        out.contains("--touch-project-state"),
+        "refusal must name the opt-in flag; out: {out}"
+    );
+    assert!(
+        !project.path().join(".anvilrc").exists() && !project.path().join(".anvil").exists(),
+        "init must not seed .anvilrc / .anvil/ into the real project under the gate"
+    );
+}
+
+#[test]
 fn hook_bootstrap_refused_under_gated_anvil_home() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");

@@ -51,11 +51,16 @@ under a non-default `ANVIL_HOME` durable per-project **mutations** are gated:
   baseline refresh/write, witness append, cutoff pinning, project-identity
   mint/seed (`anvil/project-id`), `.gitattributes` witness lines, GitHub Actions
   workflow install, `.anvilrc` seed, the detected-agents cache, and git-hook
-  install (`anvil hook bootstrap`). Explicit mutation commands
-  (`anvil baseline`, `anvil hook bootstrap`) are **refused** with a message
-  naming the opt-in; incidental writes during `anvil start` / first-run
-  `anvil watch` and commit-hook witness appends are **skipped** (activation
-  prints a one-line read-only notice; the commit is never blocked).
+  install (`anvil hook bootstrap`), config rewrites (`anvil init`,
+  `anvil migrate format`/`schema --apply`), `.anvil/` fixes
+  (`anvil doctor --fix`), and drift snapshots (`anvil drift snapshot`). Explicit
+  mutation commands (`anvil baseline`, `anvil init`, `anvil hook bootstrap`,
+  `anvil migrate --apply`, `anvil doctor --fix`, `anvil drift snapshot`) are
+  **refused** with a message naming the opt-in; incidental writes during
+  `anvil start` / first-run `anvil watch`, commit-hook witness appends, the
+  `anvil audit-chain` kindling sidecar, and the `anvil welcome` first-run marker
+  are **skipped** (activation prints a one-line read-only notice; the commit is
+  never blocked).
 - **Unrestricted:** reads — `status`, `check`, `audit`, `watch` render — and the
   daemon path. These are exactly what you want to exercise during a candidate
   test.

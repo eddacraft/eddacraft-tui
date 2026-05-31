@@ -183,9 +183,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
         // DISTRIB-006 (ADR-060): minting a fresh identity overwrites
         // `anvil/project-id`, durable state prod reads — skip it under a gated
-        // ANVIL_HOME (the orchestrator below emits the read-only-posture note).
-        if !project_writes_gated
-            && let Err(e) = activation::identity::mint_new_identity(root, env!("CARGO_PKG_VERSION"))
+        // ANVIL_HOME and tell the operator the flag was a no-op (the orchestrator
+        // below also emits the general read-only-posture note).
+        if project_writes_gated {
+            eprintln!(
+                "anvil: --new-identity ignored under a gated ANVIL_HOME — pass \
+                 --touch-project-state to rotate the project UUID"
+            );
+        } else if let Err(e) =
+            activation::identity::mint_new_identity(root, env!("CARGO_PKG_VERSION"))
         {
             // Same non-fatal posture as the orchestrator's identity
             // step — surface the failure so the operator sees it,

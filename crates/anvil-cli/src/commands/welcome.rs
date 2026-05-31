@@ -73,7 +73,14 @@ pub struct WelcomeArgs {
 pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let marker_path = first_run_marker_path()?;
 
-    if args.reset {
+    // DISTRIB-006 (ADR-060): the first-run marker lives at `<root>/.anvil/first-run`
+    // (project-local). Under a gated ANVIL_HOME the candidate must not write or
+    // delete it — the menu/onboarding still renders (read), but it leaves the
+    // real project's first-run state untouched. Config seeded by onboarding is
+    // separately gated in `init::run_in`.
+    let project_writes_gated = crate::install_root::project_writes_gated();
+
+    if args.reset && !project_writes_gated {
         delete_first_run_marker(&marker_path)?;
         // Also clear tutorial progress so the tutorial starts fresh.
         if let Ok(progress_path) = crate::commands::tutorial::progress_file_path() {
@@ -100,7 +107,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Env-var bypass: create marker silently and exit.
     if should_skip_welcome() {
-        if let Err(err) = create_first_run_marker(&marker_path) {
+        if !project_writes_gated && let Err(err) = create_first_run_marker(&marker_path) {
             eprintln!(
                 "[welcome] warning: failed to create first-run marker at {}: {err}",
                 marker_path.display()
@@ -111,7 +118,9 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_welcome();
-        create_first_run_marker(&marker_path)?;
+        if !project_writes_gated {
+            create_first_run_marker(&marker_path)?;
+        }
         return Ok(());
     }
 
@@ -154,7 +163,10 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Write marker on first run only — don't clobber an existing marker's
     // creation timestamp on subsequent launches.
-    if first_run && let Err(err) = create_first_run_marker(&marker_path) {
+    if first_run
+        && !project_writes_gated
+        && let Err(err) = create_first_run_marker(&marker_path)
+    {
         eprintln!(
             "[welcome] warning: failed to create first-run marker at {}: {err}",
             marker_path.display()
