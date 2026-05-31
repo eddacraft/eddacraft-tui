@@ -26,6 +26,11 @@
 //!   witness chain line with `GENESIS-BASELINED` (`baseline.cutoff_commit`
 //!   on the line body) or `GENESIS-FRESH` (no cutoff). Idempotent
 //!   on an existing chain so re-runs do not duplicate the genesis.
+//! - [`analyze_refresh`] / [`RefreshSuspicion`] / [`SuspicionThresholds`]
+//!   — adversarial-refresh detection: compares a proposed baseline
+//!   refresh against the current baseline and flags a suspicious drop
+//!   or churn of findings as [`REFRESH_DEGRADED_REASON`]
+//!   (`degraded:baseline-suspicious`). The thresholds are caller-tunable.
 //!
 //! ## Out of scope (deferred to consumers / follow-up)
 //!
@@ -45,8 +50,6 @@
 //!   cutoff in one flow.
 //! - Hook installation — MLP-003 / MLP-008 own framework-specific
 //!   install paths.
-//! - Adversarial-refresh detection (`degraded:baseline-suspicious`)
-//!   — needs heuristics + threshold tuning beyond v1 scope.
 //! - Async continuation for >100k files — performance work item.
 //!
 //! ## Format

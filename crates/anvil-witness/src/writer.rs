@@ -63,8 +63,9 @@ impl RolloverPolicy {
 
 /// Flock-serialised append-only writer for the witness chain.
 ///
-/// Construct with [`open`]; one writer instance per `anvil/` root. The
-/// writer holds NO long-lived locks — each [`append`] call takes the
+/// Construct with [`WitnessWriter::open`]; one writer instance per `anvil/`
+/// root. The writer holds NO long-lived locks — each [`WitnessWriter::append`]
+/// call takes the
 /// flock for the duration of the append + rollover decision and
 /// releases it before returning. This avoids the classic "hold-the-
 /// lock-while-the-process-stalls" hazard at the cost of one

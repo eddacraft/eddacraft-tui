@@ -20,7 +20,9 @@
 //!   automatic rollover when the active file crosses either the line
 //!   count or byte size threshold. Rollover happens **inside** the
 //!   lock so two concurrent writers cannot race a half-completed
-//!   archive into existence.
+//!   archive into existence. [`WitnessWriter::append`] reports the
+//!   post-append state — and any archive path written on rollover —
+//!   via [`AppendOutcome`].
 //! - [`verify_chain`] — walk the active file (and optionally a list
 //!   of archive files in sequence order) and confirm the hash chain
 //!   is unbroken; surfaces tamper / deletion / genesis-mismatch.
@@ -66,4 +68,4 @@ pub use paths::witness_paths;
 #[allow(deprecated)]
 // Re-export the linear-only wrapper for out-of-tree callers; in-tree callers should use `verify_chain_dag`.
 pub use verify::{ChainReport, DagVerification, VerifyError, verify_chain, verify_chain_dag};
-pub use writer::{RolloverPolicy, WitnessWriter, WriterError};
+pub use writer::{AppendOutcome, RolloverPolicy, WitnessWriter, WriterError};

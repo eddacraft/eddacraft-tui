@@ -17,21 +17,27 @@
 //!
 //! ## Registry-load behaviour
 //!
-//! Every entry point requires the compiled pattern registry
-//! (`patterns/compiled/registry.json`). The underlying loader resolves
-//! the registry in this order (see `anvil_checks::antipattern::registry_loader`):
+//! Every entry point needs the compiled pattern registry
+//! (`patterns/compiled/registry.json`). The underlying loader resolves it
+//! in this order (see `anvil_checks::antipattern::registry_loader`):
 //!
 //!   1. `ANVIL_REGISTRY_PATH` env var override.
 //!   2. Upward walk from the current working directory.
 //!   3. Upward walk from the executable's directory — so discovery still
 //!      works when the host process is launched with a CWD outside the
 //!      monorepo (editor extensions, installed binaries).
+//!   4. The compile-time-embedded registry — the production path for stock
+//!      installs, so a binary that finds nothing on the walks still scans
+//!      against a matching catalogue instead of disabling enforcement.
 //!
-//! If the registry is missing or malformed, entry points return a
-//! `GenericFailure` error carrying the loader's warnings — they do NOT
-//! silently return an empty catalogue or a zero-warning scan. Silent-empty
-//! behaviour is the failure mode the 2026-04-24 council review flagged as
-//! critical C1.
+//! Because of the embedded fallback, a *missing* on-disk registry is **not**
+//! a hard failure: the binding falls through to the embedded catalogue and
+//! scans normally. Entry points return a `GenericFailure` only when a
+//! registry actually resolved but could not be parsed / schema-validated (a
+//! real corruption signal), or — pathologically — when even the embedded
+//! catalogue fails to load. What they never do is silently return an empty
+//! catalogue or a zero-warning scan: the silent-empty failure mode the
+//! 2026-04-24 council review flagged as critical C1.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -74,21 +80,24 @@ struct ScanResultOutput<'a> {
     patterns_checked: &'a [String],
 }
 
-/// Load the compiled pattern registry and fail loudly if it isn't there.
+/// Load the compiled pattern registry, turning a genuine load failure into a
+/// loud `GenericFailure` instead of a silent empty catalogue.
 ///
 /// `anvil_checks::antipattern::load_registry_patterns` (and the `get_*`
-/// helpers that layer on it) return `Vec::new()` silently when the
-/// registry can't be found or parsed. That is the right default for a
-/// one-shot CLI invocation where an empty-catalogue fallback beats a
-/// crash, but it is the *wrong* default for a napi binding embedded in a
-/// long-lived editor host: a silent-empty catalogue means diagnostics
-/// quietly stop working, with no signal to the JS caller.
+/// helpers that layer on it) return `Vec::new()` silently when no registry
+/// resolves. That empty-catalogue default is tolerable for a one-shot CLI,
+/// but it is the *wrong* default for a napi binding embedded in a long-lived
+/// editor host: a silent-empty catalogue means diagnostics quietly stop
+/// working, with no signal to the JS caller.
 ///
-/// This helper inverts the default — a missing registry is an error, not
-/// an empty success. JS callers receive a `GenericFailure` with the
-/// loader's warning strings so the editor / CLI surface can tell the user
-/// what to do (run `anvil doctor`, rebuild the registry, point
-/// `registry_path` somewhere valid).
+/// This helper inverts that default. Note that the compile-time-embedded
+/// catalogue (resolution step 4) normally covers a *missing* on-disk
+/// registry, so the common path still succeeds; `load_compiled_registry`
+/// only yields `registry: None` when a resolved registry fails to parse /
+/// validate, or the embedded fallback itself is broken. In that case JS
+/// callers receive a `GenericFailure` with the loader's warning strings so
+/// the editor / CLI surface can tell the user what to do (run `anvil
+/// doctor`, rebuild the registry, point `registry_path` somewhere valid).
 fn load_registry_or_err(opts: &LoadRegistryOptions) -> Result<CompiledRegistry> {
     let result = load_compiled_registry(opts);
     if let Some(reg) = result.registry {
