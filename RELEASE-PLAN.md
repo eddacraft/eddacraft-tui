@@ -10,10 +10,13 @@
 
 **Last updated:** 2026-05-31 (added the "Save-Time CPU & Daemon Arc" tracking
 section after the `v0.7.3-beta` window — registers the beta-tester high-CPU
-remediation (GH #2156) as a two-tier arc: Tier 1 `RLB-007` as candidate freight
-for the next patch (bugfix, no council; `RLB-001`/`RLB-007` flipped to Ready),
-Tier 2 the daemon/Graph V2 save-time pivot (ADR-061) as a deferred window gated
-on a planning council.)
+remediation (GH #2156) as a two-tier arc: Tier 1 → **`v0.7.4-beta`** (the CPU
+bugfix, no council; `RLB-001`/`RLB-007` flipped to Ready; `DISTRIB-006`
+`ANVIL_HOME` override noted as co-freight since it is internal + default-inert),
+Tier 2 the daemon/Graph V2 save-time pivot (ADR-061) → **`v0.8.0-beta`** as a
+deferred minor gated on a planning council. Records the version-override framing
+(assess.sh recommends a minor; operator overrides to a patch under the six-week
+hold).)
 
 Previous update: 2026-05-30 (added the `v0.7.3-beta` "Surfacing the Signal"
 next-release window — a product-surface patch on the sit-on slate whose scope is
@@ -213,16 +216,32 @@ Homebrew formula auto-bump (DISTRIB-003) rides the tag.
 
 Tracking anchor for the work flowing out of the beta-tester high-CPU report (GH
 [#2156](https://github.com/eddacraft/anvil-001/issues/2156)). The arc splits
-into two release tiers with different governance: a near-term bugfix that rides
-a patch, and an architectural window gated on a planning council. Neither is on
-`main`, so neither is in the `v0.7.3-beta` cut above — this section exists to
-track them toward future windows.
+into two release tiers with different governance and versioning: a near-term
+bugfix **patch** (`v0.7.4-beta`) and an architectural **minor** window
+(`v0.8.0-beta`) gated on a planning council. Neither is on `main` yet, so
+neither is in the `v0.7.3-beta` cut above.
 
-### Tier 1 — watch save-time CPU remediation (candidate freight)
+**Version framing.** `scripts/release/assess.sh` mechanically recommends the
+next minor (`v0.8.0-beta`) for any beta cut regardless of content; the version
+is an operator override in every case. The Hotfix Iteration Plan's "no minor
+beta before six weeks post-tag" rule (`v0.7.0-beta` shipped 2026-05-21 → hold
+through ~2026-07-02) keeps near-term cuts on the `v0.7.x` patch line. So
+additive-surface work that is **internal and default-inert** overrides down to a
+patch — the minor (`v0.8.0-beta`) is reserved for the daemon work that genuinely
+widens the product / protection surface.
 
-- **releaseIntent:** `candidate` — rides the **next patch after `v0.7.3-beta`**
-  once merged to `main`. Cannot ride `v0.7.3-beta` (that window is cut-hygiene
-  on already-merged scope; this is unbuilt).
+### Tier 1 — watch save-time CPU remediation → `v0.7.4-beta`
+
+- **releaseIntent:** `candidate` for **`v0.7.4-beta`** (the immediate patch
+  after `v0.7.3-beta`) once merged to `main`. Cannot ride `v0.7.3-beta` (that
+  window is cut-hygiene on already-merged scope; this is unbuilt).
+- **Co-freight candidate (`v0.7.4-beta`):** `DISTRIB-006` — `ANVIL_HOME` /
+  `--anvil-home` side-by-side install-root override (ADR-060, `Proposed`).
+  Additive surface, but **internal-facing and default-inert** (unset
+  `ANVIL_HOME` = byte-for-byte default), so it overrides down to the patch
+  rather than forcing `v0.8.0-beta` — the same call the `v0.7.3-beta` window
+  already made for its additive commands. Not a blocker for the CPU fix; rides
+  the same cut if ready.
 - **Claim it supports:** `anvil watch` stops spawning a full-repo `check --all`
   per save; single-agent save-time CPU drops from ~7 cores toward
   proportional-to-changed-files, and concurrent-agent save storms stay bounded.
@@ -240,10 +259,12 @@ track them toward future windows.
 - **Evidence:** prototype `benchmarks/prototypes/anvil-load-probe.py`; field
   report GH #2156.
 
-### Tier 2 — daemon-mediated save-time validation (deferred window)
+### Tier 2 — daemon-mediated save-time validation → `v0.8.0-beta` (deferred)
 
-- **releaseIntent:** `proposed` — a future **product-surface window**, not a
-  patch. Themes around "save-time governance without stealing the machine."
+- **releaseIntent:** `proposed` for **`v0.8.0-beta`** — the first **minor**
+  after the six-week hold, a product-surface window (not a patch). Themes around
+  "save-time governance without stealing the machine." Earns the minor because
+  it widens the protection / product surface, not just additive flags.
 - **Decision contract:**
   [ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)
   (**Proposed**) — `anvil watch`/MCP/intercept become thin clients of one
