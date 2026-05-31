@@ -55,7 +55,8 @@ that touches system boundaries, check existing decisions first:
 2. **Scope guard:** `docs/vision/anvil-scope-guard.md` — defines what Anvil is
    and isn't. Check before proposing new scope.
 3. **Architecture overview:** `docs/architecture/overview.md` — design
-   philosophy (planless-first, deterministic, composable, safety by default).
+   philosophy (zero-config posture, deterministic, composable, safety by
+   default).
 4. **Full ADRs:** `plans/decisions/NNN-*.md` — read the specific ADR when you
    need trade-off context beyond the one-line summary.
 
