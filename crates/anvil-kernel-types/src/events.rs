@@ -62,7 +62,7 @@ impl TryFrom<EngineEventRepr> for EngineEvent {
         let derived = repr.payload.event_type();
         if repr.event_type != derived {
             return Err(format!(
-                "EngineEvent event_type {:?} does not match payload variant {derived:?}",
+                "EngineEvent event_type {:?} does not match its payload, which implies {derived:?}",
                 repr.event_type
             ));
         }

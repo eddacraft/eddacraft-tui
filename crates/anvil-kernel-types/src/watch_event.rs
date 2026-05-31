@@ -167,8 +167,9 @@ mod tests {
         // Build through the deriving constructor so the helper can never
         // mint an event whose event_type disagrees with its payload; the
         // explicit `event_type` is kept as a consistency assertion so a
-        // future swapped-arg call site fails loudly instead of silently
-        // bypassing the invariant via a struct literal.
+        // call site that passes an `event_type` not matching its payload
+        // fails loudly instead of silently bypassing the invariant via a
+        // struct literal.
         let event = EngineEvent::new(
             seq,
             "2026-05-14T10:21:30Z".to_string(),
