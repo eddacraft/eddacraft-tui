@@ -9,6 +9,55 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
+## [0.7.4-beta] — TBD — Side-by-Side Installs
+
+A distribution and stability patch on the `v0.7.3-beta` slate. The headline is
+an `ANVIL_HOME` install-root override that lets a development or candidate Anvil
+run beside a production install without colliding on state. It also lands a
+watch CPU fix that keeps per-save checks scoped to what actually changed, plus
+Windows daemon hardening and a few CLI correctness fixes. Release date pending
+the tag.
+
+### Added
+
+- **`ANVIL_HOME` / `--anvil-home` install-root override.** Anvil now resolves a
+  single install root from the `--anvil-home` flag or the `ANVIL_HOME`
+  environment variable, re-rooting the daemon socket, PID file, stored
+  credentials, and all durable project-state writes underneath it. This lets a
+  development or candidate Anvil run side-by-side with a production install
+  without sharing or clobbering state. `anvil status --json` now reports
+  `install_root` and `project_writes_gated`, so the active root and its
+  write-gating are observable, and the project-mutating commands (`config`,
+  `gate-config`, `hooks`, and the other state-writing commands) honour the gate
+  ([#1726](https://github.com/eddacraft/anvil-001/issues/1726)). See the
+  [side-by-side install runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-home-side-by-side.md).
+
+### Changed
+
+- **`anvil watch` per-save checks now scope to the files that changed.**
+  Previously each save re-ran code-quality checks across the whole project;
+  under multiple concurrent agents this saturated CPU — a single watch agent
+  consumed ~7 of 16 cores, and ~2 agents could saturate the box
+  ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)). Per-save checks
+  now scope to the changed paths. `anvil gate` is unchanged (it already
+  self-scopes via git), and the untracked-file watch contract from
+  [#1913](https://github.com/eddacraft/anvil-001/issues/1913) is preserved.
+
+### Fixed
+
+- **Windows daemon hardening.** The named-pipe client now caps its security
+  quality-of-service (SQOS) impersonation level and verifies the server process
+  is alive before connecting, closing two Windows-only daemon issues found in
+  the clawpatch sweep.
+- **Credential load faults return a configuration-error exit code.** A failure
+  loading stored credentials now surfaces as `EXIT_CONFIG_ERROR` instead of a
+  generic failure.
+- **`anvil` honours per-command `--format json` in the auth gate.** The auth
+  gate previously could ignore a command's `--format json` selection.
+- **Blank `ANVIL_HOME` / `--anvil-home` is treated as unset.** An empty value no
+  longer resolves to an empty install root; it falls back to the default
+  consistently.
+
 ## [0.7.3-beta] — TBD — Surfacing the Signal
 
 A product-surface release: native read-only TUI dashboards, SARIF 2.1.0 findings
@@ -991,5 +1040,9 @@ See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
 [The Switch to Rust](/anvil/releases/rust-rewrite)
 
 ## v0.7.3-beta
+
+- Release preparation metadata generated.
+
+## v0.7.4-beta
 
 - Release preparation metadata generated.
