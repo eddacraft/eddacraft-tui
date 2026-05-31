@@ -36,6 +36,86 @@ fn run_baseline(project: &Path, anvil_home: Option<&Path>, extra: &[&str]) -> (b
     )
 }
 
+/// Run `anvil status --json` in `project` with `ANVIL_HOME` (when `Some`) and the
+/// given extra args set on the child environment only. Returns (exit_ok, stdout).
+///
+/// Mirrors `status_json_contract.rs`: `ANVIL_DEV=1` bypasses the auth gate so the
+/// full `StatusOutput` is emitted, and a temp `HOME` keeps default path
+/// resolution hermetic.
+fn run_status_json(project: &Path, anvil_home: Option<&Path>, extra: &[&str]) -> (bool, String) {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("status")
+        .arg("--json")
+        .args(extra)
+        .current_dir(project)
+        .env("HOME", project)
+        .env("USERPROFILE", project)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_HOME");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    if let Some(home) = anvil_home {
+        cmd.env("ANVIL_HOME", home);
+    }
+    let out = cmd.output().expect("spawn anvil status --json");
+    (
+        out.status.success(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+    )
+}
+
+#[test]
+fn status_json_reports_install_root_and_gated_under_anvil_home() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+
+    let (_ok, stdout) = run_status_json(project.path(), Some(home.path()), &[]);
+
+    let home_str = home.path().display().to_string();
+    assert!(
+        stdout.contains(&home_str),
+        "status --json must report the resolved install_root ({home_str}); got: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"install_root\""),
+        "status --json must carry an install_root field under ANVIL_HOME; got: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"project_writes_gated\": true"),
+        "project_writes_gated must be true without --touch-project-state; got: {stdout}"
+    );
+}
+
+#[test]
+fn status_json_reports_writes_ungated_with_opt_in() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+
+    let (_ok, stdout) =
+        run_status_json(project.path(), Some(home.path()), &["--touch-project-state"]);
+
+    assert!(
+        stdout.contains("\"project_writes_gated\": false"),
+        "project_writes_gated must be false with --touch-project-state; got: {stdout}"
+    );
+}
+
+#[test]
+fn status_json_omits_install_fields_under_platform_default() {
+    let project = tempdir().expect("project dir");
+
+    let (_ok, stdout) = run_status_json(project.path(), None, &[]);
+
+    assert!(
+        !stdout.contains("install_root"),
+        "default status --json must NOT carry install_root (byte-for-byte v1); got: {stdout}"
+    );
+    assert!(
+        !stdout.contains("project_writes_gated"),
+        "default status --json must NOT carry project_writes_gated; got: {stdout}"
+    );
+}
+
 #[test]
 fn baseline_is_refused_under_gated_anvil_home_and_leaves_project_untouched() {
     let project = tempdir().expect("project dir");

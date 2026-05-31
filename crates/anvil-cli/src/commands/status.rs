@@ -1143,6 +1143,21 @@ struct StatusOutput {
     /// will populate `surfaces` via
     /// `anvil_intercept::status::build_protection_claim`.
     claim: ProtectionClaim,
+
+    /// DISTRIB-006 (ADR-060): the resolved install root, present only when
+    /// `ANVIL_HOME` re-roots install state, so an operator can see which install
+    /// they are talking to. Omitted entirely under the platform default, keeping
+    /// the v1 output byte-for-byte unchanged for the 99% who never set it
+    /// (`additionalProperties: true` makes this additive without a schema bump).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    install_root: Option<String>,
+
+    /// DISTRIB-006 (ADR-060): whether durable per-project writes (baseline /
+    /// witness / cutoff) are gated for this session. Present only under a
+    /// non-default `ANVIL_HOME`; `true` = read-only / dry-run posture (no
+    /// `--touch-project-state`), `false` = the operator opted in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_writes_gated: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -1211,6 +1226,15 @@ fn print_json(
             })
             .collect(),
         claim,
+        // DISTRIB-006 (ADR-060): surface the install-root override only when set,
+        // so default output is byte-for-byte unchanged.
+        install_root: {
+            let root = crate::install_root::install_root();
+            root.prefix().map(|p| p.display().to_string())
+        },
+        project_writes_gated: crate::install_root::install_root()
+            .is_overridden()
+            .then(crate::install_root::project_writes_gated),
     };
 
     let json = serde_json::to_string_pretty(&output)?;
