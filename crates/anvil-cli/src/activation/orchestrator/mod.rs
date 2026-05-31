@@ -154,15 +154,25 @@ pub(crate) fn run_with_home(
     // change-tracking aid, not a blocker for activation. A failed
     // write logs and continues; the diagnostic's
     // `baseline_present == false` is the honest signal.
-    if !baseline::baseline_exists(root)
-        && let Some(scan) = sample_analyser::run_baseline_scan(root)
-    {
-        let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
-        if let Err(e) = baseline::write_baseline(root, &new_baseline) {
-            tracing::warn!(
-                error = %e,
-                "orchestrator: failed to write activation baseline; continuing without",
+    if !baseline::baseline_exists(root) {
+        // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
+        // `--touch-project-state`, skip the activation baseline write — a
+        // candidate must not silently seed a real project's baseline. The daemon
+        // / verify path still runs; `baseline_present == false` stays the honest
+        // signal, exactly as a failed write would leave it.
+        if crate::install_root::project_writes_gated() {
+            tracing::info!(
+                "orchestrator: skipping activation baseline write under a gated \
+                 ANVIL_HOME (pass --touch-project-state to persist)",
             );
+        } else if let Some(scan) = sample_analyser::run_baseline_scan(root) {
+            let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
+            if let Err(e) = baseline::write_baseline(root, &new_baseline) {
+                tracing::warn!(
+                    error = %e,
+                    "orchestrator: failed to write activation baseline; continuing without",
+                );
+            }
         }
     }
 

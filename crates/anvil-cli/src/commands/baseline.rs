@@ -374,6 +374,14 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
         }
     }
 
+    // DISTRIB-006 (ADR-060): refuse to persist a durable per-project mutation
+    // (the baseline write below + the cutoff pin that follows) when running under
+    // a non-default ANVIL_HOME without `--touch-project-state`, so an unreleased
+    // candidate cannot silently overwrite a real project's baseline. The scan and
+    // suspicion analysis above already ran (reads are unrestricted) — only the
+    // persist is gated, and the refusal names the opt-in to re-run with.
+    crate::install_root::ensure_project_write_allowed("baseline write")?;
+
     save_baseline(repo_root, &baseline).context("write anvil/baseline.json")?;
 
     // MLP2-036: distinguish complete from partial in the operator

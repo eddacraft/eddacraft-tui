@@ -265,6 +265,17 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
             eprintln!("{}", rendered.stderr_line);
             std::process::exit(rendered.exit_code);
         }
+        Err(AppendError::Gated) => {
+            // DISTRIB-006 (ADR-060): under a gated ANVIL_HOME the candidate does
+            // not write the witness line — but it must not block the commit. The
+            // read-only / dry-run posture renders Pass so the operator's commit
+            // proceeds exactly as it would with the production binary.
+            let rendered = render_verdict(&Verdict::Pass);
+            if !rendered.stderr_line.is_empty() {
+                eprintln!("{}", rendered.stderr_line);
+            }
+            Ok(())
+        }
     }
 }
 
@@ -1340,6 +1351,12 @@ enum AppendError {
     /// Writer surface failed (permissions, disk full, symlink
     /// refusal). ADR-038: "we don't claim what we can't witness."
     WriteFailed,
+    /// DISTRIB-006 (ADR-060): running under a non-default `ANVIL_HOME` without
+    /// `--touch-project-state`. The witness line was deliberately *not* written
+    /// so an unreleased candidate cannot append to a real project's chain. This
+    /// is a benign skip, not a failure — upstream reads/validation still ran, and
+    /// the commit must not be blocked.
+    Gated,
 }
 
 fn append_witness<F>(
@@ -1350,6 +1367,14 @@ fn append_witness<F>(
 where
     F: FnOnce(u64, String) -> WitnessLine,
 {
+    // DISTRIB-006 (ADR-060): skip the durable witness append under a gated
+    // ANVIL_HOME (non-default install root, no `--touch-project-state`). The
+    // candidate has already read/validated against the real repo; it just must
+    // not persist a witness line into a chain the production binary reads.
+    if crate::install_root::project_writes_gated() {
+        return Err(AppendError::Gated);
+    }
+
     let writer = WitnessWriter::open(repo_root, "active", RolloverPolicy::default())
         .map_err(|_| AppendError::WriteFailed)?;
     // MLP2-061: derive `(seq, prev)` from the full archive + active
@@ -1463,6 +1488,12 @@ fn install_panic_catcher() {
 }
 
 fn panic_log_path() -> Option<PathBuf> {
+    // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME, install-owned kernel
+    // logs re-root to `<ANVIL_HOME>/cache/` so a candidate's panic log never
+    // mingles with production's. Unset = platform default below.
+    if let Some(cache_dir) = crate::install_root::install_root().cache_dir() {
+        return Some(cache_dir.join(anvil_hook::PANIC_LOG_FILE));
+    }
     // ADR-038 §D-7 pins this to a state-dir path, not a config dir.
     // `dirs::state_dir` returns `None` on platforms without an
     // analogous concept (e.g. some Windows shells); fall back to the
