@@ -5,8 +5,8 @@
 by Morgan). **Outcome: decline code/runtime adoption (Go; 5-day-old,
 single-author, 0-adoption repo). Borrow the policy/evidence source-quality
 *drift-as-evidence* model and advisory provenance discipline — already
-adjudicated _In_ / _advisory-only_ by the scope guard. Decline the indexer /
-FTS / knowledge-graph search surface (scope guard: _Out_). Companion decision:
+adjudicated *In* / *advisory-only* by the scope guard. Decline the indexer /
+FTS / knowledge-graph search surface (scope guard: *Out*). Companion decision:
 [ADR-060](../decisions/060-policy-evidence-drift-as-evidence.md) (Proposed).
 Exact module touch list + gaps in §7; suggested CIB filings (next-available
 numbers) in §7.3.**
@@ -200,10 +200,10 @@ dependency.** Land [ADR-060](../decisions/060-policy-evidence-drift-as-evidence.
 | markdown-governance | **MDGOV** · Draft | Add M2 work items implementing Borrow-C `policy.*`/`research.*` checks in `crates/anvil-markdown-governance/` with injected `AsOf`; name the type `EvidenceDriftFinding` (not `DriftFinding`). |
 | documentation-governance | **DOCGOV** · In Progress (9/12) | Reconcile its `Supersedes:`/`Superseded by:` sweep + freshness metadata with `policy.superseded_referenced`/`policy.stale_review`; donate `review_due`/`canonical_source` conventions to MDGOV. |
 | lineage-authorship-confidence | **LAC** · Ready | Adopt Borrow-D (authored-wins + content-hash) for inferred confidence; also re-point LAC-001..006 validation from retired TS Nx to `cargo test`. |
-| agent-governance-patterns | **AGOV** · (see module) | Record the advisory-enrichment + batch-bound-consent pattern (Borrow D/E invariants). |
+| agent-governance-patterns | **AGOV** · Draft (Medium) | Record the advisory-enrichment + batch-bound-consent pattern (Borrow D/E invariants). |
 | compliance-reporting | **COMPLY** · Draft | Ensure the evidence collector (COMPLY-004, CEWS's upstream) carries source-quality + provenance through to reports. |
-| compliance-policy-packs | **CPACK** · (see module) | Add `review_due`/`canonical_source`/`superseded_by` to policy-pack frontmatter conventions (the artefacts being audited). |
-| eval-harness-integration | **EVAL** · (see module) | Add the golden fixture (injected `AsOf`) asserting reduced `evidence_strength` for a stale/conflicted allow. |
+| compliance-policy-packs | **CPACKS** · Draft (high) | Add `review_due`/`canonical_source`/`superseded_by` to policy-pack frontmatter conventions (the artefacts being audited). |
+| eval-harness-integration | **EVAL** · Ready | Add the golden fixture (injected `AsOf`) asserting reduced `evidence_strength` for a stale/conflicted allow. |
 
 Note-only: **CPOL** (contextual-policy-assertions, Ready) — assertions may read
 `evidence_strength`; **ILG** (intent-ledger-governance) — run-ledger shape
@@ -261,6 +261,6 @@ race):
 
 > Decline the DocGraph codebase and its doc-search lane (scope guard: Out). Take
 > **policy/research drift as advisory evidence that downgrades `evidence_strength`**
-> — already adjudicated _In_ by the scope guard — computed in MDGOV M2, recorded
+> — already adjudicated *In* by the scope guard — computed in MDGOV M2, recorded
 > on the CEWS `EvidenceRecord`, with authored-wins provenance in LAC. No
 > dependency; clean-room; boundaries in ADR-060.

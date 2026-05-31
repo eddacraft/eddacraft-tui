@@ -155,5 +155,5 @@ In, so this is execution of an accepted direction, not a new scope claim.
 - Scope guard: [`../../docs/vision/anvil-scope-guard.md`](../../docs/vision/anvil-scope-guard.md) (Borderline Cases: policy drift = In)
 - External: [`Detective-XH/DocGraph`](https://github.com/Detective-XH/DocGraph) (MIT, Go, v0.2.3)
 - Related ADRs: [ADR-001](001-planless-first.md), [ADR-002](002-warnings-over-blocks.md), [ADR-003](003-new-edges-only.md), [ADR-028](028-markdown-governance-crate.md), [ADR-037](037-witness-chain-and-l4-policy.md), [ADR-039](039-baseline-policy-and-hard-pinned-classes.md), [ADR-040](040-rust-policy-engine-regorus.md), [ADR-052](052-automated-drift-snapshots.md), [ADR-058](058-sarif-shared-emitter-no-finding-model.md)
-- APS modules: CEWS-001/004 (compliance-evidence-workspace), MDGOV M2 (markdown-governance), DOCGOV, LAC, AGOV, COMPLY, CPACK, EVAL
+- APS modules: CEWS-001/004 (compliance-evidence-workspace), MDGOV M2 (markdown-governance), DOCGOV, LAC, AGOV, COMPLY, CPACKS, EVAL
 - Code: `crates/anvil-checks/src/surface/env/drift.rs:49` (`DriftFinding`), `crates/anvil-policy-engine/src/result.rs:49` (`Finding`), `crates/anvil-markdown-governance/` (computation home), `crates/anvil-cli/src/commands/policy/eval.rs` (`policy_source` collision)
