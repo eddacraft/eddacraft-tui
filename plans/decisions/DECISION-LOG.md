@@ -79,6 +79,7 @@ These define how Anvil behaves by default. All features must align.
 | [036](036-daemon-scope-discovery-and-boundaries.md) | Daemon scope, discovery, and OS-boundary policy: what the intercept daemon is allowed to see, watch, and act on | Accepted |
 | [038](038-hook-surface-and-noise-discipline.md) | Hook surface contract and noise-discipline rules for the intercept hook system | Accepted |
 | [043](043-ssh-remote-host-daemon.md) | SSH remote support runs Anvil on the remote host; local surfaces are display/control only and must not claim local daemon protection for remote files | Proposed |
+| [061](061-save-time-daemon-delta-validation.md) | Save-time governance is daemon-mediated delta validation: `anvil watch` stops cold-spawning `check --all` per save and instead routes changed paths to the existing intercept daemon (`anvil/validate_paths` alongside `scan_buffer`) over warm Graph V2 hot-read state; watch/MCP/intercept become thin clients of one per-host daemon (one warm model, one work budget, per-host rayon); whole-repo scan becomes explicit/background with a `clean\|stale\|pending\|running` workspace-assurance state; daemon-absent degrades to a scoped (never `--all`) subprocess / in-process scan, exit 0. Phase 1 (scope per-save check, RLB-007) ships independently of daemon/GV2. Sequences INTD/DRVR/RLB/GV2 behind one product contract | Proposed |
 
 ## Policy and Governance
 
