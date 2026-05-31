@@ -187,6 +187,7 @@ review/
 plans/reviews/*
 !plans/reviews/continuous-improvement-log.md
 !plans/reviews/20*-clawpatch-triage.md
+!plans/reviews/20*-clawpatch-rust-followups.md
 !plans/reviews/post-merge/
 !plans/reviews/post-merge/**
 !plans/reviews/release-council/
