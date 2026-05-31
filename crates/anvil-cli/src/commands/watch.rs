@@ -622,7 +622,12 @@ impl ActionDispatcher {
     /// be lost. The worker re-checks `pending` after releasing `running` —
     /// see the worker loop below — so the pending bit is recovered.
     pub(crate) fn on_snapshot(&self, changed_path: Option<&str>) {
-        if let Some(path) = changed_path {
+        // Only `check` consumes scoped paths; `gate` self-scopes via git status,
+        // so skip the accumulation entirely for it rather than growing a set
+        // that `run_one_action` would drain and discard (Copilot review #2184).
+        if let Some(path) = changed_path
+            && self.0.action == "check"
+        {
             recover(self.0.pending_paths.lock()).insert(path.to_string());
         }
         if self.0.running.swap(true, Ordering::SeqCst) {
@@ -733,9 +738,15 @@ impl DispatcherInner {
         // arrives after this point lands in `pending_paths` *and* sets the
         // `pending` bit, so the worker's coalescing rerun picks it up — a path
         // is at worst scanned twice, never skipped.
-        let check_paths: Vec<String> = {
+        //
+        // Only `check` accumulates paths (see `on_snapshot`), so skip the lock
+        // entirely for `gate` rather than draining an always-empty set
+        // (Copilot review #2184).
+        let check_paths: Vec<String> = if self.action == "check" {
             let mut guard = recover(self.pending_paths.lock());
             std::mem::take(&mut *guard).into_iter().collect()
+        } else {
+            Vec::new()
         };
         // Observability for the "why didn't watch catch X" support case: record
         // whether this dispatch was scoped to changed paths or fell back to a

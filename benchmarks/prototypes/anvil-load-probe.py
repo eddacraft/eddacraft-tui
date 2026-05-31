@@ -46,6 +46,7 @@ def _cleanup():
         try:
             p.send_signal(signal.SIGINT)
         except OSError:
+            # Already exited / reaped — nothing to signal.
             pass
     for p in _LIVE["procs"]:
         try:
@@ -53,7 +54,9 @@ def _cleanup():
         except (subprocess.TimeoutExpired, OSError):
             try:
                 p.kill()
-            except OSError:
+                p.wait(timeout=5)  # reap so we don't leave a zombie
+            except (OSError, subprocess.TimeoutExpired):
+                # Best-effort: process gone or unkillable; do not block cleanup.
                 pass
     _LIVE["procs"].clear()
     _LIVE["churns"].clear()
@@ -157,8 +160,14 @@ def run_cell(binp, src_root, agents, action, settle, measure, churn_ms):
     for p in procs:
         p.send_signal(signal.SIGINT)
     for p in procs:
-        try: p.wait(timeout=5)
-        except subprocess.TimeoutExpired: p.kill()
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            try:
+                p.wait(timeout=5)  # reap the killed child; avoid a zombie
+            except subprocess.TimeoutExpired:
+                pass
     # Cell torn down cleanly — drop it from the live registry.
     _LIVE["procs"] = []
     _LIVE["churns"] = []
