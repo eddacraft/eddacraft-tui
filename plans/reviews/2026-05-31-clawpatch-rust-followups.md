@@ -42,7 +42,7 @@ PR.
 
 | Severity | File:line | Issue → Fix |
 | -------- | --------- | ----------- |
-| medium / confirmed-bug (security) | `crates/anvil-intercept-win32/src/lib.rs:131` | Named-pipe client allows server-side impersonation (default SQOS). → Pass `SECURITY_SQOS_PRESENT \| SECURITY_IDENTIFICATION`. |
+| medium / confirmed-bug (security) | `crates/anvil-intercept-win32/src/lib.rs:131` | Named-pipe client allows server-side impersonation (default SQOS). → Pass `SECURITY_SQOS_PRESENT` combined with `SECURITY_IDENTIFICATION`. |
 | medium / risk | `crates/anvil-intercept-win32/src/lib.rs:291` | Process-liveness check treats exited handles as live. → Call `GetExitCodeProcess`, require `STILL_ACTIVE`. |
 
 ## Tier 3 — native-binding freshness (`anvil-checks-napi`, build reliability)
