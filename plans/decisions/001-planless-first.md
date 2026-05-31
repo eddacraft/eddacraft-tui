@@ -2,13 +2,16 @@
 
 ## Status
 
-Accepted — product principle (tool UX), not an agent feature-evaluation gate.
+Accepted
 
-This ADR describes Anvil's zero-config product posture: the tool delivers value
-without the user writing a plan. It is **not** a per-feature constraint for
-agents to validate work against, and "no APS item exists" is unrelated to it.
-It marks the pivot away from the original spec-driven-validation thesis
-(parse plan → translate to APS → block code on divergence), which is retired.
+## Note
+
+This is a **product principle (tool UX)**, not an agent feature-evaluation gate.
+It describes Anvil's zero-config posture: the tool delivers value without the
+user writing a plan. It is **not** a per-feature constraint for agents to
+validate work against, and "no APS item exists" is unrelated to it. It marks the
+pivot away from the original spec-driven-validation thesis (parse plan →
+translate to APS → block code on divergence), which is retired.
 
 ## Context
 
