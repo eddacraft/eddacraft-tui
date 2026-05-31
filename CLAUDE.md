@@ -16,14 +16,28 @@ No build or test commands in this config layer — the monorepo uses `pnpm` and
 
 ## Active Hooks
 
-All hooks are symlinked from `code-env/.claude/hooks/`.
+Hook scripts live in `.claude/hooks/` (several symlinked from
+`code-env/.claude/hooks/`). The event wiring is in **user** settings
+(`~/.claude/settings.json`), not project settings — so the set below reflects
+this machine's config. Command hooks receive the tool payload as JSON on
+**stdin**.
 
-| Hook                        | Trigger           | What it does                           | Active?                                     |
-| --------------------------- | ----------------- | -------------------------------------- | ------------------------------------------- |
-| `git-safety.sh`             | PreToolUse (Bash) | Blocks dangerous shell commands        | Always                                      |
-| `council-gate.sh`           | PreToolUse (Bash) | Checks for Council review on commit    | `CLAUDE_COUNCIL_GATE=false` (off)           |
-| `local-review-precommit.sh` | PreToolUse (Bash) | Reminds to check Council before commit | `CLAUDE_LOCAL_REVIEW_PRECOMMIT=false` (off) |
-| `kindling-capture.sh`       | PostToolUse       | Kindling integration                   | Always                                      |
+| Hook                        | Trigger                   | What it does                                  | Gating                                             |
+| --------------------------- | ------------------------- | --------------------------------------------- | -------------------------------------------------- |
+| `security-guard.sh`         | PreToolUse (Bash)         | Blocks dangerous commands (`rm -rf`, dev/...) | Always                                             |
+| `git-safety.sh`             | PreToolUse (Bash)         | Guards risky git operations                   | Always                                             |
+| `local-review-precommit.sh` | PreToolUse (Bash)         | Reminds to check local review before commit   | `CLAUDE_LOCAL_REVIEW_PRECOMMIT` (default off)      |
+| `council-gate.sh`           | PreToolUse (Bash)         | Blocks commit without Council review          | `CLAUDE_COUNCIL_GATE` (default off)                |
+| `tdd-guard.sh`              | PreToolUse (Write\|Edit)  | TDD enforcement on edits                      | `CLAUDE_TDD_STRICT` / `CLAUDE_TDD_RUN_TESTS` (off) |
+| `post-edit.sh`              | PostToolUse (Write\|Edit) | Post-edit lint                                | `CLAUDE_POST_EDIT_LINT` (default off)              |
+| `codex-review-post.sh`      | PostToolUse (Bash)        | Async Codex review after commit               | `CLAUDE_CODEX_REVIEW` (on by default)              |
+| `on-stop.sh`                | Stop                      | Desktop notification when the turn ends       | `CLAUDE_NOTIFICATION_COOLDOWN`                     |
+| `on-agent-stop.sh`          | SubagentStop              | Subagent-stop triggers                        | `CLAUDE_AGENT_TRIGGERS`                            |
+| `session-start.sh`          | SessionStart              | Tooling / git readiness banner at startup     | Always                                             |
+
+> `kindling-capture.sh` is present in `.claude/hooks/` but is **not wired to any
+> event** in the current settings — it does not run. Wire it under a
+> `PostToolUse` matcher to activate.
 
 ## Council Review
 
