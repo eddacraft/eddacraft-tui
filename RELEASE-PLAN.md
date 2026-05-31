@@ -238,11 +238,10 @@ genuinely widens the product / protection surface.
   `--anvil-home` side-by-side install-root override (ADR-060 `Accepted`
   2026-05-31; item promoted to `In Progress` 2026-05-31 on
   `feat/distrib-006-anvil-home-override`). Additive surface, but
-  **internal-facing and default-inert** (unset
-  `ANVIL_HOME` = byte-for-byte default), so it overrides down to the patch
-  rather than forcing `v0.8.0-beta` — the same call the `v0.7.3-beta` window
-  already made for its additive commands. Not a blocker for the CPU fix; rides
-  the same cut if ready.
+  **internal-facing and default-inert** (unset `ANVIL_HOME` = byte-for-byte
+  default), so it overrides down to the patch rather than forcing `v0.8.0-beta`
+  — the same call the `v0.7.3-beta` window already made for its additive
+  commands. Not a blocker for the CPU fix; rides the same cut if ready.
 - **Claim it supports:** `anvil watch` stops spawning a full-repo `check --all`
   per save; single-agent save-time CPU drops from ~7 cores toward
   proportional-to-changed-files, and concurrent-agent save storms stay bounded.
