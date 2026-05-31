@@ -164,13 +164,22 @@ mod tests {
     use serde_json::Value;
 
     fn make_event(payload: EventPayload, event_type: EventType, seq: u64) -> EngineEvent {
-        EngineEvent {
-            event_type,
+        // Build through the deriving constructor so the helper can never
+        // mint an event whose event_type disagrees with its payload; the
+        // explicit `event_type` is kept as a consistency assertion so a
+        // future swapped-arg call site fails loudly instead of silently
+        // bypassing the invariant via a struct literal.
+        let event = EngineEvent::new(
             seq,
-            timestamp: "2026-05-14T10:21:30Z".to_string(),
-            engine: EngineId::Rust,
+            "2026-05-14T10:21:30Z".to_string(),
+            EngineId::Rust,
             payload,
-        }
+        );
+        assert_eq!(
+            event.event_type, event_type,
+            "make_event called with an event_type that disagrees with the payload variant"
+        );
+        event
     }
 
     #[test]

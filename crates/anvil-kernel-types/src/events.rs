@@ -10,13 +10,70 @@ pub enum EventType {
     Error,
 }
 
+/// A kernel engine event.
+///
+/// `event_type` is redundant with `payload`'s variant — both encode the
+/// same kind — but the field stays on the wire because the watch output
+/// contract (`anvil.watch.event.v1`) treats it as the authoritative
+/// dispatch tag. To keep the redundant pair from disagreeing, build
+/// events with [`EngineEvent::new`] (which derives `event_type` from the
+/// payload) and rely on the validating `Deserialize` impl, which rejects
+/// any wire value whose `event_type` does not match its `payload`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "EngineEventRepr")]
 pub struct EngineEvent {
     pub event_type: EventType,
     pub seq: u64,
     pub timestamp: String,
     pub engine: EngineId,
     pub payload: EventPayload,
+}
+
+impl EngineEvent {
+    /// Construct an event with `event_type` derived from `payload`, so the
+    /// two can never disagree.
+    #[must_use]
+    pub fn new(seq: u64, timestamp: String, engine: EngineId, payload: EventPayload) -> Self {
+        Self {
+            event_type: payload.event_type(),
+            seq,
+            timestamp,
+            engine,
+            payload,
+        }
+    }
+}
+
+/// Wire shadow of [`EngineEvent`] used only to validate that the redundant
+/// `event_type` tag agrees with the payload variant on deserialise.
+#[derive(Deserialize)]
+struct EngineEventRepr {
+    event_type: EventType,
+    seq: u64,
+    timestamp: String,
+    engine: EngineId,
+    payload: EventPayload,
+}
+
+impl TryFrom<EngineEventRepr> for EngineEvent {
+    type Error = String;
+
+    fn try_from(repr: EngineEventRepr) -> Result<Self, Self::Error> {
+        let derived = repr.payload.event_type();
+        if repr.event_type != derived {
+            return Err(format!(
+                "EngineEvent event_type {:?} does not match payload variant {derived:?}",
+                repr.event_type
+            ));
+        }
+        Ok(Self {
+            event_type: repr.event_type,
+            seq: repr.seq,
+            timestamp: repr.timestamp,
+            engine: repr.engine,
+            payload: repr.payload,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +95,21 @@ pub enum EventPayload {
         message: String,
     },
     Error(ErrorPayload),
+}
+
+impl EventPayload {
+    /// The [`EventType`] tag implied by this payload's variant. The
+    /// single source of truth for the otherwise-redundant
+    /// `EngineEvent::event_type` field.
+    #[must_use]
+    pub fn event_type(&self) -> EventType {
+        match self {
+            EventPayload::Progress { .. } => EventType::Progress,
+            EventPayload::Snapshot { .. } => EventType::Snapshot,
+            EventPayload::Violation { .. } => EventType::Violation,
+            EventPayload::Error(_) => EventType::Error,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -441,5 +513,59 @@ mod tests {
         let json = r#"{"event_type":"Progress","seq":1,"timestamp":"t","engine":"Rust"}"#;
         let result = serde_json::from_str::<EngineEvent>(json);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn engine_event_new_derives_event_type_from_payload() {
+        let event = EngineEvent::new(
+            7,
+            "t".into(),
+            EngineId::Rust,
+            EventPayload::Violation {
+                policy_id: "p".into(),
+                file: "f".into(),
+                symbol: "s".into(),
+                message: "m".into(),
+            },
+        );
+        assert_eq!(event.event_type, EventType::Violation);
+    }
+
+    #[test]
+    fn engine_event_mismatched_event_type_fails_on_deserialise() {
+        // event_type says Progress, payload is a Violation — the redundant
+        // tags disagree, so the validating Deserialize must reject it
+        // rather than admit an internally-inconsistent event.
+        let json = r#"{
+            "event_type":"Progress",
+            "seq":1,
+            "timestamp":"t",
+            "engine":"Rust",
+            "payload":{"Violation":{"policy_id":"p","file":"f","symbol":"s","message":"m"}}
+        }"#;
+        let result = serde_json::from_str::<EngineEvent>(json);
+        assert!(
+            result.is_err(),
+            "mismatched event_type/payload must be rejected, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn engine_event_matching_event_type_round_trips_via_new() {
+        // A constructed event always agrees with its payload, so it
+        // survives a JSON round-trip through the validating deserialiser.
+        let event = EngineEvent::new(
+            9,
+            "t".into(),
+            EngineId::Legacy,
+            EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 2,
+                files_watched: 3,
+            },
+        );
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EngineEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.event_type, EventType::Snapshot);
     }
 }
