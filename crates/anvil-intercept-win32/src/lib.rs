@@ -25,13 +25,14 @@ use windows_sys::Win32::Security::{
     GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, ReadFile, WriteFile,
+    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, ReadFile,
+    SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT, WriteFile,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
+    GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
 };
 
@@ -40,6 +41,12 @@ use windows_sys::Win32::System::Threading::{
 // inline keeps the Cargo feature-flag set narrow.
 const GENERIC_READ: u32 = 0x8000_0000;
 const GENERIC_WRITE: u32 = 0x4000_0000;
+
+// `GetExitCodeProcess` reports this sentinel (STATUS_PENDING, 259) for a
+// process that has not exited. Pinned inline for the same reason as the
+// GENERIC_* flags — it is not re-exported from a `windows-sys` 0.61 module
+// the daemon already depends on.
+const STILL_ACTIVE: u32 = 259;
 
 // Minimal owner rights for duplex clients plus the server's replacement-instance
 // flow. This deliberately avoids GENERIC_ALL; v1 treats same-user processes as
@@ -128,6 +135,14 @@ pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPi
     // FILE_FLAG_OVERLAPPED is intentionally NOT set: the CLI flow is
     // synchronous, and synchronous handles use `WriteFile`/`ReadFile`
     // directly without an OVERLAPPED structure.
+    //
+    // SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION caps the security
+    // quality of service on the pipe: without an explicit SQOS, a named-pipe
+    // server can impersonate the connecting client at SecurityImpersonation
+    // level and act on its behalf. Pinning SecurityIdentification lets the
+    // server identify the client (for its owner-only ACL check) but not
+    // impersonate it — defence-in-depth even though the owner-only DACL
+    // already restricts the peer to the same SID.
     let handle = unsafe {
         CreateFileW(
             wide.as_ptr(),
@@ -135,7 +150,7 @@ pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPi
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             null_mut(),
             OPEN_EXISTING,
-            0,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
             null_mut(),
         )
     };
@@ -289,9 +304,14 @@ impl Drop for OwnerOnlyPipeClient {
 }
 
 /// Return whether a process is live, conservatively treating access-denied as live.
+///
+/// A successfully-opened handle is further checked with
+/// [`ProcessHandle::is_running`]: the process object outlives the process
+/// itself while any handle is open, so "could open the handle" alone would
+/// report an exited-but-unreaped process (or a closing one) as live.
 pub fn process_exists(pid: u32) -> io::Result<bool> {
     match ProcessHandle::open_query(pid) {
-        Ok(_handle) => Ok(true),
+        Ok(handle) => handle.is_running(),
         Err(err) if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) => Ok(false),
         Err(err) if err.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => Ok(true),
         Err(err) => Err(err),
@@ -484,6 +504,31 @@ impl ProcessHandle {
             return Err(io::Error::last_os_error());
         }
         Ok(Self(handle))
+    }
+
+    /// Whether the process is still running.
+    ///
+    /// `OpenProcess` succeeding only proves the kernel process *object*
+    /// still exists — it persists after the process exits for as long as
+    /// any handle to it is open — so an openable handle does NOT imply a
+    /// live process. Confirm via `GetExitCodeProcess`: a running process
+    /// reports `STILL_ACTIVE`, an exited one reports its real exit code.
+    ///
+    /// Caveat: a process that genuinely exits with code 259 is
+    /// indistinguishable from a running one here; that collision is
+    /// accepted (it matches `GetExitCodeProcess`'s documented contract and
+    /// is the convention the daemon's liveness check relies on).
+    fn is_running(&self) -> io::Result<bool> {
+        let mut exit_code: u32 = 0;
+        // SAFETY: `self.0` is an owned process handle opened with
+        // PROCESS_QUERY_LIMITED_INFORMATION, which is sufficient for
+        // GetExitCodeProcess; `exit_code` is a valid out-pointer for the
+        // duration of the call.
+        let ok = unsafe { GetExitCodeProcess(self.0, &mut exit_code) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(exit_code == STILL_ACTIVE)
     }
 }
 
