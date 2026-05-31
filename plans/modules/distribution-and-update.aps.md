@@ -35,11 +35,11 @@ Promoted **Proposed → Ready** alongside acceptance of
 Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
 DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
 (`anvil migrate schema` cross-version config reconciliation, subcommand-split
-design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is **In
-Progress** (GitHub #1726; promoted 2026-05-31 once the ADR-060 design gate was
-**satisfied**, Accepted 2026-05-31), so the module no longer advances
-to Complete on the DISTRIB-005 release tag alone — it now also needs DISTRIB-006
-to ship. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
+design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is **Merged
+2026-05-31 via PR #2185** (GitHub #1726; ADR-060 design gate **satisfied**,
+Accepted 2026-05-31), but it merged after the v0.7.3-beta tag commit, so the
+module no longer advances to Complete on the DISTRIB-005 release tag alone — it
+now also needs the `v0.7.4-beta` tag to ship DISTRIB-006 as Released/Shipped. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
 users.)
 
@@ -332,8 +332,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   `--touch-project-state` (read-only / dry-run by default under a non-default
   `ANVIL_HOME`). The rejected alternative was **Option (b)** — re-root project
   discovery under `<ANVIL_HOME>/projects/` — which isolates fully but defeats the
-  side-by-side purpose. With the gate satisfied, this item was promoted to Ready
-  and is now **In Progress**. Cross-version chain *format*
+  side-by-side purpose. With the gate satisfied, this item was promoted to Ready,
+  then **Merged 2026-05-31 via PR #2185**. Cross-version chain *format*
   compatibility (a candidate writing a chain a different anvil version reads) is
   out of scope — that is an `anvil migrate` problem, see DISTRIB-005.
 - **Expected Outcome:** A uniform install-root override that every install-owned
