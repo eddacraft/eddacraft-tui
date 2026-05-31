@@ -9,10 +9,11 @@
 **Last reviewed:** 2026-05-31 (DISTRIB-006 filed — promoted from GitHub issue
 [#1726](https://github.com/eddacraft/anvil-001/issues/1726): `ANVIL_HOME` /
 `--anvil-home` install-root override for side-by-side candidate installs, so a
-pre-release Anvil can be tested without releasing it. Filed **Proposed**; its
-ADR-060 project-state design gate is now **satisfied** (ADR-060 **Accepted**
-2026-05-31); module total 5 → 6, done unchanged at
-5, status stays **In Progress**. Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
+pre-release Anvil can be tested without releasing it. Filed **Proposed**;
+**promoted Proposed → Ready then In Progress 2026-05-31** once its ADR-060
+project-state design gate was **satisfied** (ADR-060 **Accepted** 2026-05-31) —
+implementation on `feat/distrib-006-anvil-home-override`; module total 5 → 6,
+done unchanged at 5, status stays **In Progress**. Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
 workflow, smoke install on macOS arm64/x64, and publish runbook; operator
@@ -31,9 +32,9 @@ Promoted **Proposed → Ready** alongside acceptance of
 Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
 DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
 (`anvil migrate schema` cross-version config reconciliation, subcommand-split
-design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is newly
-**Proposed** (GitHub #1726; ADR-060 design gate **satisfied**, Accepted
-2026-05-31), so the module no longer advances
+design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is **In
+Progress** (GitHub #1726; promoted 2026-05-31 once the ADR-060 design gate was
+**satisfied**, Accepted 2026-05-31), so the module no longer advances
 to Complete on the DISTRIB-005 release tag alone — it now also needs DISTRIB-006
 to ship. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
 load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
@@ -328,8 +329,8 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   `--touch-project-state` (read-only / dry-run by default under a non-default
   `ANVIL_HOME`). The rejected alternative was **Option (b)** — re-root project
   discovery under `<ANVIL_HOME>/projects/` — which isolates fully but defeats the
-  side-by-side purpose. With the gate satisfied, this item is **eligible for
-  promotion to Ready** (a separate operator call). Cross-version chain *format*
+  side-by-side purpose. With the gate satisfied, this item was promoted to Ready
+  and is now **In Progress**. Cross-version chain *format*
   compatibility (a candidate writing a chain a different anvil version reads) is
   out of scope — that is an `anvil migrate` problem, see DISTRIB-005.
 - **Expected Outcome:** A uniform install-root override that every install-owned
@@ -368,10 +369,10 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
     prefix and never `~/.anvil/`; two prefixes yield two concurrent daemons;
     unset returns the default surface byte-for-byte.
   - `pnpm adr:check` green with ADR-060 indexed.
-- **Status:** Proposed (the ADR-060 design gate is now satisfied — ADR-060
-  Accepted 2026-05-31 — so this item is eligible for promotion to Ready; the
-  acceptance criteria and file list mirror the issue #1726 proposal and should
-  get a final readiness pass at promotion time).
+- **Status:** In Progress (promoted Proposed → Ready 2026-05-31 once the ADR-060
+  design gate was satisfied — ADR-060 Accepted 2026-05-31 — then taken In
+  Progress on `feat/distrib-006-anvil-home-override`; the acceptance criteria and
+  file list mirror the issue #1726 proposal).
 - **Dependencies:** ADR-060 (Accepted 2026-05-31) was the Ready gate and is now
   satisfied. Coordinates with ADR-036 (daemon single-instance / socket
   derivation).
