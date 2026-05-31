@@ -421,9 +421,19 @@ fn evaluate_auth(
                 .unwrap_or(msg);
             if emit_human_messages {
                 eprintln!("[auth] credential load failed: {redacted}");
-                eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+                eprintln!(
+                    "Could not read stored credentials. The file may be corrupt or unreadable; \
+                     `anvil auth login` will overwrite it."
+                );
             }
-            Err(EXIT_AUTH_REQUIRED)
+            // A genuine load fault (I/O error, corrupt/unparseable file) is a
+            // configuration error, NOT the "not logged in yet" state. Coercing
+            // it to EXIT_AUTH_REQUIRED is the silent-degrade-to-default class
+            // called out in PR #1721 — it hides a real system fault behind the
+            // normal exit-0/auth-required path. `load()` already folds a
+            // missing file into `Ok(None)`, so reaching this arm means the
+            // credential store exists but could not be read.
+            Err(EXIT_CONFIG_ERROR)
         }
     }
 }
@@ -1413,10 +1423,15 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_auth_returns_err_on_load_error() {
+    fn evaluate_auth_returns_config_error_on_load_error() {
+        // A genuine credential load fault (I/O error, corrupt file) must
+        // surface as EXIT_CONFIG_ERROR — not be flattened into the normal
+        // EXIT_AUTH_REQUIRED "not logged in" path (silent-degrade class,
+        // PR #1721). `load()` folds a missing file into `Ok(None)`, so the
+        // `Err` arm only ever represents a real fault.
         assert_eq!(
             evaluate_auth(&Err(anyhow::anyhow!("disk failure")), false, true),
-            Err(EXIT_AUTH_REQUIRED),
+            Err(EXIT_CONFIG_ERROR),
         );
     }
 
