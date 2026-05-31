@@ -77,6 +77,9 @@ pub const EXIT_VERSION_MISMATCH: u8 = 7;
 pub const EXIT_DISCOVERY_FAILED: u8 = 10;
 
 /// Global arguments available to every subcommand.
+// Each field is an independent CLI flag, not coupled state — a state machine /
+// two-variant-enum refactor would obscure, not clarify, the clap surface.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default, Parser)]
 pub struct GlobalArgs {
     /// Output results as JSON instead of human-readable text.
@@ -841,9 +844,7 @@ fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
         let abs = if path.is_absolute() {
             path.clone()
         } else {
-            std::env::current_dir()
-                .map(|cwd| cwd.join(path))
-                .unwrap_or_else(|_| path.clone())
+            std::env::current_dir().map_or_else(|_| path.clone(), |cwd| cwd.join(path))
         };
         let abs = abs.into_os_string();
         if std::env::var_os(install_root::ANVIL_HOME_ENV).as_ref() != Some(&abs) {

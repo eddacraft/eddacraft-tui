@@ -19,7 +19,7 @@ use tempfile::tempdir;
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
 /// Run `anvil baseline` in `project` with the given extra args and `ANVIL_HOME`
-/// (when `Some`) set on the child environment only. Returns (exit_ok, stderr).
+/// (when `Some`) set on the child environment only. Returns `(exit_ok, stderr)`.
 fn run_baseline(project: &Path, anvil_home: Option<&Path>, extra: &[&str]) -> (bool, String) {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("baseline").args(extra).current_dir(project);
@@ -37,7 +37,7 @@ fn run_baseline(project: &Path, anvil_home: Option<&Path>, extra: &[&str]) -> (b
 }
 
 /// Run `anvil status --json` in `project` with `ANVIL_HOME` (when `Some`) and the
-/// given extra args set on the child environment only. Returns (exit_ok, stdout).
+/// given extra args set on the child environment only. Returns `(exit_ok, stdout)`.
 ///
 /// Mirrors `status_json_contract.rs`: `ANVIL_DEV=1` bypasses the auth gate so the
 /// full `StatusOutput` is emitted, and a temp `HOME` keeps default path
@@ -91,8 +91,11 @@ fn status_json_reports_writes_ungated_with_opt_in() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");
 
-    let (_ok, stdout) =
-        run_status_json(project.path(), Some(home.path()), &["--touch-project-state"]);
+    let (_ok, stdout) = run_status_json(
+        project.path(),
+        Some(home.path()),
+        &["--touch-project-state"],
+    );
 
     assert!(
         stdout.contains("\"project_writes_gated\": false"),
@@ -150,8 +153,11 @@ fn baseline_writes_with_touch_project_state_opt_in() {
     let home = tempdir().expect("anvil home");
     let baseline_path = project.path().join("anvil").join("baseline.json");
 
-    let (ok, stderr) =
-        run_baseline(project.path(), Some(home.path()), &["--touch-project-state"]);
+    let (ok, stderr) = run_baseline(
+        project.path(),
+        Some(home.path()),
+        &["--touch-project-state"],
+    );
 
     assert!(
         ok,

@@ -6,10 +6,10 @@
 //! - **Install/user-owned** — user config (today under the home dir), the daemon
 //!   socket/PID (under the runtime dir), and kernel cache/logs. When `ANVIL_HOME`
 //!   (or `--anvil-home`, which takes precedence) is set, these re-root under the
-//!   prefix: `<ANVIL_HOME>/user/`, `<ANVIL_HOME>/daemon.sock`,
-//!   `<ANVIL_HOME>/cache/`. This lets a pre-release candidate run side-by-side
-//!   with the production install without colliding on `~/.anvil/`, the daemon
-//!   socket, or logs.
+//!   prefix: `<ANVIL_HOME>/user/`, `<ANVIL_HOME>/intercept.sock` +
+//!   `<ANVIL_HOME>/intercept.pid`, and `<ANVIL_HOME>/cache/`. This lets a
+//!   pre-release candidate run side-by-side with the production install without
+//!   colliding on the user config, the daemon socket, or logs.
 //! - **Per-project** — `<root>/.anvil/` (baseline, cache, witness) and
 //!   `<root>/anvil/project-id`. Per ADR-060 **Option (a)**, `ANVIL_HOME` does
 //!   **not** re-root project discovery: candidate tests run against the *real*
@@ -23,11 +23,14 @@
 //! no path changes, no new fields, no guard — for the 99% of users who never set
 //! it (ADR-060 §3).
 //!
-//! The `--anvil-home` and `--touch-project-state` flags are exported into the
-//! process environment once at the top of `main` (see `main::export_install_root_env`)
-//! so every downstream resolution — including the spawned daemon, which inherits
-//! the environment — sees a single source of truth. Pure `*_from` helpers take the
-//! resolved environment explicitly so they unit-test without mutating global state.
+//! The `--anvil-home` and `--touch-project-state` flags become the canonical
+//! `ANVIL_HOME` / `ANVIL_TOUCH_PROJECT_STATE` environment override at the top of
+//! `main` (see `main::reexec_for_install_root`): the crate forbids `unsafe_code`,
+//! so rather than `set_var` the flag, `main` re-execs once with the variable set
+//! in the child environment. Every downstream resolution — including the spawned
+//! daemon, which inherits the environment — then reads one source of truth. Pure
+//! `*_from` helpers take the resolved environment explicitly so they unit-test
+//! without mutating global state.
 //!
 //! [ADR-060]: ../../../plans/decisions/060-anvil-home-install-root-override.md
 
@@ -261,11 +264,15 @@ mod tests {
 
     #[test]
     fn absolute_anvil_home_is_taken_as_is() {
-        let root = resolve_install_root_from(Some(OsStr::new("/opt/anvil-beta")), Path::new("/work"));
+        let root =
+            resolve_install_root_from(Some(OsStr::new("/opt/anvil-beta")), Path::new("/work"));
         assert!(root.is_overridden());
         assert_eq!(root.prefix(), Some(Path::new("/opt/anvil-beta")));
         assert_eq!(root.user_dir(), Some(PathBuf::from("/opt/anvil-beta/user")));
-        assert_eq!(root.cache_dir(), Some(PathBuf::from("/opt/anvil-beta/cache")));
+        assert_eq!(
+            root.cache_dir(),
+            Some(PathBuf::from("/opt/anvil-beta/cache"))
+        );
     }
 
     #[test]
@@ -290,7 +297,10 @@ mod tests {
             .expect_err("must be gated");
         let msg = err.to_string();
         assert!(msg.contains("witness append"), "names the operation: {msg}");
-        assert!(msg.contains("--touch-project-state"), "names the opt-in: {msg}");
+        assert!(
+            msg.contains("--touch-project-state"),
+            "names the opt-in: {msg}"
+        );
         assert!(msg.contains("/opt/anvil-beta"), "names the prefix: {msg}");
     }
 
@@ -303,7 +313,8 @@ mod tests {
                 "{truthy} should permit writes"
             );
             assert!(
-                ensure_project_write_allowed_from(&root, Some(&os(truthy)), "baseline write").is_ok()
+                ensure_project_write_allowed_from(&root, Some(&os(truthy)), "baseline write")
+                    .is_ok()
             );
         }
     }
