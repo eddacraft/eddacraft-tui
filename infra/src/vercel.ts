@@ -158,7 +158,6 @@ export const docsShell = new VercelApp('docs-shell', {
 
 // IAC-004: Docs Site (Docusaurus) — RETIRED. Domain moved to docsShell.
 // Kept temporarily for rollback; remove once docs-shell is stable.
-// TODO(DOCSAUTH-007): tear down docs-site project after 30 days stable.
 export const docsSite = new VercelApp('docs-site', {
   name: 'docs-site',
   framework: 'docusaurus-2',

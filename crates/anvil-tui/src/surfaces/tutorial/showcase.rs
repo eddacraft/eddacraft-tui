@@ -8,7 +8,6 @@ use super::discovery::{Finding, FindingSeverity, FindingSource};
 ///
 /// Used when the discovery scan finds nothing — the user's project is clean,
 /// but we still want to show what Anvil is capable of detecting.
-// TODO(WELCOME-007): Wire into discovery flow — call when filtered scan returns zero findings.
 pub fn showcase_findings() -> Vec<Finding> {
     vec![
         Finding {

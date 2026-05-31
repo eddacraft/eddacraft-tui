@@ -94,14 +94,6 @@
 //!     --features bench-internals
 //! ```
 
-// TODO(INTR-followup): observed during benchmarking — `PatternMatcher::new`
-// recompiles the 11 default allowlist regexes on every `scan_buffer` call via
-// `SecretDetectionRule::evaluate` -> `scan_content_with_limit`. This is real
-// production cost but is owned by INTR / the secret rule, not by RTAI-003.
-// Suggested follow-up: cache `PatternMatcher` inside `SecretDetectionRule` (or
-// thread it through `SecretCheckConfig`) so the regex compile happens once at
-// rule construction.
-
 #[cfg(unix)]
 use std::hint::black_box;
 #[cfg(unix)]

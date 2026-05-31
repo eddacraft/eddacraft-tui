@@ -5,9 +5,6 @@ import { formatJson, formatSuccess } from '../format.js';
 
 export type { InviteResponse };
 
-// TODO(FLAGM-006): retire this inline constant once admin-cli consumes the
-// api.scope.* manifest through @eddacraft/admin-contracts. Until then, this
-// list MUST mirror API_SCOPE_NAMES in apps/anvil-api/src/lib/feature-flags.ts.
 export const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
 export type InviteScope = (typeof ALLOWED_SCOPES)[number];
 

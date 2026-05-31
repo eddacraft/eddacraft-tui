@@ -14,8 +14,6 @@ use crate::output::{self, OutputMode};
 const ANVIL_DIR: &str = ".anvil";
 const CONFIG_FILENAME: &str = "gate-config.json";
 
-// TODO(RCLI2): --interactive mode deferred (needs crossterm prompts).
-
 #[derive(Debug, Args)]
 pub struct GateConfigArgs {
     /// List current gate configuration.

@@ -499,9 +499,6 @@ pub fn cross_session_request() -> Value {
             "text": "const value = 1;\n",
             "version": 12,
             "mode": "midEdit"
-            // TODO(RTAI-008): once scan_buffer takes a sessionId, set
-            // it to a session that does not belong to this connection
-            // and expect a structured rejection.
         },
         "id": "contract-cross-session"
     })

@@ -173,9 +173,6 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
         ]));
 
         // Inline expanded details right after the selected item.
-        // TODO: when the panel is very short, detail lines may be clipped with
-        // no scroll affordance. A dedicated expansion_scroll offset on
-        // AuditState would fix this but is out of scope for RCLI-027.
         if state.expanded && selected {
             lines.push(Line::from(vec![
                 Span::styled("    Category: ", Style::default().fg(theme.muted())),

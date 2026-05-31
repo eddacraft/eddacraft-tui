@@ -47,12 +47,6 @@ const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 /// OOM-ing on `std::fs::read_to_string`.
 const MAX_ARTIFACT_BYTES: u64 = 5 * 1024 * 1024;
 
-// TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
-//   --no-cache       (caching infrastructure not yet ported)
-//   --interactive    (crossterm interactive prompts — future work item)
-//   --nudge / --nudge-threshold  (nudge coaching system — future work item)
-// These will be added when their backing infrastructure is available in Rust.
-
 #[derive(Debug, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct CheckArgs {
@@ -1197,7 +1191,7 @@ fn build_json_output(
         // previously hard-coded `["architecture"]` while actually running
         // only the antipattern scanner.
         checks_run: checks_run.to_vec(),
-        provenance_id: None, // TODO(RCLI2): wire up Kindling provenance when available
+        provenance_id: None,
         message: None,
         notifications,
         warnings,

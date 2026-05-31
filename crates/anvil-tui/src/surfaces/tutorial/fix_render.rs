@@ -61,7 +61,6 @@ fn render_watching(frame: &mut Frame, area: Rect, state: &FixState, theme: &Edda
     // ── Header ──────────────────────────────────────────────────────────
     let (badge_text, badge_style) = severity_badge(state.finding.severity, theme);
 
-    // TODO: Add OSC 8 hyperlink to file path for supporting terminals.
     let location = match state.finding.line {
         Some(l) => format!("{}:{l}", state.finding.file),
         None => state.finding.file.clone(),
