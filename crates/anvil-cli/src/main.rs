@@ -847,7 +847,16 @@ fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
     let mut anvil_home_active =
         std::env::var_os(install_root::ANVIL_HOME_ENV).is_some_and(|v| !v.is_empty());
 
-    if let Some(path) = &global.anvil_home {
+    // Treat an empty / whitespace-only `--anvil-home` as unset, matching the
+    // `ANVIL_HOME` env semantics in `install_root::resolve_install_root_from` — so
+    // `--anvil-home ""` does not resolve to the cwd and silently enable the
+    // override + write-guard.
+    let anvil_home_flag = global
+        .anvil_home
+        .as_ref()
+        .filter(|p| !p.as_os_str().is_empty() && !p.to_str().is_some_and(|s| s.trim().is_empty()));
+
+    if let Some(path) = anvil_home_flag {
         anvil_home_active = true;
         let abs = if path.is_absolute() {
             path.clone()

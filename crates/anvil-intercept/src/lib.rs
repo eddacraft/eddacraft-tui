@@ -485,7 +485,15 @@ fn non_empty_env(name: &str) -> Option<PathBuf> {
 /// var (`ANVIL_HOME` is expected absolute in practice; this only guards the
 /// relative case). Returns `None` for unset/empty (platform default applies).
 pub(crate) fn anvil_home_prefix() -> Option<PathBuf> {
-    let p = non_empty_env("ANVIL_HOME")?;
+    let raw = env::var_os("ANVIL_HOME").filter(|v| !v.is_empty())?;
+    // Mirror the CLI resolver (`install_root::resolve_install_root_from`): a UTF-8
+    // whitespace-only value is treated as unset, so the daemon and CLI agree on
+    // the socket/PID path when `ANVIL_HOME` is accidentally exported blank.
+    // Non-UTF-8 values can't be trimmed and are taken as-is.
+    if raw.to_str().is_some_and(|s| s.trim().is_empty()) {
+        return None;
+    }
+    let p = PathBuf::from(raw);
     if p.is_absolute() {
         Some(p)
     } else {
