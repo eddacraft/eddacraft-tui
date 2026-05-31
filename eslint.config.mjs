@@ -11,7 +11,7 @@ try {
   anvilPlugin = null;
 }
 import unicornPlugin from 'eslint-plugin-unicorn';
-// import jsonPlugin from '@eslint/json';
+// import jsonPlugin from '@eslint/json'; // Note: Re-enable once compatible with ESLint 9/10
 
 export default typescriptEslint.config(
   js.configs.recommended,

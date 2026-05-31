@@ -51,7 +51,7 @@ export class ${options.pascalName}Check extends BaseCheck {
   name = '${options.kebabName}';
   description = '${description}';
 
-  async run(context: CheckContext): Promise<GateResult> {
+  async run(_context: CheckContext): Promise<GateResult> {
     log('Running ${options.kebabName} check');
     // Implement check logic
     return this.createSuccess('Check passed', 100);
