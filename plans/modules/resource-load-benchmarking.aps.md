@@ -4,8 +4,12 @@
 | --- | ------ | -------- | -------- | -------- |
 | RLB | @aneki | high     | Proposed | 0/8      |
 
-**Last reviewed:** 2026-05-30 — filed from the beta-tester high-CPU report;
+**Last reviewed:** 2026-05-31 — filed from the beta-tester high-CPU report;
 tracked in GH [#2156](https://github.com/eddacraft/anvil-001/issues/2156).
+RLB-001 + RLB-007 greenlit to **Ready** as Tier-1 candidate release freight (the
+per-save CPU bugfix; no planning council — see `RELEASE-PLAN.md` "Save-Time CPU &
+Daemon Arc"). The remaining items stay **Proposed** pending the Tier-2 daemon /
+Graph V2 planning council ([ADR-061](../decisions/061-save-time-daemon-delta-validation.md)).
 
 ## Purpose
 
@@ -65,7 +69,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-001: Multi-agent load-ramp harness (tipping points)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Promote the prototype into a committed, manually-runnable harness
   that ramps N concurrent agents and reports process-tree CPU/RSS per level.
 - **Expected Outcome:** One command prints a saturation table across agent counts
@@ -119,13 +123,14 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-007: Remediate per-save check cost
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Stop spawning a full-repo `check --all` per save — scope the action
   to changed paths and/or coalesce and cap concurrency.
 - **Expected Outcome:** The load harness shows watch steady-state CPU drop under
   the budget at the measured tipping points.
 - **Validation:** `cargo test -p eddacraft-anvil-cli -- watch_action_scope` and a before/after delta from the RLB-001 harness.
-- **Dependencies:** RLB-001, RLB-002
+- **Dependencies:** RLB-001 (the harness proves the before/after; RLB-002's
+  criterion-bench upgrade is a follow-on hardening, not a blocker for the fix)
 
 ### RLB-008: Define SLOs + wire the harness into CI
 

@@ -8,7 +8,14 @@
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [`plans/index.aps.md`](./plans/index.aps.md), `git tag v0.7.2-beta`, [`ROADMAP.md`](./ROADMAP.md), MLP/INTL/WATCHUX/RMCPF modules | Release runbooks, PR planning, [`ROADMAP.md`](./ROADMAP.md) links |
 
-**Last updated:** 2026-05-30 (added the `v0.7.3-beta` "Surfacing the Signal"
+**Last updated:** 2026-05-31 (added the "Save-Time CPU & Daemon Arc" tracking
+section after the `v0.7.3-beta` window — registers the beta-tester high-CPU
+remediation (GH #2156) as a two-tier arc: Tier 1 `RLB-007` as candidate freight
+for the next patch (bugfix, no council; `RLB-001`/`RLB-007` flipped to Ready),
+Tier 2 the daemon/Graph V2 save-time pivot (ADR-061) as a deferred window gated
+on a planning council.)
+
+Previous update: 2026-05-30 (added the `v0.7.3-beta` "Surfacing the Signal"
 next-release window — a product-surface patch on the sit-on slate whose scope is
 already assembled on `main`; resolves the "strategic reframe of what's next
 pending" note from the 2026-05-28 refresh.)
@@ -199,6 +206,63 @@ scoping, `email-broadcast`.
 **Cut sequence:** the deterministic `scripts/release/*` chain —
 `preflight → assess (--version v0.7.3-beta) → prepare → promote → tag → monitor → verify → closeout`.
 Homebrew formula auto-bump (DISTRIB-003) rides the tag.
+
+---
+
+## Tracking — Save-Time CPU & Daemon Arc (post-`v0.7.3-beta`)
+
+Tracking anchor for the work flowing out of the beta-tester high-CPU report (GH
+[#2156](https://github.com/eddacraft/anvil-001/issues/2156)). The arc splits
+into two release tiers with different governance: a near-term bugfix that rides
+a patch, and an architectural window gated on a planning council. Neither is on
+`main`, so neither is in the `v0.7.3-beta` cut above — this section exists to
+track them toward future windows.
+
+### Tier 1 — watch save-time CPU remediation (candidate freight)
+
+- **releaseIntent:** `candidate` — rides the **next patch after `v0.7.3-beta`**
+  once merged to `main`. Cannot ride `v0.7.3-beta` (that window is cut-hygiene
+  on already-merged scope; this is unbuilt).
+- **Claim it supports:** `anvil watch` stops spawning a full-repo `check --all`
+  per save; single-agent save-time CPU drops from ~7 cores toward
+  proportional-to-changed-files, and concurrent-agent save storms stay bounded.
+  Directly answers the field report.
+- **Deliverable:** `RLB-007` (scope the per-save action to changed paths;
+  coalesce + cap concurrency), proven by the `RLB-001` load-ramp harness
+  (before/after process-tree CPU at the measured tipping points).
+- **Governance:** **bugfix tier — no planning council.** Reversible,
+  single-crate, no contract change; aligns with ADR-002 (warnings over blocks)
+  and the existing architecture.
+- **Status:** `RLB-001` and `RLB-007` are **Ready** (greenlit as Tier-1
+  freight); the rest of
+  [`resource-load-benchmarking`](./plans/modules/resource-load-benchmarking.aps.md)
+  stays `Proposed` pending the Tier-2 council.
+- **Evidence:** prototype `benchmarks/prototypes/anvil-load-probe.py`; field
+  report GH #2156.
+
+### Tier 2 — daemon-mediated save-time validation (deferred window)
+
+- **releaseIntent:** `proposed` — a future **product-surface window**, not a
+  patch. Themes around "save-time governance without stealing the machine."
+- **Decision contract:**
+  [ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)
+  (**Proposed**) — `anvil watch`/MCP/intercept become thin clients of one
+  per-`(uid, os)` daemon (ADR-036) that validates changed paths over a warm
+  Graph V2 hot-read slice; whole-repo scan becomes explicit/background with a
+  `clean|stale|pending|running` workspace-assurance state.
+- **Governance: gated on a planning council** before it enters a release window
+  — to accept ADR-061 (Proposed → Accepted), resolve the dependent **Proposed**
+  ADRs (015 daemon, 030 surface drivers, 031 latency rubric), reconcile against
+  `MLP2-067` (daemon-hosted graph cache, Draft) so two graph-cache designs don't
+  diverge, and tick the GV2 Ready item _"hot-/non-hot-path boundary agreed with
+  INTD and DRVR owners."_
+- **Modules to sequence:** `RLB-002/003/004/005/008`,
+  [`graph-v2-foundation`](./plans/modules/graph-v2-foundation.aps.md)
+  GV2-010/011/020/021/022 (currently **Draft**), INTD `validate_paths` method,
+  DRVR (MCP re-point).
+- **Do not** theme a release window around Tier 2 until the council output lands
+  and GV2 reaches **Ready** — the release plan is `Derived` and follows
+  Ready/Accepted modules, it does not lead them.
 
 ---
 
