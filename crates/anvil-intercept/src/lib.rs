@@ -429,7 +429,7 @@ impl<T> Drop for AbortOnDropJoinHandle<T> {
 /// `%LOCALAPPDATA%\anvil` on Windows.
 pub fn default_pid_file_path() -> Result<PathBuf> {
     default_pid_file_path_from(
-        non_empty_env("ANVIL_HOME"),
+        anvil_home_prefix(),
         non_empty_env("XDG_RUNTIME_DIR"),
         if cfg!(windows) {
             non_empty_env("LOCALAPPDATA")
@@ -476,6 +476,23 @@ fn non_empty_env(name: &str) -> Option<PathBuf> {
     env::var_os(name)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
+}
+
+/// DISTRIB-006 (ADR-060): the install-root prefix from a non-empty `ANVIL_HOME`,
+/// absolutised against the current directory if relative. anvil-cli's resolver
+/// absolutises the same way, so the CLI client and the separately-spawned daemon
+/// agree on the socket/PID path even when `ANVIL_HOME` is set as a relative env
+/// var (`ANVIL_HOME` is expected absolute in practice; this only guards the
+/// relative case). Returns `None` for unset/empty (platform default applies).
+pub(crate) fn anvil_home_prefix() -> Option<PathBuf> {
+    let p = non_empty_env("ANVIL_HOME")?;
+    if p.is_absolute() {
+        Some(p)
+    } else {
+        // Best effort: if cwd is unavailable, fall back to the raw relative path
+        // rather than dropping the override entirely.
+        Some(env::current_dir().map_or_else(|_| p.clone(), |cwd| cwd.join(&p)))
+    }
 }
 
 #[derive(Debug)]

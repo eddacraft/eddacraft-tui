@@ -272,7 +272,9 @@ pub enum IpcError {
 #[cfg(unix)]
 pub fn resolve_socket_dir() -> Result<PathBuf, IpcError> {
     resolve_socket_dir_with_env(
-        std::env::var_os("ANVIL_HOME"),
+        // DISTRIB-006: absolutised so a relative `ANVIL_HOME` resolves to the same
+        // socket dir for the CLI client and the separately-spawned daemon.
+        crate::anvil_home_prefix().map(std::path::PathBuf::into_os_string),
         std::env::var_os("XDG_RUNTIME_DIR"),
         std::env::var_os("HOME"),
     )

@@ -1127,6 +1127,12 @@ fn run_bootstrap(repo_root: &Path, args: &BootstrapArgs) -> Result<()> {
         }
         return Ok(());
     }
+    // DISTRIB-006 (ADR-060): installing `.git/hooks/*` / `.husky/*` is a durable
+    // per-project mutation a different binary reads. Refuse it under a non-default
+    // ANVIL_HOME without `--touch-project-state` — bootstrap is the first command
+    // a tester runs on a fresh clone, so a candidate must not silently install
+    // hooks into the real repo. (`--dry-run` above is read-only and unaffected.)
+    crate::install_root::ensure_project_write_allowed("hook bootstrap")?;
     let _files_written = execute_bootstrap_plan(repo_root, &plan)?;
     // MLP2-037: when --witness-recent is set, walk @{u}..HEAD and
     // write one retroactive witness per unwitnessed commit. The

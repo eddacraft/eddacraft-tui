@@ -1196,6 +1196,16 @@ fn print_json(
         worktree,
     );
 
+    // DISTRIB-006: one environment snapshot drives both install-root fields, so
+    // they can never disagree (e.g. install_root present but gated-flag absent).
+    let install_root_section = {
+        let root = crate::install_root::install_root();
+        let gated = root
+            .is_overridden()
+            .then(crate::install_root::project_writes_gated);
+        (root.prefix().map(|p| p.display().to_string()), gated)
+    };
+
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
@@ -1227,14 +1237,10 @@ fn print_json(
             .collect(),
         claim,
         // DISTRIB-006 (ADR-060): surface the install-root override only when set,
-        // so default output is byte-for-byte unchanged.
-        install_root: {
-            let root = crate::install_root::install_root();
-            root.prefix().map(|p| p.display().to_string())
-        },
-        project_writes_gated: crate::install_root::install_root()
-            .is_overridden()
-            .then(crate::install_root::project_writes_gated),
+        // so default output is byte-for-byte unchanged. Resolve the root once so
+        // both fields derive from a single environment snapshot.
+        install_root: install_root_section.0,
+        project_writes_gated: install_root_section.1,
     };
 
     let json = serde_json::to_string_pretty(&output)?;

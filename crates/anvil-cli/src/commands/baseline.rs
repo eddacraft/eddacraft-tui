@@ -180,6 +180,15 @@ fn run_create_or_refresh(
     accept_suspicious: bool,
     scan_budget: usize,
 ) -> Result<()> {
+    // DISTRIB-006 (ADR-060): `anvil baseline` create/refresh is a durable
+    // per-project mutation command. Refuse the WHOLE flow under a non-default
+    // ANVIL_HOME without `--touch-project-state` — this must precede the identity
+    // step below, because `--new-identity` (`mint_new_identity`) overwrites
+    // `anvil/project-id` and `ensure_project_id` may create it; both are durable
+    // state the production binary reads. Refusing here keeps the candidate from
+    // touching project identity, the baseline, or the cutoff pin.
+    crate::install_root::ensure_project_write_allowed("baseline write")?;
+
     let mut refresh = refresh;
     // MLP2-032 / MLP2-033: establish project identity in the same flow
     // as baseline bootstrap. Default path is `ensure_project_id`
@@ -373,14 +382,6 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
             return Ok(());
         }
     }
-
-    // DISTRIB-006 (ADR-060): refuse to persist a durable per-project mutation
-    // (the baseline write below + the cutoff pin that follows) when running under
-    // a non-default ANVIL_HOME without `--touch-project-state`, so an unreleased
-    // candidate cannot silently overwrite a real project's baseline. The scan and
-    // suspicion analysis above already ran (reads are unrestricted) — only the
-    // persist is gated, and the refusal names the opt-in to re-run with.
-    crate::install_root::ensure_project_write_allowed("baseline write")?;
 
     save_baseline(repo_root, &baseline).context("write anvil/baseline.json")?;
 

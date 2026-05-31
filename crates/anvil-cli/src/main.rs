@@ -837,21 +837,33 @@ fn wants_json() -> bool {
 /// it), `None` when execution should continue in this process.
 fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
     use std::ffi::OsString;
+    use std::path::Path;
 
     let mut overrides: Vec<(&'static str, OsString)> = Vec::new();
 
+    // Whether ANVIL_HOME is in play at all (via flag or pre-existing env) — the
+    // `--touch-project-state` flag only matters under a non-default install root,
+    // so without one a touch-only re-exec would be a wasted fork.
+    let mut anvil_home_active =
+        std::env::var_os(install_root::ANVIL_HOME_ENV).is_some_and(|v| !v.is_empty());
+
     if let Some(path) = &global.anvil_home {
+        anvil_home_active = true;
         let abs = if path.is_absolute() {
             path.clone()
         } else {
             std::env::current_dir().map_or_else(|_| path.clone(), |cwd| cwd.join(path))
         };
-        let abs = abs.into_os_string();
-        if std::env::var_os(install_root::ANVIL_HOME_ENV).as_ref() != Some(&abs) {
-            overrides.push((install_root::ANVIL_HOME_ENV, abs));
+        // Compare as paths so a trailing-slash difference (`/opt/x` vs `/opt/x/`)
+        // between the flag and a pre-existing env var does not trigger a spurious
+        // re-exec. Equal paths → environment already reflects the flag.
+        let env_matches = std::env::var_os(install_root::ANVIL_HOME_ENV)
+            .is_some_and(|cur| Path::new(&cur) == abs);
+        if !env_matches {
+            overrides.push((install_root::ANVIL_HOME_ENV, abs.into_os_string()));
         }
     }
-    if global.touch_project_state && !install_root::env_touch_is_truthy() {
+    if global.touch_project_state && anvil_home_active && !install_root::env_touch_is_truthy() {
         overrides.push((install_root::TOUCH_PROJECT_STATE_ENV, OsString::from("1")));
     }
 
@@ -859,7 +871,7 @@ fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
         return None; // environment already reflects the flags — run in-process
     }
 
-    let Some(exe) = std::env::current_exe().ok() else {
+    let Ok(exe) = std::env::current_exe() else {
         eprintln!("anvil: --anvil-home unavailable: cannot resolve current executable");
         return Some(ExitCode::from(EXIT_ERROR));
     };
@@ -869,15 +881,30 @@ fn reexec_for_install_root(global: &GlobalArgs) -> Option<ExitCode> {
         cmd.env(key, value);
     }
     match cmd.status() {
-        Ok(status) => {
-            let code = status.code().unwrap_or(i32::from(EXIT_ERROR));
-            Some(ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR)))
-        }
+        Ok(status) => Some(ExitCode::from(exit_status_to_code(status))),
         Err(err) => {
             eprintln!("anvil: failed to apply --anvil-home override: {err}");
             Some(ExitCode::from(EXIT_ERROR))
         }
     }
+}
+
+/// Map a re-exec'd child's `ExitStatus` to this process's exit code. A clean exit
+/// forwards the child's code; on Unix a signal death is translated to the
+/// conventional `128 + signum` (e.g. 130 for SIGINT) so a Ctrl-C on a long
+/// `anvil watch --anvil-home …` reports the usual code rather than a bare 1.
+fn exit_status_to_code(status: std::process::ExitStatus) -> u8 {
+    if let Some(code) = status.code() {
+        return u8::try_from(code).unwrap_or(EXIT_ERROR);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(signal) = status.signal() {
+            return u8::try_from(128 + signal).unwrap_or(EXIT_ERROR);
+        }
+    }
+    EXIT_ERROR
 }
 
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability

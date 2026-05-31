@@ -139,6 +139,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // separately.
     let read_only = args.verify || global.json;
 
+    // DISTRIB-006 (ADR-060): a gated ANVIL_HOME (non-default, no
+    // `--touch-project-state`) suppresses the same durable per-project writes as
+    // read-only mode — the identity mint, the `--format` pre-write, the
+    // detected-agents cache, and the warmup cache — so a candidate never persists
+    // state the production binary reads. The MCP install and daemon-exercise
+    // paths still run (they target the candidate's own home, not project state);
+    // the orchestrator emits the single read-only-posture note.
+    let project_writes_gated = crate::install_root::project_writes_gated();
+
     if args.watch {
         // LAUNCH-011: the watch fallback path performs work (spawns
         // the kernel watcher) and streams events on stdout. Both
@@ -172,7 +181,12 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 "`--new-identity` is incompatible with `--verify` / `--json` (read-only). Drop the read-only flag, or run `anvil baseline --new-identity` for a non-orchestrator surface."
             );
         }
-        if let Err(e) = activation::identity::mint_new_identity(root, env!("CARGO_PKG_VERSION")) {
+        // DISTRIB-006 (ADR-060): minting a fresh identity overwrites
+        // `anvil/project-id`, durable state prod reads — skip it under a gated
+        // ANVIL_HOME (the orchestrator below emits the read-only-posture note).
+        if !project_writes_gated
+            && let Err(e) = activation::identity::mint_new_identity(root, env!("CARGO_PKG_VERSION"))
+        {
             // Same non-fatal posture as the orchestrator's identity
             // step — surface the failure so the operator sees it,
             // but let the rest of activation proceed (the
@@ -192,7 +206,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // step (which currently writes `.anvilrc`) is suppressed by the
     // already-present config. Read-only / `--verify` skips the pre-write
     // (it would mutate state) and falls through to the diagnostic.
-    if !read_only && let Some(format) = args.format {
+    if !read_only
+        && !project_writes_gated
+        && let Some(format) = args.format
+    {
         pre_write_anvil_config(root, format)?;
     }
 
@@ -217,7 +234,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // `agents_cached` flag annotates the summary line so the
     // user can distinguish "detected and cached" from "detected
     // (probe only)" / "detected (cache not written)".
-    let (agent_inventory, agents_cached) = run_agent_detection(root, read_only);
+    let (agent_inventory, agents_cached) =
+        run_agent_detection(root, read_only || project_writes_gated);
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
     // diagnostic's `WatchTier::Offered` gate (config valid + no
@@ -315,7 +333,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         bail!("MCP install failed: {err}");
     }
 
-    write_warmup_cache_if_mutating(root, read_only, global.verbose);
+    write_warmup_cache_if_mutating(root, read_only || project_writes_gated, global.verbose);
 
     // LAUNCH-011: hand off to the kernel watcher OR print the
     // appropriate skip reason. Each non-spawn variant carries its

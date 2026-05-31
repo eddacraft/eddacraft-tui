@@ -105,14 +105,20 @@ impl InstallRoot {
 /// value.
 #[must_use]
 pub fn resolve_install_root_from(anvil_home: Option<&OsStr>, cwd: &Path) -> InstallRoot {
-    match anvil_home {
-        Some(raw) if !raw.is_empty() => {
-            let p = PathBuf::from(raw);
-            let abs = if p.is_absolute() { p } else { cwd.join(p) };
-            InstallRoot::overridden(abs)
-        }
-        _ => InstallRoot::default_root(),
+    let raw = match anvil_home {
+        Some(raw) if !raw.is_empty() => raw,
+        _ => return InstallRoot::default_root(),
+    };
+    // A whitespace-only value (e.g. an accidental `export ANVIL_HOME=" "`) is
+    // treated as unset, so a blank export does not silently activate the override
+    // and the write-guard against a useless path. Non-UTF-8 values can't be
+    // trimmed and are taken as-is.
+    if raw.to_str().is_some_and(|s| s.trim().is_empty()) {
+        return InstallRoot::default_root();
     }
+    let p = PathBuf::from(raw);
+    let abs = if p.is_absolute() { p } else { cwd.join(p) };
+    InstallRoot::overridden(abs)
 }
 
 /// Whether durable per-project mutations are gated (refused / dry-run) for this
@@ -124,13 +130,17 @@ pub fn project_writes_gated_from(root: &InstallRoot, touch_project_state: Option
 }
 
 /// Truthiness for the opt-in env var: set and not one of the conventional
-/// false-y spellings (`""`, `"0"`, `"false"`, `"no"` — case-insensitive).
+/// false-y spellings (`""`, `"0"`, `"false"`, `"no"`, `"off"` — case-insensitive).
 fn is_truthy(value: Option<&OsStr>) -> bool {
     match value.and_then(OsStr::to_str) {
         None => false,
         Some(s) => {
             let s = s.trim();
-            !s.is_empty() && !matches!(s.to_ascii_lowercase().as_str(), "0" | "false" | "no")
+            !s.is_empty()
+                && !matches!(
+                    s.to_ascii_lowercase().as_str(),
+                    "0" | "false" | "no" | "off"
+                )
         }
     }
 }
@@ -263,6 +273,14 @@ mod tests {
     }
 
     #[test]
+    fn whitespace_only_anvil_home_is_platform_default() {
+        for blank in ["   ", " ", "\t"] {
+            let root = resolve_install_root_from(Some(OsStr::new(blank)), Path::new("/work"));
+            assert!(!root.is_overridden(), "{blank:?} should not override");
+        }
+    }
+
+    #[test]
     fn absolute_anvil_home_is_taken_as_is() {
         let root =
             resolve_install_root_from(Some(OsStr::new("/opt/anvil-beta")), Path::new("/work"));
@@ -322,7 +340,7 @@ mod tests {
     #[test]
     fn falsey_opt_in_still_gates() {
         let root = InstallRoot::overridden(PathBuf::from("/opt/anvil-beta"));
-        for falsey in ["", "0", "false", "FALSE", "no", "  "] {
+        for falsey in ["", "0", "false", "FALSE", "no", "off", "OFF", "  "] {
             assert!(
                 project_writes_gated_from(&root, Some(&os(falsey))),
                 "{falsey:?} should still gate"

@@ -71,9 +71,28 @@ pub(crate) fn run_with_home(
     home: Option<&Path>,
     global: &GlobalArgs,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+    // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
+    // `--touch-project-state`, activation runs in a read-only posture — it still
+    // verifies, installs MCP entries into the candidate's own home, and produces
+    // a diagnostic, but it does NOT seed durable per-project state into the real
+    // repo (`.anvilrc`, `anvil/project-id`, `.gitattributes`, GitHub workflows,
+    // baseline). These are state the production binary reads; an unreleased
+    // candidate must not write them silently. On an already-activated repo every
+    // one of these is a write-if-absent no-op anyway, so the gate only changes
+    // behaviour on a fresh repo — exactly where silent seeding would be wrong.
+    let project_writes_gated = crate::install_root::project_writes_gated();
+    if project_writes_gated {
+        eprintln!(
+            "anvil: ANVIL_HOME override active without --touch-project-state — \
+             activation runs read-only; project-id, .gitattributes, workflows, and \
+             baseline will not be written to this project. Pass --touch-project-state \
+             to persist."
+        );
+    }
+
     // Step 1 — write `.anvilrc` if absent.
     let initial = verify_with_home(root, home);
-    if matches!(initial.config, ConfigStatus::Absent) {
+    if matches!(initial.config, ConfigStatus::Absent) && !project_writes_gated {
         let args = init::InitArgs { force: false };
         init::run_in(&args, global, root).context("init step of `anvil start` failed")?;
     }
@@ -96,7 +115,9 @@ pub(crate) fn run_with_home(
     // see something went wrong, AND attach the structured `path`
     // field for log consumers.
     let project_id_path = identity::project_id_path(root);
-    if let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION")) {
+    if !project_writes_gated
+        && let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION"))
+    {
         tracing::warn!(
             error = %e,
             path = %project_id_path.display(),
@@ -117,7 +138,7 @@ pub(crate) fn run_with_home(
     // separate `.gitattributes` migration. Idempotent — only appends
     // if the line is missing. Failures non-propagating, same pattern
     // as identity.
-    if let Err(e) = ensure_witness_gitattributes(root) {
+    if !project_writes_gated && let Err(e) = ensure_witness_gitattributes(root) {
         tracing::warn!(
             error = %e,
             "orchestrator: failed to update .gitattributes for witness chain; continuing without",
@@ -135,7 +156,7 @@ pub(crate) fn run_with_home(
     // non-interactive activation skips them instead of writing silently.
     // Writes remain write-if-absent so re-running activation never
     // clobbers operator edits.
-    if let Err(e) = ensure_github_actions_workflows(root, interactive) {
+    if !project_writes_gated && let Err(e) = ensure_github_actions_workflows(root, interactive) {
         tracing::warn!(
             error = %e,
             "orchestrator: failed to install GitHub Actions workflows; continuing without",
@@ -154,25 +175,20 @@ pub(crate) fn run_with_home(
     // change-tracking aid, not a blocker for activation. A failed
     // write logs and continues; the diagnostic's
     // `baseline_present == false` is the honest signal.
-    if !baseline::baseline_exists(root) {
-        // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
-        // `--touch-project-state`, skip the activation baseline write — a
-        // candidate must not silently seed a real project's baseline. The daemon
-        // / verify path still runs; `baseline_present == false` stays the honest
-        // signal, exactly as a failed write would leave it.
-        if crate::install_root::project_writes_gated() {
-            tracing::info!(
-                "orchestrator: skipping activation baseline write under a gated \
-                 ANVIL_HOME (pass --touch-project-state to persist)",
+    // DISTRIB-006 (ADR-060): the activation baseline write is part of the gated
+    // read-only posture above — skipped under a non-default ANVIL_HOME without
+    // `--touch-project-state` so a candidate cannot seed a real project's
+    // baseline. `baseline_present == false` stays the honest signal.
+    if !project_writes_gated
+        && !baseline::baseline_exists(root)
+        && let Some(scan) = sample_analyser::run_baseline_scan(root)
+    {
+        let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
+        if let Err(e) = baseline::write_baseline(root, &new_baseline) {
+            tracing::warn!(
+                error = %e,
+                "orchestrator: failed to write activation baseline; continuing without",
             );
-        } else if let Some(scan) = sample_analyser::run_baseline_scan(root) {
-            let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
-            if let Err(e) = baseline::write_baseline(root, &new_baseline) {
-                tracing::warn!(
-                    error = %e,
-                    "orchestrator: failed to write activation baseline; continuing without",
-                );
-            }
         }
     }
 

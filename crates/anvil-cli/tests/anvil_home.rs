@@ -185,3 +185,121 @@ fn baseline_writes_under_platform_default_without_anvil_home() {
         "anvil/baseline.json must be written in the default (non-overridden) case"
     );
 }
+
+/// Run an arbitrary `anvil` subcommand in `project` with `ANVIL_HOME` (when
+/// `Some`) set on the child env, plus the auth-bypass/hermetic env. Returns
+/// `(exit_ok, combined stdout+stderr)`.
+fn run_anvil(project: &Path, anvil_home: Option<&Path>, args: &[&str]) -> (bool, String) {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(args)
+        .current_dir(project)
+        .env("HOME", project)
+        .env("USERPROFILE", project)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_HOME");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    if let Some(home) = anvil_home {
+        cmd.env("ANVIL_HOME", home);
+    }
+    let out = cmd.output().expect("spawn anvil");
+    let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&out.stderr));
+    (out.status.success(), combined)
+}
+
+#[test]
+fn start_under_gated_anvil_home_does_not_seed_project_state() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+
+    // `anvil start` on a fresh repo would normally seed project state; under a
+    // gated ANVIL_HOME it must run read-only and leave the real project clean.
+    let (_ok, _out) = run_anvil(project.path(), Some(home.path()), &["start"]);
+
+    for seeded in ["anvil/project-id", ".anvilrc", ".gitattributes"] {
+        assert!(
+            !project.path().join(seeded).exists(),
+            "{seeded} must NOT be seeded into the real project under a gated ANVIL_HOME"
+        );
+    }
+}
+
+#[test]
+fn hook_bootstrap_refused_under_gated_anvil_home() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+
+    let (ok, out) = run_anvil(project.path(), Some(home.path()), &["hook", "bootstrap"]);
+
+    assert!(
+        !ok,
+        "hook bootstrap must be refused under a gated ANVIL_HOME; out: {out}"
+    );
+    assert!(
+        out.contains("--touch-project-state"),
+        "refusal must name the opt-in flag; out: {out}"
+    );
+    assert!(
+        !project
+            .path()
+            .join(".git")
+            .join("hooks")
+            .join("pre-commit")
+            .exists(),
+        "no git hook may be installed into the real project under the gate"
+    );
+}
+
+#[test]
+fn baseline_new_identity_refused_under_gate_leaves_project_id() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+    let project_id = project.path().join("anvil").join("project-id");
+
+    let (ok, out) = run_anvil(
+        project.path(),
+        Some(home.path()),
+        &["baseline", "--new-identity"],
+    );
+
+    assert!(
+        !ok,
+        "baseline --new-identity must be refused under the gate; out: {out}"
+    );
+    assert!(
+        !project_id.exists(),
+        "the project identity anchor must NOT be minted under a gated ANVIL_HOME \
+         (the gate must precede the identity mint)"
+    );
+}
+
+#[test]
+fn anvil_home_flag_gates_like_env_var_via_reexec() {
+    // The `--anvil-home` flag (which triggers the re-exec round-trip) must
+    // deliver the same gating as setting ANVIL_HOME in the environment.
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("anvil home");
+    let baseline_path = project.path().join("anvil").join("baseline.json");
+
+    let home_arg = home.path().to_str().expect("utf8 home path");
+    // Note: ANVIL_HOME is NOT set in the env here — only the flag is passed.
+    let (ok, out) = run_anvil(
+        project.path(),
+        None,
+        &["baseline", "--anvil-home", home_arg],
+    );
+
+    assert!(
+        !ok,
+        "--anvil-home flag must gate the baseline write; out: {out}"
+    );
+    assert!(
+        out.contains("--touch-project-state"),
+        "flag-driven refusal must name the opt-in; out: {out}"
+    );
+    assert!(
+        !baseline_path.exists(),
+        "project baseline must be untouched when gated via the --anvil-home flag"
+    );
+}

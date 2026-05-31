@@ -47,10 +47,15 @@ Because per-project state is shared, an unreleased candidate could otherwise
 silently overwrite a real project's baseline or witness chain. To prevent that,
 under a non-default `ANVIL_HOME` durable per-project **mutations** are gated:
 
-- **Gated by default (read-only / dry-run):** baseline refresh/write, witness
-  append, cutoff pinning. `anvil baseline` is **refused** with a message naming
-  the opt-in; activation auto-baseline and commit-hook witness appends are
-  **skipped** (the commit is never blocked).
+- **Gated by default (read-only / dry-run):** every durable per-project write —
+  baseline refresh/write, witness append, cutoff pinning, project-identity
+  mint/seed (`anvil/project-id`), `.gitattributes` witness lines, GitHub Actions
+  workflow install, `.anvilrc` seed, the detected-agents cache, and git-hook
+  install (`anvil hook bootstrap`). Explicit mutation commands
+  (`anvil baseline`, `anvil hook bootstrap`) are **refused** with a message
+  naming the opt-in; incidental writes during `anvil start` / first-run
+  `anvil watch` and commit-hook witness appends are **skipped** (activation
+  prints a one-line read-only notice; the commit is never blocked).
 - **Unrestricted:** reads — `status`, `check`, `audit`, `watch` render — and the
   daemon path. These are exactly what you want to exercise during a candidate
   test.
@@ -71,8 +76,13 @@ ANVIL_HOME="$HOME/.anvil-candidate" anvil status --json \
 
 ```bash
 export ANVIL_HOME="$HOME/.anvil-candidate"
-mkdir -p "$ANVIL_HOME"
+install -d -m 700 "$ANVIL_HOME"   # the daemon requires a 0700, user-owned prefix
 ```
+
+> The daemon binds its socket and PID file directly under the prefix and
+> enforces an owner-only `0700` directory (per ADR-036's runtime-dir hardening).
+> A world-readable `mkdir -p` (umask 0755) prefix is **refused at bind time** —
+> use `install -d -m 700` (or `chmod 700 "$ANVIL_HOME"` on an existing dir).
 
 Run the candidate binary with the env var exported, or pass `--anvil-home`
 per-command (the flag takes precedence over the env var):
@@ -101,7 +111,12 @@ anvil watch           # exercises the candidate daemon on its own socket
 ```
 
 The candidate daemon runs on `<ANVIL_HOME>/intercept.sock`, concurrent with the
-prod daemon on its default socket.
+prod daemon on its default socket. On an already-activated repo, `anvil start` /
+`anvil watch` run normally against the real project state (reads only). On a
+repo the candidate has never activated, activation runs **read-only** — it
+prints a one-line notice and does **not** seed `.anvilrc`, `anvil/project-id`,
+`.gitattributes`, or workflows. Pass `--touch-project-state` if you intend the
+candidate to perform that first-run seeding.
 
 ### 4. If you need the candidate to write project state
 
@@ -115,7 +130,9 @@ project's real state.
 ### 5. Tear down
 
 ```bash
-anvil --anvil-home "$HOME/.anvil-candidate" intercept stop   # stop candidate daemon
+# Stop the candidate daemon by its PID file (there is no `intercept stop`
+# subcommand yet); the foreground daemon also stops on Ctrl-C.
+kill "$(cat "$HOME/.anvil-candidate/intercept.pid")" 2>/dev/null || true
 rm -rf "$HOME/.anvil-candidate"                              # remove candidate state
 ```
 
@@ -124,12 +141,14 @@ touched.
 
 ## Verification checklist
 
-- `anvil status --json | jq .install_root` shows the prefix under the candidate
-  and is **absent** under prod.
-- Two `anvil intercept status` calls (one per prefix) report two running
-  daemons.
+- `ANVIL_HOME="$HOME/.anvil-candidate" anvil status --json | jq .install_root`
+  shows the prefix; plain `anvil status --json | jq .install_root` is **absent**
+  under prod.
+- `anvil intercept status` (prod) and
+  `ANVIL_HOME="$HOME/.anvil-candidate" anvil intercept status` (candidate)
+  report two separate running daemons.
 - After a gated `anvil baseline`, `git status` in the real repo shows
-  `anvil/baseline.json` **unchanged**.
+  `anvil/baseline.json` (and `anvil/project-id`) **unchanged**.
 - Unsetting `ANVIL_HOME` returns byte-for-byte default behaviour.
 
 ## Limitations
