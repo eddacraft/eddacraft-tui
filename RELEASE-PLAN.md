@@ -226,8 +226,9 @@ next minor (`v0.8.0-beta`) for any beta cut regardless of content; the version
 is an operator override in every case. With the six-week cadence hold retired
 (2026-06-01), version is set by scope, not calendar: additive-surface work that
 is **internal and default-inert** still maps to a patch, while the minor
-(`v0.8.0-beta`) is reserved for the daemon work that genuinely widens the product
-/ protection surface — and it cuts when that slice is ready, not on a date.
+(`v0.8.0-beta`) is reserved for the daemon work that genuinely widens the
+product / protection surface — and it cuts when that slice is ready, not on a
+date.
 
 ### Tier 1 — watch save-time CPU remediation → `v0.7.4-beta`
 
@@ -263,9 +264,9 @@ is **internal and default-inert** still maps to a patch, while the minor
 
 - **releaseIntent:** `proposed` for **`v0.8.0-beta`** — the next **minor**, a
   product-surface window (not a patch); cut when the sub-phase A slice is ready
-  and the gates are green (no calendar hold). Themes around "save-time governance
-  without stealing the machine." Earns the minor because it widens the protection
-  / product surface, not just additive flags.
+  and the gates are green (no calendar hold). Themes around "save-time
+  governance without stealing the machine." Earns the minor because it widens
+  the protection / product surface, not just additive flags.
 - **Decision contract:**
   [ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)
   (**Proposed**) — `anvil watch`/MCP/intercept become thin clients of one

@@ -1,7 +1,7 @@
 # Release Cadence And Support Policy
 
-| Type  | Authority     | Owner                                                                                                          | Status | Freshness                                                                                                        |
-| ----- | ------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Type  | Authority     | Owner                                                                                                          | Status | Freshness                                                                                                                                                                                                                |
+| ----- | ------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Guide | Authoritative | DISTRIB ([`plans/modules/distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md)) | Live   | Amended 2026-06-01: six-week minor-beta cadence hold retired (authorised by Josh — funding velocity). Prior: reviewed 2026-05-16 against `plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md` and `plans/aps-rules.md` |
 
 | Upstream                                                                     | Downstream                                                      |
@@ -21,25 +21,26 @@ when user signal shows friction, false positives, install breakage, or
 protection claim gaps.
 
 Through `v0.7.x` the project optimised for patch stability and adoption evidence
-on the `v0.7.0-beta` slate. **As of 2026-06-01 the priority is continuous feature
-delivery toward an investor-ready solution** (authorised by Josh): `main` stays
-releasable, and minor betas cut when their slice is ready and the release gates
-are green — not on a calendar. The six-week minor-beta cadence hold described in
-earlier revisions of this policy is **retired**.
+on the `v0.7.0-beta` slate. **As of 2026-06-01 the priority is continuous
+feature delivery toward an investor-ready solution** (authorised by Josh):
+`main` stays releasable, and minor betas cut when their slice is ready and the
+release gates are green — not on a calendar. The six-week minor-beta cadence
+hold described in earlier revisions of this policy is **retired**.
 
 ## Cadence
 
-| Release shape          | Cadence                                  | Scope                                                                                                                                     |
-| ---------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.7.x` patch         | Weekly while user signal is non-empty    | Bug fixes, false-positive reductions, documentation corrections, packaging fixes, and low-risk operational hardening.                     |
-| `v0.7.x` patch         | Within 48 hours of any P0 bug            | Crash, data loss, false protection claim, daemon corruption, install/update breakage that strands users, or security-relevant regression. |
+| Release shape          | Cadence                                      | Scope                                                                                                                                                           |
+| ---------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.7.x` patch         | Weekly while user signal is non-empty        | Bug fixes, false-positive reductions, documentation corrections, packaging fixes, and low-risk operational hardening.                                           |
+| `v0.7.x` patch         | Within 48 hours of any P0 bug                | Crash, data loss, false protection claim, daemon corruption, install/update breakage that strands users, or security-relevant regression.                       |
 | Next minor beta        | When ready — releasable `main` + green gates | Feature additions and non-breaking product expansion. No calendar gate; quality and APS authorisation gate the cut. (The six-week hold was retired 2026-06-01.) |
-| Breaking beta or major | Demand-pulled                            | Triggered by a real adopter requirement or a Boring-Week-tier regression, not by backlog completion alone.                                |
+| Breaking beta or major | Demand-pulled                                | Triggered by a real adopter requirement or a Boring-Week-tier regression, not by backlog completion alone.                                                      |
 
 Major releases are **demand-pulled** — triggered by a real adopter requirement
 or a regression too serious for patch/minor repair, not by a calendar. The
-six-week sit-on hold from earlier revisions of this policy is retired (2026-06-01,
-authorised by Josh) in favour of continuous, quality-gated feature delivery.
+six-week sit-on hold from earlier revisions of this policy is retired
+(2026-06-01, authorised by Josh) in favour of continuous, quality-gated feature
+delivery.
 
 ## Version Scope
 
