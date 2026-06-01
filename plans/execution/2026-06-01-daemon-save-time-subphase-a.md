@@ -1,12 +1,80 @@
 # Daemon Save-time Validation — Sub-phase A Implementation Plan
 
 **Goal:** Ship the frozen `validate_paths` wire + watch client + MCP re-point, backed by an interim per-`WorktreeKey` `SymbolGraph` cache (rebuild-on-restart, no persistence), behind the §8 correctness bar.
-**Architecture:** Three new verdict-shaped JSON-RPC verbs on the existing intercept daemon reuse the `scan_buffer` handshake/transport/envelope. A per-path identity table classifies FS events; a bounded reverse-impact closure over the existing `DependencyGraph.reverse` index decides certified-vs-Stale; `run_antipattern_check` runs against the changed-path set over warm `SymbolGraph` state. `watch` and MCP become thin daemon clients with a scoped (never `--all`) fallback.
+**Architecture:** Three new verdict-shaped JSON-RPC verbs on the existing intercept daemon reuse the `scan_buffer` handshake/transport/envelope. A per-path identity table classifies FS events; a bounded reverse-impact closure over a **net-new** `DependencyGraph.reverse` index (built + maintained by the cache — see corrections B1/B5) decides certified-vs-Stale; `run_antipattern_check` runs against the changed-path set over warm `SymbolGraph` state. `watch` and MCP become thin daemon clients with a scoped (never `--all`) fallback.
 **Tech Stack:** Rust (anvil-intercept, anvil-intercept-proto, anvil-checks, anvil-kernel, anvil-cli), tokio, rayon, JSON-RPC 2.0 NDJSON, criterion (ipc_roundtrip).
 
 Spec: [`plans/specs/2026-06-01-daemon-save-time-validation-contract.md`](../specs/2026-06-01-daemon-save-time-validation-contract.md) · ADR: [`plans/decisions/061-...md`](../decisions/061-save-time-daemon-delta-validation.md)
 
 **Out of scope (do NOT implement here):** sub-phase A′ (GV2 hot-read slice — blocked on the GV2 hot-/non-hot-path boundary gate) and sub-phase B (GV2-021 persistence/warm-start). The backing in this plan is the interim `SymbolGraph` cache only.
+
+---
+
+## ⚠️ Council review corrections — REQUIRED before implementation (2026-06-01)
+
+A review council (architect, kernel-maintainer, adversarial, operations, security,
+pragmatic-lead; + Codex input) reviewed this plan and returned **do not start as
+written**. Full evidence + rulings:
+[`plans/reviews/2026-06-01-daemon-graph-council-verdict.md`](../reviews/2026-06-01-daemon-graph-council-verdict.md).
+The tasks below stand, but apply these corrections first (ordered — earlier items
+are predecessors):
+
+1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
+   `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
+   documents the deliberate refusal). Tasks 6/7/8 cannot compile. Decide and record
+   in an ADR note: add `anvil-kernel` to `anvil-intercept/[dependencies]` (with a
+   cycle audit) **or** extract an `anvil-graph-cache` crate. *Predecessor to 2–3.*
+2. **Reverse index is net-new (B1, critical).** Task 7 caches a
+   `(SymbolGraph, DependencyGraph)` pair per `WorktreeKey`; cold-build derives
+   `DependencyGraph` from resolved import edges; `apply_delta` maintains the reverse
+   index. **Task 6 signature → `certify(sym: &SymbolGraph, dep: &DependencyGraph, change, delta, budget)`.**
+   `dependents_of` is **not** "existing / O(1)" — it has zero non-test callers today.
+3. **`certified` must not over-claim (B2, critical).** Only `run_antipattern_check`
+   (a stateless regex scanner on `anvil-kernel-types`) runs — the four structural
+   policy checks (`CrossLayerViolation`/`NewDependencyIntroduction`/`PublicApiExpansion`/`PrivilegeExpansion`,
+   `embedded.rs:119-133`) do **not**. Add a **`check_families: ["antipattern"]`** field
+   to `ValidatePathsResponse` and scope `coverage: certified` + the §8.2 parity gate
+   to that family across all surfaces. **Do NOT** run the full policy engine on the
+   hot path (council *overturned* that fix — it reopens the CPU regression ADR-061
+   exists to solve; `PolicyEngine`/`run_embedded` is dead in prod; the real engine is
+   whole-repo `anvil gate`).
+4. **Proto envelope type (B3).** `ScanDiagnostics` does not exist; the real type is
+   `ScanBufferResponse` (daemon-local, `midedit.rs:68`). Define the shared diagnostic
+   type **in `anvil-intercept-proto`** (lighter form: `Vec<anvil_kernel_types::Diagnostic>`
+   is fine *if defined in the proto crate, not re-declared daemon-local*); type
+   `ValidatePathsResponse.diagnostics` against it; add scan_buffer↔validate_paths
+   serialise-parity tests.
+5. **Initial assurance state (B6, critical).** Define initial state =
+   `Stale(CrossFileResolutionNeeded)` on first connect (Sub-phase A has no background
+   scheduler, so a workspace otherwise never reaches `clean` and `validate_paths`
+   returns `partial` on every call). `watch` auto-issues `request_full_scan` on
+   connect/reconnect. Update ADR-061 §9 diagram; test
+   `initial_workspace_state_is_stale_not_clean`.
+6. **Export-surface conservative default (B4).** Default any modify touching
+   public/privileged symbols to **partial/stale** until a real export-diff exists;
+   add rename/delete/internal→public/re-export fixtures. Note `delta.removed_edges`
+   is always empty (`incremental.rs:150`) — importer discovery uses `dependents_of`
+   exclusively.
+7. **Read-safety + pool gaps (new majors).** Make Task 3 (openat2/`RESOLVE_NO_SYMLINKS`)
+   a **hard predecessor of Task 8**: `run_antipattern_check` currently does unguarded
+   `fs::read_to_string` (`check.rs:118`) — pass it pre-read guarded bytes, not paths.
+   Extend `run_antipattern_check` to take a `&rayon::ThreadPool` so Task 10's
+   interactive pool governs it (today it uses the global pool → two-pool isolation is
+   unachievable). Reword Task 2: the workspace-root auth handshake is **net-new** (no
+   wired consumer today), not "reuse".
+8. **Placement + observability (ops/security majors).** Resolve `confinement.rs`
+   placement (the `ANVIL_HOME` resolver it reuses lives in `anvil-cli`); specify the
+   structured-log fields for assurance transitions (route via the ADR-035
+   Notification envelope); add a daemon mid-session disconnect/reconnect spec for
+   `watch`.
+9. **Non-blocking:** mark the interim cache API as A′-replaced (module comments);
+   note the SLO bench (Tasks 10/11/16) is an ADR-061 §9 **Phase-2 merge dependency**,
+   not a sibling-plan candidate; make the `ALL_ANVIL_METHODS` pin test two-directional;
+   narrow the "never a source read-oracle" wording.
+
+**GV2 / A′-only (do not block Sub-phase A):** land
+`docs/architecture/graph-v2-foundation-spec.md` before ticking "taxonomy accepted";
+GV2-002 stable identity before the export fast-path graduates from conservative-partial.
 
 ---
 
@@ -159,7 +227,7 @@ Reuse `DriverManifest::validate_workspace_roots` against active sessions. Add a 
 - Create: `crates/anvil-intercept/src/certify.rs`
 - Test: same file
 
-`fn certify(graph: &SymbolGraph, change: &CanonicalChange, delta: &GraphDelta, budget: usize) -> Certifiability` where `Certifiability = Certified { paths: Vec<PathBuf> } | Partial { reason: StaleReason }`. Logic: no export-surface delta ⇒ `Certified{[file]}`; else expand `dependents_of(file)` (1-hop), recurse on re-export surface changes, bounded by `budget`; overflow ⇒ `Partial{ImpactSetOverflow}`.
+`fn certify(sym: &SymbolGraph, dep: &DependencyGraph, change: &CanonicalChange, delta: &GraphDelta, budget: usize) -> Certifiability` where `Certifiability = Certified { paths: Vec<PathBuf> } | Partial { reason: StaleReason }`. **(Corrected per B1: takes the net-new `DependencyGraph` — `dependents_of` lives there, not on `SymbolGraph`.)** Logic: no export-surface delta ⇒ `Certified{[file]}`; else expand `dep.dependents_of(file)` (1-hop), recurse on re-export surface changes, bounded by `budget`; overflow ⇒ `Partial{ImpactSetOverflow}`. Conservative default (B4): any modify touching public/privileged symbols defaults to `Partial` until a real export-surface diff exists.
 
 - [ ] Failing tests: `content_modify_no_export_change_certifies_self_only`, `export_surface_change_pulls_in_direct_importers`, `delete_invalidates_importers`, `reexport_chain_recurses_within_budget`, `overflow_returns_partial`. The headline: `new_export_making_unchanged_importer_illegal_is_not_certified_clean` (the reverse-dependency soundness case).
 - [ ] Run `cargo test -p eddacraft-anvil-intercept certify` — fail → implement → pass.
@@ -171,7 +239,7 @@ Reuse `DriverManifest::validate_workspace_roots` against active sessions. Add a 
 - Create: `crates/anvil-intercept/src/kernel_cache.rs`
 - Test: same file
 
-`HashMap<WorktreeKey, SymbolGraph>` behind the existing bounded-LRU + generation-guard + unregister-hook pattern (mirror `RuleSetCache`). `apply_delta(key, change)` via `graph::incremental::{update_file,remove_file,re_resolve_imports}`. Eviction bumps generation and demotes assurance to `Stale(WarmStateEvicted)` (Task 9 consumes this).
+`HashMap<WorktreeKey, (SymbolGraph, DependencyGraph)>` **(corrected per B1: holds the pair; cold-build derives `DependencyGraph` from resolved import edges, `apply_delta` maintains the reverse index)** behind the existing bounded-LRU + generation-guard + unregister-hook pattern (mirror `RuleSetCache`). `apply_delta(key, change)` via `graph::incremental::{update_file,remove_file,re_resolve_imports}` plus reverse-index maintenance. Eviction bumps generation and demotes assurance to `Stale(WarmStateEvicted)` (Task 9 consumes this). **First connect / cold key ⇒ initial state `Stale(CrossFileResolutionNeeded)` (B6), never `Clean`.**
 
 - [ ] Failing tests: `cold_build_then_warm_read`, `delta_update_mutates_in_place_not_rebuild`, `eviction_bumps_generation`, `generation_guard_blocks_stale_resolve`.
 - [ ] Run `cargo test -p eddacraft-anvil-intercept kernel_cache` — fail → implement → pass.
@@ -196,7 +264,7 @@ Orchestrate: auth (Task 2) → for each path classify (Task 4) + read-safe bytes
 - Modify: `crates/anvil-intercept/src/assurance.rs`, `crates/anvil-intercept/src/ipc.rs`
 - Test: `assurance.rs` tests
 
-State machine `Clean→Stale→Pending→Running→Clean`; `reason` non-optional for `Stale`; `scan_started_at` for `Running`; INFO log on every transition; scan-timeout ⇒ `Stale(ScanTimeout)`; daemon restart ⇒ any `Running` becomes `Stale`. Dispatch arms for `workspace_status` + `request_full_scan` (job handle, interactive|background priority).
+State machine **initial `Stale(CrossFileResolutionNeeded)` (B6) →** `Pending→Running→Clean`, then `Clean→Stale` on an uncertifiable delta; `reason` non-optional for `Stale`; `scan_started_at` for `Running`; structured transition log via the ADR-035 Notification envelope (named fields, not a bare INFO line — B8); scan-timeout ⇒ `Stale(ScanTimeout)`; daemon restart ⇒ any `Running` becomes `Stale`. `watch` auto-issues `request_full_scan` on connect/reconnect. Dispatch arms for `workspace_status` + `request_full_scan` (job handle, interactive|background priority).
 
 - [ ] Failing tests: `transition_emits_log`, `stale_requires_reason`, `running_carries_scan_started_at`, `scan_timeout_to_stale`, `restart_running_becomes_stale`, `workspace_status_reports_state`, `request_full_scan_returns_job`.
 - [ ] Run `cargo test -p eddacraft-anvil-intercept assurance` — fail → implement → pass.

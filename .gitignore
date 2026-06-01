@@ -192,6 +192,9 @@ plans/reviews/*
 !plans/reviews/post-merge/**
 !plans/reviews/release-council/
 !plans/reviews/release-council/**
+# Architecture review councils + their inputs (durable design evidence).
+!plans/reviews/20*-daemon-graph-architecture-review.md
+!plans/reviews/20*-daemon-graph-council-verdict.md
 # Source review backing the 2026-05-09 plan/build/release operating-model spec.
 !plans/reviews/plan-build-release-operating-model.md
 # Source review backing the 2026-05-09 CPU problem analysis and response.

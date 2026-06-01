@@ -193,9 +193,15 @@ the workspace is `Clean`. The certifiable/partial decision:
   `certified`.
 - An export-surface change, a `Delete`, or a `Rename` can make an **unchanged
   importer** illegal. The affected set is exactly `dependents_of(file)` — the
-  1-hop importer set, an O(1) read on the existing `DependencyGraph.reverse`
-  index. The daemon validates the file **plus that bounded reverse closure**
-  inline (re-exports recurse, bounded by budget) and stays `certified` if clean.
+  1-hop importer set, read from the daemon's `DependencyGraph.reverse` index.
+  **Correction (council review 2026-06-01):** this reverse index is **net-new**.
+  The `DependencyGraph` type exists (`crates/anvil-kernel/src/graph/dependency.rs`)
+  but no production path builds it today — `add_dependency`/`dependents_of` have
+  zero non-test callers, and the daemon cache holds only `SymbolGraph`. Sub-phase A
+  **must build and incrementally maintain** this index; it is not a free "existing
+  / O(1)" read. See `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (B1).
+  The daemon validates the file **plus that bounded reverse closure** inline
+  (re-exports recurse, bounded by budget) and stays `certified` if clean.
 - If the impact closure exceeds budget → `coverage: partial` →
   `Stale(reason: impact-set-overflow)` → background full scan reconciles.
 

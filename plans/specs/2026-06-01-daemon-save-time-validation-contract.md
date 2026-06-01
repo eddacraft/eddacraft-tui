@@ -154,9 +154,14 @@ Inode-based classification is **mandatory** in the gated correctness bar.
 
 ### Certifiability (bounded reverse-impact closure)
 
-For each canonical change to file F, using the existing
-`DependencyGraph.reverse` index (`dependents_of(F)`, O(1)) and the `update_file`
-`GraphDelta`:
+For each canonical change to file F, using the daemon's `DependencyGraph.reverse`
+index (`dependents_of(F)`, 1-hop) and the `update_file` `GraphDelta`:
+
+> **Correction (council review 2026-06-01, B1):** the `DependencyGraph.reverse`
+> index is **net-new**, not "existing / O(1)". The type exists but no production
+> path populates it; Sub-phase A's cache must hold and maintain a
+> `(SymbolGraph, DependencyGraph)` pair, and `certify` must take both. See
+> `plans/reviews/2026-06-01-daemon-graph-council-verdict.md`.
 
 1. `ContentModify` with **no export-surface change** → validate F only →
    `certified`.
