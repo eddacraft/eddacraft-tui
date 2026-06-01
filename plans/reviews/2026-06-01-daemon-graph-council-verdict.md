@@ -118,4 +118,4 @@ Ordered; each item is a predecessor to the next where noted.
 
 **Findings I judge wrong / over-stated:** Codex C4 (overstated as a plan defect — it is a naming risk the plan already guards at subphase-a.md:9); Codex C1's required-fix (running graph policy on the hot path is the wrong remedy — it reopens the CPU regression); Codex C2's "pull GV2 forward" alternative (unnecessary — the type exists and wiring is additive). The security finding "auth being reused" is correctly framed as net-new; I concur it is not a critical *defect* but a critical *plan mislabel* — its real teeth are that it makes Task 3 load-bearing, which I have folded into step 7.
 
-Evidence file read: `/home/aneki/Projects/src/anvil-001.council/CODEX-REVIEW-INPUT.md`.
+Codex input adjudicated here: [`plans/reviews/2026-06-01-daemon-graph-architecture-review.md`](./2026-06-01-daemon-graph-architecture-review.md).
