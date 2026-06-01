@@ -9,6 +9,8 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-06-01
+
 ### Added
 
 - **`json-render` feature** (off by default): a `json_render` module that parses
@@ -19,6 +21,15 @@ minor version bump indicates a breaking change.
   graph when the feature is enabled, so the core widget library stays
   serde-free. This is the parser foundation for rendering json-render dashboard
   specs in a terminal (TUIDASH).
+
+### Fixed
+
+- **`TreeNode` now drops iteratively** so dropping a deeply-nested tree cannot
+  overflow the stack on teardown. The compiler-derived recursive drop blew the
+  stack on a long chain — fatal on Windows' 1 MiB default thread stack (it
+  survived Linux's 8 MiB), crashing deep-tree teardown with
+  `STATUS_STACK_OVERFLOW`. The render walker was already iterative; teardown is
+  now bounded to a single stack frame too.
 
 ## [0.2.3] - 2026-05-27
 
