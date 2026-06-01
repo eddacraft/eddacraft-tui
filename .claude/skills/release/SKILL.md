@@ -213,6 +213,18 @@ bash scripts/release/closeout.sh \
 This command owns release branch cleanup, final issue update, and issue closure.
 There is no back-merge step because `main` is the single integration target.
 
+After closeout, keep the release plan forward-looking (a deterministic command
+does not yet own this, so do it as part of closeout):
+
+1. Confirm the shipped tag's durable record exists at `plans/releases/<tag>.md`.
+2. **Prune the shipped window from `RELEASE-PLAN.md`** — that file scopes only the
+   single active window, never closed releases.
+3. **Scope the next window in `RELEASE-PLAN.md`** (theme, phase plans, cut
+   criteria) from the `Ready`/`Accepted` modules and ADRs.
+
+See [`docs/policies/release-cadence.md`](../../../docs/policies/release-cadence.md)
+(Operator Checklist) and `RELEASE-PLAN.md` ("How this document works").
+
 ## Failure Policy
 
 On any command failure:

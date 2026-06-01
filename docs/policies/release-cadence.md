@@ -111,3 +111,11 @@ Before cutting a release, confirm:
 4. Any emergency hotfix bypass has a tracked follow-up.
 5. The release record is sufficient for cleanup agents to advance APS lifecycle
    state from Merged to Released/Shipped.
+
+At closeout, keep `RELEASE-PLAN.md` forward-looking:
+
+6. The shipped window's durable record lives at `plans/releases/<tag>.md`.
+7. **Prune the shipped window from `RELEASE-PLAN.md`** — it scopes only the one
+   active window, never closed releases (those are in `plans/releases/`).
+8. **Scope the next window in `RELEASE-PLAN.md`** with its theme, phase plans,
+   and cut criteria.

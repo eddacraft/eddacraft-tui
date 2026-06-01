@@ -60,7 +60,7 @@ process can spoof or unset them. The daemon MUST:
    normal path, not a security boundary.
 
 This contract is the carry-forward gate confirmed in Wave 0 of the
-[release plan](../../../RELEASE-PLAN.md#wave-0-promote-contracts).
+[v0.7.0 release record](../../releases/v0.7.0-beta.md).
 
 ## Purpose
 

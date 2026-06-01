@@ -87,8 +87,7 @@ match.
 
 **Shipped:** `v0.7.0-beta` (2026-05-21), followed by patches `v0.7.1-beta`
 (2026-05-22) and `v0.7.2-beta` (2026-05-25). Detailed sequencing, waves, and
-parallelisation in
-[RELEASE-PLAN.md → NEXT RELEASE WINDOW](./RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate).
+parallelisation in the [v0.7.0 release record](./plans/releases/v0.7.0-beta.md).
 
 ### Horizon 2 — Team-Lead Surface
 
