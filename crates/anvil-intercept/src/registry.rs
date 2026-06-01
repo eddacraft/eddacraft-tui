@@ -774,6 +774,54 @@ impl SessionRegistry {
         Some(inner.sessions.get(&matched_sid)?.record.worktree.clone())
     }
 
+    /// CLAWP-065: walk the writer's PID lineage and return the
+    /// `SessionId` of any registered ancestor, regardless of tag.
+    /// Shares the `(pid, pid_starttime)` anti-PID-reuse guarantee with
+    /// [`Self::worktree_for_lineage`] and [`Self::lookup_tag_for_lineage`]
+    /// — a reused PID with a stale `pid_starttime` misses. The daemon's
+    /// `scan_buffer` session-ownership check (`ipc::scan_buffer_from_jsonrpc`)
+    /// uses this to bind a request's claimed `session_id` to the
+    /// authenticated peer lineage of the connection it arrived on:
+    /// when the resolved owner differs from the claim, the write is a
+    /// cross-session forgery and is rejected.
+    ///
+    /// Returns `None` when no registered session sits on the lineage
+    /// (walk reaches init, the depth cap fires, or an ancestor's
+    /// process info cannot be read). The caller treats `None` as a
+    /// failed binding and fails closed.
+    #[must_use]
+    pub fn session_for_lineage(&self, start_pid: u32) -> Option<SessionId> {
+        use anvil_attribution::process::pid_starttime;
+        use anvil_attribution::walk::{DEFAULT_MAX_DEPTH, WalkOutcome, walk_ancestors};
+
+        // Snapshot the lineage index so the `/proc` walk runs outside
+        // the registry lock (mirrors `worktree_for_lineage`).
+        let snapshot: HashMap<(u32, u64), SessionId> = {
+            let inner = self.lock();
+            inner.by_pid_lineage.clone()
+        };
+
+        let outcome = walk_ancestors(start_pid, DEFAULT_MAX_DEPTH, |pid| {
+            let starttime = pid_starttime(pid).ok()?;
+            snapshot.get(&(pid, starttime)).cloned()
+        })
+        .ok()?;
+
+        let matched_sid = match outcome {
+            WalkOutcome::Matched { value, .. } => value,
+            WalkOutcome::ReachedRoot | WalkOutcome::DepthExhausted { .. } => return None,
+        };
+
+        // Re-acquire the lock and confirm the matched session is still
+        // live — the lineage snapshot was taken before the walk, so an
+        // `unregister` (which also clears `by_pid_lineage`) racing the
+        // walk could otherwise let a just-evicted session authorise a
+        // scan. Mirrors `worktree_for_lineage` / `lookup_tag_for_lineage`,
+        // and keeps the ownership check fail-closed.
+        let inner = self.lock();
+        inner.sessions.get(&matched_sid).map(|_| matched_sid)
+    }
+
     /// MLP2-074: narrow the lineage anchor from the launcher's
     /// `(pid, pid_starttime)` to the spawned child's. The launcher
     /// calls `session.report_process` after spawn; the daemon

@@ -62,6 +62,21 @@ pub struct ScanBufferRequest {
     /// spec §3.1 + Q3 in
     /// `plans/specs/2026-05-16-mlp2-025-spoof-cross-check-control-lane.md`.
     pub env_agent_tag: Option<String>,
+    /// CLAWP-065: optional authenticated session binding. When the
+    /// writer supplies a `session_id`, the daemon's IPC layer resolves
+    /// the session that owns the connection's authenticated peer-PID
+    /// lineage and rejects the request with a structured JSON-RPC
+    /// error when the claimed id is not that session — closing the gap
+    /// where `scan_buffer` could not reject a request issued under
+    /// another session's identity.
+    ///
+    /// `None` keeps the legacy unbound path: pre-CLAWP-065 writers (and
+    /// today's TS driver, which does not send the field) are
+    /// unaffected. The ownership check lives in
+    /// [`crate::ipc`]'s `scan_buffer_from_jsonrpc`; the pure pipeline
+    /// never reads this field — it mirrors `env_agent_tag`, which is
+    /// also consumed only at the IPC boundary.
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -471,6 +486,7 @@ mod tests {
             version: 7,
             mode: ScanBufferMode::MidEdit,
             env_agent_tag: None,
+            session_id: None,
         }
     }
 
@@ -572,6 +588,7 @@ mod tests {
             version: 1,
             mode: ScanBufferMode::MidEdit,
             env_agent_tag: None,
+            session_id: None,
         };
 
         let pipeline = EnforcementPipeline::default();
@@ -589,6 +606,7 @@ mod tests {
             version: 2,
             mode: ScanBufferMode::MidEdit,
             env_agent_tag: None,
+            session_id: None,
         };
 
         let pipeline = EnforcementPipeline::default();

@@ -90,6 +90,13 @@ const MAX_SCAN_BUFFER_MODE_BYTES: usize = 32;
 /// small. 1 KiB is well above any realistic payload while keeping the
 /// fast-path memory bound tight.
 const MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES: usize = 1024;
+/// CLAWP-065: cap for the optional `session_id` wire field in the
+/// oversized fast-path validator. Session ids are short opaque strings
+/// (the launcher mints a UUID-class value); 256 bytes is well above
+/// any realistic id while keeping the fast-path memory bound tight. It
+/// matches [`MAX_JSONRPC_ID_BYTES`] — both bound caller-supplied
+/// identifier strings.
+const MAX_SCAN_BUFFER_SESSION_ID_BYTES: usize = 256;
 const MAX_TRACE_METHOD_LEN: usize = 128;
 
 /// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
@@ -1582,6 +1589,11 @@ fn validate_oversized_scan_buffer_params(
     // otherwise oversized scan_buffer requests carrying a tag are
     // rejected before the cross-check sees them.
     let mut saw_env_agent_tag = false;
+    // CLAWP-065: `session_id` is an optional wire field — the
+    // post-parse validator accepts it; the fast-path must too, so an
+    // oversized scan_buffer request carrying a session binding is not
+    // rejected before the ownership check can see it.
+    let mut saw_session_id = false;
 
     loop {
         *index = skip_json_whitespace(bytes, *index);
@@ -1648,6 +1660,15 @@ fn validate_oversized_scan_buffer_params(
                 saw_env_agent_tag = true;
                 if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES) {
                     return Err("oversized scan_buffer env_agent_tag is missing or too large");
+                }
+            }
+            "session_id" => {
+                if saw_session_id {
+                    return Err("oversized scan_buffer params contain duplicate session_id fields");
+                }
+                saw_session_id = true;
+                if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_SESSION_ID_BYTES) {
+                    return Err("oversized scan_buffer session_id is missing or too large");
                 }
             }
             _ => return Err("oversized scan_buffer params contain unsupported fields"),
@@ -2557,11 +2578,11 @@ fn validate_scan_buffer_request_shape(
         // null tags intentionally take the `Cross::Untagged` path.
         if !matches!(
             key.as_str(),
-            "path" | "text" | "version" | "mode" | "env_agent_tag"
+            "path" | "text" | "version" | "mode" | "env_agent_tag" | "session_id"
         ) {
             return Err(invalid_params(
                 method,
-                "scan_buffer params only allow path, text, version, mode, and env_agent_tag fields",
+                "scan_buffer params only allow path, text, version, mode, env_agent_tag, and session_id fields",
             ));
         }
     }
@@ -2742,6 +2763,68 @@ fn spoof_block_response(
     serde_json::to_value(&response).expect("ScanBufferResponse with SpoofBlockInfo serialises")
 }
 
+/// CLAWP-065: JSON-RPC error code for a `scan_buffer` request whose
+/// claimed `session_id` does not match the connection's authenticated
+/// peer-PID lineage. Server-defined per JSON-RPC 2.0 §5.1 (the
+/// `-32000..=-32099` reserved range), sequenced after `-32000`
+/// (Server busy) and `-32001` (Scan timed out).
+const SCAN_BUFFER_SESSION_MISMATCH_CODE: i64 = -32002;
+
+/// CLAWP-065: validate that a `scan_buffer` request claiming the
+/// `claimed` session id was issued from a connection whose
+/// authenticated peer lineage owns that session.
+///
+/// Fail-closed on every path the daemon cannot positively attribute to
+/// the claimed session:
+/// - no authenticated `peer_pid` (the OS gave us no peer credential) →
+///   the claim cannot be bound to any lineage → reject;
+/// - the writer's PID lineage carries no registered session → the
+///   claim is unverifiable → reject (an unbound claim is not a free
+///   pass);
+/// - the lineage resolves to a *different* registered session →
+///   cross-session forgery → reject.
+///
+/// The error `data` echoes the (client-supplied) claimed id and a
+/// machine-readable `reason`, but never the owning session id —
+/// disclosing it would leak another session's identity to a caller
+/// that just proved it does not own it.
+fn validate_scan_buffer_session_ownership(
+    claimed: &str,
+    peer_pid: Option<u32>,
+    registry: &SessionRegistry,
+) -> Result<(), JsonRpcFailure> {
+    let Some(writer_pid) = peer_pid else {
+        return Err(session_ownership_mismatch(
+            claimed,
+            "peer-credentials-unavailable",
+        ));
+    };
+    match registry.session_for_lineage(writer_pid) {
+        Some(owner) if owner.as_str() == claimed => Ok(()),
+        Some(_) => Err(session_ownership_mismatch(
+            claimed,
+            "session-lineage-mismatch",
+        )),
+        None => Err(session_ownership_mismatch(
+            claimed,
+            "no-registered-session-on-lineage",
+        )),
+    }
+}
+
+/// CLAWP-065: build the structured session-ownership rejection. See
+/// [`validate_scan_buffer_session_ownership`] for the disclosure rule.
+fn session_ownership_mismatch(claimed: &str, reason: &'static str) -> JsonRpcFailure {
+    JsonRpcFailure {
+        code: SCAN_BUFFER_SESSION_MISMATCH_CODE,
+        message: "Session ownership mismatch",
+        data: json!({
+            "reason": reason,
+            "claimed_session_id": claimed,
+        }),
+    }
+}
+
 async fn scan_buffer_from_jsonrpc(
     params: &Value,
     method: &str,
@@ -2777,14 +2860,63 @@ async fn scan_buffer_from_jsonrpc(
             }
             None => None,
         };
+        // CLAWP-065: optional authenticated session binding. Same shape
+        // contract as `env_agent_tag` — absent or null both fold to
+        // `None`; any non-string value is a hard parse failure. When
+        // present, the daemon binds it to the connection's peer lineage
+        // below. Bounded at `MAX_SCAN_BUFFER_SESSION_ID_BYTES` here so a
+        // normal-sized frame (whose cap, `MAX_LINE_BYTES`, is far
+        // larger) cannot smuggle a multi-megabyte id that the daemon
+        // would clone and echo back verbatim in the rejection's
+        // `claimed_session_id` — this matches the cap the oversized
+        // fast-path already enforces.
+        let session_id = match params.get("session_id") {
+            Some(value) if value.is_null() => None,
+            Some(Value::String(s)) => {
+                if s.len() > MAX_SCAN_BUFFER_SESSION_ID_BYTES {
+                    return Err(invalid_params(
+                        method,
+                        format!("session_id exceeds {MAX_SCAN_BUFFER_SESSION_ID_BYTES} byte cap"),
+                    ));
+                }
+                Some(s.clone())
+            }
+            Some(_) => {
+                return Err(invalid_params(
+                    method,
+                    "session_id must be a string or null".to_string(),
+                ));
+            }
+            None => None,
+        };
         ScanBufferRequest {
             path: PathBuf::from(path),
             text,
             version,
             mode,
             env_agent_tag,
+            session_id,
         }
     };
+
+    // CLAWP-065: session-ownership binding. A request that claims a
+    // `session_id` must arrive on a connection whose authenticated
+    // peer-PID lineage resolves to that same session; otherwise the
+    // daemon cannot tell a legitimate mid-edit scan from one forged
+    // under another session's identity, and rejects it with a
+    // structured error. Enforced only when the daemon has a
+    // cross-check context (i.e. a live session registry) — embedded /
+    // legacy listeners with no registry have no session model to bind
+    // against, matching the spoof-check posture below. An absent
+    // `session_id` keeps the pre-CLAWP-065 unbound path, so today's
+    // driver (which sends none) is unaffected. Runs BEFORE the spoof
+    // cross-check so an unauthorised session claim fails fast without
+    // triggering a worktree fence as a side effect.
+    if let Some(ctx) = cross_check
+        && let Some(claimed) = request.session_id.as_deref()
+    {
+        validate_scan_buffer_session_ownership(claimed, peer_pid, &ctx.registry)?;
+    }
 
     // MLP2-025b: run the write-time spoof cross-check before the
     // rule engine. When `cross_check` is `None` the daemon is in a
@@ -3418,6 +3550,7 @@ mod tests {
             version: 1,
             mode: ScanBufferMode::MidEdit,
             env_agent_tag: env_agent_tag.map(ToString::to_string),
+            session_id: None,
         }
     }
 

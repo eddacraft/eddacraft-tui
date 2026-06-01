@@ -48,12 +48,14 @@
 //!
 //! # Documented gaps
 //!
-//! - **Cross-session subscription rejection** is **not** enforced today
-//!   — `scan_buffer` carries no `sessionId` parameter. The fixture for
-//!   that case is gated behind `#[ignore = "RTAI-008 gap cross-session
-//!   rejection not yet implemented"]` so it stays visible without
-//!   breaking CI. Wire it in when the daemon grows session-scoped
-//!   `scan_buffer` enforcement.
+//! - **Cross-session rejection** is enforced as of CLAWP-065:
+//!   `scan_buffer` accepts an optional `session_id`, and a daemon with
+//!   a live session registry rejects a request whose claim does not
+//!   match the connection's authenticated peer-PID lineage with
+//!   `error.code = -32002` ("Session ownership mismatch"). See
+//!   [`cross_session_request`] / [`assert_cross_session_response`] and
+//!   `rust_consumer_rejects_cross_session_scan_buffer`. (This closes
+//!   the former RTAI-008 `#[ignore]`d placeholder.)
 //! - **`WorkerFailed` (-32603)** is currently exercised only via the
 //!   `ServiceUnavailable` cousin. The remaining branch — a failure of
 //!   `std::thread::Builder::spawn` — is not portably reproducible from
@@ -77,7 +79,7 @@ use std::time::Duration;
 
 use anvil_intercept::Shutdown;
 use anvil_intercept::enforcement::{CONTENT_SIZE_CAP_BYTES_USIZE, EnforcementPipeline};
-use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
+use anvil_intercept::ipc::{CrossCheckContext, IpcListener, NoopDispatcher};
 use anvil_intercept::midedit::{
     MAX_CONCURRENT_SCAN_BUFFERS, MAX_SCAN_BUFFER_PATH_BYTES, ScanBufferService,
 };
@@ -482,13 +484,18 @@ pub fn assert_busy_response(response: &Value) {
     );
 }
 
-/// Build the JSON-RPC request for the cross-session rejection case.
+/// The `session_id` a cross-session [`cross_session_request`] claims.
+/// It is deliberately NOT the session bound to the connection's peer
+/// lineage, so the daemon must reject it (CLAWP-065).
+pub const CROSS_SESSION_FOREIGN_SESSION_ID: &str = "contract-foreign-session";
+
+/// Build the JSON-RPC request for the cross-session rejection case
+/// (CLAWP-065).
 ///
-/// Today this is just a normal `scan_buffer` call — there is no
-/// `sessionId` parameter on the wire. Once cross-session rejection is
-/// implemented, this fixture should add a `sessionId` field that
-/// belongs to a different connection and assert the structured
-/// rejection.
+/// The request claims [`CROSS_SESSION_FOREIGN_SESSION_ID`] — a session
+/// the connection's authenticated peer lineage does not own. A daemon
+/// with a live session registry must reject it with the structured
+/// session-ownership error pinned by [`assert_cross_session_response`].
 #[must_use]
 pub fn cross_session_request() -> Value {
     json!({
@@ -498,25 +505,47 @@ pub fn cross_session_request() -> Value {
             "path": "src/contract/cross-session.ts",
             "text": "const value = 1;\n",
             "version": 12,
-            "mode": "midEdit"
+            "mode": "midEdit",
+            "session_id": CROSS_SESSION_FOREIGN_SESSION_ID
         },
         "id": "contract-cross-session"
     })
 }
 
-/// Assert the cross-session response shape.
+/// Assert the cross-session rejection response shape (CLAWP-065).
 ///
-/// **Gap:** `scan_buffer` does not currently accept a `sessionId`, so the
-/// cross-session rejection contract cannot be exercised. This assertion
-/// is the placeholder shape for the day it is — when the daemon grows
-/// session-scoped `scan_buffer` enforcement, tighten this to require an
-/// `error.code` and a `reason` mentioning the session mismatch. Until
-/// then the only invariant we can pin is the universal "either
-/// diagnostics or error, never silent" envelope rule.
+/// Pins:
+/// - JSON-RPC envelope (`jsonrpc = "2.0"`, id echoed).
+/// - It is an `error`, never a silent `result` pass.
+/// - `error.code = -32002` (server-defined "Session ownership
+///   mismatch", in the JSON-RPC 2.0 §5.1 server range).
+/// - `error.data.reason` is a string naming the session mismatch, and
+///   `error.data.claimed_session_id` echoes the claimed id — but the
+///   owning session id is NEVER disclosed to a caller that just proved
+///   it does not own it.
 pub fn assert_cross_session_response(response: &Value) {
     assert_envelope_is_error_or_diagnostics(response);
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], "contract-cross-session");
+    assert!(
+        response.get("result").is_none(),
+        "cross-session rejection must NOT silently pass with a result: {response}",
+    );
+    assert_eq!(
+        response["error"]["code"], -32002,
+        "cross-session must map to -32002 (Session ownership mismatch): {response}",
+    );
+    let reason = response["error"]["data"]["reason"]
+        .as_str()
+        .unwrap_or_else(|| panic!("error.data.reason must be a string: {response}"));
+    assert!(
+        reason.contains("session"),
+        "error.data.reason must name the session mismatch, got {reason:?}: {response}",
+    );
+    assert_eq!(
+        response["error"]["data"]["claimed_session_id"], CROSS_SESSION_FOREIGN_SESSION_ID,
+        "error.data must echo the claimed (not the owning) session id: {response}",
+    );
 }
 
 /// Universal invariant: a `scan_buffer` response is exactly one of
@@ -598,8 +627,9 @@ where
         }
         // Bespoke setup required — consumer wires these via the
         // helper services (`panicking_rule_service`,
-        // `timing_out_rule_service`, `saturating_rule_service`) or the
-        // `#[ignore]`d cross-session test.
+        // `timing_out_rule_service`, `saturating_rule_service`) or, for
+        // cross-session (CLAWP-065), a harness with a live session
+        // registry (`Harness::start_with_cross_check`).
         "rule_panic_isolated" | "transport_timeout" | "server_busy" | "cross_session_rejection" => {
             false
         }
@@ -620,9 +650,9 @@ where
 /// Fixtures that need bespoke transport wiring (rule-panic via
 /// [`panicking_rule_service`], transport-timeout via
 /// [`timing_out_rule_service`], server-busy via
-/// [`saturating_rule_service`], and the still-`#[ignore]`d
-/// cross-session case) are intentionally NOT driven here; consumers
-/// must run them via the dedicated helpers.
+/// [`saturating_rule_service`], and the cross-session case via a
+/// registry-backed harness — CLAWP-065) are intentionally NOT driven
+/// here; consumers must run them via the dedicated helpers.
 pub fn run_full_contract<F>(mut transport: F)
 where
     F: FnMut(Value) -> Value,
@@ -804,13 +834,37 @@ struct Harness {
 
 impl Harness {
     fn start(scan_buffer: ScanBufferService) -> Self {
+        Self::start_inner(scan_buffer, None)
+    }
+
+    /// CLAWP-065: start a harness whose listener is wired with a
+    /// [`CrossCheckContext`] (a live session registry + fence store),
+    /// so the `scan_buffer` session-ownership check is active. The
+    /// caller registers sessions on the same `registry` it built the
+    /// context from before issuing requests.
+    ///
+    /// Linux-only: the session-binding check (like the MLP2-025b spoof
+    /// cross-check it sits beside) is wired only on Linux, and the
+    /// registration helper reads `pid_starttime`, which is Linux-only.
+    #[cfg(target_os = "linux")]
+    fn start_with_cross_check(
+        scan_buffer: ScanBufferService,
+        cross_check: CrossCheckContext,
+    ) -> Self {
+        Self::start_inner(scan_buffer, Some(cross_check))
+    }
+
+    fn start_inner(scan_buffer: ScanBufferService, cross_check: Option<CrossCheckContext>) -> Self {
         let tmp = tempfile::tempdir().expect("tempdir");
         std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700))
             .expect("secure tempdir permissions");
         let socket = tmp.path().join("intercept.sock");
-        let listener =
+        let mut listener =
             IpcListener::bind_with_scan_buffer_service(&socket, NoopDispatcher, scan_buffer)
                 .expect("bind listener");
+        if let Some(context) = cross_check {
+            listener = listener.with_cross_check_context(context);
+        }
         let (shutdown, token) = Shutdown::new();
         let handle = tokio::spawn(async move { listener.serve(token).await });
         Self {
@@ -1113,16 +1167,179 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
     harness.shutdown().await;
 }
 
+// ---------------------------------------------------------------------
+// CLAWP-065: session-ownership binding for `scan_buffer`.
+//
+// Linux-only: the daemon wires the session-binding check (like the
+// MLP2-025b spoof cross-check it sits beside) only on Linux, and the
+// registration helper reads `pid_starttime`, which is Linux-only. This
+// mirrors the cfg gate on `tests/spoof_cross_check_wired.rs`.
+// ---------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+mod session_ownership {
+    use anvil_intercept::fence::FenceStore;
+    use anvil_intercept::ipc::CrossCheckContext;
+    use anvil_intercept::registry::SessionRegistry;
+    use anvil_intercept_proto::SessionId;
+
+    use super::*;
+
+    /// Build a [`CrossCheckContext`] whose registry already holds a
+    /// session anchored to THIS test process's `(pid, pid_starttime)`.
+    /// Every connection the test opens over the loopback socket reports
+    /// that same pid as its `SO_PEERCRED` peer credential, so the
+    /// daemon's lineage walk resolves the test's `scan_buffer` requests
+    /// to `owner_session_id`. Returns the context plus a `TempDir` that
+    /// backs both the registered worktree and the fence store; the
+    /// caller must keep it alive for the harness lifetime.
+    fn cross_check_with_owner_session(owner_session_id: &str) -> (CrossCheckContext, TempDir) {
+        let dirs = tempfile::tempdir().expect("cross-check tempdir");
+        let worktree = dirs.path().join("wt");
+        std::fs::create_dir_all(&worktree).expect("create worktree dir");
+
+        let registry = Arc::new(SessionRegistry::new());
+        let pid = std::process::id();
+        let pid_starttime = anvil_attribution::process::pid_starttime(pid)
+            .expect("read pid_starttime for this process");
+        registry
+            .register_with_lineage(
+                &SessionId::new(owner_session_id),
+                &worktree,
+                None,
+                None,
+                pid,
+                pid_starttime,
+                std::time::Instant::now(),
+            )
+            .expect("register owner session with lineage");
+
+        let fence_store = FenceStore::at_path(dirs.path().join("state/fences.json"));
+        let context = CrossCheckContext {
+            registry,
+            fence_store: Arc::new(fence_store),
+        };
+        (context, dirs)
+    }
+
+    /// A `scan_buffer` request claiming a session the connection's
+    /// authenticated peer lineage does NOT own is rejected with the
+    /// structured session-ownership error. (Replaces the
+    /// previously-`#[ignore]`d RTAI-008 placeholder, which could not be
+    /// exercised before `scan_buffer` accepted a `session_id`.)
+    #[tokio::test]
+    async fn rust_consumer_rejects_cross_session_scan_buffer() {
+        let (cross_check, _dirs) = cross_check_with_owner_session("contract-owner-session");
+        let harness = Harness::start_with_cross_check(ScanBufferService::default(), cross_check);
+        let mut client = harness.connect().await;
+
+        // The fixture claims CROSS_SESSION_FOREIGN_SESSION_ID, but the
+        // peer lineage resolves to "contract-owner-session" → mismatch.
+        let response = send_frame(&mut client, &cross_session_request()).await;
+        assert_cross_session_response(&response);
+        assert_eq!(
+            response["error"]["data"]["reason"], "session-lineage-mismatch",
+            "a claim on an owned lineage must report the lineage mismatch reason: {response}",
+        );
+
+        drop(client);
+        harness.shutdown().await;
+    }
+
+    /// Fail-closed control: a claim with NO registered session on the
+    /// peer lineage is unverifiable and must also be rejected — an
+    /// unbound claim is not a free pass.
+    #[tokio::test]
+    async fn rust_consumer_rejects_scan_buffer_claiming_unregistered_session() {
+        let fence_dir = tempfile::tempdir().expect("fence tempdir");
+        let cross_check = CrossCheckContext {
+            registry: Arc::new(SessionRegistry::new()),
+            fence_store: Arc::new(FenceStore::at_path(fence_dir.path().join("fences.json"))),
+        };
+        let harness = Harness::start_with_cross_check(ScanBufferService::default(), cross_check);
+        let mut client = harness.connect().await;
+
+        let response = send_frame(&mut client, &cross_session_request()).await;
+        assert_cross_session_response(&response);
+        assert_eq!(
+            response["error"]["data"]["reason"], "no-registered-session-on-lineage",
+            "an unbound claim must report the unregistered-lineage reason: {response}",
+        );
+
+        drop(client);
+        harness.shutdown().await;
+    }
+
+    /// Positive control: a `scan_buffer` whose claimed `session_id` IS
+    /// the session owning the connection's peer lineage is accepted and
+    /// reaches the rule engine (diagnostics result, never an ownership
+    /// error).
+    #[tokio::test]
+    async fn rust_consumer_accepts_owning_session_scan_buffer() {
+        let (cross_check, _dirs) = cross_check_with_owner_session("contract-owner-session");
+        let harness = Harness::start_with_cross_check(ScanBufferService::default(), cross_check);
+        let mut client = harness.connect().await;
+
+        let request = json!({
+            "jsonrpc": "2.0",
+            "method": "scan_buffer",
+            "params": {
+                "path": "src/contract/owned.ts",
+                "text": "const value = 1;\n",
+                "version": 3,
+                "mode": "midEdit",
+                "session_id": "contract-owner-session"
+            },
+            "id": "contract-owned-session"
+        });
+        let response = send_frame(&mut client, &request).await;
+        assert_envelope_is_error_or_diagnostics(&response);
+        assert!(
+            response.get("result").is_some(),
+            "owning session must be accepted and reach the rule engine: {response}",
+        );
+        assert!(
+            response["result"]["diagnostics"].is_array(),
+            "accepted scan must return a diagnostics array: {response}",
+        );
+
+        drop(client);
+        harness.shutdown().await;
+    }
+}
+
+/// CLAWP-065: an over-long `session_id` is rejected as invalid params
+/// during request parsing — before the daemon clones it or echoes it
+/// back in a rejection body — guarding the error-echo amplification
+/// path. Needs no session registry: the 256-byte cap fires in
+/// `scan_buffer_from_jsonrpc` regardless of whether a cross-check
+/// context is wired, so this runs on every unix platform.
 #[tokio::test]
-#[ignore = "RTAI-008 gap: scan_buffer does not yet accept sessionId; \
-            cross-session rejection is not enforced. Wire when the daemon \
-            grows session-scoped mid-edit enforcement, then drop the ignore."]
-async fn rust_consumer_rejects_cross_session_subscription() {
+async fn rust_consumer_rejects_oversized_session_id() {
     let harness = Harness::start(ScanBufferService::default());
     let mut client = harness.connect().await;
 
-    let response = send_frame(&mut client, &cross_session_request()).await;
-    assert_cross_session_response(&response);
+    let request = json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/contract/big-session.ts",
+            "text": "const value = 1;\n",
+            "version": 1,
+            "mode": "midEdit",
+            "session_id": "x".repeat(257)
+        },
+        "id": "contract-oversized-session"
+    });
+    let response = send_frame(&mut client, &request).await;
+    assert_envelope_is_error_or_diagnostics(&response);
+    assert_eq!(
+        response["error"]["code"], -32602,
+        "an over-cap session_id must be rejected as invalid params: {response}",
+    );
+    assert!(
+        response.get("result").is_none(),
+        "an over-cap session_id must NOT pass through to a result: {response}",
+    );
 
     drop(client);
     harness.shutdown().await;

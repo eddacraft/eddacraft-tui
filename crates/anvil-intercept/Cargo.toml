@@ -69,7 +69,9 @@ nix = { version = "0.30", default-features = false, features = [
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
 [dev-dependencies]
+anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-attribution" }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
+anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 criterion = { workspace = true }
 tempfile.workspace = true
 tracing-subscriber = { workspace = true }

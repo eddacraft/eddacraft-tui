@@ -941,7 +941,16 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_cli-command_43c5f1e5c2` — Rust command eddacraft-anvil-intercept
 - **Severity / Triage / Category:** medium / confirmed-bug / security
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
+- **In Progress (2026-06-01):** Started via dev-workflow on branch
+  `fix/clawp-065-scan-buffer-session-id`. Approach: add an optional,
+  wire-additive `session_id` to the `scan_buffer` request; when present, the
+  daemon resolves the session that owns the connection's authenticated
+  `peer_pid` via the existing `(pid, pid_starttime)` lineage walk and rejects
+  the request with a structured JSON-RPC error (`-32002`) when the claimed id
+  is not the lineage-owned session. Absent `session_id` (today's driver) keeps
+  the legacy path unchanged. Un-ignores
+  `rust_consumer_rejects_cross_session_subscription`.
 - **Readiness (2026-06-01):** Promoted Draft → Ready. Self-contained scope
   (one request type + its IPC parse/validate path + the ignored `midedit`
   contract test), no blocking dependency (unlike CLAWP-005/-023), and a clear
