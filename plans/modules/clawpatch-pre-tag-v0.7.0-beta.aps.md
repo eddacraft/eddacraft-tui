@@ -4,7 +4,7 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 24/65    |
+| CLAWP | @aneki | In Progress | 25/65    |
 
 **Last reviewed:** 2026-06-01 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159. A 2026-06-01 reconcile against the 2026-05-31 v0.7.3-beta sweep (`plans/reviews/2026-05-31-clawpatch-triage.md` §A, tracked as a portable backlog in `plans/reviews/2026-05-31-clawpatch-rust-followups.md`, PR #2172) found that eleven of the twelve actionable Rust §A findings had **already shipped as pure-code fixes never tracked here**, verified against `origin/main` source: credential-load coercion → exit `EXIT_CONFIG_ERROR` (PR #2173), pre-dispatch auth `--format json` envelopes (PR #2180), `InterruptReason` 1-based invariant made unrepresentable via `Option<NonZeroU32>` (PR #2174), `EngineEvent` event_type/payload validation (PR #2176), Win32 named-pipe SQOS cap + `GetExitCodeProcess` liveness (PR #2182), `anvil-checks-napi` `.node` freshness guard widened to all native build inputs (PR #2181), and the four `anvil-baseline`/`anvil-witness`/`anvil-checks-napi` docs/re-export corrections (PR #2178). These need no CLAWP item. The single still-open §A finding — `scan_buffer` cannot enforce session ownership because `ScanBufferRequest` omits an authenticated `session_id` — is filed below as **CLAWP-065**.)
 
@@ -941,16 +941,17 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_cli-command_43c5f1e5c2` — Rust command eddacraft-anvil-intercept
 - **Severity / Triage / Category:** medium / confirmed-bug / security
 - **Confidence:** high
-- **Status:** In Progress
-- **In Progress (2026-06-01):** Started via dev-workflow on branch
-  `fix/clawp-065-scan-buffer-session-id`. Approach: add an optional,
-  wire-additive `session_id` to the `scan_buffer` request; when present, the
-  daemon resolves the session that owns the connection's authenticated
-  `peer_pid` via the existing `(pid, pid_starttime)` lineage walk and rejects
-  the request with a structured JSON-RPC error (`-32002`) when the claimed id
-  is not the lineage-owned session. Absent `session_id` (today's driver) keeps
-  the legacy path unchanged. Replaces the previously-`#[ignore]`d RTAI-008
-  placeholder with a registry-backed `rust_consumer_rejects_cross_session_scan_buffer`
+- **Status:** Merged 2026-06-01 via PR #2211
+- **Resolution (2026-06-01):** Merged via PR #2211 (`4cc15e10`). Added an
+  optional, wire-additive `session_id` to the `scan_buffer` request; when
+  present and the daemon has a session registry, it resolves the session that
+  owns the connection's authenticated `peer_pid` via the existing
+  `(pid, pid_starttime)` lineage walk and rejects a mismatch with a structured
+  JSON-RPC error (`-32002`, "Session ownership mismatch"). The check runs
+  before the MLP2-025b spoof cross-check and fails closed on every
+  unattributable branch. Absent `session_id` (today's driver) keeps the legacy
+  path unchanged. Replaced the previously-`#[ignore]`d RTAI-008 placeholder
+  with a registry-backed `rust_consumer_rejects_cross_session_scan_buffer`
   (plus fail-closed, positive, and over-cap controls).
 - **Readiness (2026-06-01):** Promoted Draft → Ready. Self-contained scope
   (one request type + its IPC parse/validate path + the ignored `midedit`
