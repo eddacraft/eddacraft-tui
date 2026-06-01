@@ -395,6 +395,14 @@ Status promoted Draft → **Ready** 2026-05-28.
   `defaultVariant`, `targeting`) exists outside `flags/manifest.json` on the
   TS side. Docs-site middleware and the admin API resolve the same flags they
   resolve today, against the same definitions, byte-for-byte.
+- **Audience-value reconciliation (precondition, Grok review 2026-06-02):**
+  the manifest's `docs.access` targeting uses canonical `plan-*` audience ids
+  while the live docs-site path still passes **bare** tier values
+  (`beta`/`pro`/`enterprise`). The context builders (or a thin adapter) MUST
+  emit canonical `plan-*` ids in lockstep with the cutover, and the legacy
+  docs-site bare targeting literal is updated or deleted in the same change —
+  otherwise targeting silently stops matching. ("byte-for-byte" above means
+  the *resolved decision* is unchanged, not the literal targeting values.)
 - **Scope:** `apps/docs-site/lib/feature-flags.ts`, `apps/docs-site/middleware.ts`,
   `apps/anvil-api/src/lib/feature-flags.ts`, `apps/anvil-api/src/routes/admin.ts`,
   `apps/anvil-api/src/routes/admin-schemas.ts`
@@ -415,6 +423,13 @@ Status promoted Draft → **Ready** 2026-05-28.
   time and emits a generated module exposing Rust constants and variant
   newtypes. Drift between JSON and generated output is detected by the
   consistency check in FLAGCAT-006, not by hand-editing.
+- **Rust contract parity + de-risking (Grok review 2026-06-02):** extend the
+  Rust `FeatureFlagDefinition` with optional `primary_group` + `tags` (serde
+  attributes matching the TS field names) and a tolerate-unknown-fields
+  strategy, so deserialising `flags/manifest.json` does not silently drop the
+  gating-model fields; add a round-trip test that deserialises the live
+  manifest and asserts no field loss. Prototype the `build.rs` workspace-root
+  walk FIRST (the low-confidence slice) before wiring the codegen emit.
 - **Scope:** `crates/anvil-kernel-types/build.rs` (new — does not exist yet),
   `crates/anvil-kernel-types/src/feature_flags_generated.rs` (new include
   shim — does not exist yet), `crates/anvil-kernel-types/Cargo.toml`
@@ -465,6 +480,15 @@ Status promoted Draft → **Ready** 2026-05-28.
   if a key migration lacks the historical-query note required by ADR-041.
   `docs/guides/feature-flag-inventory.md` documents the add-a-flag flow and
   removes any "split across surfaces" language left over from FLAGM.
+- **Cross-inventory + naming-map rules (Grok review 2026-06-02):** the check
+  also validates cross-inventory references — every flag `primaryGroup` ∈
+  `groups.json`; every canonical-audience targeting value ∈ `audiences.json`
+  (`organisationId` excluded as free-form per-tenant); every environment value
+  ∈ `environments.json`; every group `defaultAudiences` ∈ `audiences.json` —
+  and the naming-map (JSON `key` → Rust module + TS accessor). This promotes
+  the fail-loud load-time assert already shipped in the catalogue
+  (`flags-catalogue/src/manifest.ts`, FLAGCAT-002) into the CI gate, and the
+  FLAGM-language purge spans all active modules, not just the inventory guide.
 - **Scope:** `packages/anvil/flags-catalogue/`, `docs/guides/feature-flag-inventory.md`,
   optionally `.github/workflows/*.yml`
 - **Non-scope:** Dashboard or admin UI for flag management
