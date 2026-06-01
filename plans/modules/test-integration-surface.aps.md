@@ -91,13 +91,14 @@ Change status to **Ready** when:
 - [x] KERN watcher event output stabilised — archived
 - [ ] Phase 3 (TINT-012..-015) re-scoped against the now-shipped intercept
       daemon, or closed as superseded by the Rust-side daemon coverage
-- [ ] TINT-005 CI-build premise reconciled with the shipped graceful-skip
-      `e2e-harness` job design
+- [x] TINT-005 CI-build premise reconciled — closed as Superseded 2026-06-01 by
+      the shipped graceful-skip `e2e-harness` job design
 
 > **Readiness note:** Phases 1–2 (TINT-001..-004, -006..-011) are individually
 > **Ready** and may be picked up now. The module-level status stays **Proposed**
-> because Phase 3 and TINT-005 carry unresolved scope decisions (see their
-> per-item notes). Promote the module to Ready once those are settled.
+> because Phase 3 still carries an unresolved scope decision (see its per-item
+> notes); TINT-005 was settled 2026-06-01 (Superseded). Promote the module to
+> Ready once Phase 3 is settled.
 
 ## Work Items
 
@@ -180,8 +181,8 @@ Change status to **Ready** when:
   item as obsolete, or (b) add a separate CLI-E2E job that builds/caches the
   binary and runs only the CLI suites. This is a CI-design call, not a
   flesh-out.
-- **Expected Outcome:** Per the decision above — either obsolete, or a dedicated
-  CI job that builds/caches the binary and runs the CLI suites against it.
+- **Expected Outcome:** Decision taken 2026-06-01 — option (a): graceful-skip is
+  ratified as the design; no CI-build step is added.
 - **Files:**
   - `.github/workflows/ci.yml`
 - **Dependencies:** TFIX (archived Complete — original `TFIX-002` reference is
@@ -189,7 +190,17 @@ Change status to **Ready** when:
 - **Validation:** A CLI-E2E job finds and runs the Rust binary, or the item is
   closed as superseded by the graceful-skip model.
 - **Confidence:** low — premise conflicts with shipped CI design.
-- **Status:** Proposed
+- **Status:** Superseded 2026-06-01 — closed in favour of the shipped
+  graceful-skip e2e design (decision: option (a)). The `e2e-harness` job
+  (`.github/workflows/ci.yml`) deliberately does not build the Rust binary, and
+  the CLI suites skip themselves when it is absent
+  (`apps/e2e/src/cli/commands.e2e.test.ts:15` — `cliBinaryAvailable() ? describe
+  : describe.skip`, backed by `apps/e2e/src/helpers/cli-runner.ts`). Rust CLI
+  behaviour is already covered by `cargo test` in `.github/workflows/rust.yml`,
+  so building the
+  binary in the TS E2E job would reverse a deliberate "Rust CLI is not required
+  in this job" decision for no net coverage gain. Reopen only if a TS-driven
+  CLI-E2E job (option (b)) is later justified.
 
 ### Phase 2 — CLI E2E Expansion
 
