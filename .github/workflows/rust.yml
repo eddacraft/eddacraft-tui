@@ -640,4 +640,7 @@ jobs:
 
       - name: Smoke test
         if: matrix.can_test
-        run: cargo test --workspace --target ${{ matrix.target }} -- --test-threads=1
+        # `--no-fail-fast` so a failure in one test binary does not mask
+        # failures in later binaries — surfaces every platform-specific
+        # failure in a single run instead of one binary at a time.
+        run: cargo test --workspace --target ${{ matrix.target }} --no-fail-fast -- --test-threads=1
