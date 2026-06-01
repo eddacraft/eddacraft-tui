@@ -52,19 +52,21 @@ Every production flag must define:
 
 ### Progressive enablement
 
-1. Start with `draft` status and targeting rules scoped to `local`/`dev`.
+1. Start with `draft` status and targeting rules scoped to
+   `local`/`development`.
 2. Promote to `active` when the feature is ready for broader testing.
-3. Add environment targeting in order: `dev` → `staging` → `prod`.
+3. Add environment targeting in order: `development` → `preview` → `demo` →
+   `production`.
 4. Use percentage rollout within each environment to control blast radius.
 5. Monitor telemetry between each promotion step.
 
 ### Environment promotion order
 
 ```
-local → preview → dev → staging → prod
+local → development → preview → demo → production
 ```
 
-Within `prod`, use channels and deployment rings for further control:
+Within `production`, use channels and deployment rings for further control:
 
 ```
 development → beta → production

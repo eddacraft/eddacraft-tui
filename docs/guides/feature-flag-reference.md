@@ -87,7 +87,7 @@ const snapshot = loadSnapshot(snapshotJson);
 const flag = snapshot.flags.find((f) => f.key === 'docs.access');
 const result = resolveFlag(flag, {
   targetingKey: 'session-abc',
-  environment: { environment: 'prod' },
+  environment: { environment: 'production' },
   audience: { accountTier: 'beta' },
 });
 
@@ -157,7 +157,7 @@ draft → active → retiring → retired → (delete from manifest)
 {
   targetingKey: "session-abc",      // unique per evaluation session (required)
   environment: {
-    environment: "prod",            // local | preview | dev | staging | prod
+    environment: "production",      // local | development | preview | demo | production
     channel: "production",          // development | beta | production (optional)
     deploymentRing: "canary"        // freeform string (optional)
   },
@@ -175,8 +175,8 @@ draft → active → retiring → retired → (delete from manifest)
 
 | Operator     | Value type | Example           | Matches when                                           |
 | ------------ | ---------- | ----------------- | ------------------------------------------------------ |
-| `equals`     | string     | `"prod"`          | attribute == value                                     |
-| `not_equals` | string     | `"dev"`           | attribute != value (undefined → no match)              |
+| `equals`     | string     | `"production"`    | attribute == value                                     |
+| `not_equals` | string     | `"development"`   | attribute != value (undefined → no match)              |
 | `in_set`     | string[]   | `["beta", "pro"]` | attribute is in the set (undefined → no match)         |
 | `not_in_set` | string[]   | `["free"]`        | attribute is not in the set (undefined → no match)     |
 | `percentage` | number     | `25.0`            | deterministic hash of `targetingKey` falls within 0–N% |
@@ -191,17 +191,17 @@ is used.
 ```jsonc
 "targeting": [
   {
-    // Rule 1: beta users in prod get "enabled"
+    // Rule 1: beta users in production get "enabled"
     "conditions": [
-      { "attribute": "environment", "operator": "equals", "value": "prod" },
+      { "attribute": "environment", "operator": "equals", "value": "production" },
       { "attribute": "accountTier", "operator": "in_set", "value": ["beta", "pro"] }
     ],
     "variant": "enabled"
   },
   {
-    // Rule 2: 10% rollout in staging
+    // Rule 2: 10% rollout in demo
     "conditions": [
-      { "attribute": "environment", "operator": "equals", "value": "staging" },
+      { "attribute": "environment", "operator": "equals", "value": "demo" },
       { "attribute": "targetingKey", "operator": "percentage", "value": 10.0 }
     ],
     "variant": "enabled"
@@ -330,7 +330,11 @@ import {
   "targeting": [
     {
       "conditions": [
-        { "attribute": "environment", "operator": "equals", "value": "prod" },
+        {
+          "attribute": "environment",
+          "operator": "equals",
+          "value": "production",
+        },
         {
           "attribute": "targetingKey",
           "operator": "percentage",

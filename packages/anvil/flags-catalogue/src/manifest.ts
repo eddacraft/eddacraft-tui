@@ -56,6 +56,42 @@ const ENVIRONMENTS: FlagEnvironmentManifest = parseOrThrow(
   environmentsJson
 );
 
+// Cross-inventory integrity, enforced fail-loud at module load. The base
+// FeatureFlagDefinitionSchema keeps `primaryGroup` optional so un-migrated
+// per-surface literals still type-check (FLAGCAT-003/-005); the *manifest*,
+// however, requires every flag to carry a `primaryGroup` that resolves to a
+// real group. (FLAGCAT-006 adds the full TS<->Rust<->JSON drift check in CI;
+// this is the load-time guarantee the catalogue itself depends on.)
+function assertCrossInventoryIntegrity(): void {
+  const groupIds = new Set(GROUPS.groups.map((g) => g.id));
+  const audienceIds = new Set(AUDIENCES.audiences.map((a) => a.id));
+
+  for (const flag of MANIFEST.flags) {
+    if (flag.primaryGroup === undefined) {
+      throw new Error(
+        `[anvil-flags-catalogue] flag "${flag.key}" is missing required primaryGroup`
+      );
+    }
+    if (!groupIds.has(flag.primaryGroup)) {
+      throw new Error(
+        `[anvil-flags-catalogue] flag "${flag.key}" references unknown primaryGroup "${flag.primaryGroup}"`
+      );
+    }
+  }
+
+  for (const group of GROUPS.groups) {
+    for (const audience of group.defaultAudiences) {
+      if (!audienceIds.has(audience)) {
+        throw new Error(
+          `[anvil-flags-catalogue] group "${group.id}" references unknown defaultAudience "${audience}"`
+        );
+      }
+    }
+  }
+}
+
+assertCrossInventoryIntegrity();
+
 /** The validated feature-flag manifest. Validated once at module load. */
 export function featureFlagManifest(): FeatureFlagManifest {
   return MANIFEST;

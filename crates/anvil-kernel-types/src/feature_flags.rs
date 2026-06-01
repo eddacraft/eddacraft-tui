@@ -521,6 +521,15 @@ mod tests {
             serde_json::to_string(&EnvironmentName::Demo).unwrap(),
             "\"demo\""
         );
+        // Unrenamed variants keep their wire values.
+        assert_eq!(
+            serde_json::to_string(&EnvironmentName::Local).unwrap(),
+            "\"local\""
+        );
+        assert_eq!(
+            serde_json::to_string(&EnvironmentName::Preview).unwrap(),
+            "\"preview\""
+        );
         // The pre-rename wire values no longer deserialize.
         assert!(serde_json::from_str::<EnvironmentName>("\"prod\"").is_err());
         assert!(serde_json::from_str::<EnvironmentName>("\"dev\"").is_err());
@@ -685,7 +694,7 @@ mod tests {
                 TargetingCondition {
                     attribute: "environment".into(),
                     operator: TargetingOperator::Equals,
-                    value: ConditionValue::Single("prod".into()),
+                    value: ConditionValue::Single("production".into()),
                 },
                 TargetingCondition {
                     attribute: "accountTier".into(),
@@ -707,7 +716,7 @@ mod tests {
                 conditions: vec![TargetingCondition {
                     attribute: "environment".into(),
                     operator: TargetingOperator::Equals,
-                    value: ConditionValue::Single("prod".into()),
+                    value: ConditionValue::Single("production".into()),
                 }],
                 variant: "enabled".into(),
             }]),

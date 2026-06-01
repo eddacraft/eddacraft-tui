@@ -171,9 +171,10 @@ export const FeatureFlagDefinitionSchema = z
     targeting: z.array(TargetingRuleSchema).optional(),
     // FLAGCAT-002 / gating model (ADR-048): the feature group this flag
     // belongs to (matches an id in groups.json) and an open-set tag list.
-    // Optional on the base definition while per-surface call sites are still
-    // un-migrated (FLAGCAT-003/-005); the manifest requires it and the
-    // consistency check (FLAGCAT-006) enforces groups.json membership.
+    // Optional on the base definition so un-migrated per-surface literals still
+    // type-check (FLAGCAT-003/-005). The flags-catalogue loader requires it on
+    // every *manifest* flag and validates groups.json membership at module
+    // load; the full TS<->Rust<->JSON drift check is FLAGCAT-006.
     primaryGroup: z.string().min(1).optional(),
     tags: z.array(z.string().min(1)).optional(),
   })
@@ -276,7 +277,7 @@ export const FlagAudienceSchema = z.object({
   axis: AudienceAxisSchema,
   status: InventoryEntryStatusSchema,
 });
-export type FlagAudience = z.infer<typeof FlagAudienceSchema>;
+export type FlagAudienceEntry = z.infer<typeof FlagAudienceSchema>;
 
 export const FlagAudienceManifestSchema = z
   .object({
@@ -302,7 +303,7 @@ export const FlagEnvironmentSchema = z.object({
   name: z.string().min(1),
   status: InventoryEntryStatusSchema,
 });
-export type FlagEnvironment = z.infer<typeof FlagEnvironmentSchema>;
+export type FlagEnvironmentEntry = z.infer<typeof FlagEnvironmentSchema>;
 
 export const FlagEnvironmentManifestSchema = z
   .object({
@@ -330,7 +331,7 @@ export const FlagGroupSchema = z.object({
   defaultAudiences: z.array(z.string().min(1)),
   defaultStatus: FlagStatusSchema,
 });
-export type FlagGroup = z.infer<typeof FlagGroupSchema>;
+export type FlagGroupEntry = z.infer<typeof FlagGroupSchema>;
 
 export const FlagGroupManifestSchema = z
   .object({

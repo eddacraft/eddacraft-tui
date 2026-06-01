@@ -105,16 +105,16 @@ mod tests {
 
     #[test]
     fn session_telemetry_fields() {
-        let tel = create_session_telemetry(42, "prod", "rust");
+        let tel = create_session_telemetry(42, "production", "rust");
         assert_eq!(tel.snapshot_version, 42);
-        assert_eq!(tel.environment, "prod");
+        assert_eq!(tel.environment, "production");
         assert_eq!(tel.runtime, "rust");
         assert!(tel.timestamp.ends_with('Z'));
     }
 
     #[test]
     fn session_telemetry_no_pii() {
-        let tel = create_session_telemetry(1, "dev", "rust");
+        let tel = create_session_telemetry(1, "development", "rust");
         let json = serde_json::to_string(&tel).unwrap();
         assert!(!json.contains("email"));
         assert!(!json.contains("userId"));
