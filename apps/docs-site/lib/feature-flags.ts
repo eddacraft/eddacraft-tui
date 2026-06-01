@@ -20,7 +20,11 @@
 
 import type { EvaluationContext } from '@eddacraft/anvil-contracts';
 import { resolveFlag } from '@eddacraft/anvil-runtime/feature-flags';
-import { DOCS_ACCESS_FLAG, DOCS_ACCESS_FLAG_KEY } from '@eddacraft/anvil-flags-catalogue';
+import {
+  DOCS_ACCESS_FLAG,
+  DOCS_ACCESS_FLAG_KEY,
+  canonicalAccountTier,
+} from '@eddacraft/anvil-flags-catalogue';
 
 // Re-export the catalogue definition so existing importers migrate with a
 // path change, not a rename. The flag literal is gone from this module.
@@ -38,20 +42,6 @@ export interface DocsAccessResolution {
 export interface DocsEvaluationInput {
   accountTier?: string | null;
   sessionSubject?: string | null;
-}
-
-const PLAN_PREFIX = 'plan-';
-
-/**
- * Map a raw account-tier claim (`beta`/`pro`/`enterprise`/`free`) to the
- * canonical `plan-*` audience id the manifest targets. Idempotent —
- * already-canonical and empty values pass through unchanged — so it never
- * invents a match and an unknown tier still fails closed (no targeting match
- * → `disabled`).
- */
-function canonicalAccountTier(tier: string): string {
-  if (tier === '' || tier.startsWith(PLAN_PREFIX)) return tier;
-  return `${PLAN_PREFIX}${tier}`;
 }
 
 export function evaluateDocsAccess(input: DocsEvaluationInput): DocsAccessResolution {

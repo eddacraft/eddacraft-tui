@@ -1,5 +1,5 @@
 import type { FeatureFlagDefinition } from '@eddacraft/anvil-contracts';
-import { featureFlagManifest } from './manifest.js';
+import { featureFlagManifest, flagAudiences } from './manifest.js';
 
 // Flag key constants — preserved as named exports so existing `*_KEY` imports
 // migrate with a path change, not a rename (FLAGCAT-003/-005).
@@ -53,4 +53,29 @@ export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinitio
 /** True when the given string is a known API scope name. */
 export function isApiScopeName(value: string): value is ApiScopeName {
   return (API_SCOPE_NAMES as readonly string[]).includes(value);
+}
+
+// Canonical `plan-*` audience ids, derived from the audience inventory. Used to
+// reconcile a raw subscription-tier claim (a JWT `tier` like `beta`/`pro`) with
+// the manifest targeting, which references canonical ids (FLAGCAT-002 migration).
+const PLAN_AUDIENCE_IDS: ReadonlySet<string> = new Set(
+  flagAudiences()
+    .audiences.filter((a) => a.axis === 'plan')
+    .map((a) => a.id)
+);
+
+/**
+ * Map a raw account-tier claim to its canonical `plan-*` audience id.
+ *
+ * Resolution is validated against the audience inventory: a bare tier is
+ * mapped to `plan-<tier>` only when that id actually exists as a `plan`-axis
+ * audience; an already-canonical id passes through; anything else (unknown
+ * tiers, empty) is returned unchanged. The function therefore never invents a
+ * `plan-*` id that could spuriously match targeting — an unrecognised tier
+ * yields a non-matching value, so an entitlement gate fails closed.
+ */
+export function canonicalAccountTier(tier: string): string {
+  if (tier === '' || PLAN_AUDIENCE_IDS.has(tier)) return tier;
+  const candidate = `plan-${tier}`;
+  return PLAN_AUDIENCE_IDS.has(candidate) ? candidate : tier;
 }

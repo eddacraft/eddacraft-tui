@@ -23,5 +23,6 @@ export {
   flagByKey,
   tryFlagByKey,
   isApiScopeName,
+  canonicalAccountTier,
   type ApiScopeName,
 } from './catalogue.js';

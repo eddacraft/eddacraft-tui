@@ -51,7 +51,11 @@ const docsAccessFlag: FeatureFlagDefinition = {
   targeting: [
     {
       conditions: [
-        { attribute: 'accountTier', operator: 'in_set', value: ['beta', 'pro', 'enterprise'] },
+        {
+          attribute: 'accountTier',
+          operator: 'in_set',
+          value: ['plan-beta', 'plan-pro', 'plan-enterprise'],
+        },
       ],
       variant: 'enabled',
     },
@@ -140,19 +144,19 @@ describe('docs access resolution', () => {
   const betaContext: EvaluationContext = {
     targetingKey: 'beta-user-1',
     environment: { environment: 'production' },
-    audience: { accountTier: 'beta' },
+    audience: { accountTier: 'plan-beta' },
   } as EvaluationContext;
 
   const proContext: EvaluationContext = {
     targetingKey: 'pro-user-1',
     environment: { environment: 'production' },
-    audience: { accountTier: 'pro' },
+    audience: { accountTier: 'plan-pro' },
   } as EvaluationContext;
 
   const freeContext: EvaluationContext = {
     targetingKey: 'free-user-1',
     environment: { environment: 'production' },
-    audience: { accountTier: 'free' },
+    audience: { accountTier: 'plan-free' },
   } as EvaluationContext;
 
   it('denies access to unauthenticated visitors', () => {
