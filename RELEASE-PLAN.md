@@ -223,11 +223,11 @@ neither is in the `v0.7.3-beta` cut above.
 
 **Version framing.** `scripts/release/assess.sh` mechanically recommends the
 next minor (`v0.8.0-beta`) for any beta cut regardless of content; the version
-is an operator override in every case. The Hotfix Iteration Plan's "no minor
-beta before six weeks post-tag" rule keeps near-term cuts on the `v0.7.x` patch
-line. So additive-surface work that is **internal and default-inert** overrides
-down to a patch — the minor (`v0.8.0-beta`) is reserved for the daemon work that
-genuinely widens the product / protection surface.
+is an operator override in every case. With the six-week cadence hold retired
+(2026-06-01), version is set by scope, not calendar: additive-surface work that
+is **internal and default-inert** still maps to a patch, while the minor
+(`v0.8.0-beta`) is reserved for the daemon work that genuinely widens the product
+/ protection surface — and it cuts when that slice is ready, not on a date.
 
 ### Tier 1 — watch save-time CPU remediation → `v0.7.4-beta`
 
@@ -261,10 +261,11 @@ genuinely widens the product / protection surface.
 
 ### Tier 2 — daemon-mediated save-time validation → `v0.8.0-beta` (deferred)
 
-- **releaseIntent:** `proposed` for **`v0.8.0-beta`** — the first **minor**
-  after the six-week hold, a product-surface window (not a patch). Themes around
-  "save-time governance without stealing the machine." Earns the minor because
-  it widens the protection / product surface, not just additive flags.
+- **releaseIntent:** `proposed` for **`v0.8.0-beta`** — the next **minor**, a
+  product-surface window (not a patch); cut when the sub-phase A slice is ready
+  and the gates are green (no calendar hold). Themes around "save-time governance
+  without stealing the machine." Earns the minor because it widens the protection
+  / product surface, not just additive flags.
 - **Decision contract:**
   [ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)
   (**Proposed**) — `anvil watch`/MCP/intercept become thin clients of one
@@ -729,20 +730,20 @@ gets-used diverge.
 
 ## Hotfix Iteration Plan (Post-Tag)
 
-`v0.7.0-beta` is the release we sit on. "Sit on" means **no major release for
-six weeks** unless a Boring-Week-tier regression appears. Hotfix iteration
-shape:
+**The six-week sit-on hold is retired (2026-06-01, authorised by Josh).** The
+priority is continuous feature delivery toward an investor-ready solution;
+releases are gated by quality (releasable `main`, green release gates, APS
+authorisation), not by a calendar. Iteration shape:
 
 | Cadence                | Channel                               | Scope                                                                 |
 | ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
 | `v0.7.x` patch         | Weekly while user signal is non-empty | Bug fixes, false-positive reductions, doc corrections.                |
 | `v0.7.x` patch         | Within 48h of any P0 bug              | Crash, data loss, false-claim regression, daemon corruption.          |
-| Next minor beta        | Not before 6 weeks post-tag           | Feature additions; only if `v0.7.0` baseline retention is stable.     |
+| Next minor beta        | When ready — green gates + APS auth   | Feature additions. No calendar gate; cut when the slice is ready.     |
 | Breaking beta or major | Demand-pulled                         | Driven by a real adopter requirement, not by completion of a backlog. |
 
-The hotfix policy makes "we sit on this" trustworthy — without it, "the release
-we sit on" becomes "the release we wait on until the next big thing." See also
-DISTRIB-004 (cadence + EOL policy doc).
+Patches still ship continuously on user signal. See the authoritative
+[release-cadence policy](docs/policies/release-cadence.md) and DISTRIB-004.
 
 ---
 
