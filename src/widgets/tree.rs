@@ -64,6 +64,27 @@ impl TreeNode {
     }
 }
 
+impl Drop for TreeNode {
+    /// Dismantle the subtree iteratively so dropping a deeply-nested tree
+    /// cannot overflow the stack.
+    ///
+    /// The compiler-derived drop is recursive (each node drops its
+    /// children, which drop theirs, …), so a long chain blows the stack on
+    /// teardown — fatal on Windows' 1 MiB default thread stack, which a
+    /// deep real tree (or the `deep_chain_does_not_overflow_stack` test)
+    /// hits even though the render walker itself is iterative. Draining
+    /// every descendant into a flat work-list keeps teardown bounded to a
+    /// single stack frame.
+    fn drop(&mut self) {
+        let mut pending: Vec<TreeNode> = std::mem::take(&mut self.children);
+        while let Some(mut node) = pending.pop() {
+            // Move this node's children up to the work-list before it drops,
+            // so its own (now-empty) drop does not recurse.
+            pending.append(&mut node.children);
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct TreeState {
     pub(crate) expanded: HashSet<String>,
