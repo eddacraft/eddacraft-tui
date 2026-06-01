@@ -2,10 +2,12 @@
 
 ## Status
 
-**Proposed** — ratification by the **INTD, DRVR, and GV2 owners** closes the
-sub-phase A′ gate that [ADR-061](061-save-time-daemon-delta-validation.md) §9
-leaves open ("hot-/non-hot-path boundary agreed with INTD and DRVR owners").
-Until all three accept, no hot-read API field (GV2-022) may be frozen.
+**Accepted** — 2026-06-01, Josh (sole owner of the INTD, DRVR, and GV2
+surfaces). This sign-off is the "boundary agreed with INTD and DRVR owners"
+ratification [ADR-061](061-save-time-daemon-delta-validation.md) §9 leaves open;
+it **closes the sub-phase A′ gate** and clears GV2-022 hot-read API fields to
+freeze against this boundary. (The three surfaces remain distinct in code even
+under one owner; the cross-surface invariants below still bind.)
 
 ## Date
 
@@ -47,7 +49,8 @@ and only if** it satisfies the **admission invariant**:
 
 > It is answerable from **resident warm indexes** in **O(1) or O(bounded fan-out)**
 > with **no parse, no cross-file symbol resolution, no transitive traversal beyond
-> a single reverse-impact hop, and no blocking I/O.**
+> the configured reverse-impact depth (default 1 hop, hard-capped), and no
+> blocking I/O.**
 
 Everything else is **non-hot-path** and runs only in the background pool.
 
@@ -58,9 +61,15 @@ Everything else is **non-hot-path** and runs only in the background pool.
    miss policy.)
 2. **Known-edge existence** — "does edge `A→B` exist?" answered O(1)/O(degree)
    from the warm dependency/boundary index (GV2-011).
-3. **One-hop reverse impact** — `dependents_of(symbol|file)` to exactly **1 hop**,
-   the ADR-061 §6 certifiability closure. The result set is capped; overflow is a
-   miss (`impact-set-overflow`), never a deeper walk.
+3. **Bounded reverse impact — configurable depth, default 1 hop.**
+   `dependents_of(symbol|file)` to a **runtime-configurable** depth, exposed as a
+   feature-flag / config lever (per the feature-flag catalogue) so the
+   latency↔coverage trade can move from 1 → 2 hops **without re-coding**. Default
+   **1 hop** (the ADR-061 §6 certifiability closure). The lever stays bounded by
+   construction: the configured depth is **hard-capped** to a small ceiling and
+   remains subject to the ADR-031 latency budget — a setting that breaches the
+   budget fails the benchmark, never a user's save. Result-set overflow at the
+   configured depth is a miss (`impact-set-overflow`), never an unbounded walk.
 4. **Precomputed architectural-index check** — resident layer/boundary membership
    and rule-compliance flags (GV2-011), not recomputed on read.
 
@@ -69,8 +78,8 @@ Each returns an explicit **`warm` / `stale`** marker (GV2-022).
 ### Non-hot-path denylist (background pool only)
 
 Parsing / re-extraction; cross-file symbol resolution; transitive impact or
-reachability beyond 1 hop; full-graph scans; index (re)builds; persistence load/
-store (GV2-021); any read requiring disk or network.
+reachability beyond the configured (hard-capped) depth; full-graph scans; index
+(re)builds; persistence load/store (GV2-021); any read requiring disk or network.
 
 ### Miss/stale policy (the load-bearing rule)
 
@@ -82,7 +91,7 @@ parse, resolve, traversal, rebuild, or I/O. "Slower but complete" is never a
 hot-path option — completeness is the background pool's job; the hot path trades
 coverage for a bounded, honest verdict.
 
-### Invariants binding all three owners
+### Invariants binding all three surfaces
 
 - **One admission rule, one allowlist.** INTD and DRVR consume GV2-022 through the
   GV2-023 consumer contract; neither adds surface-local "cheap" reads. New
@@ -105,11 +114,16 @@ Pinning admissibility to *resident warm reads with a miss-degrades-to-fallback
 rule* keeps the hot path's worst case bounded by construction, and makes the
 A→A′ backing swap safe because the wire never learns what the backing is.
 
-Fixing the rule **once, across all three surfaces** is the point of the gate:
-INTD, DRVR, and GV2 each touch these indexes, so a boundary owned by only one of
-them would drift. The 1-hop reverse-impact cap is chosen because it is exactly the
-certifiability closure ADR-061 §6 already commits to — no new latency claim is
-introduced here.
+Fixing the rule **once, across all three surfaces** keeps the daemon, drivers,
+and graph from drifting into surface-local "cheap enough" reads — a discipline
+that holds even under a single owner, because the drift would be in *code*, not
+in who signs off. The reverse-impact **default of 1 hop** is chosen because it is
+exactly the certifiability closure ADR-061 §6 already commits to — no new latency
+claim is introduced at the default. Making the depth a **bounded, hard-capped
+lever** rather than a constant lets the latency↔coverage trade be tuned
+operationally (1 → 2 hops) without a code change, while the cap + ADR-031 budget
+guarantee no setting can reintroduce the unbounded-traversal problem the boundary
+exists to prevent.
 
 ### Alternatives Considered
 
@@ -134,12 +148,14 @@ introduced here.
 - **Negative:** the hot path is deliberately *incomplete* — some real cross-file
   or deep-impact issues surface only via background full validation, not at save
   time. This is the intended trade (honest-and-bounded over complete-and-variable).
-- **Risks:** allowlist creep (a surface lobbies for "just one more" read); the
-  1-hop cap missing genuine 2-hop breakage that users expect at save time.
+- **Risks:** allowlist creep (a surface adds "just one more" read); a deployment
+  cranking the depth lever high enough to erode latency.
 - **Mitigations:** allowlist changes require this ADR + GV2-022 to move together;
-  the ADR-031 benchmark + the hot-path debug assertion fail CI on violation; the
-  background scheduler (sub-phase B) closes the coverage gap asynchronously, and
-  `workspace_status` reports `stale` honestly in the meantime.
+  the depth lever is **hard-capped** and gated by the ADR-031 benchmark + the
+  hot-path debug assertion (CI fails on violation, regardless of config); the
+  missed-2-hop-breakage concern is now a **switchable lever** (1 → 2 hops) rather
+  than a recompile; and the background scheduler (sub-phase B) closes any residual
+  coverage gap asynchronously while `workspace_status` reports `stale` honestly.
 
 ## References
 
@@ -150,4 +166,7 @@ introduced here.
 - APS modules: GV2-010, GV2-011, GV2-020, GV2-022, GV2-023
   ([`plans/modules/graph-v2-foundation.aps.md`](../modules/graph-v2-foundation.aps.md));
   RTAI, RLB (consumers of the daemon hot path)
-- Ratification: closes the INTD + DRVR + GV2 boundary gate in ADR-061 §9
+- Ratification: Accepted by Josh (sole owner) 2026-06-01 — closes the ADR-061 §9
+  boundary gate; clears GV2-022 to freeze and sub-phase A′ to start
+- Follow-up: GV2-022 exposes the reverse-impact depth as a hard-capped
+  feature-flag / config lever (default 1 hop)
