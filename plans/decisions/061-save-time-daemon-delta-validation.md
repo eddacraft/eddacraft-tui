@@ -2,11 +2,31 @@
 
 ## Status
 
-Proposed
+Accepted
+
+Accepted 2026-06-01 via Planning Council `plan-5768ae0c` (architect,
+pragmatic-lead, adversarial-reviewer, security-analyst, operations-reviewer).
+Proposed 2026-05-31. The council ran a five-persona review of the locked
+contract shape; all five returned objections that are resolved in the Decision
+below. The full field-level contract is specified in
+[`plans/specs/2026-06-01-daemon-save-time-validation-contract.md`](../specs/2026-06-01-daemon-save-time-validation-contract.md);
+this ADR records the decision, the wire-freeze commitment, and the consequences.
+
+**Acceptance conditions (must hold before the gated work they name):**
+
+- This ADR locks the *save-time product contract and the wire shape*. It does
+  **not** by itself close the GV2 `graph-v2-foundation` Ready gate
+  ("hot-/non-hot-path boundary agreed with INTD and DRVR owners"). Phase 3 (the
+  GV2 hot-read backing) MUST NOT freeze any hot-read API field until that gate
+  is closed by a separate INTD + DRVR + GV2 contract review.
+- The dependent **Proposed** ADRs — ADR-015 (intercept-loop enforcement),
+  ADR-030 (surface drivers), ADR-031 (validation-latency rubric) — are ratified
+  in parallel; they are referenced constraints, not blockers for sub-phase A
+  implementation, which proceeds behind the existing daemon-absent fallback.
 
 ## Date
 
-2026-05-31
+2026-05-31 (Proposed) · 2026-06-01 (Accepted)
 
 ## Context
 
@@ -52,13 +72,13 @@ scoped, in-process library call —
 and returns diagnostics synchronously, no subprocess required. The gap is that
 `watch` (and `anvil mcp serve`) do not use any of it.
 
-ADR-015 already proposes the intercept daemon as the enforcement control plane,
-and ADR-031 defines the validation-latency rubric. This ADR locks the *product
-contract* for the save-time path so the daemon, watch, MCP, and Graph V2 work
-(modules INTD, DRVR, RLB, GV2) sequence behind one decision rather than each
-inventing a save-time model. A decision is needed now because the CPU report is a
-live field issue and the cheap tactical fix and the architectural fix must not be
-conflated.
+The tactical relief — scoping the per-save check to changed paths instead of
+`--all` — **already shipped** as RLB-007 (Merged via PR #2184, 2026-05-31),
+proving ~6.55 → ~0.08 cores on the changed-path path. This ADR is therefore not
+the bug fix; it is the architecture that turns that scoping into a coordinated,
+warm, multi-agent-safe save-time path, and locks the product contract so the
+daemon, watch, MCP, and Graph V2 work (modules INTD, DRVR, RLB, GV2) sequence
+behind one decision rather than each inventing a save-time model.
 
 ## Decision
 
@@ -67,117 +87,284 @@ warm graph state. A whole-repo scan is never the default reaction to a single
 save.** The daemon is scoped per ADR-036 — one daemon per `(uid, os)` execution
 scope, serving every workspace under it; "warm model", work budget, and
 assurance state below are **per-workspace state held inside that one daemon**,
-not one daemon per repo. Specifically:
+not one daemon per repo.
 
-1. **Remove `check --all` from the per-save hot path.** The default save-time
-   action in `watch.rs` stops spawning a cold whole-repo child. Whole-repo scans
-   become explicit (`anvil check`), background, or CI-driven — not per-save.
+The numbered decisions below incorporate the Planning Council resolutions. Field-
+level detail (request/response shapes, enums, the invalidation taxonomy table)
+lives in the contract spec; this section records the binding decisions.
 
-2. **The intercept daemon is the save-time validation authority.** It gains three
-   JSON-RPC methods alongside the existing `anvil/scan_buffer`, on the same
-   transport, framing, and diagnostic envelope:
-   - `anvil/validate_paths` — validate a set of changed on-disk paths against
-     warm state; returns the existing diagnostic envelope plus a
-     `workspace_assurance` marker.
-   - `anvil/workspace_status` — report per-workspace assurance state
-     (`clean | stale | pending | running`).
-   - `anvil/request_full_scan` — enqueue an explicit/background full scan.
-   `validate_paths` calls `run_antipattern_check` (and sibling check libraries)
-   with the **changed paths only**, against warm graph indexes.
+### 1. The per-save hot path drops `check --all`
 
-3. **Watch, MCP, and intercept are thin clients of the one daemon** in that
-   execution scope. `anvil watch` sends changed paths to `validate_paths`;
-   `anvil mcp serve`'s `anvil_validate_write` re-points from its own in-process
-   scan to the daemon so a repo running watch + MCP keeps one warm model
-   (per-workspace) and never double-scans. This
-   keeps MCP a *projection/client* of the authority, consistent with the Graph V2
-   rule that MCP is not the control plane.
+The default save-time action in `watch.rs` stops spawning a cold whole-repo
+child. Whole-repo scans become explicit (`anvil check`), background, or
+CI-driven — never the per-save reaction.
 
-4. **The daemon owns the warm Graph V2 hot-read slice and the work budget.** The
-   first slice is GV2-010 (per-file semantic extract) + GV2-011 (warm
-   boundary/known-edge/dependency indexes) + GV2-020 (registry) + GV2-022
-   (bounded hot-read API), hosted in the daemon. Rayon becomes one per-host pool,
-   configurable. A blunt initial budget — one full scan per workspace at a time
-   plus a bounded delta-validation pool — coalesces save storms; queued
-   validations for the same path collapse to latest-state.
+### 2. The intercept daemon is the save-time validation authority — one verb, verdict-shaped
 
-5. **The daemon is optional; absence degrades, never blocks.** If no daemon is
-   reachable, watch falls back to a **scoped** `check` on the changed paths (never
-   `--all`) or skip-with-warning; MCP falls back to its current in-process scan.
-   This preserves ADR-001 (planless-first) and ADR-002 (warnings over blocks,
-   exit 0).
+The daemon gains three JSON-RPC methods alongside the existing
+`anvil/scan_buffer`, on the same transport, framing, and diagnostic envelope:
 
-6. **Workspace assurance is daemon state with a defined lifecycle.**
-   `Clean → Stale` on a delta the warm indexes can't fully certify (config
-   change, boundary-config edit, or path-set overflow); `Stale → Pending →
-   Running → Clean` via the background scheduler; surfaced through
-   `anvil/workspace_status` and rendered by `anvil status` / TUI / `--json`.
+- `anvil/validate_paths` — the single save-time verb, the generalisation of the
+  existing buffer-validation path. It takes a set of changed on-disk paths (each
+  carrying a daemon-classified change descriptor — see §5) and returns the
+  existing diagnostic envelope plus `workspace_assurance` and a per-path
+  `evaluated{path, content_hash}` echo.
+- `anvil/workspace_status` — report per-workspace assurance state.
+- `anvil/request_full_scan` — enqueue an explicit/background full scan. This is
+  the **only** way to trigger a full scan; `validate_paths` has no `force_full`
+  mode (it must never become the heavy work it is meant to outrank).
 
-Sequencing (each phase ships and is provable independently):
+**The wire is verdict-shaped and frozen against backing change.** It commits to
+a verdict + assurance vocabulary, never to a graph representation. The only
+backing-derived value that crosses the wire is an **opaque monotonic
+`generation`** token meaning "the assurance basis is unchanged since you last
+asked"; there is no `graph_version` on the wire (it could not survive the
+backing swap in §4). Any field that would require a consumer to model graph
+structure is forbidden from this contract by construction. Diagnostics carry
+rule id / path / line-col / severity / catalog message and **do not echo raw
+source spans or snippets by default**, so the verdict-shaped claim is real and
+the RPC is not a same-uid source read-oracle. Client-supplied `content_hash` /
+`mtime` are advisory cache hints only; the daemon derives every verdict from
+bytes it read itself (§7). `validate_paths` is the productionised form of
+MLP2-067's narrow `kernel.evaluate`; MLP2-067 is folded into sub-phase A of this
+work rather than shipped as a separate verb (see §9, Sequencing).
 
-- **Phase 1 (tactical, no daemon/GV2 dependency):** scope the per-save check to
-  changed paths in `watch.rs` (RLB-007). Immediate CPU relief.
-- **Phase 2:** `validate_paths` + watch client (INTD + RLB-001..005).
-- **Phase 3:** warm Graph V2 hot-read slice in the daemon (GV2-010/011/020/022).
-- **Phase 4:** daemon work budget + per-host rayon (RLB-002).
-- **Phase 5:** workspace-assurance state + background full-scan scheduler +
-  persistence/warm-start (GV2-021).
+### 3. Watch, MCP, and intercept are thin clients of the one daemon
 
-Every phase is gated by a process-tree CPU benchmark under sustained churn across
-a concurrent-agent ramp (RLB-001/008), plus a `validate_paths` warm-read latency
-case on the existing `ipc_roundtrip` criterion bench tied to ADR-031.
+`anvil watch` sends classified changed paths to `validate_paths`;
+`anvil mcp serve`'s `anvil_validate_write` re-points from its own in-process
+scan to the daemon so a repo running watch + MCP keeps one warm model
+(per-workspace) and never double-scans. MCP stays a *projection/client* of the
+authority, consistent with the Graph V2 rule that MCP is not the control plane.
+
+### 4. The daemon owns the warm backing and the work budget
+
+The warm model starts as the existing per-`WorktreeKey` `SymbolGraph` cache
+pattern (bounded LRU + generation-guard + unregister-hook, deltas applied via
+`anvil_kernel::graph::incremental`) and is later replaced — **under the
+unchanged wire** — by the GV2 hot-read slice (GV2-010 per-file extract + GV2-011
+warm boundary/known-edge/dependency indexes + GV2-020 registry + GV2-022 bounded
+hot-read API). Certifiability (§6) is a GV2-022 capability that reads **resident
+hot indexes only** — no parse, resolve, or transitive traversal on the hot path.
+
+**Resource model.** The one per-host budget is split into **two cooperating
+rayon pools**: a small interactive pool (validate_paths only, never starved) and
+a background pool; background full scans are chunked and check a cooperative
+cancel/yield flag between chunks so they hand cores back under interactive load.
+This replaces the "one pool, interactive preempts" framing, which rayon cannot
+implement. Per-workspace DoS caps protect the shared process: a max parse file
+size, a per-`WorktreeKey` in-flight-work admission token layered over the
+existing per-connection semaphore, and a directory-walk depth cap. (Symlink
+cycles are already neutralised by the §7 read-safety guard.) Specific pool
+sizes, LRU capacities, snapshot cadence, and the coalescing window are
+implementation detail recorded in the spec appendix, not frozen here.
+
+### 5. Change classification and the invalidation taxonomy
+
+The daemon maintains a per-path `(inode, mtime, size)` identity table and
+classifies raw `notify` events into canonical change-classes — `ContentModify`,
+`Create`, `Delete`, `Rename(from→to)` — rather than trusting the OS event type.
+This makes **atomic-save editors** (vim/JetBrains write-temp-then-rename, which
+arrive as `Modify(Name)` today) classify correctly: a same-path inode flip is
+`ContentModify`, not a rename, so it neither triggers a needless full scan nor
+gets mis-certified. Case-only renames on case-insensitive filesystems are
+handled by a startup case-sensitivity probe + case-normalised keys; hardlink /
+no-event drift is caught by a `stat`-on-validate comparison. Inode-based change
+classification is **mandatory** in the gated correctness bar (§8).
+
+The `Clean → Stale` invalidation taxonomy is **default-deny by change-class**:
+any class not provably certifiable from resident hot indexes forces `Stale`. The
+exhaustive table (content-modify-certifiable, create/modify-needing-cross-file-
+resolution, delete, rename, symlink-retarget, config/boundary/policy edit,
+.gitignore scope change, path-set/impact overflow, warm-state-evicted, and an
+explicit unknown-class fallthrough) is frozen as a wire-visible `reason` enum in
+the spec, projected directly from §6's classification.
+
+### 6. Certifiability is a bounded reverse-impact closure, not a forward-only check
+
+`validate_paths` returns `coverage: certified | partial`, where `certified` iff
+the workspace is `Clean`. The certifiable/partial decision:
+
+- A `ContentModify` with **no export-surface change** (read from the
+  `update_file` `GraphDelta`) is self-contained → validate that file only →
+  `certified`.
+- An export-surface change, a `Delete`, or a `Rename` can make an **unchanged
+  importer** illegal. The affected set is exactly `dependents_of(file)` — the
+  1-hop importer set, an O(1) read on the existing `DependencyGraph.reverse`
+  index. The daemon validates the file **plus that bounded reverse closure**
+  inline (re-exports recurse, bounded by budget) and stays `certified` if clean.
+- If the impact closure exceeds budget → `coverage: partial` →
+  `Stale(reason: impact-set-overflow)` → background full scan reconciles.
+
+This is deliberately more precise than "any file with importers is never
+certified", which would force a full scan on almost every edit and discard the
+CPU win. It closes the reverse-dependency soundness hole without transitive
+traversal on the hot path.
+
+### 7. Authorisation, read-safety, and confinement
+
+- **Trust boundary:** SO_PEERCRED uid == daemon uid is the real and only trust
+  boundary. Within one uid there is **no** cross-workspace boundary to enforce
+  (the uid already has filesystem access to all its repos); the ADR states this
+  plainly rather than implying a guarantee it cannot make.
+- **Authority:** `validate_paths` / `workspace_status` / `request_full_scan`
+  reuse the **existing handshake + `auth.rs` `validate_workspace_roots`** that
+  `scan_buffer` already requires. A connection carries a **growable set** of
+  workspace roots; additions are auto-granted within the uid (default mode). The
+  `/proc/<pid>/cwd` check from earlier drafts is **dropped entirely** — it is the
+  wrong gate (it breaks editors/agents/MCP whose cwd is elsewhere) and adds no
+  security within a uid.
+- **Read-safety:** authorised reads use `openat2(RESOLVE_NO_SYMLINKS |
+  RESOLVE_BENEATH)` against an `O_PATH` dirfd opened once per workspace, with all
+  per-path reads relative to that fd (lstat-ladder fallback where `openat2` is
+  unavailable). This closes the canonicalise-then-open TOCTOU/symlink class. The
+  daemon-absent scoped fallback inherits the identical guard. Every `path` and
+  `renamed.from` is workspace-root-relative, slash-normalised, and
+  ownership-checked against the dirfd; escapes are rejected, not scoped.
+- **Windows:** the uid-equivalent is `GetNamedPipeClientProcessId` →
+  `OpenProcessToken` → `GetTokenInformation(TokenUser)` SID comparison. Until
+  that lands, the owner-only pipe ACL is the boundary and a `None` peer-pid MUST
+  NOT be folded into a `Spoofed` verdict for these verbs. (Open question:
+  Windows peer-SID check is a prerequisite for named-pipe `validate_paths` GA.)
+- **Confinement mode (opt-in):** an operator may set workspace admission to
+  `allowlist` (default `open`). In `allowlist` mode the daemon refuses any
+  non-admitted root with a structured `workspace-not-admitted` code and disables
+  first-touch auto-adopt; the primary check-in root is implicitly admitted, the
+  allowlist governs additional roots. The allowlist and mode live in
+  **operator-level** config (under `ANVIL_HOME`/XDG, owner-only) — never in a
+  repo's `.anvil.yaml`, so the agent being confined cannot grant itself access —
+  and are managed via `anvil workspace allow|deny|list|mode`, supporting exact
+  and prefix entries. Config load failure **fails closed and loud** (no silent
+  fall-back to `open`), per the operator-config no-silent-defaults rule.
+  **This is a policy guardrail for well-behaved agent tooling, not an OS jail:**
+  it constrains everything that goes through Anvil (validation and the
+  enforcement-participating write gate), but cannot stop raw shell file
+  operations, and within one uid a determined process could edit the config. The
+  hard boundary remains running the agent under a separate OS user.
+
+### 8. Gated correctness bar (before Phase 2 ships)
+
+Three correctness gates are hard blockers for Phase 2 merge:
+
+1. **Exhaustive invalidation taxonomy** (§5), including mandatory inode-based
+   change classification.
+2. **Cross-path diagnostic parity** — a golden-corpus test asserting identical
+   finding sets across watch+daemon, watch+fallback, MCP+daemon, MCP+fallback,
+   with shared config discovery off `workspace_root`. Because warm (incremental)
+   and cold (full-walk) paths order findings differently, parity is defined as
+   **order-normalised** by `(path, rule_id, span_start)` — both paths sort
+   before constructing the envelope; byte-identical raw output is not a goal.
+   `workspace_assurance` is explicitly carved out of parity (it is structurally
+   incomparable between daemon and fallback).
+3. **`workspace_root` authorisation + read-safety** (§7).
+
+### 9. Assurance lifecycle, observability, and fallback
+
+`Clean → Stale` on an uncertifiable delta (§5/§6); `Stale → Pending → Running →
+Clean` via the background scheduler. `workspace_status` carries a **non-optional
+`reason`** for `Stale`, a `scan_started_at` for `Running`, and the daemon emits
+a structured INFO log on every state transition. A background scan exceeding a
+configurable timeout transitions to `Stale(reason: scan-timeout)`; on daemon
+restart, any `Running` workspace becomes `Stale` (the in-flight scan did not
+complete). When the daemon is absent, the fallback returns
+`workspace_assurance{state: unavailable, reason: daemon-absent}` (never `Clean`),
+logs a WARN on first fallback, and `anvil status` reports "unprotected (daemon
+not running)" rather than a stale cached state. `Clean` is documented as a
+same-uid liveness signal, **not** a tamper-proof integrity attestation.
+
+A **concurrency SLO** gates the design: 4 agents + 1 active background scan must
+keep interactive `validate_paths` p95 within the ADR-031 budget; a WARN logs
+when an interactive request waits >80 ms before service; RLB-008 wires this as a
+CI gate.
+
+### Sequencing
+
+The work ships across the `v0.8.0-beta` minor in sub-phases; the wire shape is
+byte-identical across sub-phases A and B.
+
+- **Phase 1 — shipped (RLB-007, PR #2184).** Scope the per-save check to changed
+  paths. Immediate CPU relief.
+- **Sub-phase A:** the frozen `validate_paths` wire + watch client + MCP
+  re-point, backed by the **interim SymbolGraph cache** (MLP2-067 folded in),
+  **rebuild-on-restart** (no persistence). Gated by §8. (INTD + RLB-001..005 +
+  DRVR.)
+- **Sub-phase A′:** warm Graph V2 hot-read slice swaps under the wire
+  (GV2-010/011/020/022). Blocked on the GV2 hot-/non-hot-path boundary gate.
+- **Sub-phase B:** workspace-assurance background scheduler + GV2-021
+  persistence/warm-start. Persistence defaults **off** (`ANVIL_PERSIST_GRAPH`
+  opt-in in v1) and **restores warm indexes, never the verdict** — a restored
+  workspace comes up `Stale`/`pending` and a fast reconcile re-establishes
+  `Clean`, which eliminates the snapshot-staleness race by construction.
+- Phase budgets gated by the process-tree CPU bench (RLB-001/008) + the
+  `validate_paths` warm-read latency case on `ipc_roundtrip` (ADR-031).
 
 ## Rationale
 
-The save-time path is doing whole-repo, cold, uncoordinated work per save. The
-fix is not "make `check --all` faster" — it is "stop doing it on every save."
-Because the daemon, the warm graph maintainer, and a scoped in-process check
-library already exist, the architectural fix is wiring and a warm-state slice,
-not new runtime machinery. Decoupling the tactical changed-path scoping (Phase 1)
-from the daemon work means the live CPU issue is relieved without waiting on the
-architecture.
+The save-time path was doing whole-repo, cold, uncoordinated work per save. The
+fix is not "make `check --all` faster" — it is "stop doing it on every save",
+then coordinate the cheap delta path through the one warm, permissioned process
+that already exists. Because the daemon, the warm graph maintainer (with its
+reverse-dependency index), and a scoped in-process check library already exist,
+the architectural work is wiring, a classification layer, and a warm-state slice
+— not new runtime machinery. Holding the wire verdict-shaped (the generalisation
+of `scan_buffer`/`kernel.evaluate`) lets the SymbolGraph backing ship first and
+the GV2 slice swap in later without breaking a single consumer.
 
 ### Alternatives Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Daemon-mediated delta validation (chosen)** | Reuses the existing daemon, protocol, and in-process check library; one warm model and one work budget across watch/MCP/intercept; fixes per-process rayon oversubscription; aligns with ADR-015/030/031 and GV2 | Requires warm graph state in the daemon (GV2 slice) and re-pointing MCP; assurance state is new surface |
-| **Only scope the per-save check to changed paths** | Tiny, this-week, no daemon/GV2 dependency; large immediate CPU drop | Still cold-spawns per save; no shared warm state; doesn't fix cross-process oversubscription or multi-agent coordination. Adopted as Phase 1, not the end state |
-| **Make `check --all` incremental/faster in-process** | No protocol/daemon changes | Still whole-repo per save; doesn't address concurrency, oversubscription, or the buffer/MCP paths; optimises the wrong axis |
-| **OS-level CPU throttling (nice/cgroups) of the watch child** | No code change to the scan path | Treats the symptom; makes governance laggy under load; doesn't reduce total work or coordinate agents; brittle cross-platform |
-| **New standalone validation daemon** | Clean-slate design | Re-implements transport, framing, concurrency, and warm state the intercept daemon already ships and we already trust; two daemons to run |
+| **Daemon-mediated delta validation (chosen)** | Reuses the existing daemon, protocol, reverse-dependency index, and in-process check library; one warm model and one work budget across watch/MCP/intercept; fixes per-process rayon oversubscription; verdict-shaped wire frozen against the GV2 backing swap | Requires warm graph state in the daemon and re-pointing MCP; assurance + confinement are new surface |
+| **Only scope the per-save check to changed paths** | Tiny, no daemon/GV2 dependency; large immediate CPU drop | Still cold-spawns per save; no shared warm state; doesn't fix cross-process oversubscription or multi-agent coordination. Shipped as Phase 1 (RLB-007), not the end state |
+| **Two graph-cache designs (MLP2-067 `kernel.evaluate` + ADR-061 hot-read)** | Each independently scoped | Two competing daemon graph-cache contracts that drift. Resolved by folding MLP2-067 into sub-phase A as the interim backing under the one `validate_paths` wire |
+| **One shared rayon pool, "interactive preempts background"** | Simplest to describe | Rayon has no preemption; not implementable. Replaced by two cooperating pools + chunked-yield background scans |
+| **Persist-and-trust `Clean` across restart** | Warm-start is "instant clean" | Snapshot-staleness race (delta after snapshot, then crash → false Clean). Replaced by "restore indexes, re-derive verdict" |
+| **`/proc/<pid>/cwd` authorisation** | Intuitive "you must be in the repo" | Wrong gate: breaks editors/agents/MCP whose cwd differs; adds no security within a uid; not implemented. Dropped for handshake + manifest adoption |
+| **New standalone validation daemon** | Clean-slate design | Re-implements transport, framing, concurrency, and warm state the intercept daemon already ships; two daemons to run |
 
 ## Consequences
 
 - **Positive:** Per-save CPU drops from whole-repo to proportional-to-change;
-  concurrent agents share one warm model and a bounded budget instead of N cold
-  scans; one diagnostic envelope across watch/MCP/intercept; per-host rayon
-  removes cross-process oversubscription; the product contract ("save-time =
-  delta; full-repo = explicit/background") is locked for INTD/DRVR/RLB/GV2.
-- **Negative:** The daemon gains warm graph state and a new method surface to
-  maintain; MCP's validation path changes; a new workspace-assurance concept must
-  be surfaced in CLI/TUI; full-repo assurance is no longer implicit on every save
-  and must be scheduled/requested.
-- **Risks:** (a) pressure to answer richer questions per save pulls expensive
-  traversal onto the hot path, violating GV2's constraints; (b) making the daemon
-  a hard requirement would break planless-first; (c) a delta that should
-  invalidate the workspace (e.g. a boundary-config change) being mis-classified
-  as `clean`.
-- **Mitigations:** (a) the process-tree CPU bench + the `ipc_roundtrip`
-  warm-read latency budget (ADR-031) keep the hot path honest and fail on
-  regression; (b) mandatory daemon-absent fallback to scoped subprocess /
-  in-process scan, exit 0; (c) explicit `Stale` transition on config/boundary
-  edits and path-set overflow, with the background scheduler reconciling to
-  `Clean`.
+  concurrent agents share one warm model and a bounded budget; one diagnostic
+  envelope across watch/MCP/intercept; per-host rayon (within the daemon) removes
+  oversubscription; the reverse-dependency closure catches importer violations
+  without transitive hot-path work; the verdict-shaped wire freezes once and
+  survives the GV2 backing swap; an opt-in confinement mode lets operators box
+  roaming agents.
+- **Negative:** The daemon gains warm graph state, change-classification state,
+  and a new method surface; MCP's validation path changes; workspace-assurance
+  and confinement are new concepts to surface in CLI/TUI; full-repo assurance is
+  no longer implicit on every save and must be scheduled/requested.
+- **Risks & honest limits:** (a) the daemon's per-host budgeting only holds for
+  work routed through it — daemon-absent fallback processes retain their own
+  per-process pools (capped lower at `cores/4`) and will oversubscribe during
+  mixed-rollout states; true cross-process host-wide capping (cgroups) is a
+  deferred open question. (b) Latest-state coalescing means a violation written
+  and reverted inside the debounce window is not separately reported; save-time
+  is "validate the state at the point of change", and the audit anchors are the
+  explicit/background full scan and commit-time enforcement, not a per-save log.
+  (c) Confinement is a policy guardrail, not an OS jail (see §7). (d) `Clean` is
+  a same-uid liveness signal, not a cross-trust attestation.
+- **Mitigations:** the process-tree CPU bench + the `ipc_roundtrip` warm-read
+  latency budget (ADR-031) keep the hot path honest and fail on regression; the
+  §8 gated correctness bar (taxonomy + parity + auth) blocks Phase 2 on
+  soundness; mandatory daemon-absent fallback (scoped, never `--all`, exit 0);
+  default-deny invalidation taxonomy with inode-based classification; fail-closed
+  confinement config loading; persistence default-off with restore-indexes-not-
+  verdict semantics.
 
 ## References
 
+- Planning Council: `plan-5768ae0c` (2026-06-01); input artifact
+  `ANVIL-DAEMON-DESIGN-RESPONSE.md` (PR #2188)
+- Contract spec:
+  [`plans/specs/2026-06-01-daemon-save-time-validation-contract.md`](../specs/2026-06-01-daemon-save-time-validation-contract.md)
 - Related ADRs: ADR-015 (intercept-loop enforcement), ADR-031 (validation
   latency rubric), ADR-036 (daemon scope and boundaries), ADR-030 (surface
   drivers on the daemon), ADR-001 (planless-first), ADR-002 (warnings over
   blocks)
 - APS modules: RLB-001/002/005/007/008 (resource-load-benchmarking),
-  GV2-010/011/020/021/022 (graph-v2-foundation), INTD (intercept daemon), DRVR
-  (surface-drivers)
+  GV2-010/011/020/021/022 (graph-v2-foundation), MLP2-067 (folded into sub-phase
+  A), INTD (intercept daemon), DRVR (surface-drivers)
 - Evidence: process-tree load probe `benchmarks/prototypes/anvil-load-probe.py`
   (in-repo); CPU field report and tester-diagnostics tracking in issue #2156
