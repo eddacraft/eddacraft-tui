@@ -525,7 +525,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   gate, and was retired as an evaluation lens in PR #2192. This item does
   not act during beta; it is the placeholder for the GA decision about
   which commands come off the gate once beta access control is lifted.
-- **Intent (at GA):** `CLI_GATED_COMMANDS` at
+- **Intent:** At GA. `CLI_GATED_COMMANDS` at
   `crates/anvil-cli/src/feature_flags.rs:38` lists nineteen commands,
   including `welcome`, `status`, `check`, `init`, and `start`. When the
   beta access wall is removed, decide which of these become
@@ -533,7 +533,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   obvious first candidate, with `status` (read-only) and `check`
   (`--help`: "planless mode") as further candidates, possibly via a
   `planless` / `full` sub-mode split.
-- **Expected Outcome (at GA):** A decided gated-command set, plus a
+- **Expected Outcome:** At GA, a decided gated-command set, plus a
   consistent exit-code contract across gated commands: today `welcome`
   returns 0 while `init` / `start` return 3 for the same auth condition.
   (The exit-code inconsistency is a latent nit worth tracking regardless
@@ -549,7 +549,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   membership changes at GA, the MCP server's auth-required response may
   want to mirror the new contract so editor agents see a coherent story
   across CLI and MCP surfaces.
-- **Validation (when actioned at GA):** The existing `requires_auth_*`
+- **Validation:** When actioned at GA, the existing `requires_auth_*`
   tests at `crates/anvil-cli/src/main.rs:884-961` are updated to match the
   new membership. A CLI integration test runs `anvil welcome --no-tui` on
   a machine with no credentials and asserts the welcome screen prints
