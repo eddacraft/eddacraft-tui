@@ -490,7 +490,7 @@ mod tests {
             self
         }
         fn path(mut self, path: &str) -> Self {
-            self.paths.insert(path.to_string());
+            self.paths.insert(normalize_separators(path));
             self
         }
         fn var(mut self, name: &str, value: &str) -> Self {
@@ -504,7 +504,7 @@ mod tests {
             self.binaries.contains(name)
         }
         fn path_exists(&self, path: &str) -> bool {
-            self.paths.contains(path)
+            self.paths.contains(&normalize_separators(path))
         }
         fn env(&self, name: &str) -> Option<String> {
             self.env_vars.get(name).cloned()
@@ -512,6 +512,15 @@ mod tests {
         fn home_dir(&self) -> Option<String> {
             self.home.clone()
         }
+    }
+
+    // The detection probes paths via `join_home`, which emits the host's
+    // native separator (`\` on Windows) while the test table registers
+    // forward-slash literals. Normalising both the registered and probed
+    // paths to `/` makes the in-memory stub separator-agnostic, mirroring
+    // the real `Path::exists` it stands in for.
+    fn normalize_separators(path: &str) -> String {
+        path.replace('\\', "/")
     }
 
     #[test]

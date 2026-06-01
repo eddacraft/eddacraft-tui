@@ -168,7 +168,13 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
     if file_path.is_empty() {
         return Err("filePath must not be empty".to_string());
     }
-    if Path::new(file_path).is_absolute() {
+    // `has_root` rather than `is_absolute`: a path with a leading
+    // separator (`/etc/passwd`) is drive-relative on Windows, where
+    // `is_absolute` is false (no drive prefix) — yet it is never a valid
+    // workspace-relative path and can escape the root. Rejecting any
+    // rooted path here closes that gap on every platform and fails fast
+    // before the filesystem is touched.
+    if Path::new(file_path).has_root() {
         return Err("filePath must be a workspace-relative path".to_string());
     }
     if Path::new(file_path)

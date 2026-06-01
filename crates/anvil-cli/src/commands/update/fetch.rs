@@ -220,13 +220,20 @@ mod tests {
     #[test]
     fn latest_url_uses_releases_latest_download() {
         let src = github_release_source("eddacraft", "anvil", "anvil", None);
+        // The installer extension is platform-native (`.ps1` on Windows,
+        // `.sh` elsewhere), matching `github_release_source`.
+        let ext = if cfg!(windows) { ".ps1" } else { ".sh" };
         assert_eq!(
             src.installer_url,
-            "https://github.com/eddacraft/anvil/releases/latest/download/anvil-installer.sh"
+            format!(
+                "https://github.com/eddacraft/anvil/releases/latest/download/anvil-installer{ext}"
+            )
         );
         assert_eq!(
             src.signature_url,
-            "https://github.com/eddacraft/anvil/releases/latest/download/anvil-installer.sh.minisig"
+            format!(
+                "https://github.com/eddacraft/anvil/releases/latest/download/anvil-installer{ext}.minisig"
+            )
         );
     }
 

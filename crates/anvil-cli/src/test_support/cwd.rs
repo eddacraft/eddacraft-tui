@@ -86,7 +86,15 @@ mod tests {
         // equal to the post-cd `current_dir`.
         let expected = tmp.path().canonicalize().unwrap();
 
-        let observed = swap_cwd_in(tmp.path(), || std::env::current_dir().unwrap());
+        // Canonicalize the observed cwd too: on Windows `current_dir`
+        // reports the 8.3 short form without the `\\?\` verbatim prefix
+        // (e.g. `C:\Users\RUNNER~1\...`), whereas `canonicalize` returns
+        // the long, verbatim-prefixed form — the same directory, but
+        // unequal as raw strings. Canonicalizing both sides compares the
+        // resolved path, mirroring the macOS `/var` → `/private/var` case.
+        let observed = swap_cwd_in(tmp.path(), || {
+            std::env::current_dir().unwrap().canonicalize().unwrap()
+        });
 
         assert_eq!(observed, expected, "body should observe the swapped cwd");
         assert_eq!(
