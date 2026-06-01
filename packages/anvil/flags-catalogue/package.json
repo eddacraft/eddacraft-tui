@@ -1,0 +1,37 @@
+{
+  "name": "@eddacraft/anvil-flags-catalogue",
+  "version": "0.6.2-beta",
+  "description": "Single source of truth for Anvil feature flag definitions and gating inventories",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eddacraft/anvil-contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  },
+  "keywords": [
+    "anvil",
+    "feature-flags",
+    "catalogue"
+  ],
+  "license": "PROPRIETARY"
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "environments": [
+    { "id": "local", "name": "Local development", "status": "active" },
+    { "id": "development", "name": "Dev cluster / branch", "status": "active" },
+    { "id": "preview", "name": "Vercel preview deploys", "status": "active" },
+    { "id": "demo", "name": "Customer demo deploys", "status": "active" },
+    { "id": "production", "name": "Production", "status": "active" }
+  ]
+}

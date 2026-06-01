@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "audiences": [
+    { "id": "plan-free", "name": "Free plan", "axis": "plan", "status": "active" },
+    { "id": "plan-beta", "name": "Beta plan", "axis": "plan", "status": "active" },
+    { "id": "plan-pro", "name": "Pro plan", "axis": "plan", "status": "active" },
+    {
+      "id": "plan-enterprise",
+      "name": "Enterprise plan",
+      "axis": "plan",
+      "status": "active"
+    },
+    { "id": "role-admin", "name": "Customer admin", "axis": "role", "status": "active" },
+    {
+      "id": "role-developer",
+      "name": "Customer developer",
+      "axis": "role",
+      "status": "active"
+    },
+    {
+      "id": "staff-anvil-internal",
+      "name": "Anvil staff",
+      "axis": "staff",
+      "status": "active"
+    },
+    {
+      "id": "channel-early-access",
+      "name": "Early access channel",
+      "axis": "channel",
+      "status": "active"
+    },
+    {
+      "id": "channel-general",
+      "name": "Generally available",
+      "axis": "channel",
+      "status": "active"
+    }
+  ]
+}

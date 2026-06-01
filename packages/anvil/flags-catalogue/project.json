@@ -1,0 +1,8 @@
+{
+  "name": "flags-catalogue",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/anvil/flags-catalogue/src",
+  "projectType": "library",
+  "tags": ["scope:core", "layer:1"],
+  "targets": {}
+}

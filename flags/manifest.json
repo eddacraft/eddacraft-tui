@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "flags": [
+    {
+      "key": "api.scope.beta",
+      "owner": "BAUTH",
+      "intent": "Allow the beta scope on admin-issued access tokens",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "enabled",
+      "status": "active",
+      "createdFor": "FLAGM-005",
+      "primaryGroup": "api"
+    },
+    {
+      "key": "api.scope.internal",
+      "owner": "BAUTH",
+      "intent": "Allow the internal scope on admin-issued access tokens",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "enabled",
+      "status": "active",
+      "createdFor": "FLAGM-005",
+      "primaryGroup": "api"
+    },
+    {
+      "key": "api.scope.preview",
+      "owner": "BAUTH",
+      "intent": "Allow the preview scope on admin-issued access tokens",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "enabled",
+      "status": "active",
+      "createdFor": "FLAGM-005",
+      "primaryGroup": "api"
+    },
+    {
+      "key": "cli.licence-gate",
+      "owner": "BAUTH",
+      "intent": "Gate CLI features behind licence validation",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "enabled",
+      "status": "active",
+      "createdFor": "FLAGS-008",
+      "description": "Controls access to licence-gated CLI commands",
+      "primaryGroup": "cli"
+    },
+    {
+      "key": "docs.access",
+      "owner": "DOCSAUTH",
+      "intent": "Gate /anvil docs access for authenticated beta users",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "FLAGS-008",
+      "targeting": [
+        {
+          "conditions": [
+            {
+              "attribute": "accountTier",
+              "operator": "in_set",
+              "value": ["plan-beta", "plan-pro", "plan-enterprise"]
+            }
+          ],
+          "variant": "enabled"
+        }
+      ],
+      "primaryGroup": "docs"
+    }
+  ]
+}

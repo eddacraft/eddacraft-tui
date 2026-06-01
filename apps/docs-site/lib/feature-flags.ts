@@ -84,21 +84,24 @@ export function evaluateDocsAccess(input: DocsEvaluationInput): DocsAccessResolu
   };
 }
 
-type FlagEnvironment = 'preview' | 'dev' | 'local' | 'staging' | 'prod';
+type FlagEnvironment = 'local' | 'development' | 'preview' | 'demo' | 'production';
 const KNOWN_ENVIRONMENTS: readonly FlagEnvironment[] = [
-  'preview',
-  'dev',
   'local',
-  'staging',
-  'prod',
+  'development',
+  'preview',
+  'demo',
+  'production',
 ];
 
 function currentEnvironment(): FlagEnvironment {
   const raw =
     (typeof process !== 'undefined' && process.env
       ? (process.env.VERCEL_ENV ?? process.env.NODE_ENV)
-      : undefined) ?? 'dev';
-  if (raw === 'production') return 'prod';
-  if (raw === 'development' || raw === 'test') return 'dev';
-  return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw) ? (raw as FlagEnvironment) : 'dev';
+      : undefined) ?? 'development';
+  // The manifest enum now uses native NODE_ENV/VERCEL_ENV names directly
+  // (FLAGCAT-002 rename); 'test' aliases to 'development'.
+  if (raw === 'test') return 'development';
+  return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw)
+    ? (raw as FlagEnvironment)
+    : 'development';
 }

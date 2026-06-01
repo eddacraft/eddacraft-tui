@@ -10,11 +10,11 @@ describe('createSessionTelemetry', () => {
   it('includes snapshot version and environment', () => {
     const tel = createSessionTelemetry({
       snapshotVersion: 42,
-      environment: 'prod',
+      environment: 'production',
       runtime: 'typescript',
     });
     expect(tel.snapshotVersion).toBe(42);
-    expect(tel.environment).toBe('prod');
+    expect(tel.environment).toBe('production');
     expect(tel.runtime).toBe('typescript');
     expect(tel.timestamp).toBeDefined();
   });
@@ -22,7 +22,7 @@ describe('createSessionTelemetry', () => {
   it('does not include PII', () => {
     const tel = createSessionTelemetry({
       snapshotVersion: 1,
-      environment: 'dev',
+      environment: 'development',
       runtime: 'typescript',
     });
     const json = JSON.stringify(tel);

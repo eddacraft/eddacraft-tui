@@ -365,12 +365,14 @@ describe('failClosedClasses', () => {
 // ---------------------------------------------------------------------------
 
 describe('EnvironmentNameSchema', () => {
-  it.each(['local', 'preview', 'dev', 'staging', 'prod'])('accepts "%s"', (v) => {
+  it.each(['local', 'development', 'preview', 'demo', 'production'])('accepts "%s"', (v) => {
     expect(EnvironmentNameSchema.parse(v)).toBe(v);
   });
 
-  it('rejects unknown environment', () => {
-    expect(EnvironmentNameSchema.safeParse('test').success).toBe(false);
+  it('rejects renamed/dropped environments', () => {
+    for (const old of ['dev', 'prod', 'staging', 'test']) {
+      expect(EnvironmentNameSchema.safeParse(old).success).toBe(false);
+    }
   });
 });
 
@@ -386,13 +388,13 @@ describe('ChannelSchema', () => {
 
 describe('EnvironmentContextSchema', () => {
   it('accepts minimal context', () => {
-    const result = EnvironmentContextSchema.safeParse({ environment: 'prod' });
+    const result = EnvironmentContextSchema.safeParse({ environment: 'production' });
     expect(result.success).toBe(true);
   });
 
   it('accepts full context', () => {
     const result = EnvironmentContextSchema.safeParse({
-      environment: 'staging',
+      environment: 'demo',
       channel: 'beta',
       deploymentRing: 'canary',
     });
@@ -440,7 +442,7 @@ describe('EvaluationContextSchema', () => {
   it('accepts minimal context', () => {
     const result = EvaluationContextSchema.safeParse({
       targetingKey: 'session-abc',
-      environment: { environment: 'dev' },
+      environment: { environment: 'development' },
     });
     expect(result.success).toBe(true);
   });
@@ -448,7 +450,7 @@ describe('EvaluationContextSchema', () => {
   it('accepts full context', () => {
     const result = EvaluationContextSchema.safeParse({
       targetingKey: 'session-xyz',
-      environment: { environment: 'prod', channel: 'production' },
+      environment: { environment: 'production', channel: 'production' },
       audience: { accountTier: 'enterprise', userRole: 'admin' },
     });
     expect(result.success).toBe(true);
@@ -456,7 +458,7 @@ describe('EvaluationContextSchema', () => {
 
   it('rejects missing targetingKey', () => {
     const result = EvaluationContextSchema.safeParse({
-      environment: { environment: 'dev' },
+      environment: { environment: 'development' },
     });
     expect(result.success).toBe(false);
   });
@@ -464,7 +466,7 @@ describe('EvaluationContextSchema', () => {
   it('rejects empty targetingKey', () => {
     const result = EvaluationContextSchema.safeParse({
       targetingKey: '',
-      environment: { environment: 'dev' },
+      environment: { environment: 'development' },
     });
     expect(result.success).toBe(false);
   });

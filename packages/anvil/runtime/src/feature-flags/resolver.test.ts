@@ -30,7 +30,7 @@ function booleanFlag(overrides: Partial<FeatureFlagDefinition> = {}): FeatureFla
 function devContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
     targetingKey: 'session-abc',
-    environment: { environment: 'dev' },
+    environment: { environment: 'development' },
     ...overrides,
   } as EvaluationContext;
 }
@@ -38,7 +38,7 @@ function devContext(overrides: Partial<EvaluationContext> = {}): EvaluationConte
 function prodContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
     targetingKey: 'session-abc',
-    environment: { environment: 'prod', channel: 'production' },
+    environment: { environment: 'production', channel: 'production' },
     audience: { accountTier: 'pro' },
     ...overrides,
   } as EvaluationContext;
@@ -53,7 +53,7 @@ describe('resolveFlag', () => {
     const flag = booleanFlag({
       targeting: [
         {
-          conditions: [{ attribute: 'environment', operator: 'equals', value: 'prod' }],
+          conditions: [{ attribute: 'environment', operator: 'equals', value: 'production' }],
           variant: 'enabled',
         },
       ],
@@ -120,7 +120,7 @@ describe('resolveFlag', () => {
         status: 'retired',
         targeting: [
           {
-            conditions: [{ attribute: 'environment', operator: 'equals', value: 'prod' }],
+            conditions: [{ attribute: 'environment', operator: 'equals', value: 'production' }],
             variant: 'enabled',
           },
         ],
@@ -146,7 +146,7 @@ describe('resolveFlag', () => {
         status: 'retiring',
         targeting: [
           {
-            conditions: [{ attribute: 'environment', operator: 'equals', value: 'prod' }],
+            conditions: [{ attribute: 'environment', operator: 'equals', value: 'production' }],
             variant: 'enabled',
           },
         ],
@@ -165,7 +165,7 @@ describe('resolveFlag', () => {
       const flag = booleanFlag({
         targeting: [
           {
-            conditions: [{ attribute: 'environment', operator: 'equals', value: 'dev' }],
+            conditions: [{ attribute: 'environment', operator: 'equals', value: 'development' }],
             variant: 'enabled',
           },
         ],
@@ -177,7 +177,7 @@ describe('resolveFlag', () => {
       const flag = booleanFlag({
         targeting: [
           {
-            conditions: [{ attribute: 'environment', operator: 'not_equals', value: 'prod' }],
+            conditions: [{ attribute: 'environment', operator: 'not_equals', value: 'production' }],
             variant: 'enabled',
           },
         ],
@@ -216,7 +216,7 @@ describe('resolveFlag', () => {
         targeting: [
           {
             conditions: [
-              { attribute: 'environment', operator: 'equals', value: 'prod' },
+              { attribute: 'environment', operator: 'equals', value: 'production' },
               { attribute: 'accountTier', operator: 'equals', value: 'pro' },
             ],
             variant: 'enabled',
@@ -238,7 +238,7 @@ describe('resolveFlag', () => {
         ],
         targeting: [
           {
-            conditions: [{ attribute: 'environment', operator: 'equals', value: 'prod' }],
+            conditions: [{ attribute: 'environment', operator: 'equals', value: 'production' }],
             variant: 'limited',
           },
           {

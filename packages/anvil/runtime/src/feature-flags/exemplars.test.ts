@@ -90,13 +90,13 @@ describe('exemplar manifest', () => {
 describe('CLI licence gate resolution', () => {
   const freeContext: EvaluationContext = {
     targetingKey: 'session-free',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
     audience: { licencePlan: 'free' },
   } as EvaluationContext;
 
   const proContext: EvaluationContext = {
     targetingKey: 'session-pro',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
     audience: { licencePlan: 'pro', accountTier: 'pro' },
   } as EvaluationContext;
 
@@ -134,24 +134,24 @@ describe('CLI licence gate resolution', () => {
 describe('docs access resolution', () => {
   const unauthContext: EvaluationContext = {
     targetingKey: 'anon-visitor',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
   } as EvaluationContext;
 
   const betaContext: EvaluationContext = {
     targetingKey: 'beta-user-1',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
     audience: { accountTier: 'beta' },
   } as EvaluationContext;
 
   const proContext: EvaluationContext = {
     targetingKey: 'pro-user-1',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
     audience: { accountTier: 'pro' },
   } as EvaluationContext;
 
   const freeContext: EvaluationContext = {
     targetingKey: 'free-user-1',
-    environment: { environment: 'prod' },
+    environment: { environment: 'production' },
     audience: { accountTier: 'free' },
   } as EvaluationContext;
 

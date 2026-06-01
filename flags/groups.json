@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "cli",
+      "name": "CLI surface",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["plan-pro", "plan-enterprise"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "docs",
+      "name": "Documentation surface",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["plan-beta", "plan-pro", "plan-enterprise"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "api",
+      "name": "Anvil API surface",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["plan-pro", "plan-enterprise"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "dashboard",
+      "name": "Web dashboard surface",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["plan-pro", "plan-enterprise"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "ide",
+      "name": "Editor / IDE surface",
+      "defaultClass": "rollout",
+      "defaultAudiences": ["channel-early-access", "channel-general"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "daemon",
+      "name": "Anvil daemon (internal)",
+      "defaultClass": "rollout",
+      "defaultAudiences": ["staff-anvil-internal", "channel-general"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "hook",
+      "name": "Commit / push hook surface",
+      "defaultClass": "rollout",
+      "defaultAudiences": ["channel-general"],
+      "defaultStatus": "active"
+    }
+  ]
+}

@@ -73,25 +73,27 @@ export function apiScopeFlagFor(scope: string): FeatureFlagDefinition | undefine
 
 // Derive the evaluation environment from process.env at call time so
 // non-prod deployments don't silently match production targeting rules
-// once FLAGM-006 plumbs real targeting. Falls back to 'dev' to keep the
-// fail-safe direction if both vars are missing.
-type FlagEnvironment = 'preview' | 'dev' | 'local' | 'staging' | 'prod';
+// once FLAGM-006 plumbs real targeting. Falls back to 'development' to keep
+// the fail-safe direction if both vars are missing.
+type FlagEnvironment = 'local' | 'development' | 'preview' | 'demo' | 'production';
 const KNOWN_ENVIRONMENTS: readonly FlagEnvironment[] = [
-  'preview',
-  'dev',
   'local',
-  'staging',
-  'prod',
+  'development',
+  'preview',
+  'demo',
+  'production',
 ];
 
 function currentEnvironment(): FlagEnvironment {
-  const raw = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'dev';
+  const raw = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development';
   // VERCEL_ENV returns 'production' / 'preview' / 'development'; NODE_ENV
-  // returns 'production' / 'development' / 'test'. Map these to the flag
-  // manifest's restricted enum.
-  if (raw === 'production') return 'prod';
-  if (raw === 'development' || raw === 'test') return 'dev';
-  return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw) ? (raw as FlagEnvironment) : 'dev';
+  // returns 'production' / 'development' / 'test'. The manifest enum now uses
+  // these native names directly (FLAGCAT-002 rename); 'test' aliases to
+  // 'development' (a transient runtime state, not a deployment target).
+  if (raw === 'test') return 'development';
+  return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw)
+    ? (raw as FlagEnvironment)
+    : 'development';
 }
 
 // Default evaluation context for flag resolution in unauthenticated or

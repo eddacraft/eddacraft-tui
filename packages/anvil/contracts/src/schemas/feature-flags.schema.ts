@@ -40,7 +40,13 @@ export type FlagVariant = z.infer<typeof FlagVariantSchema>;
 // Environment Targeting
 // =============================================================================
 
-export const EnvironmentNameSchema = z.enum(['local', 'preview', 'dev', 'staging', 'prod']);
+export const EnvironmentNameSchema = z.enum([
+  'local',
+  'development',
+  'preview',
+  'demo',
+  'production',
+]);
 export type EnvironmentName = z.infer<typeof EnvironmentNameSchema>;
 
 export const ChannelSchema = z.enum(['development', 'beta', 'production']);
@@ -163,6 +169,13 @@ export const FeatureFlagDefinitionSchema = z
     expiryOrReviewDate: z.iso.datetime().optional(),
     description: z.string().optional(),
     targeting: z.array(TargetingRuleSchema).optional(),
+    // FLAGCAT-002 / gating model (ADR-048): the feature group this flag
+    // belongs to (matches an id in groups.json) and an open-set tag list.
+    // Optional on the base definition while per-surface call sites are still
+    // un-migrated (FLAGCAT-003/-005); the manifest requires it and the
+    // consistency check (FLAGCAT-006) enforces groups.json membership.
+    primaryGroup: z.string().min(1).optional(),
+    tags: z.array(z.string().min(1)).optional(),
   })
   .check((ctx) => {
     const { class: flagClass, variants, defaultVariant, expiryOrReviewDate } = ctx.value;
@@ -243,6 +256,99 @@ export const FeatureFlagManifestSchema = z
   });
 
 export type FeatureFlagManifest = z.infer<typeof FeatureFlagManifestSchema>;
+
+// =============================================================================
+// Gating-model inventories (ADR-048 / 2026-05-19 gating-model spec)
+// =============================================================================
+
+// Inventory entries are never deleted once retired — their ids stay reserved
+// forever (ADR-041 key-reservation rule, generalised).
+export const InventoryEntryStatusSchema = z.enum(['active', 'retired']);
+export type InventoryEntryStatus = z.infer<typeof InventoryEntryStatusSchema>;
+
+// ── Audiences (flags/audiences.json) ──
+export const AudienceAxisSchema = z.enum(['plan', 'role', 'staff', 'channel']);
+export type AudienceAxis = z.infer<typeof AudienceAxisSchema>;
+
+export const FlagAudienceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  axis: AudienceAxisSchema,
+  status: InventoryEntryStatusSchema,
+});
+export type FlagAudience = z.infer<typeof FlagAudienceSchema>;
+
+export const FlagAudienceManifestSchema = z
+  .object({
+    schemaVersion: z.literal(FEATURE_FLAG_SCHEMA_VERSION),
+    audiences: z.array(FlagAudienceSchema),
+  })
+  .check((ctx) => {
+    const ids = ctx.value.audiences.map((a: { id: string }) => a.id);
+    if (new Set(ids).size !== ids.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value.audiences,
+        message: 'Audience ids must be unique within the inventory',
+        path: ['audiences'],
+      });
+    }
+  });
+export type FlagAudienceManifest = z.infer<typeof FlagAudienceManifestSchema>;
+
+// ── Environments (flags/environments.json) ──
+export const FlagEnvironmentSchema = z.object({
+  id: EnvironmentNameSchema,
+  name: z.string().min(1),
+  status: InventoryEntryStatusSchema,
+});
+export type FlagEnvironment = z.infer<typeof FlagEnvironmentSchema>;
+
+export const FlagEnvironmentManifestSchema = z
+  .object({
+    schemaVersion: z.literal(FEATURE_FLAG_SCHEMA_VERSION),
+    environments: z.array(FlagEnvironmentSchema),
+  })
+  .check((ctx) => {
+    const ids = ctx.value.environments.map((e: { id: string }) => e.id);
+    if (new Set(ids).size !== ids.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value.environments,
+        message: 'Environment ids must be unique within the inventory',
+        path: ['environments'],
+      });
+    }
+  });
+export type FlagEnvironmentManifest = z.infer<typeof FlagEnvironmentManifestSchema>;
+
+// ── Primary groups (flags/groups.json) — defaults carriers per ADR-048 ──
+export const FlagGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  defaultClass: FlagClassSchema,
+  defaultAudiences: z.array(z.string().min(1)),
+  defaultStatus: FlagStatusSchema,
+});
+export type FlagGroup = z.infer<typeof FlagGroupSchema>;
+
+export const FlagGroupManifestSchema = z
+  .object({
+    schemaVersion: z.literal(FEATURE_FLAG_SCHEMA_VERSION),
+    groups: z.array(FlagGroupSchema),
+  })
+  .check((ctx) => {
+    const ids = ctx.value.groups.map((g: { id: string }) => g.id);
+    if (new Set(ids).size !== ids.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value.groups,
+        message: 'Group ids must be unique within the inventory',
+        path: ['groups'],
+      });
+    }
+  });
+export type FlagGroupManifest = z.infer<typeof FlagGroupManifestSchema>;
 
 // =============================================================================
 // Validation
