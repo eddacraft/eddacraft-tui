@@ -80,7 +80,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-002: Fix watch_resource_budget to measure the real default
 
-- **Status:** Proposed
+- **Status:** Ready (unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
 - **Intent:** Make the budget bench generate sustained churn, run the default
   `check` action, and measure the whole process tree (not just the parent pid).
 - **Expected Outcome:** The bench reflects production per-save cost and regresses
@@ -90,14 +90,14 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-003: Intercept daemon CPU/RSS budget + SLO
 
-- **Status:** Proposed
+- **Status:** Ready (unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
 - **Intent:** Add a steady-state and burst CPU/RSS bench for the intercept daemon.
 - **Expected Outcome:** Daemon footprint is gated by a budget, not just latency.
 - **Validation:** `cargo bench -p eddacraft-anvil-intercept --bench intercept_resource_budget`
 
 ### RLB-004: MCP server CPU/RSS budget + SLO
 
-- **Status:** Proposed
+- **Status:** Ready (unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
 - **Intent:** Spawn `anvil mcp serve --stdio`, drive sustained `tools/call`
   load, and measure CPU/RSS.
 - **Expected Outcome:** MCP server gains its first resource budget.
@@ -105,7 +105,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-005: Concurrent multi-process bench
 
-- **Status:** Proposed
+- **Status:** Ready (unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
 - **Intent:** Run watch + MCP + intercept together under load to expose
   cross-process rayon oversubscription.
 - **Expected Outcome:** Aggregate CPU/RSS under realistic concurrency is measured
@@ -136,7 +136,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-008: Define SLOs + wire the harness into CI
 
-- **Status:** Proposed
+- **Status:** Ready (unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; SLO + CI gate for sub-phase A)
 - **Intent:** Set CPU/RSS SLOs for watch/daemon/MCP and make the load harness
   runnable via `workflow_dispatch` (and nightly once a runner returns).
 - **Expected Outcome:** Each process has a documented budget; the load harness is

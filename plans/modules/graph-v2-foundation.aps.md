@@ -122,6 +122,16 @@ Change status to **Ready** when:
 - [ ] GCTX module updated to depend on GV2 rather than owning foundation work
 - [ ] Validation commands for the first implementation slice are concrete
 
+> **ADR-061 (Accepted 2026-06-01, council `plan-5768ae0c`) is the consuming
+> save-time contract** for the GV2 hot-read slice (GV2-010/011/020/022). ADR-061
+> deliberately does **not** close the "Hot-path/non-hot-path boundary agreed with
+> INTD and DRVR owners" checkbox above — that gate remains the blocker for
+> sub-phase A′ (swapping the GV2 hot-read slice under the frozen `validate_paths`
+> wire). GV2-021's persistence/privacy/crash-safety content is now specified
+> concretely in `plans/specs/2026-06-01-daemon-save-time-validation-contract.md`
+> §9 (warm-start restores indexes, never the verdict; default-off; per-uid
+> owner-only snapshot location; structural-identity-only privacy line).
+
 ---
 
 ## Work Items
