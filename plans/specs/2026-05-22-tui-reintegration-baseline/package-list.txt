@@ -16,7 +16,9 @@ docs/README.md
 docs/animations.md
 src/animation.rs
 src/compat.rs
+src/json_render/component.rs
 src/json_render/mod.rs
+src/json_render/registry.rs
 src/json_render/spec.rs
 src/keyboard/handler.rs
 src/keyboard/mod.rs
