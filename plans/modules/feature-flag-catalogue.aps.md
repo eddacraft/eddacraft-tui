@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | Ready  | 2/8      |
+| FLAGCAT | —     | medium   | In Progress | 2/8      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -326,7 +326,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   not run for this design pass; instructions for future sweeps are recorded
   in the note's "Clawpatch advisory inventory" section.
 
-### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — Ready
+### FLAGCAT-002: Bootstrap `@eddacraft/anvil-flags-catalogue` package — In Progress
 
 > **Sequencing note (resolved 2026-05-28):** The 2026-05-19 operator decision
 > to defer FLAGCAT-002..-006 until after the `v0.7.0-beta` tag cut is now
@@ -383,7 +383,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   `cargo test -p eddacraft-anvil-kernel-types environment_name` to prove the
   enum rename round-trips
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress
 
 ### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Ready
 
