@@ -337,7 +337,7 @@ mod tests {
         EvaluationContext {
             targeting_key: "session-abc".into(),
             environment: EnvironmentContext {
-                environment: EnvironmentName::Dev,
+                environment: EnvironmentName::Development,
                 channel: None,
                 deployment_ring: None,
             },
@@ -349,7 +349,7 @@ mod tests {
         EvaluationContext {
             targeting_key: "session-abc".into(),
             environment: EnvironmentContext {
-                environment: EnvironmentName::Prod,
+                environment: EnvironmentName::Production,
                 channel: Some(Channel::Stable),
                 deployment_ring: None,
             },
@@ -366,7 +366,7 @@ mod tests {
                 conditions: vec![TargetingCondition {
                     attribute: "environment".into(),
                     operator: TargetingOperator::Equals,
-                    value: ConditionValue::Single("prod".into()),
+                    value: ConditionValue::Single("production".into()),
                 }],
                 variant: "enabled".into(),
             }]),
@@ -478,7 +478,7 @@ mod tests {
                 conditions: vec![TargetingCondition {
                     attribute: "environment".into(),
                     operator: TargetingOperator::NotEquals,
-                    value: ConditionValue::Single("prod".into()),
+                    value: ConditionValue::Single("production".into()),
                 }],
                 variant: "enabled".into(),
             }]),
@@ -533,7 +533,7 @@ mod tests {
                     TargetingCondition {
                         attribute: "environment".into(),
                         operator: TargetingOperator::Equals,
-                        value: ConditionValue::Single("prod".into()),
+                        value: ConditionValue::Single("production".into()),
                     },
                     TargetingCondition {
                         attribute: "accountTier".into(),

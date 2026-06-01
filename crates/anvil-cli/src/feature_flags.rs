@@ -138,7 +138,7 @@ pub fn cli_evaluation_context(
     EvaluationContext {
         targeting_key: targeting_key.into(),
         environment: EnvironmentContext {
-            environment: EnvironmentName::Prod,
+            environment: EnvironmentName::Production,
             channel: None,
             deployment_ring: None,
         },

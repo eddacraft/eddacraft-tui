@@ -56,10 +56,10 @@ pub struct FlagVariant {
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentName {
     Local,
+    Development,
     Preview,
-    Dev,
-    Staging,
-    Prod,
+    Demo,
+    Production,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -494,15 +494,37 @@ mod tests {
     fn environment_name_serde_round_trip() {
         for env in [
             EnvironmentName::Local,
+            EnvironmentName::Development,
             EnvironmentName::Preview,
-            EnvironmentName::Dev,
-            EnvironmentName::Staging,
-            EnvironmentName::Prod,
+            EnvironmentName::Demo,
+            EnvironmentName::Production,
         ] {
             let json = serde_json::to_string(&env).unwrap();
             let back: EnvironmentName = serde_json::from_str(&json).unwrap();
             assert_eq!(env, back);
         }
+    }
+
+    #[test]
+    fn environment_name_serializes_to_renamed_values() {
+        // FLAGCAT-002: prod->production, dev->development, +demo, -staging.
+        // The wire values match the catalogue manifest / NODE_ENV native names.
+        assert_eq!(
+            serde_json::to_string(&EnvironmentName::Production).unwrap(),
+            "\"production\""
+        );
+        assert_eq!(
+            serde_json::to_string(&EnvironmentName::Development).unwrap(),
+            "\"development\""
+        );
+        assert_eq!(
+            serde_json::to_string(&EnvironmentName::Demo).unwrap(),
+            "\"demo\""
+        );
+        // The pre-rename wire values no longer deserialize.
+        assert!(serde_json::from_str::<EnvironmentName>("\"prod\"").is_err());
+        assert!(serde_json::from_str::<EnvironmentName>("\"dev\"").is_err());
+        assert!(serde_json::from_str::<EnvironmentName>("\"staging\"").is_err());
     }
 
     #[test]
@@ -522,7 +544,7 @@ mod tests {
     #[test]
     fn environment_context_minimal() {
         let ctx = EnvironmentContext {
-            environment: EnvironmentName::Prod,
+            environment: EnvironmentName::Production,
             channel: None,
             deployment_ring: None,
         };
@@ -535,7 +557,7 @@ mod tests {
     #[test]
     fn environment_context_full() {
         let ctx = EnvironmentContext {
-            environment: EnvironmentName::Staging,
+            environment: EnvironmentName::Demo,
             channel: Some(Channel::Beta),
             deployment_ring: Some("canary".into()),
         };
@@ -573,7 +595,7 @@ mod tests {
         let ctx = EvaluationContext {
             targeting_key: "session-abc".into(),
             environment: EnvironmentContext {
-                environment: EnvironmentName::Dev,
+                environment: EnvironmentName::Development,
                 channel: None,
                 deployment_ring: None,
             },
@@ -589,7 +611,7 @@ mod tests {
         let ctx = EvaluationContext {
             targeting_key: "session-xyz".into(),
             environment: EnvironmentContext {
-                environment: EnvironmentName::Prod,
+                environment: EnvironmentName::Production,
                 channel: Some(Channel::Stable),
                 deployment_ring: None,
             },
