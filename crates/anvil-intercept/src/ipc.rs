@@ -1658,7 +1658,11 @@ fn validate_oversized_scan_buffer_params(
                     );
                 }
                 saw_env_agent_tag = true;
-                if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES) {
+                if !skip_bounded_json_string_or_null(
+                    bytes,
+                    index,
+                    MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES,
+                ) {
                     return Err("oversized scan_buffer env_agent_tag is missing or too large");
                 }
             }
@@ -1667,7 +1671,8 @@ fn validate_oversized_scan_buffer_params(
                     return Err("oversized scan_buffer params contain duplicate session_id fields");
                 }
                 saw_session_id = true;
-                if !skip_bounded_json_string(bytes, index, MAX_SCAN_BUFFER_SESSION_ID_BYTES) {
+                if !skip_bounded_json_string_or_null(bytes, index, MAX_SCAN_BUFFER_SESSION_ID_BYTES)
+                {
                     return Err("oversized scan_buffer session_id is missing or too large");
                 }
             }
@@ -1763,6 +1768,22 @@ fn skip_bounded_json_string(bytes: &[u8], index: &mut usize, max_raw_bytes: usiz
     }
 
     false
+}
+
+/// Oversized fast-path skip for an optional `string | null` field.
+/// Accepts a bare JSON `null` (which the post-parse path folds to
+/// "absent") or a bounded JSON string. Without the `null` arm an
+/// oversized `scan_buffer` frame carrying `"env_agent_tag": null` or
+/// `"session_id": null` would be rejected even though the normal parse
+/// path accepts it — diverging from the documented "string or null"
+/// shape contract. Mirrors the `null` handling the top-level `id`
+/// validator already uses.
+fn skip_bounded_json_string_or_null(bytes: &[u8], index: &mut usize, max_raw_bytes: usize) -> bool {
+    if bytes.get(*index..*index + 4) == Some(b"null") {
+        *index += 4;
+        return true;
+    }
+    skip_bounded_json_string(bytes, index, max_raw_bytes)
 }
 
 fn skip_bounded_json_number(bytes: &[u8], index: &mut usize, max_bytes: usize) -> bool {
@@ -3522,6 +3543,40 @@ mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    /// CLAWP-065 review regression: the oversized fast-path validator
+    /// must accept `null` for the optional `env_agent_tag` / `session_id`
+    /// fields, matching the "string or null" contract the normal parse
+    /// path (`scan_buffer_from_jsonrpc`) enforces. Before the
+    /// `skip_bounded_json_string_or_null` fix, a `null` here was rejected
+    /// as "missing or too large", so an oversized frame diverged from a
+    /// normal-sized one for the same payload.
+    #[test]
+    fn oversized_params_validator_accepts_null_optional_fields() {
+        let params =
+            br#"{"path":"x.ts","text":"y","version":1,"mode":"midEdit","env_agent_tag":null,"session_id":null}"#;
+        let mut index = 0;
+        assert!(
+            validate_oversized_scan_buffer_params(params, &mut index).is_ok(),
+            "null optional fields must pass the oversized fast-path validator",
+        );
+    }
+
+    /// CLAWP-065: the oversized fast-path still bounds a string
+    /// `session_id` at its cap — `null` acceptance must not weaken the
+    /// size guard.
+    #[test]
+    fn oversized_params_validator_rejects_over_cap_session_id() {
+        let big = "x".repeat(MAX_SCAN_BUFFER_SESSION_ID_BYTES + 1);
+        let raw = format!(
+            r#"{{"path":"x.ts","text":"y","version":1,"mode":"midEdit","session_id":"{big}"}}"#
+        );
+        let mut index = 0;
+        assert!(
+            validate_oversized_scan_buffer_params(raw.as_bytes(), &mut index).is_err(),
+            "an over-cap session_id must still be rejected by the fast-path",
+        );
+    }
 
     // ----------------------------------------------------------------
     // MLP2-025b: cross-check wire-up tests. Target `run_spoof_cross_check`

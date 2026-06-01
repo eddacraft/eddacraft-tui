@@ -949,8 +949,9 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
   `peer_pid` via the existing `(pid, pid_starttime)` lineage walk and rejects
   the request with a structured JSON-RPC error (`-32002`) when the claimed id
   is not the lineage-owned session. Absent `session_id` (today's driver) keeps
-  the legacy path unchanged. Un-ignores
-  `rust_consumer_rejects_cross_session_subscription`.
+  the legacy path unchanged. Replaces the previously-`#[ignore]`d RTAI-008
+  placeholder with a registry-backed `rust_consumer_rejects_cross_session_scan_buffer`
+  (plus fail-closed, positive, and over-cap controls).
 - **Readiness (2026-06-01):** Promoted Draft → Ready. Self-contained scope
   (one request type + its IPC parse/validate path + the ignored `midedit`
   contract test), no blocking dependency (unlike CLAWP-005/-023), and a clear
