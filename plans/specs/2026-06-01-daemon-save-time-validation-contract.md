@@ -1,5 +1,9 @@
 # Daemon save-time validation — contract spec
 
+**Date:** 2026-06-01
+**Status:** Accepted (via ADR-061, Planning Council `plan-5768ae0c`)
+**Relates to:** ADR-061; modules INTD, DRVR, RLB-002/005/008, GV2-010/011/020/021/022; MLP2-067 (folded into sub-phase A)
+
 Companion to [ADR-061](../decisions/061-save-time-daemon-delta-validation.md)
 (Accepted 2026-06-01 via Planning Council `plan-5768ae0c`). The ADR records the
 decision and consequences; this spec freezes the **field-level contract** and
@@ -131,7 +135,10 @@ Adding a new modelled class adds a variant; it never silently maps to `clean`.
 The daemon keeps a per-path `(inode, mtime, size)` table and maps raw `notify`
 events to a canonical class — never trusting the OS event type:
 
-- **ContentModify** — same path, same inode, new mtime.
+- **ContentModify** — same path, same inode, with a changed `mtime`, `size`,
+  **or** content hash. `mtime` alone is not sufficient (it can be unchanged on
+  rapid saves or deliberately set back); the daemon-computed content hash is the
+  authoritative tiebreak, and `size`/`mtime` are fast-path pre-filters.
 - **Atomic-save** — same path, **new inode** (editor temp+rename). Classified
   `ContentModify`, not `Rename` (so it neither forces a full scan nor
   mis-certifies). The inode flip is recorded.

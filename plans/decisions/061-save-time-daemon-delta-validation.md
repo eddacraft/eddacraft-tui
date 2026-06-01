@@ -175,11 +175,13 @@ classification is **mandatory** in the gated correctness bar (§8).
 
 The `Clean → Stale` invalidation taxonomy is **default-deny by change-class**:
 any class not provably certifiable from resident hot indexes forces `Stale`. The
-exhaustive table (content-modify-certifiable, create/modify-needing-cross-file-
-resolution, delete, rename, symlink-retarget, config/boundary/policy edit,
-.gitignore scope change, path-set/impact overflow, warm-state-evicted, and an
-explicit unknown-class fallthrough) is frozen as a wire-visible `reason` enum in
-the spec, projected directly from §6's classification.
+exhaustive `StaleReason` set is frozen as a wire-visible enum in the spec —
+`cross-file-resolution-needed`, `deleted`, `renamed`, `symlink-retarget`,
+`config-boundary-policy-edit`, `gitignore-scope-change`, `impact-set-overflow`,
+`warm-state-evicted`, `scan-timeout`, `daemon-absent`, and an explicit
+`unknown-class` fallthrough — projected directly from §6's classification. The
+certifiable content-modify case is the one class that carries no reason and
+stays `Clean`.
 
 ### 6. Certifiability is a bounded reverse-impact closure, not a forward-only check
 
