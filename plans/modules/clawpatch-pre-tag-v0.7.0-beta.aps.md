@@ -941,7 +941,12 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_cli-command_43c5f1e5c2` — Rust command eddacraft-anvil-intercept
 - **Severity / Triage / Category:** medium / confirmed-bug / security
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ready
+- **Readiness (2026-06-01):** Promoted Draft → Ready. Self-contained scope
+  (one request type + its IPC parse/validate path + the ignored `midedit`
+  contract test), no blocking dependency (unlike CLAWP-005/-023), and a clear
+  fix path with a confirmed-bug verdict — see Recommendation. With the eleven
+  sibling §A findings shipped, this is the next product-actionable CLAWP item.
 - **Verification (2026-06-01):** Confirmed still open against `origin/main`.
   `ScanBufferRequest` (`crates/anvil-intercept/src/midedit.rs:47`) carries
   `path`, `text`, `version`, `mode`, and `env_agent_tag` — there is no
