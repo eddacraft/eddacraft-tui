@@ -168,7 +168,9 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
 
     let cwd = std::env::current_dir().context("could not resolve current directory")?;
     let project_root = workspace_root().unwrap_or(cwd);
-    let home = dirs::home_dir();
+    // Match install's home resolution (honours USERPROFILE on Windows) so
+    // uninstall removes MCP entries from the same home install wrote to.
+    let home = crate::util::user_home_dir();
 
     let plan = build_plan(&project_root, home.as_deref(), args)?;
 

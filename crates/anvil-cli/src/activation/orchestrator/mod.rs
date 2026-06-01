@@ -57,7 +57,7 @@ pub fn run(
     root: &Path,
     global: &GlobalArgs,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
-    run_with_home(root, dirs::home_dir().as_deref(), global)
+    run_with_home(root, crate::util::user_home_dir().as_deref(), global)
 }
 
 /// Like [`run`] but with an explicit `home` override.
@@ -65,7 +65,7 @@ pub fn run(
 /// Used by tests that need to write MCP configs into a tempdir-scoped
 /// home rather than the developer's real `~/.cursor/mcp.json` etc.
 /// Crate-private — production callers must go through [`run`] so the
-/// `dirs::home_dir()` resolution stays in one place.
+/// [`crate::util::user_home_dir`] resolution stays in one place.
 pub(crate) fn run_with_home(
     root: &Path,
     home: Option<&Path>,

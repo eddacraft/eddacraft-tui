@@ -215,7 +215,7 @@ pub(crate) struct RustStdioInstall {
 }
 
 pub(crate) fn default_client_config_root() -> Result<PathBuf> {
-    dirs::home_dir().context("could not determine home directory")
+    crate::util::user_home_dir().context("could not determine home directory")
 }
 
 pub(crate) fn verify_rust_stdio_target(

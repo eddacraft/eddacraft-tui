@@ -572,7 +572,7 @@ fn format_picker_label(candidate: &Candidate) -> String {
 }
 
 fn display_path_with_home_tilde(path: &Path) -> String {
-    display_path_with_home(path, dirs::home_dir().as_deref())
+    display_path_with_home(path, crate::util::user_home_dir().as_deref())
 }
 
 fn display_path_with_home(path: &Path, home: Option<&Path>) -> String {

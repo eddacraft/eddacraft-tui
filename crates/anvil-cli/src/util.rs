@@ -10,6 +10,34 @@ use anyhow::{Context, Result};
 /// not here.
 pub(crate) use anvil_kernel::watcher::filter::is_ignored_dir_name;
 
+/// Resolve the user's home directory, honouring the platform's home
+/// environment variable before the OS known-folder API.
+///
+/// `dirs::home_dir()` on Windows reads `FOLDERID_Profile` via the Known
+/// Folder API and **ignores `%USERPROFILE%`**; on Unix it honours `$HOME`.
+/// Anvil reads and writes editor MCP config under the home dir
+/// (`~/.cursor/mcp.json`, `~/.claude.json`) and detects installed clients
+/// from there, so a home that diverges from the one the user's shell and
+/// editor actually use makes anvil install to — and report on — the wrong
+/// location. On Windows `%USERPROFILE%` can differ from the known-folder
+/// profile (redirected/roaming/relocated profiles), which surfaced as
+/// activation over-claims and "anvil installed it but my editor can't see
+/// it" reports. Preferring the platform home env var keeps anvil aligned
+/// with the user's environment, and lets tests isolate home via
+/// `USERPROFILE`/`HOME`. Falls back to `dirs::home_dir()` when the env var
+/// is unset or empty.
+pub fn user_home_dir() -> Option<PathBuf> {
+    #[cfg(windows)]
+    let from_env = std::env::var_os("USERPROFILE");
+    #[cfg(not(windows))]
+    let from_env = std::env::var_os("HOME");
+
+    from_env
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
+}
+
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
 /// Canonicalises the git result to collapse symlinks. Falls back to

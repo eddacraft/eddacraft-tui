@@ -526,7 +526,7 @@ fn is_cargo_install(exe: &Path) -> bool {
     {
         return true;
     }
-    let Some(user_home) = dirs::home_dir() else {
+    let Some(user_home) = crate::util::user_home_dir() else {
         return false;
     };
     exe.starts_with(user_home.join(".cargo").join("bin"))

@@ -453,7 +453,7 @@ fn evaluate_auth(
                 format!("{err}")
             };
             // Redact home directory to avoid leaking paths in CI logs.
-            let redacted = dirs::home_dir()
+            let redacted = crate::util::user_home_dir()
                 .map(|h| msg.replace(h.to_string_lossy().as_ref(), "~"))
                 .unwrap_or(msg);
             if emit_human_messages {

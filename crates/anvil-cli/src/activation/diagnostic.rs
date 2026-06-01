@@ -336,7 +336,7 @@ impl ActivationDiagnostic {
 /// probes (real MCP detection, baseline, watch identity) plug into
 /// this function in PR 3, PR 4, and PR 5.
 pub fn verify(root: &Path) -> ActivationDiagnostic {
-    verify_with_home(root, dirs::home_dir().as_deref())
+    verify_with_home(root, crate::util::user_home_dir().as_deref())
 }
 
 /// Like [`verify`] but with an explicit `home` override.

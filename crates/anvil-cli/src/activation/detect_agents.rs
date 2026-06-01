@@ -213,7 +213,10 @@ impl DetectionEnv for RealDetectionEnv {
     }
 
     fn home_dir(&self) -> Option<String> {
-        dirs::home_dir().map(|p| p.to_string_lossy().into_owned())
+        // Honour `USERPROFILE`/`HOME` before the known-folder API so agent
+        // detection resolves the same home the user's shell and editor use;
+        // see [`crate::util::user_home_dir`].
+        crate::util::user_home_dir().map(|p| p.to_string_lossy().into_owned())
     }
 }
 
