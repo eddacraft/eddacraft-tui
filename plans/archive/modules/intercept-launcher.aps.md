@@ -59,8 +59,8 @@ process can spoof or unset them. The daemon MUST:
    as the authentication backstop — env propagation is correctness for the
    normal path, not a security boundary.
 
-This contract is the carry-forward gate confirmed in Wave 0 of the
-[v0.7.0 release record](../../releases/v0.7.0-beta.md).
+This contract is the carry-forward gate confirmed during the v0.7.0 release
+([record](../../releases/v0.7.0-beta.md)).
 
 ## Purpose
 

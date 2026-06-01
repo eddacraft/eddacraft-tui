@@ -539,10 +539,8 @@ screenshots.
 ### 6.1 Owner
 
 The runbook needs **one named human** before launch. Today: TBD —
-filing as a follow-up alongside the
-[`Anchor re-scoring process owner`](../releases/v0.7.0-beta.md)
-gap (this is the same shape of problem: a permanent owner, not a
-rotating one).
+filing as a follow-up alongside the `Anchor re-scoring process owner`
+gap (the same shape of problem: a permanent owner, not a rotating one).
 
 Responsibilities:
 
