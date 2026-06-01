@@ -102,8 +102,8 @@ coverage for a bounded, honest verdict.
 - **Enforced, not aspirational.** Admissibility is guarded by (a) a GV2-022 type
   split so non-admissible ops are not even callable from the hot-read API, and
   (b) the ADR-031 Criterion benchmark (GV2-011/-022 validation) that fails CI on
-  budget regression. A debug assertion trips if a hot call performs parse/resolve/
-  traverse/I/O.
+  budget regression. A debug assertion trips if a hot call performs a parse,
+  resolution, traversal, or I/O.
 
 ## Rationale
 
