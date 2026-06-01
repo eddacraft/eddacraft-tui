@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 3/8      |
+| FLAGCAT | —     | medium   | In Progress | 4/8      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -385,7 +385,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** medium
 - **Status:** Merged 2026-06-01 via PR #2205
 
-### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — In Progress
+### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Merged
 
 - **Intent:** Flip `apps/docs-site/lib/feature-flags.ts` and
   `apps/anvil-api/src/lib/feature-flags.ts` to re-export from the catalogue
@@ -411,7 +411,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Validation:** `pnpm nx run-many -t test --projects=docs-site,@eddacraft/anvil-api,runtime`
   + successful Vercel Preview deploy for the docs-site
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-06-02 via PR #2217
 
 ### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Ready
 
