@@ -27,7 +27,7 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use chrono::{Duration, Utc};
 use serde_json::{Value, json};
@@ -168,18 +168,25 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
     if file_path.is_empty() {
         return Err("filePath must not be empty".to_string());
     }
-    // `has_root` rather than `is_absolute`: a path with a leading
-    // separator (`/etc/passwd`) is drive-relative on Windows, where
-    // `is_absolute` is false (no drive prefix) — yet it is never a valid
-    // workspace-relative path and can escape the root. Rejecting any
-    // rooted path here closes that gap on every platform and fails fast
-    // before the filesystem is touched.
-    if Path::new(file_path).has_root() {
+    // Reject any path that is not purely workspace-relative — fail fast,
+    // before the filesystem is touched. Inspecting the first component
+    // catches every anchored form on every platform, which neither
+    // `is_absolute` nor `has_root` does alone:
+    //   - `/etc/passwd`   → RootDir   (rooted; `is_absolute` is false on Windows)
+    //   - `C:\foo`        → Prefix    (Windows absolute)
+    //   - `C:foo`         → Prefix    (Windows *drive-relative*: no root, so
+    //                                  `has_root` misses it, yet `join` anchors
+    //                                  it to drive C and escapes the workspace)
+    //   - `\\server\share`→ Prefix    (UNC)
+    if matches!(
+        Path::new(file_path).components().next(),
+        Some(Component::Prefix(_) | Component::RootDir)
+    ) {
         return Err("filePath must be a workspace-relative path".to_string());
     }
     if Path::new(file_path)
         .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
+        .any(|c| matches!(c, Component::ParentDir))
     {
         return Err("filePath must not escape the workspace via \"..\"".to_string());
     }
@@ -435,6 +442,31 @@ mod tests {
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
         let result = call(&json!({
             "filePath": "/etc/passwd",
+            "warningId": "AP-003",
+            "line": 1,
+            "reason": "test",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            payload["error"],
+            "filePath must be a workspace-relative path"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rejects_windows_drive_relative_file_path() {
+        // `C:foo` is drive-relative on Windows (a Prefix component with no
+        // root): both `is_absolute` and `has_root` are false, yet `join`
+        // anchors it to drive C's cwd and escapes the workspace. The
+        // first-component check must still reject it.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let result = call(&json!({
+            "filePath": "C:foo",
             "warningId": "AP-003",
             "line": 1,
             "reason": "test",
