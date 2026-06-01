@@ -71,17 +71,24 @@ fn status_json_reports_install_root_and_gated_under_anvil_home() {
 
     let (_ok, stdout) = run_status_json(project.path(), Some(home.path()), &[]);
 
-    let home_str = home.path().display().to_string();
-    assert!(
-        stdout.contains(&home_str),
-        "status --json must report the resolved install_root ({home_str}); got: {stdout}"
+    // Parse the JSON rather than substring-matching the raw path: on Windows
+    // the install_root separators are backslashes, which JSON escapes (`\\`),
+    // so `stdout.contains(<raw path>)` spuriously fails even when the reported
+    // install_root is exactly right. Comparing as `Path` is separator- and
+    // escaping-agnostic.
+    let status: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("status --json must emit valid JSON ({e}); got: {stdout}"));
+    let install_root = status["install_root"].as_str().unwrap_or_else(|| {
+        panic!("status --json must carry an install_root field under ANVIL_HOME; got: {stdout}")
+    });
+    assert_eq!(
+        Path::new(install_root),
+        home.path(),
+        "status --json must report the resolved install_root"
     );
-    assert!(
-        stdout.contains("\"install_root\""),
-        "status --json must carry an install_root field under ANVIL_HOME; got: {stdout}"
-    );
-    assert!(
-        stdout.contains("\"project_writes_gated\": true"),
+    assert_eq!(
+        status["project_writes_gated"],
+        serde_json::Value::Bool(true),
         "project_writes_gated must be true without --touch-project-state; got: {stdout}"
     );
 }
