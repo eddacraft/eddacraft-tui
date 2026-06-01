@@ -35,6 +35,9 @@
       "path": "../../packages/anvil/contracts"
     },
     {
+      "path": "../../packages/anvil/flags-catalogue"
+    },
+    {
       "path": "../../packages/anvil/observability"
     },
     {

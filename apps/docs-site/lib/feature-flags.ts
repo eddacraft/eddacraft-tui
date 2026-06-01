@@ -1,21 +1,30 @@
 /**
- * FLAGS-008 / FLAGM-004: `/anvil` docs access via the shared flag model.
+ * FLAGS-008 / FLAGM-004 / FLAGCAT-003: `/anvil` docs access via the shared
+ * flag catalogue.
  *
- * Post-FLAGM-004: the middleware evaluates `docs.access` by calling
- * `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags` directly.
- * The pre-FLAGM-004 inline evaluator is gone — the `/feature-flags`
- * subpath has no Node-only imports and bundles cleanly for Vercel edge.
+ * The `docs.access` definition now lives in `flags/manifest.json` and is
+ * imported from `@eddacraft/anvil-flags-catalogue` (FLAGCAT-003) — no flag
+ * literal lives in this module anymore. What remains is the docs-site
+ * evaluation glue: building the context (incl. tier reconciliation) and
+ * environment detection. The consumer path stays edge-safe (no `fs`/`path`).
  *
- * Fail-closed direction: missing `tier` claim now resolves to the flag's
- * `defaultVariant: 'disabled'`. The pre-FLAGM-004 backwards-compat
- * carve-out that treated missing-tier as `enabled` is deleted because
- * all sessions were reissued with a `tier` claim before the cutover.
+ * Audience reconciliation (FLAGCAT-003): the catalogue's `docs.access`
+ * targeting uses canonical `plan-*` audience ids, while the JWT `tier` claim
+ * is a bare tier name (`beta`/`pro`/`enterprise`). `evaluateDocsAccess` maps
+ * the bare tier to its canonical audience id before resolving, so the resolved
+ * decision is byte-identical to the pre-catalogue (bare-targeting) behaviour.
+ *
+ * Fail-closed direction: a missing or unknown tier resolves to the flag's
+ * `defaultVariant: 'disabled'`.
  */
 
-import type { EvaluationContext, FeatureFlagDefinition } from '@eddacraft/anvil-contracts';
+import type { EvaluationContext } from '@eddacraft/anvil-contracts';
 import { resolveFlag } from '@eddacraft/anvil-runtime/feature-flags';
+import { DOCS_ACCESS_FLAG, DOCS_ACCESS_FLAG_KEY } from '@eddacraft/anvil-flags-catalogue';
 
-export const DOCS_ACCESS_FLAG_KEY = 'docs.access';
+// Re-export the catalogue definition so existing importers migrate with a
+// path change, not a rename. The flag literal is gone from this module.
+export { DOCS_ACCESS_FLAG, DOCS_ACCESS_FLAG_KEY };
 
 export type DocsAccessVariant = 'enabled' | 'disabled';
 
@@ -31,36 +40,19 @@ export interface DocsEvaluationInput {
   sessionSubject?: string | null;
 }
 
-// Mirrors `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`.
-// Kept here rather than imported from a shared package because the docs
-// site is the only caller; promotion to a shared flag catalogue is
-// tracked under FLAGM-006.
-export const DOCS_ACCESS_FLAG: FeatureFlagDefinition = {
-  key: DOCS_ACCESS_FLAG_KEY,
-  owner: 'DOCSAUTH',
-  intent: 'Gate /anvil docs access for authenticated beta users',
-  class: 'entitlement',
-  valueType: 'boolean',
-  variants: [
-    { key: 'enabled', value: true },
-    { key: 'disabled', value: false },
-  ],
-  defaultVariant: 'disabled',
-  status: 'active',
-  createdFor: 'FLAGS-008',
-  targeting: [
-    {
-      conditions: [
-        {
-          attribute: 'accountTier',
-          operator: 'in_set',
-          value: ['beta', 'pro', 'enterprise'],
-        },
-      ],
-      variant: 'enabled',
-    },
-  ],
-} as FeatureFlagDefinition;
+const PLAN_PREFIX = 'plan-';
+
+/**
+ * Map a raw account-tier claim (`beta`/`pro`/`enterprise`/`free`) to the
+ * canonical `plan-*` audience id the manifest targets. Idempotent —
+ * already-canonical and empty values pass through unchanged — so it never
+ * invents a match and an unknown tier still fails closed (no targeting match
+ * → `disabled`).
+ */
+function canonicalAccountTier(tier: string): string {
+  if (tier === '' || tier.startsWith(PLAN_PREFIX)) return tier;
+  return `${PLAN_PREFIX}${tier}`;
+}
 
 export function evaluateDocsAccess(input: DocsEvaluationInput): DocsAccessResolution {
   const tier = input.accountTier ?? null;
@@ -68,7 +60,7 @@ export function evaluateDocsAccess(input: DocsEvaluationInput): DocsAccessResolu
   const context: EvaluationContext = {
     targetingKey: input.sessionSubject ?? 'anon-visitor',
     environment: { environment: currentEnvironment() },
-    ...(tier !== null ? { audience: { accountTier: tier } } : {}),
+    ...(tier !== null ? { audience: { accountTier: canonicalAccountTier(tier) } } : {}),
   };
 
   const details = resolveFlag(DOCS_ACCESS_FLAG, context);
@@ -98,8 +90,8 @@ function currentEnvironment(): FlagEnvironment {
     (typeof process !== 'undefined' && process.env
       ? (process.env.VERCEL_ENV ?? process.env.NODE_ENV)
       : undefined) ?? 'development';
-  // The manifest enum now uses native NODE_ENV/VERCEL_ENV names directly
-  // (FLAGCAT-002 rename); 'test' aliases to 'development'.
+  // The manifest enum uses native NODE_ENV/VERCEL_ENV names (FLAGCAT-002
+  // rename); 'test' aliases to 'development'.
   if (raw === 'test') return 'development';
   return (KNOWN_ENVIRONMENTS as readonly string[]).includes(raw)
     ? (raw as FlagEnvironment)

@@ -6,6 +6,7 @@
     "customConditions": ["@eddacraft/anvil-source"],
     "paths": {
       "@eddacraft/anvil-contracts": ["../../packages/anvil/contracts/dist/index.d.ts"],
+      "@eddacraft/anvil-flags-catalogue": ["../../packages/anvil/flags-catalogue/dist/index.d.ts"],
       "@eddacraft/anvil-runtime": ["../../packages/anvil/runtime/dist/index.d.ts"],
       "@eddacraft/anvil-runtime/*": ["../../packages/anvil/runtime/dist/*/index.d.ts"]
     },
@@ -21,6 +22,9 @@
     },
     {
       "path": "../../packages/anvil/contracts"
+    },
+    {
+      "path": "../../packages/anvil/flags-catalogue"
     }
   ]
 }

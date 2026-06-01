@@ -385,7 +385,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** medium
 - **Status:** Merged 2026-06-01 via PR #2205
 
-### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Ready
+### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — In Progress
 
 - **Intent:** Flip `apps/docs-site/lib/feature-flags.ts` and
   `apps/anvil-api/src/lib/feature-flags.ts` to re-export from the catalogue
@@ -411,7 +411,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Validation:** `pnpm nx run-many -t test --projects=docs-site,@eddacraft/anvil-api,runtime`
   + successful Vercel Preview deploy for the docs-site
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress
 
 ### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Ready
 

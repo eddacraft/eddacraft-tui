@@ -218,6 +218,9 @@ importers:
       '@eddacraft/anvil-contracts':
         specifier: workspace:*
         version: link:../../packages/anvil/contracts
+      '@eddacraft/anvil-flags-catalogue':
+        specifier: workspace:*
+        version: link:../../packages/anvil/flags-catalogue
       '@eddacraft/anvil-observability':
         specifier: workspace:*
         version: link:../../packages/anvil/observability
@@ -381,6 +384,9 @@ importers:
       '@eddacraft/anvil-contracts':
         specifier: workspace:*
         version: link:../../packages/anvil/contracts
+      '@eddacraft/anvil-flags-catalogue':
+        specifier: workspace:*
+        version: link:../../packages/anvil/flags-catalogue
       '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime

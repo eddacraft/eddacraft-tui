@@ -31,6 +31,7 @@
   "dependencies": {
     "@eddacraft/admin-contracts": "workspace:*",
     "@eddacraft/anvil-contracts": "workspace:*",
+    "@eddacraft/anvil-flags-catalogue": "workspace:*",
     "@eddacraft/anvil-observability": "workspace:*",
     "@eddacraft/anvil-runtime": "workspace:*",
     "@eddacraft/transactional": "workspace:*",

@@ -4,67 +4,33 @@ import {
   type FlagOverrides,
   type ResolutionDetails,
 } from '@eddacraft/anvil-runtime/feature-flags';
+import {
+  API_SCOPE_FLAGS,
+  API_SCOPE_FLAG_PREFIX,
+  API_SCOPE_NAMES,
+  DEFAULT_APPROVAL_SCOPES,
+  isApiScopeName,
+  type ApiScopeName,
+} from '@eddacraft/anvil-flags-catalogue';
 
 // =============================================================================
-// api.scope.* — per-scope entitlement flags (FLAGM-005)
+// api.scope.* — per-scope entitlement flags
 // =============================================================================
 //
-// The single source of truth for valid API scope names. The flag manifest
-// below is derived from this tuple so Zod's enum validator, the admin route
-// resolver, and the flag manifest all agree by construction.
-//
-// Adding a scope is a three-step change: extend this tuple, add the matching
-// FeatureFlagDefinition to API_SCOPE_FLAGS, and bump any telemetry filters.
-// Removing one follows the usual FLAGS retirement flow.
+// FLAGCAT-003: the api.scope.* definitions (and the scope-name tuple, prefix,
+// default-approval set) now live in `flags/manifest.json` and are sourced from
+// `@eddacraft/anvil-flags-catalogue` — no flag literal lives in this module.
+// What remains is the api-side evaluation glue. Re-exported so existing
+// importers migrate with a path change, not a rename.
 
-export const API_SCOPE_FLAG_PREFIX = 'api.scope.' as const;
-
-export const API_SCOPE_NAMES = ['beta', 'preview', 'internal'] as const;
-export type ApiScopeName = (typeof API_SCOPE_NAMES)[number];
-
-// Day-1 default scope set for device-code approval. Keep in sync with the
-// /admin/approve handler's hardcoded choice; FLAGM-006 moves this into the
-// flag manifest as a targeted default.
-export const DEFAULT_APPROVAL_SCOPES: readonly ApiScopeName[] = ['beta'];
-
-function makeScopeFlag(name: ApiScopeName, intent: string): FeatureFlagDefinition {
-  return {
-    key: `${API_SCOPE_FLAG_PREFIX}${name}`,
-    owner: 'BAUTH',
-    intent,
-    class: 'entitlement',
-    valueType: 'boolean',
-    variants: [
-      { key: 'enabled', value: true },
-      { key: 'disabled', value: false },
-    ],
-    // Day-1 parity with the pre-FLAGM-005 ALLOWED_SCOPES constant: every
-    // listed scope is accepted. The spec's fail-closed entitlement contract
-    // is satisfied via *override* semantics — operators disable a scope by
-    // flipping the flag to 'disabled', which takes precedence over this
-    // default. FLAGM-006 reviews whether to invert once the full evaluation
-    // context (principal, plan) is plumbed through.
-    defaultVariant: 'enabled',
-    status: 'active',
-    createdFor: 'FLAGM-005',
-  } satisfies FeatureFlagDefinition;
-}
-
-export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinition>> = {
-  beta: makeScopeFlag('beta', 'Allow the beta scope on admin-issued access tokens'),
-  preview: makeScopeFlag('preview', 'Allow the preview scope on admin-issued access tokens'),
-  internal: makeScopeFlag('internal', 'Allow the internal scope on admin-issued access tokens'),
+export {
+  API_SCOPE_FLAGS,
+  API_SCOPE_FLAG_PREFIX,
+  API_SCOPE_NAMES,
+  DEFAULT_APPROVAL_SCOPES,
+  isApiScopeName,
+  type ApiScopeName,
 };
-
-// Manifest-vs-tuple agreement is enforced at compile time by typing
-// API_SCOPE_FLAGS as Record<ApiScopeName, …> and in the unit test suite.
-// No runtime boot-time invariant is needed — a mismatch would fail the
-// tsc build and the "keeps API_SCOPE_NAMES in sync with the manifest" test
-// long before a Vercel edge worker touched this module.
-
-export function isApiScopeName(value: string): value is ApiScopeName {
-  return (API_SCOPE_NAMES as readonly string[]).includes(value);
-}
 
 export function apiScopeFlagFor(scope: string): FeatureFlagDefinition | undefined {
   if (!isApiScopeName(scope)) return undefined;
@@ -72,9 +38,9 @@ export function apiScopeFlagFor(scope: string): FeatureFlagDefinition | undefine
 }
 
 // Derive the evaluation environment from process.env at call time so
-// non-prod deployments don't silently match production targeting rules
-// once FLAGM-006 plumbs real targeting. Falls back to 'development' to keep
-// the fail-safe direction if both vars are missing.
+// non-prod deployments don't silently match production targeting rules.
+// Falls back to 'development' to keep the fail-safe direction if both vars
+// are missing.
 type FlagEnvironment = 'local' | 'development' | 'preview' | 'demo' | 'production';
 const KNOWN_ENVIRONMENTS: readonly FlagEnvironment[] = [
   'local',
@@ -87,7 +53,7 @@ const KNOWN_ENVIRONMENTS: readonly FlagEnvironment[] = [
 function currentEnvironment(): FlagEnvironment {
   const raw = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development';
   // VERCEL_ENV returns 'production' / 'preview' / 'development'; NODE_ENV
-  // returns 'production' / 'development' / 'test'. The manifest enum now uses
+  // returns 'production' / 'development' / 'test'. The manifest enum uses
   // these native names directly (FLAGCAT-002 rename); 'test' aliases to
   // 'development' (a transient runtime state, not a deployment target).
   if (raw === 'test') return 'development';
