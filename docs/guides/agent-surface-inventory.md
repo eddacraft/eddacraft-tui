@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
 | Guide | Authoritative | CIB   | Live   | Last reviewed 2026-05-25 against `AGENTS.md`, `.claude/`, `.opencode/`, and CIB-002 scope |
 
-| Upstream                                                                                    | Downstream                                               |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `AGENTS.md`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.opencode/skills/` | `docs/guides/documentation-governance.md`, agent routing |
+| Upstream                                                                                               | Downstream                                               |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `AGENTS.md`, `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, `.opencode/skills/`, `.codex/` | `docs/guides/documentation-governance.md`, agent routing |
 
 Authoritative inventory of the skills, agents, and commands the anvil workflow
 depends on. Each entry names a canonical source so drift between the inventory,
@@ -35,13 +35,13 @@ cross-check.
 
 ## Canonical Sources
 
-| Source                             | Role                                                                                | Path                                                                                                                      |
-| ---------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Repo-local Claude Code**         | Anvil-specific overrides and additions                                              | `.claude/skills/`, `.claude/agents/`, `.claude/commands/`                                                                 |
-| **Repo-local OpenCode**            | Anvil-specific OpenCode parallel surface                                            | `.opencode/skills/`                                                                                                       |
-| **Repo-local Codex**               | Codex-facing companion skills where anvil needs the same project-local workflow     | `.codex/skills/`                                                                                                          |
-| **Global (`joshuaboys/code-env`)** | Cross-project skills, agents, commands the user maintains as their personal toolkit | `https://github.com/joshuaboys/code-env` — `.claude/skills/`, `.claude/agents/`, `.claude/commands/`; `.opencode/skills/` |
-| **Claude Code built-ins**          | Skills shipped by Claude Code itself (e.g. `commit`, `loop`, `schedule`, `init`)    | Loaded by the Claude Code runtime; no source file in either repo                                                          |
+| Source                             | Role                                                                                       | Path                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **Repo-local Claude Code**         | Anvil-specific overrides and additions                                                     | `.claude/skills/`, `.claude/agents/`, `.claude/commands/`                                                                 |
+| **Repo-local OpenCode**            | Anvil-specific OpenCode parallel surface                                                   | `.opencode/skills/`                                                                                                       |
+| **Repo-local Codex**               | Codex-facing companion config and skills where anvil needs the same project-local workflow | `.codex/config.toml`, `.codex/skills/`                                                                                    |
+| **Global (`joshuaboys/code-env`)** | Cross-project skills, agents, commands the user maintains as their personal toolkit        | `https://github.com/joshuaboys/code-env` — `.claude/skills/`, `.claude/agents/`, `.claude/commands/`; `.opencode/skills/` |
+| **Claude Code built-ins**          | Skills shipped by Claude Code itself (e.g. `commit`, `loop`, `schedule`, `init`)           | Loaded by the Claude Code runtime; no source file in either repo                                                          |
 
 When a name exists in both repo-local and global, the repo-local entry
 **overrides** the global. The override pattern is intentional: anvil tunes the
@@ -61,6 +61,7 @@ Rust + TypeScript polyglot conventions.
 | `dependabot`                       | `.claude/skills/dependabot` (symlink → `code-env`) | Dependency-update triage                                                                                                                           | Symlink to the global `code-env` skill; tracked via `!.claude/skills/dependabot` gitignore exception.                                                                           |
 | `dev-workflow` (OpenCode)          | `.opencode/skills/dev-workflow/SKILL.md`           | OpenCode-native parallel of the Claude `dev-workflow` skill                                                                                        | Same routing knowledge, including Worktrunk and cleanup-offer rules; OpenCode skill schema per `https://opencode.ai/docs/skills/`.                                              |
 | `addressing-pr-reviews` (OpenCode) | `.opencode/skills/addressing-pr-reviews/SKILL.md`  | OpenCode-native parallel of the Claude `addressing-pr-reviews` skill                                                                               | Same anvil PR remediation workflow; OpenCode skill schema per `https://opencode.ai/docs/skills/`.                                                                               |
+| `dev-workflow` (Codex)             | `.codex/skills/dev-workflow/SKILL.md`              | Codex-facing lifecycle routing tuned to anvil's APS, Worktrunk, Council, docs-closeout, and continuous-improvement loop                            | Companion to the Claude and OpenCode variants; paired with `.codex/config.toml` for repo-local Codex permissions.                                                               |
 | `addressing-pr-reviews` (Codex)    | `.codex/skills/addressing-pr-reviews/SKILL.md`     | Codex-facing parallel of the PR remediation workflow                                                                                               | Same closure-loop contract for CI, unresolved review threads, and mergeability.                                                                                                 |
 
 ### Global skills the anvil workflow references
@@ -145,7 +146,7 @@ is current:
 1. **List repo-local surfaces:**
 
    ```bash
-   ls .claude/skills/ .claude/agents/ .claude/commands/ .opencode/skills/ .codex/skills/
+   ls .claude/skills/ .claude/agents/ .claude/commands/ .opencode/skills/ .codex/ .codex/skills/
    ```
 
    Compare against the **Repo-local** tables above. Any name in the filesystem
@@ -163,9 +164,9 @@ is current:
    follow-up.
 
 3. **Cross-reference with `dev-workflow`.** Skills, agents, and commands named
-   in the Stage Map of `.claude/skills/dev-workflow/SKILL.md` and
-   `.opencode/skills/dev-workflow/SKILL.md` must appear in one of the tables
-   above.
+   in the Stage Map of `.claude/skills/dev-workflow/SKILL.md`,
+   `.opencode/skills/dev-workflow/SKILL.md`, and
+   `.codex/skills/dev-workflow/SKILL.md` must appear in one of the tables above.
 
 4. **Cross-reference with `commands/council.md` Role Map.** Every agent in the
    Role Map must appear under
@@ -198,6 +199,8 @@ available tools.
   [`.claude/skills/dev-workflow/SKILL.md`](../../.claude/skills/dev-workflow/SKILL.md)
 - `dev-workflow` (OpenCode):
   [`.opencode/skills/dev-workflow/SKILL.md`](../../.opencode/skills/dev-workflow/SKILL.md)
+- `dev-workflow` (Codex):
+  [`.codex/skills/dev-workflow/SKILL.md`](../../.codex/skills/dev-workflow/SKILL.md)
 - Council command + Role Map:
   [`.claude/commands/council.md`](../../.claude/commands/council.md)
 - Agent conventions: [`AGENTS.md`](../../AGENTS.md)

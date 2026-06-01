@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 27/44    |
+| CIB | —     | In Progress | 28/45    |
 
 ## Purpose
 
@@ -1007,3 +1007,13 @@ archive.
   signing job `if:`); CIB-041 (allowlist precedent — same `v*` CLI convention).
 - **Confidence:** high — additive `if:` clause; worst case the job is skipped
   when it would have been a no-op anyway.
+
+### CIB-045: Add Codex dev-workflow config and routing surface
+
+- **Status:** Done
+- **Summary:** Added repo-local Codex configuration and a Codex `dev-workflow`
+  skill so Codex can run the Anvil APS -> Worktrunk -> code -> Council -> PR ->
+  cleanup loop with workspace-write permissions, network access, sibling
+  worktree write roots, and auto-reviewed approvals while staying out of
+  `danger-full-access`. Updated the agent-surface inventory to make the Codex
+  lifecycle surface discoverable.

@@ -1341,3 +1341,22 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Treat document status changes as index-generating edits and
   run `pnpm docs:index` before the final docs gate.
 - **Follow-up:** none
+
+### 2026-05-31 — codex
+
+- **Task:** Make Codex configuration more permissive and aligned with Anvil's
+  dev-workflow loop.
+- **Outcome:** Added repo-local Codex config, a Codex `dev-workflow` skill, and
+  agent-surface/CIB bookkeeping; also applied the same permissive defaults to
+  `~/.codex/config.toml` because Codex v0.135.0 reports only the global config
+  as loaded.
+- **Worked:** `codex --strict-config exec --help` validated the new keys, and
+  `codex doctor` showed network sandboxing changed from restricted to enabled.
+- **Failed:** Initial Worktrunk and formatter/linter runs in a sibling worktree
+  hit sandbox write/exec restrictions and needed elevated execution.
+- **Friction:** `apply_patch` resolved relative paths against the original
+  session checkout, so the first patch had to be moved into the Worktrunk
+  worktree and reversed out of the original checkout.
+- **Improvement:** Use absolute paths with `apply_patch` whenever editing a
+  Worktrunk sibling worktree from Codex.
+- **Follow-up:** none
