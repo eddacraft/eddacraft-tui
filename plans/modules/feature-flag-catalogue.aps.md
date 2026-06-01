@@ -15,6 +15,25 @@ posture* (ADR-001), not a per-feature gate, and was retired as an
 evaluation lens in PR #2192. No status or count change — FLAGCAT-008 stays
 Draft (GH #1795).
 
+**Also 2026-06-01 — gating-model scope reconciliation.** The 2026-05-19
+gating-model spec folds its implementation into FLAGCAT-002/-004/-006 and
+called for amending this module, but the amendment was only half-applied
+(Design Spec + Ready Checklist referenced it; In Scope / Acceptance Criteria
+did not, and Out of Scope contradicted it). Reconciled: gating-model plumbing
+is now explicit in In Scope, the contradicting "migration, not a capability
+module" Out-of-Scope line is corrected (schema fields + inventories are in
+scope; new *product* flags are not), and three inventory rows added to
+Acceptance Criteria. No status or count change. Operator framing captured: a
+feature is declared as five parts — **feature** (`key`), **group**
+(`primaryGroup`, which defaults class + audiences), **audience**,
+**behaviour** (`variants`, usually boolean), and **environment**.
+**Environment enablement is the rollout component** — promote
+`development → preview → production`; "production ticked" = live; existing
+flags are `production`-only, so this is zero-additive to the migration. Open
+refinement (for FLAGCAT-002 execution or a gating-spec follow-up): whether to
+expose per-flag environment enablement as a declarative field vs. the current
+`targeting`-rule encoding.
+
 **Earlier — 2026-05-28** — Promoted Draft → **Ready**. The
 `v0.7.0-beta` release-freeze deferral on FLAGCAT-002..-006 (recorded
 2026-05-19) is now spent: `v0.7.0-beta`, `v0.7.1-beta`, and `v0.7.2-beta`
@@ -79,6 +98,17 @@ are the governance guarantees we've already invested in via FLAGS.
   holding every shipped flag (location chosen to match OpenFeature upstream
   convention; signals cross-cutting product data, not per-package data;
   leaves room for `flags/fixtures/` and `flags/environments/` overlays)
+- Gating-model plumbing (per the
+  [2026-05-19 gating-model spec](../specs/2026-05-19-feature-gating-model.md)
+  and [ADR-048](../decisions/048-feature-group-architectural-model.md), which
+  extend this module's scope): the canonical inventories `flags/groups.json`,
+  `flags/audiences.json`, `flags/environments.json`; the additive
+  `primaryGroup` (required) + optional `tags` fields on
+  `FeatureFlagDefinitionSchema`; the `EnvironmentNameSchema` `prod` →
+  `production` rename (TS + Rust `EnvironmentName::Prod`); and the
+  cross-manifest validation rules. FLAGCAT-002/-004/-006 carry these — see the
+  spec's "Implementation impact on FLAGCAT". This is model plumbing (schema
+  fields + inventories), not authoring new product flags.
 - TS loader package: `packages/anvil/flags-catalogue/` that imports the JSON,
   validates it against `FeatureFlagManifestSchema`, and re-exports typed
   accessors (`CLI_LICENCE_GATE`, `DOCS_ACCESS_FLAG`, `API_SCOPE_FLAGS`, …)
@@ -109,7 +139,12 @@ are the governance guarantees we've already invested in via FLAGS.
 - Adopting the OpenFeature `openfeature generate` CLI as a required build step
   — upstream doesn't yet ship a Rust generator, and adding a Node-based codegen
   step to the Rust crate build pipeline is more cost than value today
-- New flag definitions — FLAGCAT is a migration, not a capability module
+- Authoring brand-new **product** flags (inventing flags for features that do
+  not exist yet) — FLAGCAT migrates the five shipped flags and lands the
+  gating-model schema + inventories above; it does not invent new product
+  flags. (The gating-model schema fields and `groups`/`audiences`/
+  `environments` inventories ARE in scope — that is model plumbing, not a new
+  product flag.)
 - Dashboard-side flag registration or runtime admin UI — future work, not
   blocked by this
 - Reworking the resolver, snapshot loader, or telemetry — those stay as-is
@@ -161,6 +196,19 @@ are the governance guarantees we've already invested in via FLAGS.
 - [ ] The resolver's existing OpenFeature-shaped exports (`resolveFlag`,
       `ResolutionDetails`, `FlagOverrides`) are unchanged — FLAGCAT only
       replaces **where definitions live**, not how they're evaluated
+- [ ] Gating-model inventories `flags/groups.json`, `flags/audiences.json`,
+      and `flags/environments.json` exist and validate against their schemas;
+      the five shipped flags carry a `primaryGroup` matching a `groups.json`
+      id (FLAGCAT-002)
+- [ ] `EnvironmentNameSchema` exposes `production` (not `prod`) and the Rust
+      `EnvironmentName::Prod` variant is renamed `Production`; behaviour is
+      preserved across the rename (FLAGCAT-002)
+- [ ] The consistency check additionally enforces the cross-manifest rules
+      from the gating-model spec: every flag `primaryGroup` exists in
+      `groups.json`; every canonical-audience target value exists in
+      `audiences.json` (`organisationId` excluded as free-form); every
+      environment target exists in `environments.json`; group
+      `defaultAudiences[]` exist in `audiences.json` (FLAGCAT-006)
 
 ## Constraints
 
