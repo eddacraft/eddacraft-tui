@@ -329,7 +329,8 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_5e2d518d88` — Rust integration test eddacraft-anvil/status_verify
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** Workdir snapshot before+after is the actual contract; exit status is intentionally discarded.
 - **Recommendation:** Assert both invocations succeed and still render the expected state, then snapshot the isolated home directory as well as the workdir before and after the verify runs.
 - **Evidence:** `crates/anvil-cli/tests/status_verify.rs:183` (`status_verify_is_idempotent_and_does_not_mutate_workdir`), `crates/anvil-cli/tests/status_verify.rs:190` (`status_verify_is_idempotent_and_does_not_mutate_workdir`), `crates/anvil-cli/tests/status_verify.rs:213` (`status_verify_is_idempotent_and_does_not_mutate_workdir`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -351,7 +352,8 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_73ba6156c4` — Rust integration test eddacraft-anvil/update_resolution_chain
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** Covered by CLAWP-001 PR #1732 rewrite; integration file documents the new location.
 - **Recommendation:** Add deterministic tests for the strategy order itself. If full integration is impractical because `current_exe()` is hard to spoof, extract a small strategy resolver that accepts the executable path and sidecar lookup inputs, then test package-manager precedence, adjacent sidecar precedence over PATH sidecar, and library fallback when neither is...
 - **Evidence:** `crates/anvil-cli/tests/update_resolution_chain.rs:1`, `crates/anvil-cli/tests/update_resolution_chain.rs:24`, `crates/anvil-cli/tests/update_resolution_chain.rs:122` (`signature_fixture_public_key_matches_dev_constant`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -388,7 +390,8 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_b0175af8f6` — Rust integration test eddacraft-anvil/mcp_config
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** Audit misread verify semantics — the test asserts the correct failure mode.
 - **Recommendation:** Make the fixture command match the default expected command, or pass --command /tmp/fake/anvil during verification, so the only failing condition is the missing type field.
 - **Evidence:** `crates/anvil-cli/tests/mcp_config.rs:636` (`mcp_install_verify_claude_code_requires_stdio_type`), `crates/anvil-cli/tests/mcp_config.rs:651` (`mcp_install_verify_claude_code_requires_stdio_type`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -620,7 +623,8 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_e6f2772c8e` — Rust integration test eddacraft-anvil-intercept/midedit_contract
 - **Severity / Triage / Category:** low / risk / concurrency
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Verdict rationale:** Barrier inside Tokio task; runtime tear-down on panic cancels the task.
 - **Recommendation:** Wrap the blocking sections in a guard that releases the barrier on drop, or structure the tests so cleanup runs even when assertions panic. For async tests, a small RAII guard plus explicit disarm after normal release is enough.
 - **Evidence:** `crates/anvil-intercept/tests/midedit_contract.rs:946` (`rust_consumer_surfaces_transport_timeout`), `crates/anvil-intercept/tests/midedit_contract.rs:983` (`rust_consumer_surfaces_server_busy`), `crates/anvil-intercept/tests/midedit_contract.rs:1101` (`rust_consumer_busy_response_satisfies_envelope_invariant`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
