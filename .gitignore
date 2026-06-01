@@ -200,6 +200,7 @@ plans/reviews/*
 # Source review backing the 2026-05-09 CPU problem analysis and response.
 !plans/reviews/WATCH-CPU-PROBLEM.md
 !plans/reviews/ANVIL-DAEMON-DESIGN-RESPONSE.md
+!plans/reviews/2026-06-01-daemon-graph-architecture-review.md
 # GitHub Local Runners
 .github/actions-runner
 
