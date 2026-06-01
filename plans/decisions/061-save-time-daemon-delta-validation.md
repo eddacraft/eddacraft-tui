@@ -35,7 +35,7 @@ validates the change at the point of change. Today `anvil watch` delivers that
 in the most expensive way possible. On every debounced save it builds and spawns
 a **cold `anvil check --all` child process**
 (`crates/anvil-cli/src/commands/watch.rs:377` default action →
-`:433` `build_action_command` → `:441` `Command::new` → `:455` `--all`). That
+`:433` `build_action_command` → `:442` `Command::new` → `:463` `--all`). That
 child cold-rebuilds the whole-repo graph and rayon-scans every file, then exits —
 discarding all warm state.
 
@@ -60,12 +60,13 @@ Two structural multipliers make it worse:
 
 Crucially, the daemon needed to fix this **already exists**. `anvil intercept`
 is a permissioned, concurrent, warm-state daemon
-(`crates/anvil-intercept/src/lib.rs:915` `run_foreground`,
+(`crates/anvil-intercept/src/lib.rs:964` `run_foreground`,
 `crates/anvil-intercept/src/ipc.rs:780` serve loop with semaphore-gated
 admission at `:831`) that already validates in-flight buffers via the
 `anvil/scan_buffer` JSON-RPC method
 (`crates/anvil-intercept-proto/src/protocol.rs:83`, dispatch
-`crates/anvil-intercept/src/ipc.rs:2208`). And the check logic is already a
+`crates/anvil-intercept/src/ipc.rs:2220` `handle_scan_buffer_jsonrpc`). And the
+check logic is already a
 scoped, in-process library call —
 `run_antipattern_check(files, config, workspace_root)`
 (`crates/anvil-checks/src/antipattern/check.rs:95`) takes an arbitrary file list

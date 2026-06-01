@@ -39,12 +39,12 @@ Mark INTD/DRVR/MLP2-067 **In Progress** before starting; reconcile counts in `pl
 | `crates/anvil-intercept/src/auth.rs` | Modify | Growable per-connection workspace-root set; drop any cwd path |
 | `crates/anvil-cli/src/commands/watch.rs` | Modify | Default action routes to `validate_paths`; scoped fallback (never `--all`) inheriting read-safety |
 | `crates/anvil-cli/src/commands/workspace.rs` | Create | `anvil workspace allow\|deny\|list\|mode` CLI |
-| `crates/anvil-cli/src/mcp/tools/gate.rs` (confirm) | Modify | `anvil_validate_write` re-point to daemon `validate_paths`, in-process fallback |
+| `crates/anvil-cli/src/mcp/tools/validate_write.rs` + `crates/anvil-cli/src/mcp/validation.rs` | Modify | `anvil_validate_write` re-point: in-process scan in `validation.rs` routes to daemon `validate_paths`, in-process fallback |
 | `crates/anvil-cli/src/commands/status.rs` (or TUI surface) | Modify | Render assurance state incl `unavailable` + `confined: N` |
 | `crates/anvil-intercept/benches/ipc_roundtrip.rs` | Modify | `validate_paths` warm-read latency + concurrency SLO case |
 | `crates/anvil-intercept/tests/diagnostic_parity.rs` | Create | Order-normalised golden parity across the 4 paths |
 
-> **Confirm at start:** the MCP write-gate tool name — `mcp/tools/gate.rs` vs `check.rs`. The design response cited `validate_write.rs` which does not exist; grep `anvil_validate_write` to locate the live in-process scan call site before Task 13.
+> **MCP write-gate location (fact-checked):** the tool is `crates/anvil-cli/src/mcp/tools/validate_write.rs` (declared `mod.rs:10`, registered `tools/registry.rs:24`); the live in-process scan + timeout logic is in `crates/anvil-cli/src/mcp/validation.rs`. That `validation.rs` scan call is the Task-13 re-point site.
 
 ---
 
@@ -241,7 +241,7 @@ Default save-time action: send classified changed paths to `validate_paths`. Dae
 ## Task 13: MCP `anvil_validate_write` re-point
 
 **Files:**
-- Modify: `crates/anvil-cli/src/mcp/tools/gate.rs` (confirm via `grep anvil_validate_write`)
+- Modify: `crates/anvil-cli/src/mcp/validation.rs` (the in-process scan call site) + `crates/anvil-cli/src/mcp/tools/validate_write.rs`
 - Test: corresponding tool test
 
 Re-point the in-process scan to daemon `validate_paths`; in-process fallback when daemon absent (byte-identical via the parity contract).
