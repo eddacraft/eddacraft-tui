@@ -24,6 +24,10 @@ nothing else.
   [`ROADMAP.md`](./ROADMAP.md), not here.
 - This plan is **`Derived`** — it follows `Ready`/`Accepted` APS modules and
   ADRs; it does not lead them.
+- **Enforced:** `pnpm docs:check` (the `release-plan` surface) fails CI if this
+  file accretes a second window, a `Shipped`/`Next Release Window` header, or an
+  active window whose version is already a git tag. Run it via
+  `pnpm release-plan:check`.
 
 ## Current state
 

@@ -40,6 +40,7 @@ const DEFAULT_SURFACES = [
     baselineable: false,
   },
   { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
+  { name: 'release-plan', script: 'scripts/docs/check-release-plan.mjs', baselineable: false },
 ];
 
 const argv = process.argv.slice(2);
