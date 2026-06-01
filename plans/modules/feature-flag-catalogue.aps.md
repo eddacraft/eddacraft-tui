@@ -7,7 +7,15 @@
 | ------- | ----- | -------- | ------ | -------- |
 | FLAGCAT | —     | medium   | Ready  | 2/8      |
 
-**Last reviewed:** 2026-05-28 — Promoted Draft → **Ready**. The
+**Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
+beta-intentional disposition: the `cli.licence-gate` membership (including
+`welcome`) is deliberate beta access control, deferred to GA — not a
+planless-first defect. Planless-first is Anvil's zero-config *product
+posture* (ADR-001), not a per-feature gate, and was retired as an
+evaluation lens in PR #2192. No status or count change — FLAGCAT-008 stays
+Draft (GH #1795).
+
+**Earlier — 2026-05-28** — Promoted Draft → **Ready**. The
 `v0.7.0-beta` release-freeze deferral on FLAGCAT-002..-006 (recorded
 2026-05-19) is now spent: `v0.7.0-beta`, `v0.7.1-beta`, and `v0.7.2-beta`
 have all cut, so the contracts-level migration is clear of the freeze
@@ -504,44 +512,49 @@ Status promoted Draft → **Ready** 2026-05-28.
   remains intentionally out of scope.
 - **Status:** Done
 
-### FLAGCAT-008: Revisit `cli.licence-gate` membership — at minimum exempt `welcome`, consider `status` / `check`
+### FLAGCAT-008: Revisit `cli.licence-gate` membership at GA (welcome / status / check)
 
-- **Status:** Draft
+- **Status:** Draft — deferred to GA. No beta-window action (see Disposition).
 - **Tracking:** GH issue [#1795](https://github.com/eddacraft/anvil-001/issues/1795)
-- **Intent:** `CLI_GATED_COMMANDS` at
+- **Disposition (2026-06-01):** The auth wall — including `welcome` — is
+  **intended for the beta**. Gating the CLI behind `cli.licence-gate`
+  while Anvil is in invite/edict-only beta is a deliberate
+  controlled-cohort access-control choice, not a defect. The earlier
+  "contradicts planless-first" framing is **withdrawn**: planless-first
+  is Anvil's zero-config *product posture* (ADR-001), not a per-feature
+  gate, and was retired as an evaluation lens in PR #2192. This item does
+  not act during beta; it is the placeholder for the GA decision about
+  which commands come off the gate once beta access control is lifted.
+- **Intent (at GA):** `CLI_GATED_COMMANDS` at
   `crates/anvil-cli/src/feature_flags.rs:38` lists nineteen commands,
-  including `welcome`, `status`, `check`, `init`, and `start`. A
-  brand-new user (no invite, no edict) consequently cannot see a single
-  screen of product output — every interesting command returns
-  `Authentication required` before any content. This contradicts the
-  product's stated **planless-first** thesis (value before config) and
-  is in direct tension with what `anvil doctor` already proves is
-  possible (full unauthenticated triage with `run:` / `fix:` /
-  `docs:` hints).
-- **Expected Outcome:** At minimum, `welcome` comes off the gate — it
-  is literally the welcome screen and the only obviously
-  discoverable command for a confused new user. Triage decides whether
-  `status` (read-only) and `check` (described in `--help` as
-  "planless mode") also come off, possibly via a `planless` / `full`
-  sub-mode split. Whatever set lands, the exit-code contract is made
-  consistent across gated commands: today `welcome` returns 0 while
-  `init` / `start` return 3 for the same auth condition.
+  including `welcome`, `status`, `check`, `init`, and `start`. When the
+  beta access wall is removed, decide which of these become
+  unauthenticated entry points — `welcome` (the welcome screen) is the
+  obvious first candidate, with `status` (read-only) and `check`
+  (`--help`: "planless mode") as further candidates, possibly via a
+  `planless` / `full` sub-mode split.
+- **Expected Outcome (at GA):** A decided gated-command set, plus a
+  consistent exit-code contract across gated commands: today `welcome`
+  returns 0 while `init` / `start` return 3 for the same auth condition.
+  (The exit-code inconsistency is a latent nit worth tracking regardless
+  of the GA membership decision.)
 - **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
-  finding #1.
+  finding #1 (raised as a planless-first concern; reframed beta-intentional 2026-06-01).
 - **Evidence pointers:**
   - `crates/anvil-cli/src/feature_flags.rs:38` (gated-command list).
   - `crates/anvil-cli/src/main.rs:278` (`requires_auth`).
   - `crates/anvil-cli/src/main.rs:320, 336` (the two
     "Authentication required." emit sites and their exit codes).
-- **Coordinates with:** MLP2-072 (MCP gate-shape) — if the CLI's
-  planless posture changes, the MCP server's auth-required response
-  may want to mirror the new contract so editor agents see a coherent
-  story across CLI and MCP surfaces.
-- **Validation:** The existing `requires_auth_*` tests at
-  `crates/anvil-cli/src/main.rs:884-961` are updated to match the new
-  membership. A CLI integration test runs `anvil welcome --no-tui` on
+- **Coordinates with:** MLP2-072 (MCP gate-shape) — if the CLI's gate
+  membership changes at GA, the MCP server's auth-required response may
+  want to mirror the new contract so editor agents see a coherent story
+  across CLI and MCP surfaces.
+- **Validation (when actioned at GA):** The existing `requires_auth_*`
+  tests at `crates/anvil-cli/src/main.rs:884-961` are updated to match the
+  new membership. A CLI integration test runs `anvil welcome --no-tui` on
   a machine with no credentials and asserts the welcome screen prints
   (not the auth-required message), exit 0.
 - **Confidence:** high — the gating list is a single edit in
-  `CLI_GATED_COMMANDS`; the question is purely which subset is
-  planless-safe. Out-of-scope: redesigning the licence model itself.
+  `CLI_GATED_COMMANDS`; the open question is purely which subset is the
+  right GA entry set. Out-of-scope: redesigning the licence model, and any
+  beta-window change to the gate.
