@@ -181,14 +181,13 @@ anvil/witness/
 # Local review artefacts
 review/
 # `plans/reviews/` mostly ignored — but release-council artefacts,
-# post-merge review files, CI notes, and dated Clawpatch triage notes are
-# durable review evidence.
+# post-merge review files, CI notes, and dated Clawpatch review notes
+# (triage, rust follow-ups, batch scopes) are durable review evidence.
 # Lint tooling already excludes the whole `plans/` tree via .markdownlintignore
 # and .prettierignore, so nothing tracked here is in scope for format/lint.
 plans/reviews/*
 !plans/reviews/continuous-improvement-log.md
-!plans/reviews/20*-clawpatch-triage.md
-!plans/reviews/20*-clawpatch-rust-followups.md
+!plans/reviews/20*-clawpatch-*.md
 !plans/reviews/post-merge/
 !plans/reviews/post-merge/**
 !plans/reviews/release-council/
