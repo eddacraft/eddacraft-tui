@@ -19,13 +19,16 @@ written**. Full evidence + rulings:
 The tasks below stand, but apply these corrections first (ordered — earlier items
 are predecessors).
 
-**Resolution status (2026-06-02):** **B5, B1, B2, B6 are RESOLVED** — folded into
+**Resolution status (2026-06-02):** **B5, B1, B2, B6, B7 are RESOLVED** — folded into
 [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) (§6, §9),
 the [validation contract](../specs/2026-06-01-daemon-save-time-validation-contract.md)
-(§1, §3, §6, §7), and Tasks 1/6/7/8/9 below (with their named tests). **Remaining
-pre-implementation: B3 (item 4), B4 (item 6), B7 (item 7), and the ops/security
-placement items (item 8).** Sub-phase A coding may begin on the B1/B2/B5/B6
-surface once those remaining items are closed.
+(§1, §3, §6, §7), and Tasks 1/6/7/8/9 below (with their named tests). B7's
+read-safety/pool corrections are folded into Task 2 (net-new auth wording), Task 8 +
+the File Map (`run_antipattern_check` bytes+pool entrypoint), and the sequencing notes
+(Task 3 a hard predecessor of Task 8; Task 10's pool a predecessor of Task 8's check
+call). **Remaining pre-implementation: B3 (item 4), B4 (item 6),
+and the ops/security placement items (item 8).** Sub-phase A coding may begin on the
+B1/B2/B5/B6/B7 surface once those remaining items are closed.
 
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
@@ -83,13 +86,18 @@ surface once those remaining items are closed.
    add rename/delete/internal→public/re-export fixtures. Note `delta.removed_edges`
    is always empty (`incremental.rs:150`) — importer discovery uses `dependents_of`
    exclusively.
-7. **Read-safety + pool gaps (new majors).** Make Task 3 (openat2/`RESOLVE_NO_SYMLINKS`)
-   a **hard predecessor of Task 8**: `run_antipattern_check` currently does unguarded
-   `fs::read_to_string` (`check.rs:118`) — pass it pre-read guarded bytes, not paths.
-   Extend `run_antipattern_check` to take a `&rayon::ThreadPool` so Task 10's
-   interactive pool governs it (today it uses the global pool → two-pool isolation is
-   unachievable). Reword Task 2: the workspace-root auth handshake is **net-new** (no
-   wired consumer today), not "reuse".
+7. **Read-safety + pool gaps (B7, new majors). ✅ Resolved 2026-06-02** — folded into
+   Task 8 (orchestration prose), the File Map (`crates/anvil-checks/src/antipattern/check.rs`
+   now listed Modify), the sequencing notes, and Task 2 (net-new auth wording).
+   Task 3 (openat2/`RESOLVE_NO_SYMLINKS`) is now a **hard predecessor of Task 8**:
+   `run_antipattern_check` (`check.rs:95`) takes file paths and does unguarded
+   `fs::read_to_string` (`check.rs:118`) on the global rayon pool (`.par_iter()`,
+   `check.rs:113`). The daemon path must instead scan **pre-read guarded bytes** on
+   **Task 10's interactive `&rayon::ThreadPool`** — Task 8 records the preferred shape
+   (extract a bytes+pool core; keep the path-based fn as a thin wrapper for the 9
+   disk-reading CLI call sites) and the full caller list. Task 2 reworded: the
+   workspace-root auth handshake is **net-new** (the `validate_workspace_roots` API
+   ships but has no production caller — DRVR-001 Wave 2 left it unwired), not "reuse".
 8. **Placement + observability (ops/security majors).** Resolve `confinement.rs`
    placement (the `ANVIL_HOME` resolver it reuses lives in `anvil-cli`); specify the
    structured-log fields for assurance transitions (route via the ADR-035
@@ -139,6 +147,7 @@ Mark INTD/DRVR/MLP2-067 **In Progress** before starting; reconcile counts in `pl
 | `crates/anvil-cli/src/commands/status.rs` (or TUI surface) | Modify | Render assurance state incl `unavailable` + `confined: N` |
 | `crates/anvil-intercept/benches/ipc_roundtrip.rs` | Modify | `validate_paths` warm-read latency + concurrency SLO case |
 | `crates/anvil-intercept/tests/diagnostic_parity.rs` | Create | Order-normalised golden parity across the 4 paths |
+| `crates/anvil-checks/src/antipattern/check.rs` | Modify | **B7:** extract a daemon entrypoint that takes **pre-read guarded bytes** (not paths; closes the `fs::read_to_string` TOCTOU at `check.rs:118`) + a **`&rayon::ThreadPool`** so Task 10's interactive pool governs it (replaces the global-pool `.par_iter()` at `check.rs:113`). See Task 8 for the signature-vs-wrapper decision and the full disk-caller list. |
 
 > **MCP write-gate location (fact-checked):** the tool is `crates/anvil-cli/src/mcp/tools/validate_write.rs` (declared `mod.rs:10`, registered `tools/registry.rs:24`); the live in-process scan + timeout logic is in `crates/anvil-cli/src/mcp/validation.rs`. That `validation.rs` scan call is the Task-13 re-point site.
 
@@ -208,9 +217,9 @@ pub struct ValidatePathsResponse {
 - Modify: `crates/anvil-intercept/src/auth.rs`, `crates/anvil-intercept/src/ipc.rs`
 - Test: `crates/anvil-intercept/src/auth.rs` tests
 
-Reuse `DriverManifest::validate_workspace_roots` against active sessions. Add a per-connection `BTreeSet<PathBuf>` of admitted (canonicalised) roots that grows on first contact (mode-gated by Task 14). Authorise a verb iff its `workspace_root` is in the set (or admissible under `open` mode). No `/proc/<pid>/cwd` anywhere.
+Wire `DriverManifest::validate_workspace_roots` against active sessions. **This is net-new wiring (B7), not "reuse":** the API ships in `auth.rs` with unit tests but has **no production caller today** — the `auth.rs` module header (lines 26–30) documents the driver consumer as deferred to DRVR-001 (Wave 2: "no `lib.rs` consumer side-effect is added in this PR"), and `validate_workspace_roots`/`is_driver_allowed` have zero call sites outside `auth.rs` itself (confirmed by grep of `ipc.rs`). `validate_paths` is the **first verb to read arbitrary on-disk paths**, which makes this handshake (and Task 3's read-safety) load-bearing rather than incidental reuse. Add a per-connection `BTreeSet<PathBuf>` of admitted (canonicalised) roots that grows on first contact (mode-gated by Task 14). Authorise a verb iff its `workspace_root` is in the set (or admissible under `open` mode). No `/proc/<pid>/cwd` anywhere.
 
-- [ ] Failing tests: `validate_paths_authorised_for_session_root`, `validate_paths_refused_for_unrelated_root_in_allowlist_mode`, `root_set_grows_on_first_touch_in_open_mode`, `no_cwd_in_auth_path` (grep-guard test or absence assertion).
+- [ ] Failing tests: `validate_paths_authorised_for_session_root`, `validate_paths_refused_for_unrelated_root_in_allowlist_mode`, `root_set_grows_on_first_touch_in_open_mode`, `no_cwd_in_auth_path` (grep-guard test or absence assertion), `validate_workspace_roots_now_has_a_production_caller` (B7: asserts `ipc.rs` dispatch wires the previously-unwired API).
 - [ ] Run `cargo test -p eddacraft-anvil-intercept auth` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): growable per-connection workspace-root auth, drop cwd gate (ADR-061)`
 
@@ -280,11 +289,13 @@ Reuse `DriverManifest::validate_workspace_roots` against active sessions. Add a 
 **Files:**
 - Create: `crates/anvil-intercept/src/validate_paths.rs`
 - Modify: `crates/anvil-intercept/src/ipc.rs` (dispatch arm)
+- Modify: `crates/anvil-checks/src/antipattern/check.rs` (B7 predecessor — bytes+pool entrypoint, see below)
 - Test: `validate_paths.rs` tests + an ipc integration test
 
-Orchestrate: auth (Task 2) → for each path classify (Task 4) + read-safe bytes (Task 3) → apply delta to cache (Task 7) → certify (Task 6) → `run_antipattern_check(...)` over warm state → assemble `diagnostics` + `evaluated[]` (hashes the daemon computed) + `workspace_assurance` + `coverage`. **Per corrections B7/B3: `run_antipattern_check` here takes the Task 3 pre-read guarded bytes (NOT raw `changed_paths` — re-reading reopens the openat2/TOCTOU window) and runs under Task 10's interactive `&rayon::ThreadPool` (NOT the global pool); its path-based, global-pool signature must change before this task lands, and the `diagnostics` it yields are scoped to `check_families: ["antipattern"]`.** Coalescing: collapse only identical-`content_hash` duplicates; distinct-hash collapse returns the latest in `evaluated[]`.
+Orchestrate: auth (Task 2) → for each path classify (Task 4) + read-safe bytes (Task 3) → apply delta to cache (Task 7) → certify (Task 6) → `run_antipattern_check(...)` over warm state → assemble `diagnostics` + `evaluated[]` (hashes the daemon computed) + `workspace_assurance` + `coverage`. **Per corrections B7/B3: the check here scans the Task 3 pre-read guarded bytes (NOT raw `changed_paths` — re-reading reopens the openat2/TOCTOU window) and runs under Task 10's interactive `&rayon::ThreadPool` (NOT the global pool); a bytes+pool entrypoint must therefore exist before this task lands (see the B7 predecessor step), and the `diagnostics` it yields are scoped to `check_families: ["antipattern"]`.** Coalescing: collapse only identical-`content_hash` duplicates; distinct-hash collapse returns the latest in `evaluated[]`.
 
-- [ ] Failing tests: `validate_paths_certified_clean_for_self_contained_edit`, `validate_paths_partial_stale_on_overflow`, `evaluated_echoes_daemon_computed_hash`, `coalesce_collapses_identical_hash_only`, `client_supplied_hash_not_trusted_for_verdict` (send wrong hash, assert daemon re-reads), `dispatch_arm_routes_validate_paths`.
+- [ ] **B7 predecessor — give `run_antipattern_check` a guarded-bytes + injected-pool path in `crates/anvil-checks/src/antipattern/check.rs`.** Today it is `run_antipattern_check(files: &[&str], config, workspace_root)`: it reads each path with `fs::read_to_string` (`check.rs:118`) on the global rayon pool (`.par_iter()`, `check.rs:113`). **Design decision (flag for Council):** prefer extracting a core `run_antipattern_check_bytes(files: &[(&str, &[u8])], config, workspace_root, pool: &rayon::ThreadPool)` that the daemon calls with Task 3's guarded bytes and Task 10's interactive pool, and making the existing path-based `run_antipattern_check` a thin wrapper (reads bytes via `fs::read_to_string` on a default pool, then delegates) — this closes the daemon-path TOCTOU and pool-bleed **without** churning the disk-reading callers, which have no openat2 guard and legitimately read from cwd. The alternative — change the one signature and migrate every caller — touches **9 call sites in 8 files**: `commands/check.rs:280`, `commands/gate.rs:619`, `commands/drift.rs:707`, `commands/baseline.rs:588`, `insights/suppressions.rs:146`, `l4_engine.rs:216` (watch), `mcp/tools/check.rs:88`, `mcp/tools/gate.rs:124`, `services/sample_analyser.rs:113,196`, and couples every CLI surface to Task 10's pool. (`embedded.rs` is **not** a caller — it already takes caller-supplied bytes via `EnforcementPipeline`, which is the model to mirror.) Failing tests in `anvil-checks`: `run_antipattern_check_bytes_scans_supplied_bytes_not_disk` (the daemon core never touches the filesystem for content) and `run_antipattern_check_bytes_runs_on_supplied_pool` (work executes on the injected pool, not the global one). Run `cargo test -p eddacraft-anvil-checks`.
+- [ ] Failing tests: `validate_paths_certified_clean_for_self_contained_edit`, `validate_paths_partial_stale_on_overflow`, `evaluated_echoes_daemon_computed_hash`, `coalesce_collapses_identical_hash_only`, `client_supplied_hash_not_trusted_for_verdict` (send wrong hash, assert daemon re-reads), `dispatch_arm_routes_validate_paths`, `validate_paths_passes_guarded_bytes_not_paths_to_check` (B7: the handler hands `run_antipattern_check` the Task 3 bytes, never re-opens the file).
 - [ ] Run `cargo test -p eddacraft-anvil-intercept validate_paths` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): validate_paths handler + latest-state coalescing (ADR-061 §2/§5)`
 
@@ -409,5 +420,5 @@ Render `clean|stale|pending|running|unavailable` (+ `reason`), and `confined: N`
 
 ## Sequencing & parallelism notes
 
-- Tasks 1→7 are the dependency spine (wire → auth/read-safety → classify → taxonomy → certify → cache). 8 depends on 3–7. 9 depends on 7. 10–11 are independent of 8/9 and can run in parallel. 12–13 depend on 8. 14 depends on 2. 15 depends on 8+12+13. 16 depends on 8+10.
+- Tasks 1→7 are the dependency spine (wire → auth/read-safety → classify → taxonomy → certify → cache). 8 depends on 3–7 **and on Task 10's pool construction** (B7). **(B7) Task 3 (read-safety) is a *hard* predecessor of Task 8** — Task 8 must hand `run_antipattern_check` Task 3's guarded bytes, never re-open files. **(B7) Task 8 also depends on Task 10's interactive pool** (the check runs on it, not the global pool) and on the `run_antipattern_check` signature change (File Map `check.rs`). 9 depends on 7. Task 10's *pool construction* is therefore a predecessor of Task 8, but Task 10's chunked background-scan loop and Task 11 stay independent of 8/9 and can run in parallel. 12–13 depend on 8. 14 depends on 2. 15 depends on 8+12+13. 16 depends on 8+10.
 - The resource-model + bench tasks (10, 11, 16) are a candidate **sibling plan** if you want a second pair of hands; they share only `workspace_pool.rs` with the spine.
