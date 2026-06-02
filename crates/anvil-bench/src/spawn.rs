@@ -1,0 +1,157 @@
+//! Shared process-spawn helpers for the resource benches (RLB-002..005).
+//!
+//! Every resource bench drives a real long-running `anvil` subprocess (watch,
+//! the intercept daemon, the MCP server) and measures its process tree. They
+//! all need the same two things: locate the built `anvil` binary, and manage a
+//! child that must stay alive across the measurement window (and be killed on
+//! drop). This module is that shared surface so the four benches don't each
+//! re-implement it.
+
+use std::error::Error;
+use std::path::{Path, PathBuf};
+use std::process::Child;
+
+type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+
+/// Locate the `anvil` binary to drive. Priority:
+/// 1. `ANVIL_BENCH_ANVIL_BIN` (absolute, or resolved against cwd / the
+///    workspace root) — how CI and a quiet-box run point at a release build;
+/// 2. `target/debug/anvil` under the workspace, then `target/release/anvil`.
+pub fn resolve_anvil_binary() -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os("ANVIL_BENCH_ANVIL_BIN") {
+        return resolve_configured_anvil_binary(PathBuf::from(path));
+    }
+
+    let candidate = workspace_target_anvil("debug");
+    if candidate.exists() {
+        return Ok(candidate);
+    }
+
+    let candidate = workspace_target_anvil("release");
+    if candidate.exists() {
+        return Ok(candidate);
+    }
+
+    Err("set ANVIL_BENCH_ANVIL_BIN or build target/debug/anvil first".into())
+}
+
+fn resolve_configured_anvil_binary(path: PathBuf) -> Result<PathBuf> {
+    if path.is_absolute() {
+        return Ok(path);
+    }
+
+    let from_cwd = std::env::current_dir()?.join(&path);
+    if from_cwd.exists() {
+        return Ok(from_cwd);
+    }
+
+    Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(path))
+}
+
+fn workspace_target_anvil(profile: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("target")
+        .join(profile)
+        .join("anvil")
+}
+
+/// A spawned child that is killed and reaped on drop, with a liveness check so
+/// a process that dies during startup or mid-window is reported as an error
+/// rather than silently measured as a frozen zombie (a false "0% pass").
+pub struct ManagedChild {
+    child: Option<Child>,
+    label: String,
+}
+
+impl ManagedChild {
+    /// Wrap an already-spawned child. `label` names it in error messages.
+    #[must_use]
+    pub fn new(child: Child, label: impl Into<String>) -> Self {
+        Self {
+            child: Some(child),
+            label: label.into(),
+        }
+    }
+
+    /// The child pid (for `/proc` sampling).
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        self.child.as_ref().expect("child is live").id()
+    }
+
+    /// Error (with `context`) if the child has already exited.
+    pub fn ensure_running(&mut self, context: &str) -> Result<()> {
+        let label = self.label.clone();
+        let child = self.child.as_mut().ok_or("child already reaped")?;
+        match child.try_wait()? {
+            Some(status) => Err(format!("{label} exited {status} {context}").into()),
+            None => Ok(()),
+        }
+    }
+
+    /// Kill and reap the child. Idempotent.
+    pub fn shutdown(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+impl Drop for ManagedChild {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn env_binary_path_is_resolved_before_child_changes_dir() {
+        let path = resolve_configured_anvil_binary(PathBuf::from("target/debug/anvil")).unwrap();
+        assert!(path.is_absolute());
+        assert!(path.ends_with("target/debug/anvil"));
+    }
+
+    #[test]
+    fn absolute_configured_path_is_returned_verbatim() {
+        let abs = if cfg!(windows) {
+            PathBuf::from("C:/anvil/anvil.exe")
+        } else {
+            PathBuf::from("/opt/anvil/anvil")
+        };
+        assert_eq!(resolve_configured_anvil_binary(abs.clone()).unwrap(), abs);
+    }
+
+    #[test]
+    fn ensure_running_detects_exited_child() {
+        let child = std::process::Command::new("true")
+            .spawn()
+            .expect("spawn `true`");
+        let mut managed = ManagedChild::new(child, "true-probe");
+        // Give it a moment to exit.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let err = managed
+            .ensure_running("after probe")
+            .expect_err("a process that ran `true` should be reported as exited");
+        assert!(format!("{err}").contains("true-probe"));
+    }
+
+    #[test]
+    fn ensure_running_passes_for_live_child() {
+        let child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn `sleep`");
+        let mut managed = ManagedChild::new(child, "sleep-probe");
+        managed
+            .ensure_running("while alive")
+            .expect("sleep is alive");
+        managed.shutdown();
+    }
+}

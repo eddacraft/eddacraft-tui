@@ -1284,6 +1284,7 @@ dependencies = [
 name = "eddacraft-anvil-intercept"
 version = "0.7.4-beta"
 dependencies = [
+ "anvil-bench",
  "anyhow",
  "chrono",
  "clap",

@@ -23,6 +23,13 @@ name = "midedit_roundtrip"
 harness = false
 required-features = ["bench-internals"]
 
+# RLB-003: spawns the real daemon and measures its process-tree CPU/RSS.
+# Drives the shipped binary over its socket — no internal APIs — so it does
+# not need `bench-internals`.
+[[bench]]
+name = "intercept_resource_budget"
+harness = false
+
 [features]
 bench-internals = []
 
@@ -70,6 +77,11 @@ anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraf
 
 [dev-dependencies]
 anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-attribution" }
+# RLB-003: reuse the shared process-tree sampler + budget evaluator + binary
+# resolver. anvil-bench already pulls the kernel via anvil-checks below, so
+# this adds no new heavy build; the dependency is acyclic (anvil-bench does
+# not depend on anvil-intercept).
+anvil-bench = { path = "../anvil-bench", package = "anvil-bench" }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 criterion = { workspace = true }

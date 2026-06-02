@@ -6,4 +6,5 @@ pub mod measure;
 pub mod proc_sampler;
 pub mod report;
 pub mod scenarios;
+pub mod spawn;
 pub mod watch_resource_budget;

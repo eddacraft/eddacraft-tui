@@ -29,6 +29,7 @@ use tempfile::TempDir;
 use crate::budget::{BudgetVerdict, ResourceBudget, evaluate};
 use crate::fixture::{RepoSpec, generate_repo};
 use crate::proc_sampler::TreeSampler;
+use crate::spawn::{ManagedChild, resolve_anvil_binary};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -90,7 +91,7 @@ pub fn run(config: &WatchResourceBudgetConfig) -> Result<BudgetVerdict> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()?;
-    let mut child = ChildGuard::new(child);
+    let mut child = ManagedChild::new(child, "anvil watch");
     let pid = child.id();
 
     // Let the cold scan settle before we baseline the CPU counters, so the
@@ -193,85 +194,8 @@ fn collect_churnable_files(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-struct ChildGuard {
-    child: Option<std::process::Child>,
-}
-
-impl ChildGuard {
-    fn new(child: std::process::Child) -> Self {
-        Self { child: Some(child) }
-    }
-
-    fn id(&self) -> u32 {
-        self.child.as_ref().expect("child is live").id()
-    }
-
-    /// Error (with `context`) if the child has already exited.
-    fn ensure_running(&mut self, context: &str) -> Result<()> {
-        let child = self.child.as_mut().ok_or("child already reaped")?;
-        match child.try_wait()? {
-            Some(status) => Err(format!("anvil watch exited {status} {context}").into()),
-            None => Ok(()),
-        }
-    }
-
-    fn shutdown(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
-}
-
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        self.shutdown();
-    }
-}
-
-pub fn resolve_anvil_binary() -> Result<PathBuf> {
-    if let Some(path) = std::env::var_os("ANVIL_BENCH_ANVIL_BIN") {
-        return resolve_configured_anvil_binary(PathBuf::from(path));
-    }
-
-    let candidate = workspace_target_anvil("debug");
-    if candidate.exists() {
-        return Ok(candidate);
-    }
-
-    let candidate = workspace_target_anvil("release");
-    if candidate.exists() {
-        return Ok(candidate);
-    }
-
-    Err("set ANVIL_BENCH_ANVIL_BIN or build target/debug/anvil first".into())
-}
-
-fn resolve_configured_anvil_binary(path: PathBuf) -> Result<PathBuf> {
-    if path.is_absolute() {
-        return Ok(path);
-    }
-
-    let from_cwd = std::env::current_dir()?.join(&path);
-    if from_cwd.exists() {
-        return Ok(from_cwd);
-    }
-
-    Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .join(path))
-}
-
 pub fn watch_command_args() -> [&'static str; 5] {
     ["--json", "--no-tui", "watch", "--all", "--debounce=100"]
-}
-
-fn workspace_target_anvil(profile: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .join("target")
-        .join(profile)
-        .join("anvil")
 }
 
 #[cfg(test)]
@@ -298,13 +222,6 @@ mod tests {
         // The churn path is gated by the churn ceiling, not the idle ceiling.
         let budget = ResourceBudget::ANVIL_WATCH_CHURN_V1;
         assert_ne!(budget, ResourceBudget::ANVIL_WATCH_V1);
-    }
-
-    #[test]
-    fn env_binary_path_is_resolved_before_child_changes_dir() {
-        let path = resolve_configured_anvil_binary(PathBuf::from("target/debug/anvil")).unwrap();
-        assert!(path.is_absolute());
-        assert!(path.ends_with("target/debug/anvil"));
     }
 
     #[test]

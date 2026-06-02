@@ -53,6 +53,53 @@ impl ResourceBudget {
         steady_state_cpu_pct: 50.0,
         peak_rss_mib: 300.0,
     };
+
+    /// Idle steady-state ceiling for the **intercept daemon**
+    /// (`anvil intercept start`) with no in-flight requests (RLB-003). A
+    /// long-running daemon that idles hot is the class of bug this module
+    /// exists to catch — the watcher report (GH #2156) was a not-quite-idle
+    /// hot path. The daemon should sit at ~0 CPU and a small resident set
+    /// between connections.
+    ///
+    /// Measured floor (release build, dev box 2026-06-02): 0% CPU, ~23 MiB RSS.
+    /// The ceiling keeps generous headroom over that for allocator/hardware
+    /// variance while still tripping on a daemon that idles hot or bloats.
+    pub const ANVIL_INTERCEPT_IDLE_V1: Self = Self {
+        steady_state_cpu_pct: 5.0,
+        peak_rss_mib: 96.0,
+    };
+
+    /// Burst ceiling for the intercept daemon under sustained concurrent IPC
+    /// (RLB-003): many short-lived connections each driving one JSON-RPC
+    /// request through the full accept → auth → parse → dispatch → serialise
+    /// pipeline. Gates that request handling does not blow CPU or leak RSS
+    /// under load.
+    ///
+    /// Measured floor (release build, dev box 2026-06-02, 4 churn workers):
+    /// ~101% CPU (≈1 core), ~23 MiB RSS (flat vs idle — no per-connection
+    /// leak). The ceiling carries ~2× CPU and ~5× RSS headroom.
+    ///
+    /// **Calibration:** like the watch ceilings, these are quiet-box numbers
+    /// with headroom; RLB-008 owns final calibration. Tightening is a budget
+    /// bump (`DECISION-LOG.md`).
+    pub const ANVIL_INTERCEPT_BURST_V1: Self = Self {
+        steady_state_cpu_pct: 200.0,
+        peak_rss_mib: 128.0,
+    };
+
+    /// Aggregate ceiling for **all three long-running processes running at
+    /// once** — watch + intercept daemon + MCP server under concurrent load
+    /// (RLB-005). Exposes cross-process rayon oversubscription (each process
+    /// caps its own pool at N/2 cores, so three at once can oversubscribe the
+    /// box). The CPU axis is generous because it is a whole-box aggregate;
+    /// the value of the gate is catching a *regression* in the aggregate, and
+    /// the per-process budgets above catch per-process drift.
+    ///
+    /// **Calibration:** quiet-box placeholder; RLB-008 owns final numbers.
+    pub const ANVIL_CONCURRENT_ALL_V1: Self = Self {
+        steady_state_cpu_pct: 800.0,
+        peak_rss_mib: 700.0,
+    };
 }
 
 /// One measurement sample produced by the bench scenario.
