@@ -26,6 +26,7 @@
 //! [ADR-054]: the json-render TUI engine home decision — generic engine in
 //! `eddacraft-tui` behind this feature, Anvil catalogue + surface in `anvil-tui`.
 
+mod binding;
 mod component;
 pub mod components;
 mod registry;
@@ -35,6 +36,7 @@ mod spec;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+pub use binding::{DataContext, bind};
 pub use component::TuiComponent;
 pub use components::base_registry;
 pub use registry::TuiRegistry;
