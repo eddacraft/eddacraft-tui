@@ -64,13 +64,10 @@ pub fn load_context(root: &Path) -> DataContext {
         if !entry.file_type().is_ok_and(|t| t.is_file()) {
             continue;
         }
-        // Size-check via `symlink_metadata` (no-follow) so a file swapped for a
-        // symlink after the `file_type` check can't report a 0-byte device len
-        // and slip past the cap.
-        if fs::symlink_metadata(&path).is_ok_and(|m| m.len() > MAX_DATA_BYTES) {
-            continue;
-        }
-        let Ok(text) = fs::read_to_string(&path) else {
+        // Bounded read from a single handle: caps size and cannot hang on a
+        // device/FIFO swapped in after the `file_type` check (`Ok(None)` = over
+        // the cap; `Err` = unreadable/non-UTF-8). Skip either way.
+        let Ok(Some(text)) = crate::fileio::read_capped(&path, MAX_DATA_BYTES) else {
             continue;
         };
         if let Ok(value) = serde_json::from_str::<Value>(&text) {

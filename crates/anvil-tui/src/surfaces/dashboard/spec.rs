@@ -151,17 +151,13 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
             continue;
         };
         // Require a regular file (no-follow): a symlink could point at a device
-        // (`/dev/zero` — 0-byte stat, bypasses the size cap, hangs the read) or
-        // a secret outside the workspace. Skip it before opening.
+        // (`/dev/zero`) or a secret outside the workspace. Skip it before opening.
         if !entry.file_type().is_ok_and(|t| t.is_file()) {
             continue;
         }
-        // Size-check via `symlink_metadata` (no-follow) so a swapped-in symlink
-        // can't report a 0-byte device len and slip past the cap.
-        if fs::symlink_metadata(&path).is_ok_and(|m| m.len() > MAX_SPEC_BYTES) {
-            continue;
-        }
-        let Ok(text) = fs::read_to_string(&path) else {
+        // Bounded read from a single handle (caps size; cannot hang on a
+        // device/FIFO swapped in after the check). `Ok(None)` = over cap.
+        let Ok(Some(text)) = crate::fileio::read_capped(&path, MAX_SPEC_BYTES) else {
             continue;
         };
         if let Ok(spec) = parse(&text) {
@@ -177,35 +173,46 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
     out
 }
 
+/// Read a saved spec file's verbatim text, rejecting non-regular files and
+/// enforcing the size cap with a bounded read.
+///
+/// `symlink_metadata` (no-follow) rejects a symlink/device/dir up front; the
+/// read is then hard-bounded so a target swapped in afterwards cannot hang or
+/// exhaust memory. Used by [`load`] and by the CLI's `--json` verbatim path.
+///
+/// # Errors
+/// [`SpecLoadError`] if the path is not a regular file, exceeds [`MAX_SPEC_BYTES`],
+/// or cannot be read.
+pub fn read_raw(path: &Path) -> Result<String, SpecLoadError> {
+    let display = || path.display().to_string();
+    let meta = fs::symlink_metadata(path).map_err(|source| SpecLoadError::Read {
+        path: display(),
+        source,
+    })?;
+    if !meta.file_type().is_file() {
+        return Err(SpecLoadError::NotRegularFile { path: display() });
+    }
+    match crate::fileio::read_capped(path, MAX_SPEC_BYTES) {
+        Ok(Some(text)) => Ok(text),
+        Ok(None) => Err(SpecLoadError::TooLarge {
+            path: display(),
+            size: meta.len(),
+        }),
+        Err(source) => Err(SpecLoadError::Read {
+            path: display(),
+            source,
+        }),
+    }
+}
+
 /// Read and parse the saved spec at `path`, returning a surface bound against
 /// `<root>/.anvil/`.
 ///
 /// # Errors
-/// [`SpecLoadError`] if the file cannot be read or is not valid json-render JSON.
+/// [`SpecLoadError`] if the file cannot be read, is not a regular file, exceeds
+/// the size cap, or is not valid json-render JSON.
 pub fn load(path: &Path, root: PathBuf) -> Result<SpecDashboardState, SpecLoadError> {
-    // `symlink_metadata` does NOT follow symlinks: reject anything that is not a
-    // regular file so a symlink to a device/FIFO/secret is never opened.
-    let meta = fs::symlink_metadata(path).map_err(|source| SpecLoadError::Read {
-        path: path.display().to_string(),
-        source,
-    })?;
-    if !meta.file_type().is_file() {
-        return Err(SpecLoadError::NotRegularFile {
-            path: path.display().to_string(),
-        });
-    }
-    // Reject oversized files before buffering them.
-    let size = meta.len();
-    if size > MAX_SPEC_BYTES {
-        return Err(SpecLoadError::TooLarge {
-            path: path.display().to_string(),
-            size,
-        });
-    }
-    let text = fs::read_to_string(path).map_err(|source| SpecLoadError::Read {
-        path: path.display().to_string(),
-        source,
-    })?;
+    let text = read_raw(path)?;
     let spec = parse(&text).map_err(|source| SpecLoadError::Parse {
         path: path.display().to_string(),
         source,

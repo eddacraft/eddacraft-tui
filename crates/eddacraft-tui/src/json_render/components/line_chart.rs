@@ -15,7 +15,7 @@ use ratatui::style::Style;
 use ratatui::symbols::Marker;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
-use super::props::{disp, f64_array};
+use super::props::{disp, f64_array_capped};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -30,12 +30,11 @@ impl TuiComponent for LineChart {
         if area.width == 0 || area.height == 0 {
             return;
         }
-        let mut values = f64_array(props, "data");
+        // Capped during extraction (DoS guard) — no giant intermediate Vec.
+        let values = f64_array_capped(props, "data", super::MAX_CHART_POINTS);
         if values.is_empty() {
             return;
         }
-        // Cap points fed to the chart per frame (DoS guard).
-        values.truncate(super::MAX_CHART_POINTS);
         let theme = EddaCraftTheme;
 
         let points: Vec<(f64, f64)> = values

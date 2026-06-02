@@ -12,7 +12,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Sparkline;
 
-use super::props::{f64_array, round_to_u64};
+use super::props::{f64_array_capped, round_to_u64};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -26,9 +26,8 @@ impl TuiComponent for SparklineChart {
         }
         let theme = EddaCraftTheme;
         // Sparkline takes unsigned bar heights; clamp out negatives and round.
-        let data: Vec<u64> = f64_array(props, "data")
+        let data: Vec<u64> = f64_array_capped(props, "data", super::MAX_CHART_POINTS)
             .into_iter()
-            .take(super::MAX_CHART_POINTS)
             .map(round_to_u64)
             .collect();
         frame.render_widget(

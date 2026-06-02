@@ -207,17 +207,10 @@ fn run_picker(
 /// a TTY runs the spec surface.
 fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
-        // Reject a non-regular file (no-follow) before reading, matching
-        // `spec::load` — the verbatim `--json` read must not follow a symlink to
-        // a device or an out-of-tree file.
-        if !std::fs::symlink_metadata(&saved.path).is_ok_and(|m| m.file_type().is_file()) {
-            anyhow::bail!(
-                "dashboard '{}' is not a regular file",
-                sanitize(&saved.name)
-            );
-        }
-        // Emit the spec verbatim so `--json` stays machine-readable.
-        let text = std::fs::read_to_string(&saved.path)?;
+        // Emit the spec verbatim so `--json` stays machine-readable. `read_raw`
+        // applies the same no-follow + bounded-read guards as `spec::load`, so
+        // the verbatim path can't follow a symlink to a device/out-of-tree file.
+        let text = spec::read_raw(&saved.path)?;
         println!("{text}");
         return Ok(());
     }
