@@ -32,7 +32,6 @@
 | Document                                                                | Path                                  | Type  | Authority     | Owner                                                  | Status |
 | ----------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
 | [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
-| [Resource Budget — anvil watch](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`    | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
 
 ## API
 
@@ -235,6 +234,12 @@
 | Document                                                        | Path                               | Type    | Authority     | Owner   | Status |
 | --------------------------------------------------------------- | ---------------------------------- | ------- | ------------- | ------- | ------ |
 | [Anvil Release Runbook](../../docs/runbooks/release-runbook.md) | `docs/runbooks/release-runbook.md` | Runbook | Authoritative | RELORCH | Live   |
+
+## RLB (plans/modules/resource-load-benchmarking.aps.md)
+
+| Document                                                                                  | Path                               | Type  | Authority     | Owner                                                 | Status |
+| ----------------------------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ----------------------------------------------------- | ------ |
+| [Resource Budgets — long-running Anvil processes](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md` | Guide | Authoritative | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
 
 ## RMCPF-002
 
