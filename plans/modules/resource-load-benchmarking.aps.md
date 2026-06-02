@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Priority | Status      | Progress |
 | --- | ------ | -------- | ----------- | -------- |
-| RLB | @aneki | high     | In Progress | 2/8      |
+| RLB | @aneki | high     | In Progress | 7/8      |
 
 **Last reviewed:** 2026-05-31 — filed from the beta-tester high-CPU report;
 tracked in GH [#2156](https://github.com/eddacraft/anvil-001/issues/2156).
@@ -80,7 +80,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-002: Fix watch_resource_budget to measure the real default
 
-- **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
+- **Status:** Merged 2026-06-02 via PR #2228 (ADR-061 sub-phase A freight)
 - **Intent:** Make the budget bench generate sustained churn, run the default
   `check` action, and measure the whole process tree (not just the parent pid).
 - **Expected Outcome:** The bench reflects production per-save cost and regresses
@@ -90,7 +90,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-003: Intercept daemon CPU/RSS budget + SLO
 
-- **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
+- **Status:** Merged 2026-06-02 via PR #2228 (ADR-061 sub-phase A freight)
 - **Intent:** Add a steady-state and burst CPU/RSS bench for the intercept daemon.
 - **Expected Outcome:** Daemon footprint is gated by a budget, not just latency
   (burst = IPC connection-churn; `scan_buffer` load deferred — needs a
@@ -99,7 +99,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-004: MCP server CPU/RSS budget + SLO
 
-- **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
+- **Status:** Merged 2026-06-02 via PR #2228 (ADR-061 sub-phase A freight)
 - **Intent:** Spawn `anvil mcp serve --stdio`, drive sustained `tools/call`
   load, and measure CPU/RSS.
 - **Expected Outcome:** MCP server gains its first resource budget.
@@ -107,7 +107,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-005: Concurrent multi-process bench
 
-- **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
+- **Status:** Merged 2026-06-02 via PR #2228 (ADR-061 sub-phase A freight)
 - **Intent:** Run watch + MCP + intercept together under load to expose
   cross-process rayon oversubscription.
 - **Expected Outcome:** Aggregate CPU/RSS under realistic concurrency is measured
@@ -138,7 +138,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-008: Define SLOs + wire the harness into CI
 
-- **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; SLO + CI gate for sub-phase A)
+- **Status:** Merged 2026-06-02 via PR #2228 (SLO + CI gate for sub-phase A)
 - **Intent:** Set CPU/RSS SLOs for watch/daemon/MCP and make the load harness
   runnable via `workflow_dispatch` (and nightly once a runner returns).
 - **Expected Outcome:** Each process has a documented budget; the load harness is
