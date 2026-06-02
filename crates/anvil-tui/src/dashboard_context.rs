@@ -27,13 +27,22 @@ const MAX_DATA_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Assemble a [`DataContext`] from the JSON state under `<root>/.anvil/`.
 ///
-/// Only files matching `*.json` directly inside `.anvil/` are read (the
-/// `dashboards/` subdirectory of saved specs is skipped). Each is keyed by its
-/// filename stem. Unreadable or non-JSON files are silently skipped.
+/// Only **regular** files matching `*.json` directly inside `.anvil/` are read
+/// (the `dashboards/` subdirectory of saved specs is skipped). Each is keyed by
+/// its filename stem. Symlinks, directories, device/FIFO entries, oversized,
+/// unreadable, and non-JSON files are silently skipped.
 #[must_use]
 pub fn load_context(root: &Path) -> DataContext {
     let dir = root.join(".anvil");
     let mut map = Map::new();
+
+    // `read_dir` follows a symlinked directory, so a checked-in `.anvil ->
+    // /elsewhere` would let real files outside the workspace be read. Reject a
+    // symlinked container before iterating (the per-entry guard below only
+    // covers the entries, not the directory itself).
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return DataContext::empty();
+    }
 
     let Ok(entries) = fs::read_dir(&dir) else {
         // No `.anvil/` yet — an empty context. Every path misses (em dash).
@@ -48,8 +57,17 @@ pub fn load_context(root: &Path) -> DataContext {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
-        // Skip oversized files (incl. symlinks to devices) before reading.
-        if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_DATA_BYTES) {
+        // `read_dir`'s file_type does NOT follow symlinks. Require a regular
+        // file so a symlink (e.g. to `/dev/zero` — a 0-byte stat that would
+        // bypass the size cap and hang `read_to_string`, or to a secret outside
+        // the workspace) is skipped before we ever open it.
+        if !entry.file_type().is_ok_and(|t| t.is_file()) {
+            continue;
+        }
+        // Size-check via `symlink_metadata` (no-follow) so a file swapped for a
+        // symlink after the `file_type` check can't report a 0-byte device len
+        // and slip past the cap.
+        if fs::symlink_metadata(&path).is_ok_and(|m| m.len() > MAX_DATA_BYTES) {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {
@@ -121,5 +139,26 @@ mod tests {
         // A directory named like a json file must not crash the loader.
         let ctx = load_context(tmp.path());
         assert!(ctx.resolve("dashboards").is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_json_entries_are_skipped() {
+        // A symlink (even to a valid JSON file) is not a regular file and must
+        // be skipped — guards against a checked-in symlink to a device/secret.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(&anvil).expect("mkdir");
+        let target = tmp.path().join("outside.json");
+        fs::write(&target, r#"{ "secret": "leaked" }"#).expect("write target");
+        std::os::unix::fs::symlink(&target, anvil.join("link.json")).expect("symlink");
+        write(&anvil, "real.json", r#"{ "ok": true }"#);
+
+        let ctx = load_context(tmp.path());
+        assert_eq!(ctx.resolve("real.ok"), Some(&serde_json::json!(true)));
+        assert!(
+            ctx.resolve("link").is_none() && ctx.resolve("link.secret").is_none(),
+            "symlinked entry must not be loaded"
+        );
     }
 }

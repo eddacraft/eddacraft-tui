@@ -28,6 +28,13 @@ use crate::json_render::TuiRegistry;
 /// so are not drawn) — the same "fewer rects = not drawn" contract used elsewhere.
 pub(crate) const MAX_LAYOUT_CHILDREN: usize = 512;
 
+/// Upper bound on chart data points (`LineChart`, `BarChart`, `SparklineChart`).
+/// A `data` array is spec/`$data`-controlled and unbounded; materialising and
+/// re-allocating hundreds of thousands of points every frame is a per-frame
+/// denial-of-service. Far more than this cannot be distinguished on a terminal
+/// chart anyway, so excess points are dropped — mirroring `MAX_TABLE_ROWS`.
+pub(crate) const MAX_CHART_POINTS: usize = 1_000;
+
 mod alert;
 mod badge;
 mod bar_chart;

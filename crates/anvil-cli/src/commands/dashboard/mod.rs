@@ -12,6 +12,7 @@ use std::path::Path;
 use clap::Args;
 use serde::Serialize;
 
+use anvil_tui::sanitize;
 use anvil_tui::surfaces::dashboard::list::{DashboardListState, ListEntry};
 use anvil_tui::surfaces::dashboard::spec::{self, SavedDashboard};
 
@@ -110,10 +111,14 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             let names = catalog
                 .iter()
                 .map(|entry| entry.name.to_string())
-                .chain(specs.iter().map(|s| s.name.clone()))
+                // Saved names are untrusted file stems — sanitise for display.
+                .chain(specs.iter().map(|s| sanitize(&s.name)))
                 .collect::<Vec<_>>()
                 .join(", ");
-            anyhow::bail!("unknown dashboard '{name}'. Valid dashboards: {names}")
+            anyhow::bail!(
+                "unknown dashboard '{}'. Valid dashboards: {names}",
+                sanitize(&name)
+            )
         }
         Resolution::ComingSoon(name) => {
             if global.json {
@@ -135,7 +140,25 @@ fn run_picker(
     global: &GlobalArgs,
 ) -> anyhow::Result<()> {
     if global.json {
-        println!("{}", serde_json::to_string_pretty(catalog)?);
+        // Emit native dashboards AND saved specs (the picker lists both). Keeps
+        // the array-of-objects shape; adds a `kind` discriminator. Saved names
+        // are untrusted file stems, so they are sanitised here too.
+        let mut listing: Vec<serde_json::Value> = catalog
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "name": e.name, "title": e.title, "description": e.description,
+                    "available": e.available, "kind": "native",
+                })
+            })
+            .collect();
+        listing.extend(specs.iter().map(|s| {
+            serde_json::json!({
+                "name": sanitize(&s.name), "title": s.title,
+                "description": SAVED_SPEC_DESCRIPTION, "available": true, "kind": "spec",
+            })
+        }));
+        println!("{}", serde_json::to_string_pretty(&listing)?);
         return Ok(());
     }
 
@@ -184,6 +207,15 @@ fn run_picker(
 /// a TTY runs the spec surface.
 fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
+        // Reject a non-regular file (no-follow) before reading, matching
+        // `spec::load` — the verbatim `--json` read must not follow a symlink to
+        // a device or an out-of-tree file.
+        if !std::fs::symlink_metadata(&saved.path).is_ok_and(|m| m.file_type().is_file()) {
+            anyhow::bail!(
+                "dashboard '{}' is not a regular file",
+                sanitize(&saved.name)
+            );
+        }
         // Emit the spec verbatim so `--json` stays machine-readable.
         let text = std::fs::read_to_string(&saved.path)?;
         println!("{text}");
@@ -192,10 +224,20 @@ fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyh
 
     let state = spec::load(&saved.path, root.to_path_buf())?;
 
+    // The renderer does not evaluate `visible` conditions yet (every element
+    // renders); warn the operator so a hidden-looking section isn't a surprise.
+    if state.has_unevaluated_visibility() {
+        eprintln!(
+            "note: dashboard '{}' uses `visible` conditions, which are not yet \
+             evaluated — all elements are shown.",
+            sanitize(&saved.name)
+        );
+    }
+
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         println!(
             "Dashboard '{}' ({}) — run in an interactive terminal to view.",
-            saved.name,
+            sanitize(&saved.name),
             state.title()
         );
         return Ok(());
@@ -227,10 +269,13 @@ fn print_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) {
 /// dashboard name never runs the name into its description.
 fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
     let mut out = String::from("Anvil Dashboards\n\n");
+    // Saved-spec names are file stems from a possibly-hostile repo; sanitise
+    // them before they reach stdout. Native names are static and trusted.
+    let saved_names: Vec<String> = specs.iter().map(|s| sanitize(&s.name)).collect();
     let width = catalog
         .iter()
         .map(|entry| entry.name.len())
-        .chain(specs.iter().map(|s| s.name.len()))
+        .chain(saved_names.iter().map(String::len))
         .max()
         .unwrap_or(0);
     for entry in catalog {
@@ -246,8 +291,8 @@ fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
             entry.name, entry.description
         );
     }
-    for saved in specs {
-        let _ = writeln!(out, "  {:<width$}  {SAVED_SPEC_DESCRIPTION}", saved.name);
+    for name in &saved_names {
+        let _ = writeln!(out, "  {name:<width$}  {SAVED_SPEC_DESCRIPTION}");
     }
     out
 }
@@ -373,6 +418,24 @@ mod tests {
         let arch = text.find("architecture").expect("native listed");
         let saved = text.find("my-gate").expect("saved listed");
         assert!(arch < saved, "native dashboards precede saved specs");
+    }
+
+    #[test]
+    fn plain_picker_sanitises_saved_spec_stem() {
+        // A hostile repo can name a spec file with control bytes in the stem;
+        // the plain-text picker must not emit them to the terminal.
+        let specs = vec![SavedDashboard {
+            name: "evil\u{1b}]0;pwned\u{07}name".to_string(),
+            title: "T".to_string(),
+            path: std::path::PathBuf::from(".anvil/dashboards/x.json"),
+        }];
+        let text = format_picker(&catalog(), &specs);
+        assert!(!text.contains('\u{1b}'), "ESC stripped from stem");
+        assert!(!text.contains('\u{07}'), "BEL stripped from stem");
+        assert!(
+            text.contains("evil]0;pwnedname"),
+            "sanitised stem shown: {text:?}"
+        );
     }
 
     #[test]

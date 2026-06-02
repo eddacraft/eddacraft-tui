@@ -28,6 +28,7 @@ impl BarChart {
         };
         items
             .iter()
+            .take(super::MAX_CHART_POINTS)
             .filter_map(|item| {
                 if let Some(obj) = item.as_object() {
                     // Labels are rendered under each bar — sanitise them.
@@ -93,6 +94,14 @@ mod tests {
                 ("warn".to_owned(), 5),
             ]
         );
+    }
+
+    #[test]
+    fn caps_data_points_to_avoid_per_frame_dos() {
+        let data: Vec<serde_json::Value> = (0..5000).map(|_| json!(1)).collect();
+        let p = json!({ "data": data });
+        let bars = BarChart::bars(p.as_object().expect("obj"));
+        assert_eq!(bars.len(), super::super::MAX_CHART_POINTS);
     }
 
     #[test]

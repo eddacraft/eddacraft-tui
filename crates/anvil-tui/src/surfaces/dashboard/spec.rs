@@ -65,6 +65,14 @@ impl SpecDashboardState {
     pub fn title(&self) -> &str {
         &self.title
     }
+
+    /// Whether the spec uses `visible` conditions on any element. The renderer
+    /// does not yet evaluate them (every element renders), so the CLI warns the
+    /// operator that conditional sections will always show.
+    #[must_use]
+    pub fn has_unevaluated_visibility(&self) -> bool {
+        self.spec.elements.values().any(|e| e.visible.is_some())
+    }
 }
 
 /// Maximum size of a dashboard spec file. A spec is a small JSON document; a
@@ -111,6 +119,12 @@ pub enum SpecLoadError {
         /// Its size in bytes.
         size: u64,
     },
+    /// The path is not a regular file (e.g. a symlink, directory, or device).
+    #[error("dashboard spec {path} is not a regular file")]
+    NotRegularFile {
+        /// The offending path.
+        path: String,
+    },
 }
 
 /// List the saved dashboard specs under `<root>/.anvil/dashboards/`, sorted by
@@ -119,6 +133,11 @@ pub enum SpecLoadError {
 #[must_use]
 pub fn discover(root: &Path) -> Vec<SavedDashboard> {
     let dir = root.join(".anvil").join("dashboards");
+    // Reject a symlinked container directory before iterating — `read_dir`
+    // would otherwise follow it out of the workspace.
+    if fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Vec::new();
+    }
     let Ok(entries) = fs::read_dir(&dir) else {
         return Vec::new();
     };
@@ -131,8 +150,15 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
         let Some(name) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
-        // Skip oversized files before reading them into memory.
-        if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_SPEC_BYTES) {
+        // Require a regular file (no-follow): a symlink could point at a device
+        // (`/dev/zero` — 0-byte stat, bypasses the size cap, hangs the read) or
+        // a secret outside the workspace. Skip it before opening.
+        if !entry.file_type().is_ok_and(|t| t.is_file()) {
+            continue;
+        }
+        // Size-check via `symlink_metadata` (no-follow) so a swapped-in symlink
+        // can't report a 0-byte device len and slip past the cap.
+        if fs::symlink_metadata(&path).is_ok_and(|m| m.len() > MAX_SPEC_BYTES) {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {
@@ -157,13 +183,19 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
 /// # Errors
 /// [`SpecLoadError`] if the file cannot be read or is not valid json-render JSON.
 pub fn load(path: &Path, root: PathBuf) -> Result<SpecDashboardState, SpecLoadError> {
-    // Reject oversized files before buffering them.
-    let size = fs::metadata(path)
-        .map_err(|source| SpecLoadError::Read {
+    // `symlink_metadata` does NOT follow symlinks: reject anything that is not a
+    // regular file so a symlink to a device/FIFO/secret is never opened.
+    let meta = fs::symlink_metadata(path).map_err(|source| SpecLoadError::Read {
+        path: path.display().to_string(),
+        source,
+    })?;
+    if !meta.file_type().is_file() {
+        return Err(SpecLoadError::NotRegularFile {
             path: path.display().to_string(),
-            source,
-        })?
-        .len();
+        });
+    }
+    // Reject oversized files before buffering them.
+    let size = meta.len();
     if size > MAX_SPEC_BYTES {
         return Err(SpecLoadError::TooLarge {
             path: path.display().to_string(),
@@ -285,6 +317,67 @@ mod tests {
     fn discover_on_missing_dir_is_empty() {
         let tmp = tempfile::tempdir().expect("tempdir");
         assert!(discover(tmp.path()).is_empty());
+    }
+
+    #[test]
+    fn detects_unevaluated_visibility_conditions() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let with_vis = parse(
+            r#"{ "title": "v", "version": "1.0", "root": "a",
+                 "elements": { "a": { "type": "Text", "props": {}, "children": [],
+                     "visible": { "field": "showAdvanced" } } } }"#,
+        )
+        .expect("parse");
+        let s = SpecDashboardState::new(with_vis, tmp.path().to_path_buf());
+        assert!(s.has_unevaluated_visibility(), "non-null visible detected");
+
+        let without =
+            SpecDashboardState::new(parse(SPEC).expect("parse"), tmp.path().to_path_buf());
+        assert!(
+            !without.has_unevaluated_visibility(),
+            "no visible conditions -> false"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discover_skips_a_symlinked_dashboards_directory() {
+        // A symlinked container directory must not be traversed out of the tree.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(&anvil).expect("mkdir");
+        let outside = tmp.path().join("elsewhere");
+        fs::create_dir_all(&outside).expect("mkdir outside");
+        fs::write(outside.join("leak.json"), SPEC).expect("write");
+        std::os::unix::fs::symlink(&outside, anvil.join("dashboards")).expect("symlink dir");
+
+        assert!(
+            discover(tmp.path()).is_empty(),
+            "a symlinked dashboards/ directory yields no specs"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discover_skips_symlinked_specs_and_load_rejects_them() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join(".anvil").join("dashboards");
+        fs::create_dir_all(&dir).expect("mkdir");
+        // A real spec lists; a symlink to a valid spec does not.
+        fs::write(dir.join("real.json"), SPEC).expect("write");
+        let target = tmp.path().join("outside.json");
+        fs::write(&target, SPEC).expect("write target");
+        std::os::unix::fs::symlink(&target, dir.join("link.json")).expect("symlink");
+
+        let found = discover(tmp.path());
+        let names: Vec<&str> = found.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["real"], "symlinked spec is not discovered");
+
+        // load() on a symlink path is rejected, not followed.
+        assert!(matches!(
+            load(&dir.join("link.json"), tmp.path().to_path_buf()),
+            Err(SpecLoadError::NotRegularFile { .. })
+        ));
     }
 
     #[test]

@@ -8,21 +8,67 @@
 //! writes, title rewrites). Every spec/data-derived string that becomes
 //! displayed text is passed through [`sanitize`] first.
 
-/// Strip control characters from `s`, returning a display-safe owned string.
+/// Strip display-hostile characters from `s`, returning a display-safe owned
+/// string.
 ///
-/// Drops every `char::is_control()` codepoint — the C0 range (incl. `ESC`,
-/// `BEL`, `CR`, `LF`, `TAB`), `DEL`, and the C1 range — none of which carry
-/// meaning in the terse single-/few-line widgets dashboards render, and any of
-/// which could otherwise reach the terminal as a raw escape. Ordinary text is
-/// returned unchanged.
+/// Drops:
+/// - every `char::is_control()` codepoint — the C0 range (incl. `ESC`, `BEL`,
+///   `CR`, `LF`, `TAB`), `DEL`, and the C1 range — any of which could reach the
+///   terminal as a raw escape; and
+/// - Unicode [bidi control / zero-width characters](is_bidi_or_zero_width) —
+///   `char::is_control()` returns `false` for these, but a `RIGHT-TO-LEFT
+///   OVERRIDE` (U+202E) or zero-width joiner can visually reorder/spoof a label
+///   or title (e.g. make `fail` read as `pass`), so they are stripped too.
+///
+/// Ordinary text — including legitimate non-ASCII (accents, em dash, box-drawing,
+/// emoji) — is returned unchanged.
 #[must_use]
 pub fn sanitize(s: &str) -> String {
-    s.chars().filter(|c| !c.is_control()).collect()
+    s.chars()
+        .filter(|c| !c.is_control() && !is_bidi_or_zero_width(*c))
+        .collect()
+}
+
+/// Whether `c` is a Unicode bidirectional-control or zero-width codepoint that
+/// can spoof or corrupt terminal display without being a C0/C1 control.
+fn is_bidi_or_zero_width(c: char) -> bool {
+    // Deliberate deny-list (these are Unicode category `Cf` "format" chars that
+    // `char::is_control()` does not catch). Periodically review as Unicode
+    // allocates new format characters.
+    matches!(c,
+        // Arabic letter mark (a bidi control).
+        '\u{061C}'
+        // Zero-width space/joiner/non-joiner + LRM/RLM.
+        | '\u{200B}'..='\u{200F}'
+        // Bidi embeddings, overrides, and pop (incl. U+202E RTL OVERRIDE).
+        | '\u{202A}'..='\u{202E}'
+        // Word joiner + invisible math operators.
+        | '\u{2060}'..='\u{2064}'
+        // Bidi isolates (LRI/RLI/FSI/PDI).
+        | '\u{2066}'..='\u{2069}'
+        // Deprecated formatting (symmetric-swap / shaping / digit-shape).
+        | '\u{206A}'..='\u{206F}'
+        // Zero-width no-break space / BOM.
+        | '\u{FEFF}')
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strips_bidi_override_and_zero_width() {
+        // A RTL override could make "fail" render as "liaf"; it must be removed.
+        let spoof = "score \u{202e}001/09\u{202c} ok\u{200b}\u{feff}";
+        let clean = sanitize(spoof);
+        assert!(!clean.contains('\u{202e}'), "RTL override removed");
+        assert!(!clean.contains('\u{202c}'), "pop-directional removed");
+        assert!(!clean.contains('\u{200b}'), "zero-width space removed");
+        assert!(!clean.contains('\u{feff}'), "BOM removed");
+        assert_eq!(clean, "score 001/09 ok");
+        // Legitimate non-ASCII text is preserved.
+        assert_eq!(sanitize("café ▲ — 92%"), "café ▲ — 92%");
+    }
 
     #[test]
     fn strips_escape_and_osc_sequences() {
