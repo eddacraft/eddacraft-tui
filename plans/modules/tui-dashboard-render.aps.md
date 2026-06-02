@@ -2,7 +2,7 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | In Progress | 12/13 |
+| TUIDASH | —     | In Progress | 13/13 |
 
 **Last reviewed:** 2026-06-02
 
@@ -425,7 +425,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-013: Ship an example dashboard spec
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-02 via PR #2246
 - **Intent:** Ship at least one example json-render dashboard spec so
   `anvil dashboard` has a real end-to-end consumer and operators have a spec to
   copy. The engine (TUIDASH-003..-012) is complete but runtime-idle: nothing
@@ -467,5 +467,5 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 | 1 — Spec Parser & Registry | 3 | Merged |
 | 2 — Component Mappings | 4 | Merged |
 | 3 — Data Binding & Surface | 3 | Merged |
-| 4 — Polish | 3 | 2 Merged, 1 Ready |
-| **Total** | **13** | **12/13 done** |
+| 4 — Polish | 3 | Merged |
+| **Total** | **13** | **13/13 done** |
