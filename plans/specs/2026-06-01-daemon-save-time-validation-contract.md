@@ -213,8 +213,11 @@ precise than "any file with importers is never certified".
   caller today** (DRVR-001 Wave 2 left it unwired; zero call sites outside `auth.rs`).
   `validate_paths` is the first verb to wire it and the first to read arbitrary on-disk
   paths, so this authorisation path (with Task 3 read-safety) is load-bearing, not
-  incidental reuse. A connection carries a **growable set** of roots, each stored as
-  the once-opened `O_PATH` dirfd identity (not a re-resolvable string); additions
+  incidental reuse. A connection carries a **growable set** of roots; each entry keeps the canonical
+  path (for matching an incoming request's `workspace_root`) **paired with the
+  once-opened `O_PATH` dirfd that anchors all reads and is the workspace's identity** —
+  the path string is retained for matching, the fd is the read anchor, so a
+  root-directory retarget after admission cannot redirect reads. Additions are
   auto-granted within the uid in `open` mode. No `/proc/<pid>/cwd` check.
 - **Open-mode read blast radius (security C3):** because `open` is the default and
   first-touch adopt auto-grants any nameable root, a compromised *same-uid* process can
