@@ -9,6 +9,7 @@
 pub mod architecture;
 pub mod drift;
 pub mod render;
+pub mod spec;
 pub mod suppressions;
 
 use eddacraft_tui::keyboard::Action;

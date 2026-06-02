@@ -7,13 +7,15 @@
 
 use std::fmt::Write as _;
 use std::io::IsTerminal;
+use std::path::Path;
 
 use clap::Args;
 use serde::Serialize;
 
+use anvil_tui::surfaces::dashboard::spec::{self, SavedDashboard};
 use anvil_tui::surfaces::dashboard::{DashboardEntry, DashboardPickerState};
 
-use crate::{GlobalArgs, tui};
+use crate::{GlobalArgs, tui, util};
 
 mod architecture;
 mod drift;
@@ -35,6 +37,9 @@ pub struct CatalogEntry {
     pub description: &'static str,
     pub available: bool,
 }
+
+/// One-line description shown for a saved spec dashboard in the picker.
+const SAVED_SPEC_DESCRIPTION: &str = "Saved dashboard spec (.anvil/dashboards)";
 
 /// The catalogue of native dashboards, in display order.
 fn catalog() -> Vec<CatalogEntry> {
@@ -86,15 +91,26 @@ fn resolve(name: Option<&str>, catalog: &[CatalogEntry]) -> Resolution {
 
 pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let catalog = catalog();
+    // Saved spec dashboards live under `.anvil/dashboards/`. Discovery is
+    // best-effort: outside a workspace (no root) there are simply none.
+    let root = util::workspace_root().ok();
+    let specs = root.as_deref().map(spec::discover).unwrap_or_default();
 
     // Every terminal branch handles `--json` itself so a global `--json` never
     // leaks human text: a launched dashboard emits its own data; the picker and
     // coming-soon paths emit the catalogue.
     match resolve(args.name.as_deref(), &catalog) {
         Resolution::Unknown(name) => {
+            // A name absent from the native catalogue may be a saved spec.
+            if let (Some(saved), Some(root)) =
+                (specs.iter().find(|s| s.name == name), root.as_deref())
+            {
+                return launch_spec(saved, root, global);
+            }
             let names = catalog
                 .iter()
-                .map(|entry| entry.name)
+                .map(|entry| entry.name.to_string())
+                .chain(specs.iter().map(|s| s.name.clone()))
                 .collect::<Vec<_>>()
                 .join(", ");
             anyhow::bail!("unknown dashboard '{name}'. Valid dashboards: {names}")
@@ -108,30 +124,77 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             Ok(())
         }
         Resolution::Launch(name) => launch(&name, global),
-        Resolution::Picker => run_picker(&catalog, global),
+        Resolution::Picker => run_picker(&catalog, &specs, root.as_deref(), global),
     }
 }
 
-fn run_picker(catalog: &[CatalogEntry], global: &GlobalArgs) -> anyhow::Result<()> {
+fn run_picker(
+    catalog: &[CatalogEntry],
+    specs: &[SavedDashboard],
+    root: Option<&Path>,
+    global: &GlobalArgs,
+) -> anyhow::Result<()> {
     if global.json {
         println!("{}", serde_json::to_string_pretty(catalog)?);
         return Ok(());
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
-        print_picker(catalog);
+        print_picker(catalog, specs);
         return Ok(());
     }
 
-    let entries = catalog.iter().map(to_entry).collect();
+    let mut entries: Vec<DashboardEntry> = catalog.iter().map(to_entry).collect();
+    // Append saved spec dashboards after the native ones; they are always
+    // openable (a malformed spec never makes it through discovery).
+    entries.extend(specs.iter().map(|s| {
+        DashboardEntry::new(
+            s.name.clone(),
+            s.title.clone(),
+            SAVED_SPEC_DESCRIPTION,
+            true,
+        )
+    }));
+
     let state = tui::run_surface(DashboardPickerState::new(entries))?;
     // `run_surface` collapses quit vs back into the returned state; we act only
     // on an explicit choice. Picking an `available` dashboard sets `chosen`,
     // which launches it; quitting leaves it `None`.
     match state.chosen {
-        Some(name) => launch(&name, global),
+        Some(name) => {
+            if let (Some(saved), Some(root)) = (specs.iter().find(|s| s.name == name), root) {
+                return launch_spec(saved, root, global);
+            }
+            launch(&name, global)
+        }
         None => Ok(()),
     }
+}
+
+/// Launch a saved spec dashboard: parse it and render it through the json-render
+/// engine. `--json` emits the raw spec; non-interactive prints a one-line note;
+/// a TTY runs the spec surface.
+fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
+    if global.json {
+        // Emit the spec verbatim so `--json` stays machine-readable.
+        let text = std::fs::read_to_string(&saved.path)?;
+        println!("{text}");
+        return Ok(());
+    }
+
+    let state = spec::load(&saved.path, root.to_path_buf())?;
+
+    if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
+        println!(
+            "Dashboard '{}' ({}) — run in an interactive terminal to view.",
+            saved.name,
+            state.title()
+        );
+        return Ok(());
+    }
+
+    tui::run_surface(state)?;
+    Ok(())
 }
 
 /// Launch a wired dashboard surface. The seam per-domain dashboards extend:
@@ -150,19 +213,20 @@ fn to_entry(entry: &CatalogEntry) -> DashboardEntry {
     DashboardEntry::new(entry.name, entry.title, entry.description, entry.available)
 }
 
-fn print_picker(catalog: &[CatalogEntry]) {
-    print!("{}", format_picker(catalog));
+fn print_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) {
+    print!("{}", format_picker(catalog, specs));
 }
 
 /// Render the plain-text picker. Split out from [`print_picker`] so the column
 /// layout is unit-testable without capturing stdout. The name column is
-/// self-sizing to the longest catalogue entry, so adding a longer dashboard
-/// name never runs the name into its description.
-fn format_picker(catalog: &[CatalogEntry]) -> String {
+/// self-sizing to the longest entry (native or saved spec), so adding a longer
+/// dashboard name never runs the name into its description.
+fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
     let mut out = String::from("Anvil Dashboards\n\n");
     let width = catalog
         .iter()
         .map(|entry| entry.name.len())
+        .chain(specs.iter().map(|s| s.name.len()))
         .max()
         .unwrap_or(0);
     for entry in catalog {
@@ -177,6 +241,9 @@ fn format_picker(catalog: &[CatalogEntry]) -> String {
             "  {:<width$}  {}{suffix}",
             entry.name, entry.description
         );
+    }
+    for saved in specs {
+        let _ = writeln!(out, "  {:<width$}  {SAVED_SPEC_DESCRIPTION}", saved.name);
     }
     out
 }
@@ -266,7 +333,7 @@ mod tests {
 
     #[test]
     fn plain_picker_separates_name_and_description_columns() {
-        let text = format_picker(&catalog());
+        let text = format_picker(&catalog(), &[]);
         for entry in catalog() {
             let line = text
                 .lines()
@@ -283,6 +350,25 @@ mod tests {
         // All shipped dashboards are available — none should carry the
         // coming-soon marker.
         assert!(!text.contains("coming soon"), "got:\n{text}");
+    }
+
+    #[test]
+    fn picker_lists_saved_specs_after_native_dashboards() {
+        let specs = vec![SavedDashboard {
+            name: "my-gate".to_string(),
+            title: "My Gate".to_string(),
+            path: std::path::PathBuf::from(".anvil/dashboards/my-gate.json"),
+        }];
+        let text = format_picker(&catalog(), &specs);
+        let line = text
+            .lines()
+            .find(|l| l.contains("my-gate"))
+            .expect("saved spec listed");
+        assert!(line.contains(SAVED_SPEC_DESCRIPTION), "got: {line:?}");
+        // Saved specs come after the native dashboards.
+        let arch = text.find("architecture").expect("native listed");
+        let saved = text.find("my-gate").expect("saved listed");
+        assert!(arch < saved, "native dashboards precede saved specs");
     }
 
     #[test]
