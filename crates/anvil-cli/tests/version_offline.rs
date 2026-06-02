@@ -64,24 +64,37 @@ fn version_offline_json_keys_are_stable() {
     // Offline mode: latest_version is null, update_available is false.
     assert!(parsed["latest_version"].is_null());
     assert_eq!(parsed["update_available"], false);
-    // current_version must match the binary's CARGO_PKG_VERSION.
-    assert!(
-        parsed["current_version"]
-            .as_str()
-            .is_some_and(|s| !s.is_empty()),
-        "current_version must be a non-empty string: {parsed}"
+    // current_version must match the binary's CARGO_PKG_VERSION exactly
+    // (CLAWP-056: a non-empty check let a wrong or garbage version pass;
+    // the integration test crate and the `anvil` binary are the same
+    // package, so `CARGO_PKG_VERSION` here is the binary's version).
+    assert_eq!(
+        parsed["current_version"].as_str(),
+        Some(env!("CARGO_PKG_VERSION")),
+        "current_version must equal the binary's CARGO_PKG_VERSION ({}): {parsed}",
+        env!("CARGO_PKG_VERSION")
     );
 }
 
 #[test]
 fn version_offline_does_not_require_auth() {
     // LAUNCH-013 acceptance: `anvil version` is informational and
-    // must not be blocked by the auth gate. Run without setting
-    // any auth env vars; it must still succeed.
+    // must not be blocked by the auth gate. CLAWP-057: prove this by
+    // running with NO auth available rather than relying on whatever
+    // the parent environment happens to carry — point ANVIL_HOME at an
+    // empty temp dir (no stored credentials) and strip the dev/licence
+    // bypass vars, so a successful exit can only mean `version`
+    // genuinely does not require auth.
+    let home = tempfile::tempdir().unwrap();
     let out = Command::new(ANVIL_BIN)
         .arg("--no-tui")
         .arg("version")
         .arg("--offline")
+        .env("ANVIL_HOME", home.path())
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env_remove("ANVIL_ADMIN_KEY")
+        .env_remove("XDG_CONFIG_HOME")
         .output()
         .expect("failed to invoke anvil");
     assert!(

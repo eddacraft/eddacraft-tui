@@ -29,10 +29,50 @@
 #![cfg(target_os = "linux")]
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const SKIP_EXIT_CODE: i32 = 77;
+
+/// Maximum wall-clock for a single air-gapped harness invocation.
+/// Generous enough for cargo/init/file-walk overhead on slow CI, yet
+/// bounded so a command that wedges on a network resolver — the failure
+/// this suite guards against — fails the test instead of hanging it
+/// indefinitely (CLAWP-035).
+const AIR_GAP_TIMEOUT: Duration = Duration::from_mins(1);
+
+/// Spawn `cmd` and wait up to [`AIR_GAP_TIMEOUT`]. On timeout, kill the
+/// child and panic so a wedged command under test surfaces as a clear,
+/// bounded failure rather than an indefinite hang. The commands run
+/// through this harness emit little output, so reading the piped
+/// stdout/stderr after exit cannot fill the pipe buffer and stall.
+fn output_within_timeout(cmd: &mut Command) -> std::process::Output {
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn().expect("failed to spawn harness");
+    let start = Instant::now();
+    loop {
+        if child
+            .try_wait()
+            .expect("try_wait on harness child")
+            .is_some()
+        {
+            break;
+        }
+        if start.elapsed() >= AIR_GAP_TIMEOUT {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!(
+                "air-gapped harness exceeded {AIR_GAP_TIMEOUT:?} and was killed — \
+                 the command under test likely wedged (e.g. on a network resolver)"
+            );
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    child
+        .wait_with_output()
+        .expect("collect harness output after exit")
+}
 
 // KEEP-IN-SYNC: `harness_path` + `run_air_gapped` are mirrored in
 // `crates/anvil-run/tests/air_gapped_run.rs` (anvil-run is a separate
@@ -82,7 +122,7 @@ fn run_air_gapped(args: &[&str]) -> Option<std::process::Output> {
     // keep the test bounded.
     cmd.env("ANVIL_DEV", "1");
     cmd.env("ANVIL_SKIP_WELCOME", "1");
-    let out = cmd.output().expect("failed to spawn harness");
+    let out = output_within_timeout(&mut cmd);
     if out.status.code() == Some(SKIP_EXIT_CODE) {
         eprintln!(
             "air-gapped harness skipped:\nstderr={}",
@@ -111,7 +151,7 @@ fn run_air_gapped_without_dev(
     cmd.env_remove("ANVIL_LICENSE");
     cmd.env("ANVIL_SKIP_WELCOME", "1");
     cmd.env("XDG_CONFIG_HOME", xdg_config_home);
-    let out = cmd.output().expect("failed to spawn harness");
+    let out = output_within_timeout(&mut cmd);
     if out.status.code() == Some(SKIP_EXIT_CODE) {
         eprintln!(
             "air-gapped harness skipped:\nstderr={}",

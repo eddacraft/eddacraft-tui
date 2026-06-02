@@ -165,18 +165,28 @@ fn human_render_shows_per_language_breakdown() {
         stdout.contains("languages:"),
         "missing languages block: {stdout}"
     );
+    // CLAWP-058: bind each language to its tier on the SAME render row.
+    // Four independent `contains` checks would pass even if the tiers
+    // were swapped (TypeScript shown unsupported, Python supported); the
+    // contract is the per-language association. The render shape is
+    // `    {name} ({n} file): {tier} — {basis}` (one language per line).
+    // NB "supported" is a substring of "unsupported", so the TypeScript
+    // row must be asserted to contain "supported" AND not "unsupported".
+    let ts_row = stdout
+        .lines()
+        .find(|l| l.contains("TypeScript"))
+        .unwrap_or_else(|| panic!("TypeScript not surfaced: {stdout}"));
     assert!(
-        stdout.contains("TypeScript"),
-        "TypeScript not surfaced: {stdout}"
+        ts_row.contains("supported") && !ts_row.contains("unsupported"),
+        "TypeScript row must show the `supported` tier (not unsupported): {ts_row:?}\nfull:\n{stdout}"
     );
+    let py_row = stdout
+        .lines()
+        .find(|l| l.contains("Python"))
+        .unwrap_or_else(|| panic!("Python not surfaced: {stdout}"));
     assert!(
-        stdout.contains("supported"),
-        "supported tier not labelled: {stdout}"
-    );
-    assert!(stdout.contains("Python"), "Python not surfaced: {stdout}");
-    assert!(
-        stdout.contains("unsupported"),
-        "unsupported tier not labelled: {stdout}"
+        py_row.contains("unsupported"),
+        "Python row must show the `unsupported` tier: {py_row:?}\nfull:\n{stdout}"
     );
 }
 
@@ -197,9 +207,15 @@ fn unclassified_files_surface_in_json_output() {
     let unclassified = parsed["unclassified_files_seen"]
         .as_u64()
         .expect("unclassified_files_seen must be present and numeric");
-    assert!(
-        unclassified >= 2,
-        "expected Makefile and README to count as unclassified, got {unclassified}: {parsed}"
+    // CLAWP-059: pin the EXACT count. A `>= 2` lower bound let the
+    // classified `src/a.ts` (or any future miscount) silently inflate
+    // the tally without failing. The unclassified inputs here are
+    // `Makefile`, `README`, and `.anvilrc` (a dotfile, which carries no
+    // `Path::extension()` and so is not registry-classifiable); the
+    // classified `src/a.ts` must NOT contribute.
+    assert_eq!(
+        unclassified, 3,
+        "expected exactly Makefile + README + .anvilrc as unclassified (src/a.ts is classified), got {unclassified}: {parsed}"
     );
 }
 
@@ -213,6 +229,14 @@ fn vendored_dirs_are_excluded_from_language_count() {
     write(&dir.path().join("node_modules/dep/index.ts"), "");
     write(&dir.path().join("node_modules/dep/setup.py"), "");
     write(&dir.path().join("target/debug/build/foo.rs"), "");
+    // CLAWP-060: exercise the documented `.git` exclusion. The Go file
+    // exists ONLY under `.git`, so a `Go` entry appearing in the profile
+    // can only mean `.git` was walked — isolating this case from the
+    // node_modules/target ones below (whose languages also live in src/).
+    write(
+        &dir.path().join(".git/hooks/pre-commit.go"),
+        "package main\n",
+    );
     write(
         &dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -234,5 +258,11 @@ fn vendored_dirs_are_excluded_from_language_count() {
     assert!(
         langs.iter().all(|e| e["name"] != "Rust"),
         "Rust from target/ leaked into profile: {langs:?}"
+    );
+    // CLAWP-060: the only Go file lives under `.git`, so its absence
+    // proves the `.git` exclusion held.
+    assert!(
+        langs.iter().all(|e| e["name"] != "Go"),
+        "Go from .git/ leaked into profile (.git not excluded from the language walk): {langs:?}"
     );
 }

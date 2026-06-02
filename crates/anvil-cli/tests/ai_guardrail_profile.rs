@@ -108,30 +108,56 @@ fn ai_profile_emits_diagnostic_envelope_in_json_mode() {
 
     // If any diagnostic DOES surface (e.g. the empty-workspace
     // antipattern scan produces one in a future regression), the
-    // envelope shape must still be valid.
-    if let Some(first) = diagnostics.first() {
-        assert_eq!(first["schema_version"], "anvil.diagnostic.v1");
-        assert_eq!(first["mode"], "gate");
-        assert!(first["id"].is_string());
-        assert!(first["severity"].is_string());
-        assert!(first["summary"].is_string());
-        assert!(first["category"].is_string());
-        assert!(first["source"]["rule_id"].is_string());
-        assert!(first["source"]["source_module"].is_string());
-        assert!(first["location"]["file"].is_string());
-
-        // Every AI-guardrail diagnostic must route to a dedicated
-        // Category — a diagnostic landing in `other` means
-        // `summary.by_category` lost signal.
-        let categories: Vec<String> = diagnostics
-            .iter()
-            .filter_map(|d| d["category"].as_str().map(str::to_string))
-            .collect();
+    // envelope shape must still be valid — for EVERY diagnostic, not
+    // just the first (CLAWP-040: validating only `diagnostics.first()`
+    // let a malformed tail diagnostic pass while the head looked fine).
+    for (idx, diag) in diagnostics.iter().enumerate() {
+        assert_eq!(
+            diag["schema_version"], "anvil.diagnostic.v1",
+            "diagnostic[{idx}]: {diag}"
+        );
+        assert_eq!(diag["mode"], "gate", "diagnostic[{idx}]: {diag}");
         assert!(
-            !categories.iter().any(|c| c == "other"),
-            "no AI-guardrail diagnostic should route to `other`; saw: {categories:?}"
+            diag["id"].is_string(),
+            "diagnostic[{idx}].id not a string: {diag}"
+        );
+        assert!(
+            diag["severity"].is_string(),
+            "diagnostic[{idx}].severity not a string: {diag}"
+        );
+        assert!(
+            diag["summary"].is_string(),
+            "diagnostic[{idx}].summary not a string: {diag}"
+        );
+        assert!(
+            diag["category"].is_string(),
+            "diagnostic[{idx}].category not a string: {diag}"
+        );
+        assert!(
+            diag["source"]["rule_id"].is_string(),
+            "diagnostic[{idx}].source.rule_id not a string: {diag}"
+        );
+        assert!(
+            diag["source"]["source_module"].is_string(),
+            "diagnostic[{idx}].source.source_module not a string: {diag}"
+        );
+        assert!(
+            diag["location"]["file"].is_string(),
+            "diagnostic[{idx}].location.file not a string: {diag}"
         );
     }
+
+    // Every AI-guardrail diagnostic must route to a dedicated Category —
+    // a diagnostic landing in `other` means `summary.by_category` lost
+    // signal.
+    let categories: Vec<String> = diagnostics
+        .iter()
+        .filter_map(|d| d["category"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        !categories.iter().any(|c| c == "other"),
+        "no AI-guardrail diagnostic should route to `other`; saw: {categories:?}"
+    );
 }
 
 #[test]

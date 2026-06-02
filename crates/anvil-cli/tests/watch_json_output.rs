@@ -428,8 +428,10 @@ fn fixture_engine_wide_error_envelope_omits_file_field() {
 fn extract_json_blocks(markdown: &str) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
     let mut iter = markdown.lines().peekable();
+    let mut block_idx = 0usize;
     while let Some(line) = iter.next() {
         if line.trim_start().starts_with("```json") {
+            block_idx += 1;
             let mut buf = String::new();
             for inner in iter.by_ref() {
                 if inner.trim_start().starts_with("```") {
@@ -438,9 +440,18 @@ fn extract_json_blocks(markdown: &str) -> Vec<serde_json::Value> {
                 buf.push_str(inner);
                 buf.push('\n');
             }
-            if let Ok(value) = serde_json::from_str(&buf) {
-                out.push(value);
-            }
+            // CLAWP-048: fail loud on an unparseable fenced `json` block.
+            // The prior `if let Ok(..)` silently dropped a block that no
+            // longer parsed, so a broken copy-paste example in the public
+            // docs would just vanish from the comparison set and the test
+            // would still pass — exactly the regression this guards.
+            let value = serde_json::from_str::<serde_json::Value>(&buf).unwrap_or_else(|err| {
+                panic!(
+                    "fenced ```json block #{block_idx} in the consumer doc failed to parse: {err}\n\
+                     block content:\n{buf}"
+                )
+            });
+            out.push(value);
         }
     }
     out

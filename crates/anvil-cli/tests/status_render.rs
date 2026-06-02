@@ -91,7 +91,12 @@ fn render_fixture(claim: &ProtectionClaim) -> String {
 /// fixture path is reported in error messages so failures point at
 /// the file to inspect.
 fn assert_or_update_fixture(path: &Path, actual: &str) {
-    if std::env::var_os("ANVIL_UPDATE_FIXTURES").is_some() {
+    // CLAWP-052: gate update mode on the exact value `1`, not mere
+    // presence. An accidental `ANVIL_UPDATE_FIXTURES=0` (or any stray
+    // value) must NOT silently turn golden assertions into fixture
+    // rewrites — that would let a regression overwrite the goldens with
+    // wrong output instead of failing.
+    if std::env::var("ANVIL_UPDATE_FIXTURES").is_ok_and(|v| v == "1") {
         // Serialised write: holds the lock across dir-create + write so a
         // concurrent reader (round-trip / layout tests) never sees a
         // half-written or momentarily-absent file.
@@ -239,7 +244,7 @@ fn fixture_directory_layout_is_pinned() {
     // checkout populates the dirs deterministically; otherwise the
     // test would fail before the producers above have a chance to
     // write the files.
-    if std::env::var_os("ANVIL_UPDATE_FIXTURES").is_some() {
+    if std::env::var("ANVIL_UPDATE_FIXTURES").is_ok_and(|v| v == "1") {
         for state in WorktreeClaimState::all() {
             assert_or_update_fixture(
                 &worktree_fixture_path(*state),

@@ -183,6 +183,111 @@ fn probe_is_skipped_when_no_install_yet() {
     );
 }
 
+/// CLAWP-045: write a fake `anvil` onto a test-controlled PATH that
+/// ignores its args and sleeps instead of serving MCP, so
+/// `anvil mcp serve --stdio` spawns but never emits a JSON-RPC
+/// `initialize` response. Paired with a bare-`"anvil"` config entry
+/// (below), this is what lets the probe reach the handshake path and
+/// then genuinely wedge there until its 1-second timeout fires.
+///
+/// The script restores a normal PATH and `exec`s `sleep`: the probe
+/// runs the stub with PATH set to just `path_dir` (so the bare `anvil`
+/// command resolves here), which would otherwise hide `sleep`. `exec`
+/// replaces the shell with `sleep` under the same PID, so the probe's
+/// timeout-kill lands on the actual sleeping process and leaves no
+/// orphan.
+#[cfg(not(target_os = "windows"))]
+fn write_hanging_anvil_stub(path_dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let stub = path_dir.join("anvil");
+    fs::write(
+        &stub,
+        "#!/bin/sh\nPATH=/usr/bin:/bin:$PATH\nexec sleep 60\n",
+    )
+    .unwrap();
+    fs::set_permissions(&stub, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// Install a Cursor entry with a bare `"command": "anvil"`. Bare `anvil`
+/// is config-*equivalent* to a real install (basename match, see
+/// `mcp_client::entries_equivalent`), so it classifies as
+/// `RestartRequired` — the only tier the spawn probe actually launches.
+/// A full path to a non-canonical `anvil` would instead read as version
+/// drift (`ConfigPresent`) and never be spawned.
+#[cfg(not(target_os = "windows"))]
+fn install_cursor_entry_bare_anvil(home: &Path) {
+    fs::create_dir_all(home.join(".cursor")).unwrap();
+    let cfg = serde_json::json!({
+        "mcpServers": {
+            "anvil": {
+                "command": "anvil",
+                "args": ["mcp", "serve", "--stdio"],
+                "env": {},
+            }
+        }
+    });
+    fs::write(
+        home.join(".cursor").join("mcp.json"),
+        serde_json::to_string_pretty(&cfg).unwrap(),
+    )
+    .unwrap();
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn hanging_handshake_times_out_without_promotion() {
+    // CLAWP-045: the suite previously timed only the SUCCESSFUL
+    // handshake path, so a probe regression that dropped the 1-second
+    // budget would be caught on a healthy server but not on a wedged
+    // one. Drive the probe at a RestartRequired entry whose `anvil`
+    // resolves (via the controlled PATH) to a stub that never answers
+    // the initialize request, then assert (a) `status --verify` still
+    // returns well within budget and (b) the client is NOT promoted.
+    let workdir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let path_dir = tempfile::tempdir().unwrap();
+    install_cursor_entry_bare_anvil(home.path());
+    write_hanging_anvil_stub(path_dir.path());
+
+    let start = std::time::Instant::now();
+    let out = run_status_verify_with_path(workdir.path(), home.path(), Some(path_dir.path()));
+    let elapsed = start.elapsed();
+
+    assert!(
+        out.status.success(),
+        "anvil status --verify failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+
+    // The wedged server must NOT be promoted — the handshake never
+    // completed — and must not land in the weaker server_startable tier.
+    assert!(
+        !stdout.contains("restart_handshake_verified"),
+        "an unresponsive MCP command must not promote to \
+         restart_handshake_verified, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("server_startable"),
+        "a wedged handshake must not promote to server_startable, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Cursor: restart_required"),
+        "a RestartRequired Cursor entry whose handshake wedges should stay \
+         at restart_required, got:\n{stdout}"
+    );
+
+    // Budget guard: the stub `sleep 60` is far longer than any
+    // legitimate `status --verify`, so exceeding this bound means the
+    // 1-second probe timeout did not fire and the probe blocked on the
+    // child.
+    assert!(
+        elapsed < std::time::Duration::from_secs(20),
+        "status --verify took {elapsed:?} against a hanging MCP command — \
+         the 1s probe timeout did not fire"
+    );
+}
+
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn handshake_promotion_is_per_client() {
