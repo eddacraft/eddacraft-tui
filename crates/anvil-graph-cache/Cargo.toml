@@ -1,0 +1,25 @@
+[package]
+name = "eddacraft-anvil-graph-cache"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Parser-free semantic graph state and algorithms for the Anvil daemon save-time cache (ADR-064)"
+
+[lib]
+name = "anvil_graph_cache"
+
+[dependencies]
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+petgraph = { workspace = true }
+# `serde` is part of this crate's ADR-064 §2 dependency set; its first in-crate
+# consumer (snapshot/`certify` serialisation) lands in a later sub-phase-A task.
+# Kept here per the ADR so the boundary is fixed once; the relocated graph data
+# types it serialises already derive `serde` in `anvil-kernel-types`.
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+workspace-hack.workspace = true
+
+[lints]
+workspace = true

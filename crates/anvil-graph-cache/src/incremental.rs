@@ -1,10 +1,11 @@
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
-use anvil_kernel_types::{EdgeType, SymbolKind, SymbolNode, TrustLevel, Visibility};
+use anvil_kernel_types::{
+    EdgeType, FileSymbols, ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
+};
 
 use super::symbol_graph::SymbolGraph;
-use crate::parser::extract::FileSymbols;
 
 /// Changes produced by an incremental graph update.
 #[derive(Debug, Clone, Default)]
@@ -80,7 +81,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         match graph.add_symbol(symbol) {
             Ok(_) => added_ids.push(id),
             Err(e) => {
-                eprintln!("graph: failed to insert symbol {id}: {e}");
+                tracing::warn!("graph: failed to insert symbol {id}: {e}");
                 errors.push(format!("symbol {id}: {e}"));
             }
         }
@@ -251,7 +252,7 @@ pub(crate) fn resolve_import(
 
 /// Re-resolve imports that could not be resolved during initial scan because
 /// the target file had not been parsed yet.
-pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[crate::parser::extract::ImportEdge]) {
+pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
     let known_files: Vec<String> = graph
         .inner()
         .node_weights()
@@ -300,8 +301,7 @@ pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::extract::ImportEdge;
-    use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
+    use anvil_kernel_types::{ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
 
     fn make_file_symbols(file: &str, symbols: Vec<(u64, &str, SymbolKind)>) -> FileSymbols {
         FileSymbols {
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn update_populates_added_edges_from_imports() {
-        use crate::parser::extract::ImportEdge;
+        use anvil_kernel_types::ImportEdge;
 
         let mut g = SymbolGraph::new();
         // Pre-add the target symbol so the edge can resolve
@@ -708,7 +708,7 @@ mod tests {
     /// the graph already owns.
     #[test]
     fn external_synthetic_does_not_collide_with_next_files_base_id() {
-        use crate::parser::extract::ImportEdge;
+        use anvil_kernel_types::ImportEdge;
 
         let mut g = SymbolGraph::new();
 
@@ -804,7 +804,7 @@ mod tests {
     /// makes id 0 a valid source.
     #[test]
     fn id_zero_first_symbol_still_emits_import_edges() {
-        use crate::parser::extract::ImportEdge;
+        use anvil_kernel_types::ImportEdge;
 
         let mut g = SymbolGraph::new();
 

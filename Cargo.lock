@@ -1273,6 +1273,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-graph-cache"
+version = "0.7.4-beta"
+dependencies = [
+ "eddacraft-anvil-kernel-types",
+ "petgraph",
+ "serde",
+ "thiserror 2.0.18",
+ "tracing",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-hook"
 version = "0.7.4-beta"
 dependencies = [
@@ -1293,6 +1305,7 @@ dependencies = [
  "eddacraft-anvil-attribution",
  "eddacraft-anvil-checks",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-intercept-win32",
@@ -1351,12 +1364,12 @@ name = "eddacraft-anvil-kernel"
 version = "0.7.4-beta"
 dependencies = [
  "criterion",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-rayon-init",
  "globset",
  "ignore",
  "notify",
- "petgraph",
  "rayon",
  "serde",
  "serde_json",

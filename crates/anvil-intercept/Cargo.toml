@@ -36,6 +36,9 @@ bench-internals = []
 [dependencies]
 anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-attribution" }
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+# Parser-free graph state + algorithms (ADR-064). Inherits `petgraph` only —
+# does NOT pull in `anvil-kernel`/tree-sitter. Backs the daemon save-time cache.
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }

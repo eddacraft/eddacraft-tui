@@ -26,13 +26,21 @@
 //! ## Why a structural mirror, not a kernel-crate dep
 //!
 //! Pulling `eddacraft-anvil-kernel` into `anvil-intercept` would drag
-//! in `tree-sitter`, `petgraph`, and the parser surface — none of
-//! which the daemon needs at runtime. The channel shape is three
-//! plain fields ([`std::path::PathBuf`], [`ChangeKind`],
-//! [`std::time::Instant`]); duplicating it locally and adapting at
-//! the daemon binding keeps the dep tree honest. The kernel side is
-//! still the single source of truth for *generating* batches; this
-//! module is the receiving end.
+//! in `tree-sitter` and the parser surface — neither of which the
+//! daemon needs at runtime. The channel shape is three plain fields
+//! ([`std::path::PathBuf`], [`ChangeKind`], [`std::time::Instant`]);
+//! duplicating it locally and adapting at the daemon binding keeps the
+//! dep tree honest. The kernel side is still the single source of
+//! truth for *generating* batches; this module is the receiving end.
+//!
+//! The read-only graph state the save-time cache needs (`SymbolGraph`,
+//! `DependencyGraph`, incremental apply-delta, `certify`) lives in
+//! `eddacraft-anvil-graph-cache` (ADR-064) — `petgraph`-only, no
+//! parser surface — which the daemon *does* depend on. So the boundary
+//! held here is narrower than "no graph at all": the daemon holds and
+//! mutates the graph via that crate, but the tree-sitter parser stays
+//! kernel-only (the cache write-path consumes kernel-parsed
+//! `FileSymbols` fed over this channel, ADR-064 §4).
 //!
 //! ## What this module is not
 //!

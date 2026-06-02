@@ -19,7 +19,9 @@ pub use feature_flags::{
     FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant, TargetingCondition,
     TargetingOperator, TargetingRule,
 };
-pub use graph::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, Visibility};
+pub use graph::{
+    EdgeType, FileSymbols, ImportEdge, SymbolEdge, SymbolKind, SymbolNode, Visibility,
+};
 pub use hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 pub use notifications::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,

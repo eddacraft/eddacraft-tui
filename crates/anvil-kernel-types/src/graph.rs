@@ -57,6 +57,32 @@ pub struct SymbolEdge {
     pub edge_type: EdgeType,
 }
 
+/// Extracted symbols from a single file.
+///
+/// A plain data carrier produced by the parser and consumed by the graph
+/// algorithms in `anvil-graph-cache`. Relocated here from `anvil-kernel`'s
+/// parser crate (ADR-064) so the graph layer can name it without depending on
+/// the tree-sitter parser surface; the old `anvil_kernel::parser::extract`
+/// path still resolves via a re-export. Carries `serde` for parity with the
+/// sibling graph types (and the planned daemon `FileSymbols` feed, ADR-064 §4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileSymbols {
+    pub file: String,
+    pub symbols: Vec<SymbolNode>,
+    pub imports: Vec<ImportEdge>,
+}
+
+/// An import edge from one file to another.
+///
+/// Relocated here from the parser crate (ADR-064); carries no parser logic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportEdge {
+    pub from_file: String,
+    pub to_source: String,
+    /// 1-based line number of the import statement (0 = unknown).
+    pub line: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

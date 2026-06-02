@@ -1,7 +1,6 @@
-use anvil_kernel_types::{SymbolKind, TrustLevel, Visibility};
+use anvil_kernel_types::{ImportEdge, SymbolKind, TrustLevel, Visibility};
 
 use super::symbol_graph::SymbolGraph;
-use crate::parser::extract::ImportEdge;
 
 /// Sensitive module names that indicate privileged access.
 /// Matched by exact module token (or `node:` prefix), not substring, to avoid

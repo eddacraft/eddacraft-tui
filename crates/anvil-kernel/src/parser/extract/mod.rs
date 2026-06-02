@@ -17,26 +17,13 @@ pub mod typescript;
 
 use std::path::Path;
 
-use anvil_kernel_types::SymbolNode;
-
 use super::languages::Language;
 
-/// Extracted symbols from a single file.
-#[derive(Debug, Clone)]
-pub struct FileSymbols {
-    pub file: String,
-    pub symbols: Vec<SymbolNode>,
-    pub imports: Vec<ImportEdge>,
-}
-
-/// An import edge from one file to another.
-#[derive(Debug, Clone)]
-pub struct ImportEdge {
-    pub from_file: String,
-    pub to_source: String,
-    /// 1-based line number of the import statement (0 = unknown).
-    pub line: u32,
-}
+// `FileSymbols` / `ImportEdge` are plain graph-data carriers; they were
+// relocated to `anvil-kernel-types::graph` (ADR-064) so `anvil-graph-cache` can
+// name them without depending on this parser crate. Re-exported here so existing
+// `crate::parser::extract::{FileSymbols, ImportEdge}` paths keep resolving.
+pub use anvil_kernel_types::{FileSymbols, ImportEdge};
 
 /// A per-language symbol extractor.
 ///

@@ -11,12 +11,12 @@ name = "anvil_kernel"
 
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 anvil-rayon-init = { path = "../anvil-rayon-init", package = "eddacraft-anvil-rayon-init" }
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tree-sitter-javascript = { workspace = true }
 notify = { workspace = true }
-petgraph = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
