@@ -12,7 +12,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::props::{str_or, str_prop};
+use super::props::{disp, disp_or};
 
 /// Renders the `EvidenceEntry` component.
 pub struct EvidenceEntry;
@@ -23,11 +23,11 @@ impl TuiComponent for EvidenceEntry {
             return;
         }
         let theme = EddaCraftTheme;
-        let timestamp = str_or(props, "timestamp", "");
-        let actor = str_or(props, "actor", "");
-        let message = str_prop(props, "message")
-            .or_else(|| str_prop(props, "action"))
-            .unwrap_or("");
+        let timestamp = disp_or(props, "timestamp", "");
+        let actor = disp_or(props, "actor", "");
+        let message = disp(props, "message")
+            .or_else(|| disp(props, "action"))
+            .unwrap_or_default();
 
         let mut spans = Vec::new();
         if !timestamp.is_empty() {
@@ -44,7 +44,7 @@ impl TuiComponent for EvidenceEntry {
                     .add_modifier(Modifier::BOLD),
             ));
         }
-        spans.push(Span::styled(message.to_owned(), theme.base()));
+        spans.push(Span::styled(message, theme.base()));
         frame.render_widget(Paragraph::new(Line::from(spans)), area);
     }
 

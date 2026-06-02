@@ -20,6 +20,11 @@ use std::path::Path;
 use eddacraft_tui::json_render::DataContext;
 use serde_json::{Map, Value};
 
+/// Maximum size of a single `.anvil/` data file folded into the context. Guards
+/// against an oversized (or symlinked-to-a-device) file stalling or exhausting
+/// memory; larger files are skipped, exactly like unreadable ones.
+const MAX_DATA_BYTES: u64 = 4 * 1024 * 1024;
+
 /// Assemble a [`DataContext`] from the JSON state under `<root>/.anvil/`.
 ///
 /// Only files matching `*.json` directly inside `.anvil/` are read (the
@@ -43,6 +48,10 @@ pub fn load_context(root: &Path) -> DataContext {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
+        // Skip oversized files (incl. symlinks to devices) before reading.
+        if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_DATA_BYTES) {
+            continue;
+        }
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };

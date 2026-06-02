@@ -66,6 +66,12 @@ impl SpecDashboardState {
     }
 }
 
+/// Maximum size of a dashboard spec file. A spec is a small JSON document; a
+/// multi-megabyte file is pathological (or hostile), and reading/parsing it
+/// whole would stall the picker, so oversized files are skipped (discovery) or
+/// rejected (load) before `read_to_string` buffers them.
+const MAX_SPEC_BYTES: u64 = 2 * 1024 * 1024;
+
 /// A saved dashboard spec discovered under `.anvil/dashboards/`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SavedDashboard {
@@ -96,6 +102,14 @@ pub enum SpecLoadError {
         /// The underlying JSON error.
         source: serde_json::Error,
     },
+    /// The spec file exceeds [`MAX_SPEC_BYTES`].
+    #[error("dashboard spec {path} is too large ({size} bytes, max {MAX_SPEC_BYTES})")]
+    TooLarge {
+        /// The oversized path.
+        path: String,
+        /// Its size in bytes.
+        size: u64,
+    },
 }
 
 /// List the saved dashboard specs under `<root>/.anvil/dashboards/`, sorted by
@@ -116,6 +130,10 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
         let Some(name) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
+        // Skip oversized files before reading them into memory.
+        if fs::metadata(&path).is_ok_and(|m| m.len() > MAX_SPEC_BYTES) {
+            continue;
+        }
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
@@ -137,6 +155,19 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
 /// # Errors
 /// [`SpecLoadError`] if the file cannot be read or is not valid json-render JSON.
 pub fn load(path: &Path, root: PathBuf) -> Result<SpecDashboardState, SpecLoadError> {
+    // Reject oversized files before buffering them.
+    let size = fs::metadata(path)
+        .map_err(|source| SpecLoadError::Read {
+            path: path.display().to_string(),
+            source,
+        })?
+        .len();
+    if size > MAX_SPEC_BYTES {
+        return Err(SpecLoadError::TooLarge {
+            path: path.display().to_string(),
+            size,
+        });
+    }
     let text = fs::read_to_string(path).map_err(|source| SpecLoadError::Read {
         path: path.display().to_string(),
         source,

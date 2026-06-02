@@ -33,6 +33,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
+use crate::json_render::sanitize::sanitize;
 use crate::json_render::{RenderSpec, TuiRegistry};
 
 /// Maximum element-tree depth the renderer descends before drawing a guard
@@ -79,8 +80,9 @@ fn render_element(
     let Some(element) = spec.element(id) else {
         // A `children` entry pointing at no element. `validate` reports this as a
         // `DanglingChild`, but we may not have been validated — show a marker
-        // instead of unwrapping a missing key.
-        draw_placeholder(frame, area, &format!("[missing: {id}]"));
+        // instead of unwrapping a missing key. The id is spec-controlled, so it
+        // is sanitised before display.
+        draw_placeholder(frame, area, &format!("[missing: {}]", sanitize(id)));
         return;
     };
 
@@ -92,11 +94,18 @@ fn render_element(
         draw_placeholder(
             frame,
             area,
-            &format!("[{}: not available in terminal]", element.component_type),
+            &format!(
+                "[{}: not available in terminal]",
+                sanitize(&element.component_type)
+            ),
         );
         return;
     };
 
+    // NB: `element.visible` conditions are not evaluated yet — every element
+    // renders unconditionally regardless of a `visible` expression. Conditional
+    // visibility is deferred to a later work item; until then a spec author
+    // cannot hide an element via `visible`.
     component.render(&element.props, frame, area);
 
     let rects = component.layout_children(&element.props, area, element.children.len());
@@ -321,6 +330,23 @@ mod tests {
         // the MAX_DEPTH guard specifically.
         let text = render_to_string(40, 80, &spec, &registry);
         assert!(text.contains("[max render depth reached]"), "got: {text:?}");
+    }
+
+    #[test]
+    fn visible_condition_is_currently_ignored() {
+        // Documents present behaviour: an element with `visible: false` still
+        // renders (conditions are not yet evaluated). A future implementer that
+        // wires up visibility will flip this expectation deliberately.
+        let spec = parse(
+            r#"{ "title": "x", "version": "1.0", "root": "a",
+                 "elements": { "a": { "type": "Mark", "props": {}, "children": [],
+                     "visible": false } } }"#,
+        )
+        .expect("parse");
+        let mut registry = TuiRegistry::new();
+        registry.register("Mark", Box::new(Leaf("SHOWN")));
+        let text = render_to_string(20, 2, &spec, &registry);
+        assert!(text.contains("SHOWN"), "visible:false still renders today");
     }
 
     #[test]

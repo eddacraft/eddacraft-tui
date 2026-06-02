@@ -25,28 +25,35 @@ pub struct ListEntry {
     pub title: String,
     /// One-line description shown when there is no spec preview.
     pub description: String,
+    /// Whether the dashboard can be opened. A planned-but-unbuilt native
+    /// dashboard lists as "coming soon" and is not selectable.
+    pub available: bool,
     /// A bound spec surface used to render the preview pane. `None` for native
     /// dashboards, which have no json-render spec.
     pub preview: Option<SpecDashboardState>,
 }
 
 impl ListEntry {
-    /// A native dashboard entry (no spec preview).
+    /// A native dashboard entry (no spec preview). `available` is `false` for
+    /// planned dashboards whose surface has not landed.
     #[must_use]
     pub fn native(
         name: impl Into<String>,
         title: impl Into<String>,
         description: impl Into<String>,
+        available: bool,
     ) -> Self {
         Self {
             name: name.into(),
             title: title.into(),
             description: description.into(),
+            available,
             preview: None,
         }
     }
 
-    /// A saved-spec dashboard entry whose preview renders `surface`.
+    /// A saved-spec dashboard entry whose preview renders `surface`. Saved specs
+    /// are always openable (a malformed spec never reaches discovery).
     #[must_use]
     pub fn spec(
         name: impl Into<String>,
@@ -57,6 +64,7 @@ impl ListEntry {
             name: name.into(),
             title: title.into(),
             description: String::new(),
+            available: true,
             preview: Some(surface),
         }
     }
@@ -103,8 +111,12 @@ impl DashboardListState {
 
     fn choose(&mut self) {
         if let Some(entry) = self.entries.get(self.selected) {
-            self.chosen = Some(entry.name.clone());
-            self.should_quit = true;
+            // Selecting a coming-soon dashboard is a no-op (matches the contract
+            // of the picker this supersedes).
+            if entry.available {
+                self.chosen = Some(entry.name.clone());
+                self.should_quit = true;
+            }
         }
     }
 
@@ -114,15 +126,22 @@ impl DashboardListState {
             .iter()
             .enumerate()
             .map(|(i, entry)| {
+                let label = if entry.available {
+                    entry.title.clone()
+                } else {
+                    format!("{}  (coming soon)", entry.title)
+                };
                 if i == self.selected {
                     Line::styled(
-                        format!("▶ {}", entry.title),
+                        format!("▶ {label}"),
                         Style::default()
                             .fg(theme.accent())
                             .add_modifier(Modifier::BOLD),
                     )
+                } else if entry.available {
+                    Line::styled(format!("  {label}"), theme.base())
                 } else {
-                    Line::styled(format!("  {}", entry.title), theme.base())
+                    Line::styled(format!("  {label}"), Style::default().fg(theme.muted()))
                 }
             })
             .collect();
@@ -208,6 +227,7 @@ mod tests {
                 "architecture",
                 "Architecture Health",
                 "layers and violations",
+                true,
             ),
             ListEntry::spec(
                 "gate",
@@ -254,6 +274,19 @@ mod tests {
             "spec preview rendered: {text:?}"
         );
         assert!(text.contains("Architecture Health") && text.contains("Gate"));
+    }
+
+    #[test]
+    fn selecting_a_coming_soon_entry_is_a_noop() {
+        let mut state = DashboardListState::new(vec![ListEntry::native(
+            "future",
+            "Future Dashboard",
+            "not wired yet",
+            false,
+        )]);
+        state.handle_key(Action::Select);
+        assert!(state.chosen.is_none(), "unavailable entry is not chosen");
+        assert!(!state.should_quit(), "picker stays open");
     }
 
     #[test]

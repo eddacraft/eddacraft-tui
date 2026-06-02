@@ -69,15 +69,27 @@ pub fn anvil_catalog() -> Catalog {
 /// Prop-reading helpers shared by the domain components. Each returns a default
 /// rather than panicking on an absent or ill-typed prop.
 mod props {
-    use eddacraft_tui::json_render::Props;
+    use eddacraft_tui::json_render::{Props, sanitize};
     use serde_json::Value;
 
+    /// Read a string prop for **matching** (status/variant enums), not display.
     pub(super) fn str_prop<'a>(props: &'a Props, key: &str) -> Option<&'a str> {
         props.get(key).and_then(Value::as_str)
     }
 
+    /// Read a string prop for matching, with a fallback (matching only).
     pub(super) fn str_or<'a>(props: &'a Props, key: &str, default: &'a str) -> &'a str {
         str_prop(props, key).unwrap_or(default)
+    }
+
+    /// Read a **display** string prop, sanitised of control characters.
+    pub(super) fn disp(props: &Props, key: &str) -> Option<String> {
+        str_prop(props, key).map(sanitize)
+    }
+
+    /// Read a sanitised display string prop, falling back to trusted `default`.
+    pub(super) fn disp_or(props: &Props, key: &str, default: &str) -> String {
+        disp(props, key).unwrap_or_else(|| default.to_owned())
     }
 
     /// Read an array prop, or an empty slice if absent / not an array.

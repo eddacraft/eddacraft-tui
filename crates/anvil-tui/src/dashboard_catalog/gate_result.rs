@@ -5,7 +5,7 @@
 //! status badge, the score/timestamp, and a short per-check list. Leaf
 //! component.
 
-use eddacraft_tui::json_render::{Props, TuiComponent};
+use eddacraft_tui::json_render::{Props, TuiComponent, sanitize};
 use eddacraft_tui::prelude::{
     BadgeStatus, Container, ContainerVariant, EddaCraftTheme, StatusBadge, Theme,
 };
@@ -46,8 +46,10 @@ impl TuiComponent for GateResultCard {
         }
 
         let status = str_or(props, "status", "info");
-        let label = str_prop(props, "score")
-            .map_or_else(|| status.to_uppercase(), |s| format!("score {s}"));
+        let label = sanitize(
+            &str_prop(props, "score")
+                .map_or_else(|| status.to_uppercase(), |s| format!("score {s}")),
+        );
         // Render the status badge on the first inner row.
         let badge_area = Rect::new(inner.x, inner.y, inner.width, 1);
         frame.render_widget(
@@ -59,12 +61,13 @@ impl TuiComponent for GateResultCard {
         let mut lines: Vec<Line> = Vec::new();
         if let Some(ts) = str_prop(props, "timestamp") {
             lines.push(Line::styled(
-                ts.to_owned(),
+                sanitize(ts),
                 Style::default().fg(theme.muted()),
             ));
         }
         for check in array_prop(props, "checks") {
             let name = check.get("name").and_then(Value::as_str).unwrap_or("");
+            let name = sanitize(name);
             let cstatus = check.get("status").and_then(Value::as_str).unwrap_or("");
             let marker = if matches!(badge_status(cstatus), BadgeStatus::Success) {
                 "✓"
@@ -73,7 +76,7 @@ impl TuiComponent for GateResultCard {
             };
             lines.push(Line::from(vec![
                 Span::styled(format!("{marker} "), theme.base()),
-                Span::styled(name.to_owned(), theme.base()),
+                Span::styled(name, theme.base()),
             ]));
         }
         if !lines.is_empty() {

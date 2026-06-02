@@ -14,18 +14,26 @@ use ratatui::layout::Rect;
 use serde_json::Value;
 
 use crate::json_render::responsive::max_table_columns;
+use crate::json_render::sanitize::sanitize;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::EddaCraftTheme;
 use crate::widgets::data_table::DataTable;
 
+/// Hard ceiling on rows materialised, regardless of area. A spec (or a `$data`
+/// reference into a huge `.anvil/` array) could declare millions of rows;
+/// without a cap every redraw would stringify them all even though only a
+/// screenful is visible.
+const MAX_TABLE_ROWS: usize = 1_000;
+
 /// Renders the `Table` component.
 pub struct Table;
 
-/// Stringify a single JSON cell value for display. Objects/arrays/null render
-/// as an em dash rather than raw JSON, keeping cells terse.
+/// Stringify a single JSON cell value for display, sanitising string cells of
+/// control characters. Objects/arrays/null render as an em dash rather than raw
+/// JSON, keeping cells terse.
 fn cell_text(value: &Value) -> String {
     match value {
-        Value::String(s) => s.clone(),
+        Value::String(s) => sanitize(s),
         Value::Number(n) => n.to_string(),
         Value::Bool(b) => b.to_string(),
         _ => "—".to_owned(),
@@ -45,7 +53,10 @@ impl Table {
             .get("rows")
             .and_then(Value::as_array)
             .map(|rows| {
+                // Cap materialised rows so a pathologically large `rows` array
+                // cannot force an unbounded per-frame stringification allocation.
                 rows.iter()
+                    .take(MAX_TABLE_ROWS)
                     .map(|row| {
                         row.as_array()
                             .map(|cells| cells.iter().map(cell_text).collect())

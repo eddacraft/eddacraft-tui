@@ -12,7 +12,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::{Gauge, Paragraph};
 
-use super::props::{str_or, str_prop};
+use super::props::{disp, disp_or};
 
 /// Renders the `PlanCard` component.
 pub struct PlanCard;
@@ -23,15 +23,18 @@ impl PlanCard {
     /// percentage; defaults to empty/zero.
     fn progress(props: &Props) -> (f64, String) {
         let num = |k: &str| props.get(k).and_then(serde_json::Value::as_f64);
+        // `Gauge::ratio` panics on a non-finite ratio, so every path collapses
+        // NaN/inf to zero (clamp alone does not sanitise NaN).
+        let finite = |r: f64| if r.is_finite() { r } else { 0.0 };
         if let (Some(done), Some(total)) = (num("done"), num("total")) {
             let ratio = if total > 0.0 {
-                (done / total).clamp(0.0, 1.0)
+                finite((done / total).clamp(0.0, 1.0))
             } else {
                 0.0
             };
             return (ratio, format!("{done:.0}/{total:.0}"));
         }
-        let pct = num("progress").unwrap_or(0.0).clamp(0.0, 100.0);
+        let pct = finite(num("progress").unwrap_or(0.0).clamp(0.0, 100.0));
         (pct / 100.0, format!("{pct:.0}%"))
     }
 }
@@ -42,10 +45,10 @@ impl TuiComponent for PlanCard {
             return;
         }
         let theme = EddaCraftTheme;
-        let title = str_or(props, "title", "Plan");
+        let title = disp_or(props, "title", "Plan");
         let container = Container::new(&theme)
             .variant(ContainerVariant::Secondary)
-            .title(title);
+            .title(&title);
         let inner = container.inner(area);
         frame.render_widget(container.to_block(), area);
         if inner.width == 0 || inner.height == 0 {
@@ -53,12 +56,9 @@ impl TuiComponent for PlanCard {
         }
 
         let rows = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(inner);
-        if let Some(status) = str_prop(props, "status") {
+        if let Some(status) = disp(props, "status") {
             frame.render_widget(
-                Paragraph::new(Line::styled(
-                    status.to_owned(),
-                    Style::default().fg(theme.muted()),
-                )),
+                Paragraph::new(Line::styled(status, Style::default().fg(theme.muted()))),
                 rows[0],
             );
         }

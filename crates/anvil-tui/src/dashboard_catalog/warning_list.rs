@@ -5,7 +5,7 @@
 //! location dimmed. More warnings than rows are truncated with a `… N more`
 //! tail. Leaf component.
 
-use eddacraft_tui::json_render::{Props, TuiComponent};
+use eddacraft_tui::json_render::{Props, TuiComponent, sanitize};
 use eddacraft_tui::prelude::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -51,11 +51,11 @@ impl TuiComponent for WarningList {
 
             let mut spans = vec![
                 Span::styled("● ", Style::default().fg(severity_colour(severity, &theme))),
-                Span::styled(message.to_owned(), theme.base()),
+                Span::styled(sanitize(message), theme.base()),
             ];
             if let Some(location) = location {
                 spans.push(Span::styled(
-                    format!("  {location}"),
+                    format!("  {}", sanitize(location)),
                     Style::default().fg(theme.muted()),
                 ));
             }

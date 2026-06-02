@@ -148,7 +148,7 @@ fn run_picker(
     // description card; saved specs render a mini-preview through the engine.
     let mut items: Vec<ListEntry> = catalog
         .iter()
-        .map(|e| ListEntry::native(e.name, e.title, e.description))
+        .map(|e| ListEntry::native(e.name, e.title, e.description, e.available))
         .collect();
     if let Some(root) = root {
         for saved in specs {

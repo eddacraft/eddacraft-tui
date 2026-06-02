@@ -11,18 +11,21 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Gauge, Paragraph};
 
-use super::props::{str_or, str_prop};
+use super::props::{disp_or, str_prop};
 
 /// Renders the `DriftIndicator` component.
 pub struct DriftIndicator;
 
 impl DriftIndicator {
     fn score(props: &Props) -> f64 {
-        props
+        let score = props
             .get("score")
             .and_then(serde_json::Value::as_f64)
             .unwrap_or(0.0)
-            .clamp(0.0, 100.0)
+            .clamp(0.0, 100.0);
+        // `clamp` passes NaN through, and `Gauge::ratio` (score/100) panics on a
+        // non-finite ratio — collapse NaN/inf to zero.
+        if score.is_finite() { score } else { 0.0 }
     }
 
     fn trend_span(props: &Props, theme: &EddaCraftTheme) -> Option<Span<'static>> {
@@ -46,7 +49,7 @@ impl TuiComponent for DriftIndicator {
         }
         let theme = EddaCraftTheme;
         let score = Self::score(props);
-        let label = str_or(props, "label", "Drift");
+        let label = disp_or(props, "label", "Drift");
 
         // Header line (label + score + trend), then a gauge beneath it.
         let rows = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(area);

@@ -14,7 +14,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
-use super::props::{str_or, str_prop};
+use super::props::{disp, str_or};
 
 /// Renders the `SuppressionRequest` component.
 pub struct SuppressionRequest;
@@ -44,21 +44,21 @@ impl TuiComponent for SuppressionRequest {
         }
 
         let status = str_or(props, "status", "info");
-        let scope = str_prop(props, "scope").unwrap_or("");
+        let scope = disp(props, "scope").unwrap_or_default();
         let badge_area = Rect::new(inner.x, inner.y, inner.width, 1);
         frame.render_widget(
-            StatusBadge::new(badge_status(status), &theme).label(scope),
+            StatusBadge::new(badge_status(status), &theme).label(&scope),
             badge_area,
         );
 
         let mut lines: Vec<Line> = Vec::new();
-        if let Some(justification) = str_prop(props, "justification") {
-            lines.push(Line::styled(justification.to_owned(), theme.base()));
+        if let Some(justification) = disp(props, "justification") {
+            lines.push(Line::styled(justification, theme.base()));
         }
-        if let Some(approver) = str_prop(props, "approver") {
+        if let Some(approver) = disp(props, "approver") {
             lines.push(Line::from(vec![
                 Span::styled("approver: ", Style::default().fg(theme.muted())),
-                Span::styled(approver.to_owned(), theme.base()),
+                Span::styled(approver, theme.base()),
             ]));
         }
         if !lines.is_empty() {

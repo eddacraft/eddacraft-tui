@@ -1496,6 +1496,7 @@ dependencies = [
  "eddacraft-tui",
  "insta",
  "ratatui",
+ "serde_json",
  "temp-env",
  "tempfile",
  "thiserror 2.0.18",
