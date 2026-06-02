@@ -11,11 +11,10 @@ include!(concat!(env!("OUT_DIR"), "/feature_flags_generated.rs"));
 mod tests {
     use crate::FeatureFlagManifest;
 
-    // The canonical manifest, embedded at compile time for the equivalence test.
-    const MANIFEST_JSON: &str = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../flags/manifest.json"
-    ));
+    // The canonical manifest, embedded at compile time from the SAME absolute
+    // path build.rs resolved (via the `FLAGCAT_MANIFEST_PATH` rustc-env it
+    // emits) — so the test and the codegen can never read different files.
+    const MANIFEST_JSON: &str = include_str!(env!("FLAGCAT_MANIFEST_PATH"));
 
     fn manifest() -> FeatureFlagManifest {
         serde_json::from_str(MANIFEST_JSON).expect("flags/manifest.json deserialises")
@@ -39,13 +38,16 @@ mod tests {
     }
 
     #[test]
-    fn manifest_round_trip_preserves_primary_group() {
-        // FLAGCAT-004 / Council: deserialising the live manifest must not drop
-        // the gating-model fields — every flag carries a primaryGroup.
+    fn manifest_flags_declare_primary_group_and_round_trip() {
+        // FLAGCAT-004 / Council: two guarantees in one pass — (a) `primary_group`
+        // survives deserialisation (no field loss; it's `Option` on the struct),
+        // and (b) every *manifest* flag actually declares one. `primary_group` is
+        // optional on the type to match the TS base schema, so this is the
+        // Rust-side invariant that the shipped manifest never omits it.
         for flag in manifest().flags {
             assert!(
                 flag.primary_group.is_some(),
-                "flag {} lost its primaryGroup on deserialisation",
+                "manifest flag {} is missing primaryGroup (or lost it on deserialisation)",
                 flag.key
             );
         }

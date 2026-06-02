@@ -24,7 +24,9 @@ fn workspace_root() -> PathBuf {
         let candidate = dir.join("Cargo.toml");
         if candidate.is_file() {
             let text = fs::read_to_string(&candidate).unwrap_or_default();
-            if text.contains("[workspace]") {
+            // Line-anchored so a commented `# [workspace]` or a
+            // `[workspace.metadata]` table can't be mistaken for the root.
+            if text.lines().any(|l| l.trim() == "[workspace]") {
                 return dir;
             }
         }
@@ -70,6 +72,10 @@ fn flag_value_lit(v: &Value) -> String {
         Value::Bool(b) => format!("crate::FlagValue::Boolean({b})"),
         Value::Number(n) => {
             let f = n.as_f64().expect("variant numeric value");
+            assert!(
+                f.is_finite(),
+                "FLAGCAT-004 build.rs: non-finite numeric variant value {f} cannot be emitted as a Rust literal"
+            );
             format!("crate::FlagValue::Number({f:?})")
         }
         Value::String(s) => format!("crate::FlagValue::String({}.to_owned())", str_lit(s)),
@@ -85,6 +91,10 @@ fn condition_value_lit(v: &Value) -> String {
         Value::String(s) => format!("crate::ConditionValue::Single({}.to_owned())", str_lit(s)),
         Value::Number(n) => {
             let f = n.as_f64().expect("condition numeric value");
+            assert!(
+                f.is_finite(),
+                "FLAGCAT-004 build.rs: non-finite numeric condition value {f} cannot be emitted as a Rust literal"
+            );
             format!("crate::ConditionValue::Numeric({f:?})")
         }
         Value::Array(items) => {
@@ -205,9 +215,19 @@ fn definition_expr(flag: &Value) -> String {
 }
 
 fn main() {
+    // Re-run when the build script itself changes — emitting any
+    // `rerun-if-changed` line disables cargo's default build.rs tracking.
+    println!("cargo:rerun-if-changed=build.rs");
+
     let root = workspace_root();
     let manifest_path = root.join("flags").join("manifest.json");
     println!("cargo:rerun-if-changed={}", manifest_path.display());
+    // Expose the resolved absolute path so in-crate tests embed the SAME file
+    // this script consumed, rather than a separately-hardcoded relative path.
+    println!(
+        "cargo:rustc-env=FLAGCAT_MANIFEST_PATH={}",
+        manifest_path.display()
+    );
 
     let display = manifest_path.display();
     let raw = fs::read_to_string(&manifest_path)
@@ -243,6 +263,13 @@ fn main() {
             .expect("flag.defaultVariant");
         keys.push(key.to_owned());
         let module = rust_module_name(key);
+        // Two keys that normalise to the same module (e.g. `a.b` and `a-b`)
+        // would emit duplicate `pub mod` blocks — a cryptic E0428. Fail here
+        // with both offending keys instead.
+        assert!(
+            !module_names.contains(&module),
+            "FLAGCAT-004 build.rs: flag key {key:?} normalises to module {module:?}, which collides with another key — rename one"
+        );
         module_names.push(module.clone());
 
         let _ = writeln!(out, "pub mod {module} {{");
