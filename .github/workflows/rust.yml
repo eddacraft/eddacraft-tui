@@ -221,7 +221,10 @@ jobs:
       - name: Install Regal
         uses: open-policy-agent/setup-regal@761188c3b435761fa254beca508a44875619648f # v2.0.0
         with:
-          version: latest
+          # Pinned to match ci.yml (single Regal version across both OPA-test
+          # steps). Floating `latest` broke CI repo-wide when Regal v0.41.0
+          # shipped without a `regal_Linux_x86_64` release asset (404).
+          version: v0.37.0
 
       - name: Run OPA policy tests
         run: opa test --verbose policies/fixtures/
