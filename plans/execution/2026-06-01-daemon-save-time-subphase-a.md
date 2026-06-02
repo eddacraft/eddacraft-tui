@@ -546,11 +546,11 @@ the work items of the [`daemon-save-time-validation`](../modules/daemon-save-tim
 module (DSV). Tasks in the same wave are independent; each wave's gate must pass before
 the next begins. **Task 10 splits**: `10a` = interactive-pool construction (spine, Wave 0);
 `10b` = chunked background-scan loop (Wave 4). Sub-phases A′ (DSV-020) and B (DSV-030) are
-externally gated successor sub-phases and are out of scope of this plan.
+externally gated successor sub-phases and are out of scope for this plan.
 
 | Wave | Tasks | DSV item(s) | Gate |
 | ---- | ----- | ----------- | ---- |
-| 0 | 0, 1, 10a, + the `run_antipattern_check_bytes` extraction (Task 8 predecessor) | DSV-001, DSV-002, DSV-006 (10a) | `anvil-graph-cache` compiles + daemon links no tree-sitter; wire frozen + proto tests pass; interactive pool built |
+| 0 | 0, 1, 10a, and the `run_antipattern_check_bytes` extraction (Task 8 predecessor) | DSV-001, DSV-002, DSV-006 (10a) | `anvil-graph-cache` compiles + daemon links no tree-sitter; wire frozen + proto tests pass; interactive pool built |
 | 1 | 2, 3, 4, 5 | DSV-003 | auth / read-safety / classify / taxonomy tests pass |
 | 2 | 6, 7; 14 (parallel) | DSV-004; DSV-008 | certify + interim-cache tests pass; `FileSymbols` feed wired; confinement tests pass |
 | 3 | 8, 9 | DSV-005 | `validate_paths` orchestration + assurance tests pass; handler passes guarded bytes (never re-reads) |
@@ -561,8 +561,8 @@ externally gated successor sub-phases and are out of scope of this plan.
 DSV-002 (Wave 0) and DSV-006-10a (Wave 0) feed in early; DSV-008 (Wave 2) and the
 DSV-006 `10b/11/16` SLO work (Wave 4) sit off the critical path. The **SLO bench (Task 16)
 is an ADR-061 §9 Phase-2 merge dependency** — it must land before Phase 2 merges even
-though it is late in the order. The sibling-plan-able lane is **Tasks 10b + 11 + 16**
-(DSV-006 minus 10a) **+ Task 14** (DSV-008).
+though it is late in the order. The sibling-plannable lane is **Tasks 10b + 11 + 16**
+(DSV-006 minus 10a) **plus Task 14** (DSV-008).
 
 ## Sequencing & parallelism notes
 
