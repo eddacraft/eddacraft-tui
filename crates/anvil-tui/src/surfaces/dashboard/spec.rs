@@ -12,7 +12,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use eddacraft_tui::json_render::{RenderSpec, TuiRegistry, bind, parse, render_spec};
+use eddacraft_tui::json_render::{RenderSpec, TuiRegistry, bind, parse, render_spec, sanitize};
 use eddacraft_tui::keyboard::Action;
 use eddacraft_tui::theme::EddaCraftTheme;
 use ratatui::Frame;
@@ -45,7 +45,8 @@ impl SpecDashboardState {
         let registry = anvil_registry();
         let bound = bind(&spec, &load_context(&root));
         Self {
-            title: spec.title.clone(),
+            // The title is shown in the surface chrome — sanitise control bytes.
+            title: sanitize(&spec.title),
             spec,
             root,
             registry,
@@ -140,7 +141,8 @@ pub fn discover(root: &Path) -> Vec<SavedDashboard> {
         if let Ok(spec) = parse(&text) {
             out.push(SavedDashboard {
                 name: name.to_owned(),
-                title: spec.title,
+                // Shown in the picker list — sanitise control bytes.
+                title: sanitize(&spec.title),
                 path: path.clone(),
             });
         }

@@ -14,7 +14,7 @@ use ratatui::widgets::BarChart as RatatuiBarChart;
 use serde_json::Value;
 
 use super::props::round_to_u64;
-use crate::json_render::{Props, TuiComponent};
+use crate::json_render::{Props, TuiComponent, sanitize};
 use crate::theme::{EddaCraftTheme, Theme};
 
 /// Renders the `BarChart` component.
@@ -30,11 +30,8 @@ impl BarChart {
             .iter()
             .filter_map(|item| {
                 if let Some(obj) = item.as_object() {
-                    let label = obj
-                        .get("label")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_owned();
+                    // Labels are rendered under each bar — sanitise them.
+                    let label = sanitize(obj.get("label").and_then(Value::as_str).unwrap_or(""));
                     let value = obj.get("value").and_then(Value::as_f64)?;
                     Some((label, round_to_u64(value)))
                 } else {

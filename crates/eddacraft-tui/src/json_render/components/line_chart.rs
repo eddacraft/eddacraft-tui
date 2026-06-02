@@ -15,7 +15,7 @@ use ratatui::style::Style;
 use ratatui::symbols::Marker;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
-use super::props::{f64_array, str_prop};
+use super::props::{disp, f64_array};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -66,10 +66,10 @@ impl TuiComponent for LineChart {
         let mut chart = Chart::new(datasets)
             .x_axis(Axis::default().bounds([0.0, x_max.max(1.0)]))
             .y_axis(Axis::default().bounds([y_min, y_max]));
-        if let Some(title) = str_prop(props, "title") {
+        if let Some(title) = disp(props, "title") {
             chart = chart.block(
                 ratatui::widgets::Block::default()
-                    .title(title.to_owned())
+                    .title(title)
                     .style(theme.base()),
             );
         }
