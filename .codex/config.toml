@@ -1,5 +1,5 @@
 # Project-local Codex defaults for Anvil.
-# Loaded only for trusted checkouts; keep secrets and machine-local tokens out.
+# Loaded only for trusted checkouts. Network egress plus inherited env can expose secrets; keep machine-local tokens out.
 
 approval_policy = "on-request"
 approvals_reviewer = "auto_review"
@@ -8,7 +8,8 @@ sandbox_permissions = ["disk-full-read-access"]
 
 [sandbox_workspace_write]
 network_access = true
-writable_roots = ["/home/aneki/Projects/src", "/tmp"]
+# Add your Worktrunk parent directory in global config if sibling worktree writes are needed.
+writable_roots = ["/tmp"]
 
 [shell_environment_policy]
 inherit = "all"

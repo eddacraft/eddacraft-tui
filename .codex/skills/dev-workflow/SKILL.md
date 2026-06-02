@@ -45,7 +45,7 @@ repository lifecycle, load this skill first, then route to the current stage.
 | Stage          | What                                                             | Codex action                                                                                                                                                |
 | -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | APS truth gate | Confirm the request is backed by a Ready or In Progress APS item | Read `plans/index.aps.md`, `plans/aps-rules.md`, and `plans/project-context.md`; update APS before implementation if needed                                 |
-| Branch         | Create an isolated task worktree from `main`                     | `wt switch --create <branch>` using `feat/`, `fix/`, `docs/`, or `chore/`                                                                                   |
+| Branch         | Create an isolated task worktree from `main`                     | `scripts/dev/wt-new.sh <branch>` using `feat/`, `fix/`, `docs/`, or `chore/`; by hand, fetch `origin/main` first and pass `--base origin/main`              |
 | Code           | Implement with the smallest useful validation loop               | Prefer test-first changes; record why TDD is not applicable for docs/config-only work                                                                       |
 | Verify         | Prove the actual changed surface                                 | Run focused checks first, then broader repo gates when risk justifies them                                                                                  |
 | Review         | Run risk-tiered Council before non-trivial PRs                   | `/council quick <target>` by default; escalate to `mini` or `full` for cross-boundary, CI, release, security, workflow, branch, or high-risk design changes |
@@ -97,8 +97,9 @@ Anvil workflow while avoiding full machine write access:
 - `sandbox_mode = "workspace-write"` keeps writes bounded to declared roots.
 - `sandbox_workspace_write.network_access = true` permits dependency, GitHub,
   and documentation lookups needed by the workflow.
-- `sandbox_workspace_write.writable_roots` includes `~/Projects/src` so
-  Worktrunk can create sibling worktrees and Codex can work in them.
+- `sandbox_workspace_write.writable_roots` should include your Worktrunk parent
+  directory (for example `~/Projects/src`) in global config when sibling
+  worktree writes are needed; repo-local config keeps only portable roots.
 
 Do not switch this project to `danger-full-access` unless the user explicitly
 asks and accepts the risk for that session.
