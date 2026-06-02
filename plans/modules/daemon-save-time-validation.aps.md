@@ -1,8 +1,8 @@
 # Daemon Save-time Validation
 
-| ID  | Owner | Status |
-| --- | ----- | ------ |
-| DSV | Josh  | Ready  |
+| ID  | Owner | Status      |
+| --- | ----- | ----------- |
+| DSV | Josh  | In Progress |
 
 **Last reviewed:** 2026-06-03
 
@@ -163,7 +163,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-002: Freeze the `validate_paths` verdict wire
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2252
 - **Intent:** Pin the forward-compatible verdict-shaped wire (method constants,
   request/response types, `coverage`, `check_families`, `StaleReason`,
   `WorkspaceAssurance`) so all four surfaces integrate against a stable contract.
@@ -386,7 +386,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 0/9 done | Ready |
+| A — Interim-cache `validate_paths` | 9 | 1/9 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **0/11 done** | **Ready** |
+| **Total** | **11** | **1/11 done** | **In Progress** |
