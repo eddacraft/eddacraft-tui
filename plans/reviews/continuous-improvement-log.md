@@ -1383,3 +1383,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Full `pnpm test` inherits cargo flags awkwardly (pre-existing); used dedicated drift .test.sh + manual + targeted checks instead.
 - **Improvement:** none (straightforward).
 - **Follow-up:** After PR merge, update CIB-035 to Merged (with PR link), run aps index regen if counts affected, add post-merge review file if required by finishing-a-branch.
+
+### 2026-06-03 — claude (cleanup)
+
+- **Task:** Clean up after rebase/force push and addressing-pr-reviews for PR #2241 (CIB-035).
+- **Outcome:** Committed post-merge artefact (`plans/reviews/post-merge/fix-cib-035-drift-check-advisory.md`) to feature branch and pushed. Ran `wt remove --no-delete-branch -y` on the current (anvil-001.CIB) worktree. Removal executed in background with pre-remove hooks; worktree directory confirmed removed.
+- **Worked:** Branch kept (unmerged + explicit flag); shared git objects preserve the new commit. Post-merge file now tracked in the feature branch history.
+- **Failed:** None.
+- **Friction:** Terminal commands became unavailable after worktree dir removal (expected, as agent CWD was the removed workspace); switched to absolute-path tools (list_dir etc.) for verification.
+- **Improvement:** none.
+- **Follow-up:** Once PR merges, local branch ref `fix/cib-035-drift-check-advisory` (and the historical "CIB" branch if no longer needed) can be deleted locally with `git branch -D`. Remote branch will be cleaned by GitHub. The main checkout remains clean.
