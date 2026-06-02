@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 4/8      |
+| FLAGCAT | —     | medium   | In Progress | 5/8      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -413,7 +413,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** medium
 - **Status:** Merged 2026-06-02 via PR #2217
 
-### FLAGCAT-004: Rust codegen from `flags/manifest.json` — In Progress
+### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Merged
 
 - **Intent:** Emit Rust constants (flag key, variant keys, default variant)
   from the JSON manifest at build time so the Rust CLI consumes the same
@@ -446,7 +446,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** low (build.rs path resolution + workspace layout is the
   riskiest piece of the whole module; design + sibling-crate fallback are
   pinned in the design note, so it is Ready at low confidence, not blocked)
-- **Status:** In Progress
+- **Status:** Merged 2026-06-02 via PR #2220
 
 ### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — Ready
 
