@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 25/65    |
+| CLAWP | @aneki | In Progress | 29/65    |
 
-**Last reviewed:** 2026-06-01 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159. A 2026-06-01 reconcile against the 2026-05-31 v0.7.3-beta sweep (`plans/reviews/2026-05-31-clawpatch-triage.md` §A, tracked as a portable backlog in `plans/reviews/2026-05-31-clawpatch-rust-followups.md`, PR #2172) found that eleven of the twelve actionable Rust §A findings had **already shipped as pure-code fixes never tracked here**, verified against `origin/main` source: credential-load coercion → exit `EXIT_CONFIG_ERROR` (PR #2173), pre-dispatch auth `--format json` envelopes (PR #2180), `InterruptReason` 1-based invariant made unrepresentable via `Option<NonZeroU32>` (PR #2174), `EngineEvent` event_type/payload validation (PR #2176), Win32 named-pipe SQOS cap + `GetExitCodeProcess` liveness (PR #2182), `anvil-checks-napi` `.node` freshness guard widened to all native build inputs (PR #2181), and the four `anvil-baseline`/`anvil-witness`/`anvil-checks-napi` docs/re-export corrections (PR #2178). These need no CLAWP item. The single still-open §A finding — `scan_buffer` cannot enforce session ownership because `ScanBufferRequest` omits an authenticated `session_id` — is filed below as **CLAWP-065**.)
+**Last reviewed:** 2026-06-03 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159. A 2026-06-01 reconcile against the 2026-05-31 v0.7.3-beta sweep (`plans/reviews/2026-05-31-clawpatch-triage.md` §A, tracked as a portable backlog in `plans/reviews/2026-05-31-clawpatch-rust-followups.md`, PR #2172) found that eleven of the twelve actionable Rust §A findings had **already shipped as pure-code fixes never tracked here**, verified against `origin/main` source: credential-load coercion → exit `EXIT_CONFIG_ERROR` (PR #2173), pre-dispatch auth `--format json` envelopes (PR #2180), `InterruptReason` 1-based invariant made unrepresentable via `Option<NonZeroU32>` (PR #2174), `EngineEvent` event_type/payload validation (PR #2176), Win32 named-pipe SQOS cap + `GetExitCodeProcess` liveness (PR #2182), `anvil-checks-napi` `.node` freshness guard widened to all native build inputs (PR #2181), and the four `anvil-baseline`/`anvil-witness`/`anvil-checks-napi` docs/re-export corrections (PR #2178). These need no CLAWP item. The single still-open §A finding — `scan_buffer` cannot enforce session ownership because `ScanBufferRequest` omits an authenticated `session_id` — is filed below as **CLAWP-065** (Merged 2026-06-01 via PR #2211). A 2026-06-03 verify sweep of the remaining Draft findings against `origin/main` reconciled four more whose fixes had **already shipped untracked**: CLAWP-034 (PR #1186 `a4e1fc58`), CLAWP-043 (PR #1114 `a33c2ab6`), CLAWP-044 (PR #1163 `336d5adc`), CLAWP-051 (PR #1653 `c21b7d08`) — now Merged (25/65 → 29/65). The 28 findings still open are all low-severity test-gaps plus the three JS/TS config nits (CLAWP-006/-010/-032) on the retiring JS/TS surface.)
 
 ## Purpose
 
@@ -601,7 +601,14 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_6e164ac8f1` — Rust integration test eddacraft-anvil-intercept/jsonrpc_conformance
 - **Severity / Triage / Category:** low / risk / maintainability
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged via PR #1186 (`a4e1fc58`) — reconciled 2026-06-03
+- **Reconciliation (2026-06-03):** Fix shipped untracked. The busy test
+  `scan_buffer_busy_returns_structured_server_error` now derives its in-flight
+  count from the limit — `Barrier::new(MAX_CONCURRENT_SCAN_BUFFERS + 1)` with a
+  spawn loop asserting `started == MAX_CONCURRENT_SCAN_BUFFERS`
+  (`crates/anvil-intercept/tests/jsonrpc_conformance.rs:818`) — not the
+  hard-coded two the finding flagged. Landed with the `scan_buffer` mid-edit RPC
+  feature (RTAI-002) and never recorded here. Verified against `origin/main`.
 - **Recommendation:** Spawn MAX_CONCURRENT_SCAN_BUFFERS client tasks in a loop, store their handles, wait until all are blocking, then assert the busy response and release/join all handles generically.
 - **Evidence:** `crates/anvil-intercept/tests/jsonrpc_conformance.rs:790` (`scan_buffer_busy_returns_structured_server_error`), `crates/anvil-intercept/tests/jsonrpc_conformance.rs:821` (`scan_buffer_busy_returns_structured_server_error`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -703,7 +710,12 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_31703286ca` — Rust integration test eddacraft-anvil/doctor_missing_git
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged via PR #1114 (`a33c2ab6`) — reconciled 2026-06-03
+- **Reconciliation (2026-06-03):** Fix shipped untracked. Neither
+  `doctor_missing_git.rs` invocation sets `GIT_DIR`/`GIT_WORK_TREE`; isolation is
+  via a `HOME` override plus `GIT_CEILING_DIRECTORIES` (`:25`, `:62`). The
+  inherited Git environment the finding flagged is gone. Verified against
+  `origin/main`.
 - **Recommendation:** Remove explicit Git environment from both Command invocations, at least GIT_DIR and GIT_WORK_TREE, and consider using env_clear with a small allowlist if the CLI does not need the broader parent environment.
 - **Evidence:** `crates/anvil-cli/tests/doctor_missing_git.rs:20` (`doctor_in_dir_without_git_repo_exits_zero_with_guidance`), `crates/anvil-cli/tests/doctor_missing_git.rs:64` (`doctor_json_in_dir_without_git_repo_reports_warn_with_remediation`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -714,7 +726,13 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_3cc630c104` — Rust integration test eddacraft-anvil-checks/surfenv_anvil_baseline
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged via PR #1163 (`336d5adc`) — reconciled 2026-06-03
+- **Reconciliation (2026-06-03):** Fix shipped untracked. The surfenv-004 drift
+  test now tracks `checked_templates`, asserts every unsuppressed finding is
+  `DriftKind::MissingFromConcrete`, and ends with
+  `assert!(checked_templates > 0, …)`
+  (`crates/anvil-checks/tests/surfenv_anvil_baseline.rs:214-217`) — the trip-wire
+  that makes a zero-finding run non-vacuous. Verified against `origin/main`.
 - **Recommendation:** Assert that each checked template with keys produces at least one unsuppressed finding, or assert the exact expected missing keys for the current templates.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:168` (`surfenv_004_drift_check_template_only_pairwise_run_is_missing_from_concrete_only`), `crates/anvil-checks/tests/surfenv_anvil_baseline.rs:178` (`surfenv_004_drift_check_template_only_pairwise_run_is_missing_from_concrete_only`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -791,7 +809,13 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_619533fb13` — Rust integration test eddacraft-anvil/init_post_analysis
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged via PR #1653 (`c21b7d08`) — reconciled 2026-06-03
+- **Reconciliation (2026-06-03):** Fix shipped untracked in a prior
+  clawpatch-fix batch. The auth-failure test now targets a deterministic
+  loopback discard endpoint — `ANVIL_API_URL=http://127.0.0.1:9`
+  (`crates/anvil-cli/tests/init_post_analysis.rs:203`) — instead of a magic
+  external port, so no host-networking dependency remains. Verified against
+  `origin/main`.
 - **Recommendation:** Avoid a magic external port. Bind a local TcpListener to port 0 for a deterministic test double, or use an explicitly invalid/unroutable endpoint only if the CLI contract maps that exact failure mode to authentication_required across platforms.
 - **Evidence:** `crates/anvil-cli/tests/init_post_analysis.rs:178` (`json_verbose_edict_auth_failure_emits_only_json_error`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
