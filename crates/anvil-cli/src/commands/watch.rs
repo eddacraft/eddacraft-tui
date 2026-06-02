@@ -1158,7 +1158,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     // gates already keep it rare.
                     use chrono::Utc;
                     crate::insights::first_week_hint::first_week_insights_hint(
-                        std::path::Path::new("."),
+                        &workspace_root,
                         Utc::now(),
                     )
                 } else {

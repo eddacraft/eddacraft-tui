@@ -3,7 +3,7 @@
 //! Surfaces a low-noise, once-per-week one-liner in `anvil status` and the
 //! watch TUI only for users within their first 14 days after `anvil start`
 //! (using the `created_at` from `anvil/project-id`). The hint is suppressed
-//! for the remainder of the calendar week if the user has already run the
+//! for the remainder of the week (trailing 7-day window) if the user has already run the
 //! default `anvil insights` summary in that window. State is kept in a
 //! tiny project-local `.anvil/insights-hint.json` (not tracked; mirrors
 //! `.anvil/first-run` and cache patterns).
@@ -132,7 +132,7 @@ fn write_state(path: &Path, state: &FirstWeekHintState) -> std::io::Result<()> {
     }
     let body = serde_json::to_string_pretty(state)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    std::fs::write(path, body)
+    crate::util::atomic_write(path, body.as_bytes()).map_err(std::io::Error::other)
 }
 
 #[cfg(test)]

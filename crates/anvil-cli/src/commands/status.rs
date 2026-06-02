@@ -63,10 +63,16 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // project-id created_at, once-per-week, suppressed after running
     // the default insights summary). Independent of the update rate
     // limit; opt-out is not provided (low noise by design).
+    // Use workspace_root (best-effort git toplevel, fallback .) so that
+    // subdir invocations still read/write the project .anvil/ state and
+    // project-id consistently with `anvil watch` (and with gather for
+    // witness etc).
     if !global.json {
         use chrono::Utc;
+        let hint_root =
+            crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
         data.insights_hint =
-            crate::insights::first_week_hint::first_week_insights_hint(Path::new("."), Utc::now());
+            crate::insights::first_week_hint::first_week_insights_hint(&hint_root, Utc::now());
     }
 
     if global.json {
@@ -551,15 +557,14 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
     // mode summary (a single line in the common case, three when the
     // config is invalid).
     print!("{}", render_rule_mode_summary(&root));
-    // DISTRIB-002: trailing one-liner when an update is available.
-    // The rate-limit gate (computed by the caller) keeps this from
-    // becoming noise across repeated invocations.
-    if let Some(hint) = &data.update_hint {
-        println!("{}", hint.render_line());
-    }
-    // INSIGHTS-004: first-week nudge (once per week, 14d cohort only).
+    // DISTRIB-002 update hint and INSIGHTS-004 nudge share the single
+    // footer line in plain output (to match the TUI watch strip which
+    // reserves one hint_area and gives insights_hint precedence).
+    // INSIGHTS-004 takes priority when present.
     if let Some(hint) = &data.insights_hint {
         println!("{hint}");
+    } else if let Some(hint) = &data.update_hint {
+        println!("{}", hint.render_line());
     }
 }
 
