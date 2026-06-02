@@ -95,10 +95,12 @@ mod unix_bench {
         let mut daemon = ManagedChild::new(child, "anvil intercept start");
         let pid = daemon.id();
 
-        wait_for_socket(&socket, SOCKET_WAIT).await.inspect_err(|_| {
-            // Surface a startup crash as the cause rather than a bare timeout.
-            let _ = daemon.ensure_running("while waiting for the IPC socket");
-        })?;
+        wait_for_socket(&socket, SOCKET_WAIT)
+            .await
+            .inspect_err(|_| {
+                // Surface a startup crash as the cause rather than a bare timeout.
+                let _ = daemon.ensure_running("while waiting for the IPC socket");
+            })?;
 
         // Settle past the cold start, then confirm liveness before each measure.
         tokio::time::sleep(SETTLE).await;
@@ -158,7 +160,9 @@ mod unix_bench {
             sampler.finish()
         })
         .await
-        .map_err(|e| -> Box<dyn Error + Send + Sync> { format!("sampler task join: {e}").into() })??;
+        .map_err(|e| -> Box<dyn Error + Send + Sync> {
+            format!("sampler task join: {e}").into()
+        })??;
 
         stop.store(true, Ordering::Relaxed);
         for worker in workers {
