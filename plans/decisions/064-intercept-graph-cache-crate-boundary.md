@@ -2,8 +2,10 @@
 
 ## Status
 
-**Proposed** — 2026-06-02. **Proposes** the resolution of council blocker **B5**
-(the hard predecessor to B1) from the
+**Accepted** — 2026-06-02, Josh (sole owner of the INTD/GV2 surfaces; ratified
+after an independent architecture review returned SOUND-WITH-FIXES and the fixes
+were folded in). Resolves council blocker **B5** (the hard predecessor to B1)
+from the
 [daemon-graph review verdict](../reviews/2026-06-01-daemon-graph-council-verdict.md);
 gates the start of
 [daemon save-time sub-phase A](../execution/2026-06-01-daemon-save-time-subphase-a.md)
