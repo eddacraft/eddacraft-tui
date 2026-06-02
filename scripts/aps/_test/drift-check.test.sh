@@ -266,14 +266,14 @@ assert_json_has_message_substring "$published_json" 'shipped-aps-without-release
 # bad --release-record input. Missing file and invalid JSON must emit a
 # structured finding under a known code and never crash the advisory run.
 unreadable_path="$tmp/cib-035-unreadable.json"
-unreadable_json="$("${CHECK[@]}" --root "$tmp" --release-record "$unreadable_path" --json 2>&1)"
+unreadable_json="$("${CHECK[@]}" --root "$tmp" --release-record "$unreadable_path" --json 2>&1)" || true
 unreadable_status=$?
 assert_json_has_code "$unreadable_json" 'release-record-unreadable'
 [ "$unreadable_status" -eq 0 ] || { echo "CIB-035: expected exit 0 for unreadable release record, got $unreadable_status" >&2; exit 1; }
 
 invalid_path="$tmp/cib-035-invalid.json"
 printf '{\n  "lifecycleState": "candidate",\n  "broken": \n' > "$invalid_path"
-invalid_json="$("${CHECK[@]}" --root "$tmp" --release-record "$invalid_path" --json 2>&1)"
+invalid_json="$("${CHECK[@]}" --root "$tmp" --release-record "$invalid_path" --json 2>&1)" || true
 invalid_status=$?
 assert_json_has_code "$invalid_json" 'release-record-invalid-json'
 [ "$invalid_status" -eq 0 ] || { echo "CIB-035: expected exit 0 for invalid-json release record, got $invalid_status" >&2; exit 1; }
