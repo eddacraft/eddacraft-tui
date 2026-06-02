@@ -332,6 +332,16 @@ pub enum MirrorPath {
     /// The decision was produced on the in-flight `scan_buffer`
     /// mid-edit path (RTAI-002), not the save-time enforcement path.
     MidEdit,
+    /// Forward-compat catch-all. The discriminator is explicitly
+    /// extensible (the whole point is to let subscribers split surfaces
+    /// without parsing the rule id), so a `mirror.path` value emitted by
+    /// a newer producer that this build does not recognise deserialises
+    /// to `Unknown` instead of hard-erroring the entire envelope —
+    /// mirroring the `Mode::Unknown` forward-compat pattern in
+    /// `anvil-kernel-types`. This build never *produces* `Unknown`, so it
+    /// is not part of the wire output.
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -559,7 +569,11 @@ fn envelope_with_path(
     let mirror = decision.map(|decision| NotificationMirror {
         decision,
         driver: INTERCEPT_DRIVER_ID.to_string(),
-        ack_required: ack_required(decision),
+        // RTAI-007: the mid-edit path is advisory — there is no ack
+        // return channel — so a mid-edit decision never requires an
+        // acknowledgement, even when it resolves to `block`. Only the
+        // save-time path (`mirror_path == None`) can demand an ack.
+        ack_required: mirror_path.is_none() && ack_required(decision),
         control_correlation_id: context.control_correlation_id.clone(),
         path: mirror_path,
     });
@@ -694,10 +708,52 @@ mod midedit_telemetry {
         // Title is the offending rule id (no rule-id parsing needed for
         // the in-flight/save-time split — that is what mirror.path is for).
         assert_eq!(value["notification"]["title"], "anvil.reasoning.ai-001");
-        assert_eq!(
-            envelope.mirror.as_ref().unwrap().path,
-            Some(MirrorPath::MidEdit)
+        let mirror = envelope.mirror.as_ref().unwrap();
+        assert_eq!(mirror.path, Some(MirrorPath::MidEdit));
+        // Mid-edit is advisory — even a `block` carries no ack
+        // requirement, because there is no mid-edit ack channel.
+        assert!(
+            !mirror.ack_required,
+            "mid-edit block must stay advisory (ack_required=false)"
         );
+    }
+
+    #[test]
+    fn block_titles_with_error_even_when_warning_leads_the_batch() {
+        // Ordering coherence: midedit_lead_diagnostic is first-wins by
+        // severity class, not slice position. A `[Warning, Error]` batch
+        // resolves to `block` and titles with the Error's rule id — not
+        // the leading Warning — so the title never disagrees with the
+        // decision.
+        let mut emitter = emitter();
+        let envelope = emitter.midedit_envelope_for_decision(
+            TelemetryCorrelation::default(),
+            &[
+                diag("warn-rule", Severity::Warning, "src/a.rs"),
+                diag("err-rule", Severity::Error, "src/b.rs"),
+            ],
+        );
+        let mirror = envelope.mirror.as_ref().expect("mirror");
+        assert_eq!(mirror.decision, ControlDecision::Block);
+        assert_eq!(envelope.notification.title, "err-rule");
+        let context = envelope.notification.context.as_ref().expect("context");
+        assert_eq!(context.file.as_deref(), Some("src/b.rs"));
+    }
+
+    #[test]
+    fn mirror_path_round_trips_and_tolerates_unknown_future_values() {
+        // "midEdit" round-trips through serde.
+        assert_eq!(
+            serde_json::to_value(MirrorPath::MidEdit).unwrap(),
+            serde_json::json!("midEdit"),
+        );
+        let parsed: MirrorPath = serde_json::from_value(serde_json::json!("midEdit")).unwrap();
+        assert_eq!(parsed, MirrorPath::MidEdit);
+        // Forward-compat: a value emitted by a newer producer folds to
+        // `Unknown` rather than hard-erroring the envelope deserialise.
+        let future: MirrorPath =
+            serde_json::from_value(serde_json::json!("saveTime")).expect("unknown folds, not errs");
+        assert_eq!(future, MirrorPath::Unknown);
     }
 
     #[test]
@@ -828,6 +884,16 @@ mod midedit_telemetry {
         assert!(file.starts_with("[redacted:"), "file hashed: {file}");
         assert!(!file.contains("client.ts"));
         assert_eq!(redacted.notification.message, "[redacted]");
+        // The path-bearing grouping key must also be hashed — the
+        // mid-edit decision groups on `intercept:decision:<file>`, which
+        // would leak the path otherwise.
+        let key = redacted
+            .grouping
+            .as_ref()
+            .and_then(|g| g.key.as_deref())
+            .expect("redacted grouping key");
+        assert!(key.starts_with("[redacted:"), "grouping key hashed: {key}");
+        assert!(!key.contains("client.ts"));
     }
 }
 
