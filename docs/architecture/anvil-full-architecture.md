@@ -304,6 +304,52 @@ File System (notify-rs) ──► Watcher ──► Debounce/Merge Queue
   Graph: persistent petgraph (<500MB, incremental updates)
 ```
 
+### Mid-Edit (In-Flight) Validation — drivers → daemon (RTAI)
+
+Save-time watch (above) fires _after_ an agent has finished and saved a file.
+The **mid-edit** path validates an AI tool's change _while it is still being
+generated_, before the write lands. It does **not** introduce a separate
+validation server: the same `anvil-intercept` daemon and the same INTR rule
+registry that serve the save-time path also serve mid-edit, reached over one
+additional RPC.
+
+```
+Surface driver (MCP shim / editor)
+        │  unsaved buffer content + path + mode = midEdit
+        ▼
+ anvil-intercept daemon ── scan_buffer RPC (RTAI-002)
+        │   • content from the request, never from disk
+        │   • same INTR rule registry as the save-time path
+        │   • mid-edit latency budget (ADR-031 interactive class)
+        ▼
+ diagnostics  ──►  telemetry mirror (anvil.notification.v1,
+                   mirror.path = "midEdit", RTAI-007)
+```
+
+- **Shipped surface — MCP pre-write (RMCP + RTAI-006).**
+  `anvil mcp serve --stdio` validates a proposed write before it hits disk and
+  returns a structured tool result the agent can act on, honouring the
+  `.anvil.yaml` enforcement mode (`block` / `warn` / `off`).
+- **Shipped daemon RPC — `scan_buffer` (RTAI-002).** Accepts
+  `{ path, text, version, mode }`, runs the configured rules without touching
+  disk, and returns `{ diagnostics, truncated }` or a structured error — never a
+  silent pass on failure (RTAI-008).
+- **Telemetry — one shape across surfaces (RTAI-007).** Every mid-edit decision
+  mirrors onto the notification lane with the canonical INTD-013 envelope and a
+  `mirror.path = "midEdit"` discriminator, redacted by the same INTD-015
+  cross-session fan-out as save-time decisions.
+- **Parked surface — editor-driver mid-edit (RTAI-005).** Wiring
+  `textDocument/didChange` through the editor driver is parked under ADR-033
+  (IDE/MCP surface sequencing). When it lands it reuses the same `scan_buffer`
+  RPC and rule registry — it adds no parallel validation path.
+
+This supersedes the earlier `real-time-validation-full` "unified validation
+server" framing: there is **one** daemon and **one** rule registry, with two
+entry points (save-time and mid-edit). See
+[`realtime-ai-validation`](../../plans/modules/realtime-ai-validation.aps.md)
+and
+[ADR-030](../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md).
+
 ---
 
 ## 5. Edda Stack (Memory Architecture)

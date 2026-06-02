@@ -167,7 +167,7 @@
     <mxCell id="orghier" value="&lt;b&gt;Policy Domain&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;ORGHIER, POLLC&lt;br&gt;COMPLY, POLFED&lt;br&gt;All unsized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
       <mxGeometry x="160" y="148" width="130" height="70" as="geometry"/>
     </mxCell>
-    <mxCell id="rtv" value="&lt;b&gt;Real-time Validation&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;RTVS + RTVF&lt;br&gt;OPENSPEC&lt;br&gt;All unsized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">
+    <mxCell id="rtv" value="&lt;b&gt;RTAI&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#ccc'&gt;Real-time AI Validation&lt;br&gt;mid-edit core shipped&lt;br&gt;editor path parked (ADR-033)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#5c4a1a;strokeColor=#d9a93c;fontColor=#e0e0e0;fontSize=11;" vertex="1" parent="future_lane">
       <mxGeometry x="310" y="148" width="140" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="port" value="&lt;b&gt;TUIDASH&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px;color:#888'&gt;Dashboard renderer&lt;br&gt;Draft 0/12&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#2a2a3a;strokeColor=#666;fontColor=#999;fontSize=11;dashed=1;" vertex="1" parent="future_lane">

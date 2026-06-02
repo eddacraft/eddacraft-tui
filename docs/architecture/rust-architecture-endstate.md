@@ -311,6 +311,17 @@ The intercept daemon (`crates/anvil-intercept`) hosts the kernel in-process and
 owns the daemon-mode IPC surface. See `plans/archive/modules/rust-kernel.aps.md`
 Phase 5 supersession note and ADR-030 for the decision chain.
 
+Real-time **mid-edit** validation (RTAI) rides this same daemon rather than a
+separate validation server. The `scan_buffer` RPC (RTAI-002) evaluates an
+unsaved buffer against the **same INTR rule registry** as the save-time path —
+content comes from the request, never from disk — and mirrors each decision onto
+the notification lane with a `mirror.path = "midEdit"` discriminator (RTAI-007)
+so subscribers split in-flight from save-time without parsing the rule id. The
+in-flight and save-time paths are two entry points on one daemon. The MCP
+pre-write surface (RTAI-006) is shipped; the editor-driver mid-edit surface
+(RTAI-005) is parked under ADR-033. See
+[realtime-ai-validation](../../plans/modules/realtime-ai-validation.aps.md).
+
 ---
 
 ## 4. Engine Event Protocol

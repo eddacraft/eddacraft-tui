@@ -143,3 +143,23 @@ Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026
 | [009](009-ink-vs-ratatui-watch-mode-performance.md) | ADR-011a, Rust kernel | Confirmed rendering isn't the bottleneck; check execution is |
 | [010](010-pulumi-typescript-iac.md) | ADR-007 | Duplicate; ADR-007 is the canonical Pulumi decision |
 | [011a](011a-rust-core-engine.md) | Architecture evolution docs | Rust kernel spec and architecture evolution are now authoritative |
+
+### Module-level supersession (in-flight validation thesis)
+
+The two real-time-validation modules predate the drivers-on-daemon architecture
+and are superseded — recorded here (not as ADRs) per RTAI-009:
+
+- **RTVS** (`real-time-validation-simplified`) — archived 2026-04-24; written
+  against the retired Ink/TS stack.
+- **RTVF** (`real-time-validation-full`) — superseded 2026-04-24; its "unified
+  validation server" framing predates ADR-030.
+
+Both are superseded by **RTAI**
+([`realtime-ai-validation`](../modules/realtime-ai-validation.aps.md)), which is
+the realisation of the in-flight validation thesis on the drivers → daemon
+architecture (ADR-030): the intercept daemon's `scan_buffer` RPC (RTAI-002)
+validates an unsaved buffer against the same INTR rule registry as the
+save-time path, the MCP pre-write surface (RTAI-006) ships that semantics to
+agents, and every mid-edit decision mirrors onto the INTD-013 notification lane
+with a `mirror.path = "midEdit"` discriminator (RTAI-007). There is no separate
+validation server.
