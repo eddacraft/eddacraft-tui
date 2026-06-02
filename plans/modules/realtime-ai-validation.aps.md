@@ -383,32 +383,55 @@ convention" section). Concretely:
 
 ---
 
-### RTAI-005: Editor-driver mid-edit path (VSCode + LSP shape)
+### RTAI-005: Editor mid-edit path (LSP server surface)
 
-- **Intent:** Wire `textDocument/didChange` in the editor driver
-  through `DriverClient.validateMidEdit` and render the
-  resulting diagnostics in the editor.
-- **Expected Outcome:** The VSCode extension's editor-driver
-  registers a `didChange` listener that calls the new client
-  envelope; results render via `publishDiagnostics` with a
-  marker (e.g. `data: { phase: "midEdit" }`) distinguishing
-  in-flight from on-disk diagnostics. A daemon-down fallback
-  shows a status-bar degraded indicator and stops issuing
-  in-flight diagnostics, **without** suppressing save-time
-  diagnostics.
-- **Blocks on:** RTAI-004, DRVR-002, DRVR-003 (editor driver
-  must exist before its mid-edit path can be wired).
-- **Coordinates with:** DRVR-008 (non-VSCode LSP clients that
-  do not advertise the mid-edit `anvil/` method must be capped
-  at save-time-only — RTAI must extend DRVR-008's capability
-  handshake, not bypass it).
-- **Validation:** `pnpm --filter anvil-vscode test` plus an
-  integration test that drives a fake LSP didChange stream
-  against a live daemon and asserts diagnostics arrive within
-  budget; fallback test asserts the degraded-mode indicator
-  appears and save-time still works when the daemon is down.
+- **Reframed 2026-06-02:** from "Editor-driver mid-edit path (VSCode +
+  LSP shape)" to a **generic LSP server** surface. Rationale: an
+  `anvil lsp` server is write-once leverage — VS Code, Neovim, Helix,
+  Emacs (eglot / lsp-mode), Zed and any LSP client get mid-edit
+  validation off one implementation, with no per-editor extension to
+  publish and maintain. It fits the single-Rust-binary posture
+  (ADR-012) and the drivers-on-daemon architecture (ADR-030): the LSP
+  server is a thin frontend over the shipped `scan_buffer` RPC
+  (RTAI-002). A VS Code extension, if wanted, becomes an optional thin
+  wrapper for richer UX (status bar, code actions) — not the
+  foundation. Still parked under ADR-033.
+- **Intent:** Expose Anvil's mid-edit validation to any editor that
+  speaks LSP by shipping a generic language-server surface (`anvil
+  lsp`) that turns `textDocument/didChange` into a daemon `scan_buffer`
+  call and publishes the resulting diagnostics — rather than a
+  VS Code-specific extension.
+- **Expected Outcome:** `anvil lsp --stdio` (daemon-fronted, falling
+  back to the embedded engine when no daemon is running) registers a
+  `textDocument/didChange` handler, debounces at the driver edge, calls
+  the mid-edit `scan_buffer` RPC (RTAI-002), and returns results via
+  `textDocument/publishDiagnostics` with a marker (e.g. `data: { phase:
+  "midEdit" }`) distinguishing in-flight from on-disk diagnostics. The
+  surface is **advisory-only** by nature — LSP `didChange` shows the
+  user their own keystrokes, so Anvil cannot *refuse* a write over LSP;
+  the refusable lane stays the MCP pre-write path (RTAI-006), per the
+  "bypass asymmetry" risk below. A daemon-down state degrades to no
+  in-flight diagnostics (clients that surface it show a degraded
+  indicator) **without** suppressing save-time diagnostics. Editor
+  wiring (a thin VS Code extension, Neovim `lspconfig`, etc.) consumes
+  this one server.
+- **Blocks on:** RTAI-004 (mid-edit envelope + debouncer). The
+  LSP-server reframing **decouples this item from a VS Code-specific
+  editor driver** — it no longer hard-blocks on DRVR-002 / DRVR-003 (the
+  VS Code extension surface), which become optional thin-wrapper
+  follow-ups.
+- **Coordinates with:** DRVR-008 (LSP clients that do not advertise the
+  mid-edit capability are capped at save-time-only — the `anvil lsp`
+  server declares the mid-edit capability in its server capabilities;
+  RTAI must extend DRVR-008's handshake, not bypass it).
+- **Validation:** An editor-agnostic integration test drives a fake LSP
+  `didChange` stream against the `anvil lsp` server (over a live daemon)
+  and asserts `publishDiagnostics` arrives within the ADR-031 mid-edit
+  budget; a daemon-down test asserts in-flight diagnostics stop while
+  save-time still works.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Proposed (parked under ADR-033 — IDE/MCP surface
+  sequencing)
 
 ---
 
