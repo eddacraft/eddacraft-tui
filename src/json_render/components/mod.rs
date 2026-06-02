@@ -22,12 +22,16 @@ use crate::json_render::TuiRegistry;
 
 mod alert;
 mod badge;
+mod bar_chart;
 mod card;
 mod grid;
 mod heading;
+mod line_chart;
 mod metric_card;
+mod placeholder;
 mod progress;
 mod separator;
+mod sparkline_chart;
 mod stack;
 mod status_badge;
 mod table;
@@ -35,12 +39,16 @@ mod text;
 
 pub use alert::Alert;
 pub use badge::Badge;
+pub use bar_chart::BarChart;
 pub use card::Card;
 pub use grid::Grid;
 pub use heading::Heading;
+pub use line_chart::LineChart;
 pub use metric_card::MetricCard;
+pub use placeholder::Placeholder;
 pub use progress::Progress;
 pub use separator::Separator;
+pub use sparkline_chart::SparklineChart;
 pub use stack::Stack;
 pub use status_badge::StatusBadge;
 pub use table::Table;
@@ -60,6 +68,7 @@ pub fn base_registry() -> TuiRegistry {
     let mut registry = TuiRegistry::new();
     register_layout(&mut registry);
     register_data(&mut registry);
+    register_charts(&mut registry);
     registry
 }
 
@@ -85,6 +94,16 @@ fn register_data(registry: &mut TuiRegistry) {
     registry.register("Table", Box::new(Table));
 }
 
+/// Register the chart components (TUIDASH-006): `SparklineChart`, plus the
+/// `HeatMap` placeholder (no meaningful terminal rendering, D-TUIDASH-001).
+/// `LineChart`/`BarChart` are added alongside these.
+fn register_charts(registry: &mut TuiRegistry) {
+    registry.register("LineChart", Box::new(LineChart));
+    registry.register("BarChart", Box::new(BarChart));
+    registry.register("SparklineChart", Box::new(SparklineChart));
+    registry.register("HeatMap", Box::new(Placeholder::new("HeatMap")));
+}
+
 /// Shared prop-reading helpers used across components.
 ///
 /// All return a sensible default rather than panicking when a prop is absent or
@@ -100,6 +119,34 @@ mod props {
     /// Read a string prop with a fallback.
     pub(super) fn str_or<'a>(props: &'a Props, key: &str, default: &'a str) -> &'a str {
         str_prop(props, key).unwrap_or(default)
+    }
+
+    /// Round a value to a non-negative `u64` chart height, clamping out
+    /// negatives and `u64::MAX` overflow. Bar and sparkline heights are
+    /// unsigned; the cast is bounds-checked here so the lossy `as` is safe.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    pub(super) fn round_to_u64(v: f64) -> u64 {
+        if v <= 0.0 {
+            0
+        } else if v >= u64::MAX as f64 {
+            u64::MAX
+        } else {
+            v.round() as u64
+        }
+    }
+
+    /// Read a prop that is a JSON array of numbers into a `Vec<f64>`, skipping
+    /// any non-numeric entries. An absent or non-array prop yields an empty vec.
+    pub(super) fn f64_array(props: &Props, key: &str) -> Vec<f64> {
+        props
+            .get(key)
+            .and_then(serde_json::Value::as_array)
+            .map(|items| items.iter().filter_map(serde_json::Value::as_f64).collect())
+            .unwrap_or_default()
     }
 
     /// Read an integer-valued prop (JSON number, truncated), or `None`.
