@@ -773,7 +773,7 @@ archive.
 
 ### CIB-035: drift-check crashes on invalid release records instead of staying advisory
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
   / exit-0 architecture principle when handed a malformed input, so a bad release
   record degrades to an advisory finding rather than an uncaught crash.

@@ -1373,3 +1373,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   config dirs (`.codex` / `.claude` / `.opencode`) classify as `agent-config`
   instead of falling through to the `unknown` fallback that forced the unit-test
   matrix on a pure config/docs bookkeeping change (folded into CIB-045).
+
+### 2026-06-03 — claude (CIB delivery)
+
+- **Task:** Choose + deliver a solid CIB item end-to-end (TDD, gates, evidence).
+- **Outcome:** Selected CIB-035 (drift-check must not crash on bad --release-record; stay advisory/exit-0 per warnings-over-blocks). Marked In Progress, added failing test cases (unreadable + invalid-json paths), implemented minimal try/catch guard in drift-check.mjs, all tests green, format/lint/aps-lint/index-check clean, manual smoke confirms the two new codes.
+- **Worked:** Exact codes and message shape from the APS item; reused existing closer for the success-path wrapper; test addition used the project's assert helpers; no prod or TS impact.
+- **Failed:** None.
+- **Friction:** Full `pnpm test` inherits cargo flags awkwardly (pre-existing); used dedicated drift .test.sh + manual + targeted checks instead.
+- **Improvement:** none (straightforward).
+- **Follow-up:** After PR merge, update CIB-035 to Merged (with PR link), run aps index regen if counts affected, add post-merge review file if required by finishing-a-branch.

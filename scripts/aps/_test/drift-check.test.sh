@@ -262,6 +262,22 @@ assert_json_has_code "$published_json" 'release-artifact-missing-integrity'
 assert_json_has_code "$published_json" 'shipped-aps-without-release-record'
 assert_json_has_message_substring "$published_json" 'shipped-aps-without-release-record' 'LIFE-004'
 
+# CIB-035: drift-check must stay advisory (warnings-over-blocks / exit-0) on
+# bad --release-record input. Missing file and invalid JSON must emit a
+# structured finding under a known code and never crash the advisory run.
+unreadable_path="$tmp/cib-035-unreadable.json"
+unreadable_json="$("${CHECK[@]}" --root "$tmp" --release-record "$unreadable_path" --json 2>&1)"
+unreadable_status=$?
+assert_json_has_code "$unreadable_json" 'release-record-unreadable'
+[ "$unreadable_status" -eq 0 ] || { echo "CIB-035: expected exit 0 for unreadable release record, got $unreadable_status" >&2; exit 1; }
+
+invalid_path="$tmp/cib-035-invalid.json"
+printf '{\n  "lifecycleState": "candidate",\n  "broken": \n' > "$invalid_path"
+invalid_json="$("${CHECK[@]}" --root "$tmp" --release-record "$invalid_path" --json 2>&1)"
+invalid_status=$?
+assert_json_has_code "$invalid_json" 'release-record-invalid-json'
+[ "$invalid_status" -eq 0 ] || { echo "CIB-035: expected exit 0 for invalid-json release record, got $invalid_status" >&2; exit 1; }
+
 # ── CICD-011: PR metadata drift ──────────────────────────────────
 # A PR with no APS reference and no `Unplanned-work:` opt-out flags
 # the `pr-missing-aps-reference` warning.

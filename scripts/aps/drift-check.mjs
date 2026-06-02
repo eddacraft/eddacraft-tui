@@ -156,7 +156,20 @@ if (changedFilesPath) {
 
 let releaseRecord = null;
 if (releaseRecordPath) {
-  releaseRecord = readJson(releaseRecordPath);
+  try {
+    const text = readText(releaseRecordPath);
+    releaseRecord = JSON.parse(text);
+  } catch (err) {
+    const code =
+      err instanceof SyntaxError ? 'release-record-invalid-json' : 'release-record-unreadable';
+    addFinding(
+      code,
+      `Release record at ${releaseRecordPath} could not be read or parsed: ${err.message}`
+    );
+    releaseRecord = null;
+  }
+}
+if (releaseRecord) {
   if (
     releaseRecord.version &&
     releaseRecord.source?.tag &&
