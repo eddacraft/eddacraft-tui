@@ -95,11 +95,14 @@ both `anvil-kernel` and `anvil-intercept` depend on it. Parsing stays in
    **`anvil-kernel-types` + `petgraph` + `serde` + `thiserror`** — **no
    `tree-sitter`, `notify`, `walkdir`, `ignore`, or `rayon`**.
 
-3. **`anvil-kernel` depends on `anvil-graph-cache`** and re-exports it at the
-   existing `anvil_kernel::graph` path (`pub use anvil_graph_cache as graph;` or
-   targeted re-exports) so internal kernel call sites and the parser→graph
-   feed (`update_file(graph, parsed_file_symbols)`) are unchanged. Tree-sitter,
-   the watcher, and the directory walk remain kernel-only.
+3. **`anvil-kernel` depends on `anvil-graph-cache`** and re-exports it as a
+   module alias at the existing path: **`pub use anvil_graph_cache as graph;`**
+   (the module-alias form, **not** targeted item re-exports — the latter would
+   break submodule-path imports like
+   `anvil_kernel::graph::incremental::GraphDelta` in
+   `tests/architecture_parity.rs:26`). Internal kernel call sites and the
+   parser→graph feed (`update_file(graph, parsed_file_symbols)`) are unchanged.
+   Tree-sitter, the watcher, and the directory walk remain kernel-only.
 
 4. **`anvil-intercept` adds `anvil-graph-cache` to `[dependencies]`** —
    inheriting `petgraph` only (a pure-Rust, no-native-dep crate **already in the
@@ -114,12 +117,43 @@ both `anvil-kernel` and `anvil-intercept` depend on it. Parsing stays in
    and the daemon's per-`WorktreeKey` cache (Task 7) holds the
    `(SymbolGraph, DependencyGraph)` pair (B1). This unblocks B1 directly.
 
-This is the **`certify`/read** boundary only. Who drives cache **writes** (the
-kernel-side warming path feeding `FileSymbols` deltas vs. an interim daemon-side
-build) is a sub-phase A task detail, not fixed by this ADR — but the crate split
-guarantees the write path that *does* parse stays in `anvil-kernel`, off the
-daemon hot path, consistent with [ADR-063](063-gv2-hot-path-boundary.md) ("hot
-path does no parse").
+### The cache-write path needs a parse — and that scopes the dep-weight benefit
+
+This ADR cleanly settles the **read** boundary: `certify` and `dependents_of`
+are `petgraph`-only and live in `anvil-graph-cache`, so the daemon's
+**hot-path reads** carry no parser. But the **interim sub-phase A cache must be
+written** — Task 7 places `apply_delta` (calling
+`graph::incremental::{update_file, remove_file, re_resolve_imports}`) inside the
+daemon (`kernel_cache.rs`), and `update_file` consumes `FileSymbols`, whose
+**only** producer in the workspace is `extract_symbols(&tree, …)` — a tree-sitter
+parse (`embedded.rs:217-221`). So *someone* parses changed-file bytes for the
+interim cache. The "no tree-sitter in the daemon" benefit is therefore **fully
+realised only if the daemon does not perform that parse.** Two resolutions, and
+this ADR makes the choice **binding for sub-phase A** rather than deferring it:
+
+- **Chosen — kernel-side parse feeds `FileSymbols` to the daemon.** The kernel
+  already owns the in-process watcher that ships change batches to the daemon
+  (`watcher.rs`); extend that feed to carry parsed `FileSymbols`/deltas, so the
+  daemon's `apply_delta` takes already-parsed input (mirroring `update_file`'s
+  own signature). The daemon depends on `anvil-graph-cache` (petgraph) only and
+  **never links tree-sitter**. Note the interaction with the **Task 3/8
+  read-safety guard**: the daemon opens bytes under `openat2`/`RESOLVE_NO_SYMLINKS`
+  for *trust*, but does not have to be the thing that *parses* them — the parse
+  can run kernel-side on the same guarded bytes. Reconciling "daemon reads bytes
+  for safety" with "kernel parses them" is the one wiring detail sub-phase A
+  Task 7/8 must nail; it does not change this crate boundary.
+- **Rejected for this window — daemon parses the interim cache itself.** That
+  pulls tree-sitter into the daemon and would additionally require either
+  Option A (full `anvil-kernel`) or a *second* extraction (`anvil-parser`),
+  collapsing B's margin over A to "smaller dep surface." If sub-phase A finds
+  the kernel-feed infeasible, this ADR must be revisited — the daemon-parses
+  path is not endorsed here.
+
+Either way `anvil-graph-cache` is necessary (the daemon must *hold and mutate*
+the graph regardless); the binding above keeps B's dep-weight advantage real and
+consistent with [ADR-063](063-gv2-hot-path-boundary.md) ("hot path does no
+parse"). The GV2 sub-phase A′ hot-read API later replaces the interim cache with
+resident warm indexes and is parser-free by construction.
 
 ## Rationale
 
@@ -145,7 +179,7 @@ Both options are cycle-free, so the decision turns on **build weight** and
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **B — extract `anvil-graph-cache` (chosen)** | Keeps tree-sitter/parser/notify/walkdir out of the daemon; honours `watcher.rs:28`; parser-free home for `certify` + GV2 A′ hot-read API; no new external dep in the binary; layering already parse-free so the move is mechanical | One new crate + workspace wiring; relocate 2 structs + 5 files; repoint internal import paths; `cargo hakari` regen |
+| **B — extract `anvil-graph-cache` (chosen)** | Keeps tree-sitter/parser/notify/walkdir out of the daemon; honours `watcher.rs:28`; parser-free home for `certify` + GV2 A′ hot-read API; no new external dep in the binary; graph layer already parse-free so the move is mostly mechanical | One new crate + workspace wiring; relocate 2 structs + 5 files; repoint internal import paths; `cargo hakari` regen; `GraphDelta` carries policy-shaped fields with no in-crate consumer; the interim cache-write parse must be kept kernel-side (see below) |
 | **A — add `anvil-kernel` to `anvil-intercept/[dependencies]`** | One-line `Cargo.toml` change; no file moves | Drags 3 tree-sitter grammars (native builds) + `notify` + `walkdir` + `ignore` + `rayon` + the full parser surface into the resident daemon for code it never runs; reverses the documented deliberate boundary; bloats daemon cold-start and binary; A′ would have to undo it |
 | **C — host the graph cache in `anvil-kernel-types`** | No new crate; both already depend on it | `anvil-kernel-types` is a deliberately minimal, dependency-light type crate (`serde` only); adding `petgraph` + the incremental-mutation + `certify` algorithm surface turns a shared "types" crate into a logic crate every consumer inherits — wrong home for stateful graph algorithms |
 
@@ -156,15 +190,28 @@ Both options are cycle-free, so the decision turns on **build weight** and
   The daemon binary stays free of the tree-sitter/parser surface. `certify` and
   the GV2 A′ hot-read API get a clean, parser-free home. The
   `anvil-kernel::graph` re-export keeps kernel call sites unchanged.
-- **Negative:** One more workspace crate to maintain; a one-time mechanical
-  refactor (move `graph/`, relocate two structs, repoint paths) touching
-  `anvil-kernel`, `anvil-kernel-types`, and `anvil-intercept`.
+- **Negative:** One more workspace crate to maintain; a one-time refactor (move
+  `graph/`, relocate two structs, repoint paths) touching `anvil-kernel`,
+  `anvil-kernel-types`, and `anvil-intercept`. Mostly mechanical, but not purely
+  so: the relocated `GraphDelta` (`incremental.rs:11-24`) carries
+  `previously_public` / `previously_privileged` / `previously_imported` — fields
+  that exist **only** to feed the kernel's structural-policy invariants
+  (`new_dependency.rs`, `public_api.rs`, `privilege_expansion.rs`), none of which
+  move. So `anvil-graph-cache` inherits a delta type whose three richest fields
+  have no in-crate consumer; a follow-up may want to thin `GraphDelta`, but it is
+  not a blocker.
 - **Risks:** (1) A missed internal import path breaks the `anvil-kernel` build —
-  mitigated by the `pub use` re-export and a workspace `cargo build`/`clippy`
-  gate. (2) `cargo hakari` workspace-hack drift after adding a crate — regenerate
-  and `cargo hakari verify` in the same PR. (3) `ACKNOWLEDGEMENTS` churn —
-  expected **none** (no new *external* crate enters the shipped tree; `petgraph`
-  is already present), but re-run the generator to confirm.
+  mitigated by the **module-alias** `pub use anvil_graph_cache as graph;` (which
+  preserves submodule paths like `graph::incremental::GraphDelta`,
+  `architecture_parity.rs:26`) and a workspace `cargo build`/`clippy` gate. (2)
+  `cargo hakari` workspace-hack drift after adding a crate — regenerate and
+  `cargo hakari verify` in the same PR. (3) `ACKNOWLEDGEMENTS` churn — expected
+  **none** (no new *external* crate enters the shipped tree; `petgraph` is
+  already present), but re-run the generator to confirm. (4) `update_file`'s
+  insert-failure path currently does `eprintln!` (`incremental.rs:83`) — harmless
+  in the kernel CLI, but once this code is daemon-adjacent that becomes
+  unbounded stderr noise / a log-spam vector; route it through `tracing` during
+  the move.
 - **Out of scope:** This ADR does not resolve the sibling security major B5-notes
   (`confinement.rs` placed in `anvil-intercept` while the `ANVIL_HOME` resolver
   lives in `anvil-cli`) — that is a different wrong-direction dependency about
@@ -177,9 +224,16 @@ Both options are cycle-free, so the decision turns on **build weight** and
 2. Create `crates/anvil-graph-cache`; move `graph/*.rs` into it; deps
    `anvil-kernel-types` + `petgraph` + `serde` + `thiserror`. Build + test in
    isolation (`cargo test -p eddacraft-anvil-graph-cache`).
-3. `anvil-kernel`: depend on `anvil-graph-cache`, re-export as
-   `anvil_kernel::graph`. Full `cargo test -p eddacraft-anvil-kernel`.
-4. `anvil-intercept`: add `anvil-graph-cache`; update `watcher.rs:28` doc.
+3. `anvil-kernel`: depend on `anvil-graph-cache`, re-export with the
+   **module-alias** `pub use anvil_graph_cache as graph;` (not item re-exports).
+   Route `update_file`'s insert-failure `eprintln!` (`incremental.rs:83`) through
+   `tracing` while the code is in hand. Full `cargo test -p eddacraft-anvil-kernel`
+   (incl. `architecture_parity.rs`, which imports the `graph::incremental`
+   submodule path).
+4. `anvil-intercept`: add `anvil-graph-cache`; update `watcher.rs:28` doc. The
+   daemon's interim `apply_delta` (Task 7) must receive **already-parsed
+   `FileSymbols`** from the kernel-side feed — do **not** add a parser dep to the
+   daemon (see "The cache-write path needs a parse" above).
 5. `cargo hakari generate && cargo hakari verify`; regenerate `ACKNOWLEDGEMENTS`
    to confirm no change; `cargo clippy --workspace --all-targets -- -D warnings`;
    `cargo fmt --all --check`.
@@ -193,6 +247,11 @@ Both options are cycle-free, so the decision turns on **build weight** and
   boundaries)
 - Council verdict: B5 + Action 1
   ([`plans/reviews/2026-06-01-daemon-graph-council-verdict.md`](../reviews/2026-06-01-daemon-graph-council-verdict.md))
+- Independent architecture review (2026-06-02): verdict **SOUND-WITH-FIXES** —
+  cycle audit, parse-free-layer, and petgraph-already-in-tree claims verified
+  against code; the four fixes (write-path-parse promoted to a binding decision;
+  module-alias re-export pinned; `GraphDelta` policy-baggage + `eprintln!` notes)
+  are folded into this revision.
 - Execution plan:
   [`plans/execution/2026-06-01-daemon-save-time-subphase-a.md`](../execution/2026-06-01-daemon-save-time-subphase-a.md)
   (Tasks 6/7/8; correction §B5)
