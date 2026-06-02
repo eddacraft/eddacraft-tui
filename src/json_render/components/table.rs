@@ -13,6 +13,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use serde_json::Value;
 
+use crate::json_render::responsive::max_table_columns;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::EddaCraftTheme;
 use crate::widgets::data_table::DataTable;
@@ -63,7 +64,17 @@ impl TuiComponent for Table {
             return;
         }
         let theme = EddaCraftTheme;
-        let (headers, rows) = Self::data(props);
+        let (mut headers, mut rows) = Self::data(props);
+        // Progressive column hiding (TUIDASH-011): in a narrow area, keep only as
+        // many leading columns as fit at a readable width and drop the rest, so
+        // cells stay legible rather than squeezing to a character or two.
+        let keep = max_table_columns(area.width, headers.len());
+        if keep < headers.len() {
+            headers.truncate(keep);
+            for row in &mut rows {
+                row.truncate(keep);
+            }
+        }
         // `DataTable::new` borrows `&[&str]`, so the header strings must outlive
         // the widget; they do — both live to the end of this call.
         let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
@@ -102,6 +113,41 @@ mod tests {
         let p = json!({ "columns": "nope", "rows": 7 });
         let (h, r) = Table::data(p.as_object().expect("obj"));
         assert!(h.is_empty() && r.is_empty());
+    }
+
+    fn rendered_text(props: &Props, w: u16, h: u16) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).expect("backend");
+        terminal
+            .draw(|frame| Table.render(props, frame, frame.area()))
+            .expect("draw");
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect()
+    }
+
+    #[test]
+    fn drops_trailing_columns_in_a_narrow_area() {
+        // Six columns: a wide area keeps them all; a narrow area sheds the
+        // trailing ones (TUIDASH-011 progressive column hiding).
+        let p = json!({
+            "columns": ["C0", "C1", "C2", "C3", "C4", "C5"],
+            "rows": [["a", "b", "c", "d", "e", "f"]]
+        });
+        let obj = p.as_object().expect("obj");
+
+        let wide = rendered_text(obj, 200, 4);
+        assert!(wide.contains("C5"), "wide keeps every column: {wide:?}");
+
+        let narrow = rendered_text(obj, 40, 4);
+        assert!(narrow.contains("C0"), "narrow keeps leading columns");
+        assert!(
+            !narrow.contains("C5"),
+            "narrow drops trailing columns: {narrow:?}"
+        );
     }
 
     #[test]

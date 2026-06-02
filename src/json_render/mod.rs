@@ -31,6 +31,7 @@ mod component;
 pub mod components;
 mod registry;
 mod renderer;
+pub mod responsive;
 mod spec;
 
 use std::collections::{BTreeMap, BTreeSet};

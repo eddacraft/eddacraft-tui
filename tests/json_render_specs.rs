@@ -83,6 +83,22 @@ fn template_specs_render_through_the_engine_without_panic() {
 }
 
 #[test]
+fn template_specs_render_at_every_breakpoint_without_panic() {
+    // The same spec must render usably at the documented sizes (TUIDASH-011):
+    // 80x24 (narrow), 120x40 (medium), 200x60 (wide).
+    let registry = json_render::base_registry();
+    for (label, json) in TEMPLATES {
+        let spec = json_render::parse(json).unwrap_or_else(|e| panic!("{label}: parse: {e}"));
+        for (w, h) in [(80, 24), (120, 40), (200, 60)] {
+            let mut terminal = Terminal::new(TestBackend::new(w, h)).expect("test backend");
+            terminal
+                .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
+                .unwrap_or_else(|e| panic!("{label} @ {w}x{h}: draw: {e}"));
+        }
+    }
+}
+
+#[test]
 fn templates_root_resolves_and_children_reference_real_elements() {
     for (label, json) in TEMPLATES {
         let spec = json_render::parse(json).unwrap_or_else(|e| panic!("{label}: parse: {e}"));
