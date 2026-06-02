@@ -2,8 +2,8 @@
 
 ## Status
 
-**Proposed** — 2026-06-02. Resolves council blocker **B5** (the hard predecessor
-to B1) from the
+**Proposed** — 2026-06-02. **Proposes** the resolution of council blocker **B5**
+(the hard predecessor to B1) from the
 [daemon-graph review verdict](../reviews/2026-06-01-daemon-graph-council-verdict.md);
 gates the start of
 [daemon save-time sub-phase A](../execution/2026-06-01-daemon-save-time-subphase-a.md)

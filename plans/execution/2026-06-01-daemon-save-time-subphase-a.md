@@ -22,8 +22,9 @@ are predecessors):
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
    documents the deliberate refusal). Tasks 6/7/8 cannot compile.
-   **Resolved by [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md)
-   (Proposed): extract `eddacraft-anvil-graph-cache`** (`SymbolGraph`,
+   **Proposed resolution in
+   [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md) (Proposed,
+   not yet Accepted): extract `eddacraft-anvil-graph-cache`** (`SymbolGraph`,
    `DependencyGraph`, incremental apply-delta, `certify`) — `petgraph`-only, no
    parser surface — and depend on it from both `anvil-kernel` and
    `anvil-intercept`; relocate the plain `ImportEdge`/`FileSymbols` structs to
