@@ -51,6 +51,21 @@
 //!   ADR-004.
 //! - `anvil/status/query` — client → server, returns the current
 //!   session / fence / driver state for a worktree.
+//! - `anvil/validate_paths` — client → server, the save-time verdict
+//!   verb (ADR-061 / DSV-002): certify a change set against the warm
+//!   graph cache and return the verdict-shaped response.
+//! - `anvil/workspace_status` — client → server, a read-only
+//!   workspace-assurance snapshot (the `anvil status` surface).
+//! - `anvil/request_full_scan` — client → server, ask the daemon to
+//!   re-establish a clean baseline after assurance went stale.
+//!
+//! Registration invariant: every `pub const ANVIL_*` method name here
+//! MUST also appear in [`ALL_ANVIL_METHODS`]; the
+//! `all_anvil_methods_two_directional` test count-pins the slice so a
+//! method cannot be listed without a backing const, nor the count
+//! changed silently. (Rust cannot enumerate module consts at test time,
+//! so a brand-new const left out of *both* the slice and the test is
+//! the one case tests can't catch — hence this written rule.)
 //!
 //! LSP methods (`textDocument/publishDiagnostics`,
 //! `textDocument/codeAction`, `workspace/applyEdit`,
@@ -128,6 +143,26 @@ pub const ANVIL_SUPPRESSION_APPLY: &str = "anvil/suppression/apply";
 /// the telemetry lane.
 pub const ANVIL_STATUS_QUERY: &str = "anvil/status/query";
 
+/// Client → server: certify a set of changed paths against the warm
+/// per-`WorktreeKey` graph cache and return the verdict-shaped
+/// [`ValidatePathsResponse`]. The save-time hot-path verb (ADR-061
+/// Sub-phase A); `watch` and the MCP `anvil_validate_write` tool are
+/// thin clients of it. The wire is **frozen** across sub-phases — only
+/// the cache backing it swaps (interim `SymbolGraph` → GV2 hot-read →
+/// warm-start). See the daemon-save-time-validation module (DSV).
+pub const ANVIL_VALIDATE_PATHS: &str = "anvil/validate_paths";
+
+/// Client → server: a read-only snapshot of a worktree's
+/// [`WorkspaceAssurance`] (the `anvil status` surface) without
+/// submitting any change set. Companion to [`ANVIL_VALIDATE_PATHS`].
+pub const ANVIL_WORKSPACE_STATUS: &str = "anvil/workspace_status";
+
+/// Client → server: request the daemon run a full (cold) scan of a
+/// worktree to re-establish a `Clean` baseline after the assurance
+/// state has gone `Stale`/`Unavailable`. Returns the post-request
+/// [`WorkspaceAssurance`] (typically `running`/`pending`).
+pub const ANVIL_REQUEST_FULL_SCAN: &str = "anvil/request_full_scan";
+
 /// Capability lattice for the §3.3 state machine.
 ///
 /// `Attached` is the read-only floor: every successfully-handshaken
@@ -181,7 +216,264 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GATE_REQUEST,
     ANVIL_SUPPRESSION_APPLY,
     ANVIL_STATUS_QUERY,
+    ANVIL_VALIDATE_PATHS,
+    ANVIL_WORKSPACE_STATUS,
+    ANVIL_REQUEST_FULL_SCAN,
 ];
+
+// ============================================================================
+// DSV-002 — the frozen `validate_paths` verdict wire (ADR-061 Sub-phase A)
+// ============================================================================
+//
+// These types pin the forward-compatible, verdict-shaped contract the daemon
+// answers `validate_paths`/`workspace_status`/`request_full_scan` with, and
+// that all four delivery surfaces (watch+daemon, watch+fallback, MCP+daemon,
+// MCP+fallback) integrate against. The **wire is frozen once and the backing
+// swaps underneath it** across sub-phases (interim `SymbolGraph` cache → GV2
+// hot-read slice → warm-start persistence) so consumers never re-integrate.
+//
+// Forward-compatibility rule (MLP2-052 style): no type here uses
+// `#[serde(deny_unknown_fields)]`, so a newer daemon can add additive fields
+// without breaking an older client's deserialise. Wire strings are frozen:
+// `snake_case` for method-adjacent/state vocabulary, `kebab-case` for the
+// reason/family vocabulary that mirrors the daemon's structured-log strings.
+//
+// Two boundaries are deliberately NOT this crate's job and live downstream:
+//   * Resource bounds. `ValidatePathsRequest.paths` and the `String` fields
+//     are unbounded by design here; request-count and per-string length caps
+//     are enforced at the daemon request handler (DSV-003+), so the
+//     deserialise-tolerant wire does not become an unbounded-allocation
+//     surface for a same-uid client.
+//   * Request correlation. `request_full_scan` carries no scan-id today; if a
+//     consumer ever needs to distinguish "my scan" from a coalesced in-flight
+//     one, an `Option<String>` id is an additive (non-breaking) field to add
+//     when DSV-005/-007 give it a real caller — not pre-emptively here.
+
+/// How a single changed path changed, as classified before the daemon
+/// re-derives identity from disk. Internally tagged on `change` so it
+/// flattens cleanly into [`ChangeDescriptor`]; `renamed` carries the
+/// root-relative, slash-normalised previous path in `from`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "change")]
+pub enum ChangeKindWire {
+    /// The path did not exist in the prior generation and now does.
+    Created,
+    /// The path's content changed (includes atomic-save inode flips —
+    /// the daemon classifies those as a modify, not a rename).
+    Modified,
+    /// The path existed and no longer does.
+    Deleted,
+    /// The path was renamed; `from` is the prior root-relative path.
+    Renamed {
+        /// Root-relative, slash-normalised previous path.
+        from: String,
+    },
+}
+
+/// One entry in a [`ValidatePathsRequest`] change set: the path, how it
+/// changed, and optional client-supplied hints. **The daemon never trusts
+/// `content_hash` for a verdict** (it re-reads the openat2-guarded bytes);
+/// the hint only short-circuits redundant work and feeds coalescing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangeDescriptor {
+    /// Root-relative, slash-normalised path that changed.
+    pub path: String,
+    /// The classified change kind, flattened onto the `change` tag.
+    #[serde(flatten)]
+    pub change: ChangeKindWire,
+    /// Optional client hint; advisory only, never authoritative for a verdict.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub content_hash: Option<String>,
+    /// Optional client-observed mtime (epoch seconds); advisory only.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub mtime: Option<i64>,
+}
+
+/// Request body for [`ANVIL_VALIDATE_PATHS`]: certify `paths` under
+/// `workspace_root` (which must already be an admitted root — see DSV-003
+/// auth).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidatePathsRequest {
+    /// Canonical, admitted workspace root the changes are relative to.
+    pub workspace_root: String,
+    /// The change set to certify.
+    pub paths: Vec<ChangeDescriptor>,
+}
+
+/// What the verdict actually attests. `Certified` is a sound clean claim
+/// over the [`check_families`](ValidatePathsResponse::check_families) only;
+/// `Partial` means the daemon fell back to a scoped/Stale answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Coverage {
+    /// A sound clean attestation over the listed `check_families`.
+    Certified,
+    /// Coverage is incomplete; consult `workspace_assurance` for the reason.
+    Partial,
+}
+
+/// The check families a `certified` verdict attests (B2). Frozen as
+/// `[antipattern]` for Sub-phase A — `coverage: certified` is **never** an
+/// unscoped structural-safety claim; structural policy stays on whole-repo
+/// `anvil gate`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CheckFamily {
+    /// The antipattern check family (`anvil-checks::antipattern`).
+    Antipattern,
+}
+
+/// The coarse workspace-assurance state the `anvil status` surface renders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssuranceState {
+    /// Warm state is consistent and the last verdict was certifiable.
+    Clean,
+    /// The verdict cannot be trusted clean; see the paired [`StaleReason`].
+    Stale,
+    /// A scan is queued but has not started.
+    Pending,
+    /// A scan is in flight.
+    Running,
+    /// No daemon answered (daemon-absent / mid-session death). Never a
+    /// truncated `clean`.
+    Unavailable,
+}
+
+/// Why assurance is not `Clean`. Default-deny: any change class the daemon
+/// cannot prove certifiable maps to one of these (unknown ⇒ stale, never
+/// clean). Frozen kebab-case wire strings.
+///
+/// Forward-compat: the *fields* of the surrounding wire grow additively, but
+/// this reason vocabulary is the one frozen enum most likely to gain members
+/// in a later daemon. So it carries a [`StaleReason::Unknown`] `#[serde(other)]`
+/// fallback — an older client that meets a newer daemon's unrecognised reason
+/// string degrades to `Unknown` (still stale, fail-safe) rather than failing
+/// the whole response parse. New named reasons are therefore additive on both
+/// ends; they do not require a `protocolVersion` bump.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StaleReason {
+    /// A change needs cross-file resolution the warm cache cannot supply
+    /// yet (also the cold-key initial state).
+    CrossFileResolutionNeeded,
+    /// A path in the change set was deleted.
+    Deleted,
+    /// A path in the change set was renamed.
+    Renamed,
+    /// A symlink in the resolution path was retargeted.
+    SymlinkRetarget,
+    /// A config / boundary / policy file edit changed the rule surface.
+    ConfigBoundaryPolicyEdit,
+    /// A `.gitignore` scope change altered which paths are in play.
+    GitignoreScopeChange,
+    /// The bounded reverse-impact closure exceeded its budget.
+    ImpactSetOverflow,
+    /// The warm state for this worktree was evicted from the cache.
+    WarmStateEvicted,
+    /// A scan exceeded its time budget.
+    ScanTimeout,
+    /// No daemon answered the request.
+    DaemonAbsent,
+    /// An unrecognised *change class* the daemon could not classify — fails
+    /// closed to stale. (Distinct from [`StaleReason::Unknown`], which is the
+    /// wire-level fallback for an unrecognised *reason string*.)
+    UnknownClass,
+    /// `#[serde(other)]` fallback: a reason string this build does not know,
+    /// emitted by a newer daemon. Treated as stale (fail-safe). Never produced
+    /// by this build's own serialiser for a known reason.
+    #[serde(other)]
+    Unknown,
+}
+
+/// The workspace-assurance snapshot carried by every verdict and by the
+/// standalone status/full-scan responses. Deliberately carries **no**
+/// graph-version field: the wire is frozen against the backing, so a GV2
+/// swap (Sub-phase A′) must not leak internal graph versioning.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceAssurance {
+    /// The coarse assurance state.
+    pub state: AssuranceState,
+    /// The cause when assurance is not trustworthy. Invariant: present iff
+    /// `state` is `Stale` or `Unavailable` (an `Unavailable` snapshot carries
+    /// [`StaleReason::DaemonAbsent`]); always `None` for `Clean`, `Pending`,
+    /// and `Running`, which are lifecycle states with no staleness cause.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reason: Option<StaleReason>,
+    /// Monotonic, per-worktree **opaque** turnover token; bumps on eviction /
+    /// cold rebuild so consumers can detect warm-state turnover. Not a global
+    /// or graph-internal version (cf. the deliberate `graph_version` omission)
+    /// — a backing swap must keep it an opaque counter.
+    pub generation: u64,
+    /// RFC 3339 timestamp of the last completed full scan, if any. The wire
+    /// type is a `String` (a typed timestamp is not serde-version-stable);
+    /// consumers MUST treat a parse failure as "scan time unknown" rather than
+    /// propagating it as a verdict error.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_full_scan: Option<String>,
+}
+
+/// One evaluated path echoed back with the **daemon-computed** content hash
+/// (not the client's hint) — the authoritative record of what was certified.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvaluatedPath {
+    /// Root-relative path that was evaluated.
+    pub path: String,
+    /// Hash of the bytes the daemon actually read under the openat2 guard.
+    /// `None` for `Deleted` and `Renamed` (the `from` side) entries: those
+    /// have no daemon-readable bytes, so there is no content to hash. A
+    /// `Created`/`Modified` entry always carries `Some(_)`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub content_hash: Option<String>,
+}
+
+/// The verdict-shaped response to [`ANVIL_VALIDATE_PATHS`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidatePathsResponse {
+    /// Findings for the change set, in the canonical `anvil.diagnostic.v1`
+    /// shape (the proto-owned shared envelope; B3).
+    pub diagnostics: DiagnosticEnvelope,
+    /// Each path the daemon evaluated, with its daemon-computed hash.
+    pub evaluated: Vec<EvaluatedPath>,
+    /// Workspace assurance after applying this change set.
+    pub workspace_assurance: WorkspaceAssurance,
+    /// What the verdict attests over the listed `check_families`.
+    pub coverage: Coverage,
+    /// The families `certified` attests (frozen `[antipattern]`; B2).
+    /// Invariant: MUST be non-empty when `coverage` is `Certified` — a clean
+    /// attestation over zero families is meaningless. May be empty only with
+    /// `coverage: Partial` (e.g. an `Unavailable` snapshot attests nothing).
+    pub check_families: Vec<CheckFamily>,
+}
+
+/// Request body for [`ANVIL_WORKSPACE_STATUS`]: a read-only assurance snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceStatusRequest {
+    /// Canonical, admitted workspace root to report on.
+    pub workspace_root: String,
+}
+
+/// Response to [`ANVIL_WORKSPACE_STATUS`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceStatusResponse {
+    /// The current assurance snapshot for the worktree.
+    pub workspace_assurance: WorkspaceAssurance,
+}
+
+/// Request body for [`ANVIL_REQUEST_FULL_SCAN`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestFullScanRequest {
+    /// Canonical, admitted workspace root to re-scan.
+    pub workspace_root: String,
+}
+
+/// Response to [`ANVIL_REQUEST_FULL_SCAN`]: the post-request assurance state
+/// (typically `running`/`pending`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestFullScanResponse {
+    /// The assurance snapshot after the scan was requested.
+    pub workspace_assurance: WorkspaceAssurance,
+}
 
 #[cfg(test)]
 mod tests {
@@ -208,7 +500,9 @@ mod tests {
             ALL_ANVIL_METHODS.len(),
             "ALL_ANVIL_METHODS must not contain duplicates"
         );
-        // Every named constant is in the listed set.
+        // Every named constant is in the listed set. Kept in sync with the
+        // DSV-002 additions; the stronger bidirectional/count pin lives in
+        // `all_anvil_methods_two_directional`.
         for method in [
             ANVIL_PUBLISH_DIAGNOSTICS,
             ANVIL_SCAN_BUFFER,
@@ -216,6 +510,9 @@ mod tests {
             ANVIL_GATE_REQUEST,
             ANVIL_SUPPRESSION_APPLY,
             ANVIL_STATUS_QUERY,
+            ANVIL_VALIDATE_PATHS,
+            ANVIL_WORKSPACE_STATUS,
+            ANVIL_REQUEST_FULL_SCAN,
         ] {
             assert!(
                 listed.contains(method),
@@ -312,5 +609,396 @@ mod tests {
         let wire = serde_json::to_string(&envelope).expect("serialise");
         let back: DiagnosticEnvelope = serde_json::from_str(&wire).expect("deserialise");
         assert_eq!(envelope, back);
+    }
+
+    // ---- DSV-002: frozen `validate_paths` verdict wire (ADR-061 §2/§5) ----
+
+    fn sample_assurance() -> WorkspaceAssurance {
+        WorkspaceAssurance {
+            state: AssuranceState::Stale,
+            reason: Some(StaleReason::CrossFileResolutionNeeded),
+            generation: 7,
+            last_full_scan: None,
+        }
+    }
+
+    /// The three new method constants are pinned to their wire form.
+    /// Changing any is a breaking protocol change (bump `protocolVersion`).
+    #[test]
+    fn validate_paths_method_const() {
+        assert_eq!(ANVIL_VALIDATE_PATHS, "anvil/validate_paths");
+        assert_eq!(ANVIL_WORKSPACE_STATUS, "anvil/workspace_status");
+        assert_eq!(ANVIL_REQUEST_FULL_SCAN, "anvil/request_full_scan");
+    }
+
+    /// Every `ChangeKindWire` variant round-trips through the flattened
+    /// `ChangeDescriptor` envelope, including the `renamed` `from` payload.
+    #[test]
+    fn change_descriptor_roundtrip_all_variants() {
+        let cases = [
+            ChangeDescriptor {
+                path: "src/lib.rs".to_string(),
+                change: ChangeKindWire::Created,
+                content_hash: None,
+                mtime: None,
+            },
+            ChangeDescriptor {
+                path: "src/lib.rs".to_string(),
+                change: ChangeKindWire::Modified,
+                content_hash: Some("deadbeef".to_string()),
+                mtime: Some(1_717_000_000),
+            },
+            ChangeDescriptor {
+                path: "src/old.rs".to_string(),
+                change: ChangeKindWire::Deleted,
+                content_hash: None,
+                mtime: None,
+            },
+            ChangeDescriptor {
+                path: "src/new.rs".to_string(),
+                change: ChangeKindWire::Renamed {
+                    from: "src/old.rs".to_string(),
+                },
+                content_hash: None,
+                mtime: None,
+            },
+        ];
+        for case in cases {
+            let wire = serde_json::to_string(&case).expect("serialise descriptor");
+            let back: ChangeDescriptor =
+                serde_json::from_str(&wire).expect("deserialise descriptor");
+            assert_eq!(case, back, "round-trip changed the descriptor: {wire}");
+        }
+    }
+
+    /// The change discriminant serialises as a flattened `change` tag
+    /// (`snake_case`), with `renamed` carrying its `from` sibling field.
+    #[test]
+    fn change_descriptor_uses_flattened_change_tag() {
+        let modified = ChangeDescriptor {
+            path: "src/lib.rs".to_string(),
+            change: ChangeKindWire::Modified,
+            content_hash: None,
+            mtime: None,
+        };
+        let json = serde_json::to_value(&modified).expect("serialise");
+        assert_eq!(json["change"], "modified");
+        assert_eq!(json["path"], "src/lib.rs");
+        // Optional fields skip-serialise when absent.
+        assert!(json.get("content_hash").is_none());
+        assert!(json.get("mtime").is_none());
+
+        let renamed = ChangeDescriptor {
+            path: "src/new.rs".to_string(),
+            change: ChangeKindWire::Renamed {
+                from: "src/old.rs".to_string(),
+            },
+            content_hash: None,
+            mtime: None,
+        };
+        let json = serde_json::to_value(&renamed).expect("serialise");
+        assert_eq!(json["change"], "renamed");
+        assert_eq!(json["from"], "src/old.rs");
+    }
+
+    /// Forward-compat (MLP2-052 style): an additive unknown field on the
+    /// response must deserialise OK so a newer daemon can extend the wire
+    /// without breaking an older client.
+    #[test]
+    fn response_tolerates_unknown_additive_field() {
+        let wire = serde_json::json!({
+            "diagnostics": [],
+            "evaluated": [],
+            "workspace_assurance": {
+                "state": "clean",
+                "generation": 1
+            },
+            "coverage": "certified",
+            "check_families": ["antipattern"],
+            "future_field_from_a_newer_daemon": {"nested": true}
+        });
+        let resp: ValidatePathsResponse =
+            serde_json::from_value(wire).expect("unknown additive field must deserialise");
+        assert_eq!(resp.coverage, Coverage::Certified);
+        assert_eq!(resp.check_families, vec![CheckFamily::Antipattern]);
+        assert_eq!(resp.workspace_assurance.state, AssuranceState::Clean);
+    }
+
+    /// Every `StaleReason` serialises to its frozen kebab-case wire string.
+    #[test]
+    fn stale_reason_kebab_wire_strings() {
+        let cases = [
+            (
+                StaleReason::CrossFileResolutionNeeded,
+                "cross-file-resolution-needed",
+            ),
+            (StaleReason::Deleted, "deleted"),
+            (StaleReason::Renamed, "renamed"),
+            (StaleReason::SymlinkRetarget, "symlink-retarget"),
+            (
+                StaleReason::ConfigBoundaryPolicyEdit,
+                "config-boundary-policy-edit",
+            ),
+            (StaleReason::GitignoreScopeChange, "gitignore-scope-change"),
+            (StaleReason::ImpactSetOverflow, "impact-set-overflow"),
+            (StaleReason::WarmStateEvicted, "warm-state-evicted"),
+            (StaleReason::ScanTimeout, "scan-timeout"),
+            (StaleReason::DaemonAbsent, "daemon-absent"),
+            (StaleReason::UnknownClass, "unknown-class"),
+        ];
+        for (variant, wire) in cases {
+            assert_eq!(
+                serde_json::to_value(variant).unwrap(),
+                serde_json::Value::String(wire.to_string()),
+                "{variant:?} must serialise as {wire}"
+            );
+            let back: StaleReason =
+                serde_json::from_value(serde_json::Value::String(wire.to_string())).unwrap();
+            assert_eq!(back, variant, "{wire} must deserialise back to {variant:?}");
+        }
+    }
+
+    /// The assurance surface carries no `graph_version` field — the wire is
+    /// frozen against the backing, so a future GV2 swap (sub-phase A′) must
+    /// not leak the graph's internal versioning to consumers.
+    #[test]
+    fn no_graph_version_field() {
+        let assurance_json = serde_json::to_value(sample_assurance()).unwrap();
+        assert!(
+            assurance_json.get("graph_version").is_none(),
+            "WorkspaceAssurance must not expose graph_version"
+        );
+
+        let status = WorkspaceStatusResponse {
+            workspace_assurance: sample_assurance(),
+        };
+        let status_json = serde_json::to_value(&status).unwrap();
+        assert!(
+            status_json.get("graph_version").is_none(),
+            "WorkspaceStatusResponse must not expose graph_version"
+        );
+        // ...nor nested under workspace_assurance.
+        assert!(
+            status_json["workspace_assurance"]
+                .get("graph_version")
+                .is_none()
+        );
+    }
+
+    /// B2: `coverage: certified` attests ONLY the antipattern family. A
+    /// certified response serialises `check_families: ["antipattern"]`.
+    #[test]
+    fn response_carries_check_families() {
+        let resp = ValidatePathsResponse {
+            diagnostics: vec![],
+            evaluated: vec![EvaluatedPath {
+                path: "src/lib.rs".to_string(),
+                content_hash: Some("abc123".to_string()),
+            }],
+            workspace_assurance: WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 2,
+                last_full_scan: None,
+            },
+            coverage: Coverage::Certified,
+            check_families: vec![CheckFamily::Antipattern],
+        };
+        let json = serde_json::to_value(&resp).expect("serialise response");
+        assert_eq!(json["coverage"], "certified");
+        assert_eq!(json["check_families"], serde_json::json!(["antipattern"]));
+        // `reason` skip-serialises when None on a clean verdict.
+        assert!(json["workspace_assurance"].get("reason").is_none());
+    }
+
+    /// The full request/response pair round-trips losslessly.
+    #[test]
+    fn validate_paths_request_response_round_trip() {
+        let req = ValidatePathsRequest {
+            workspace_root: "/home/me/proj".to_string(),
+            paths: vec![ChangeDescriptor {
+                path: "src/lib.rs".to_string(),
+                change: ChangeKindWire::Modified,
+                content_hash: Some("h".to_string()),
+                mtime: Some(42),
+            }],
+        };
+        let back: ValidatePathsRequest =
+            serde_json::from_str(&serde_json::to_string(&req).unwrap()).unwrap();
+        assert_eq!(req, back);
+
+        let resp = ValidatePathsResponse {
+            diagnostics: vec![sample_diagnostic()],
+            evaluated: vec![EvaluatedPath {
+                path: "src/lib.rs".to_string(),
+                content_hash: Some("h".to_string()),
+            }],
+            workspace_assurance: sample_assurance(),
+            coverage: Coverage::Partial,
+            check_families: vec![CheckFamily::Antipattern],
+        };
+        let back: ValidatePathsResponse =
+            serde_json::from_str(&serde_json::to_string(&resp).unwrap()).unwrap();
+        assert_eq!(resp, back);
+    }
+
+    /// Correction item 9: `ALL_ANVIL_METHODS` is two-directionally pinned.
+    /// Forward — every named method constant is in the slice. Backward —
+    /// the slice carries no entry that is not a known, named constant, and
+    /// its length is count-pinned. A new method therefore cannot be added
+    /// to the slice unpinned, nor a constant defined without listing it.
+    #[test]
+    fn all_anvil_methods_two_directional() {
+        // The exhaustive set of named method constants this protocol version
+        // defines. Adding a method means adding it here AND to the slice.
+        let named: std::collections::HashSet<&str> = [
+            ANVIL_PUBLISH_DIAGNOSTICS,
+            ANVIL_SCAN_BUFFER,
+            ANVIL_ENFORCEMENT_ACK,
+            ANVIL_GATE_REQUEST,
+            ANVIL_SUPPRESSION_APPLY,
+            ANVIL_STATUS_QUERY,
+            ANVIL_VALIDATE_PATHS,
+            ANVIL_WORKSPACE_STATUS,
+            ANVIL_REQUEST_FULL_SCAN,
+        ]
+        .into_iter()
+        .collect();
+        let listed: std::collections::HashSet<&str> = ALL_ANVIL_METHODS.iter().copied().collect();
+
+        // Count pin: no silent additions, no silent drops.
+        assert_eq!(
+            ALL_ANVIL_METHODS.len(),
+            9,
+            "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
+        );
+        // Forward: every named const is listed.
+        assert!(
+            named.is_subset(&listed),
+            "a named method is missing from ALL_ANVIL_METHODS"
+        );
+        // Backward: every listed entry is a known named const.
+        assert!(
+            listed.is_subset(&named),
+            "ALL_ANVIL_METHODS carries an entry with no backing named constant"
+        );
+    }
+
+    // ---- DSV-002 council follow-ups (2026-06-03 batch review) ----
+
+    /// Forward-compat on the request side: a `ChangeDescriptor` with an extra
+    /// unknown field — including alongside a **unit** change variant — still
+    /// deserialises. This is the riskiest serde surface (a `#[serde(flatten)]`
+    /// of an internally-tagged enum), so probe it with raw JSON, not just a
+    /// serialiser round-trip.
+    #[test]
+    fn change_descriptor_tolerates_unknown_field_raw_json() {
+        // Unit variant + unknown sibling key.
+        let created: ChangeDescriptor = serde_json::from_str(
+            r#"{"path":"src/lib.rs","change":"created","editor_context":"vscode"}"#,
+        )
+        .expect("unknown field on a unit-variant descriptor must deserialise");
+        assert_eq!(created.change, ChangeKindWire::Created);
+        assert_eq!(created.path, "src/lib.rs");
+
+        // Struct variant (`renamed`) + unknown sibling key.
+        let renamed: ChangeDescriptor = serde_json::from_str(
+            r#"{"path":"src/new.rs","change":"renamed","from":"src/old.rs","tool":"git"}"#,
+        )
+        .expect("unknown field on a struct-variant descriptor must deserialise");
+        assert_eq!(
+            renamed.change,
+            ChangeKindWire::Renamed {
+                from: "src/old.rs".to_string()
+            }
+        );
+    }
+
+    /// Forward-compat on the nested object: an unknown field on
+    /// `WorkspaceAssurance` (not just the top-level response) deserialises OK,
+    /// so a newer daemon can grow the assurance object additively.
+    #[test]
+    fn workspace_assurance_tolerates_unknown_field() {
+        let assurance: WorkspaceAssurance = serde_json::from_value(serde_json::json!({
+            "state": "clean",
+            "generation": 3,
+            "warm_since": "2026-06-03T00:00:00Z"
+        }))
+        .expect("unknown field on WorkspaceAssurance must deserialise");
+        assert_eq!(assurance.state, AssuranceState::Clean);
+        assert_eq!(assurance.generation, 3);
+        assert!(assurance.reason.is_none());
+    }
+
+    /// An unrecognised reason string from a newer daemon degrades to
+    /// [`StaleReason::Unknown`] (fail-safe stale) rather than failing the
+    /// whole parse — the `#[serde(other)]` forward-compat contract.
+    #[test]
+    fn unknown_stale_reason_string_degrades_to_unknown() {
+        let parsed: StaleReason =
+            serde_json::from_value(serde_json::Value::String("budget-exhausted".to_string()))
+                .expect("an unrecognised reason must deserialise to the fallback");
+        assert_eq!(parsed, StaleReason::Unknown);
+
+        // And a known reason still maps to its named variant, not the fallback.
+        let known: StaleReason =
+            serde_json::from_value(serde_json::Value::String("scan-timeout".to_string())).unwrap();
+        assert_eq!(known, StaleReason::ScanTimeout);
+
+        // Inside the assurance envelope, too.
+        let assurance: WorkspaceAssurance = serde_json::from_value(serde_json::json!({
+            "state": "stale",
+            "reason": "some-future-reason",
+            "generation": 1
+        }))
+        .expect("a future reason inside WorkspaceAssurance must not fail the parse");
+        assert_eq!(assurance.reason, Some(StaleReason::Unknown));
+    }
+
+    /// `EvaluatedPath.content_hash` is `None` for entries with no readable
+    /// bytes (deleted / renamed-from), and skip-serialises when absent.
+    #[test]
+    fn evaluated_path_omits_hash_when_absent() {
+        let deleted = EvaluatedPath {
+            path: "src/gone.rs".to_string(),
+            content_hash: None,
+        };
+        let json = serde_json::to_value(&deleted).unwrap();
+        assert_eq!(json["path"], "src/gone.rs");
+        assert!(
+            json.get("content_hash").is_none(),
+            "absent content_hash must skip-serialise, not emit null"
+        );
+        let back: EvaluatedPath = serde_json::from_value(json).unwrap();
+        assert_eq!(back, deleted);
+    }
+
+    /// The `WorkspaceAssurance.reason` invariant round-trips for the two
+    /// reason-bearing states: `Unavailable` carries `DaemonAbsent`, `Stale`
+    /// carries its cause, and lifecycle states carry no reason.
+    #[test]
+    fn workspace_assurance_reason_states_round_trip() {
+        let unavailable = WorkspaceAssurance {
+            state: AssuranceState::Unavailable,
+            reason: Some(StaleReason::DaemonAbsent),
+            generation: 0,
+            last_full_scan: None,
+        };
+        let back: WorkspaceAssurance =
+            serde_json::from_str(&serde_json::to_string(&unavailable).unwrap()).unwrap();
+        assert_eq!(back, unavailable);
+
+        // A lifecycle state (running) carries no reason and skip-serialises it.
+        let running = WorkspaceAssurance {
+            state: AssuranceState::Running,
+            reason: None,
+            generation: 5,
+            last_full_scan: Some("2026-06-03T12:00:00Z".to_string()),
+        };
+        let json = serde_json::to_value(&running).unwrap();
+        assert_eq!(json["state"], "running");
+        assert!(json.get("reason").is_none());
+        let back: WorkspaceAssurance = serde_json::from_value(json).unwrap();
+        assert_eq!(back, running);
     }
 }

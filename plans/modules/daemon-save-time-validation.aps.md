@@ -163,7 +163,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-002: Freeze the `validate_paths` verdict wire
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Pin the forward-compatible verdict-shaped wire (method constants,
   request/response types, `coverage`, `check_families`, `StaleReason`,
   `WorkspaceAssurance`) so all four surfaces integrate against a stable contract.
