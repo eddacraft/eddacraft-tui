@@ -207,10 +207,22 @@ precise than "any file with importers is never certified".
 
 - **Trust boundary:** SO_PEERCRED uid == daemon uid. No intra-uid cross-workspace
   boundary exists or is claimed.
-- **Authority:** reuse the existing handshake + `auth.rs`
-  `validate_workspace_roots`. A connection carries a **growable set** of roots;
-  additions auto-granted within the uid in `open` mode. No `/proc/<pid>/cwd`
-  check.
+- **Authority:** the SO_PEERCRED connection handshake/transport is reused from
+  `scan_buffer`, but wiring `auth.rs` `validate_workspace_roots` into authorisation is
+  **net-new (B7), not "reuse"** — the API ships with unit tests but has **no production
+  caller today** (DRVR-001 Wave 2 left it unwired; zero call sites outside `auth.rs`).
+  `validate_paths` is the first verb to wire it and the first to read arbitrary on-disk
+  paths, so this authorisation path (with Task 3 read-safety) is load-bearing, not
+  incidental reuse. A connection carries a **growable set** of roots, each stored as
+  the once-opened `O_PATH` dirfd identity (not a re-resolvable string); additions
+  auto-granted within the uid in `open` mode. No `/proc/<pid>/cwd` check.
+- **Open-mode read blast radius (security C3):** because `open` is the default and
+  first-touch adopt auto-grants any nameable root, a compromised *same-uid* process can
+  adopt any root it can name and drive `validate_paths` to read arbitrary on-disk
+  content under the daemon. This is acceptable **only** under the same-uid trust
+  boundary above (no intra-uid boundary is claimed); operators who require a confinement
+  boundary use `allowlist` mode (below). Stated explicitly so it is a reviewed decision,
+  not an implicit default.
 - **Read-safety:** `openat2(RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH)` against an
   `O_PATH` dirfd opened once per workspace; all per-path reads relative to it;
   lstat-ladder fallback. `path` and `from` are root-relative, slash-normalised,

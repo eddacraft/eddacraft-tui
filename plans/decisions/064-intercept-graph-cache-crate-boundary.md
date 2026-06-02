@@ -67,10 +67,13 @@ The graph algorithm layer is **already parse-free**:
   *declaration site* of `ImportEdge` / `FileSymbols` couples them to the parser
   crate.
 - The daemon **hot path only reads** the cache: `certify` walks
-  `DependencyGraph::dependents_of` (a `petgraph` traversal). `dependents_of` has
-  **zero non-test callers today** (council B1: the reverse index is net-new, not
-  "existing/O(1)"). Cache **writes** (`update_file` with `FileSymbols`) require
-  an upstream parse, which stays in `anvil-kernel`.
+  `DependencyGraph::dependents_of` — which is a `HashMap<String, HashSet<String>>`
+  reverse-index lookup (`dependency.rs:9-11`), **not** a `petgraph` traversal;
+  `petgraph` backs `SymbolGraph`, which the cache also holds (Task 7 caches the
+  pair), so the daemon inherits `petgraph` via `SymbolGraph` regardless.
+  `dependents_of` has **zero non-test callers today** (council B1: the reverse index
+  is net-new, not "existing/O(1)"). Cache **writes** (`update_file` with
+  `FileSymbols`) require an upstream parse, which stays in `anvil-kernel`.
 
 So the load-bearing question is narrow: **what crate hosts `SymbolGraph`,
 `DependencyGraph`, the incremental apply-delta logic, and the net-new `certify`,
@@ -214,10 +217,13 @@ Both options are cycle-free, so the decision turns on **build weight** and
   in the kernel CLI, but once this code is daemon-adjacent that becomes
   unbounded stderr noise / a log-spam vector; route it through `tracing` during
   the move.
-- **Out of scope:** This ADR does not resolve the sibling security major B5-notes
-  (`confinement.rs` placed in `anvil-intercept` while the `ANVIL_HOME` resolver
-  lives in `anvil-cli`) — that is a different wrong-direction dependency about
-  confinement, not the graph cache, and is tracked separately in the verdict.
+- **Out of scope:** This ADR does not resolve the sibling security major **item 8**
+  (the verdict's ops/security placement findings — `confinement.rs` placement, etc.),
+  which is a different concern from the graph cache and is tracked separately in the
+  verdict + the execution plan. Note that item 8's confinement *premise* was since
+  corrected: the `ANVIL_HOME` resolver (`anvil_home_prefix`) lives in `anvil-intercept`,
+  not `anvil-cli`, so `confinement.rs` loads operator config via the daemon's own
+  resolver with **no** wrong-direction dependency — see the execution plan item 8(a).
 
 ## Migration path
 

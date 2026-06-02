@@ -248,11 +248,16 @@ traversal on the hot path.
   boundary. Within one uid there is **no** cross-workspace boundary to enforce
   (the uid already has filesystem access to all its repos); the ADR states this
   plainly rather than implying a guarantee it cannot make.
-- **Authority:** `validate_paths` / `workspace_status` / `request_full_scan`
-  reuse the **existing handshake + `auth.rs` `validate_workspace_roots`** that
-  `scan_buffer` already requires. A connection carries a **growable set** of
-  workspace roots; additions are auto-granted within the uid (default mode). The
-  `/proc/<pid>/cwd` check from earlier drafts is **dropped entirely** — it is the
+- **Authority:** `validate_paths` / `workspace_status` / `request_full_scan` reuse
+  the **SO_PEERCRED handshake/transport** that `scan_buffer` already requires, but
+  wiring `auth.rs` `validate_workspace_roots` into authorisation is **net-new (B7),
+  not "reuse"** — that API ships with unit tests yet has **no production caller today**
+  (DRVR-001 Wave 2 left it unwired; zero call sites outside `auth.rs`). `validate_paths`
+  is the first verb to wire it and the first to read arbitrary on-disk paths, so this
+  authorisation path (with the read-safety guard below) is load-bearing. A connection
+  carries a **growable set** of workspace roots; additions are auto-granted within the
+  uid (default `open` mode — see the open-mode blast-radius note in the contract §4).
+  The `/proc/<pid>/cwd` check from earlier drafts is **dropped entirely** — it is the
   wrong gate (it breaks editors/agents/MCP whose cwd is elsewhere) and adds no
   security within a uid.
 - **Read-safety:** authorised reads use `openat2(RESOLVE_NO_SYMLINKS |
