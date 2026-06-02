@@ -158,6 +158,22 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # CIB-041: agent-tooling config directories (.codex / .claude / .opencode)
+  # hold no TypeScript or Rust source. Without an explicit class they fall
+  # through to the conservative `unknown` fallback below, which forces the
+  # full unit-test / typecheck matrix on pure agent-config bookkeeping PRs
+  # even though there is nothing to build or test. Markdown within these dirs
+  # still also matches the `docs` case above (markdownlint accumulates); the
+  # dirs are oxfmt-excluded (see .prettierignore), so there is no format gate
+  # — an operations review covers the agent-execution config surface.
+  case "${path}" in
+    .codex/* | .codex/**/* | .claude/* | .claude/**/* | .opencode/* | .opencode/**/*)
+      add_unique path_classes 'agent-config'
+      add_unique risk_classes 'tooling'
+      matched=true
+      ;;
+  esac
+
   case "${path}" in
     scripts/*.sh | scripts/**/*.sh)
       add_unique path_classes 'shell'
@@ -262,6 +278,11 @@ for path_class in "${path_classes[@]}"; do
       ;;
     workflow)
       add_unique required_checks 'workflow-lint'
+      add_unique required_reviews 'operations'
+      ;;
+    agent-config)
+      # No build/test/format gate (oxfmt-excluded, no compiled source); the
+      # agent-execution config surface still warrants a human ops review.
       add_unique required_reviews 'operations'
       ;;
     shell)

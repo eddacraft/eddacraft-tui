@@ -21,6 +21,9 @@ pnpm-lock.yaml
 # files embed copy/paste templates inside fenced ```markdown blocks that oxfmt
 # reflows and corrupts (e.g. merging distinct template lines into one paragraph).
 .opencode/
+# Codex dev tooling — repo-local config + skills, parallel to .claude/ and
+# .opencode/. Same fenced ```markdown corruption applies to the skill files.
+.codex/
 archive/
 # cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
 # handlebars parent-scope access like {{../name}}. Template is authoritative.

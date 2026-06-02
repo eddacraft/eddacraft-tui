@@ -1359,4 +1359,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   worktree and reversed out of the original checkout.
 - **Improvement:** Use absolute paths with `apply_patch` whenever editing a
   Worktrunk sibling worktree from Codex.
-- **Follow-up:** none
+- **Follow-up:** Hardened `scripts/ci/classify-changes.sh` so agent-tooling
+  config dirs (`.codex` / `.claude` / `.opencode`) classify as `agent-config`
+  instead of falling through to the `unknown` fallback that forced the unit-test
+  matrix on a pure config/docs bookkeeping change (folded into CIB-045).

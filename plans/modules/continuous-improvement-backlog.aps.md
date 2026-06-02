@@ -1017,3 +1017,13 @@ archive.
   worktree write roots, and auto-reviewed approvals while staying out of
   `danger-full-access`. Updated the agent-surface inventory to make the Codex
   lifecycle surface discoverable.
+- **Hardening:** Taught the CI change classifier
+  (`scripts/ci/classify-changes.sh`) to recognise agent-tooling config
+  directories (`.codex` / `.claude` / `.opencode`) as a dedicated
+  `agent-config` class. Previously a `.codex` file fell through to the
+  conservative `unknown` fallback and forced the full unit-test / typecheck
+  matrix on a pure agent-config bookkeeping change. These dirs carry no
+  compiled source and are oxfmt-excluded (`.codex` added to `.prettierignore`
+  alongside `.claude` / `.opencode`, whose skill files embed copy/paste fenced
+  markdown templates the formatter corrupts), so they now require only an
+  operations review; markdown within still routes to `docs` for markdownlint.

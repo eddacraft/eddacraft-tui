@@ -125,6 +125,36 @@ assert_json_contains "${mixed_unknown}" '.pathClasses | index("unknown")' 'mixed
 assert_json_contains "${mixed_unknown}" '.warnings | index("unclassified-paths")' 'mixed unknown warns'
 assert_json_contains "${mixed_unknown}" '.riskClasses | index("docs-only") | not' 'mixed unknown is not docs-only'
 
+# CIB-041: agent-tooling config dirs (.codex / .claude / .opencode) carry no
+# TypeScript or Rust source, so a pure agent-config change must NOT fall through
+# to the conservative `unknown` fallback and force the unit-test / typecheck
+# matrix. These dirs are oxfmt-excluded (their skill files embed copy/paste
+# ```markdown fences that the formatter reflows and corrupts — see
+# .prettierignore), so they carry no automated build/test/format gate; an
+# operations review covers the agent-execution config surface.
+agent_config=$(run_case agent-config .codex/config.toml)
+assert_json_contains "${agent_config}" '.pathClasses | index("agent-config")' 'codex config routes to agent-config class'
+assert_json_contains "${agent_config}" '.pathClasses | index("unknown") == null' 'codex config does NOT fall through to unknown'
+assert_json_contains "${agent_config}" '.requiredChecks | index("unit-tests") == null' 'agent-config does NOT require unit tests'
+assert_json_contains "${agent_config}" '.requiredChecks | index("typecheck") == null' 'agent-config does NOT require typecheck'
+assert_json_contains "${agent_config}" '.requiredChecks | index("format") == null' 'agent-config does NOT require format (oxfmt-excluded)'
+assert_json_contains "${agent_config}" '.requiredReviews | index("operations")' 'agent-config requires operations review'
+
+# Real PR shape: codex config + codex skill markdown + plans/docs bookkeeping.
+# Skill/docs markdown still routes to `docs` (markdownlint), but the set as a
+# whole must not require unit tests.
+codex_pr=$(run_case codex-pr .codex/config.toml .codex/skills/dev-workflow/SKILL.md plans/index.aps.md docs/guides/agent-surface-inventory.md)
+assert_json_contains "${codex_pr}" '.pathClasses | index("agent-config")' 'codex PR includes agent-config class'
+assert_json_contains "${codex_pr}" '.pathClasses | index("docs")' 'codex PR includes docs class'
+assert_json_contains "${codex_pr}" '.pathClasses | index("unknown") == null' 'codex PR does NOT include unknown class'
+assert_json_contains "${codex_pr}" '.requiredChecks | index("unit-tests") == null' 'codex bookkeeping PR does NOT require unit tests'
+assert_json_contains "${codex_pr}" '.requiredChecks | index("markdownlint")' 'codex PR still runs markdownlint for skill + docs'
+
+# Sibling agent-tooling dirs (.claude / .opencode) route the same way.
+claude_config=$(run_case claude-config .claude/settings.json .opencode/agents/example.md)
+assert_json_contains "${claude_config}" '.pathClasses | index("agent-config")' 'claude/opencode tooling routes to agent-config class'
+assert_json_contains "${claude_config}" '.requiredChecks | index("unit-tests") == null' 'claude/opencode tooling does NOT require unit tests'
+
 empty=$(run_case empty)
 assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
 assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'
