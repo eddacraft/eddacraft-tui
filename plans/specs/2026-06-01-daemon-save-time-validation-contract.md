@@ -186,6 +186,20 @@ index (`dependents_of(F)`, 1-hop) and the `update_file` `GraphDelta`:
 3. Closure exceeds budget → `coverage: partial` →
    `stale(reason: impact-set-overflow)` → background full scan reconciles.
 
+> **Correction (council review 2026-06-01, B4):** "export-surface change" in rule
+> 1/2 is decided by the **`GraphDelta.previously_public` set-diff**, because
+> Sub-phase A has no stable-identity export-diff primitive (`update_file`
+> remove-all-then-re-adds symbols; `symbol_baseline_key = file::kind::name`
+> conflates identity with position; GV2-002 stable identity is Draft). Any modify
+> that **touches a public/privileged symbol defaults to `partial`/`stale`** until
+> a real export-diff helper lands — only a body-only change with no public-symbol
+> delta stays `certified` on the self-only path (rule 1). This is conservatively
+> safe (rename = delete+add = surface change). Importer discovery uses
+> `dependents_of` **exclusively**: `GraphDelta.removed_edges` is **always empty**
+> (`update_file` at `incremental.rs:150`, `remove_file` at `incremental.rs:291-298`),
+> so certify logic must never read it.
+> See `plans/reviews/2026-06-01-daemon-graph-council-verdict.md`.
+
 No parse / resolve / transitive traversal on the hot path. This is strictly more
 precise than "any file with importers is never certified".
 

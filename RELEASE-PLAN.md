@@ -58,7 +58,7 @@ the gates are green — no calendar gate.**
 
 | Phase                                              | Scope                                                                                                                                                                                                                                                                                                                                        | State                                                                                                                           |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Daemon sub-phase A** (headline)                  | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary + [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md) the crate boundary (both Accepted).                               | **Gated** — B1/B2/B5/B6 ✅ resolved 2026-06-02 (folded into ADR-061 + contract + plan); remaining MAJORs B3/B4/B7 before coding |
+| **Daemon sub-phase A** (headline)                  | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary + [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md) the crate boundary (both Accepted).                               | **Gated** — B1/B2/B4/B5/B6 ✅ resolved 2026-06-02 (folded into ADR-061 + contract + plan); remaining MAJORs B3/B7 before coding |
 | **Ready freight** (parallel, no daemon dependency) | RLB-002/003/004/005/008 (resource benches + SLO gate, 5 Ready); TUIDASH-003..012 (dashboard renderer chain, rides `eddacraft-tui 0.2.4` — internally sequenced, ~2-3-wide); INSIGHTS-004 (Ready 2026-06-02); RTAI-007 (Ready 2026-06-02); RTAI-009 (Ready, doc-only, scoped to shipped surfaces — RTAI-005 editor path parked under ADR-033) | **Ready** to build now                                                                                                          |
 | **Closeout hygiene**                               | POLENG (9/9) + DISTRIB (6/6) → `Complete` after tag verification; GV2 gate-row → reflect ADR-063                                                                                                                                                                                                                                             | pending                                                                                                                         |
 
@@ -83,10 +83,16 @@ A review council
 - **B6** — ✅ **Resolved 2026-06-02**: initial state
   `Stale(cross-file-resolution-needed)` (never `Clean`) + `watch` auto-scan on
   connect; folded into ADR-061 §9 + contract §6 + Tasks 7/9.
-- **Remaining before coding:** the MAJOR follow-ups B3 (proto envelope type), B4
-  (export-surface conservative default + fixtures), and B7 (Task 3 read-safety
-  predecessor + rayon-pool threading) — see the sub-phase A plan's correction
-  gate.
+- **B4** — ✅ **Resolved 2026-06-02**: export-surface decision driven off the
+  `GraphDelta.previously_public` set-diff; any modify touching a
+  public/privileged symbol defaults to `partial`/`stale` until a real
+  export-diff helper lands (no dedicated helper mandated for Sub-phase A — the
+  conservative default is). Folded into ADR-061 §6 + contract §3 + Task 6
+  edge-case fixtures; `delta.removed_edges` is always empty so importer
+  discovery uses `dependents_of` exclusively.
+- **Remaining before coding:** the MAJOR follow-ups B3 (proto envelope type) and
+  B7 (Task 3 read-safety predecessor + rayon-pool threading) — see the sub-phase
+  A plan's correction gate.
 
 ### Cut criteria
 
@@ -125,7 +131,7 @@ Authoritative source:
 
 | Risk                                                                                        | Mitigation                                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sub-phase A starts before its blockers are resolved and ships an unsound `certified` claim. | The council corrections are a hard gate in the sub-phase A plan; B1/B2/B5/B6 resolved 2026-06-02, MAJORs B3/B4/B7 still required before coding. The cut criteria require them all. |
+| Sub-phase A starts before its blockers are resolved and ships an unsound `certified` claim. | The council corrections are a hard gate in the sub-phase A plan; B1/B2/B4/B5/B6 resolved 2026-06-02, MAJORs B3/B7 still required before coding. The cut criteria require them all. |
 | Scope creep pulls GV2 / sub-phase A′ into the window and slips the cut.                     | A′ and the GV2 modules are explicitly deferred; the window is the interim-cache slice only.                                                                                        |
 | Daemon save-time work re-introduces the CPU problem it exists to fix.                       | The 1-hop reverse-impact cap (ADR-063, a hard-capped lever) + the ADR-031 latency budget + the two-pool isolation keep the hot path bounded.                                       |
 | The window accretes (this document rots back into a historical record).                     | "How this document works" + the closeout prune step keep it to one active window.                                                                                                  |

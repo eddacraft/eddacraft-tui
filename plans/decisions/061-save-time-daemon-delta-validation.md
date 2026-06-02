@@ -205,9 +205,27 @@ family):
 - A `ContentModify` with **no export-surface change** (read from the
   `update_file` `GraphDelta`) is self-contained → validate that file only →
   `certified`.
+  **Conservative default (B4, council review 2026-06-01):** Sub-phase A has no
+  stable-identity export-diff primitive. `update_file` removes a file's symbols
+  and re-adds them (`incremental.rs:74-87`), so every save shows full churn, and
+  `symbol_baseline_key = file::kind::name` (`incremental.rs:27-29`) conflates
+  identity with position; GV2-002 (stable identity) is Draft. The export-surface
+  decision is therefore made by the **`GraphDelta.previously_public` set-diff**,
+  and any modify that touches a public/privileged symbol **defaults to
+  `partial`/`Stale`** until a real export-diff helper lands — a body-only change
+  with no public-symbol delta is the only modify that stays `certified` on the
+  self-only path. This is conservatively safe (a rename reads as delete+add =
+  surface change). The export fast-path graduates from conservative-partial only
+  once GV2-002 stable identity exists; no dedicated `export_surface_changed()`
+  helper is mandated for Sub-phase A. See
+  `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (B4).
 - An export-surface change, a `Delete`, or a `Rename` can make an **unchanged
   importer** illegal. The affected set is exactly `dependents_of(file)` — the
   1-hop importer set, read from the daemon's `DependencyGraph.reverse` index.
+  **`GraphDelta.removed_edges` is always empty** (`update_file` emits
+  `Vec::new()` at `incremental.rs:150`; `remove_file` via `..Default::default()`
+  at `incremental.rs:291-298`), so importer discovery uses `dependents_of`
+  **exclusively** — never `delta.removed_edges` (B4).
   **Correction (council review 2026-06-01):** this reverse index is **net-new**.
   The `DependencyGraph` type exists (`crates/anvil-kernel/src/graph/dependency.rs`)
   but no production path builds it today — `add_dependency`/`dependents_of` have

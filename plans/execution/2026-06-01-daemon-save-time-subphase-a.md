@@ -19,16 +19,16 @@ written**. Full evidence + rulings:
 The tasks below stand, but apply these corrections first (ordered — earlier items
 are predecessors).
 
-**Resolution status (2026-06-02):** **B5, B1, B2, B6, B7 are RESOLVED** — folded into
+**Resolution status (2026-06-02):** **B5, B1, B2, B6, B7, B4 are RESOLVED** — folded into
 [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) (§6, §9),
 the [validation contract](../specs/2026-06-01-daemon-save-time-validation-contract.md)
 (§1, §3, §6, §7), and Tasks 1/6/7/8/9 below (with their named tests). B7's
 read-safety/pool corrections are folded into Task 2 (net-new auth wording), Task 8 +
 the File Map (`run_antipattern_check` bytes+pool entrypoint), and the sequencing notes
 (Task 3 a hard predecessor of Task 8; Task 10's pool a predecessor of Task 8's check
-call). **Remaining pre-implementation: B3 (item 4), B4 (item 6),
-and the ops/security placement items (item 8).** Sub-phase A coding may begin on the
-B1/B2/B5/B6/B7 surface once those remaining items are closed.
+call). **Remaining pre-implementation: B3 (item 4) and the ops/security placement
+items (item 8).** Sub-phase A coding may begin on the B1/B2/B4/B5/B6/B7 surface once
+those remaining items are closed.
 
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
@@ -81,11 +81,19 @@ B1/B2/B5/B6/B7 surface once those remaining items are closed.
    `watch_auto_requests_full_scan_on_connect` recorded on Task 9. Sub-phase A has
    no background scheduler, so the connect-time scan is the only path from initial
    `Stale` to `clean`.
-6. **Export-surface conservative default (B4).** Default any modify touching
-   public/privileged symbols to **partial/stale** until a real export-diff exists;
-   add rename/delete/internal→public/re-export fixtures. Note `delta.removed_edges`
-   is always empty (`incremental.rs:150`) — importer discovery uses `dependents_of`
-   exclusively.
+6. **Export-surface conservative default (B4). ✅ Resolved 2026-06-02** — folded
+   into ADR-061 §6 (the conservative default + `removed_edges`-always-empty note
+   on the certifiability bullets) and contract §3 (the `previously_public`
+   set-diff correction). Default any modify touching public/privileged symbols to
+   **partial/stale** until a real export-diff helper lands; the decision is made
+   by the `GraphDelta.previously_public` set-diff (no dedicated
+   `export_surface_changed()` helper mandated for Sub-phase A — the conservative
+   default is). Task 6 below carries the edge-case fixtures/tests
+   (`body_only_change_certifies_self_only`, `touched_public_symbol_defaults_to_partial`,
+   `rename_is_export_surface_change`, `delete_is_export_surface_change`,
+   `internal_to_public_defaults_to_partial`, `reexport_add_remove_*`). Note
+   `delta.removed_edges` is always empty (`incremental.rs:150`) — importer
+   discovery uses `dependents_of` exclusively.
 7. **Read-safety + pool gaps (B7, new majors). ✅ Resolved 2026-06-02** — folded into
    Task 8 (orchestration prose), the File Map (`crates/anvil-checks/src/antipattern/check.rs`
    now listed Modify), the sequencing notes, and Task 2 (net-new auth wording).
@@ -266,9 +274,9 @@ Wire `DriverManifest::validate_workspace_roots` against active sessions. **This 
 - Create: `crates/anvil-intercept/src/certify.rs`
 - Test: same file
 
-`fn certify(sym: &SymbolGraph, dep: &DependencyGraph, change: &CanonicalChange, delta: &GraphDelta, budget: usize) -> Certifiability` where `Certifiability = Certified { paths: Vec<PathBuf> } | Partial { reason: StaleReason }`. **(Corrected per B1: takes the net-new `DependencyGraph` — `dependents_of` lives there, not on `SymbolGraph`.)** Logic: no export-surface delta ⇒ `Certified{[file]}`; else expand `dep.dependents_of(file)` (1-hop), recurse on re-export surface changes, bounded by `budget`; overflow ⇒ `Partial{ImpactSetOverflow}`. Conservative default (B4): any modify touching public/privileged symbols defaults to `Partial` until a real export-surface diff exists.
+`fn certify(sym: &SymbolGraph, dep: &DependencyGraph, change: &CanonicalChange, delta: &GraphDelta, budget: usize) -> Certifiability` where `Certifiability = Certified { paths: Vec<PathBuf> } | Partial { reason: StaleReason }`. **(Corrected per B1: takes the net-new `DependencyGraph` — `dependents_of` lives there, not on `SymbolGraph`.)** Logic: no export-surface delta ⇒ `Certified{[file]}`; else expand `dep.dependents_of(file)` (1-hop), recurse on re-export surface changes, bounded by `budget`; overflow ⇒ `Partial{ImpactSetOverflow}`. **Conservative default (B4): the export-surface decision is the `GraphDelta.previously_public` set-diff (no dedicated `export_surface_changed()` helper mandated for Sub-phase A); any modify touching public/privileged symbols defaults to `Partial` until a real export-diff helper lands — only a body-only change with no `previously_public` delta stays `Certified{[file]}`. This is conservatively safe (rename = delete+add = surface change). Importer discovery reads `dependents_of` exclusively — `delta.removed_edges` is always empty (`incremental.rs:150`), so certify must never branch on it.**
 
-- [ ] Failing tests: `content_modify_no_export_change_certifies_self_only`, `export_surface_change_pulls_in_direct_importers`, `delete_invalidates_importers`, `reexport_chain_recurses_within_budget`, `overflow_returns_partial`. The headline: `new_export_making_unchanged_importer_illegal_is_not_certified_clean` (the reverse-dependency soundness case). **B1-required:** `certify_uses_dependency_graph_reverse_not_symbol_graph_scan` (asserts the closure reads `dep.dependents_of`, not a `SymbolGraph` scan) and `reverse_index_consistent_after_delta` (the `apply_delta`-maintained reverse index matches a cold rebuild).
+- [ ] Failing tests: `content_modify_no_export_change_certifies_self_only`, `export_surface_change_pulls_in_direct_importers`, `delete_invalidates_importers`, `reexport_chain_recurses_within_budget`, `overflow_returns_partial`. The headline: `new_export_making_unchanged_importer_illegal_is_not_certified_clean` (the reverse-dependency soundness case). **B1-required:** `certify_uses_dependency_graph_reverse_not_symbol_graph_scan` (asserts the closure reads `dep.dependents_of`, not a `SymbolGraph` scan) and `reverse_index_consistent_after_delta` (the `apply_delta`-maintained reverse index matches a cold rebuild). **B4-required export-surface fixtures (driven off the `previously_public` set-diff):** `body_only_change_certifies_self_only` (→ certified), `touched_public_symbol_defaults_to_partial` (any `previously_public` delta ⇒ partial), `rename_is_export_surface_change` (→ partial), `delete_is_export_surface_change` (→ partial), `internal_to_public_defaults_to_partial` (new public symbol ⇒ partial), `reexport_add_remove_is_surface_change` (re-export add/remove ⇒ partial), and `certify_never_reads_removed_edges` (asserts the closure does not branch on the always-empty `delta.removed_edges`).
 - [ ] Run `cargo test -p eddacraft-anvil-intercept certify` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): bounded reverse-impact closure certifiability (ADR-061 §6)`
 
