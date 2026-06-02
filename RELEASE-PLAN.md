@@ -85,7 +85,7 @@ A review council
   connect; folded into ADR-061 §9 + contract §6 + Tasks 7/9.
 - **B4** — ✅ **Resolved 2026-06-02**: export-surface decision driven off the
   `GraphDelta.previously_public` set-diff; any modify touching a
-  public/privileged symbol defaults to `partial`/`stale` until a real
+  public/privileged symbol defaults to `partial`/`Stale` until a real
   export-diff helper lands (no dedicated helper mandated for Sub-phase A — the
   conservative default is). Folded into ADR-061 §6 + contract §3 + Task 6
   edge-case fixtures; `delta.removed_edges` is always empty so importer

@@ -91,7 +91,8 @@ those remaining items are closed.
    default is). Task 6 below carries the edge-case fixtures/tests
    (`body_only_change_certifies_self_only`, `touched_public_symbol_defaults_to_partial`,
    `rename_is_export_surface_change`, `delete_is_export_surface_change`,
-   `internal_to_public_defaults_to_partial`, `reexport_add_remove_*`). Note
+   `internal_to_public_defaults_to_partial`,
+   `reexport_add_remove_is_surface_change`). Note
    `delta.removed_edges` is always empty (`incremental.rs:150`) — importer
    discovery uses `dependents_of` exclusively.
 7. **Read-safety + pool gaps (B7, new majors). ✅ Resolved 2026-06-02** — folded into
