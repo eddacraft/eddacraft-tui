@@ -22,9 +22,10 @@ mod tests {
 
     #[test]
     fn generated_keys_match_manifest_sorted() {
-        let mut expected: Vec<String> = manifest().flags.iter().map(|f| f.key.clone()).collect();
-        expected.sort();
-        assert_eq!(super::all::KEYS, expected.as_slice());
+        let flags = manifest().flags;
+        let mut expected: Vec<&str> = flags.iter().map(|f| f.key.as_str()).collect();
+        expected.sort_unstable();
+        assert_eq!(super::all::KEYS.to_vec(), expected);
     }
 
     #[test]

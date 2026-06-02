@@ -23,10 +23,15 @@ fn workspace_root() -> PathBuf {
     loop {
         let candidate = dir.join("Cargo.toml");
         if candidate.is_file() {
+            // An unreadable intermediate Cargo.toml shouldn't abort the upward
+            // search — treat it as "not the root" and keep walking.
             let text = fs::read_to_string(&candidate).unwrap_or_default();
-            // Line-anchored so a commented `# [workspace]` or a
-            // `[workspace.metadata]` table can't be mistaken for the root.
-            if text.lines().any(|l| l.trim() == "[workspace]") {
+            // Match a `[workspace]` table header allowing a trailing comment
+            // (`[workspace] # foo`), while excluding commented-out lines
+            // (`# [workspace]`) and the distinct `[workspace.metadata]` table.
+            if text.lines().any(|l| {
+                l.trim_start().starts_with("[workspace]") && !l.trim_start().starts_with('#')
+            }) {
                 return dir;
             }
         }
