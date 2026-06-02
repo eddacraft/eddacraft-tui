@@ -2,7 +2,7 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | In Progress | 12/12 |
+| TUIDASH | —     | In Progress | 12/13 |
 
 **Last reviewed:** 2026-06-02
 
@@ -423,6 +423,31 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 - **Priority:** Low
 - **Dependencies:** TUIDASH-009
 
+### TUIDASH-013: Ship an example dashboard spec
+
+- **Status:** Ready
+- **Intent:** Ship at least one example json-render dashboard spec so
+  `anvil dashboard` has a real end-to-end consumer and operators have a spec to
+  copy. The engine (TUIDASH-003..-012) is complete but runtime-idle: nothing
+  ships a spec, the native dashboards use their own hardcoded surfaces, and
+  every engine component is exercised only by unit tests. Flagged by the
+  post-merge Council audit as the highest-impact gap ("engine complete ≠
+  feature usable").
+- **Expected Outcome:** An example spec (e.g. gate-summary or drift-overview) is
+  shipped — bundled into `anvil init` output under `.anvil/dashboards/` and/or
+  under `examples/dashboards/` — renders end-to-end through the engine with no
+  unmapped components, and the spec authoring format is documented (or linked to
+  `@eddacraft/render`).
+- **Files:**
+  - `examples/dashboards/` (or `.anvil/dashboards/` via `anvil init`)
+  - candidate sources: `packages/libs/render/specs/`
+- **Validation:** `anvil dashboard <example>` renders the shipped spec; a smoke
+  test loads it through the engine and asserts no placeholder/unmapped
+  component.
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** TUIDASH-009 (surface + CLI). Tracked as GitHub issue #2237.
+
 ---
 
 ## Risks
@@ -442,5 +467,5 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 | 1 — Spec Parser & Registry | 3 | Merged |
 | 2 — Component Mappings | 4 | Merged |
 | 3 — Data Binding & Surface | 3 | Merged |
-| 4 — Polish | 2 | Merged |
-| **Total** | **12** | **12/12 done** |
+| 4 — Polish | 3 | 2 Merged, 1 Ready |
+| **Total** | **13** | **12/13 done** |
