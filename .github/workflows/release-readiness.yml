@@ -67,6 +67,45 @@ jobs:
       retention-days: ${{ steps.retention.outputs.days }}
       failure-class: ${{ steps.validate.outputs.failure-class }}
     steps:
+      - name: Checkout trusted default branch for SHA validation
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source SHA is trusted and reachable from main
+        id: validate
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.sourceSha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${SOURCE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::sourceSha must be a full 40-character commit SHA"
+            echo "failure-class=invalid-input" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+
+          if ! git cat-file -e "${SOURCE_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::sourceSha does not resolve to a commit in this repository"
+            echo "failure-class=unknown-sha" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "${SOURCE_SHA}" "origin/main"; then
+            echo "::error::sourceSha must be reachable from origin/main"
+            echo "failure-class=untrusted-sha" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          short_sha="$(git rev-parse --short=12 "${SOURCE_SHA}")"
+          echo "checked-out-sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short-sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "failure-class=none" >> "$GITHUB_OUTPUT"
       - name: Checkout requested SHA
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
