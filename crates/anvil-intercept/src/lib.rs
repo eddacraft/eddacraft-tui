@@ -48,6 +48,7 @@ pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
+pub mod workspace_pool;
 
 pub use auth::{
     AuthError, CapabilityDowngrade, CapabilityDowngradeReason, DriverManifest, is_driver_allowed,

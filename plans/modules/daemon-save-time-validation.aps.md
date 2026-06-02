@@ -248,9 +248,15 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-006: Resource model — two-pool scheduler, DoS caps, SLO gate
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Keep the interactive verdict path responsive under concurrent agents +
   background scans, and gate latency in CI.
+- **Progress:** 10a (spine) delivered — `crates/anvil-intercept/src/workspace_pool.rs`
+  builds the two cooperating rayon pools (small interactive + background) from one
+  per-host budget and adds the per-`WorktreeKey` in-flight admission token (the Task 8
+  predecessor). Remaining (10b/Task 11/Task 16, gated on DSV-005): the chunked-yield
+  background-scan loop, the parse-size + walk-depth DoS caps, and the `4 agents + 1 scan`
+  SLO bench + CI gate.
 - **Expected Outcome:** A small interactive `rayon::ThreadPool` (10a, spine — a Task 8
   predecessor) + a chunked-yield background pool (10b); per-workspace in-flight token;
   parse-size + walk-depth caps; a `validate_paths` warm-read + `4 agents + 1 scan`

@@ -47,6 +47,10 @@ anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anyhow = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true }
+# DSV-006a (ADR-061 §4): dedicated interactive + background work pools so a
+# saturated background scan cannot starve `validate_paths`. rayon is already in
+# the shipped tree via `anvil-checks`, so this adds no new transitive licences.
+rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
