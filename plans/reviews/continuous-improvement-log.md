@@ -208,6 +208,16 @@ a backlog. Promote repeated friction or executable follow-up work to
   hardening as a new MLP2 task (candidate MLP2-051k). Run
   /addressing-pr-reviews on #1923 after CI + Copilot settle.
 
+### 2026-06-02 — grok
+
+- **Task:** build INSIGHTS-004 (first-week adoption hint) via dev-workflow + TDD.
+- **Outcome:** Feature implemented + committed on feat/insights-004 (2abc0882f); both APS validation tests + module tests green; lint/format/clippy green; plans updated to 4/4 + recon.
+- **Worked:** Followed mandatory dev-workflow (aps-planning gate via subagent + recon for stale project-id.json), TDD (drove with the two status tests + internal), worktree, APS updates in lockstep, conventional commit. Reused aggregator for N, update_hint pattern for state/hint surface, .anvil/ for project-local adoption state.
+- **Failed:** Several missed StatusData/WatchData inits in examples/tests/tutorial (compile errors on first cargo); clippy pedantic (collapsible_if, let-else, map_or, doc markdown, uninlined format) required 2-3 passes; pnpm typecheck blocked on pre-existing nx TS sync (unrelated to Rust change; rust typecheck passed).
+- **Friction:** inotify limits made some e2e watch_json tests flake in container (pre-existing, not our code); cargo test filter syntax for bin unit tests non-obvious (used --bin anvil + name match to surface the commands::status ones); nx sync touched unrelated tsconfig (reverted).
+- **Improvement:** none (followed all gates; the env flakes are known).
+- **Follow-up:** Open PR targeting main (use finishing-a-branch or gh); run addressing-pr-reviews post-open; offer wt remove after merge. Mark item Merged in APS on land.
+
 ### 2026-05-25 — opencode
 
 - **Task:** Run Clawpatch scan, Council-review the findings, and triage them
