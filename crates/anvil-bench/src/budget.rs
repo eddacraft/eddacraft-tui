@@ -87,6 +87,24 @@ impl ResourceBudget {
         peak_rss_mib: 128.0,
     };
 
+    /// Ceiling for the **MCP server** (`anvil mcp serve --stdio`) under
+    /// sustained `tools/call` load (RLB-004): a driver hammers
+    /// `anvil_validate_write` so the server runs the real embedded scan on
+    /// each proposed buffer. MCP stdio is single-threaded and 1:1, so this is
+    /// one client driving the server as fast as it answers — the server's
+    /// first resource budget.
+    ///
+    /// Measured floor (release build, dev box 2026-06-02): ~94% CPU (the
+    /// server is single-threaded, so ~1 core is its ceiling), ~24 MiB RSS,
+    /// ~6.4k tool calls/s. The ceiling carries headroom for slower hardware.
+    ///
+    /// **Calibration:** quiet-box placeholder with headroom; RLB-008 owns
+    /// final numbers. Tightening is a budget bump (`DECISION-LOG.md`).
+    pub const ANVIL_MCP_BUSY_V1: Self = Self {
+        steady_state_cpu_pct: 150.0,
+        peak_rss_mib: 96.0,
+    };
+
     /// Aggregate ceiling for **all three long-running processes running at
     /// once** — watch + intercept daemon + MCP server under concurrent load
     /// (RLB-005). Exposes cross-process rayon oversubscription (each process

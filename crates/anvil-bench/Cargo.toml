@@ -38,6 +38,11 @@ harness = false
 name = "watch_resource_budget"
 harness = false
 
+# RLB-004: MCP server CPU/RSS budget under sustained tools/call load.
+[[bench]]
+name = "mcp_resource_budget"
+harness = false
+
 # SCAN-005: sequential WalkBuilder vs WalkParallel for the discovery walk phase.
 [[bench]]
 name = "walk_discovery"
