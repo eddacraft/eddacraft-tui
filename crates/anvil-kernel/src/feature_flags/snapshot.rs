@@ -322,6 +322,8 @@ mod tests {
             expiry_or_review_date: None,
             description: None,
             targeting: None,
+            primary_group: None,
+            tags: None,
         }]
     }
 

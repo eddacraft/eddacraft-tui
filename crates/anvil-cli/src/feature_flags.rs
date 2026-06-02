@@ -116,6 +116,10 @@ pub fn cli_licence_gate_flag() -> CliGateFlag {
             expiry_or_review_date: None,
             description: Some("Controls access to licence-gated CLI commands".into()),
             targeting: None,
+            // FLAGCAT-005 replaces this hand literal with the generated
+            // `feature_flags_catalogue::cli_licence_gate::definition()`.
+            primary_group: Some("cli".into()),
+            tags: None,
         },
         metadata: CliGateMetadata {
             gated_commands: CLI_GATED_COMMANDS,

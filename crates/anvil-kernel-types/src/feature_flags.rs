@@ -171,6 +171,14 @@ pub struct FeatureFlagDefinition {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub targeting: Option<Vec<TargetingRule>>,
+    // FLAGCAT-004 / gating model (ADR-048): the feature group this flag belongs
+    // to (matches a `groups.json` id) and an open-set tag list. Optional on the
+    // Rust side to match the TS base schema and to tolerate manifests that
+    // predate the gating-model fields — deserialising never drops them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_group: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 }
 
 impl FeatureFlagDefinition {
@@ -275,6 +283,8 @@ mod tests {
             expiry_or_review_date: None,
             description: None,
             targeting: None,
+            primary_group: None,
+            tags: None,
         }
     }
 

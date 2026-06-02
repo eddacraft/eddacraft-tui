@@ -1,6 +1,7 @@
 pub mod diagnostics;
 mod events;
 pub mod feature_flags;
+pub mod feature_flags_catalogue;
 mod graph;
 pub mod hooks;
 mod notifications;
