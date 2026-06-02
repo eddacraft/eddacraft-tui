@@ -54,9 +54,10 @@ pub enum SchedulerError {
 ///
 /// Policy ([`PoolBudget::from_cores`]):
 ///
-/// - The host budget is Anvil's standard half-cores cap (`cores / 2`, mirroring
-///   `anvil-rayon-init`), floored at 2 so the split always yields a non-empty
-///   pool on each side.
+/// - The host budget is Anvil's standard half-cores cap (`cores / 2`, the same
+///   policy as `anvil-rayon-init`), but floored at 2 rather than that crate's 1:
+///   this budget is split across two pools, so it needs at least two threads to
+///   give each side a non-empty pool.
 /// - The **interactive** pool is deliberately *small* — at most 4 threads (spec
 ///   appendix ≈2–4) and never more than half the host budget — because it only
 ///   serves the short, latency-sensitive `validate_paths` path.
@@ -238,12 +239,16 @@ impl Drop for AdmissionGuard {
 /// Lock the slot table, recovering from a poisoned mutex rather than
 /// propagating a panic (which, in `Drop`, would abort the process).
 ///
-/// Recovery is sound here because both critical sections — `try_admit` and
-/// `AdmissionGuard::drop` — are panic-free between acquiring the lock and
-/// releasing it (the only operations are integer arithmetic, `HashMap`
-/// entry/get, and an `Arc::clone`). A poisoned lock therefore implies the
-/// allocator already aborted, not that the slot table holds logically corrupt
-/// state, so continuing on the recovered guard cannot mis-admit work.
+/// Recovery is sound here because, in release builds, both critical sections —
+/// `try_admit` and `AdmissionGuard::drop` — perform only non-panicking
+/// operations between acquiring and releasing the lock (integer arithmetic,
+/// `HashMap` entry/get, and an `Arc::clone`), so a poisoned lock implies the
+/// allocator already aborted rather than that the slot table holds logically
+/// corrupt state. The one panic vector is the `debug_assert!` in
+/// `AdmissionGuard::drop`, which is compiled out of release builds and fires
+/// only on an internal invariant violation (a guard for an absent key); if it
+/// ever does fire under test, recovering the guard here keeps the count
+/// monotonic via `saturating_sub` instead of escalating to a process abort.
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
