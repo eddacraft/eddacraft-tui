@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 4/4 |
+| INSIGHTS | @aneki | In Progress | 3/4 |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -269,7 +269,8 @@ number visible to the user, not just to a future post-release survey.
   tag-time scope-cut, not a technical block. Per this module's Sequencing,
   -002/-003/-004 are parallel after -001, and -002/-003 already shipped.
   Daemon-independent 0.8.0 freight.) Implementation started 2026-06-02 via dev-workflow on feat/insights-004.
-  **Implementation complete (pre-PR):** `anvil insights/first_week_hint.rs` + wires into status (plain + TUI), watch (data + render + footer), insights command (record viewed). Uses correct `anvil/project-id` `created_at`. Tests (internal + the two APS `commands::status::tests::first_week_hint_*`) green. `cargo test -p eddacraft-anvil --bin anvil first_week_hint*` + `hint_suppressed` pass. Full lint (clippy+fmt) + format green post-fix. Module progress 4/4.
+  **Implementation complete (pre-PR):** `anvil insights/first_week_hint.rs` + wires into status (plain + TUI), watch (data + render + footer), insights command (record viewed). Uses correct `anvil/project-id` `created_at`. Tests (internal + the two APS `commands::status::tests::first_week_hint_*`) green. `cargo test -p eddacraft-anvil --bin anvil first_week_hint*` + `hint_suppressed` pass. Full lint (clippy+fmt) + format green post-fix. Module progress 3/4.
+  **PR #2226** created; per finishing-a-branch + addressing-pr-reviews loop to follow. Mark **Merged** on land (then cleanup agent to Released/Shipped).
 - **Dependencies:** INSIGHTS-001, MLP-001 (install timestamp)
 - **changeType:** feature
 - **releaseIntent:** candidate
