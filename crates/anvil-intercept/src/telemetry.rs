@@ -425,8 +425,12 @@ pub(crate) fn delivered_envelope_for_decision(
 /// applies on this path. The worst severity in the batch wins:
 /// any `Error` → `Block`, otherwise any `Warning` → `Warn`, otherwise
 /// (`Info`-only or empty) → `Allow`.
+///
+/// `pub(crate)`: consumed by [`midedit_envelope`] and a future in-crate
+/// `scan_buffer` handler, not part of the external `anvil_intercept`
+/// API surface.
 #[must_use]
-pub fn midedit_decision_class(diagnostics: &[Diagnostic]) -> ControlDecision {
+pub(crate) fn midedit_decision_class(diagnostics: &[Diagnostic]) -> ControlDecision {
     let mut worst = ControlDecision::Allow;
     for diagnostic in diagnostics {
         let class = match diagnostic.severity {
