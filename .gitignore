@@ -76,6 +76,7 @@ docs/analysis/claude-code-safety-net-review.md
 .anvil/first-run
 .anvil/tutorial-progress.json
 .anvil/release-state.json
+.anvil/gates.json
 .anvil/cache/
 .anvil/logs/
 .anvil/snapshots/

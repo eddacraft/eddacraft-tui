@@ -218,6 +218,133 @@ fn aggregate_gate_outcome(checks: &[CheckResult]) -> GateAggregate {
     }
 }
 
+/// Filename of the persisted last-gate-run snapshot under `.anvil/`.
+const GATE_SNAPSHOT_FILE: &str = "gates.json";
+
+/// A display-ready view of the last gate run, persisted to `.anvil/gates.json`
+/// for the `gate-summary` TUI dashboard to bind against (#2242).
+///
+/// This is intentionally **not** the internal [`GateResult`]: the json-render
+/// dashboard components read *string* props (`MetricCard.value`,
+/// `StatusBadge.status`/`label`) and `Table.rows` as an array-of-arrays, so the
+/// snapshot pre-formats values into the exact shapes a spec's `$data` paths bind
+/// to (`gates.status`, `gates.checkRows`, …). camelCase to match json-render
+/// prop conventions.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GateSnapshot {
+    /// `"pass"` or `"fail"` — drives `StatusBadge.status`.
+    status: &'static str,
+    /// e.g. `"PASSED — score 92/100"` — `StatusBadge.label`.
+    status_label: String,
+    /// Raw 0–100 score, for machine consumers.
+    score: f64,
+    /// Available checks run, as a display string (`MetricCard.value`).
+    checks_run: String,
+    /// Count of attention items (failed + config-needed), display string.
+    warnings: String,
+    /// Whole-second duration, display string.
+    duration_seconds: String,
+    /// Per-check rows `[name, status, score, message]` for `Table.rows`.
+    check_rows: Vec<Vec<String>>,
+    /// Attention items for a `WarningList`.
+    warning_list: Vec<SnapshotWarning>,
+}
+
+/// One attention item (failed or config-needed check) in [`GateSnapshot`].
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SnapshotWarning {
+    /// `"error"` (failed) or `"warn"` (config needed).
+    severity: &'static str,
+    /// `"<check>: <message>"`.
+    message: String,
+}
+
+impl GateSnapshot {
+    fn from_result(result: &GateResult, aggregate: &GateAggregate) -> Self {
+        let check_rows = result
+            .checks
+            .iter()
+            .map(|c| {
+                let status = if c.requires_config {
+                    "config"
+                } else if c.passed {
+                    "passed"
+                } else {
+                    "failed"
+                };
+                vec![
+                    c.name.clone(),
+                    status.to_owned(),
+                    format!("{:.0}", c.score),
+                    c.message.clone(),
+                ]
+            })
+            .collect();
+
+        let warning_list: Vec<SnapshotWarning> = result
+            .checks
+            .iter()
+            .filter_map(|c| {
+                // Attention items: a real failure, or a check that could not run
+                // for want of config. Passing checks are not warnings.
+                let severity = if c.requires_config {
+                    "warn"
+                } else if !c.passed {
+                    "error"
+                } else {
+                    return None;
+                };
+                let message = if c.message.is_empty() {
+                    c.name.clone()
+                } else {
+                    format!("{}: {}", c.name, c.message)
+                };
+                Some(SnapshotWarning { severity, message })
+            })
+            .collect();
+
+        let status = if result.overall { "pass" } else { "fail" };
+        let status_label = format!(
+            "{} — score {:.0}/100",
+            if result.overall { "PASSED" } else { "FAILED" },
+            result.score
+        );
+
+        Self {
+            status,
+            status_label,
+            score: result.score,
+            checks_run: aggregate.available_total.to_string(),
+            warnings: warning_list.len().to_string(),
+            duration_seconds: (result.duration_ms / 1000).to_string(),
+            check_rows,
+            warning_list,
+        }
+    }
+}
+
+/// Persist the last gate run to `.anvil/gates.json` for the dashboard.
+///
+/// Best-effort: a write failure is swallowed (logged, not propagated) so it can
+/// never change the gate's exit code — persistence is a side effect, and the
+/// gate stays "warnings over blocks, exit 0 by default".
+fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
+    let Ok(root) = crate::util::workspace_root() else {
+        return;
+    };
+    let dir = root.join(".anvil");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let snapshot = GateSnapshot::from_result(result, aggregate);
+    let Ok(json) = serde_json::to_vec_pretty(&snapshot) else {
+        return;
+    };
+    let _ = crate::util::atomic_write(&dir.join(GATE_SNAPSHOT_FILE), &json);
+}
+
 /// CIB-011 / #1803 — actionable next-step hint shown beneath a
 /// config-gap check. Names match the internal dispatch keys in
 /// `run_single_check`; the hints point at the canonical onboarding
@@ -2159,6 +2286,10 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
         duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
     };
 
+    // Persist the run for the `gate-summary` dashboard (#2242). Best-effort:
+    // never affects the gate's exit code.
+    persist_gate_snapshot(&result, &aggregate);
+
     match mode {
         OutputMode::Json => {
             if args.profile.as_deref() == Some(AiGuardrailProfile::NAME) {
@@ -2483,6 +2614,79 @@ mod tests {
         assert_eq!(value["summary"]["overall_passed"], false);
         assert_eq!(value["diagnostics"][0]["mode"], "gate");
         assert_eq!(value["diagnostics"][0]["category"], "secret");
+    }
+
+    #[test]
+    fn gate_snapshot_maps_status_rows_and_warnings() {
+        let checks = vec![
+            CheckResult {
+                name: "lint".into(),
+                passed: true,
+                score: 100.0,
+                message: "clean".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "secret".into(),
+                passed: false,
+                score: 0.0,
+                message: "leak found".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "architecture".into(),
+                passed: false,
+                score: 0.0,
+                message: "no config".into(),
+                requires_config: true,
+            },
+        ];
+        let aggregate = aggregate_gate_outcome(&checks);
+        let result = GateResult {
+            overall: aggregate.overall,
+            score: aggregate.score,
+            notifications: vec![],
+            duration_ms: 4200,
+            checks,
+        };
+        let snap = GateSnapshot::from_result(&result, &aggregate);
+
+        // One available check (secret) failed -> fail; the config-gap is excluded.
+        assert_eq!(snap.status, "fail");
+        assert!(
+            snap.status_label.starts_with("FAILED"),
+            "{}",
+            snap.status_label
+        );
+        assert_eq!(snap.checks_run, "2", "config-gap excluded from checks run");
+        assert_eq!(snap.duration_seconds, "4", "4200ms -> 4s");
+
+        assert_eq!(snap.check_rows.len(), 3);
+        assert_eq!(snap.check_rows[0], ["lint", "passed", "100", "clean"]);
+        assert_eq!(snap.check_rows[1][1], "failed");
+        assert_eq!(snap.check_rows[2][1], "config");
+
+        // Warnings: secret (error) + architecture (warn); passing lint excluded.
+        assert_eq!(snap.warnings, "2");
+        assert_eq!(snap.warning_list.len(), 2);
+        assert_eq!(snap.warning_list[0].severity, "error");
+        assert!(snap.warning_list[0].message.contains("secret: leak found"));
+        assert_eq!(snap.warning_list[1].severity, "warn");
+
+        // The persisted JSON uses the camelCase keys the dashboard `$data` paths
+        // bind to.
+        let v = serde_json::to_value(&snap).unwrap();
+        for key in [
+            "status",
+            "statusLabel",
+            "checksRun",
+            "durationSeconds",
+            "checkRows",
+            "warningList",
+        ] {
+            assert!(v.get(key).is_some(), "missing key {key}");
+        }
+        assert_eq!(v["checkRows"][1][1], "failed");
     }
 
     #[test]
