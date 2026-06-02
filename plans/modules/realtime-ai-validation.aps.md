@@ -401,9 +401,9 @@ convention" section). Concretely:
   lsp`) that turns `textDocument/didChange` into a daemon `scan_buffer`
   call and publishes the resulting diagnostics — rather than a
   VS Code-specific extension.
-- **Expected Outcome:** `anvil lsp --stdio` (daemon-fronted, falling
-  back to the embedded engine when no daemon is running) registers a
-  `textDocument/didChange` handler, debounces at the driver edge, calls
+- **Expected Outcome:** `anvil lsp --stdio` (a thin frontend over the
+  intercept daemon) registers a `textDocument/didChange` handler,
+  debounces at the driver edge, calls
   the mid-edit `scan_buffer` RPC (RTAI-002), and returns results via
   `textDocument/publishDiagnostics` with a marker (e.g. `data: { phase:
   "midEdit" }`) distinguishing in-flight from on-disk diagnostics. The
@@ -430,8 +430,7 @@ convention" section). Concretely:
   budget; a daemon-down test asserts in-flight diagnostics stop while
   save-time still works.
 - **Confidence:** medium
-- **Status:** Proposed (parked under ADR-033 — IDE/MCP surface
-  sequencing)
+- **Status:** Proposed
 
 ---
 
