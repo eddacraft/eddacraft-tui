@@ -28,6 +28,7 @@
 
 mod component;
 mod registry;
+mod renderer;
 mod spec;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -35,6 +36,7 @@ use std::fmt;
 
 pub use component::TuiComponent;
 pub use registry::TuiRegistry;
+pub use renderer::{MAX_DEPTH, render_spec};
 pub use spec::{Element, PropValue, Props, RenderSpec, parse, to_json_pretty};
 
 /// The set of component type names a [`RenderSpec`] is allowed to reference.
