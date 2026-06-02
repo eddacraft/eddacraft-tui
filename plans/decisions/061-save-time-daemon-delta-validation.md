@@ -277,6 +277,21 @@ traversal on the hot path.
   and are managed via `anvil workspace allow|deny|list|mode`, supporting exact
   and prefix entries. Config load failure **fails closed and loud** (no silent
   fall-back to `open`), per the operator-config no-silent-defaults rule.
+- **Placement (ops/security major, council review 2026-06-01).** The confinement
+  config loader lives in **`anvil-intercept` (`confinement.rs`)** and resolves the
+  operator-level config dir by **reusing the daemon's own `anvil_home_prefix()`**
+  (`crates/anvil-intercept/src/lib.rs`) — the same `ANVIL_HOME`/XDG resolver the
+  socket-dir resolver (`ipc.rs` `resolve_socket_dir`) already uses. The council's
+  premise that "the `ANVIL_HOME` resolver lives in `anvil-cli`, so confinement is
+  a wrong-direction dep" is **corrected by the code**: `anvil-cli` depends on
+  `anvil-intercept` (not the reverse), and the daemon already resolves
+  `ANVIL_HOME` itself (`anvil_home_prefix` deliberately mirrors the CLI's
+  `install_root::resolve_install_root_from`). So **no cross-crate dependency and
+  no new ADR are required** — confinement stays where the plan places it, reusing
+  the existing daemon-side resolver. The allowlist must be read **only** through
+  that operator-home resolver, **never** from a repo `.anvil.yaml` (the confined
+  agent must not be able to grant itself access). See
+  `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (§4, item 8).
   **This is a policy guardrail for well-behaved agent tooling, not an OS jail:**
   it constrains everything that goes through Anvil (validation and the
   enforcement-participating write gate), but cannot stop raw shell file
@@ -318,8 +333,30 @@ Full lifecycle:
 thereafter `Clean → Stale` on an uncertifiable delta (§5/§6) and
 `Stale → Pending → Running → Clean` via the background scheduler.
 `workspace_status` carries a **non-optional `reason`** for `Stale`, a
-`scan_started_at` for `Running`, and the daemon emits a structured INFO log on
-every state transition. A background scan exceeding a
+`scan_started_at` for `Running`.
+
+**Observability of transitions (ops major, council review 2026-06-01).** Every
+assurance state change is surfaced via the **ADR-035 Notification envelope** (the
+user-visible-state-change pipe), not a bare INFO line — the earlier "structured
+INFO log" wording named no fields and was unmonitorable. The daemon emits a
+`NotificationEnvelope` (`telemetry.rs`) routed through the existing `Fanout::route`
+(subject to the same cross-session `redact_envelope` guard), reusing the existing
+**`FenceState`-transition envelope shape** (`envelope_for_fence_transition` is the
+precedent): `notification.class = FenceState` (assurance is a workspace
+fence/protection state), `priority` (`normal` for `→clean`/`→running`, `high` for
+`→stale`/`→unavailable`), `grouping.transition = {from, to}` (the assurance state
+names), `grouping.key = "intercept:assurance:<workspace_root>"`, and
+`notification.{title,message}` naming the reason in human text (e.g. message
+`"stale: cross-file-resolution-needed"`). The **precise machine-readable fields**
+— `reason` (`StaleReason`), the opaque `generation`, and `scan_started_at` — are
+emitted as named fields on a **mirrored `tracing` structured event** (free-form,
+no wire-schema constraint), so transitions stay greppable in daemon logs with no
+dashboard subscriber attached. The current `NotificationContext` is `{file,
+source}` only; carrying `reason`/`generation`/`scan_started_at` as *machine-
+readable envelope* fields (beyond the message text) would be a `NotificationContext`
+schema extension in `anvil-kernel-types` **plus** a matching `redact_envelope`
+update (so the new fields cross the cross-session boundary safely) — recorded as a
+Task 9 prerequisite, not assumed to exist. A background scan exceeding a
 configurable timeout transitions to `Stale(reason: scan-timeout)`; on daemon
 restart, any `Running` workspace becomes `Stale` (the in-flight scan did not
 complete). When the daemon is absent, the fallback returns

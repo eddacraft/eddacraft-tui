@@ -19,19 +19,21 @@ written**. Full evidence + rulings:
 The tasks below stand, but apply these corrections first (ordered — earlier items
 are predecessors).
 
-**Resolution status (2026-06-02):** **B5, B1, B2, B6, B7, B4 are RESOLVED** — folded into
-[ADR-061](../decisions/061-save-time-daemon-delta-validation.md) (§6, §9),
+**Resolution status (2026-06-02):** **all pre-implementation corrections are
+RESOLVED — B5, B1, B2, B6, B7, B4, B3, and item 8** — folded into
+[ADR-061](../decisions/061-save-time-daemon-delta-validation.md) (§6, §7, §9),
 the [validation contract](../specs/2026-06-01-daemon-save-time-validation-contract.md)
-(§1, §3, §6, §7), and Tasks 1/6/7/8/9 below (with their named tests). B7's
+(§1, §3, §4, §6, §7), and Tasks 1/6/7/8/9/12/14 below (with their named tests). B7's
 read-safety/pool corrections are folded into Task 2 (net-new auth wording), Task 8 +
 the File Map (`run_antipattern_check` bytes+pool entrypoint), and the sequencing notes
 (Task 3 a hard predecessor of Task 8; Task 10's pool a predecessor of Task 8's check
 call). **B3's proto envelope landed** ahead of Task 1 (see item 4) — the phantom-type
 compile blocker is gone, so Task 1's wire can now be frozen against a real type; B3's
 remaining sub-parts (typing `ValidatePathsResponse` + the cross-surface parity test)
-are inside Task 1. **Remaining pre-implementation: the ops/security placement items
-(item 8).** Sub-phase A coding may begin on the B1/B2/B4/B5/B6/B7 + B3-proto surface
-once those remaining items are closed.
+are inside Task 1. **Item 8** (confinement placement, assurance-transition log fields,
+mid-session reconnect) is folded into ADR-061 §7/§9, contract §4/§6, and Tasks 9/12/14.
+**No pre-implementation corrections remain — Sub-phase A coding may begin** (the
+only carry-forwards are inside the tasks themselves, e.g. B3's Task 1 sub-parts).
 
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
@@ -123,11 +125,29 @@ once those remaining items are closed.
    disk-reading CLI call sites) and the full caller list. Task 2 reworded: the
    workspace-root auth handshake is **net-new** (the `validate_workspace_roots` API
    ships but has no production caller — DRVR-001 Wave 2 left it unwired), not "reuse".
-8. **Placement + observability (ops/security majors).** Resolve `confinement.rs`
-   placement (the `ANVIL_HOME` resolver it reuses lives in `anvil-cli`); specify the
-   structured-log fields for assurance transitions (route via the ADR-035
-   Notification envelope); add a daemon mid-session disconnect/reconnect spec for
-   `watch`.
+8. **Placement + observability (ops/security majors). ✅ Resolved 2026-06-02** —
+   all three folded in:
+   (a) **`confinement.rs` placement** — stays in `anvil-intercept`, reusing the
+   daemon's own `anvil_home_prefix()` (`lib.rs`, the resolver `resolve_socket_dir`
+   already uses); the council's "resolver lives in `anvil-cli`" premise is
+   corrected by the code (`anvil-cli` → `anvil-intercept`, not the reverse; the
+   daemon already resolves `ANVIL_HOME`), so no cross-crate dep and no new ADR.
+   Folded into ADR-061 §7, contract §4, Task 14 (+ File Map), test
+   `confinement_config_dir_resolved_via_anvil_home_prefix`.
+   (b) **Assurance-transition log fields** — emitted as an ADR-035
+   `NotificationEnvelope` (`class = FenceState`, `grouping.transition = {from,to}`,
+   reason in `notification.message`) via `Fanout::route` under the
+   `redact_envelope` guard, with the precise machine fields (`reason`,
+   `generation`, `scan_started_at`) on a mirrored `tracing` event (carrying them on
+   the envelope wire needs a `NotificationContext` extension + `redact_envelope`
+   update — a Task 9 prerequisite). Folded into
+   ADR-061 §9, contract §6, Task 9, test `transition_emits_notification_envelope`.
+   (c) **Mid-session disconnect/reconnect** — truncated in-flight `validate_paths`
+   (daemon 250 ms `SHUTDOWN_DRAIN_DEADLINE`, `ipc.rs`) ⇒ scoped fallback +
+   `unavailable{daemon-absent}` (never a truncated `clean`); warn-once latch resets
+   on reconnect; reconnect re-issues `request_full_scan`. Folded into contract §6,
+   Task 12, tests `daemon_death_midsession_falls_back_scoped` /
+   `reconnect_reissues_full_scan` / `warn_once_latch_resets_after_reconnect`.
 9. **Non-blocking:** mark the interim cache API as A′-replaced (module comments);
    note the SLO bench (Tasks 10/11/16) is an ADR-061 §9 **Phase-2 merge dependency**,
    not a sibling-plan candidate; make the `ALL_ANVIL_METHODS` pin test two-directional;
@@ -163,7 +183,7 @@ Mark INTD/DRVR/MLP2-067 **In Progress** before starting; reconcile counts in `pl
 | `crates/anvil-intercept/src/certify.rs` | Create | Bounded reverse-impact closure; `coverage` decision |
 | `crates/anvil-intercept/src/validate_paths.rs` | Create | `validate_paths` orchestration: classify → certify → run check → coalesce → assurance |
 | `crates/anvil-intercept/src/workspace_pool.rs` | Create | Two cooperating rayon pools + chunked-yield background scan; per-workspace in-flight admission token; DoS caps |
-| `crates/anvil-intercept/src/confinement.rs` | Create | Admission mode (`open`/`allowlist`), operator-level allowlist load (fail-closed), `workspace-not-admitted` |
+| `crates/anvil-intercept/src/confinement.rs` | Create | Admission mode (`open`/`allowlist`), operator-level allowlist load (fail-closed) via the daemon's own `anvil_home_prefix()` (no `anvil-cli` dep — item 8), `workspace-not-admitted` |
 | `crates/anvil-intercept/src/ipc.rs` | Modify | Dispatch arms for the three verbs; auth (handshake + `validate_workspace_roots`, growable root set) |
 | `crates/anvil-intercept/src/auth.rs` | Modify | Growable per-connection workspace-root set; drop any cwd path |
 | `crates/anvil-cli/src/commands/watch.rs` | Modify | Default action routes to `validate_paths`; scoped fallback (never `--all`) inheriting read-safety |
@@ -330,9 +350,9 @@ Orchestrate: auth (Task 2) → for each path classify (Task 4) + read-safe bytes
 - Modify: `crates/anvil-intercept/src/assurance.rs`, `crates/anvil-intercept/src/ipc.rs`
 - Test: `assurance.rs` tests
 
-State machine **initial `Stale(CrossFileResolutionNeeded)` (B6) →** `Pending→Running→Clean`, then `Clean→Stale` on an uncertifiable delta; `reason` non-optional for `Stale`; `scan_started_at` for `Running`; structured transition log via the ADR-035 Notification envelope (named fields, not a bare INFO line — B8); scan-timeout ⇒ `Stale(ScanTimeout)`; daemon restart ⇒ any `Running` becomes `Stale`. `watch` auto-issues `request_full_scan` on connect/reconnect. Dispatch arms for `workspace_status` + `request_full_scan` (job handle, interactive|background priority).
+State machine **initial `Stale(CrossFileResolutionNeeded)` (B6) →** `Pending→Running→Clean`, then `Clean→Stale` on an uncertifiable delta; `reason` non-optional for `Stale`; `scan_started_at` for `Running`; scan-timeout ⇒ `Stale(ScanTimeout)`; daemon restart ⇒ any `Running` becomes `Stale`. `watch` auto-issues `request_full_scan` on connect/reconnect. Dispatch arms for `workspace_status` + `request_full_scan` (job handle, interactive|background priority). **Transition observability (item 8, council ops major): each transition emits an ADR-035 `NotificationEnvelope` (`telemetry.rs`) via `Fanout::route` (under the existing `redact_envelope` guard) — NOT a bare INFO line — reusing the `envelope_for_fence_transition` shape: `notification.class = FenceState`, `priority` (`High` for `→Stale`/`→Unavailable`, else `Normal`), `grouping.transition = {from, to}`, `grouping.key = "intercept:assurance:<workspace_root>"`, and `notification.{title,message}` naming the reason in human text. The precise machine fields (`reason`, `generation`, `scan_started_at`) ride a mirrored `tracing` event for subscriber-less logs. PREREQUISITE if these must cross the envelope wire as machine fields: extend `NotificationContext` (today `{file, source}`) in `anvil-kernel-types` AND update `fanout.rs::redact_envelope` so the new fields are redaction-safe across sessions — do not write a `NotificationContext` literal with `reason`/`generation`/`scan_started_at` until that lands.**
 
-- [ ] Failing tests: `transition_emits_log`, `stale_requires_reason`, `running_carries_scan_started_at`, `scan_timeout_to_stale`, `restart_running_becomes_stale`, `workspace_status_reports_state`, `request_full_scan_returns_job`. **B6-required:** `initial_workspace_state_is_stale_not_clean` (a fresh/cold-key workspace starts `Stale(CrossFileResolutionNeeded)`, and `validate_paths` on it returns `coverage: partial` until a scan completes) and `watch_auto_requests_full_scan_on_connect`.
+- [ ] Failing tests: `transition_emits_notification_envelope` (item 8: asserts the emitted envelope has `class == FenceState`, `grouping.transition == {from,to}`, and the message names the reason on `→Stale` — not a bare log line), `stale_requires_reason`, `running_carries_scan_started_at`, `scan_timeout_to_stale`, `restart_running_becomes_stale`, `workspace_status_reports_state`, `request_full_scan_returns_job`. **B6-required:** `initial_workspace_state_is_stale_not_clean` (a fresh/cold-key workspace starts `Stale(CrossFileResolutionNeeded)`, and `validate_paths` on it returns `coverage: partial` until a scan completes) and `watch_auto_requests_full_scan_on_connect`.
 - [ ] Run `cargo test -p eddacraft-anvil-intercept assurance` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): workspace assurance lifecycle + status/full_scan verbs (ADR-061 §9)`
 
@@ -366,9 +386,9 @@ Max parse file size (skip oversized + emit a diagnostic), directory-walk depth c
 - Modify: `crates/anvil-cli/src/commands/watch.rs`
 - Test: `watch.rs` tests (extend `watch_action_scope` suite)
 
-Default save-time action: send classified changed paths to `validate_paths`. Daemon-absent ⇒ scoped `check` on changed paths (never `--all`), inheriting Task 3 guards, and surface `workspace_assurance{state: unavailable, reason: daemon-absent}` + WARN on first fallback. Keep `--action none`.
+Default save-time action: send classified changed paths to `validate_paths`. Daemon-absent ⇒ scoped `check` on changed paths (never `--all`), inheriting Task 3 guards, and surface `workspace_assurance{state: unavailable, reason: daemon-absent}` + WARN on first fallback. Keep `--action none`. **Mid-session disconnect/reconnect (item 8): `watch` is a persistent client, so it must handle daemon death mid-session, not just absent-at-start — `watch` does not talk to the daemon today, so this connection lifecycle is net-new here. Bound each request with a read timeout; a mid-stream drop/EOF/timeout (e.g. the daemon's 250 ms `SHUTDOWN_DRAIN_DEADLINE` truncating an in-flight response, `ipc.rs`) is treated as daemon-absent for that batch → scoped fallback, `unavailable{daemon-absent}`, never a truncated `clean`. The first-fallback WARN latch resets on reconnect (warn once per disconnect, not per process); on reconnect re-issue `request_full_scan` so assurance re-establishes from `stale` rather than a pre-disconnect `clean`.**
 
-- [ ] Failing tests: `watch_routes_to_validate_paths_when_daemon_present`, `watch_fallback_is_scoped_never_all`, `watch_fallback_reports_unavailable_not_clean`, `first_fallback_warns_once`.
+- [ ] Failing tests: `watch_routes_to_validate_paths_when_daemon_present`, `watch_fallback_is_scoped_never_all`, `watch_fallback_reports_unavailable_not_clean`, `first_fallback_warns_once`. **Item 8-required:** `daemon_death_midsession_falls_back_scoped` (in-flight `validate_paths` truncated by a daemon stop ⇒ scoped fallback + `unavailable{daemon-absent}`, not `clean`), `reconnect_reissues_full_scan` (a reconnect re-issues `request_full_scan`), and `warn_once_latch_resets_after_reconnect` (a second disconnect WARNs again).
 - [ ] Run `cargo test -p eddacraft-anvil -- watch` — fail → implement → pass.
 - [ ] Commit: `feat(watch): route save-time validation through daemon, scoped fallback (ADR-061 §3)`
 
@@ -390,9 +410,9 @@ Re-point the in-process scan to daemon `validate_paths`; in-process fallback whe
 - Create: `crates/anvil-intercept/src/confinement.rs`, `crates/anvil-cli/src/commands/workspace.rs`
 - Test: both
 
-Operator-level config (`ANVIL_HOME`/XDG, owner-only): `admission = open|allowlist`, `allow = [exact + prefix]`. Allowlist mode refuses non-admitted roots with `workspace-not-admitted`, disables first-touch adopt, implicitly admits the primary check-in root. Config load failure **fails closed + loud**. CLI: `anvil workspace allow|deny|list|mode`.
+Operator-level config (`ANVIL_HOME`/XDG, owner-only): `admission = open|allowlist`, `allow = [exact + prefix]`. Allowlist mode refuses non-admitted roots with `workspace-not-admitted`, disables first-touch adopt, implicitly admits the primary check-in root. Config load failure **fails closed + loud**. CLI: `anvil workspace allow|deny|list|mode`. **Placement (item 8): `confinement.rs` resolves the config dir via the daemon's existing `anvil_home_prefix()` (`lib.rs`) — the same resolver `resolve_socket_dir` (`ipc.rs`) uses — so it loads operator config without any `anvil-cli` dependency (`anvil-cli` → `anvil-intercept`, not the reverse; no wrong-direction dep, no new crate).**
 
-- [ ] Failing tests: `open_mode_auto_adopts`, `allowlist_refuses_unlisted`, `primary_root_implicitly_admitted`, `prefix_entry_matches_subtree`, `config_load_failure_fails_closed`, `allowlist_not_read_from_repo_dotanvil`.
+- [ ] Failing tests: `open_mode_auto_adopts`, `allowlist_refuses_unlisted`, `primary_root_implicitly_admitted`, `prefix_entry_matches_subtree`, `config_load_failure_fails_closed`, `allowlist_not_read_from_repo_dotanvil`, `confinement_config_dir_resolved_via_anvil_home_prefix` (item 8: loader uses the daemon's own home resolver, not an `anvil-cli` path).
 - [ ] fail → implement → pass.
 - [ ] Commit: `feat(intercept,cli): opt-in workspace confinement mode (ADR-061 §7)`
 

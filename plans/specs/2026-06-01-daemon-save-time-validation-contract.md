@@ -236,6 +236,14 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 - Managed via `anvil workspace allow|deny|list|mode`.
 - Config load failure **fails closed and loud** (never silent fall-back to
   `open`).
+- **Loader placement (item 8, council review 2026-06-01):** the loader lives in
+  `anvil-intercept` (`confinement.rs`) and resolves the config dir via the
+  daemon's own `anvil_home_prefix()` (`lib.rs`) — the same `ANVIL_HOME`/XDG
+  resolver `resolve_socket_dir` (`ipc.rs`) already uses. `anvil-cli` depends on
+  `anvil-intercept`, not the reverse, and the daemon already resolves `ANVIL_HOME`
+  itself, so there is **no wrong-direction dep** and no new crate is needed. The
+  allowlist is read only through that operator-home resolver, never from a repo
+  `.anvil.yaml`.
 - Policy guardrail, not an OS jail: governs Anvil-mediated paths (validation +
   enforcement-participating writes) only; cannot stop raw shell ops; hard
   boundary = separate OS user.
@@ -267,13 +275,39 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 - Lifecycle: `(connect) → stale(cross-file-resolution-needed) → pending →
   running → clean`; thereafter `clean → stale` on an uncertifiable delta, and
   `stale → pending → running → clean` via the (Sub-phase B) background scheduler.
-- `reason` is non-optional for `stale`; `scan_started_at` present for `running`;
-  daemon emits a structured INFO log on every transition.
+- `reason` is non-optional for `stale`; `scan_started_at` present for `running`.
+- **Transition observability (item 8, council review 2026-06-01):** every state
+  change is emitted as an **ADR-035 Notification envelope** (not a bare INFO
+  line), routed via the daemon's `Fanout::route` (and the same `redact_envelope`
+  cross-session guard), reusing the existing `FenceState`-transition envelope
+  shape (`envelope_for_fence_transition` is the precedent):
+  - `notification.class = FenceState`; `priority` (wire-lowercase) = `high` for `→stale`/`→unavailable`, `normal` otherwise.
+  - `grouping.transition = { from, to }` (assurance state names); `grouping.key = "intercept:assurance:<workspace_root>"`.
+  - `notification.{title,message}` name the reason in human text (e.g. `"stale: cross-file-resolution-needed"`).
+  - The **precise machine fields** — `reason` (`StaleReason`), opaque `generation`, `scan_started_at` (when `to == running`) — ride a **mirrored `tracing` structured event** (free-form, greppable with no subscriber). Carrying them as machine-readable *envelope* fields would extend `NotificationContext` (today `{file, source}`) in `anvil-kernel-types` **and** require a matching `redact_envelope` update — a Task 9 prerequisite, not assumed present.
 - A background scan over a configurable timeout → `stale(reason: scan-timeout)`;
   on daemon restart, any `running` workspace becomes `stale`.
 - Fallback (daemon absent): `workspace_assurance{state: unavailable, reason:
   daemon-absent}`, never `clean`; WARN on first fallback; `anvil status` reports
   "unprotected (daemon not running)", not a stale cached state.
+- **Mid-session disconnect/reconnect (item 8, council ops major):** the
+  `validate_paths` client (the `watch` save-time path, Task 12) is a **persistent**
+  daemon client, so it must define daemon-death-mid-session — not just
+  present-at-start vs absent-at-start. The daemon's `SHUTDOWN_DRAIN_DEADLINE`
+  (250 ms, `ipc.rs`) aborts in-flight handlers on restart, so an in-flight
+  `validate_paths` can be **truncated** (the response never arrives). Contract:
+  - The client bounds every request with a read timeout; a mid-stream drop / EOF /
+    timeout is treated as **daemon-absent for that batch** → scoped fallback (never
+    `--all`, Task 3 guards inherited) and `workspace_assurance{state: unavailable,
+    reason: daemon-absent}`. A truncated in-flight verdict is **never** rendered as
+    `clean`.
+  - **WARN once per disconnect, not once per process:** the first fallback after a
+    healthy connection WARNs; the warn-once latch **resets on reconnect**, so a
+    later disconnect warns again (a process-lifetime latch would silently swallow a
+    second daemon death).
+  - On reconnect the client re-issues `request_full_scan` (per the connect/reconnect
+    rule above), so assurance re-establishes from `stale(cross-file-resolution-needed)`
+    rather than trusting any pre-disconnect `clean`.
 - `clean` is documented as a same-uid liveness signal, not a tamper-proof
   attestation.
 
