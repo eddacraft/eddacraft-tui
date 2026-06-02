@@ -478,8 +478,8 @@ convention" section). Concretely:
   presence, and that cross-session subscribers receive
   redacted excerpts per INTD-015.
 - **Confidence:** medium
-- **Status:** Ready (promoted 2026-06-02 — all three `Blocks on` items are
-  Complete: RTAI-002, INTD-013, and INTD-015 (merged 2026-05-06 via PR #1305).
+- **Status:** In Progress (promoted to Ready 2026-06-02 — all three `Blocks on`
+  items are Complete: RTAI-002, INTD-013, and INTD-015 (merged 2026-05-06 via PR #1305).
   The cross-session redaction this relies on is shipped, so the TRACE R1 risk
   caveat ("revisit when INTD-015 reaches Ready") is discharged. The Wave-4
   deferral was A2-brief sequencing, not a technical block. Daemon-independent
@@ -545,8 +545,8 @@ convention" section). Concretely:
 - **Validation:** `grep -r "validation-server\|anvil-server\|RTVF"
   docs/` returns only historical references under archive paths.
 - **Confidence:** high
-- **Status:** Ready (promoted 2026-06-02, scoped to shipped surfaces — the
-  RTVF/"validation-server" cleanup, the supersession cross-link, and the
+- **Status:** In Progress (promoted to Ready 2026-06-02, scoped to shipped
+  surfaces — the RTVF/"validation-server" cleanup, the supersession cross-link, and the
   drivers→daemon MCP path (RTAI-006, Complete) are documentable now. The
   remaining `Blocks on` item RTAI-005 (editor-driver VSCode+LSP path) stays
   **parked under ADR-033** (IDE surface archived, Proposed) — document that path
