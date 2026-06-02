@@ -1,0 +1,116 @@
+//! Build a json-render [`DataContext`] from `.anvil/` storage.
+//!
+//! Dashboard specs reference live values by dotted path — `gates.passRate`,
+//! `architecture.violations` — and [`load_context`] assembles the tree those
+//! paths resolve against from the JSON state Anvil already persists under
+//! `.anvil/`. Each top-level `.anvil/<name>.json` file becomes a context key
+//! `<name>` whose value is the file's parsed contents, so a spec referencing
+//! `architecture.module_count` reaches into `.anvil/architecture.json`.
+//!
+//! This is the Anvil-specific half of TUIDASH-008; the generic
+//! [`DataContext`]/[`bind`](eddacraft_tui::json_render::bind) path resolution
+//! lives in `eddacraft-tui`. Loading is deliberately lenient: a missing
+//! `.anvil/` directory, an unreadable file, or a malformed JSON file is skipped
+//! rather than failing, so a dashboard still renders (unresolved paths show as
+//! em dashes, the module's data-binding-failure rule).
+
+use std::fs;
+use std::path::Path;
+
+use eddacraft_tui::json_render::DataContext;
+use serde_json::{Map, Value};
+
+/// Assemble a [`DataContext`] from the JSON state under `<root>/.anvil/`.
+///
+/// Only files matching `*.json` directly inside `.anvil/` are read (the
+/// `dashboards/` subdirectory of saved specs is skipped). Each is keyed by its
+/// filename stem. Unreadable or non-JSON files are silently skipped.
+#[must_use]
+pub fn load_context(root: &Path) -> DataContext {
+    let dir = root.join(".anvil");
+    let mut map = Map::new();
+
+    let Ok(entries) = fs::read_dir(&dir) else {
+        // No `.anvil/` yet — an empty context. Every path misses (em dash).
+        return DataContext::empty();
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        if let Ok(value) = serde_json::from_str::<Value>(&text) {
+            map.insert(stem.to_owned(), value);
+        }
+    }
+
+    DataContext::new(Value::Object(map))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn write(dir: &Path, name: &str, contents: &str) {
+        fs::write(dir.join(name), contents).expect("write fixture");
+    }
+
+    #[test]
+    fn keys_each_anvil_json_file_by_its_stem() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(&anvil).expect("mkdir .anvil");
+        write(&anvil, "architecture.json", r#"{ "module_count": 17 }"#);
+        write(&anvil, "gates.json", r#"{ "passRate": "94%" }"#);
+
+        let ctx = load_context(tmp.path());
+        assert_eq!(
+            ctx.resolve("architecture.module_count"),
+            Some(&serde_json::json!(17))
+        );
+        assert_eq!(
+            ctx.resolve("gates.passRate"),
+            Some(&serde_json::json!("94%"))
+        );
+    }
+
+    #[test]
+    fn missing_anvil_dir_yields_an_empty_context() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let ctx = load_context(tmp.path());
+        assert!(ctx.resolve("anything").is_none());
+    }
+
+    #[test]
+    fn malformed_and_non_json_files_are_skipped() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(&anvil).expect("mkdir");
+        write(&anvil, "broken.json", "{ not json");
+        write(&anvil, "notes.txt", "ignore me");
+        write(&anvil, "good.json", r#"{ "ok": true }"#);
+
+        let ctx = load_context(tmp.path());
+        assert!(ctx.resolve("broken").is_none(), "malformed json skipped");
+        assert!(ctx.resolve("notes").is_none(), "non-json skipped");
+        assert_eq!(ctx.resolve("good.ok"), Some(&serde_json::json!(true)));
+    }
+
+    #[test]
+    fn dashboards_subdirectory_is_not_treated_as_data() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(anvil.join("dashboards")).expect("mkdir");
+        // A directory named like a json file must not crash the loader.
+        let ctx = load_context(tmp.path());
+        assert!(ctx.resolve("dashboards").is_none());
+    }
+}

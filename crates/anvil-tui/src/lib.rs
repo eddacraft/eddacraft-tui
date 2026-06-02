@@ -1,5 +1,7 @@
 pub mod app;
 pub mod compat;
+pub mod dashboard_catalog;
+pub mod dashboard_context;
 pub mod migration;
 pub mod shell;
 pub mod surface;
