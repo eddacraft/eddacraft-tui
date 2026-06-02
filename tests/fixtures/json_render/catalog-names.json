@@ -1,0 +1,17 @@
+{
+  "comment": "Verbatim mirror of the component type names registered by @eddacraft/render (packages/libs/render/src/catalog-registry.ts). Vendored per ADR-047 so eddacraft-tui's catalogue-parity test (TUIDASH-010) does not reach across package boundaries. Refresh when the web catalogue changes; the parity test fails if the TUI registry stops mapping any name listed here.",
+  "components": [
+    "Card",
+    "Stack",
+    "Grid",
+    "Heading",
+    "Text",
+    "Badge",
+    "Separator",
+    "Table",
+    "Alert",
+    "Progress",
+    "MetricCard",
+    "StatusBadge"
+  ]
+}
