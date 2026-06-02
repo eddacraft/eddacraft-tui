@@ -254,9 +254,12 @@ impl TreeSampler {
         }
     }
 
-    /// Close the window and emit the [`MeasurementSample`]. The root may have
-    /// exited (e.g. killed) before this call; its final CPU counters are then
-    /// unreadable, so this consumes the last good baseline conservatively.
+    /// Close the window and emit the [`MeasurementSample`]. Reads the root's
+    /// final CPU counters, so the root **must still be alive** — if it exited
+    /// before this call the read fails and `finish` returns `Err`. Callers
+    /// therefore verify liveness (`ManagedChild::ensure_running`) *before*
+    /// `finish`, which both validates the verdict and keeps the counters
+    /// readable.
     pub fn finish(self) -> Result<MeasurementSample> {
         let end_tree = read_proc_cpu_times(self.root)?.tree_total();
         let end_total = read_total_cpu_jiffies()?;

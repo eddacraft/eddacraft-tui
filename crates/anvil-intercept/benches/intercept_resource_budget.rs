@@ -206,10 +206,18 @@ mod unix_bench {
     /// loud error rather than a misleadingly-idle measurement.
     async fn sanity_request(socket: &Path) -> Result<()> {
         let response = session_list(socket).await?;
-        if !response.contains("\"result\"") {
+        if !response_has_result(&response) {
             return Err(format!("daemon did not return a result: {response}").into());
         }
         Ok(())
+    }
+
+    /// A JSON-RPC reply is a success iff it parses with a top-level `result` and
+    /// no `error` — robust against an error message that mentions "result".
+    fn response_has_result(line: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .is_some_and(|v| v.get("result").is_some() && v.get("error").is_none())
     }
 
     async fn wait_for_socket(socket: &Path, timeout: Duration) -> Result<()> {
