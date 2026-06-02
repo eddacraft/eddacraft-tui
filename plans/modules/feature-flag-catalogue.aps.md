@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 6/8      |
+| FLAGCAT | —     | medium   | In Progress | 7/8      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -468,7 +468,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** medium
 - **Status:** Merged 2026-06-02 via PR #2223
 
-### FLAGCAT-006: Consistency check and adoption guide — In Progress
+### FLAGCAT-006: Consistency check and adoption guide — Merged
 
 - **Intent:** Make drift between the JSON manifest, TS re-exports, and Rust
   codegen loud in CI; update the inventory doc so future contributors know
@@ -499,7 +499,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   "split across surfaces" framing and adds the structural-equality
   consistency spec to the new `flags-catalogue` project)
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-06-02 via PR #2224
 
 <a id="flagcat-007"></a>
 
