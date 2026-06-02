@@ -20,6 +20,33 @@ and dual-evaluation parity scaffolding have been deleted. Per-control flag keys,
 evaluation context, and rollback paths are documented in
 [`plans/specs/2026-04-20-feature-flag-migration-design.md`](../../plans/specs/2026-04-20-feature-flag-migration-design.md).
 
+## Adding a Flag
+
+The flag catalogue is the **single source of truth**: a flag is defined once in
+`flags/manifest.json` and consumed everywhere through generated/typed accessors
+— there is no per-surface flag literal to keep in sync (FLAGCAT-002…005). The
+per-surface modules in the table below are now thin consumers of the catalogue
+(`@eddacraft/anvil-flags-catalogue` re-exports + host-local evaluation glue),
+not flag definitions.
+
+To add a flag:
+
+1. **Edit one file** — add a flag entry to `flags/manifest.json` (keep the array
+   sorted by `key`). Declare the parts of a feature: `key`; `primaryGroup` (an
+   id from `flags/groups.json`, which carries the group's default `class` +
+   audiences); audience targeting using canonical `flags/audiences.json` ids;
+   behaviour (`variants` + `defaultVariant`); and, for a `rollout`, the
+   `flags/environments.json` ids it is enabled in.
+2. **Regenerate (no hand-syncing)** — TS accessors load the manifest at module
+   load via `@eddacraft/anvil-flags-catalogue`; the Rust constants regenerate
+   from the same file via the `eddacraft-anvil-kernel-types` `build.rs` on the
+   next build.
+3. **CI checks it** — `pnpm nx test flags-catalogue` validates the manifest
+   against the `groups` / `audiences` / `environments` inventories and the
+   JSON-key → Rust/TS naming map; `cargo test -p eddacraft-anvil-kernel-types`
+   confirms the generated Rust constants are byte-equal to the manifest. Between
+   them, manifest ↔ TS ↔ Rust can't drift.
+
 ## Classification Key
 
 | Action       | Meaning                                                             |

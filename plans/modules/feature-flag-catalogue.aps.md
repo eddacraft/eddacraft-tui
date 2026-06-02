@@ -468,7 +468,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** medium
 - **Status:** Merged 2026-06-02 via PR #2223
 
-### FLAGCAT-006: Consistency check and adoption guide — Ready
+### FLAGCAT-006: Consistency check and adoption guide — In Progress
 
 - **Intent:** Make drift between the JSON manifest, TS re-exports, and Rust
   codegen loud in CI; update the inventory doc so future contributors know
@@ -499,7 +499,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   "split across surfaces" framing and adds the structural-equality
   consistency spec to the new `flags-catalogue` project)
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 <a id="flagcat-007"></a>
 
