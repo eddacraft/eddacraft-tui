@@ -10,7 +10,7 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
-use super::props::str_or;
+use super::props::disp_or;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -23,7 +23,7 @@ impl TuiComponent for Heading {
             return;
         }
         let theme = EddaCraftTheme;
-        let text = str_or(props, "children", "");
+        let text = disp_or(props, "children", "");
         let level = props
             .get("level")
             .and_then(serde_json::Value::as_u64)
@@ -35,7 +35,7 @@ impl TuiComponent for Heading {
         } else {
             theme.base()
         };
-        frame.render_widget(Paragraph::new(Line::styled(text.to_owned(), style)), area);
+        frame.render_widget(Paragraph::new(Line::styled(text, style)), area);
     }
 
     fn layout_children(&self, _props: &Props, _area: Rect, _child_count: usize) -> Vec<Rect> {

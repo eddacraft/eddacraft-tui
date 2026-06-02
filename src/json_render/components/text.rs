@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::{Paragraph, Wrap};
 
-use super::props::{str_or, str_prop};
+use super::props::{disp_or, str_prop};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -21,16 +21,14 @@ impl TuiComponent for Text {
             return;
         }
         let theme = EddaCraftTheme;
-        let body = str_or(props, "children", "");
+        let body = disp_or(props, "children", "");
         let style = if str_prop(props, "variant") == Some("muted") {
             Style::default().fg(theme.muted())
         } else {
             theme.base()
         };
         frame.render_widget(
-            Paragraph::new(body.to_owned())
-                .style(style)
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(body).style(style).wrap(Wrap { trim: true }),
             area,
         );
     }

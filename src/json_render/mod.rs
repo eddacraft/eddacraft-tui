@@ -33,6 +33,7 @@ pub mod components;
 mod registry;
 mod renderer;
 pub mod responsive;
+mod sanitize;
 mod spec;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -44,6 +45,7 @@ pub use component::TuiComponent;
 pub use components::base_registry;
 pub use registry::TuiRegistry;
 pub use renderer::{MAX_DEPTH, render_spec};
+pub use sanitize::sanitize;
 pub use spec::{Element, PropValue, Props, RenderSpec, parse, to_json_pretty};
 
 /// The set of component type names a [`RenderSpec`] is allowed to reference.
