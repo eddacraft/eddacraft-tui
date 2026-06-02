@@ -83,6 +83,48 @@ fn template_specs_render_through_the_engine_without_panic() {
 }
 
 #[test]
+fn control_sequences_in_spec_strings_never_reach_the_buffer() {
+    // A hostile spec embeds an OSC-52 clipboard write and a title rewrite in a
+    // Heading's text. serde_json rejects *raw* control bytes but decodes the
+    // JSON `\u{1b}` escape into a real ESC, so that escaped form is the actual
+    // attack path. After rendering, no control byte may appear in any buffer
+    // cell — the sanitiser must have stripped them (TUIDASH security review).
+    let mut spec = json_render::parse(
+        r#"{ "title": "x", "version": "1.0", "root": "h",
+             "elements": { "h": { "type": "Heading",
+               "props": { "children": "placeholder" }, "children": [] } } }"#,
+    )
+    .expect("parse");
+    // Inject the equivalent of a JSON unicode escape decoding to ESC/BEL — the
+    // real injection path a hostile spec uses — directly into the prop.
+    let evil = "safe\u{1b}]52;c;cHk\u{07}text\u{1b}]0;pwned\u{07}";
+    spec.elements
+        .get_mut("h")
+        .expect("element h")
+        .props
+        .insert("children".to_owned(), serde_json::json!(evil));
+    assert!(evil.contains('\u{1b}'), "fixture carries a real ESC");
+    let registry = json_render::base_registry();
+    let mut terminal = Terminal::new(TestBackend::new(80, 4)).expect("test backend");
+    terminal
+        .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
+        .expect("draw");
+    let offenders: Vec<u32> = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .flat_map(|cell| cell.symbol().chars())
+        .filter(|c| char::is_control(*c))
+        .map(|c| c as u32)
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "control/escape bytes reached the rendered buffer: {offenders:?}"
+    );
+}
+
+#[test]
 fn template_specs_render_at_every_breakpoint_without_panic() {
     // The same spec must render usably at the documented sizes (TUIDASH-011):
     // 80x24 (narrow), 120x40 (medium), 200x60 (wide).

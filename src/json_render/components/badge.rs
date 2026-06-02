@@ -11,7 +11,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::props::str_prop;
+use super::props::{disp, str_prop};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -25,9 +25,9 @@ impl TuiComponent for Badge {
         }
         let theme = EddaCraftTheme;
         // Accept either `children` (shadcn) or `label` (common alias).
-        let label = str_prop(props, "children")
-            .or_else(|| str_prop(props, "label"))
-            .unwrap_or("");
+        let label = disp(props, "children")
+            .or_else(|| disp(props, "label"))
+            .unwrap_or_default();
         let colour = match str_prop(props, "variant").unwrap_or("default") {
             "destructive" => theme.error(),
             "secondary" => theme.muted(),

@@ -1,5 +1,5 @@
-//! `StatusBadge` — pass/fail/warn/info indicator (custom Anvil catalogue
-//! component).
+//! `StatusBadge` — pass/fail/warn/info indicator (a `@eddacraft/render`
+//! base-catalogue component; generic, not Anvil-specific).
 //!
 //! A direct 1:1 onto the eddacraft-tui [`StatusBadge`](crate::widgets::status_badge::StatusBadge)
 //! widget. The spec `status` enum (`pass`/`fail`/`warn`/`info`) maps onto the
@@ -8,7 +8,7 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
-use super::props::{str_or, str_prop};
+use super::props::{disp, str_or};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::EddaCraftTheme;
 use crate::widgets::status_badge::{BadgeStatus, StatusBadge as StatusBadgeWidget};
@@ -37,8 +37,8 @@ impl TuiComponent for StatusBadge {
         }
         let theme = EddaCraftTheme;
         let status = badge_status(str_or(props, "status", "info"));
-        let label = str_prop(props, "label").unwrap_or("");
-        frame.render_widget(StatusBadgeWidget::new(status, &theme).label(label), area);
+        let label = disp(props, "label").unwrap_or_default();
+        frame.render_widget(StatusBadgeWidget::new(status, &theme).label(&label), area);
     }
 
     fn layout_children(&self, _props: &Props, _area: Rect, _child_count: usize) -> Vec<Rect> {

@@ -13,7 +13,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Gauge;
 
-use super::props::str_prop;
+use super::props::disp;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -34,7 +34,11 @@ impl Progress {
             .and_then(serde_json::Value::as_f64)
             .filter(|m| *m > 0.0)
             .unwrap_or(100.0);
-        (value / max).clamp(0.0, 1.0)
+        // `clamp` does NOT sanitise NaN (NaN.clamp(0,1) == NaN), and ratatui's
+        // Gauge::ratio panics outside 0..=1 — so collapse any non-finite result
+        // (e.g. a NaN reaching DataContext via a non-JSON caller) to zero.
+        let ratio = (value / max).clamp(0.0, 1.0);
+        if ratio.is_finite() { ratio } else { 0.0 }
     }
 }
 
@@ -45,8 +49,7 @@ impl TuiComponent for Progress {
         }
         let theme = EddaCraftTheme;
         let ratio = Self::fraction(props);
-        let label = str_prop(props, "label")
-            .map_or_else(|| format!("{:.0}%", ratio * 100.0), str::to_owned);
+        let label = disp(props, "label").unwrap_or_else(|| format!("{:.0}%", ratio * 100.0));
         frame.render_widget(
             Gauge::default()
                 .ratio(ratio)

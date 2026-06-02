@@ -20,6 +20,14 @@
 
 use crate::json_render::TuiRegistry;
 
+/// Upper bound on the number of children a layout component (`Stack`, `Grid`)
+/// lays out. `children` is spec-controlled and unbounded; feeding hundreds of
+/// thousands of constraints to ratatui's `Layout` solver on every frame is a
+/// per-frame denial-of-service. Far more than this can never be legibly visible
+/// at once, so trailing children beyond the cap are simply not given space (and
+/// so are not drawn) — the same "fewer rects = not drawn" contract used elsewhere.
+pub(crate) const MAX_LAYOUT_CHILDREN: usize = 512;
+
 mod alert;
 mod badge;
 mod bar_chart;
@@ -110,15 +118,32 @@ fn register_charts(registry: &mut TuiRegistry) {
 /// the wrong JSON type, upholding the "rendering must not panic" constraint.
 mod props {
     use crate::json_render::Props;
+    use crate::json_render::sanitize::sanitize;
 
     /// Read a string prop, or `None` if absent / not a string.
+    ///
+    /// For values that are **matched** (status/variant/direction enums), not
+    /// displayed. Display strings must go through [`disp`]/[`disp_or`] so control
+    /// characters cannot reach the terminal.
     pub(super) fn str_prop<'a>(props: &'a Props, key: &str) -> Option<&'a str> {
         props.get(key).and_then(serde_json::Value::as_str)
     }
 
-    /// Read a string prop with a fallback.
+    /// Read a string prop with a fallback (matching only — see [`str_prop`]).
     pub(super) fn str_or<'a>(props: &'a Props, key: &str, default: &'a str) -> &'a str {
         str_prop(props, key).unwrap_or(default)
+    }
+
+    /// Read a **display** string prop, sanitised of control characters, or
+    /// `None` if absent / not a string.
+    pub(super) fn disp(props: &Props, key: &str) -> Option<String> {
+        str_prop(props, key).map(sanitize)
+    }
+
+    /// Read a sanitised display string prop, falling back to `default` (which is
+    /// trusted caller-supplied text and is not sanitised).
+    pub(super) fn disp_or(props: &Props, key: &str, default: &str) -> String {
+        disp(props, key).unwrap_or_else(|| default.to_owned())
     }
 
     /// Round a value to a non-negative `u64` chart height, clamping out

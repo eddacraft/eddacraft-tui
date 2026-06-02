@@ -21,6 +21,8 @@ impl Grid {
         if child_count == 0 || area.width == 0 || area.height == 0 {
             return Vec::new();
         }
+        // Bound the cell count fed to the layout solver (DoS guard).
+        let child_count = child_count.min(super::MAX_LAYOUT_CHILDREN);
         // `columns` defaults to 2 (the common metric-row shape); 0 or absent is
         // coerced to a sane minimum so we never divide by zero.
         let mut columns = usize_prop(props, "columns").unwrap_or(2).max(1);

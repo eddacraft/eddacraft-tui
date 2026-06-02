@@ -11,7 +11,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
-use super::props::{str_or, str_prop};
+use super::props::{disp, disp_or, str_prop};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -40,24 +40,24 @@ impl TuiComponent for Alert {
         }
         let theme = EddaCraftTheme;
         let colour = Self::severity_colour(props, &theme);
-        let title = str_or(props, "title", "");
+        let title = disp_or(props, "title", "");
         let mut block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(colour));
         if !title.is_empty() {
-            block = block.title(Span::styled(title.to_owned(), Style::default().fg(colour)));
+            block = block.title(Span::styled(title, Style::default().fg(colour)));
         }
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let body = str_prop(props, "children").or_else(|| str_prop(props, "description"));
+        let body = disp(props, "children").or_else(|| disp(props, "description"));
         if let Some(body) = body
             && inner.width > 0
             && inner.height > 0
         {
             frame.render_widget(
-                Paragraph::new(body.to_owned())
+                Paragraph::new(body)
                     .style(theme.base())
                     .wrap(Wrap { trim: true }),
                 inner,

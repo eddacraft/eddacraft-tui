@@ -22,6 +22,8 @@ impl Stack {
         if child_count == 0 || area.width == 0 || area.height == 0 {
             return Vec::new();
         }
+        // Bound the constraint count fed to the layout solver (DoS guard).
+        let child_count = child_count.min(super::MAX_LAYOUT_CHILDREN);
         let constraints = vec![Constraint::Fill(1); child_count];
         let gap = gap_spacing(props);
         let layout = if str_or(props, "direction", "vertical") == "horizontal" {

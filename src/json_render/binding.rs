@@ -62,6 +62,12 @@ impl DataContext {
             return Some(node);
         }
         for segment in path.split('.') {
+            // A doubled dot (`a..b`) or a trailing dot yields an empty segment;
+            // treat it as a no-op rather than a lookup for the empty key, so a
+            // typo degrades to the same path rather than silently missing.
+            if segment.is_empty() {
+                continue;
+            }
             node = match node {
                 Value::Object(map) => map.get(segment)?,
                 Value::Array(items) => {

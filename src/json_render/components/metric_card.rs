@@ -1,4 +1,5 @@
-//! `MetricCard` — a single headline metric (custom Anvil catalogue component).
+//! `MetricCard` — a single headline metric (a `@eddacraft/render` base-catalogue
+//! component; generic, not Anvil-specific).
 //!
 //! A subtle bordered card showing a prominent `value`, a muted `label`, and an
 //! optional `trend` arrow (`up`/`down`/`flat`). `format` is advisory — the spec
@@ -11,7 +12,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::props::{str_or, str_prop};
+use super::props::{disp_or, str_prop};
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::{EddaCraftTheme, Theme};
 use crate::widgets::container::{Container, ContainerVariant};
@@ -50,11 +51,11 @@ impl TuiComponent for MetricCard {
             return;
         }
 
-        let value = str_or(props, "value", "—");
-        let label = str_or(props, "label", "");
+        let value = disp_or(props, "value", "—");
+        let label = disp_or(props, "label", "");
 
         let mut value_line = vec![Span::styled(
-            value.to_owned(),
+            value,
             Style::default()
                 .fg(theme.accent())
                 .add_modifier(Modifier::BOLD),
@@ -65,7 +66,7 @@ impl TuiComponent for MetricCard {
 
         let lines = vec![
             Line::from(value_line),
-            Line::styled(label.to_owned(), Style::default().fg(theme.muted())),
+            Line::styled(label, Style::default().fg(theme.muted())),
         ];
         frame.render_widget(Paragraph::new(lines), inner);
     }
