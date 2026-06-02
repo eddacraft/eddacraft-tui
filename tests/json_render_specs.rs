@@ -10,6 +10,8 @@
 #![cfg(feature = "json-render")]
 
 use eddacraft_tui::json_render::{self, Catalog};
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 
 const TEMPLATES: [(&str, &str); 3] = [
     (
@@ -46,6 +48,37 @@ fn template_specs_validate_against_base_catalogue() {
         let spec = json_render::parse(json).unwrap_or_else(|e| panic!("{label}: parse: {e}"));
         json_render::validate(&spec, &catalog)
             .unwrap_or_else(|errs| panic!("{label}: unexpected validation errors: {errs:?}"));
+    }
+}
+
+#[test]
+fn template_specs_render_through_the_engine_without_panic() {
+    // End-to-end: parse each real template, render it through the base registry
+    // at a roomy terminal size, and assert nothing fell through to the renderer's
+    // "[Type: not available in terminal]" placeholder. That proves `base_registry`
+    // maps every component the shipped templates actually use.
+    let registry = json_render::base_registry();
+    for (label, json) in TEMPLATES {
+        let spec = json_render::parse(json).unwrap_or_else(|e| panic!("{label}: parse: {e}"));
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("test backend");
+        terminal
+            .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
+            .unwrap_or_else(|e| panic!("{label}: draw: {e}"));
+        let text: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            !text.contains("not available in terminal"),
+            "{label}: an unmapped component degraded to a placeholder"
+        );
+        assert!(
+            !text.contains("[missing:"),
+            "{label}: a dangling child reference surfaced while rendering"
+        );
     }
 }
 
