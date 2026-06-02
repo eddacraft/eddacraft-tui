@@ -429,18 +429,26 @@ convention" section). Concretely:
   and asserts `publishDiagnostics` arrives within the ADR-031 mid-edit
   budget; a daemon-down test asserts in-flight diagnostics stop while
   save-time still works.
-- **Readiness / sequencing:** The "thin frontend" framing assumes a
-  persistent Rust `scan_buffer` daemon **client** that a long-lived LSP
-  server holds open. The daemon *server* side is shipped and hardened
-  (RTAI-002 + the MLP2 `scan_buffer` work), but the client side was last
-  recorded as a follow-up — RTAI-006's reconciliation note has the launch
-  shim's `DaemonValidationClient` returning `Unavailable`. **Verify that
-  client exists before assuming "thin."** Recommended approach when this
-  un-parks: an RTAI-001-style throwaway spike first (`anvil lsp --stdio`,
-  one rule, one fixture, didChange → `scan_buffer` → `publishDiagnostics`)
-  to prove the LSP frontend and expose the daemon-client gap cheaply,
-  *then* the full build. **Un-park trigger is a concrete demand signal**
-  (an editor/user asking, or a demo) — not surface completeness.
+- **Readiness / sequencing:** A live JSON-RPC `scan_buffer` daemon client
+  already exists — `SocketDaemonValidationClient` (Unix) +
+  `WindowsPipeDaemonValidationClient` (Windows, MLP2-075) in
+  `crates/anvil-cli/src/mcp/validation.rs`, committed in PR #1277 and used by
+  the MCP pre-write path — and the daemon *server* side is shipped and hardened
+  (RTAI-002 + the MLP2 `scan_buffer` work). So the "thin frontend" framing is
+  well-founded; the open questions are **adaptation, not existence**: (a) the
+  existing client is `validate_pre_write`-shaped (`mode = preWrite`); the LSP
+  path needs the same RPC in `mode = midEdit` (already a supported `scan_buffer`
+  mode), so the client surface needs a mid-edit variant; (b) **connection
+  lifecycle** — the client connects per request (`UnixStream::connect` per
+  call), which is fine for one-shot pre-write, but a long-lived LSP server
+  firing per debounced keystroke must confirm per-call connect meets the
+  ADR-031 mid-edit budget at typing cadence, or add a persistent connection (the
+  production-driver pattern). Recommended approach when this un-parks: an
+  RTAI-001-style throwaway spike first (`anvil lsp --stdio`, one rule, one
+  fixture, didChange → `scan_buffer` → `publishDiagnostics`) to settle the
+  connection-lifecycle question cheaply, *then* the full build. **Un-park
+  trigger is a concrete demand signal** (an editor/user asking, or a demo) —
+  not surface completeness.
 - **Confidence:** medium
 - **Status:** Proposed
 
