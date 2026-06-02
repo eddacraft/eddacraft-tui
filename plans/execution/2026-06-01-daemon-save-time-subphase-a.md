@@ -539,6 +539,31 @@ Render `clean|stale|pending|running|unavailable` (+ `reason`), and `confined: N`
 - [ ] Parity gate (Task 15) + the three §8 gates green; SLO bench (Task 16) green on a quiet box.
 - [ ] Council (batch) on the diff before push; address CRITICAL/MAJOR.
 
+## Waves
+
+Delivery order for Sub-phase A, derived from the task dependencies below and tracked as
+the work items of the [`daemon-save-time-validation`](../modules/daemon-save-time-validation.aps.md)
+module (DSV). Tasks in the same wave are independent; each wave's gate must pass before
+the next begins. **Task 10 splits**: `10a` = interactive-pool construction (spine, Wave 0);
+`10b` = chunked background-scan loop (Wave 4). Sub-phases A′ (DSV-020) and B (DSV-030) are
+externally gated successor sub-phases and are out of scope of this plan.
+
+| Wave | Tasks | DSV item(s) | Gate |
+| ---- | ----- | ----------- | ---- |
+| 0 | 0, 1, 10a, + the `run_antipattern_check_bytes` extraction (Task 8 predecessor) | DSV-001, DSV-002, DSV-006 (10a) | `anvil-graph-cache` compiles + daemon links no tree-sitter; wire frozen + proto tests pass; interactive pool built |
+| 1 | 2, 3, 4, 5 | DSV-003 | auth / read-safety / classify / taxonomy tests pass |
+| 2 | 6, 7; 14 (parallel) | DSV-004; DSV-008 | certify + interim-cache tests pass; `FileSymbols` feed wired; confinement tests pass |
+| 3 | 8, 9 | DSV-005 | `validate_paths` orchestration + assurance tests pass; handler passes guarded bytes (never re-reads) |
+| 4 | 10b, 11, 16; 12, 13, 17 (parallel) | DSV-006 (10b/11/16); DSV-007 | DoS caps pass; SLO bench + CI gate green; watch + MCP + status tests pass |
+| 5 | 15 | DSV-009 | cross-path diagnostic parity gate green |
+
+**Critical path:** Task 0 → 3 → 6/7 → 8/9 → 12/13 → 15 (DSV-001 → 003 → 004 → 005 → 007 → 009).
+DSV-002 (Wave 0) and DSV-006-10a (Wave 0) feed in early; DSV-008 (Wave 2) and the
+DSV-006 `10b/11/16` SLO work (Wave 4) sit off the critical path. The **SLO bench (Task 16)
+is an ADR-061 §9 Phase-2 merge dependency** — it must land before Phase 2 merges even
+though it is late in the order. The sibling-plan-able lane is **Tasks 10b + 11 + 16**
+(DSV-006 minus 10a) **+ Task 14** (DSV-008).
+
 ## Sequencing & parallelism notes
 
 - **Task 0 (ADR-064/B5 extraction) is the hard predecessor of Tasks 6/7/8** — they cannot compile until `anvil-graph-cache` exists. Task 0 has no dependency on Tasks 1–17 and runs in parallel with the Tasks 1–5/10/11 lane.
