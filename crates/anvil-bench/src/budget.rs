@@ -33,6 +33,26 @@ impl ResourceBudget {
         steady_state_cpu_pct: 5.0,
         peak_rss_mib: 200.0,
     };
+
+    /// Ceiling for the **default save-time path under sustained churn** — a
+    /// single `anvil watch` agent whose debounced saves each spawn a per-save
+    /// `anvil check` (the production default since GH #1913). This is the cost
+    /// the idle-path [`Self::ANVIL_WATCH_V1`] cannot see (RLB-002).
+    ///
+    /// Unit: `steady_state_cpu_pct` is scaled so `100.0` == one saturated core.
+    /// RLB-007 scoped the per-save check to the changed path and measured a
+    /// single churning agent at ~0.08 cores (≈8.0 here), down from ~6.55 cores
+    /// (≈655.0) before. The ceiling below carries generous headroom over that
+    /// floor while still tripping on a regression back toward whole-repo scans.
+    ///
+    /// **Calibration:** these numbers are conservative placeholders pending a
+    /// quiet-box calibration owned by RLB-008 (see
+    /// `docs/policies/resource-budget.md`). Tightening either axis is a budget
+    /// bump and requires a `DECISION-LOG.md` entry.
+    pub const ANVIL_WATCH_CHURN_V1: Self = Self {
+        steady_state_cpu_pct: 50.0,
+        peak_rss_mib: 300.0,
+    };
 }
 
 /// One measurement sample produced by the bench scenario.
