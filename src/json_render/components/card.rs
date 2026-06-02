@@ -8,7 +8,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 
-use super::props::str_prop;
+use super::props::disp;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::EddaCraftTheme;
 use crate::widgets::container::{Container, ContainerVariant};
@@ -19,8 +19,10 @@ pub struct Card;
 impl TuiComponent for Card {
     fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
         let theme = EddaCraftTheme;
+        // Sanitise the title — it is rendered into the terminal border.
+        let title = disp(props, "title");
         let mut container = Container::new(&theme).variant(ContainerVariant::Secondary);
-        if let Some(title) = str_prop(props, "title") {
+        if let Some(title) = &title {
             container = container.title(title);
         }
         frame.render_widget(container.to_block(), area);
