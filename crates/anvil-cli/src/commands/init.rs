@@ -356,8 +356,11 @@ fn seed_example_dashboard(root: &Path, force: bool) -> anyhow::Result<()> {
 }
 
 fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
+    // Per-project local state Anvil generates that must not be committed:
+    // the cache dir and the gate-run snapshot the dashboard reads (#2242).
+    const ENTRIES: [&str; 2] = [".anvil/cache/", ".anvil/gates.json"];
+
     let gitignore = root.join(".gitignore");
-    let entry = ".anvil/cache/";
 
     // Refuse to modify a symlinked .gitignore — a hostile symlink could
     // redirect the append into a file outside the project root. We use
@@ -381,17 +384,21 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
         Err(e) => return Err(e).context("failed to read .gitignore"),
     };
 
-    if let Some(contents) = existing.as_deref() {
-        // Simple trimmed-line equality check. We do not strip trailing
-        // inline comments (e.g. `".anvil/cache/ # keep"`), so a
-        // hand-authored entry with a trailing comment will trigger a
-        // duplicate append. Anvil never writes that form itself, and the
-        // duplicate is harmless to git's ignore semantics.
-        for line in contents.lines() {
-            if line.trim() == entry {
-                return Ok(false);
-            }
-        }
+    // Trimmed-line equality. We do not strip trailing inline comments (e.g.
+    // `".anvil/cache/ # keep"`), so a hand-authored entry with a comment would
+    // trigger a duplicate append — Anvil never writes that form, and a duplicate
+    // is harmless to git. Append only the entries not already present.
+    let present: std::collections::HashSet<&str> = existing
+        .as_deref()
+        .map(|c| c.lines().map(str::trim).collect())
+        .unwrap_or_default();
+    let missing: Vec<&str> = ENTRIES
+        .iter()
+        .copied()
+        .filter(|e| !present.contains(e))
+        .collect();
+    if missing.is_empty() {
+        return Ok(false);
     }
 
     let needs_newline = existing
@@ -408,7 +415,9 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
         writeln!(file).context("failed to write newline to .gitignore")?;
     }
 
-    writeln!(file, "{entry}").context("failed to append to .gitignore")?;
+    for entry in missing {
+        writeln!(file, "{entry}").context("failed to append to .gitignore")?;
+    }
     Ok(true)
 }
 
@@ -474,6 +483,18 @@ mod tests {
             serde_json::from_str(GATE_SUMMARY_SPEC).expect("embedded spec parses");
         assert_eq!(v["title"], "Gate Summary");
         assert_eq!(v["root"], "page");
+    }
+
+    #[test]
+    fn init_gitignores_cache_and_gate_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        run_plain(dir.path(), false).expect("init");
+        let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(gi.contains(".anvil/cache/"), "cache dir ignored");
+        assert!(
+            gi.contains(".anvil/gates.json"),
+            "transient gate snapshot ignored so it is not committed"
+        );
     }
 
     #[test]
@@ -570,17 +591,30 @@ mod tests {
     #[test]
     fn gitignore_not_duplicated() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join(".gitignore"), ".anvil/cache/\n").unwrap();
+        // Seed both managed entries so there is nothing left to append.
+        fs::write(
+            dir.path().join(".gitignore"),
+            ".anvil/cache/\n.anvil/gates.json\n",
+        )
+        .unwrap();
 
         let updated = append_gitignore_entry(dir.path()).unwrap();
         assert!(
             !updated,
-            "should report no update when entry already present"
+            "should report no update when all entries already present"
         );
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-        let count = content.matches(".anvil/cache/").count();
-        assert_eq!(count, 1, "entry should not be duplicated");
+        assert_eq!(
+            content.matches(".anvil/cache/").count(),
+            1,
+            "cache entry not duplicated"
+        );
+        assert_eq!(
+            content.matches(".anvil/gates.json").count(),
+            1,
+            "gate snapshot entry not duplicated"
+        );
     }
 
     #[test]

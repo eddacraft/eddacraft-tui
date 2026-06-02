@@ -233,7 +233,8 @@ const GATE_SNAPSHOT_FILE: &str = "gates.json";
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GateSnapshot {
-    /// `"pass"` or `"fail"` — drives `StatusBadge.status`.
+    /// `"pass"`, `"warn"` (passed with config gaps), or `"fail"` — drives
+    /// `StatusBadge.status`.
     status: &'static str,
     /// e.g. `"PASSED — score 92/100"` — `StatusBadge.label`.
     status_label: String,
@@ -243,7 +244,7 @@ struct GateSnapshot {
     checks_run: String,
     /// Count of attention items (failed + config-needed), display string.
     warnings: String,
-    /// Whole-second duration, display string.
+    /// Duration in seconds to one decimal place (e.g. `"4.2"`), display string.
     duration_seconds: String,
     /// Per-check rows `[name, status, score, message]` for `Table.rows`.
     check_rows: Vec<Vec<String>>,
@@ -305,12 +306,16 @@ impl GateSnapshot {
             })
             .collect();
 
-        let status = if result.overall { "pass" } else { "fail" };
-        let status_label = format!(
-            "{} — score {:.0}/100",
-            if result.overall { "PASSED" } else { "FAILED" },
-            result.score
-        );
+        // Tri-state: a failure is "fail"; an overall pass that still has
+        // attention items (config gaps) is "warn"; a clean pass is "pass".
+        let (status, status_word) = if !result.overall {
+            ("fail", "FAILED")
+        } else if warning_list.is_empty() {
+            ("pass", "PASSED")
+        } else {
+            ("warn", "PASSED")
+        };
+        let status_label = format!("{status_word} — score {:.0}/100", result.score);
 
         Self {
             status,
@@ -333,22 +338,30 @@ impl GateSnapshot {
 
 /// Persist the last gate run to `.anvil/gates.json` for the dashboard.
 ///
-/// Best-effort: a write failure is swallowed (logged, not propagated) so it can
-/// never change the gate's exit code — persistence is a side effect, and the
+/// Best-effort: a write failure is logged at debug and otherwise ignored, so it
+/// can never change the gate's exit code — persistence is a side effect, and the
 /// gate stays "warnings over blocks, exit 0 by default".
 fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
     let Ok(root) = crate::util::workspace_root() else {
+        tracing::debug!("gate snapshot: workspace root unresolved; skipping persist");
         return;
     };
     let dir = root.join(".anvil");
-    if std::fs::create_dir_all(&dir).is_err() {
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::debug!(error = %e, "gate snapshot: could not create .anvil/; skipping persist");
         return;
     }
     let snapshot = GateSnapshot::from_result(result, aggregate);
-    let Ok(json) = serde_json::to_vec_pretty(&snapshot) else {
-        return;
+    let json = match serde_json::to_vec_pretty(&snapshot) {
+        Ok(json) => json,
+        Err(e) => {
+            tracing::debug!(error = %e, "gate snapshot: serialize failed; skipping persist");
+            return;
+        }
     };
-    let _ = crate::util::atomic_write(&dir.join(GATE_SNAPSHOT_FILE), &json);
+    if let Err(e) = crate::util::atomic_write(&dir.join(GATE_SNAPSHOT_FILE), &json) {
+        tracing::debug!(error = %e, "gate snapshot: write to .anvil/gates.json failed");
+    }
 }
 
 /// CIB-011 / #1803 — actionable next-step hint shown beneath a
@@ -2694,6 +2707,45 @@ mod tests {
             assert!(v.get(key).is_some(), "missing key {key}");
         }
         assert_eq!(v["checkRows"][1][1], "failed");
+    }
+
+    #[test]
+    fn gate_snapshot_status_is_warn_when_passing_with_config_gaps() {
+        let checks = vec![
+            CheckResult {
+                name: "lint".into(),
+                passed: true,
+                score: 100.0,
+                message: "ok".into(),
+                requires_config: false,
+            },
+            CheckResult {
+                name: "architecture".into(),
+                passed: false,
+                score: 0.0,
+                message: "no config".into(),
+                requires_config: true,
+            },
+        ];
+        let aggregate = aggregate_gate_outcome(&checks);
+        let result = GateResult {
+            overall: aggregate.overall,
+            score: aggregate.score,
+            notifications: vec![],
+            duration_ms: 500,
+            checks,
+        };
+        assert!(result.overall, "no available check failed -> overall pass");
+        let snap = GateSnapshot::from_result(&result, &aggregate);
+        assert_eq!(
+            snap.status, "warn",
+            "passing-with-config-gaps is warn, not pass"
+        );
+        assert!(snap.status_label.starts_with("PASSED"));
+        assert_eq!(
+            snap.duration_seconds, "0.5",
+            "sub-second run shows tenths, not 0"
+        );
     }
 
     #[test]
