@@ -12,8 +12,8 @@ use std::path::Path;
 use clap::Args;
 use serde::Serialize;
 
+use anvil_tui::surfaces::dashboard::list::{DashboardListState, ListEntry};
 use anvil_tui::surfaces::dashboard::spec::{self, SavedDashboard};
-use anvil_tui::surfaces::dashboard::{DashboardEntry, DashboardPickerState};
 
 use crate::{GlobalArgs, tui, util};
 
@@ -144,22 +144,30 @@ fn run_picker(
         return Ok(());
     }
 
-    let mut entries: Vec<DashboardEntry> = catalog.iter().map(to_entry).collect();
-    // Append saved spec dashboards after the native ones; they are always
-    // openable (a malformed spec never makes it through discovery).
-    entries.extend(specs.iter().map(|s| {
-        DashboardEntry::new(
-            s.name.clone(),
-            s.title.clone(),
-            SAVED_SPEC_DESCRIPTION,
-            true,
-        )
-    }));
+    // Two-pane list with live previews (TUIDASH-012): native dashboards show a
+    // description card; saved specs render a mini-preview through the engine.
+    let mut items: Vec<ListEntry> = catalog
+        .iter()
+        .map(|e| ListEntry::native(e.name, e.title, e.description))
+        .collect();
+    if let Some(root) = root {
+        for saved in specs {
+            // Discovery already proved each spec parses, so a load failure here
+            // is unexpected; skip it rather than aborting the whole picker.
+            if let Ok(surface) = spec::load(&saved.path, root.to_path_buf()) {
+                items.push(ListEntry::spec(
+                    saved.name.clone(),
+                    saved.title.clone(),
+                    surface,
+                ));
+            }
+        }
+    }
 
-    let state = tui::run_surface(DashboardPickerState::new(entries))?;
+    let state = tui::run_surface(DashboardListState::new(items))?;
     // `run_surface` collapses quit vs back into the returned state; we act only
-    // on an explicit choice. Picking an `available` dashboard sets `chosen`,
-    // which launches it; quitting leaves it `None`.
+    // on an explicit choice. Picking a dashboard sets `chosen`, which launches
+    // it; quitting leaves it `None`.
     match state.chosen {
         Some(name) => {
             if let (Some(saved), Some(root)) = (specs.iter().find(|s| s.name == name), root) {
@@ -207,10 +215,6 @@ fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
         "suppressions" => suppressions::run(global),
         other => anyhow::bail!("dashboard '{other}' has no surface wired yet"),
     }
-}
-
-fn to_entry(entry: &CatalogEntry) -> DashboardEntry {
-    DashboardEntry::new(entry.name, entry.title, entry.description, entry.available)
 }
 
 fn print_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) {

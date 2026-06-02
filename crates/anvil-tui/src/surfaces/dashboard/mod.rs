@@ -8,6 +8,7 @@
 
 pub mod architecture;
 pub mod drift;
+pub mod list;
 pub mod render;
 pub mod spec;
 pub mod suppressions;
