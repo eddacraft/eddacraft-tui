@@ -18,13 +18,19 @@
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import process from 'node:process';
 
 const SURFACE = 'release-plan';
 
-const argv = process.argv.slice(2);
-const rootIdx = argv.indexOf('--root');
-const root = rootIdx >= 0 && argv[rootIdx + 1] ? argv[rootIdx + 1] : process.cwd();
+const { values } = parseArgs({
+  options: {
+    root: { type: 'string' },
+  },
+  allowPositionals: false,
+});
+
+const root = resolve(values.root ?? process.cwd());
 const file = resolve(root, 'RELEASE-PLAN.md');
 
 let text;
