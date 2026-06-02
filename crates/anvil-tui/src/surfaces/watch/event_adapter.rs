@@ -272,6 +272,7 @@ mod tests {
             warmup: None,
             last_action: None,
             update_hint: None,
+            insights_hint: None,
         }
     }
 

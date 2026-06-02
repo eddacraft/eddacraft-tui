@@ -249,6 +249,7 @@ fn mock_status_data() -> StatusData {
             },
         ],
         update_hint: None,
+        insights_hint: None,
     }
 }
 
@@ -422,6 +423,7 @@ fn mock_watch_data() -> WatchData {
         warmup: None,
         last_action: None,
         update_hint: None,
+        insights_hint: None,
     }
 }
 

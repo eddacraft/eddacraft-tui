@@ -8,16 +8,17 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{StatusPanel, StatusState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
-    // DISTRIB-002: reserve a 1-line strip at the bottom for the
-    // "Update available" hint when set. The strip is omitted when no
-    // hint applies so the existing three-panel layout keeps the full
-    // area in the common case.
-    let (body_area, hint_area) = if state.data.update_hint.is_some() {
-        let s = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
-        (s[0], Some(s[1]))
-    } else {
-        (area, None)
-    };
+    // DISTRIB-002 + INSIGHTS-004: reserve a 1-line strip at the bottom
+    // for the update hint or the first-week insights nudge (insights
+    // takes precedence when both would apply; rare). The strip is
+    // omitted when neither applies.
+    let (body_area, hint_area) =
+        if state.data.insights_hint.is_some() || state.data.update_hint.is_some() {
+            let s = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(area);
+            (s[0], Some(s[1]))
+        } else {
+            (area, None)
+        };
 
     // Zoom mode: only the focused panel renders, taking the full area.
     // Press `z` to toggle, `esc` exits zoom before navigating back.
@@ -40,7 +41,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
         render_results_panel(frame, chunks[2], state, theme);
     }
 
-    if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
+    if let (Some(strip), Some(hint)) = (hint_area, state.data.insights_hint.as_ref()) {
+        // INSIGHTS-004 nudge: muted, low-noise adoption signal.
+        let para = Paragraph::new(Line::from(Span::styled(
+            hint,
+            Style::default()
+                .fg(theme.muted())
+                .add_modifier(Modifier::BOLD),
+        )));
+        frame.render_widget(para, strip);
+    } else if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
         let colour = if hint.advisory_ids.is_empty() {
             theme.accent()
         } else {
@@ -262,6 +272,7 @@ mod tests {
                 },
             ],
             update_hint: None,
+            insights_hint: None,
         })
     }
 

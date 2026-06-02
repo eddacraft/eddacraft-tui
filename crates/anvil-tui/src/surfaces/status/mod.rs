@@ -41,6 +41,12 @@ pub struct StatusData {
     /// skipped (offline / network failure), or the hint already fired
     /// within the rate-limit window for this version.
     pub update_hint: Option<crate::surfaces::UpdateHint>,
+    /// INSIGHTS-004: one-line first-week nudge pointing at `anvil
+    /// insights`. Present only for users within 14 days of project
+    /// install (per `anvil/project-id` `created_at`) and only once per
+    /// 7-day week, and only when the user has not run the default
+    /// insights summary in that week. `None` otherwise.
+    pub insights_hint: Option<String>,
 }
 
 /// Which panel is focused.
@@ -228,6 +234,7 @@ mod tests {
                 duration_ms: 2400,
             }],
             update_hint: None,
+            insights_hint: None,
         }
     }
 

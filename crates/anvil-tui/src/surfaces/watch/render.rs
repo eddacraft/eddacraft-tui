@@ -24,15 +24,12 @@ fn advisory_warning_count(state: &WatchState) -> usize {
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
     // Reserve up to two 1-line strips at the bottom: the DISTRIB-002
-    // update-available hint (when set), then the most recent --action
-    // outcome (LAUNCH-002). Hint goes above the action footer so the
-    // most recent — and most actionable — line remains nearest the
-    // user's eye on the prompt edge.
-    let (grid_area, hint_area, footer_area) = split_footer(
-        area,
-        state.data.update_hint.is_some(),
-        state.data.last_action.is_some(),
-    );
+    // update-available hint or INSIGHTS-004 first-week nudge (when set),
+    // then the most recent --action outcome (LAUNCH-002). Hint goes above
+    // the action footer.
+    let has_hint = state.data.update_hint.is_some() || state.data.insights_hint.is_some();
+    let (grid_area, hint_area, footer_area) =
+        split_footer(area, has_hint, state.data.last_action.is_some());
 
     // Zoom mode: collapse the 2x2 grid to the focused panel filling the
     // whole grid area. Useful at narrow widths where the four-up layout
@@ -61,7 +58,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
         render_stats_panel(frame, bottom_cols[1], state, theme);
     }
 
-    if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
+    if let (Some(strip), Some(hint)) = (hint_area, state.data.insights_hint.as_ref()) {
+        // INSIGHTS-004: render the nudge using the update-hint visual
+        // style (single line, accent-ish) but without advisory colouring.
+        let para = ratatui::widgets::Paragraph::new(ratatui::text::Line::from(
+            ratatui::text::Span::styled(
+                hint,
+                ratatui::style::Style::default()
+                    .fg(theme.muted())
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            ),
+        ));
+        frame.render_widget(para, strip);
+    } else if let (Some(strip), Some(hint)) = (hint_area, state.data.update_hint.as_ref()) {
         render_update_hint(frame, strip, hint, theme);
     }
     if let (Some(footer), Some(line)) = (footer_area, state.data.last_action.as_ref()) {
@@ -518,6 +527,7 @@ mod tests {
             warmup: None,
             last_action: None,
             update_hint: None,
+            insights_hint: None,
         })
     }
 
@@ -585,6 +595,7 @@ mod tests {
             warmup: None,
             last_action: None,
             update_hint: None,
+            insights_hint: None,
         });
         let theme = EddaCraftTheme;
 

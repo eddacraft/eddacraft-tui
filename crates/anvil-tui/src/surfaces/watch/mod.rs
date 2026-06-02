@@ -155,6 +155,10 @@ pub struct WatchData {
     /// footer when present; `None` when no update is available or the
     /// rate-limit gate suppressed the hint.
     pub update_hint: Option<crate::surfaces::UpdateHint>,
+    /// INSIGHTS-004: one-line first-week nudge. Rendered in the footer
+    /// strip(s) when active (first 14 days + once-per-week + no insights
+    /// run this week). `None` otherwise.
+    pub insights_hint: Option<String>,
 }
 
 /// Which panel is focused in the 2x2 grid.
@@ -483,6 +487,7 @@ mod tests {
             warmup: None,
             last_action: None,
             update_hint: None,
+            insights_hint: None,
         }
     }
 

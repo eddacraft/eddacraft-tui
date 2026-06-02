@@ -59,6 +59,16 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         data.update_hint = crate::commands::version::compute_update_hint(true);
     }
 
+    // INSIGHTS-004: first-week nudge (local-only, 14d window from
+    // project-id created_at, once-per-week, suppressed after running
+    // the default insights summary). Independent of the update rate
+    // limit; opt-out is not provided (low noise by design).
+    if !global.json {
+        use chrono::Utc;
+        data.insights_hint =
+            crate::insights::first_week_hint::first_week_insights_hint(Path::new("."), Utc::now());
+    }
+
     if global.json {
         // MLP2-048: try the IPC `query_status` round-trip so the
         // emitted `ProtectionClaim` carries real per-surface entries
@@ -148,6 +158,10 @@ fn gather_status_data(root: &str) -> StatusData {
         // the hint should use that wrapper; the bare gather stays
         // None so existing call sites (tests, --json) are unaffected.
         update_hint: None,
+        // INSIGHTS-004: populated by caller (status run) after gather,
+        // same pattern as update_hint so tests and --json paths stay
+        // unaffected by the nudge.
+        insights_hint: None,
     }
 }
 
@@ -542,6 +556,10 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
     // becoming noise across repeated invocations.
     if let Some(hint) = &data.update_hint {
         println!("{}", hint.render_line());
+    }
+    // INSIGHTS-004: first-week nudge (once per week, 14d cohort only).
+    if let Some(hint) = &data.insights_hint {
+        println!("{hint}");
     }
 }
 
@@ -1892,6 +1910,7 @@ mod tests {
             },
             recent_runs: Vec::new(),
             update_hint: None,
+            insights_hint: None,
         };
         let layers = derive_layers(&data, &diag);
         let claim = derive_protection(&diag, &layers);
@@ -2219,5 +2238,78 @@ mod tests {
             protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), queried);
         assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
         assert!(claim.surfaces.is_empty());
+    }
+
+    // ── INSIGHTS-004 first-week hint tests (drive the nudge in status) ──
+
+    fn seed_project_id_with_created_at(dir: &Path, days_ago: i64) {
+        let anvil_dir = dir.join("anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        let created = (chrono::Utc::now() - chrono::Duration::days(days_ago))
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let contents = format!(
+            "# test project-id for INSIGHTS-004\nproject_uuid: 01999999-aaaa-bbbb-cccc-000000000004\ncreated_at: {}\n",
+            created
+        );
+        std::fs::write(anvil_dir.join("project-id"), contents).unwrap();
+        // Ensure no stale hint state from other tests.
+        let _ = std::fs::remove_file(dir.join(".anvil/insights-hint.json"));
+    }
+
+    #[test]
+    fn first_week_hint_shown_once() {
+        let dir = make_temp_dir();
+        seed_project_id_with_created_at(&dir, 2); // well inside 14d
+
+        // Simulate status plain path with recent install: the nudge
+        // should be computed and present for human output.
+        let mut data = gather_status_data(dir.to_str().unwrap());
+        // Force the caller wiring path (status run does this for !json).
+        use chrono::Utc;
+        data.insights_hint =
+            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+
+        // In plain render the hint appears as a trailing line.
+        // We assert on the data (the render just prints it); the
+        // presence proves the once-in-window gate opened.
+        assert!(
+            data.insights_hint.is_some(),
+            "first-week user must see the insights nudge"
+        );
+        let line = data.insights_hint.as_ref().unwrap();
+        assert!(
+            line.contains("watched"),
+            "nudge must mention watched activity"
+        );
+        assert!(line.contains("run `anvil insights`"));
+
+        // Second computation in same week must be suppressed by the
+        // internal state written on first emission.
+        let second = crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+        assert!(
+            second.is_none(),
+            "nudge must be emitted at most once per week"
+        );
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn hint_suppressed_after_use() {
+        let dir = make_temp_dir();
+        seed_project_id_with_created_at(&dir, 1);
+
+        // Simulate running `anvil insights` (the default summary).
+        crate::insights::first_week_hint::record_insights_viewed(&dir, chrono::Utc::now());
+
+        // Now status/walk should see no nudge.
+        use chrono::Utc;
+        let hint = crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+        assert!(
+            hint.is_none(),
+            "hint must be suppressed for the week after running insights"
+        );
+
+        cleanup(&dir);
     }
 }

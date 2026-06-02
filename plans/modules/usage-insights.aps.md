@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 3/4 |
+| INSIGHTS | @aneki | In Progress | 4/4 |
 
 **Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
 acceptance of
@@ -237,6 +237,20 @@ number visible to the user, not just to a future post-release survey.
   insights hint after first-run plus a gentle reminder once at the end of
   the week, so the silent middle is not literally silent for the cohort
   most likely to bounce.
+- **Spec reconciliation (2026-06-02):** APS truth-validation before
+  implementation found the data-source premise was stale (same class of
+  fix as INSIGHTS-002/003 and DISTRIB-005 — the spec named a file that
+  does not exist in that form):
+  - Detection uses the `created_at` field from `anvil/project-id` (plain
+    text key: value file, not `.anvil/project-id.json`). The file lives
+    at `anvil/project-id` relative to workspace root per
+    `crates/anvil-cli/src/activation/identity.rs` (PROJECT_ID_PATH,
+    ensure_project_id, new_fresh which sets created_at, parse). `.anvil/`
+    is for cache/state (first-run marker, baseline.json, cache/,
+    policies/); `anvil/` holds the tracked project identity (and witness).
+  - (The Expected Outcome text below was written against the pre-MLP2-003
+    assumption and will be honoured in implementation using the actual
+    source.)
 - **Expected Outcome:** `anvil status` and watch surface a one-line
   "Anvil watched N saves this week (run `anvil insights`)" hint exactly
   once per week, only during the first 14 days after install. Detection
@@ -250,11 +264,12 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::status::tests::first_week_hint_shown_once`
   - `cargo test -p eddacraft-anvil commands::status::tests::hint_suppressed_after_use`
-- **Status:** Ready (promoted 2026-06-02 — both dependencies satisfied:
+- **Status:** In Progress (promoted 2026-06-02 — both dependencies satisfied:
   INSIGHTS-001 Released/Shipped, MLP-001 Done; the prior Draft was a v0.7.0
   tag-time scope-cut, not a technical block. Per this module's Sequencing,
   -002/-003/-004 are parallel after -001, and -002/-003 already shipped.
-  Daemon-independent 0.8.0 freight.)
+  Daemon-independent 0.8.0 freight.) Implementation started 2026-06-02 via dev-workflow on feat/insights-004.
+  **Implementation complete (pre-PR):** `anvil insights/first_week_hint.rs` + wires into status (plain + TUI), watch (data + render + footer), insights command (record viewed). Uses correct `anvil/project-id` `created_at`. Tests (internal + the two APS `commands::status::tests::first_week_hint_*`) green. `cargo test -p eddacraft-anvil --bin anvil first_week_hint*` + `hint_suppressed` pass. Full lint (clippy+fmt) + format green post-fix. Module progress 4/4.
 - **Dependencies:** INSIGHTS-001, MLP-001 (install timestamp)
 - **changeType:** feature
 - **releaseIntent:** candidate

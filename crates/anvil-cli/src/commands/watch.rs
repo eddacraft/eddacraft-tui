@@ -1152,6 +1152,18 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                 warmup: None,
                 last_action: None,
                 update_hint,
+                insights_hint: if std::env::var_os("ANVIL_DISABLE_UPDATE_HINT").is_none() {
+                    // Reuse the env gate for simplicity; first-week is even
+                    // quieter than update hint. In practice the 14d + weekly
+                    // gates already keep it rare.
+                    use chrono::Utc;
+                    crate::insights::first_week_hint::first_week_insights_hint(
+                        std::path::Path::new("."),
+                        Utc::now(),
+                    )
+                } else {
+                    None
+                },
             });
         let link = action_rx
             .as_ref()

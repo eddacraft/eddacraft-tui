@@ -43,7 +43,11 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let summary = aggregator::weekly_summary(&root, Utc::now())?;
+    let now = Utc::now();
+    let summary = aggregator::weekly_summary(&root, now)?;
+    // INSIGHTS-004: record the view so first-week nudges are suppressed
+    // for the remainder of the week (even for --json consumers).
+    crate::insights::first_week_hint::record_insights_viewed(&root, now);
     if global.json {
         println!("{}", serde_json::to_string_pretty(&summary)?);
     } else {
