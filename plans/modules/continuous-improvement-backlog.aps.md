@@ -1027,3 +1027,14 @@ archive.
   alongside `.claude` / `.opencode`, whose skill files embed copy/paste fenced
   markdown templates the formatter corrupts), so they now require only an
   operations review; markdown within still routes to `docs` for markdownlint.
+- **Root-cause fix:** Also hardened the `Unit Tests` pre-test build step in
+  `.github/workflows/ci.yml`. `nx affected -t test` runs against the PR
+  merge-ref, so it pulls in `main`'s FLAGCAT migration where `apps/anvil-api`
+  imports `@eddacraft/anvil-flags-catalogue` by its published `dist/` entry.
+  The test target declares `^build`, but on an nx cache hit the build marker
+  is restored without the `dist/` outputs present, so the import resolved to
+  nothing and the suites collected 0 tests. Added `flags-catalogue` (its nx
+  project name) to the explicit "Build test dependencies" force-build list
+  alongside `@eddacraft/transactional`, guaranteeing the entry exists on every
+  run. Verified locally: `apps/anvil-api` goes from 0-test import failures to
+  411 passing tests with the catalogue dist built.

@@ -561,8 +561,16 @@ jobs:
           fi
           echo "OPA $installed installed"
 
+      # Pre-build the dist-only workspace packages that affected vitest suites
+      # import by their published `dist/` entry. `nx affected -t test` declares
+      # `^build`, but on a cache hit nx restores the "build succeeded" marker
+      # without the `dist/` outputs present, so the import resolves to nothing
+      # and the suite collects 0 tests (e.g. `@eddacraft/anvil-flags-catalogue`,
+      # consumed by apps/anvil-api after the FLAGCAT migration). Force-building
+      # them here every run guarantees the entry exists. Use the nx project name
+      # (`flags-catalogue` overrides the package name in its project.json).
       - name: Build test dependencies
-        run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
+        run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional,flags-catalogue
 
       # Rust crates are excluded here because the dedicated Rust workflow
       # (.github/workflows/rust.yml) already runs `cargo check` / `cargo test`
