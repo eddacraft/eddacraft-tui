@@ -1,8 +1,8 @@
 # Anvil-as-LSP: graph-backed navigation beyond diagnostics
 
 **Date:** 2026-06-03
-**Status:** Brainstorm / future idea — captured from a design conversation
-building on the RTAI-005 reframe (generic LSP server surface) and its
+**Status:** Brainstorm / future idea, captured from a design conversation
+that built on the RTAI-005 reframe (generic LSP server surface) and its
 readiness note. Net-new design territory; needs its own work item and
 probably an ADR before any build.
 **Purpose:** Record the idea that once the warm graph (GV2) is resident in
