@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RTAI | —     | In Progress | 6/9      |
+| RTAI | —     | In Progress | 8/9      |
 
 **Last reviewed:** 2026-04-30
 
@@ -478,7 +478,13 @@ convention" section). Concretely:
   presence, and that cross-session subscribers receive
   redacted excerpts per INTD-015.
 - **Confidence:** medium
-- **Status:** In Progress (promoted to Ready 2026-06-02 — all three `Blocks on`
+- **Status:** Merged 2026-06-02 via PR #2227 — `MirrorPath` discriminator +
+  `midedit_envelope` builder in `crates/anvil-intercept/src/telemetry.rs`; every
+  mid-edit decision mirrors onto the `anvil.notification.v1` lane with
+  `mirror.path = "midEdit"`, wire-additive (save-time bytes unchanged), advisory
+  `ack_required = false`, and INTD-015-redaction-safe. Builder-only, matching the
+  save-time `delivered_envelope_for_decision` posture (the live broadcaster is
+  MLP2-071 Phase 2). (Promoted to Ready 2026-06-02 — all three `Blocks on`
   items are Complete: RTAI-002, INTD-013, and INTD-015 (merged 2026-05-06 via PR #1305).
   The cross-session redaction this relies on is shipped, so the TRACE R1 risk
   caveat ("revisit when INTD-015 reaches Ready") is discharged. The Wave-4
@@ -545,7 +551,13 @@ convention" section). Concretely:
 - **Validation:** `grep -r "validation-server\|anvil-server\|RTVF"
   docs/` returns only historical references under archive paths.
 - **Confidence:** high
-- **Status:** In Progress (promoted to Ready 2026-06-02, scoped to shipped
+- **Status:** Merged 2026-06-02 via PR #2227 — architecture docs now show the
+  mid-edit path as drivers → daemon sharing the rule registry
+  (`anvil-full-architecture.md` mid-edit subsection +
+  `rust-architecture-endstate.md` Phase-5 note), the stale `RTVS + RTVF` diagram
+  node is replaced with RTAI, and `DECISION-LOG.md` records the module-level
+  supersession by RTAI as the in-flight validation thesis realisation. Validation
+  grep clean. (Promoted to Ready 2026-06-02, scoped to shipped
   surfaces — the RTVF/"validation-server" cleanup, the supersession cross-link, and the
   drivers→daemon MCP path (RTAI-006, Complete) are documentable now. The
   remaining `Blocks on` item RTAI-005 (editor-driver VSCode+LSP path) stays
