@@ -53,6 +53,20 @@ on:
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
+    # Only the CLI publishes through this cargo-dist pipeline, and its release
+    # tags are always `v*` (v0.7.4-beta, …). Library/crate tags such as
+    # `eddacraft-tui-v*` — and any future prefixed crate tag — ALSO match the
+    # broad push-tags glob ('**[0-9]+.[0-9]+.[0-9]+*'), and running this pipeline
+    # for a non-`[[bin]]` crate publishes a binary-less release on the public
+    # eddacraft/anvil repo that, as the newest non-prerelease, steals the
+    # "Latest" pointer from the CLI and 404s install.eddacraft.ai's
+    # /releases/latest/download/ installer. So allowlist CLI `v*` tags only (plus
+    # PR dry-runs); every prefixed/library tag skips by default — no per-crate
+    # denylist to maintain. Skipping `plan` cascades: every downstream job needs
+    # it, and `host` (the public-publish job) gates on
+    # `needs.plan.result == 'success'`. This hand-edit survives `dist generate`
+    # via `allow-dirty = ["ci"]` in dist-workspace.toml.
+    if: ${{ github.event_name == 'pull_request' || startsWith(github.ref_name, 'v') }}
     runs-on: 'ubuntu-22.04'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}

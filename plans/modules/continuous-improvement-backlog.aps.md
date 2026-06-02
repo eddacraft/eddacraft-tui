@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 26/40    |
+| CIB | —     | In Progress | 27/44    |
 
 ## Purpose
 
@@ -915,3 +915,95 @@ archive.
   command intent and can serve as the source of truth for when-to-use hints).
 - **Confidence:** high — the spec is clear on scope; the blocker was the light
   pass landing first.
+
+### CIB-041: Stop `release.yml` from triggering on `eddacraft-tui-v*` library tags
+
+- **Status:** Merged 2026-06-02 via PR #2221
+- **Summary:** `release.yml`'s broad `push.tags` glob
+  (`'**[0-9]+.[0-9]+.[0-9]+*'`) also matched `eddacraft-tui-v*`, so library tags
+  ran the CLI cargo-dist pipeline and published a binary-less release to the
+  public `eddacraft/anvil` repo that stole the GitHub "Latest" pointer and
+  404'd `install.eddacraft.ai`'s `/releases/latest/download/` installer.
+  Guarded the `plan` job with an allowlist —
+  `github.event_name == 'pull_request' || startsWith(github.ref_name, 'v')` —
+  so only PR dry-runs and CLI `v*` tags run; the skip cascades to `host`
+  (gated on `needs.plan.result == 'success'`). Allowlist over per-crate denylist
+  (Council, 2026-06-02) so future prefixed crate tags (`napi-v*`,
+  `eddacraft-anvil-graph-cache-v*` per ADR-064) need no further guard. Immediate
+  incident mitigation was a manual `gh release edit v0.7.4-beta --repo
+  eddacraft/anvil --latest`. **Post-merge validation (pending next library
+  release):** push an `eddacraft-tui-v*` tag → `plan` skips, no release on
+  `eddacraft/anvil`; a CLI `v*` tag still runs the full pipeline;
+  `curl -sIL .../releases/latest/download/eddacraft-anvil-installer.sh` → 200.
+  Deferred follow-ups (Council): installer-URL synthetic health check (CIB-042);
+  anvil-001 `--latest=false` on the tui release (CIB-043);
+  `release-sign-artefacts.yml` no-op on tui releases (CIB-044).
+
+### CIB-042: Synthetic health check on the public installer URL
+
+- **Status:** Ready
+- **Intent:** Catch a broken `install.eddacraft.ai` installer proactively
+  instead of waiting for a user to report a 404.
+- **Expected Outcome:** A post-publish probe in the `announce` job of
+  `release.yml` (and/or a scheduled workflow) fetches
+  `https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh`
+  and the `.ps1`, asserts HTTP `200`, and fails loudly (`::error::`) otherwise.
+  A green release run guarantees the public installer resolves; a regression
+  surfaces as a red CI signal, not a support ticket.
+- **Validation:** the probe step returns non-zero when pointed at a known-404
+  URL (negative test) and `200` against the real latest CLI release; a release
+  dry-run shows the probe executing.
+- **Identified From:** 2026-06-02 install.eddacraft.ai investigation + CIB-041
+  Council (operations reviewer) — the installer 404 was discovered reactively;
+  there is no synthetic monitoring on the installer asset URL.
+- **Coordinates with:** `.github/workflows/release.yml` `announce` job;
+  CIB-041 (the fix for this specific incident); `install.sh` (the local
+  installer that fetches the same `/releases/latest/download/` asset).
+- **Confidence:** high — a `curl -sIL … | grep 200` probe is small and the
+  failure semantics are clear; the only design choice is in-release probe vs.
+  external uptime monitor (the in-release probe is the cheaper first step).
+
+### CIB-043: Set `--latest=false` on the eddacraft-tui anvil-001 release
+
+- **Status:** Ready
+- **Intent:** Stop library (`eddacraft-tui-v*`) releases from contending for the
+  GitHub "Latest" pointer on the private `anvil-001` repo, so the CLI release is
+  always uncontested as Latest there.
+- **Expected Outcome:** The `gh release create` step in
+  `publish-eddacraft-tui.yml` passes `--latest=false`, so a tui release never
+  auto-promotes to Latest on `anvil-001`. CIB-041 already removed the
+  public-repo exposure; this closes the residual anvil-001 internal-pointer race
+  against `scripts/release/closeout.sh`'s `--latest` promotion.
+- **Validation:** after merge, publish (or dry-run) an `eddacraft-tui-v*` tag and
+  confirm the anvil-001 release is created with Latest unset; the most recent
+  CLI `v*` release remains Latest on `anvil-001`.
+- **Identified From:** CIB-041 Council (operations reviewer) — `anvil-001`
+  Latest hygiene; lower severity than the public-repo bug since the installer is
+  served from `eddacraft/anvil`, not `anvil-001`.
+- **Coordinates with:** `.github/workflows/publish-eddacraft-tui.yml`
+  (`gh release create`); `scripts/release/closeout.sh:274` (the public
+  `--latest` promotion).
+- **Confidence:** high — single flag on an existing command; no behavioural risk
+  to the CLI release path.
+
+### CIB-044: Skip `release-sign-artefacts.yml` for non-CLI (library) releases
+
+- **Status:** Ready
+- **Intent:** Stop the artefact-signing workflow from spending a runner on a
+  ~10-minute no-op for every `eddacraft-tui-v*` release on `anvil-001`.
+- **Expected Outcome:** `release-sign-artefacts.yml`'s job `if:` gates on the CLI
+  tag convention (e.g. `&& startsWith(github.event.release.tag_name, 'v')`), so
+  it does not run for library releases (which carry no `*-installer.*` /
+  `anvil-*-provenance.json` assets and currently sign nothing under
+  `shopt -s nullglob`).
+- **Validation:** publish (or dry-run) an `eddacraft-tui-v*` release and confirm
+  the sign job is skipped; a CLI `v*` release still runs signing and uploads the
+  signed assets.
+- **Identified From:** CIB-041 Council (operations reviewer) — pre-existing
+  inefficiency surfaced by the install.eddacraft.ai investigation; the tui
+  release is non-prerelease, so the sign job's `!prerelease` condition currently
+  evaluates true and it runs to no effect.
+- **Coordinates with:** `.github/workflows/release-sign-artefacts.yml` (the
+  signing job `if:`); CIB-041 (allowlist precedent — same `v*` CLI convention).
+- **Confidence:** high — additive `if:` clause; worst case the job is skipped
+  when it would have been a no-op anyway.
