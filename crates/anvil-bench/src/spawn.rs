@@ -9,9 +9,24 @@
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
-use std::process::Child;
+use std::process::{Child, Command};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+
+/// Put a child in its **own process group** before spawning, so the whole group
+/// (the process *and* every descendant it spawns — e.g. watch's per-save
+/// `anvil check`) can be killed together by [`ManagedChild::shutdown`]. Without
+/// this, killing only the direct child reparents its grandchildren to init,
+/// where they linger and leak resources (CPU, inotify handles). No-op on
+/// non-Unix.
+pub fn in_new_process_group(cmd: &mut Command) -> &mut Command {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd
+}
 
 /// Locate the `anvil` binary to drive. Priority:
 /// 1. `ANVIL_BENCH_ANVIL_BIN` (absolute, or resolved against cwd / the
@@ -92,9 +107,24 @@ impl ManagedChild {
         }
     }
 
-    /// Kill and reap the child. Idempotent.
+    /// Kill and reap the child. On Unix, if the child was spawned via
+    /// [`in_new_process_group`], the whole process group is signalled so
+    /// grandchildren (e.g. a per-save `anvil check`) die with it; the direct
+    /// kill is always issued too as a fallback. Idempotent.
     pub fn shutdown(&mut self) {
         if let Some(mut child) = self.child.take() {
+            #[cfg(unix)]
+            {
+                use nix::sys::signal::{Signal, killpg};
+                use nix::unistd::Pid;
+                // Group id == leader pid because the child was placed in its own
+                // group. Guard the i32 conversion so a (impossible on Linux)
+                // out-of-range pid can never become 0 and signal our own group.
+                if let Ok(pgid) = i32::try_from(child.id()) {
+                    // Best-effort: ESRCH (already gone) is fine.
+                    let _ = killpg(Pid::from_raw(pgid), Signal::SIGKILL);
+                }
+            }
             let _ = child.kill();
             let _ = child.wait();
         }

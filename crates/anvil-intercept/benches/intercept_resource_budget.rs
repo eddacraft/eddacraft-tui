@@ -32,7 +32,7 @@ mod unix_bench {
 
     use anvil_bench::budget::{BudgetVerdict, ResourceBudget, evaluate};
     use anvil_bench::proc_sampler::TreeSampler;
-    use anvil_bench::spawn::{ManagedChild, resolve_anvil_binary};
+    use anvil_bench::spawn::{ManagedChild, in_new_process_group, resolve_anvil_binary};
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio::net::UnixStream;
 
@@ -53,15 +53,24 @@ mod unix_bench {
         let exit = runtime.block_on(async {
             match run().await {
                 Ok(verdicts) => {
+                    // Emit a single JSON object {"idle": {...}, "burst": {...}}
+                    // so the CI artifact is machine-parseable (not two labelled
+                    // blocks concatenated).
                     let mut failed = false;
+                    let mut obj = serde_json::Map::new();
                     for (name, verdict) in &verdicts {
-                        println!("{name}:");
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(verdict).expect("verdict serialises")
+                        let key = name.rsplit('.').next().unwrap_or(name).to_string();
+                        obj.insert(
+                            key,
+                            serde_json::to_value(verdict).expect("verdict to value"),
                         );
                         failed |= verdict.status.is_fail();
                     }
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::Value::Object(obj))
+                            .expect("verdicts serialise")
+                    );
                     i32::from(failed)
                 }
                 Err(err) => {
@@ -83,24 +92,26 @@ mod unix_bench {
         std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700))?;
         let socket = home.path().join("intercept.sock");
 
-        let child = Command::new(&bin)
+        let mut command = Command::new(&bin);
+        command
             .args(["intercept", "start", "--foreground"])
             .env("ANVIL_HOME", home.path())
             .env("ANVIL_DEV", "1")
             .env("ANVIL_DISABLE_UPDATE_HINT", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
+            .stderr(Stdio::null());
+        let child = in_new_process_group(&mut command).spawn()?;
         let mut daemon = ManagedChild::new(child, "anvil intercept start");
         let pid = daemon.id();
 
-        wait_for_socket(&socket, SOCKET_WAIT)
-            .await
-            .inspect_err(|_| {
-                // Surface a startup crash as the cause rather than a bare timeout.
-                let _ = daemon.ensure_running("while waiting for the IPC socket");
-            })?;
+        if let Err(socket_err) = wait_for_socket(&socket, SOCKET_WAIT).await {
+            // Surface a startup crash as the cause rather than a bare timeout.
+            if let Err(crash) = daemon.ensure_running("while waiting for the IPC socket") {
+                eprintln!("intercept_resource_budget: daemon startup failure: {crash}");
+            }
+            return Err(socket_err);
+        }
 
         // Settle past the cold start, then confirm liveness before each measure.
         tokio::time::sleep(SETTLE).await;
@@ -142,7 +153,7 @@ mod unix_bench {
                 let socket = socket.clone();
                 let stop = Arc::clone(&stop);
                 workers.push(tokio::spawn(async move {
-                    while !stop.load(Ordering::Relaxed) {
+                    while !stop.load(Ordering::Acquire) {
                         // Ignore per-request errors (a connection refused during
                         // teardown is not a measurement failure); the loop keeps
                         // the daemon under load for the whole window.
@@ -164,7 +175,13 @@ mod unix_bench {
             format!("sampler task join: {e}").into()
         })??;
 
-        stop.store(true, Ordering::Relaxed);
+        // Stop the load, then abort the tasks so a worker blocked on a wedged
+        // daemon cannot hang the join past the window (abort cancels at the next
+        // .await point; session_list's awaits are cancellation-safe).
+        stop.store(true, Ordering::Release);
+        for worker in &workers {
+            worker.abort();
+        }
         for worker in workers {
             let _ = worker.await;
         }
@@ -218,5 +235,8 @@ fn main() {
 
 #[cfg(not(unix))]
 fn main() {
-    println!("intercept_resource_budget is implemented for Unix socket IPC only");
+    // Exit non-zero so a non-Unix CI run is a visible "not measured", never a
+    // silent pass.
+    eprintln!("intercept_resource_budget is implemented for Unix socket IPC only");
+    std::process::exit(1);
 }

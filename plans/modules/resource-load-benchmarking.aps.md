@@ -92,7 +92,9 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 - **Status:** In Progress (started 2026-06-02; unblocked 2026-06-01 — ADR-061 Accepted, council `plan-5768ae0c`; sub-phase A freight)
 - **Intent:** Add a steady-state and burst CPU/RSS bench for the intercept daemon.
-- **Expected Outcome:** Daemon footprint is gated by a budget, not just latency.
+- **Expected Outcome:** Daemon footprint is gated by a budget, not just latency
+  (burst = IPC connection-churn; `scan_buffer` load deferred — needs a
+  peer-PID-authenticated session).
 - **Validation:** `cargo bench -p eddacraft-anvil-intercept --bench intercept_resource_budget`
 
 ### RLB-004: MCP server CPU/RSS budget + SLO

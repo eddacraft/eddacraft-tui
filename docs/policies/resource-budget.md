@@ -65,22 +65,24 @@ The production default since GH #1913: every debounced save spawns a per-save
 ### Intercept daemon — burst (`ANVIL_INTERCEPT_BURST_V1`)
 
 Many short-lived connections each driving one JSON-RPC request through the full
-accept → auth → parse → dispatch → serialise pipeline (RLB-003).
+accept → auth → parse → dispatch → serialise pipeline (RLB-003). Burst load is
+IPC connection-churn (`session.list`); `scan_buffer` load is deferred (it needs
+a peer-PID-authenticated session — see Out of Scope).
 
-| Axis             | Ceiling | Measured floor (dev box, release, 4 workers)    |
-| ---------------- | ------- | ----------------------------------------------- |
-| Steady-state CPU | 200%    | ~101% (≈1 core)                                 |
-| Peak RSS         | 128 MiB | ~23 MiB (flat vs idle — no per-connection leak) |
+| Axis             | Ceiling | Measured floor (dev box, release, 4 workers)          |
+| ---------------- | ------- | ----------------------------------------------------- |
+| Steady-state CPU | 250%    | ~101% (≈1 core) — gross-regression gate [placeholder] |
+| Peak RSS         | 128 MiB | ~23 MiB (flat vs idle — no per-connection leak)       |
 
 ### MCP server — busy (`ANVIL_MCP_BUSY_V1`)
 
 A single driver hammering `anvil_validate_write` so the server runs the real
 embedded scan per buffer; MCP stdio is single-threaded and 1:1 (RLB-004).
 
-| Axis             | Ceiling | Measured floor (dev box, release)             |
-| ---------------- | ------- | --------------------------------------------- |
-| Steady-state CPU | 150%    | ~94% (single-threaded ≈1 core), ~6.4k calls/s |
-| Peak RSS         | 96 MiB  | ~24 MiB                                       |
+| Axis             | Ceiling | Measured floor (dev box, release)                                                   |
+| ---------------- | ------- | ----------------------------------------------------------------------------------- |
+| Steady-state CPU | 200%    | ~94% (single-threaded ≈1 core), ~6.4k calls/s — gross-regression gate [placeholder] |
+| Peak RSS         | 96 MiB  | ~24 MiB                                                                             |
 
 ### Concurrent all-three (`ANVIL_CONCURRENT_ALL_V1`)
 
@@ -93,11 +95,11 @@ oversubscribe the box) (RLB-005).
 | Steady-state CPU | 800%    | Whole-box aggregate; the gate value is catching an aggregate regression, with the per-process budgets above catching per-process drift. |
 | Peak RSS         | 700 MiB | Sum of all three trees' resident sets.                                                                                                  |
 
-> **Calibration.** Every ceiling except the watch idle pair is a conservative
-> quiet-box placeholder with headroom over the measured floor, not a tightened
-> SLO. Final calibration on a dedicated runner is RLB-008's remaining work;
-> until then the gates are sized to catch gross regressions without false
-> failures on slower hardware.
+> **Calibration.** Ceilings marked `[placeholder]` are quiet-box estimates with
+> wide headroom over the measured floor — gross-regression gates, not tight
+> SLOs. Final calibration on a dedicated runner is RLB-008's remaining work;
+> until then a breach on a shared runner should be triaged against the measured
+> floor before being treated as a regression.
 
 ## Reference fixture
 
@@ -131,7 +133,10 @@ the gate, and the JSON verdicts are uploaded as artifacts. The
 budgets; the heavier `concurrent-resource-budget` job (manual dispatch, nightly
 once a dedicated runner returns) runs the concurrent budget and the
 `load-ramp.sh --smoke` harness. `pnpm bench` runs the same budgets locally (skip
-with `--skip-resource-budget`). The verdict shape is:
+with `--skip-resource-budget`). Until RLB-008 delivers quiet-box calibration, a
+breach of a `[placeholder]` ceiling on a shared runner should be triaged against
+the measured floors above before being treated as a regression. The verdict
+shape is:
 
 ```jsonc
 {

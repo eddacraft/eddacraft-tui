@@ -17,12 +17,13 @@ use std::error::Error;
 use std::fmt::Write as _;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anvil_bench::budget::{ResourceBudget, evaluate};
 use anvil_bench::fixture::{RepoSpec, generate_repo};
 use anvil_bench::proc_sampler::TreeSampler;
-use anvil_bench::spawn::{ManagedChild, resolve_anvil_binary};
+use anvil_bench::spawn::{ManagedChild, in_new_process_group, resolve_anvil_binary};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -58,15 +59,16 @@ fn run() -> Result<anvil_bench::budget::BudgetVerdict> {
     // must launch inside a real repo directory.
     let repo = generate_repo(&RepoSpec::small(), tempdir.path())?;
 
-    let mut child = Command::new(&bin)
+    let mut command = Command::new(&bin);
+    command
         .args(["mcp", "serve", "--stdio"])
         .current_dir(repo.root())
         .env("ANVIL_DEV", "1")
         .env("ANVIL_DISABLE_UPDATE_HINT", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()?;
+        .stderr(Stdio::null());
+    let mut child = in_new_process_group(&mut command).spawn()?;
 
     let mut stdin = child.stdin.take().ok_or("child stdin not piped")?;
     let stdout = child.stdout.take().ok_or("child stdout not piped")?;
@@ -77,7 +79,7 @@ fn run() -> Result<anvil_bench::budget::BudgetVerdict> {
     // MCP handshake: initialize → read result → initialized notification.
     send(&mut stdin, &initialize_request())?;
     let init = read_line(&mut reader)?;
-    if !init.contains("\"result\"") {
+    if !response_has_result(&init) {
         server.ensure_running("after initialize")?;
         return Err(format!("mcp initialize did not return a result: {init}").into());
     }
@@ -86,34 +88,44 @@ fn run() -> Result<anvil_bench::budget::BudgetVerdict> {
     // One real tool call before measuring, so a broken tool path is a loud
     // error rather than a misleadingly-idle measurement.
     server.ensure_running("after handshake")?;
-    sanity_tool_call(&mut stdin, &mut reader, 0)?;
+    drive_tool_call(&mut stdin, &mut reader, 0)?;
 
     std::thread::sleep(SETTLE);
     server.ensure_running("after settle")?;
 
     // Drive sustained tools/call load on a worker thread while the sampler
     // ticks RSS on this thread; the server CPU is captured by the tree sampler.
+    // The driver breaks on stop OR on the first request error (e.g. when we kill
+    // the server during teardown) and reports the call count — a *real* mid-run
+    // server death is caught separately by the post-window liveness check below.
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let driver_stop = std::sync::Arc::clone(&stop);
-    let driver = std::thread::spawn(move || -> Result<u64> {
+    let driver = std::thread::spawn(move || -> u64 {
         let mut seq: u64 = 1;
-        while !driver_stop.load(std::sync::atomic::Ordering::Relaxed) {
-            drive_tool_call(&mut stdin, &mut reader, seq)?;
+        while !driver_stop.load(Ordering::Acquire) {
+            if drive_tool_call(&mut stdin, &mut reader, seq).is_err() {
+                break;
+            }
             seq += 1;
         }
-        Ok(seq)
+        seq - 1
     });
 
     let mut sampler = TreeSampler::start(pid)?;
     sampler.sample_for(MEASURE_WINDOW, SAMPLE_INTERVAL);
-    stop.store(true, std::sync::atomic::Ordering::Relaxed);
-    let calls = driver
-        .join()
-        .map_err(|_| -> Box<dyn Error + Send + Sync> { "driver thread panicked".into() })??;
+    // Validate the server survived the window, then close the measurement before
+    // tearing anything down.
+    server.ensure_running("after measurement window")?;
     let sample = sampler.finish()?;
 
-    server.ensure_running("after measurement window")?;
+    // Teardown order matters: signal stop, then kill the server so a driver
+    // blocked in read_line is unblocked by EOF — otherwise driver.join() could
+    // hang past the window with no timeout.
+    stop.store(true, Ordering::Release);
     server.shutdown();
+    let calls = driver
+        .join()
+        .map_err(|_| -> Box<dyn Error + Send + Sync> { "driver thread panicked".into() })?;
 
     eprintln!("mcp_resource_budget: drove {calls} tools/call requests over the window");
     Ok(evaluate(ResourceBudget::ANVIL_MCP_BUSY_V1, sample))
@@ -141,14 +153,19 @@ fn read_line(reader: &mut impl BufRead) -> Result<String> {
 fn drive_tool_call(stdin: &mut impl Write, reader: &mut impl BufRead, seq: u64) -> Result<()> {
     send(stdin, &tools_call_request(seq))?;
     let response = read_line(reader)?;
-    if !response.contains("\"result\"") {
+    if !response_has_result(&response) {
         return Err(format!("tools/call {seq} returned no result: {response}").into());
     }
     Ok(())
 }
 
-fn sanity_tool_call(stdin: &mut impl Write, reader: &mut impl BufRead, seq: u64) -> Result<()> {
-    drive_tool_call(stdin, reader, seq)
+/// A JSON-RPC reply counts as success iff it parses and carries a top-level
+/// `result` with no `error` — more robust than a `contains("result")` substring
+/// match, which an error message mentioning "result" would spuriously satisfy.
+fn response_has_result(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .is_some_and(|v| v.get("result").is_some() && v.get("error").is_none())
 }
 
 fn initialize_request() -> serde_json::Value {

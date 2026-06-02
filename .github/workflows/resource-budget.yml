@@ -35,7 +35,7 @@ jobs:
   resource-budgets:
     name: per-process resource budgets
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
@@ -43,6 +43,12 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
+      # The watch bench needs inotify headroom; surface the limits in the log so
+      # an exhausted-watches failure is one glance to diagnose, not a mystery.
+      - name: Report inotify limits
+        run: |
+          echo "max_user_watches=$(cat /proc/sys/fs/inotify/max_user_watches)"
+          echo "max_user_instances=$(cat /proc/sys/fs/inotify/max_user_instances)"
       - name: Build release anvil binary
         run: cargo build -p eddacraft-anvil --release --bin anvil
       # Each bench exits non-zero when its budget verdict is not "pass", so the

@@ -16,6 +16,12 @@ tempfile.workspace = true
 rand = "0.10"
 workspace-hack.workspace = true
 
+# Unix-only: kill a spawned process *group* so the long-running children a
+# benched process spawns (e.g. watch's per-save `anvil check`) don't outlive
+# the bench and leak (inotify handles, CPU). Safe `killpg` wrapper.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", default-features = false, features = ["signal"] }
+
 [dev-dependencies]
 rayon = { workspace = true }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }

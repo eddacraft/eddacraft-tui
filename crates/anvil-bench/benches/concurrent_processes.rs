@@ -25,9 +25,10 @@ mod unix_bench {
     use std::time::{Duration, Instant};
 
     use anvil_bench::budget::{BudgetVerdict, ResourceBudget, evaluate};
+    use anvil_bench::churn::{ChurnDriver, collect_churnable_files};
     use anvil_bench::fixture::{RepoSpec, generate_repo};
     use anvil_bench::proc_sampler::MultiTreeSampler;
-    use anvil_bench::spawn::{ManagedChild, resolve_anvil_binary};
+    use anvil_bench::spawn::{ManagedChild, in_new_process_group, resolve_anvil_binary};
 
     type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -67,53 +68,62 @@ mod unix_bench {
             return Err("synthetic repo produced no churnable source files".into());
         }
 
+        // All three children are spawned in their own process groups so the
+        // grandchildren they fork (e.g. watch's per-save `anvil check`) are
+        // killed with them on shutdown rather than leaking.
+
         // --- intercept daemon (private ANVIL_HOME) ---
         let home = tempfile::tempdir()?;
         std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700))?;
         let socket = home.path().join("intercept.sock");
+        let mut daemon_cmd = Command::new(&bin);
+        daemon_cmd
+            .args(["intercept", "start", "--foreground"])
+            .env("ANVIL_HOME", home.path())
+            .env("ANVIL_DEV", "1")
+            .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
         let mut daemon = ManagedChild::new(
-            Command::new(&bin)
-                .args(["intercept", "start", "--foreground"])
-                .env("ANVIL_HOME", home.path())
-                .env("ANVIL_DEV", "1")
-                .env("ANVIL_DISABLE_UPDATE_HINT", "1")
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()?,
+            in_new_process_group(&mut daemon_cmd).spawn()?,
             "anvil intercept start",
         );
-        wait_for_socket(&socket, SOCKET_WAIT)
-            .inspect_err(|_| drop(daemon.ensure_running("while waiting for the IPC socket")))?;
+        if let Err(socket_err) = wait_for_socket(&socket, SOCKET_WAIT) {
+            if let Err(crash) = daemon.ensure_running("while waiting for the IPC socket") {
+                eprintln!("concurrent_processes: daemon startup failure: {crash}");
+            }
+            return Err(socket_err);
+        }
 
         // --- MCP server (cwd = repo) ---
-        let mut mcp_child = Command::new(&bin)
+        let mut mcp_cmd = Command::new(&bin);
+        mcp_cmd
             .args(["mcp", "serve", "--stdio"])
             .current_dir(repo.root())
             .env("ANVIL_DEV", "1")
             .env("ANVIL_DISABLE_UPDATE_HINT", "1")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
+            .stderr(Stdio::null());
+        let mut mcp_child = in_new_process_group(&mut mcp_cmd).spawn()?;
         let mut mcp_stdin = mcp_child.stdin.take().ok_or("mcp stdin not piped")?;
         let mut mcp_reader = BufReader::new(mcp_child.stdout.take().ok_or("mcp stdout not piped")?);
         let mut mcp = ManagedChild::new(mcp_child, "anvil mcp serve");
         mcp_handshake(&mut mcp_stdin, &mut mcp_reader)?;
 
         // --- watch (cwd = repo, default check action) ---
-        let mut watch = ManagedChild::new(
-            Command::new(&bin)
-                .args(["--json", "--no-tui", "watch", "--all", "--debounce=100"])
-                .current_dir(repo.root())
-                .env("ANVIL_DEV", "1")
-                .env("ANVIL_DISABLE_UPDATE_HINT", "1")
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()?,
-            "anvil watch",
-        );
+        let mut watch_cmd = Command::new(&bin);
+        watch_cmd
+            .args(["--json", "--no-tui", "watch", "--all", "--debounce=100"])
+            .current_dir(repo.root())
+            .env("ANVIL_DEV", "1")
+            .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut watch =
+            ManagedChild::new(in_new_process_group(&mut watch_cmd).spawn()?, "anvil watch");
 
         let roots = vec![daemon.id(), mcp.id(), watch.id()];
 
@@ -123,33 +133,38 @@ mod unix_bench {
         watch.ensure_running("after settle (inotify watch limit exhausted?)")?;
 
         // --- drive all three concurrently ---
+        // intercept + mcp drivers share `stop`; the churn driver owns its own.
         let stop = Arc::new(AtomicBool::new(false));
         let intercept_driver = spawn_intercept_load(socket.clone(), Arc::clone(&stop));
         let mcp_driver = spawn_mcp_load(mcp_stdin, mcp_reader, Arc::clone(&stop));
-        let churn_driver = spawn_churn(churn_files, Arc::clone(&stop));
+        let churn = ChurnDriver::start(churn_files, CHURN_INTERVAL, 1);
 
         let mut sampler = MultiTreeSampler::start(roots)?;
         sampler.sample_for(MEASURE_WINDOW, SAMPLE_INTERVAL);
-        stop.store(true, Ordering::Relaxed);
-        let _ = intercept_driver.join();
-        let _ = mcp_driver.join();
-        let _ = churn_driver.join();
-        let sample = sampler.finish()?;
 
+        // Validate all three survived the window, then close the measurement.
         daemon.ensure_running("after measurement window")?;
         mcp.ensure_running("after measurement window")?;
         watch.ensure_running("after measurement window")?;
+        let sample = sampler.finish()?;
 
+        // Teardown order matters: signal stop, then kill the children so a driver
+        // blocked in a socket/pipe read is unblocked by ECONNRESET/EOF — only
+        // then join, so a wedged child cannot hang the bench past the window.
+        stop.store(true, Ordering::Release);
+        churn.stop();
         daemon.shutdown();
         mcp.shutdown();
         watch.shutdown();
+        let _ = intercept_driver.join();
+        let _ = mcp_driver.join();
 
         Ok(evaluate(ResourceBudget::ANVIL_CONCURRENT_ALL_V1, sample))
     }
 
     fn spawn_intercept_load(socket: PathBuf, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
-            while !stop.load(Ordering::Relaxed) {
+            while !stop.load(Ordering::Acquire) {
                 // Connection-churn load over the IPC pipeline; per-request errors
                 // during teardown are not measurement failures.
                 let _ = session_list(&socket);
@@ -164,29 +179,11 @@ mod unix_bench {
     ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             let mut seq: u64 = 1;
-            while !stop.load(Ordering::Relaxed) {
+            while !stop.load(Ordering::Acquire) {
                 if mcp_tool_call(&mut stdin, &mut reader, seq).is_err() {
                     break;
                 }
                 seq += 1;
-            }
-        })
-    }
-
-    fn spawn_churn(files: Vec<PathBuf>, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
-        std::thread::spawn(move || {
-            let mut cursor = 0usize;
-            let mut tick: u64 = 0;
-            while !stop.load(Ordering::Relaxed) {
-                if let Ok(mut f) = std::fs::OpenOptions::new()
-                    .append(true)
-                    .open(&files[cursor % files.len()])
-                {
-                    let _ = writeln!(f, "// churn {tick}");
-                }
-                cursor = cursor.wrapping_add(1);
-                tick = tick.wrapping_add(1);
-                std::thread::sleep(CHURN_INTERVAL);
             }
         })
     }
@@ -210,7 +207,7 @@ mod unix_bench {
             }),
         )?;
         let init = read_line(reader)?;
-        if !init.contains("\"result\"") {
+        if !response_has_result(&init) {
             return Err(format!("mcp initialize did not return a result: {init}").into());
         }
         send(
@@ -235,11 +232,19 @@ mod unix_bench {
             }),
         )?;
         let response = read_line(reader)?;
-        if response.contains("\"result\"") {
+        if response_has_result(&response) {
             Ok(())
         } else {
             Err(format!("tools/call {seq} returned no result").into())
         }
+    }
+
+    /// A JSON-RPC reply is a success iff it parses with a top-level `result` and
+    /// no `error` — robust against an error message that mentions "result".
+    fn response_has_result(line: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .is_some_and(|v| v.get("result").is_some() && v.get("error").is_none())
     }
 
     fn send(stdin: &mut impl Write, message: &serde_json::Value) -> Result<()> {
@@ -256,33 +261,6 @@ mod unix_bench {
             return Err("mcp server closed stdout".into());
         }
         Ok(line)
-    }
-
-    fn collect_churnable_files(root: &Path) -> Vec<PathBuf> {
-        let mut out = Vec::new();
-        let mut stack = vec![root.to_path_buf()];
-        while let Some(dir) = stack.pop() {
-            let Ok(entries) = std::fs::read_dir(&dir) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let path = entry.path();
-                match entry.file_type() {
-                    Ok(ft) if ft.is_dir() => stack.push(path),
-                    Ok(ft) if ft.is_file() => {
-                        if matches!(
-                            path.extension().and_then(|e| e.to_str()),
-                            Some("ts" | "js" | "rs")
-                        ) {
-                            out.push(path);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        out.sort();
-        out
     }
 
     fn wait_for_socket(socket: &Path, timeout: Duration) -> Result<()> {
@@ -308,5 +286,8 @@ fn main() {
 
 #[cfg(not(unix))]
 fn main() {
-    println!("concurrent_processes is implemented for Unix only");
+    // Exit non-zero so a non-Unix run is a visible "not measured", never a
+    // silent pass.
+    eprintln!("concurrent_processes is implemented for Unix only");
+    std::process::exit(1);
 }

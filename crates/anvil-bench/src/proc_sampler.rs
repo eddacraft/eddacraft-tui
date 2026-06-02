@@ -90,6 +90,13 @@ fn field_u64(fields: &[&str], idx: usize, name: &str) -> Result<u64> {
 }
 
 /// Sum the aggregate-cpu line of `/proc/stat` into total machine jiffies.
+///
+/// Sums only the eight non-overlapping fields — `user nice system idle iowait
+/// irq softirq steal` — and deliberately drops `guest`/`guest_nice` (fields 9
+/// and 10). Since Linux 2.6.24 those are *already counted in* `user`/`nice`, so
+/// summing them double-counts guest time. That matters on virtualised hosts
+/// (e.g. CI runners): double-counting inflates the denominator and silently
+/// under-reports the bench's CPU percentage.
 pub fn parse_total_cpu_jiffies(stat: &str) -> Result<u64> {
     let first = stat.lines().next().ok_or("empty /proc/stat")?;
     let mut fields = first.split_whitespace();
@@ -97,6 +104,7 @@ pub fn parse_total_cpu_jiffies(stat: &str) -> Result<u64> {
         return Err("/proc/stat does not start with aggregate cpu line".into());
     }
     fields
+        .take(8)
         .map(str::parse::<u64>)
         .try_fold(0u64, |acc, value| Ok(acc + value?))
 }
@@ -364,9 +372,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_total_cpu_jiffies() {
+    fn parses_total_cpu_jiffies_excluding_guest() {
+        // Only the first 8 fields are summed (1..=8 = 36); guest=9 and
+        // guest_nice=10 are dropped to avoid double-counting (already in user/nice).
         let stat = "cpu  1 2 3 4 5 6 7 8 9 10\ncpu0 1 2 3 4";
-        assert_eq!(parse_total_cpu_jiffies(stat).unwrap(), 55);
+        assert_eq!(parse_total_cpu_jiffies(stat).unwrap(), 36);
     }
 
     #[test]

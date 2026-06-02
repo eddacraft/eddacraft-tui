@@ -8,9 +8,9 @@
 //! child — and the bench drove no saves and never looked at the children.
 //!
 //! This version closes both gaps:
-//! - It drives **sustained churn**: a background thread rewrites repo files on
-//!   an interval across the whole measurement window, so the debounced per-save
-//!   check actually runs.
+//! - It drives **sustained churn** via [`crate::churn`]: a background thread
+//!   rewrites repo files across the whole measurement window, so the debounced
+//!   per-save check actually runs.
 //! - It measures the **whole process tree** via [`crate::proc_sampler`], so the
 //!   per-save check child's CPU (and any transient RSS) is counted.
 //!
@@ -18,18 +18,17 @@
 //! the churn-path ceiling, not the idle ceiling.
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tempfile::TempDir;
 
 use crate::budget::{BudgetVerdict, ResourceBudget, evaluate};
+use crate::churn::{ChurnDriver, collect_churnable_files};
 use crate::fixture::{RepoSpec, generate_repo};
 use crate::proc_sampler::TreeSampler;
-use crate::spawn::{ManagedChild, resolve_anvil_binary};
+use crate::spawn::{ManagedChild, in_new_process_group, resolve_anvil_binary};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -82,15 +81,18 @@ pub fn run(config: &WatchResourceBudgetConfig) -> Result<BudgetVerdict> {
         return Err("synthetic repo produced no churnable source files".into());
     }
 
-    let child = Command::new(&config.anvil_bin)
+    let mut command = Command::new(&config.anvil_bin);
+    command
         .args(watch_command_args())
         .current_dir(repo.root())
         .env("ANVIL_DISABLE_UPDATE_HINT", "1")
         .env("ANVIL_DEV", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+        .stderr(Stdio::null());
+    // Own process group so the per-save `anvil check` children die with the
+    // watcher on shutdown rather than leaking (reparented to init).
+    let child = in_new_process_group(&mut command).spawn()?;
     let mut child = ManagedChild::new(child, "anvil watch");
     let pid = child.id();
 
@@ -116,82 +118,6 @@ pub fn run(config: &WatchResourceBudgetConfig) -> Result<BudgetVerdict> {
     child.shutdown();
 
     Ok(evaluate(config.budget, sample))
-}
-
-/// Background file-churn driver: rewrites a rotating window of files on an
-/// interval until [`ChurnDriver::stop`] is called.
-struct ChurnDriver {
-    stop: Arc<AtomicBool>,
-    handle: Option<std::thread::JoinHandle<()>>,
-}
-
-impl ChurnDriver {
-    fn start(files: Vec<PathBuf>, interval: Duration, batch: usize) -> Self {
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_flag = Arc::clone(&stop);
-        let handle = std::thread::spawn(move || {
-            let mut cursor = 0usize;
-            let mut tick: u64 = 0;
-            while !stop_flag.load(Ordering::Relaxed) {
-                for _ in 0..batch.max(1) {
-                    let path = &files[cursor % files.len()];
-                    let _ = append_churn_line(path, tick);
-                    cursor = cursor.wrapping_add(1);
-                }
-                tick = tick.wrapping_add(1);
-                std::thread::sleep(interval);
-            }
-        });
-        Self {
-            stop,
-            handle: Some(handle),
-        }
-    }
-
-    fn stop(mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
-    }
-}
-
-/// Append a changing comment line so both content and mtime change, which is
-/// what `notify` reports and what a real save looks like.
-fn append_churn_line(path: &Path, tick: u64) -> std::io::Result<()> {
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
-    writeln!(file, "// churn {tick}")
-}
-
-/// Collect rewritable source files (the languages the scanner actually parses)
-/// from the synthetic repo. JSON files are skipped — appending a comment line
-/// would make them invalid and is not representative of a code save.
-fn collect_churnable_files(root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            match entry.file_type() {
-                Ok(ft) if ft.is_dir() => stack.push(path),
-                Ok(ft) if ft.is_file() => {
-                    if matches!(
-                        path.extension().and_then(|e| e.to_str()),
-                        Some("ts" | "js" | "rs")
-                    ) {
-                        out.push(path);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    out.sort();
-    out
 }
 
 pub fn watch_command_args() -> [&'static str; 5] {
@@ -222,48 +148,5 @@ mod tests {
         // The churn path is gated by the churn ceiling, not the idle ceiling.
         let budget = ResourceBudget::ANVIL_WATCH_CHURN_V1;
         assert_ne!(budget, ResourceBudget::ANVIL_WATCH_V1);
-    }
-
-    #[test]
-    fn collects_only_scannable_source_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let repo = generate_repo(&RepoSpec::small(), dir.path()).unwrap();
-        let files = collect_churnable_files(repo.root());
-        assert!(!files.is_empty(), "expected churnable source files");
-        assert!(
-            files.iter().all(|p| matches!(
-                p.extension().and_then(|e| e.to_str()),
-                Some("ts" | "js" | "rs")
-            )),
-            "json/other files must be excluded from churn"
-        );
-    }
-
-    #[test]
-    fn append_churn_line_changes_content() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.ts");
-        std::fs::write(&path, "const x = 1;\n").unwrap();
-        let before = std::fs::metadata(&path).unwrap().len();
-        append_churn_line(&path, 7).unwrap();
-        let after = std::fs::read_to_string(&path).unwrap();
-        assert!(after.contains("// churn 7"));
-        assert!(after.len() as u64 > before);
-    }
-
-    #[test]
-    fn churn_driver_rewrites_until_stopped() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.ts");
-        std::fs::write(&path, "// seed\n").unwrap();
-        let driver = ChurnDriver::start(vec![path.clone()], Duration::from_millis(5), 1);
-        std::thread::sleep(Duration::from_millis(60));
-        driver.stop();
-        let churns = std::fs::read_to_string(&path)
-            .unwrap()
-            .lines()
-            .filter(|l| l.starts_with("// churn "))
-            .count();
-        assert!(churns >= 2, "expected sustained churn, saw {churns} writes");
     }
 }

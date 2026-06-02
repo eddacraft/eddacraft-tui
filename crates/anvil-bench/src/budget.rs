@@ -77,13 +77,15 @@ impl ResourceBudget {
     ///
     /// Measured floor (release build, dev box 2026-06-02, 4 churn workers):
     /// ~101% CPU (≈1 core), ~23 MiB RSS (flat vs idle — no per-connection
-    /// leak). The ceiling carries ~2× CPU and ~5× RSS headroom.
+    /// leak). The CPU ceiling is sized as a **gross-regression gate** with wide
+    /// headroom (~2.5×) to absorb shared-runner scheduling noise, not as a tight
+    /// SLO.
     ///
     /// **Calibration:** like the watch ceilings, these are quiet-box numbers
     /// with headroom; RLB-008 owns final calibration. Tightening is a budget
     /// bump (`DECISION-LOG.md`).
     pub const ANVIL_INTERCEPT_BURST_V1: Self = Self {
-        steady_state_cpu_pct: 200.0,
+        steady_state_cpu_pct: 250.0,
         peak_rss_mib: 128.0,
     };
 
@@ -95,13 +97,15 @@ impl ResourceBudget {
     /// first resource budget.
     ///
     /// Measured floor (release build, dev box 2026-06-02): ~94% CPU (the
-    /// server is single-threaded, so ~1 core is its ceiling), ~24 MiB RSS,
-    /// ~6.4k tool calls/s. The ceiling carries headroom for slower hardware.
+    /// server is single-threaded, so ~1 core is its practical ceiling), ~24 MiB
+    /// RSS, ~6.4k tool calls/s. The CPU ceiling is a **gross-regression gate**
+    /// with wide headroom (~2×) so shared-runner noise does not false-fail an
+    /// unrelated PR — not a tight SLO.
     ///
     /// **Calibration:** quiet-box placeholder with headroom; RLB-008 owns
     /// final numbers. Tightening is a budget bump (`DECISION-LOG.md`).
     pub const ANVIL_MCP_BUSY_V1: Self = Self {
-        steady_state_cpu_pct: 150.0,
+        steady_state_cpu_pct: 200.0,
         peak_rss_mib: 96.0,
     };
 
@@ -235,6 +239,25 @@ mod tests {
         // Drift here is meaningful — surface it on a diff.
         assert_eq!(V1.steady_state_cpu_pct, 5.0);
         assert_eq!(V1.peak_rss_mib, 200.0);
+    }
+
+    #[test]
+    fn resource_budget_ceilings_are_pinned() {
+        // Every ceiling is a visible-on-diff constant: a bump must show here and
+        // requires a DECISION-LOG entry + release note (see
+        // docs/policies/resource-budget.md). Mirrors the watch-v1 tripwire for
+        // the RLB-002/-003/-004/-005 budgets.
+        let pins = [
+            (ResourceBudget::ANVIL_WATCH_CHURN_V1, 50.0, 300.0),
+            (ResourceBudget::ANVIL_INTERCEPT_IDLE_V1, 5.0, 96.0),
+            (ResourceBudget::ANVIL_INTERCEPT_BURST_V1, 250.0, 128.0),
+            (ResourceBudget::ANVIL_MCP_BUSY_V1, 200.0, 96.0),
+            (ResourceBudget::ANVIL_CONCURRENT_ALL_V1, 800.0, 700.0),
+        ];
+        for (budget, cpu, rss) in pins {
+            assert_eq!(budget.steady_state_cpu_pct, cpu, "CPU ceiling drifted");
+            assert_eq!(budget.peak_rss_mib, rss, "RSS ceiling drifted");
+        }
     }
 
     #[test]
