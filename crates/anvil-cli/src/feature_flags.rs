@@ -1,4 +1,6 @@
-//! FLAGS-008 exemplar + FLAGM-002/003: CLI licence gating via the shared feature-flag resolver.
+//! FLAGS-008 + FLAGM-002/003 + FLAGCAT-005: CLI licence gating via the shared feature-flag resolver.
+//! The `cli.licence-gate` definition is catalogue-sourced (generated from
+//! `flags/manifest.json`); this module is the CLI host + gating metadata.
 //!
 //! Routes licence-gated feature access through `anvil_kernel::feature_flags`
 //! rather than a bespoke per-command check, so future tier/entitlement
@@ -19,12 +21,14 @@
 use anvil_kernel::feature_flags::{
     FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
 };
+use anvil_kernel_types::feature_flags_catalogue::cli_licence_gate;
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
-    FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant,
 };
 
-pub const CLI_LICENCE_GATE_KEY: &str = "cli.licence-gate";
+/// The `cli.licence-gate` flag key, sourced from the generated catalogue
+/// (FLAGCAT-005) so it cannot drift from `flags/manifest.json`.
+pub const CLI_LICENCE_GATE_KEY: &str = cli_licence_gate::KEY;
 
 /// Canonical names of CLI commands that require a valid licence to run.
 ///
@@ -79,48 +83,16 @@ pub struct CliGateFlag {
     pub metadata: CliGateMetadata,
 }
 
-/// Builds the inline exemplar definition for `cli.licence-gate`.
+/// Builds the `cli.licence-gate` flag plus CLI-local gating metadata.
 ///
-/// Follows the shared model exercised in
-/// `packages/anvil/runtime/src/feature-flags/exemplars.test.ts` with one
-/// intentional compatibility difference: the exemplar's `default_variant`
-/// is `disabled` (Entitlement class fails closed), but the CLI keeps its
-/// existing `enabled` default here so existing licensed sessions are not
-/// regressed by the exemplar wiring. The full cutover to a fail-closed
-/// default is scoped to a later FLAGM task.
-///
-/// The shared snapshot pipeline will supersede this inline definition
-/// once the CLI gains a local snapshot loader; keep the shape in sync
-/// with the exemplar until then.
+/// FLAGCAT-005: the flag *definition* is now the build-time-generated
+/// `cli_licence_gate::definition()`, sourced from `flags/manifest.json` —
+/// no hand-rolled literal. The manifest preserves the CLI's `enabled`
+/// default (Entitlement class), so behaviour is unchanged. Only the
+/// CLI-host gating list ([`CLI_GATED_COMMANDS`]) lives here.
 pub fn cli_licence_gate_flag() -> CliGateFlag {
     CliGateFlag {
-        definition: FeatureFlagDefinition {
-            key: CLI_LICENCE_GATE_KEY.into(),
-            owner: "BAUTH".into(),
-            intent: "Gate CLI features behind licence validation".into(),
-            class: FlagClass::Entitlement,
-            value_type: FlagValueType::Boolean,
-            variants: vec![
-                FlagVariant {
-                    key: "enabled".into(),
-                    value: FlagValue::Boolean(true),
-                },
-                FlagVariant {
-                    key: "disabled".into(),
-                    value: FlagValue::Boolean(false),
-                },
-            ],
-            default_variant: "enabled".into(),
-            status: FlagStatus::Active,
-            created_for: "FLAGS-008".into(),
-            expiry_or_review_date: None,
-            description: Some("Controls access to licence-gated CLI commands".into()),
-            targeting: None,
-            // FLAGCAT-005 replaces this hand literal with the generated
-            // `feature_flags_catalogue::cli_licence_gate::definition()`.
-            primary_group: Some("cli".into()),
-            tags: None,
-        },
+        definition: cli_licence_gate::definition(),
         metadata: CliGateMetadata {
             gated_commands: CLI_GATED_COMMANDS,
         },
@@ -245,7 +217,10 @@ mod tests {
     fn flag_definition_matches_exemplar_contract() {
         let flag = cli_licence_gate_flag();
         assert_eq!(flag.definition.key, CLI_LICENCE_GATE_KEY);
-        assert_eq!(flag.definition.class, FlagClass::Entitlement);
+        assert_eq!(
+            flag.definition.class,
+            anvil_kernel_types::FlagClass::Entitlement
+        );
         assert_eq!(flag.definition.created_for, "FLAGS-008");
         assert!(flag.definition.default_variant_exists());
         assert!(flag.definition.has_valid_key());

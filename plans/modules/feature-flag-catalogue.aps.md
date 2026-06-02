@@ -448,7 +448,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   pinned in the design note, so it is Ready at low confidence, not blocked)
 - **Status:** Merged 2026-06-02 via PR #2220
 
-### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — Ready
+### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — In Progress
 
 - **Intent:** Replace the hand-rolled `CliGateFlag` literal in
   `crates/anvil-cli/src/feature_flags.rs` with the generated catalogue
@@ -466,7 +466,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   `crates/anvil-cli/src/feature_flags.rs:352` must still pass to prove the
   `ANVIL_DEV=1` override is behaviour-preserving
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress
 
 ### FLAGCAT-006: Consistency check and adoption guide — Ready
 
