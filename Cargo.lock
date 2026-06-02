@@ -1318,6 +1318,7 @@ dependencies = [
 name = "eddacraft-anvil-intercept-proto"
 version = "0.7.4-beta"
 dependencies = [
+ "eddacraft-anvil-kernel-types",
  "serde",
  "serde_json",
  "serde_yaml",

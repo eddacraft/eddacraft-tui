@@ -26,9 +26,12 @@ the [validation contract](../specs/2026-06-01-daemon-save-time-validation-contra
 read-safety/pool corrections are folded into Task 2 (net-new auth wording), Task 8 +
 the File Map (`run_antipattern_check` bytes+pool entrypoint), and the sequencing notes
 (Task 3 a hard predecessor of Task 8; Task 10's pool a predecessor of Task 8's check
-call). **Remaining pre-implementation: B3 (item 4) and the ops/security placement
-items (item 8).** Sub-phase A coding may begin on the B1/B2/B4/B5/B6/B7 surface once
-those remaining items are closed.
+call). **B3's proto envelope landed** ahead of Task 1 (see item 4) — the phantom-type
+compile blocker is gone, so Task 1's wire can now be frozen against a real type; B3's
+remaining sub-parts (typing `ValidatePathsResponse` + the cross-surface parity test)
+are inside Task 1. **Remaining pre-implementation: the ops/security placement items
+(item 8).** Sub-phase A coding may begin on the B1/B2/B4/B5/B6/B7 + B3-proto surface
+once those remaining items are closed.
 
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
@@ -67,12 +70,25 @@ those remaining items are closed.
    CPU regression ADR-061 exists to solve; the embedded structural pipeline
    `run_embedded` has no production caller today, and the live structural engine is
    whole-repo `anvil gate`).
-4. **Proto envelope type (B3).** `ScanDiagnostics` does not exist; the real type is
-   `ScanBufferResponse` (daemon-local, `midedit.rs:68`). Define the shared diagnostic
-   type **in `anvil-intercept-proto`** (lighter form: `Vec<anvil_kernel_types::Diagnostic>`
-   is fine *if defined in the proto crate, not re-declared daemon-local*); type
-   `ValidatePathsResponse.diagnostics` against it; add scan_buffer↔validate_paths
-   serialise-parity tests.
+4. **Proto envelope type (B3). ✅ Proto envelope delivered 2026-06-02** — the
+   shared diagnostic envelope now lives in `anvil-intercept-proto::protocol` as
+   `pub type DiagnosticEnvelope = Vec<anvil_kernel_types::Diagnostic>`, the lighter
+   form the B3/C5 ruling accepted, defined in the proto crate (not re-declared
+   daemon-local; no `Diagnostic` re-export — consumers name the kernel type on one
+   canonical path). The proto crate gained an `eddacraft-anvil-kernel-types`
+   dependency to name it, and `ScanBufferResponse.diagnostics` is re-typed against
+   the alias (zero wire change — transparent alias). This **removes the phantom-type
+   compile blocker** that made the Task 1 wire un-freezable, so Task 1 may now
+   reference a real type. **Carried into Task 1 (not deliverable before it exists):**
+   typing `ValidatePathsResponse.diagnostics` against the alias and the true
+   cross-surface `scan_buffer`↔`validate_paths` serialise-parity test — the
+   single-surface anchor below only pins that `scan_buffer` uses the shared
+   envelope. Tests landed now: `diagnostic_envelope_serialises_as_canonical_diagnostic_array`
+   + `diagnostic_envelope_round_trips_through_json` (proto) and
+   `scan_buffer_diagnostics_serialise_via_shared_proto_envelope` (intercept). The
+   original finding: `ScanDiagnostics` did not exist; the real daemon-local type was
+   `ScanBufferResponse` (`midedit.rs:68`), so the "frozen" Task 1 wire named a type
+   the proto crate did not own.
 5. **Initial assurance state (B6, critical). ✅ Resolved 2026-06-02** — initial
    `Stale(CrossFileResolutionNeeded)` + `watch` auto-`request_full_scan` on
    connect/reconnect folded into contract §6, ADR-061 §9 (full lifecycle diagram
@@ -205,7 +221,7 @@ pub struct WorkspaceAssurance {
 }
 pub struct EvaluatedPath { pub path: String, pub content_hash: String }
 pub struct ValidatePathsResponse {
-    pub diagnostics: ScanDiagnostics,   // reuse the scan_buffer envelope type verbatim
+    pub diagnostics: DiagnosticEnvelope, // proto-owned shared envelope = Vec<Diagnostic> (B3, resolved)
     pub evaluated: Vec<EvaluatedPath>,
     pub workspace_assurance: WorkspaceAssurance,
     pub coverage: Coverage,

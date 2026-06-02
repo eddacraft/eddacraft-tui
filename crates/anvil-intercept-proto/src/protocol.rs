@@ -61,6 +61,27 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Shared wire envelope for the set of diagnostics a scan response
+/// carries on `params.diagnostics`. Each element is the canonical
+/// `anvil.diagnostic.v1` shape (`anvil_kernel_types::Diagnostic`); see
+/// `crates/anvil-kernel-types/src/diagnostics.rs`.
+///
+/// Owned here in `anvil-intercept-proto` so the `scan_buffer` response
+/// ([`ScanBufferResponse`] in `anvil-intercept`) and the ADR-061
+/// Sub-phase A `validate_paths` response type their `diagnostics`
+/// field against the **same** type. This closes council finding **B3**
+/// (2026-06-01 daemon-graph verdict): Task 1 of the save-time plan
+/// "froze" a wire that named a phantom `ScanDiagnostics` the proto
+/// crate did not own, and the real type (`ScanBufferResponse`) was
+/// declared daemon-local — exactly the drift this alias removes.
+///
+/// Lighter form per the B3/C5 ruling: a type alias for
+/// `Vec<anvil_kernel_types::Diagnostic>` rather than a wrapping struct,
+/// and no re-export of `Diagnostic` (consumers name the kernel type
+/// directly — one canonical path). Full envelope unification (a single
+/// redaction guard hung off one struct) is deferred to Sub-phase A′.
+pub type DiagnosticEnvelope = Vec<anvil_kernel_types::Diagnostic>;
+
 /// Server → client notification carrying [`Diagnostic`] payloads. The
 /// outer wrapper is the JSON-RPC notification envelope; the inner
 /// `params.diagnostics` array holds the canonical
@@ -243,5 +264,53 @@ mod tests {
             let from_serde = serde_json::to_value(variant).unwrap();
             assert_eq!(from_serde, variant.as_str());
         }
+    }
+
+    fn sample_diagnostic() -> anvil_kernel_types::Diagnostic {
+        use anvil_kernel_types::diagnostics::{
+            Category, DiagnosticSource, KnownMode, Location, Severity,
+        };
+        use anvil_kernel_types::{Diagnostic, Mode};
+
+        Diagnostic::new(
+            "AP-001",
+            Severity::Warning,
+            "sample finding",
+            Location {
+                file: "src/lib.rs".to_string(),
+                line: Some(12),
+                column: Some(3),
+                end_line: None,
+                end_column: None,
+            },
+            Category::Antipattern,
+            DiagnosticSource {
+                rule_id: "AP-001".to_string(),
+                source_module: "anvil-checks::antipattern".to_string(),
+            },
+            Mode::known(KnownMode::MidEdit),
+        )
+    }
+
+    /// B3: the envelope is the canonical `anvil.diagnostic.v1` array,
+    /// owned here in the proto crate (not re-declared daemon-local) so
+    /// `scan_buffer` and `validate_paths` reference one type.
+    #[test]
+    fn diagnostic_envelope_serialises_as_canonical_diagnostic_array() {
+        let envelope: DiagnosticEnvelope = vec![sample_diagnostic()];
+        let json = serde_json::to_value(&envelope).expect("serialise envelope");
+        assert!(json.is_array(), "envelope serialises as a JSON array");
+        assert_eq!(json[0]["schema_version"], "anvil.diagnostic.v1");
+        assert_eq!(json[0]["id"], "AP-001");
+        assert_eq!(json[0]["severity"], "warning");
+        assert_eq!(json[0]["category"], "antipattern");
+    }
+
+    #[test]
+    fn diagnostic_envelope_round_trips_through_json() {
+        let envelope: DiagnosticEnvelope = vec![sample_diagnostic()];
+        let wire = serde_json::to_string(&envelope).expect("serialise");
+        let back: DiagnosticEnvelope = serde_json::from_str(&wire).expect("deserialise");
+        assert_eq!(envelope, back);
     }
 }

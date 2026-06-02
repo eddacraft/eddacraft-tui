@@ -524,6 +524,12 @@ struct JsonRpcScanBufferResponse {
     id: Option<Value>,
 }
 
+// B3: intentionally a local `Deserialize`-only mirror of the daemon's
+// scan-buffer reply, decoupled from the proto `ScanBufferResponse` so the
+// MCP client parses the raw socket JSON without importing the daemon's
+// response struct. `diagnostics` is element-compatible with the proto
+// `DiagnosticEnvelope` (both `Vec<anvil_kernel_types::Diagnostic>`); it is
+// deliberately not re-typed against the alias here.
 #[cfg(unix)]
 #[derive(Debug, Deserialize)]
 struct ScanBufferResult {

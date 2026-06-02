@@ -1115,6 +1115,7 @@ impl std::fmt::Debug for PostHookEmitter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_intercept_proto::protocol::DiagnosticEnvelope;
     use anvil_kernel_types::diagnostics::{Category, DiagnosticSource, KnownMode, Location};
     use anvil_kernel_types::{Diagnostic, Mode};
 
@@ -1159,7 +1160,7 @@ mod tests {
         }
     }
 
-    fn response_with(diagnostics: Vec<Diagnostic>) -> ScanBufferResponse {
+    fn response_with(diagnostics: DiagnosticEnvelope) -> ScanBufferResponse {
         ScanBufferResponse {
             version: 1,
             diagnostics,

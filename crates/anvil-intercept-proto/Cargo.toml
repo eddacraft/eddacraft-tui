@@ -10,6 +10,7 @@ description = "Wire types shared by the Anvil intercept daemon, launcher, and dr
 name = "anvil_intercept_proto"
 
 [dependencies]
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 workspace-hack.workspace = true
 

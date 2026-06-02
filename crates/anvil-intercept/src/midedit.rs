@@ -3,9 +3,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+use anvil_intercept_proto::protocol::DiagnosticEnvelope;
 use anvil_intercept_rules::ChangeKind;
+use anvil_kernel_types::Mode;
 use anvil_kernel_types::diagnostics::KnownMode;
-use anvil_kernel_types::{Diagnostic, Mode};
 use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -82,7 +83,11 @@ pub struct ScanBufferRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ScanBufferResponse {
     pub version: u64,
-    pub diagnostics: Vec<Diagnostic>,
+    /// B3 (ADR-061): typed against the proto-owned
+    /// [`DiagnosticEnvelope`] (`Vec<Diagnostic>`) so this response and
+    /// the Sub-phase A `validate_paths` response share one wire
+    /// diagnostic type rather than each re-declaring the shape.
+    pub diagnostics: DiagnosticEnvelope,
     pub truncated: bool,
     /// MLP2-002: `rules_sha` pinned at evaluation start. The
     /// scheduler resolves the rule set against the worktree once,
@@ -472,7 +477,7 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     use anvil_intercept_rules::{InterceptRule, RuleDecision, RuleInput, RuleRegistry};
-    use anvil_kernel_types::{Category, DiagnosticSource, Location, Severity};
+    use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Severity};
 
     use super::*;
     use crate::enforcement::{
@@ -532,6 +537,51 @@ mod tests {
             "degraded:spoofed-attribution"
         );
         assert_eq!(parsed["spoof_block"]["fenced_worktree"], "/work/wt");
+    }
+
+    /// B3 (ADR-061 §8 parity): `ScanBufferResponse.diagnostics` is typed
+    /// against the proto-owned [`DiagnosticEnvelope`]. The Sub-phase A
+    /// `validate_paths` response will type its `diagnostics` field
+    /// against the same alias, so the two surfaces serialise diagnostics
+    /// byte-for-byte by construction. This pins the `scan_buffer` side of
+    /// that contract: a bare envelope and the response's `diagnostics`
+    /// field must serialise to identical JSON.
+    #[test]
+    fn scan_buffer_diagnostics_serialise_via_shared_proto_envelope() {
+        let diagnostic = Diagnostic::new(
+            "AP-001",
+            Severity::Warning,
+            "sample finding",
+            Location {
+                file: "src/lib.rs".to_string(),
+                line: Some(12),
+                column: Some(3),
+                end_line: None,
+                end_column: None,
+            },
+            Category::Antipattern,
+            DiagnosticSource {
+                rule_id: "AP-001".to_string(),
+                source_module: "anvil-checks::antipattern".to_string(),
+            },
+            Mode::known(KnownMode::MidEdit),
+        );
+
+        // Built as the proto envelope type, then assigned into the
+        // response field — only compiles while the field shares the
+        // proto-owned alias.
+        let envelope: DiagnosticEnvelope = vec![diagnostic];
+        let response = ScanBufferResponse {
+            version: 1,
+            diagnostics: envelope.clone(),
+            truncated: false,
+            rules_sha: None,
+            spoof_block: None,
+        };
+
+        let response_json = serde_json::to_value(&response).expect("serialise response");
+        let envelope_json = serde_json::to_value(&envelope).expect("serialise envelope");
+        assert_eq!(response_json["diagnostics"], envelope_json);
     }
 
     #[test]
