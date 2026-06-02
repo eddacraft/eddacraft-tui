@@ -176,13 +176,29 @@ GV2-002 stable identity before the export fast-path graduates from conservative-
 
 ## APS mapping
 
-| Task group | APS item(s) |
-|---|---|
-| Wire + daemon verbs + backing | INTD `validate_paths` method; MLP2-067 (folded in as the interim backing) |
-| MCP re-point | DRVR |
-| Resource model + benches/SLO | RLB-002 (real default bench), RLB-008 (SLO + CI gate), RLB-005 (concurrent multi-process) |
+**Canonical home (2026-06-03):** this effort is tracked by the
+[`daemon-save-time-validation`](../modules/daemon-save-time-validation.aps.md) module
+(DSV). This file is its Sub-phase A action plan; the work items live in DSV. INTD and
+DRVR are archived **Complete** (their statuses cannot advance); MLP2-067 is the
+*originating* interim-backing record and stays put as an origin pointer. RLB-002/-005/-008
+are the resource-model items DSV-006 consumes.
 
-Mark INTD/DRVR/MLP2-067 **In Progress** before starting; reconcile counts in `plans/index.aps.md` per APS rules. (APS status edits land in a *separate* reconciliation PR per the hot-file-collision rule — do not bundle them into code commits here.)
+| Task group | DSV item | Origin / consumed APS item(s) |
+|---|---|---|
+| Task 0 — graph-cache extraction | DSV-001 | ADR-064 / B5 |
+| Task 1 — frozen wire | DSV-002 | INTD `validate_paths` method (archived) |
+| Tasks 2–5 — auth / read-safety / classify / taxonomy | DSV-003 | — |
+| Tasks 6–7 — certify + interim cache | DSV-004 | MLP2-067 (interim backing) |
+| Tasks 8–9 — orchestration + assurance | DSV-005 | — |
+| Tasks 10/11/16 — resource model + SLO | DSV-006 | RLB-002, RLB-005, RLB-008 |
+| Tasks 12/13/17 — watch + MCP + status | DSV-007 | DRVR (archived) |
+| Task 14 — confinement + CLI | DSV-008 | — |
+| Task 15 — parity gate | DSV-009 | — |
+
+Mark the relevant **DSV** items **In Progress** before starting; reconcile the DSV
+module + `plans/index.aps.md` per APS rules. (APS status edits land in a *separate*
+reconciliation PR per the hot-file-collision rule — do not bundle them into code commits
+here.)
 
 ---
 

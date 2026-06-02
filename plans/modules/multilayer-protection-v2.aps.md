@@ -3944,6 +3944,7 @@ to redesign once GV2-001..-023 land.
 #### MLP2-067: Daemon-hosted graph cache with narrow evaluator RPC
 
 - **Status:** Ready (folded into ADR-061 sub-phase A 2026-06-01 as the interim per-`WorktreeKey` `SymbolGraph` backing under the `validate_paths` wire; council `plan-5768ae0c`. See `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 and `plans/execution/2026-06-01-daemon-save-time-subphase-a.md` Task 7. The narrow verdict-shaped `kernel.evaluate` is generalised to `validate_paths`; the GV2 hot-read slice swaps under the same wire in sub-phase A′.)
+- **Delivery home (2026-06-03):** the daemon save-time effort is now a tracked module — [`daemon-save-time-validation`](daemon-save-time-validation.aps.md) (DSV). MLP2-067 is the *originating interim-backing record*; the delivery is DSV Sub-phase A (DSV-001–009; DSV-004 carries the interim `(SymbolGraph, DependencyGraph)` cache specifically). This item stays in MLP2 as the origin pointer — no status/count change.
 - **Intent:** `anvil check` and `anvil watch` currently rebuild the
   `anvil_kernel::graph::SymbolGraph` fresh per CLI invocation. The
   daemon already holds a per-worktree `RuleSetCache` keyed on
