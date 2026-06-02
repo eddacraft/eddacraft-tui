@@ -261,6 +261,77 @@ impl TreeSampler {
     }
 }
 
+/// Aggregate sampler over several **disjoint** process trees at once — used by
+/// the concurrent multi-process bench (RLB-005) to measure watch + intercept +
+/// MCP running together. CPU is the summed whole-tree jiffies of all roots over
+/// the window (expressed as cores ×100, so three saturated cores read `300.0`);
+/// peak RSS is the summed resident set of all trees at the busiest tick. The
+/// roots must not be ancestors of one another or their CPU/RSS would be
+/// double-counted.
+pub struct MultiTreeSampler {
+    roots: Vec<u32>,
+    start_tree: u64,
+    start_total: u64,
+    peak_rss_mib: f64,
+    ncpus: usize,
+}
+
+impl MultiTreeSampler {
+    /// Begin measuring every root's tree. Errors if any root is already gone.
+    pub fn start(roots: Vec<u32>) -> Result<Self> {
+        let start_tree = sum_tree_cpu(&roots)?;
+        let start_total = read_total_cpu_jiffies()?;
+        let peak_rss_mib = sum_tree_rss(&roots);
+        let ncpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        Ok(Self {
+            roots,
+            start_tree,
+            start_total,
+            peak_rss_mib,
+            ncpus,
+        })
+    }
+
+    /// Fold one summed-RSS sample into the running peak.
+    pub fn tick_rss(&mut self) {
+        self.peak_rss_mib = self.peak_rss_mib.max(sum_tree_rss(&self.roots));
+    }
+
+    /// Sleep-and-sample loop until `window` elapses.
+    pub fn sample_for(&mut self, window: Duration, interval: Duration) {
+        let deadline = Instant::now() + window;
+        while Instant::now() < deadline {
+            std::thread::sleep(interval);
+            self.tick_rss();
+        }
+    }
+
+    /// Close the window and emit the aggregate [`MeasurementSample`].
+    pub fn finish(self) -> Result<MeasurementSample> {
+        let end_tree = sum_tree_cpu(&self.roots)?;
+        let end_total = read_total_cpu_jiffies()?;
+        let proc_delta = end_tree.saturating_sub(self.start_tree);
+        let total_delta = end_total.saturating_sub(self.start_total);
+        Ok(MeasurementSample {
+            steady_state_cpu_pct: cpu_pct_for_window(proc_delta, total_delta, self.ncpus),
+            peak_rss_mib: self.peak_rss_mib,
+        })
+    }
+}
+
+fn sum_tree_cpu(roots: &[u32]) -> Result<u64> {
+    let mut total = 0u64;
+    for &root in roots {
+        total = total.saturating_add(read_proc_cpu_times(root)?.tree_total());
+    }
+    Ok(total)
+}
+
+#[must_use]
+fn sum_tree_rss(roots: &[u32]) -> f64 {
+    roots.iter().map(|&root| tree_rss_mib(root)).sum()
+}
+
 #[cfg(test)]
 #[allow(clippy::float_cmp)] // exact-zero / bit-stable f64 comparisons
 mod tests {
@@ -350,5 +421,39 @@ mod tests {
     #[cfg(target_os = "linux")]
     fn tree_rss_of_self_is_nonzero() {
         assert!(tree_rss_mib(std::process::id()) > 0.0);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn multi_tree_aggregates_rss_across_roots() {
+        // Two live children → the aggregate RSS exceeds either tree alone.
+        let mut a = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep a");
+        let mut b = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep b");
+        std::thread::sleep(Duration::from_millis(50));
+
+        let single = tree_rss_mib(a.id());
+        let aggregate = sum_tree_rss(&[a.id(), b.id()]);
+        let _ = (a.kill(), a.wait(), b.kill(), b.wait());
+
+        assert!(single > 0.0, "a child has resident memory");
+        assert!(
+            aggregate >= single,
+            "aggregate {aggregate} should be >= a single tree {single}"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn multi_tree_sampler_reports_self() {
+        let sampler = MultiTreeSampler::start(vec![std::process::id()]).expect("start");
+        let sample = sampler.finish().expect("finish");
+        assert!(sample.peak_rss_mib > 0.0);
+        assert!(sample.steady_state_cpu_pct >= 0.0);
     }
 }
