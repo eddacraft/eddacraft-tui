@@ -17,7 +17,15 @@ pragmatic-lead; + Codex input) reviewed this plan and returned **do not start as
 written**. Full evidence + rulings:
 [`plans/reviews/2026-06-01-daemon-graph-council-verdict.md`](../reviews/2026-06-01-daemon-graph-council-verdict.md).
 The tasks below stand, but apply these corrections first (ordered — earlier items
-are predecessors):
+are predecessors).
+
+**Resolution status (2026-06-02):** **B5, B1, B2, B6 are RESOLVED** — folded into
+[ADR-061](../decisions/061-save-time-daemon-delta-validation.md) (§6, §9),
+the [validation contract](../specs/2026-06-01-daemon-save-time-validation-contract.md)
+(§1, §3, §6, §7), and Tasks 1/6/7/8/9 below (with their named tests). **Remaining
+pre-implementation: B3 (item 4), B4 (item 6), B7 (item 7), and the ops/security
+placement items (item 8).** Sub-phase A coding may begin on the B1/B2/B5/B6
+surface once those remaining items are closed.
 
 1. **Crate boundary (B5, compile blocker).** `anvil-intercept` depends only on
    `anvil-kernel-types`; `anvil-kernel` arrives only via dev-deps (`watcher.rs:28`
@@ -30,13 +38,23 @@ are predecessors):
    `anvil-intercept`; relocate the plain `ImportEdge`/`FileSymbols` structs to
    `anvil-kernel-types::graph`. The cycle audit is clean (kernel does not depend
    on intercept). *Predecessor to 2–3 — land the ADR-064 extraction first.*
-2. **Reverse index is net-new (B1, critical).** Task 7 caches a
+2. **Reverse index is net-new (B1, critical). ✅ Resolved 2026-06-02** — folded
+   into Task 6 (`certify(sym, dep, …)` signature), Task 7 (cache holds the pair +
+   `apply_delta` maintains the reverse index), ADR-061 §6, and contract §3; tests
+   `certify_uses_dependency_graph_reverse_not_symbol_graph_scan` +
+   `reverse_index_consistent_after_delta` recorded on Task 6. Task 7 caches a
    `(SymbolGraph, DependencyGraph)` pair per `WorktreeKey`; cold-build derives
    `DependencyGraph` from resolved import edges; `apply_delta` maintains the reverse
    index. **Task 6 signature → `certify(sym: &SymbolGraph, dep: &DependencyGraph, change, delta, budget)`.**
    `dependents_of` is **not** "existing / O(1)" — it has zero non-test callers today.
-3. **`certified` must not over-claim (B2, critical).** Only `run_antipattern_check`
-   (a stateless regex scanner on `anvil-kernel-types`) runs — the four structural
+3. **`certified` must not over-claim (B2, critical). ✅ Resolved 2026-06-02** —
+   `check_families: ["antipattern"]` added to the Task 1 frozen wire
+   (`ValidatePathsResponse` + `CheckFamily` enum) and the contract §1 response;
+   `coverage: certified` + the §7 parity gate scoped to that family in contract
+   §1/§3/§7 and ADR-061 §6; `PolicyEngine`/`run_embedded`-is-dead-in-prod noted in
+   both. Test `response_carries_check_families` recorded on Task 1. Only
+   `run_antipattern_check` (a stateless regex scanner on `anvil-kernel-types`) runs
+   — the four structural
    policy checks (`CrossLayerViolation`/`NewDependencyIntroduction`/`PublicApiExpansion`/`PrivilegeExpansion`,
    `embedded.rs:119-133`) do **not**. Add a **`check_families: ["antipattern"]`** field
    to `ValidatePathsResponse` and scope `coverage: certified` + the §8.2 parity gate
@@ -50,12 +68,14 @@ are predecessors):
    is fine *if defined in the proto crate, not re-declared daemon-local*); type
    `ValidatePathsResponse.diagnostics` against it; add scan_buffer↔validate_paths
    serialise-parity tests.
-5. **Initial assurance state (B6, critical).** Define initial state =
-   `Stale(CrossFileResolutionNeeded)` on first connect (Sub-phase A has no background
-   scheduler, so a workspace otherwise never reaches `clean` and `validate_paths`
-   returns `partial` on every call). `watch` auto-issues `request_full_scan` on
-   connect/reconnect. Update ADR-061 §9 diagram; test
-   `initial_workspace_state_is_stale_not_clean`.
+5. **Initial assurance state (B6, critical). ✅ Resolved 2026-06-02** — initial
+   `Stale(CrossFileResolutionNeeded)` + `watch` auto-`request_full_scan` on
+   connect/reconnect folded into contract §6, ADR-061 §9 (full lifecycle diagram
+   now starts at `(connect) → Stale(cross-file-resolution-needed)`), and Tasks 7/9;
+   tests `initial_workspace_state_is_stale_not_clean` +
+   `watch_auto_requests_full_scan_on_connect` recorded on Task 9. Sub-phase A has
+   no background scheduler, so the connect-time scan is the only path from initial
+   `Stale` to `clean`.
 6. **Export-surface conservative default (B4).** Default any modify touching
    public/privileged symbols to **partial/stale** until a real export-diff exists;
    add rename/delete/internal→public/re-export fixtures. Note `delta.removed_edges`
@@ -150,6 +170,7 @@ pub struct ChangeDescriptor {
 }
 pub struct ValidatePathsRequest { pub workspace_root: String, pub paths: Vec<ChangeDescriptor> }
 #[serde(rename_all = "snake_case")] pub enum Coverage { Certified, Partial }
+#[serde(rename_all = "kebab-case")] pub enum CheckFamily { Antipattern }   // B2: families the hot path runs; frozen as [antipattern] for sub-phase A
 #[serde(rename_all = "snake_case")] pub enum AssuranceState { Clean, Stale, Pending, Running, Unavailable }
 #[serde(rename_all = "kebab-case")] pub enum StaleReason {
     CrossFileResolutionNeeded, Deleted, Renamed, SymlinkRetarget,
@@ -168,11 +189,12 @@ pub struct ValidatePathsResponse {
     pub evaluated: Vec<EvaluatedPath>,
     pub workspace_assurance: WorkspaceAssurance,
     pub coverage: Coverage,
+    pub check_families: Vec<CheckFamily>,   // B2: `certified` attests ONLY these families (= [antipattern])
 }
 // WorkspaceStatusRequest/Response, RequestFullScanRequest/Response similarly.
 ```
 
-- [ ] Write failing tests: `validate_paths_method_const`, `change_descriptor_roundtrip_all_variants`, `response_tolerates_unknown_additive_field` (MLP2-052 forward-compat style — deserialize a JSON with an extra field, assert Ok), `stale_reason_kebab_wire_strings`, `no_graph_version_field` (assert serialized `WorkspaceAssurance`/`WorkspaceStatus` JSON has no `graph_version` key).
+- [ ] Write failing tests: `validate_paths_method_const`, `change_descriptor_roundtrip_all_variants`, `response_tolerates_unknown_additive_field` (MLP2-052 forward-compat style — deserialize a JSON with an extra field, assert Ok), `stale_reason_kebab_wire_strings`, `no_graph_version_field` (assert serialized `WorkspaceAssurance`/`WorkspaceStatus` JSON has no `graph_version` key), `response_carries_check_families` (B2: a `certified` response serialises `check_families: ["antipattern"]`).
 - [ ] Run: `cargo test -p eddacraft-anvil-intercept-proto` — verify fail.
 - [ ] Implement the types.
 - [ ] Run: `cargo test -p eddacraft-anvil-intercept-proto` — verify pass.
@@ -235,7 +257,7 @@ Reuse `DriverManifest::validate_workspace_roots` against active sessions. Add a 
 
 `fn certify(sym: &SymbolGraph, dep: &DependencyGraph, change: &CanonicalChange, delta: &GraphDelta, budget: usize) -> Certifiability` where `Certifiability = Certified { paths: Vec<PathBuf> } | Partial { reason: StaleReason }`. **(Corrected per B1: takes the net-new `DependencyGraph` — `dependents_of` lives there, not on `SymbolGraph`.)** Logic: no export-surface delta ⇒ `Certified{[file]}`; else expand `dep.dependents_of(file)` (1-hop), recurse on re-export surface changes, bounded by `budget`; overflow ⇒ `Partial{ImpactSetOverflow}`. Conservative default (B4): any modify touching public/privileged symbols defaults to `Partial` until a real export-surface diff exists.
 
-- [ ] Failing tests: `content_modify_no_export_change_certifies_self_only`, `export_surface_change_pulls_in_direct_importers`, `delete_invalidates_importers`, `reexport_chain_recurses_within_budget`, `overflow_returns_partial`. The headline: `new_export_making_unchanged_importer_illegal_is_not_certified_clean` (the reverse-dependency soundness case).
+- [ ] Failing tests: `content_modify_no_export_change_certifies_self_only`, `export_surface_change_pulls_in_direct_importers`, `delete_invalidates_importers`, `reexport_chain_recurses_within_budget`, `overflow_returns_partial`. The headline: `new_export_making_unchanged_importer_illegal_is_not_certified_clean` (the reverse-dependency soundness case). **B1-required:** `certify_uses_dependency_graph_reverse_not_symbol_graph_scan` (asserts the closure reads `dep.dependents_of`, not a `SymbolGraph` scan) and `reverse_index_consistent_after_delta` (the `apply_delta`-maintained reverse index matches a cold rebuild).
 - [ ] Run `cargo test -p eddacraft-anvil-intercept certify` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): bounded reverse-impact closure certifiability (ADR-061 §6)`
 
@@ -272,7 +294,7 @@ Orchestrate: auth (Task 2) → for each path classify (Task 4) + read-safe bytes
 
 State machine **initial `Stale(CrossFileResolutionNeeded)` (B6) →** `Pending→Running→Clean`, then `Clean→Stale` on an uncertifiable delta; `reason` non-optional for `Stale`; `scan_started_at` for `Running`; structured transition log via the ADR-035 Notification envelope (named fields, not a bare INFO line — B8); scan-timeout ⇒ `Stale(ScanTimeout)`; daemon restart ⇒ any `Running` becomes `Stale`. `watch` auto-issues `request_full_scan` on connect/reconnect. Dispatch arms for `workspace_status` + `request_full_scan` (job handle, interactive|background priority).
 
-- [ ] Failing tests: `transition_emits_log`, `stale_requires_reason`, `running_carries_scan_started_at`, `scan_timeout_to_stale`, `restart_running_becomes_stale`, `workspace_status_reports_state`, `request_full_scan_returns_job`.
+- [ ] Failing tests: `transition_emits_log`, `stale_requires_reason`, `running_carries_scan_started_at`, `scan_timeout_to_stale`, `restart_running_becomes_stale`, `workspace_status_reports_state`, `request_full_scan_returns_job`. **B6-required:** `initial_workspace_state_is_stale_not_clean` (a fresh/cold-key workspace starts `Stale(CrossFileResolutionNeeded)`, and `validate_paths` on it returns `coverage: partial` until a scan completes) and `watch_auto_requests_full_scan_on_connect`.
 - [ ] Run `cargo test -p eddacraft-anvil-intercept assurance` — fail → implement → pass.
 - [ ] Commit: `feat(intercept): workspace assurance lifecycle + status/full_scan verbs (ADR-061 §9)`
 

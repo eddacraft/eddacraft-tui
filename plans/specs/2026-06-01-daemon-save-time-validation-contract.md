@@ -39,7 +39,9 @@ response {
                                                     // NO raw source spans/snippets by default
   evaluated: [ { path: string, content_hash: string } ],  // the state actually evaluated (post-coalesce)
   workspace_assurance: WorkspaceAssurance,
-  coverage: "certified" | "partial"  // pure function of state: certified iff state == clean
+  coverage: "certified" | "partial", // pure function of state: certified iff state == clean
+  check_families: ["antipattern"]    // the check families this verdict actually evaluated (B2);
+                                      // `certified` attests ONLY these families — see §3
 }
 ```
 
@@ -57,6 +59,18 @@ response {
 
 Notes:
 
+- `check_families` (B2, council review 2026-06-01) names exactly the check
+  families the hot path ran — frozen as `["antipattern"]` for Sub-phase A.
+  `coverage: certified` therefore attests **antipattern cleanliness only**, never
+  whole-repo structural-policy assurance. This is deliberate: the four structural
+  policy checks (`CrossLayerViolation` / `NewDependencyIntroduction` /
+  `PublicApiExpansion` / `PrivilegeExpansion`, `embedded.rs:119-133`) run via
+  `PolicyEngine`/`run_embedded`, which has **zero production callers today** — the
+  live structural engine is whole-repo `anvil gate`, and `watch`'s `anvil check`
+  is itself antipattern-only. Forcing the policy engine onto the save-time hot
+  path would reintroduce the CPU regression this contract exists to remove. A
+  correctly-labelled antipattern-only verdict is sound; an *unlabelled* one would
+  be a false attestation — hence the explicit, frozen `check_families`.
 - `content_hash`/`mtime` are advisory cache hints. The daemon MUST derive every
   verdict from bytes it reads itself under the §4 dirfd. A client that omits them
   is fully supported (a cold MCP client will).
@@ -224,8 +238,20 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 
 ## 6. Assurance lifecycle, observability, fallback
 
-- Lifecycle: `clean → stale` on an uncertifiable delta; `stale → pending →
-  running → clean` via the background scheduler.
+- **Initial state (B6, council review 2026-06-01):** a freshly connected (or
+  reconnected, or cold-cache-key) workspace starts at
+  `stale(reason: cross-file-resolution-needed)` — **never `clean`**. Cross-file
+  resolution has not run, so nothing has been certified yet. Without this, contract
+  line "`certified` iff `clean`" would leave `validate_paths` returning `partial`
+  on *every* call until a client manually scanned.
+- **Auto-scan on connect (B6):** the `watch` client auto-issues
+  `request_full_scan` on connect and on reconnect, so a workspace reaches `clean`
+  without operator action. (The standing background scheduler is Sub-phase B; in
+  Sub-phase A the connect-time scan is the only path from initial `stale` to
+  `clean`.)
+- Lifecycle: `(connect) → stale(cross-file-resolution-needed) → pending →
+  running → clean`; thereafter `clean → stale` on an uncertifiable delta, and
+  `stale → pending → running → clean` via the (Sub-phase B) background scheduler.
 - `reason` is non-optional for `stale`; `scan_started_at` present for `running`;
   daemon emits a structured INFO log on every transition.
 - A background scan over a configurable timeout → `stale(reason: scan-timeout)`;
@@ -239,10 +265,12 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 ## 7. Gated correctness bar (Phase-2 hard blockers)
 
 1. Exhaustive invalidation taxonomy (§2) incl. mandatory inode classification.
-2. Cross-path diagnostic parity — golden corpus, identical finding sets across
-   watch+daemon, watch+fallback, MCP+daemon, MCP+fallback, **order-normalised**
-   by `(path, rule_id, span_start)`; shared config discovery off `workspace_root`;
-   `workspace_assurance` carved out of parity.
+2. Cross-path diagnostic parity — golden corpus, identical **antipattern-family**
+   finding sets (B2: scoped to `check_families: ["antipattern"]`, matching the
+   `coverage: certified` claim) across watch+daemon, watch+fallback, MCP+daemon,
+   MCP+fallback, **order-normalised** by `(path, rule_id, span_start)`; shared
+   config discovery off `workspace_root`; `workspace_assurance` carved out of
+   parity.
 3. `workspace_root` authorisation + read-safety (§4).
 
 ## 8. Resource model & SLO

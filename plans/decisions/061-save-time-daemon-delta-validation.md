@@ -186,7 +186,20 @@ stays `Clean`.
 ### 6. Certifiability is a bounded reverse-impact closure, not a forward-only check
 
 `validate_paths` returns `coverage: certified | partial`, where `certified` iff
-the workspace is `Clean`. The certifiable/partial decision:
+the workspace is `Clean`.
+
+**Coverage is family-scoped (B2, council review 2026-06-01).** The response
+carries `check_families: ["antipattern"]`, and `certified` attests **antipattern
+cleanliness only** — not whole-repo structural-policy assurance. The four
+structural policy checks (`CrossLayerViolation` / `NewDependencyIntroduction` /
+`PublicApiExpansion` / `PrivilegeExpansion`) run via `PolicyEngine`/`run_embedded`,
+which has **zero production callers today**; the live structural engine is
+whole-repo `anvil gate`, and `watch`'s `anvil check` is itself antipattern-only.
+Forcing the policy engine onto the save-time hot path would reintroduce the CPU
+regression this ADR exists to remove, so we narrow the *claim* (label the family)
+rather than widen the *work*. A correctly-labelled antipattern-only verdict is
+sound; an unlabelled one would be a false attestation. The certifiable/partial
+decision (within the antipattern family):
 
 - A `ContentModify` with **no export-surface change** (read from the
   `update_file` `GraphDelta`) is self-contained → validate that file only →
@@ -258,7 +271,9 @@ Three correctness gates are hard blockers for Phase 2 merge:
 1. **Exhaustive invalidation taxonomy** (§5), including mandatory inode-based
    change classification.
 2. **Cross-path diagnostic parity** — a golden-corpus test asserting identical
-   finding sets across watch+daemon, watch+fallback, MCP+daemon, MCP+fallback,
+   **antipattern-family** finding sets (B2: scoped to
+   `check_families: ["antipattern"]`, matching the `coverage: certified` claim)
+   across watch+daemon, watch+fallback, MCP+daemon, MCP+fallback,
    with shared config discovery off `workspace_root`. Because warm (incremental)
    and cold (full-walk) paths order findings differently, parity is defined as
    **order-normalised** by `(path, rule_id, span_start)` — both paths sort
@@ -269,10 +284,23 @@ Three correctness gates are hard blockers for Phase 2 merge:
 
 ### 9. Assurance lifecycle, observability, and fallback
 
-`Clean → Stale` on an uncertifiable delta (§5/§6); `Stale → Pending → Running →
-Clean` via the background scheduler. `workspace_status` carries a **non-optional
-`reason`** for `Stale`, a `scan_started_at` for `Running`, and the daemon emits
-a structured INFO log on every state transition. A background scan exceeding a
+**Initial state (B6, council review 2026-06-01):** a freshly connected,
+reconnected, or cold-cache-key workspace begins at
+`Stale(reason: cross-file-resolution-needed)` — **never `Clean`** (nothing has
+been certified yet). The `watch` client auto-issues `request_full_scan` on
+connect and reconnect, so a workspace reaches `Clean` without operator action; in
+Sub-phase A that connect-time scan is the only path out of the initial `Stale`
+(the standing background scheduler is Sub-phase B). Without a defined initial
+state, "`certified` iff `Clean`" would make `validate_paths` return `partial` on
+every call until a client manually scanned.
+
+Full lifecycle:
+`(connect) → Stale(cross-file-resolution-needed) → Pending → Running → Clean`;
+thereafter `Clean → Stale` on an uncertifiable delta (§5/§6) and
+`Stale → Pending → Running → Clean` via the background scheduler.
+`workspace_status` carries a **non-optional `reason`** for `Stale`, a
+`scan_started_at` for `Running`, and the daemon emits a structured INFO log on
+every state transition. A background scan exceeding a
 configurable timeout transitions to `Stale(reason: scan-timeout)`; on daemon
 restart, any `Running` workspace becomes `Stale` (the in-flight scan did not
 complete). When the daemon is absent, the fallback returns
@@ -312,9 +340,11 @@ byte-identical across sub-phases A and B.
 The save-time path was doing whole-repo, cold, uncoordinated work per save. The
 fix is not "make `check --all` faster" — it is "stop doing it on every save",
 then coordinate the cheap delta path through the one warm, permissioned process
-that already exists. Because the daemon, the warm graph maintainer (with its
-reverse-dependency index), and a scoped in-process check library already exist,
-the architectural work is wiring, a classification layer, and a warm-state slice
+that already exists. Because the daemon, the warm graph maintainer (the
+`SymbolGraph` cache — the **reverse-dependency `DependencyGraph` index is net-new**,
+built and maintained by sub-phase A; B1), and a scoped in-process check library
+already exist, the architectural work is wiring, a classification layer, the
+net-new reverse index, and a warm-state slice
 — not new runtime machinery. Holding the wire verdict-shaped (the generalisation
 of `scan_buffer`/`kernel.evaluate`) lets the SymbolGraph backing ship first and
 the GV2 slice swap in later without breaking a single consumer.
@@ -323,7 +353,7 @@ the GV2 slice swap in later without breaking a single consumer.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Daemon-mediated delta validation (chosen)** | Reuses the existing daemon, protocol, reverse-dependency index, and in-process check library; one warm model and one work budget across watch/MCP/intercept; fixes per-process rayon oversubscription; verdict-shaped wire frozen against the GV2 backing swap | Requires warm graph state in the daemon and re-pointing MCP; assurance + confinement are new surface |
+| **Daemon-mediated delta validation (chosen)** | Reuses the existing daemon, protocol, `SymbolGraph` maintainer, and in-process check library (the reverse-dependency `DependencyGraph` index is net-new — B1); one warm model and one work budget across watch/MCP/intercept; fixes per-process rayon oversubscription; verdict-shaped wire frozen against the GV2 backing swap | Requires warm graph state in the daemon, the net-new reverse index, and re-pointing MCP; assurance + confinement are new surface |
 | **Only scope the per-save check to changed paths** | Tiny, no daemon/GV2 dependency; large immediate CPU drop | Still cold-spawns per save; no shared warm state; doesn't fix cross-process oversubscription or multi-agent coordination. Shipped as Phase 1 (RLB-007), not the end state |
 | **Two graph-cache designs (MLP2-067 `kernel.evaluate` + ADR-061 hot-read)** | Each independently scoped | Two competing daemon graph-cache contracts that drift. Resolved by folding MLP2-067 into sub-phase A as the interim backing under the one `validate_paths` wire |
 | **One shared rayon pool, "interactive preempts background"** | Simplest to describe | Rayon has no preemption; not implementable. Replaced by two cooperating pools + chunked-yield background scans |
