@@ -1,21 +1,17 @@
 //! `Grid` — fixed-column grid layout (`@eddacraft/render` shadcn built-in).
 //!
 //! Places children left-to-right, top-to-bottom across `columns` equal columns.
-//! Per D-TUIDASH-003 and the TUIDASH-004 outcome, a narrow terminal (width below
-//! [`NARROW_WIDTH`]) collapses the grid to a single column (vertical stacking),
-//! since side-by-side cells become unreadable when each is only a few cells wide.
+//! Per D-TUIDASH-003 and the TUIDASH-004 outcome, a [narrow](Breakpoint::is_narrow)
+//! terminal collapses the grid to a single column (vertical stacking), since
+//! side-by-side cells become unreadable when each is only a few cells wide.
 //! Draws no chrome of its own.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 
 use super::props::{gap_spacing, usize_prop};
+use crate::json_render::responsive::Breakpoint;
 use crate::json_render::{Props, TuiComponent};
-
-/// Below this terminal width the grid collapses to one column. Two 3-wide cells
-/// either side of a gap carry no readable content, so stacking is strictly
-/// better; the threshold matches the web `md` breakpoint intent.
-pub const NARROW_WIDTH: u16 = 100;
 
 /// Renders the `Grid` component.
 pub struct Grid;
@@ -28,7 +24,7 @@ impl Grid {
         // `columns` defaults to 2 (the common metric-row shape); 0 or absent is
         // coerced to a sane minimum so we never divide by zero.
         let mut columns = usize_prop(props, "columns").unwrap_or(2).max(1);
-        if area.width < NARROW_WIDTH {
+        if Breakpoint::for_area(area).is_narrow() {
             columns = 1;
         }
         columns = columns.min(child_count);
