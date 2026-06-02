@@ -130,6 +130,7 @@ Decisions supporting the [2026-04-08 Language and Coverage Design](../specs/2026
 
 | ADR | Decision | Status |
 |-----|----------|--------|
+| [065](065-rust-t3-architecture-enforcement.md) | Rust T3 architecture enforcement location is Rust-native (`crates/anvil-architecture` + kernel parser edges); no TS shim. Authoritative for layer/boundary, baseline, `architecture-validate` on Rust (and future anchors). TS analyser is legacy surface only. Realises council §16.5 #5 (C-019); unblocks RSTLAN Ready promotion and NBI re-eval completion. | Accepted |
 | [027](027-pack-architecture.md) | Per-pack crate, kernel symbol-graph access, compiled-in activation; `crates/anvil-pack-{name}/` registered through `crates/anvil-packs/` | Accepted |
 | [028](028-markdown-governance-crate.md) | Markdown governance lives in standalone Rust crate `crates/anvil-markdown-governance/` with `pulldown-cmark` — not the kernel | Accepted (rationale strengthened by ADR-033) |
 | [029](029-suppression-parser-authority.md) | Rust suppression parser is authoritative for new surfaces; no new comment styles added to the TS parser | Accepted (amended by ADR-033 — TS parser retired) |

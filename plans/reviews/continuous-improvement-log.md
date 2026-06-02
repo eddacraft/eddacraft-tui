@@ -1393,3 +1393,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Terminal commands became unavailable after worktree dir removal (expected, as agent CWD was the removed workspace); switched to absolute-path tools (list_dir etc.) for verification.
 - **Improvement:** none.
 - **Follow-up:** Once PR merges, local branch ref `fix/cib-035-drift-check-advisory` (and the historical "CIB" branch if no longer needed) can be deleted locally with `git branch -D`. Remote branch will be cleaned by GitHub. The main checkout remains clean.
+
+### 2026-06-03 — claude (dev-workflow + NBI)
+
+- **Task:** Complete the Next Best Item (NBI) "RSTLAN re-eval — Rust anchor scoping" via full dev-workflow (planning-workflow entry, no code branch for pure scoping, APS/ADR updates, validation, closeout).
+- **Outcome:** NBI item closed in index. Created anchor-rescore-2026-06-03.md; authored+accepted ADR-065 (Rust T3 enforcement = Rust-native); promoted lang-rust.aps.md to Ready 0/8 with 8 detailed executable work items; updated index.aps.md (NBI row, module table, §16.5 table, target-set prose); added ADR-065 to DECISION-LOG (new Language & Coverage section); adr:check green (66/66).
+- **Worked:** Followed dev-workflow strictly (planning first, aps truth, no premature branch for planning phase, used worktree for isolation anyway); used targeted search_replace on large index; cross-links and stale notes updated inline; snapshot + ADR reference each other and the modules.
+- **Failed:** pnpm docs:check / full meta build failed due to missing node_modules in this shell env (pre-existing for non-TS work); fell back to adr:check (the live integrity gate) + manual.
+- **Friction:** index.aps.md is a 37k-token monster — had to use grep + exact string replaces rather than broad edits; no local `wt` flag for "from main in sibling" forced a two-command sequence.
+- **Improvement:** The NBI selector in index is an effective "single source of next planning trigger"; completing it via planning-workflow + agent-edited APS feels like the intended loop. Consider a small `scripts/aps/promote-ready.mjs` helper for future anchor scoping (not filed).
+- **Follow-up:** Hand back to dev-workflow for first RSTLAN-001 (grammar) once user confirms; the Ready items are now authorised. Update NBI table with whatever is next best (USAGE 0/3, EDGE 0/24, or a CIB) in a future bookkeeping pass. No post-merge review file needed (this was APS+ADR scoping, not a feature PR).

@@ -105,7 +105,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | RSTLAN re-eval — Rust anchor scoping | Schedule | [`lang-ts-audit`](./modules/lang-ts-audit.aps.md) | LANGTS hit 6/6 (TS anchor's first T3 pass complete) via PR #2125; CIB-031 dependency-audit scoping landed via PR #2128. The module's 2026-04-26 re-scoring gate flagged Rust catching up faster than the spec assumed, so the next anchor focus needs shaping. | Owner to open/refresh the RSTLAN scope and promote concrete Ready items. |
+| 1 | RSTLAN re-eval — Rust anchor scoping | Done (2026-06-03) | [`lang-ts-audit`](./modules/lang-ts-audit.aps.md) + [`lang-rust`](./modules/lang-rust.aps.md) | NBI completed: re-scoring snapshot `anchor-rescore-2026-06-03.md` recorded (Rust demand/strategic elevated for dogfood); ADR-065 Accepted (Rust-native enforcement); RSTLAN module promoted Ready 0/8 with executable items; owner @aneki named. Sequence unchanged (TS → Rust → Python). | NBI item closed. Next NBI selection deferred to subsequent review (see current Ready modules: USAGE, EDGE, DASH*, OPAG, etc.). |
 
 ## Release Plan
 
@@ -605,7 +605,7 @@ shared operational prerequisites for Track 3 surfaces and Track 4 packs; it does
 not duplicate their rule-catalogue work.
 
 **Next target set:** Phase 1 stays the first cut unless re-scored:
-`LANGTS` anchor zero, `RSTLAN`, `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
+`LANGTS` (complete 6/6), `RSTLAN` (Ready 0/8 post-NBI re-eval 2026-06-03), `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
 needed OPSUP slices and FLAGCAT catalogue-bootstrap slice completed first or
 cited as `Blocks on:` callouts in the owning tasks. Modules still marked
 `Proposed` must be promoted to `Ready` with executable tasks before
@@ -632,7 +632,7 @@ Python must hit. Spec §7, §8.1.
 | Module                                          | Scope  | Status | Phase | Spec ref                                                                                                                                                   |
 | ----------------------------------------------- | ------ | ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [lang-ts-audit](./modules/lang-ts-audit.aps.md) | LANGTS | In Progress | 1     | §7.3, §8.1 — 6/6 (all items merged; In Progress pending release tag); promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval); LANGTS-006 dynamic-eval antipattern Merged 2026-05-21 via PR #1820 `bcb96175` (AP-008 + AP-009 in new `dynamic-execution` family; `Function.prototype.constructor` deferred pending AST-aware filter); 2026-05-28 — two bounded OQs resolved inline (single module, no `lang-ts-prereq` split; K1 extractor-trait ADR deferred to RSTLAN per audit §8), so LANGTS-002/-004/-005 promoted from anticipated bullets to Ready work items; LANGTS-005 kernel-prereq refactor (K1–K4: extractor trait, grammar-versioned cache key, per-worker parser, non-panicking parse path) Merged 2026-05-29 via PR #2096 — unblocks the RSTLAN extractor wiring; LANGTS-002 TS extraction gaps (TS-G1 interface/type/enum + TS-G2 class-method symbols) Merged 2026-05-29 via PR #2106, advancing to 5/6; LANGTS-004 Zod-creep rules Merged 2026-05-30 via PR #2125 (AP-015 `z.any()`/`.passthrough()` on by default + AP-016 `z.unknown()` opt-in; renumbered off the retired AP-010..AP-013 range), advancing to 6/6 |
-| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Proposed | 1     | §8.1 — promoted into first-phase target set 2026-05-14; remains Proposed until LANGTS/kernel/ADR readiness gates close                                      |
+| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Ready  | 0/8   | §8.1 — NBI re-eval complete 2026-06-03; ADR-065 (Rust-native) Accepted; re-score snapshot recorded (Rust #2 for dogfood); LANGTS/kernel gates satisfied; module promoted Proposed → Ready with 8 executable work items (grammar, extraction, T2 catalogue, entry, boundary per ADR, drift, validate surface, dogfood). Owner @aneki. |
 | [lang-python](./modules/lang-python.aps.md)     | PYLAN  | Draft  | 2     | §8.1                                                                                                                                                       |
 
 #### Track 2 — Tail T1 wave (single batched sprint)
@@ -747,7 +747,7 @@ it, each new module would re-design the same plumbing.
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | §16.5 #3 — kernel prerequisite work (extractor refactor, grammar version in cache key, parser thread-safety, panic removal, grammar maturity audit) | Captured in LANGTS Ready Checklist; needs implementation                         |
 | §16.5 #4 — pack architecture                                                                                                                        | ✅ ADR-027 (Accepted)                                                            |
-| §16.5 #5 — Rust T3 architecture enforcement location                                                                                                | Captured in RSTLAN Ready Checklist; ADR not yet written                          |
+| §16.5 #5 — Rust T3 architecture enforcement location                                                                                                | ✅ ADR-065 Accepted 2026-06-03 (Rust-native in anvil-architecture + kernel edges); RSTLAN promoted Ready; captured in lang-rust.aps.md Ready Checklist and work items. |
 | §16.5 #7 — operational supplement                                                                                                                   | ✅ OPSUP module created                                                          |
 | §16.5 #8 — anchor re-scoring process gate                                                                                                           | ✅ Process guide created; permanent owner still open                             |
 | §16.5 #9 — acceptance bar revision (FP rate < N% AND ≥1 external codebase)                                                                          | Captured in each module's Ready Checklist; canonical wording not yet centralised |
