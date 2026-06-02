@@ -140,7 +140,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-001: Extract `eddacraft-anvil-graph-cache` (ADR-064 / B5)
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-03 via PR #2254
 - **Intent:** Give the daemon a parser-free crate that owns the graph state and
   algorithms so the certify/cache work can compile without dragging tree-sitter
   into the resident daemon.
@@ -386,7 +386,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 1/9 done | In Progress |
+| A — Interim-cache `validate_paths` | 9 | 2/9 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **1/11 done** | **In Progress** |
+| **Total** | **11** | **2/11 done** | **In Progress** |
