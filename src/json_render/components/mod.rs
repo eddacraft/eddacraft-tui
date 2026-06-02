@@ -171,13 +171,22 @@ mod props {
         }
     }
 
-    /// Read a prop that is a JSON array of numbers into a `Vec<f64>`, skipping
-    /// any non-numeric entries. An absent or non-array prop yields an empty vec.
-    pub(super) fn f64_array(props: &Props, key: &str) -> Vec<f64> {
+    /// Read a prop that is a JSON array of numbers into a `Vec<f64>` of at most
+    /// `max` entries, skipping non-numeric ones. The `take(max)` runs *during*
+    /// iteration, so an attacker-controlled array never materialises a giant
+    /// intermediate `Vec` — only `max` points are ever allocated. An absent or
+    /// non-array prop yields an empty vec.
+    pub(super) fn f64_array_capped(props: &Props, key: &str, max: usize) -> Vec<f64> {
         props
             .get(key)
             .and_then(serde_json::Value::as_array)
-            .map(|items| items.iter().filter_map(serde_json::Value::as_f64).collect())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(serde_json::Value::as_f64)
+                    .take(max)
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
