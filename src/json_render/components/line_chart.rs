@@ -30,10 +30,12 @@ impl TuiComponent for LineChart {
         if area.width == 0 || area.height == 0 {
             return;
         }
-        let values = f64_array(props, "data");
+        let mut values = f64_array(props, "data");
         if values.is_empty() {
             return;
         }
+        // Cap points fed to the chart per frame (DoS guard).
+        values.truncate(super::MAX_CHART_POINTS);
         let theme = EddaCraftTheme;
 
         let points: Vec<(f64, f64)> = values
@@ -109,6 +111,14 @@ mod tests {
     fn flat_series_does_not_collapse_the_axis() {
         // Equal values would give a zero-height y-axis; the pad must keep it valid.
         draw(json!({ "data": [7, 7, 7, 7] }).as_object().unwrap());
+    }
+
+    #[test]
+    fn huge_data_is_capped_and_does_not_blow_up() {
+        // Far more points than MAX_CHART_POINTS must render without a giant
+        // per-frame allocation or panic.
+        let data: Vec<serde_json::Value> = (0..50_000).map(|i| json!(i % 7)).collect();
+        draw(json!({ "data": data }).as_object().unwrap());
     }
 
     #[test]

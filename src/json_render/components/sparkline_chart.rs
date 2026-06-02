@@ -28,6 +28,7 @@ impl TuiComponent for SparklineChart {
         // Sparkline takes unsigned bar heights; clamp out negatives and round.
         let data: Vec<u64> = f64_array(props, "data")
             .into_iter()
+            .take(super::MAX_CHART_POINTS)
             .map(round_to_u64)
             .collect();
         frame.render_widget(
@@ -55,6 +56,16 @@ mod tests {
     fn renders_data_without_panic() {
         let p = json!({ "data": [1, 4, 2, 8, 5, -3, 7] });
         let mut terminal = Terminal::new(TestBackend::new(14, 1)).expect("backend");
+        terminal
+            .draw(|frame| SparklineChart.render(p.as_object().expect("obj"), frame, frame.area()))
+            .expect("draw");
+    }
+
+    #[test]
+    fn huge_data_is_capped_and_does_not_blow_up() {
+        let data: Vec<serde_json::Value> = (0..50_000).map(|_| json!(3)).collect();
+        let p = json!({ "data": data });
+        let mut terminal = Terminal::new(TestBackend::new(20, 1)).expect("backend");
         terminal
             .draw(|frame| SparklineChart.render(p.as_object().expect("obj"), frame, frame.area()))
             .expect("draw");
