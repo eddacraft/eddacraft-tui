@@ -250,7 +250,11 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::status::tests::first_week_hint_shown_once`
   - `cargo test -p eddacraft-anvil commands::status::tests::hint_suppressed_after_use`
-- **Status:** Draft
+- **Status:** Ready (promoted 2026-06-02 — both dependencies satisfied:
+  INSIGHTS-001 Released/Shipped, MLP-001 Done; the prior Draft was a v0.7.0
+  tag-time scope-cut, not a technical block. Per this module's Sequencing,
+  -002/-003/-004 are parallel after -001, and -002/-003 already shipped.
+  Daemon-independent 0.8.0 freight.)
 - **Dependencies:** INSIGHTS-001, MLP-001 (install timestamp)
 - **changeType:** feature
 - **releaseIntent:** candidate

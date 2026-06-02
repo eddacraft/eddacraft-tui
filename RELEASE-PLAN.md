@@ -56,11 +56,11 @@ the gates are green — no calendar gate.**
 
 ### Phase plan
 
-| Phase                                              | Scope                                                                                                                                                                                                       | State                                                                          |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **Daemon sub-phase A** (headline)                  | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary (Accepted). | **Gated** — see corrections below; do not start until B1/B2/B5/B6 are resolved |
-| **Ready freight** (parallel, no daemon dependency) | RLB-002/003/004/005/008 (resource benches + SLO gate); TUIDASH-003..012 (dashboard renderer, rides `eddacraft-tui 0.2.4`); INSIGHTS-004; RTAI-007/009                                                       | **Ready** to build now                                                         |
-| **Closeout hygiene**                               | POLENG (9/9) + DISTRIB (6/6) → `Complete` after tag verification; GV2 gate-row → reflect ADR-063                                                                                                            | pending                                                                        |
+| Phase                                              | Scope                                                                                                                                                                                                                                                                                                                                        | State                                                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Daemon sub-phase A** (headline)                  | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary + [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md) the crate boundary (both Accepted).                               | **Gated** — see corrections below; do not start until B1/B2/B6 are resolved (B5 resolved by ADR-064) |
+| **Ready freight** (parallel, no daemon dependency) | RLB-002/003/004/005/008 (resource benches + SLO gate, 5 Ready); TUIDASH-003..012 (dashboard renderer chain, rides `eddacraft-tui 0.2.4` — internally sequenced, ~2-3-wide); INSIGHTS-004 (Ready 2026-06-02); RTAI-007 (Ready 2026-06-02); RTAI-009 (Ready, doc-only, scoped to shipped surfaces — RTAI-005 editor path parked under ADR-033) | **Ready** to build now                                                                               |
+| **Closeout hygiene**                               | POLENG (9/9) + DISTRIB (6/6) → `Complete` after tag verification; GV2 gate-row → reflect ADR-063                                                                                                                                                                                                                                             | pending                                                                                              |
 
 ### Sub-phase A is gated on the architecture review council
 
@@ -75,8 +75,10 @@ A review council
 - **B2** — `coverage: certified` must not over-claim; scope it to
   `check_families: ["antipattern"]` (do **not** run the full policy engine on
   the hot path — reopens the CPU regression).
-- **B5** — resolve the `intercept → kernel` crate-boundary inversion (compile
-  blocker) — the **next predecessor**, drafted as an ADR.
+- **B5** — ✅ **Resolved** by
+  [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md)
+  (Accepted 2026-06-02): extract `anvil-graph-cache`; the daemon depends on it
+  for the `(SymbolGraph, DependencyGraph)` cache without linking the parser.
 - **B6** — define the initial workspace assurance state (`Stale`, not `Clean`).
 
 ### Cut criteria
@@ -116,7 +118,7 @@ Authoritative source:
 
 | Risk                                                                                        | Mitigation                                                                                                                                   |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sub-phase A starts before its blockers are resolved and ships an unsound `certified` claim. | The council corrections (B1/B2/B5/B6) are a hard gate in the sub-phase A plan; the cut criteria require them.                                |
+| Sub-phase A starts before its blockers are resolved and ships an unsound `certified` claim. | The council corrections (B1/B2/B6; B5 resolved by ADR-064) are a hard gate in the sub-phase A plan; the cut criteria require them.           |
 | Scope creep pulls GV2 / sub-phase A′ into the window and slips the cut.                     | A′ and the GV2 modules are explicitly deferred; the window is the interim-cache slice only.                                                  |
 | Daemon save-time work re-introduces the CPU problem it exists to fix.                       | The 1-hop reverse-impact cap (ADR-063, a hard-capped lever) + the ADR-031 latency budget + the two-pool isolation keep the hot path bounded. |
 | The window accretes (this document rots back into a historical record).                     | "How this document works" + the closeout prune step keep it to one active window.                                                            |
