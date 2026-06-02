@@ -4,8 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use anvil_kernel_types::diagnostics::ControlDecision;
+use anvil_kernel_types::diagnostics::Severity;
 use anvil_kernel_types::{
-    Notification, NotificationClass, NotificationContext, NotificationPriority,
+    Diagnostic, Notification, NotificationClass, NotificationContext, NotificationPriority,
 };
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
@@ -134,6 +135,48 @@ impl TelemetryEmitter {
     ) -> NotificationEnvelope {
         let context = self.next_context(correlation);
         delivered_envelope_for_decision(&context, decision)
+    }
+
+    /// RTAI-007: build the telemetry-mirror envelope for one mid-edit
+    /// (`scan_buffer`, `mode = midEdit`) decision. The outcome class is
+    /// derived from the diagnostics via [`midedit_decision_class`]
+    /// (allow / warn / block — `interrupt` never applies mid-edit), and
+    /// the mirror carries [`MirrorPath::MidEdit`] so subscribers split
+    /// in-flight from save-time without parsing the rule id.
+    ///
+    /// The envelope shares the canonical `anvil.notification.v1` shape
+    /// and `correlation.source = "intercept"` with the save-time path,
+    /// so an INTD-015 fan-out (`crate::fanout`) redacts it with the
+    /// same machinery — the `mirror.path` discriminator survives
+    /// redaction unchanged.
+    pub fn midedit_envelope_for_decision(
+        &mut self,
+        correlation: TelemetryCorrelation,
+        diagnostics: &[Diagnostic],
+    ) -> NotificationEnvelope {
+        let context = self.next_context(correlation);
+        midedit_envelope(&context, diagnostics)
+    }
+
+    /// Convenience builder mirroring
+    /// [`Self::delivered_envelope_for_decision_from`]: populate the
+    /// INTD-015 `originating_session_id` / `originating_driver_id`
+    /// scoping fields from a single session+driver pair so the fan-out
+    /// can authorise (or redact) the mid-edit envelope.
+    pub fn midedit_envelope_for_decision_from(
+        &mut self,
+        session_id: impl Into<String>,
+        driver_id: impl Into<String>,
+        diagnostics: &[Diagnostic],
+    ) -> NotificationEnvelope {
+        let session_id = session_id.into();
+        let correlation = TelemetryCorrelation {
+            session_id: Some(session_id.clone()),
+            originating_session_id: Some(session_id),
+            originating_driver_id: Some(driver_id.into()),
+            ..TelemetryCorrelation::default()
+        };
+        self.midedit_envelope_for_decision(correlation, diagnostics)
     }
 
     pub fn failed_send_health_envelope(
@@ -276,6 +319,21 @@ pub struct NotificationTransition {
     pub to: String,
 }
 
+/// RTAI-007: surface discriminator on the `mirror` block so a
+/// subscriber can split in-flight (mid-edit) decisions from save-time
+/// decisions **without parsing the rule id**. Save-time envelopes omit
+/// the field entirely (`None` → not serialised), so the pre-RTAI-007
+/// wire shape is byte-identical; mid-edit envelopes carry
+/// [`MirrorPath::MidEdit`] which renders as the canonical `"midEdit"`
+/// string shared with `kindling_observation::MIDEDIT_GATE_ID`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MirrorPath {
+    /// The decision was produced on the in-flight `scan_buffer`
+    /// mid-edit path (RTAI-002), not the save-time enforcement path.
+    MidEdit,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NotificationMirror {
     pub decision: ControlDecision,
@@ -283,6 +341,13 @@ pub struct NotificationMirror {
     pub ack_required: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub control_correlation_id: Option<String>,
+    /// RTAI-007: `None` for save-time decisions (field omitted on the
+    /// wire); `Some(MirrorPath::MidEdit)` for decisions produced on the
+    /// mid-edit `scan_buffer` path. INTD-015 redaction preserves this
+    /// field unchanged so cross-session subscribers can still tell
+    /// in-flight from save-time without seeing the redacted payload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<MirrorPath>,
 }
 
 #[must_use]
@@ -344,6 +409,98 @@ pub(crate) fn delivered_envelope_for_decision(
     )
 }
 
+/// RTAI-007: map a mid-edit diagnostic batch to its advisory outcome
+/// class. Mid-edit is advisory, so the vocabulary is `allow` / `warn` /
+/// `block` only — `interrupt` (the refuse-the-write verdict) never
+/// applies on this path. The worst severity in the batch wins:
+/// any `Error` → `Block`, otherwise any `Warning` → `Warn`, otherwise
+/// (`Info`-only or empty) → `Allow`.
+#[must_use]
+pub fn midedit_decision_class(diagnostics: &[Diagnostic]) -> ControlDecision {
+    let mut worst = ControlDecision::Allow;
+    for diagnostic in diagnostics {
+        let class = match diagnostic.severity {
+            Severity::Error => ControlDecision::Block,
+            Severity::Warning => ControlDecision::Warn,
+            Severity::Info => ControlDecision::Allow,
+        };
+        if midedit_class_rank(class) > midedit_class_rank(worst) {
+            worst = class;
+        }
+    }
+    worst
+}
+
+/// Ordering for the mid-edit advisory vocabulary. `Interrupt` is not
+/// reachable on this path; it sorts above `Block` only so the function
+/// is total.
+const fn midedit_class_rank(decision: ControlDecision) -> u8 {
+    match decision {
+        ControlDecision::Allow => 0,
+        ControlDecision::Warn => 1,
+        ControlDecision::Block => 2,
+        ControlDecision::Interrupt => 3,
+    }
+}
+
+/// The diagnostic whose severity drives a `warn` / `block` decision —
+/// used to title the notification with the offending rule id and carry
+/// its summary as the human-readable message. `None` for an `allow`
+/// decision (no offending diagnostic), where the notification uses the
+/// generic "allowed" copy.
+fn midedit_lead_diagnostic(
+    diagnostics: &[Diagnostic],
+    decision: ControlDecision,
+) -> Option<&Diagnostic> {
+    let target = match decision {
+        ControlDecision::Block => Severity::Error,
+        ControlDecision::Warn => Severity::Warning,
+        ControlDecision::Allow | ControlDecision::Interrupt => return None,
+    };
+    diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity == target)
+}
+
+/// RTAI-007: build the `anvil.notification.v1` mirror envelope for one
+/// mid-edit decision. Shares `delivered_envelope_for_decision`'s shape
+/// and mapping table, but stamps `mirror.path = midEdit` and derives
+/// the decision class from diagnostics (advisory allow/warn/block)
+/// instead of from an `EnforcementDecision`.
+#[must_use]
+pub(crate) fn midedit_envelope(
+    context: &TelemetryContext,
+    diagnostics: &[Diagnostic],
+) -> NotificationEnvelope {
+    let decision = midedit_decision_class(diagnostics);
+    let (class, priority) = notification_mapping(decision);
+    let lead = midedit_lead_diagnostic(diagnostics, decision);
+    let affected_path = lead.map(|diagnostic| diagnostic.location.file.clone());
+    let notification = match lead {
+        Some(diagnostic) => Notification::new(
+            class,
+            priority,
+            diagnostic.source.rule_id.clone(),
+            diagnostic.summary.clone(),
+        ),
+        None => Notification::new(
+            class,
+            priority,
+            "allowed",
+            "mid-edit validation allowed the change",
+        ),
+    }
+    .with_context(notification_context(affected_path.as_ref()));
+
+    envelope_with_path(
+        context,
+        Some(decision),
+        notification,
+        grouping_for_path(affected_path.as_ref()),
+        Some(MirrorPath::MidEdit),
+    )
+}
+
 #[must_use]
 pub(crate) fn envelope_for_fence_transition(
     context: &TelemetryContext,
@@ -388,11 +545,23 @@ fn envelope(
     notification: Notification,
     grouping: Option<NotificationGrouping>,
 ) -> NotificationEnvelope {
+    // Save-time path: no surface discriminator on the mirror.
+    envelope_with_path(context, decision, notification, grouping, None)
+}
+
+fn envelope_with_path(
+    context: &TelemetryContext,
+    decision: Option<ControlDecision>,
+    notification: Notification,
+    grouping: Option<NotificationGrouping>,
+    mirror_path: Option<MirrorPath>,
+) -> NotificationEnvelope {
     let mirror = decision.map(|decision| NotificationMirror {
         decision,
         driver: INTERCEPT_DRIVER_ID.to_string(),
         ack_required: ack_required(decision),
         control_correlation_id: context.control_correlation_id.clone(),
+        path: mirror_path,
     });
 
     NotificationEnvelope {
@@ -450,6 +619,216 @@ fn generate_producer_instance_id() -> String {
     );
     let counter = PRODUCER_INSTANCE_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("pi_{:x}_{nanos:x}_{counter:x}", process::id())
+}
+
+/// RTAI-007: mid-edit telemetry mirror tests. Kept in a dedicated
+/// module named `midedit_telemetry` so the work-item validation command
+/// `cargo test -p eddacraft-anvil-intercept --lib midedit_telemetry`
+/// selects exactly this surface.
+#[cfg(test)]
+mod midedit_telemetry {
+    use anvil_kernel_types::diagnostics::{
+        Category, ControlDecision, DiagnosticSource, KnownMode, Location, Severity,
+    };
+    use anvil_kernel_types::{Diagnostic, Mode};
+
+    use super::{MirrorPath, TelemetryCorrelation, TelemetryEmitter, midedit_decision_class};
+    use crate::fanout::{
+        CrossSessionPolicy, Delivery, Fanout, OwnershipResolver, SubscriberId,
+        TelemetryRedactionKey,
+    };
+
+    fn diag(rule_id: &str, severity: Severity, file: &str) -> Diagnostic {
+        Diagnostic::new(
+            format!("diag-{rule_id}"),
+            severity,
+            "reasoning-pattern violation",
+            Location {
+                file: file.to_string(),
+                line: Some(7),
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Reasoning,
+            DiagnosticSource {
+                rule_id: rule_id.to_string(),
+                source_module: "anvil-checks::reasoning".to_string(),
+            },
+            Mode::known(KnownMode::MidEdit),
+        )
+    }
+
+    fn emitter() -> TelemetryEmitter {
+        TelemetryEmitter::for_tests("producer-midedit", "2026-06-02T10:00:00Z")
+    }
+
+    /// Resolver that denies every subscriber, forcing the fan-out down
+    /// the cross-session branch so we can exercise INTD-015 redaction.
+    struct DenyAllResolver;
+    impl OwnershipResolver for DenyAllResolver {
+        fn is_authorised(&self, _subscriber: &SubscriberId, _originating_session_id: &str) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn block_decision_carries_midedit_path_and_intercept_source() {
+        let mut emitter = emitter();
+        let envelope = emitter.midedit_envelope_for_decision(
+            TelemetryCorrelation::default(),
+            &[diag(
+                "anvil.reasoning.ai-001",
+                Severity::Error,
+                "src/lib.rs",
+            )],
+        );
+
+        let value = serde_json::to_value(&envelope).expect("serialise envelope");
+        assert_eq!(value["schema"], "anvil.notification.v1");
+        assert_eq!(value["correlation"]["source"], "intercept");
+        // mirror.decision is the advisory class; mirror.path is the new
+        // RTAI-007 discriminator rendered as the canonical "midEdit".
+        assert_eq!(value["mirror"]["decision"], "block");
+        assert_eq!(value["mirror"]["path"], "midEdit");
+        // Title is the offending rule id (no rule-id parsing needed for
+        // the in-flight/save-time split — that is what mirror.path is for).
+        assert_eq!(value["notification"]["title"], "anvil.reasoning.ai-001");
+        assert_eq!(
+            envelope.mirror.as_ref().unwrap().path,
+            Some(MirrorPath::MidEdit)
+        );
+    }
+
+    #[test]
+    fn decision_class_takes_worst_severity_and_never_interrupts() {
+        assert_eq!(midedit_decision_class(&[]), ControlDecision::Allow);
+        assert_eq!(
+            midedit_decision_class(&[diag("r", Severity::Info, "a")]),
+            ControlDecision::Allow,
+        );
+        assert_eq!(
+            midedit_decision_class(&[diag("r", Severity::Warning, "a")]),
+            ControlDecision::Warn,
+        );
+        assert_eq!(
+            midedit_decision_class(&[diag("r", Severity::Error, "a")]),
+            ControlDecision::Block,
+        );
+        // Mixed batch → worst (block); interrupt is unreachable here.
+        let mixed = midedit_decision_class(&[
+            diag("i", Severity::Info, "a"),
+            diag("w", Severity::Warning, "a"),
+            diag("e", Severity::Error, "a"),
+        ]);
+        assert_eq!(mixed, ControlDecision::Block);
+        assert_ne!(mixed, ControlDecision::Interrupt);
+    }
+
+    #[test]
+    fn allow_decision_uses_generic_copy_but_still_marks_midedit() {
+        let mut emitter = emitter();
+        // Info-only batch → allow, but the decision is still mirrored
+        // on the mid-edit path so the observability story stays "one
+        // shape across surfaces".
+        let envelope = emitter.midedit_envelope_for_decision(
+            TelemetryCorrelation::default(),
+            &[diag("anvil.reasoning.ai-002", Severity::Info, "src/lib.rs")],
+        );
+        let mirror = envelope.mirror.as_ref().expect("mirror present");
+        assert_eq!(mirror.decision, ControlDecision::Allow);
+        assert_eq!(mirror.path, Some(MirrorPath::MidEdit));
+        assert!(!mirror.ack_required);
+        assert_eq!(envelope.notification.title, "allowed");
+    }
+
+    #[test]
+    fn warn_decision_titles_with_first_warning_rule() {
+        let mut emitter = emitter();
+        let envelope = emitter.midedit_envelope_for_decision(
+            TelemetryCorrelation::default(),
+            &[
+                diag("info-rule", Severity::Info, "src/a.rs"),
+                diag("warn-rule", Severity::Warning, "src/b.rs"),
+            ],
+        );
+        let mirror = envelope.mirror.as_ref().expect("mirror");
+        assert_eq!(mirror.decision, ControlDecision::Warn);
+        assert_eq!(mirror.path, Some(MirrorPath::MidEdit));
+        assert_eq!(envelope.notification.title, "warn-rule");
+        let context = envelope.notification.context.as_ref().expect("context");
+        assert_eq!(context.file.as_deref(), Some("src/b.rs"));
+    }
+
+    #[test]
+    fn save_time_envelope_omits_mirror_path() {
+        use crate::enforcement::EnforcementDecision;
+        use std::path::PathBuf;
+
+        let mut emitter = emitter();
+        let decision = EnforcementDecision::Allow {
+            affected_paths: vec![PathBuf::from("src/ok.rs")],
+        };
+        let envelope =
+            emitter.delivered_envelope_for_decision(TelemetryCorrelation::default(), &decision);
+        // In-struct: save-time leaves path None.
+        assert_eq!(envelope.mirror.as_ref().unwrap().path, None);
+        // On the wire: the `path` key is omitted entirely, so the
+        // pre-RTAI-007 save-time shape is byte-identical.
+        let line = serde_json::to_string(&envelope).expect("serialise");
+        assert!(
+            !line.contains("\"path\""),
+            "save-time mirror must omit the path discriminator: {line}"
+        );
+        assert!(!line.contains("midEdit"));
+    }
+
+    #[test]
+    fn cross_session_redaction_preserves_midedit_discriminator() {
+        let mut emitter = emitter();
+        // Originating session set so the fan-out has a scoping key; the
+        // DenyAll resolver pushes it down the cross-session branch.
+        let envelope = emitter.midedit_envelope_for_decision_from(
+            "sess-A",
+            "driver-test",
+            &[diag(
+                "anvil.secret.aws",
+                Severity::Error,
+                "src/api/client.ts",
+            )],
+        );
+
+        let fanout = Fanout::with_cross_session_policy_and_key(
+            Box::new(DenyAllResolver),
+            CrossSessionPolicy::Redact,
+            TelemetryRedactionKey::from_bytes([0x42; 32]),
+        );
+        let subscriber = SubscriberId::new("peer:uid=1000:bin=stranger");
+        fanout.register(subscriber);
+
+        let routed = fanout.route(&envelope);
+        let Delivery::Redact(redacted) = &routed[0].delivery else {
+            panic!("expected redacted delivery, got {:?}", routed[0].delivery);
+        };
+
+        // The mid-edit discriminator AND the decision survive redaction
+        // unchanged — a cross-session subscriber can still split
+        // in-flight from save-time and see *that* a block happened,
+        // without seeing the redacted payload.
+        let mirror = redacted.mirror.as_ref().expect("mirror preserved");
+        assert_eq!(mirror.path, Some(MirrorPath::MidEdit));
+        assert_eq!(mirror.decision, ControlDecision::Block);
+        // The file path is hashed, the message is the fixed marker.
+        let file = redacted
+            .notification
+            .context
+            .as_ref()
+            .and_then(|c| c.file.as_deref())
+            .expect("redacted file");
+        assert!(file.starts_with("[redacted:"), "file hashed: {file}");
+        assert!(!file.contains("client.ts"));
+        assert_eq!(redacted.notification.message, "[redacted]");
+    }
 }
 
 #[cfg(test)]
