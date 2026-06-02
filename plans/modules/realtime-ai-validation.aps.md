@@ -429,6 +429,18 @@ convention" section). Concretely:
   and asserts `publishDiagnostics` arrives within the ADR-031 mid-edit
   budget; a daemon-down test asserts in-flight diagnostics stop while
   save-time still works.
+- **Readiness / sequencing:** The "thin frontend" framing assumes a
+  persistent Rust `scan_buffer` daemon **client** that a long-lived LSP
+  server holds open. The daemon *server* side is shipped and hardened
+  (RTAI-002 + the MLP2 `scan_buffer` work), but the client side was last
+  recorded as a follow-up — RTAI-006's reconciliation note has the launch
+  shim's `DaemonValidationClient` returning `Unavailable`. **Verify that
+  client exists before assuming "thin."** Recommended approach when this
+  un-parks: an RTAI-001-style throwaway spike first (`anvil lsp --stdio`,
+  one rule, one fixture, didChange → `scan_buffer` → `publishDiagnostics`)
+  to prove the LSP frontend and expose the daemon-client gap cheaply,
+  *then* the full build. **Un-park trigger is a concrete demand signal**
+  (an editor/user asking, or a demo) — not surface completeness.
 - **Confidence:** medium
 - **Status:** Proposed
 
