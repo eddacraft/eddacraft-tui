@@ -27,6 +27,7 @@
 //! `eddacraft-tui` behind this feature, Anvil catalogue + surface in `anvil-tui`.
 
 mod binding;
+mod catalog_sync;
 mod component;
 pub mod components;
 mod registry;
@@ -38,6 +39,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 pub use binding::{DataContext, bind};
+pub use catalog_sync::{CatalogParity, check_parity};
 pub use component::TuiComponent;
 pub use components::base_registry;
 pub use registry::TuiRegistry;
