@@ -153,8 +153,7 @@ mod tests {
         let now = Utc::now();
         let created = (now - Duration::days(3)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let pid = format!(
-            "# test\nproject_uuid: 01999999-0000-0000-0000-000000000001\ncreated_at: {}\n",
-            created
+            "# test\nproject_uuid: 01999999-0000-0000-0000-000000000001\ncreated_at: {created}\n"
         );
         std::fs::write(anvil_dir.join("project-id"), pid).unwrap();
         (dir, root)
@@ -166,10 +165,8 @@ mod tests {
         // Overwrite created_at to 20 days ago.
         let old =
             (Utc::now() - Duration::days(20)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let pid = format!(
-            "project_uuid: 01999999-0000-0000-0000-000000000001\ncreated_at: {}\n",
-            old
-        );
+        let pid =
+            format!("project_uuid: 01999999-0000-0000-0000-000000000001\ncreated_at: {old}\n");
         std::fs::write(root.join("anvil/project-id"), pid).unwrap();
 
         let hint = first_week_insights_hint(&root, Utc::now());

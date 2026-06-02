@@ -2253,8 +2253,7 @@ mod tests {
         let created = (chrono::Utc::now() - chrono::Duration::days(days_ago))
             .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let contents = format!(
-            "# test project-id for INSIGHTS-004\nproject_uuid: 01999999-aaaa-bbbb-cccc-000000000004\ncreated_at: {}\n",
-            created
+            "# test project-id for INSIGHTS-004\nproject_uuid: 01999999-aaaa-bbbb-cccc-000000000004\ncreated_at: {created}\n"
         );
         std::fs::write(anvil_dir.join("project-id"), contents).unwrap();
         // Ensure no stale hint state from other tests.
@@ -2263,6 +2262,7 @@ mod tests {
 
     #[test]
     fn first_week_hint_shown_once() {
+        use chrono::Utc;
         let dir = make_temp_dir();
         seed_project_id_with_created_at(&dir, 2); // well inside 14d
 
@@ -2270,7 +2270,6 @@ mod tests {
         // should be computed and present for human output.
         let mut data = gather_status_data(dir.to_str().unwrap());
         // Force the caller wiring path (status run does this for !json).
-        use chrono::Utc;
         data.insights_hint =
             crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
 
@@ -2301,6 +2300,7 @@ mod tests {
 
     #[test]
     fn hint_suppressed_after_use() {
+        use chrono::Utc;
         let dir = make_temp_dir();
         seed_project_id_with_created_at(&dir, 1);
 
@@ -2308,7 +2308,6 @@ mod tests {
         crate::insights::first_week_hint::record_insights_viewed(&dir, chrono::Utc::now());
 
         // Now status/walk should see no nudge.
-        use chrono::Utc;
         let hint = crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
         assert!(
             hint.is_none(),
