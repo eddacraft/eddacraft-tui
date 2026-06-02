@@ -192,14 +192,15 @@ the workspace is `Clean`.
 carries `check_families: ["antipattern"]`, and `certified` attests **antipattern
 cleanliness only** — not whole-repo structural-policy assurance. The four
 structural policy checks (`CrossLayerViolation` / `NewDependencyIntroduction` /
-`PublicApiExpansion` / `PrivilegeExpansion`) run via `PolicyEngine`/`run_embedded`,
-which has **zero production callers today**; the live structural engine is
-whole-repo `anvil gate`, and `watch`'s `anvil check` is itself antipattern-only.
-Forcing the policy engine onto the save-time hot path would reintroduce the CPU
-regression this ADR exists to remove, so we narrow the *claim* (label the family)
-rather than widen the *work*. A correctly-labelled antipattern-only verdict is
-sound; an unlabelled one would be a false attestation. The certifiable/partial
-decision (within the antipattern family):
+`PublicApiExpansion` / `PrivilegeExpansion`) are **not run on the save-time
+`validate_paths` hot path** — only `run_antipattern_check` is. Whole-repo
+structural policy remains enforced by `anvil gate`; the embedded structural
+pipeline (`run_embedded`) has no production caller today. Forcing those checks
+onto the hot path would reintroduce the CPU regression this ADR exists to remove,
+so we narrow the *claim* (label the family) rather than widen the *work*. A
+correctly-labelled antipattern-only verdict is sound; an unlabelled one would be
+a false attestation. The certifiable/partial decision (within the antipattern
+family):
 
 - A `ContentModify` with **no export-surface change** (read from the
   `update_file` `GraphDelta`) is self-contained → validate that file only →

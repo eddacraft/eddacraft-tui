@@ -51,16 +51,18 @@ surface once those remaining items are closed.
    `check_families: ["antipattern"]` added to the Task 1 frozen wire
    (`ValidatePathsResponse` + `CheckFamily` enum) and the contract §1 response;
    `coverage: certified` + the §7 parity gate scoped to that family in contract
-   §1/§3/§7 and ADR-061 §6; `PolicyEngine`/`run_embedded`-is-dead-in-prod noted in
-   both. Test `response_carries_check_families` recorded on Task 1. Only
+   §1/§3/§7 and ADR-061 §6/§8; noted that the structural policy checks are not run
+   on the `validate_paths` hot path. Test `response_carries_check_families`
+   recorded on Task 1. On the hot path only
    `run_antipattern_check` (a stateless regex scanner on `anvil-kernel-types`) runs
    — the four structural
    policy checks (`CrossLayerViolation`/`NewDependencyIntroduction`/`PublicApiExpansion`/`PrivilegeExpansion`,
    `embedded.rs:119-133`) do **not**. Add a **`check_families: ["antipattern"]`** field
    to `ValidatePathsResponse` and scope `coverage: certified` + the §8.2 parity gate
-   to that family across all surfaces. **Do NOT** run the full policy engine on the
-   hot path (council *overturned* that fix — it reopens the CPU regression ADR-061
-   exists to solve; `PolicyEngine`/`run_embedded` is dead in prod; the real engine is
+   (ADR-061 §8) to that family across all surfaces. **Do NOT** run the structural
+   policy checks on the hot path (council *overturned* that fix — it reopens the
+   CPU regression ADR-061 exists to solve; the embedded structural pipeline
+   `run_embedded` has no production caller today, and the live structural engine is
    whole-repo `anvil gate`).
 4. **Proto envelope type (B3).** `ScanDiagnostics` does not exist; the real type is
    `ScanBufferResponse` (daemon-local, `midedit.rs:68`). Define the shared diagnostic

@@ -64,13 +64,14 @@ Notes:
   `coverage: certified` therefore attests **antipattern cleanliness only**, never
   whole-repo structural-policy assurance. This is deliberate: the four structural
   policy checks (`CrossLayerViolation` / `NewDependencyIntroduction` /
-  `PublicApiExpansion` / `PrivilegeExpansion`, `embedded.rs:119-133`) run via
-  `PolicyEngine`/`run_embedded`, which has **zero production callers today** — the
-  live structural engine is whole-repo `anvil gate`, and `watch`'s `anvil check`
-  is itself antipattern-only. Forcing the policy engine onto the save-time hot
-  path would reintroduce the CPU regression this contract exists to remove. A
-  correctly-labelled antipattern-only verdict is sound; an *unlabelled* one would
-  be a false attestation — hence the explicit, frozen `check_families`.
+  `PublicApiExpansion` / `PrivilegeExpansion`, `embedded.rs:119-133`) are **not
+  run on the save-time `validate_paths` hot path** — only `run_antipattern_check`
+  is. Whole-repo structural policy remains enforced by `anvil gate`; the embedded
+  structural pipeline (`run_embedded`) has no production caller today. (Forcing
+  those checks onto the hot path would reintroduce the CPU regression this
+  contract exists to remove.) A correctly-labelled antipattern-only verdict is
+  sound; an *unlabelled* one would be a false attestation — hence the explicit,
+  frozen `check_families`.
 - `content_hash`/`mtime` are advisory cache hints. The daemon MUST derive every
   verdict from bytes it reads itself under the §4 dirfd. A client that omits them
   is fully supported (a cold MCP client will).
