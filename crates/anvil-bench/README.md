@@ -40,6 +40,10 @@ Active
   the parallel-scan claim in ADR-026.
 - **secret_scan_parallel** -- Serial vs parallel throughput on the secret scan
   path. Validates the parallel rollout speedup claim.
+- **walk_discovery** -- Sequential `ignore::WalkBuilder` vs `WalkParallel` for
+  the discovery _walk_ phase (traversal + per-entry `metadata()` stat). The
+  SCAN-005 spike measuring whether parallelising the walk itself clears the ≥20%
+  bar. Corpus size via `ANVIL_BENCH_WALK_FILES` (default 20,000).
 - **watch_resource_budget** -- Release-binary `anvil watch` CPU/RSS budget
   check. Included in `pnpm bench`; skip with `-- --skip-resource-budget` when
   you only need Criterion micro-benchmarks.
@@ -132,6 +136,56 @@ Collected on the same dev machine (2026-04-28, `dev` branch):
 - `scan/serial_baseline` — ~3.5 s (~862 elem/s)
 - `scan/parallel_rollout` — ~442 ms (~6.8 K elem/s)
 - Parallel speedup: ~7.7x vs serial baseline.
+
+### walk_discovery baseline
+
+Collected 2026-06-02 on a 16-core dev box (Linux 6.17), default corpus
+(`ANVIL_BENCH_WALK_FILES=20000`, 20,000 candidates), both strategies collecting
+the identical candidate set:
+
+- `walk_discovery/sequential_walkbuilder` — 101.11 ms median (~197.8 Kelem/s)
+- `walk_discovery/parallel_walkparallel` — 17.67 ms median (~1.13 Melem/s)
+- Parallel speedup: ~5.7x (~82.5% wall-time reduction).
+
+SCAN-005 asked whether parallelising the _walk itself_ — directory traversal
+plus the per-entry `metadata()` stat — buys ≥20% over the sequential
+`ignore::WalkBuilder` already used for discovery. On this box it buys ~470%, so
+the SCAN-006 follow-up to wire `WalkParallel` into the discovery path has real
+headroom. The parallel timing deliberately includes the `mpsc` send/recv cost a
+production refactor would pay (the source of the occasional high outlier). The
+win scales with core count: expect it to compress toward the core-count ceiling
+on 2–4 core machines, so evaluate regressions against a same-class baseline.
+
+### watch load-ramp baseline (RLB-001 / RLB-007)
+
+Not a Criterion micro-bench — `scripts/bench/load-ramp.sh` ramps concurrent
+`anvil watch` agents against a synthetic repo with real file churn and reports
+whole-process-tree CPU/RSS per agent level (the saturation tipping point the
+idle-path `watch_resource_budget` bench cannot see). It drives whatever binary
+it resolves and does **not** rebuild, so to measure current watch code build a
+fresh release binary and pass `ANVIL_BIN` — the auto-picked
+`target/release/anvil` is often stale.
+
+Collected 2026-06-02 on the same 16-core box, default ramp (1,500 files, churn
+200 ms, `--action check`), driving a freshly built release binary that includes
+RLB-007 (`perf(watch): scope per-save check to changed paths`):
+
+| agents | action | machine% | cores | RSS(parent)   |
+| ------ | ------ | -------- | ----- | ------------- |
+| 1      | check  | 0.0%     | 0.01  | 11.2 MiB      |
+| 2      | check  | 0.1%     | 0.01  | 22.3 MiB      |
+| 4      | check  | 0.4%     | 0.07  | 44.9 MiB      |
+| 4      | none   | 0.0%     | 0.00  | 0.0 (control) |
+
+The pre-RLB-007 `--all` rescan pattern (documented in the
+`benchmarks/prototypes/anvil-load-probe.py` header on a comparable box) cost
+~43.5% machine / 6.96 cores at 1 agent and ~88.1% / 14.09 cores at 4 agents —
+the beta-tester high-CPU report. Scoping the per-save check to changed paths
+drops 4-agent cost ~200x. The `none` row is the control: the bare watch loop is
+effectively free, and the `check` rows scale above it (0.0 → 0.1 → 0.4), which
+confirms the per-save check is firing rather than being skipped. For a
+defensible before/after, build `af1524f5c^` as release and A/B in the same
+session.
 
 ## Usage
 
