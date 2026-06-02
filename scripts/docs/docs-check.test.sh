@@ -36,17 +36,17 @@ failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 
-# Case 1: orchestrator surfaces the seven expected labels in summary order.
-echo "case 1: orchestrator emits all seven surface labels"
+# Case 1: orchestrator surfaces the eight expected labels in summary order.
+echo "case 1: orchestrator emits all eight surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-for surface in metadata tags links aps adr index-freshness asbuilt-paths; do
+for surface in metadata tags links aps adr index-freshness asbuilt-paths release-plan; do
   if ! grep -qE "^  (pass|FAIL) ${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
-if grep -qE "^  (pass|FAIL) asbuilt-paths$" <<<"${out}"; then
-  pass "all seven surfaces present in summary"
+if grep -qE "^  (pass|FAIL) release-plan$" <<<"${out}"; then
+  pass "all eight surfaces present in summary"
 fi
 
 # Case 2: index-freshness and asbuilt-paths real surfaces both run cleanly.
@@ -76,10 +76,10 @@ fi
 # Case 3: baseline absorbs current errors so the live repo passes.
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-if echo "${out}" | grep -qE "^\[docs-check\] 7/7 surfaces passed"; then
-  pass "live repo passes all seven surfaces under baseline"
+if echo "${out}" | grep -qE "^\[docs-check\] 8/8 surfaces passed"; then
+  pass "live repo passes all eight surfaces under baseline"
 else
-  fail "live repo expected 7/7 passed; got tail: $(echo "${out}" | tail -3)"
+  fail "live repo expected 8/8 passed; got tail: $(echo "${out}" | tail -3)"
 fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors.
