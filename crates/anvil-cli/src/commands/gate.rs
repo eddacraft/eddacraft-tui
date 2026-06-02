@@ -318,7 +318,13 @@ impl GateSnapshot {
             score: result.score,
             checks_run: aggregate.available_total.to_string(),
             warnings: warning_list.len().to_string(),
-            duration_seconds: (result.duration_ms / 1000).to_string(),
+            // Tenths of a second via integer math (avoids a lossy f64 cast): a
+            // sub-second run shows e.g. "0.4", not a misleading "0".
+            duration_seconds: format!(
+                "{}.{}",
+                result.duration_ms / 1000,
+                (result.duration_ms % 1000) / 100
+            ),
             check_rows,
             warning_list,
         }
@@ -2659,7 +2665,7 @@ mod tests {
             snap.status_label
         );
         assert_eq!(snap.checks_run, "2", "config-gap excluded from checks run");
-        assert_eq!(snap.duration_seconds, "4", "4200ms -> 4s");
+        assert_eq!(snap.duration_seconds, "4.2", "4200ms -> 4.2s");
 
         assert_eq!(snap.check_rows.len(), 3);
         assert_eq!(snap.check_rows[0], ["lint", "passed", "100", "clean"]);
@@ -2680,6 +2686,7 @@ mod tests {
             "status",
             "statusLabel",
             "checksRun",
+            "warnings",
             "durationSeconds",
             "checkRows",
             "warningList",
