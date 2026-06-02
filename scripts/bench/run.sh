@@ -23,13 +23,15 @@ Runs all routine benchmark surfaces from one command:
   - kernel, checks, stress, antipattern_scan, secret_scan_parallel
   - intercept ipc_roundtrip and midedit_roundtrip
   - midedit baseline comparison
-  - anvil watch resource-budget benchmark
+  - resource budgets: watch, intercept daemon, MCP server, and the
+    concurrent all-three aggregate (RLB-002/-003/-004/-005)
   - kindling-integration Vitest benchmark
 
 Options:
   --include-nightly-stress   Also run the full anvil-bench stress runner
   --skip-kindling            Skip the TypeScript Kindling benchmark
-  --skip-resource-budget     Skip the anvil watch resource-budget benchmark
+  --skip-resource-budget     Skip the watch/intercept/MCP/concurrent resource
+                             budgets (they need a quiet box + inotify headroom)
   --help                     Show this help
 EOF
 }
@@ -106,8 +108,18 @@ run_logged check-midedit-baseline bash scripts/check-midedit-baseline.sh \
 
 if [[ "$run_resource_budget" -eq 1 ]]; then
   run_logged build-release-anvil cargo build -p eddacraft-anvil --release --bin anvil
+  # RLB-002/-003/-004: per-process CPU/RSS budgets. Each bench exits non-zero
+  # when its budget verdict is not "pass", so run_logged_shell gates the suite.
   run_logged_shell watch-resource-budget \
     "ANVIL_BENCH_ANVIL_BIN=target/release/anvil cargo bench -p anvil-bench --bench watch_resource_budget"
+  run_logged_shell intercept-resource-budget \
+    "ANVIL_BENCH_ANVIL_BIN=target/release/anvil cargo bench -p eddacraft-anvil-intercept --bench intercept_resource_budget"
+  run_logged_shell mcp-resource-budget \
+    "ANVIL_BENCH_ANVIL_BIN=target/release/anvil cargo bench -p anvil-bench --bench mcp_resource_budget"
+  # RLB-005: aggregate budget for all three processes at once. Heavier and, like
+  # watch, needs inotify headroom — kept behind the same resource-budget gate.
+  run_logged_shell concurrent-resource-budget \
+    "ANVIL_BENCH_ANVIL_BIN=target/release/anvil cargo bench -p anvil-bench --bench concurrent_processes"
 fi
 
 if [[ "$run_kindling" -eq 1 ]]; then

@@ -32,10 +32,10 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  watch-resource-budget:
-    name: anvil watch resource budget
+  resource-budgets:
+    name: per-process resource budgets
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
@@ -45,17 +45,68 @@ jobs:
           save-if: 'false'
       - name: Build release anvil binary
         run: cargo build -p eddacraft-anvil --release --bin anvil
-      - name: Measure watch resource budget
+      # Each bench exits non-zero when its budget verdict is not "pass", so the
+      # step itself is the gate; `tee` keeps the JSON verdict as an artifact.
+      - name: Measure watch resource budget (RLB-002)
         env:
           ANVIL_BENCH_ANVIL_BIN: target/release/anvil
         run: |
           set -o pipefail
           cargo bench -p anvil-bench --bench watch_resource_budget | tee watch-resource-budget.json
-      - name: Upload resource budget verdict
+      - name: Measure intercept daemon resource budget (RLB-003)
+        env:
+          ANVIL_BENCH_ANVIL_BIN: target/release/anvil
+        run: |
+          set -o pipefail
+          cargo bench -p eddacraft-anvil-intercept --bench intercept_resource_budget | tee intercept-resource-budget.json
+      - name: Measure MCP server resource budget (RLB-004)
+        env:
+          ANVIL_BENCH_ANVIL_BIN: target/release/anvil
+        run: |
+          set -o pipefail
+          cargo bench -p anvil-bench --bench mcp_resource_budget | tee mcp-resource-budget.json
+      - name: Upload resource budget verdicts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: watch-resource-budget
-          path: watch-resource-budget.json
+          name: resource-budget-verdicts
+          path: '*-resource-budget.json'
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # RLB-005 + the multi-agent load-ramp harness are heavier (spawn 3+ processes
+  # and ramp concurrent watchers) and need inotify headroom, so they run on
+  # manual dispatch (and nightly once a dedicated runner returns) rather than on
+  # every push/PR.
+  concurrent-resource-budget:
+    name: concurrent multi-process budget + load ramp
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+      - name: Build release anvil binary
+        run: cargo build -p eddacraft-anvil --release --bin anvil
+      - name: Measure concurrent multi-process budget (RLB-005)
+        env:
+          ANVIL_BENCH_ANVIL_BIN: target/release/anvil
+        run: |
+          set -o pipefail
+          cargo bench -p anvil-bench --bench concurrent_processes | tee concurrent-resource-budget.json
+      - name: Multi-agent watch load-ramp smoke (RLB-001)
+        env:
+          ANVIL_BIN: target/release/anvil
+        run: bash scripts/bench/load-ramp.sh --smoke
+      - name: Upload concurrent budget verdict
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: concurrent-resource-budget
+          path: concurrent-resource-budget.json
           if-no-files-found: ignore
           retention-days: 30
