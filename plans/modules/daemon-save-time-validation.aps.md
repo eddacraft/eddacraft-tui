@@ -251,7 +251,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 - **Status:** In Progress
 - **Intent:** Keep the interactive verdict path responsive under concurrent agents +
   background scans, and gate latency in CI.
-- **Progress:** 10a (spine) delivered — `crates/anvil-intercept/src/workspace_pool.rs`
+- **Progress:** 10a (spine) delivered via PR #2253 — `crates/anvil-intercept/src/workspace_pool.rs`
   builds the two cooperating rayon pools (small interactive + background) from one
   per-host budget and adds the per-`WorktreeKey` in-flight admission token (the Task 8
   predecessor). Remaining (10b/Task 11/Task 16, gated on DSV-005): the chunked-yield
