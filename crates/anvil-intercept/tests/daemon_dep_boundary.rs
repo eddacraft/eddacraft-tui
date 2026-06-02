@@ -8,10 +8,13 @@
 //! that re-introduces a parser dep to the daemon (or to the graph-cache crate)
 //! fails loudly here rather than silently bloating the always-resident binary.
 //!
-//! The check inspects the **normal** (non-dev, non-build) dependency tree only —
-//! the edges that actually link into the shipped binary. Dev-dependencies of
-//! `anvil-intercept` legitimately pull in the kernel (and thus tree-sitter) for
-//! integration tests; those are excluded by `--edges normal`. `--prefix none`
+//! The check inspects the **normal** (non-dev, non-build) dependency edges only —
+//! the crates pulled into the daemon's own build. (Proc-macro crates are normal
+//! edges too and so appear here even though they run host-only at compile time;
+//! that is immaterial — none of the forbidden parser crates is a proc-macro.)
+//! Dev-dependencies of `anvil-intercept` legitimately pull in the kernel (and
+//! thus tree-sitter) for integration tests; those are excluded by
+//! `--edges normal`. `--prefix none`
 //! flattens the tree; cargo prints each package's name on its own line (a
 //! deduplicated back-reference still carries the bare name, e.g. `foo v1 (*)`),
 //! so a plain substring scan over the output sees every reachable package.

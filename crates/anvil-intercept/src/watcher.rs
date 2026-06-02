@@ -34,13 +34,14 @@
 //! truth for *generating* batches; this module is the receiving end.
 //!
 //! The read-only graph state the save-time cache needs (`SymbolGraph`,
-//! `DependencyGraph`, incremental apply-delta, `certify`) lives in
+//! `DependencyGraph`, incremental apply-delta) lives in
 //! `eddacraft-anvil-graph-cache` (ADR-064) — `petgraph`-only, no
-//! parser surface — which the daemon *does* depend on. So the boundary
-//! held here is narrower than "no graph at all": the daemon holds and
-//! mutates the graph via that crate, but the tree-sitter parser stays
-//! kernel-only (the cache write-path consumes kernel-parsed
-//! `FileSymbols` fed over this channel, ADR-064 §4).
+//! parser surface — which the daemon *does* depend on (the net-new
+//! `certify` reverse-impact closure lands there in a later sub-phase-A
+//! task, ADR-064 §5). So the boundary held here is narrower than "no
+//! graph at all": the daemon holds and mutates the graph via that crate,
+//! but the tree-sitter parser stays kernel-only (the cache write-path
+//! consumes kernel-parsed `FileSymbols` fed over this channel, ADR-064 §4).
 //!
 //! ## What this module is not
 //!
