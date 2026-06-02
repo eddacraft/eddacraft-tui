@@ -320,6 +320,10 @@ pub(crate) fn generate_config_with_force(
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
+    // Seed the example gate-summary dashboard so `anvil dashboard gate-summary`
+    // works out of the box after a gate run (#2237).
+    seed_example_dashboard(root, force)?;
+
     let gitignore_updated = append_gitignore_entry(root)?;
 
     let planning_dir = root.join(&config.planning_dir);
@@ -329,6 +333,26 @@ pub(crate) fn generate_config_with_force(
     }
 
     Ok(gitignore_updated)
+}
+
+/// The example `gate-summary` dashboard spec seeded into `.anvil/dashboards/`.
+/// Embedded from the committed copy so it stays the single source of truth
+/// (the same file the repo dogfoods and the engine tests bind against).
+const GATE_SUMMARY_SPEC: &str =
+    include_str!("../../../../.anvil/dashboards/gate-summary.dashboard.json");
+
+/// Seed the example gate-summary dashboard so `anvil dashboard gate-summary`
+/// works after a gate run. Skips an existing spec unless `force`, so a user's
+/// customised dashboard is never clobbered.
+fn seed_example_dashboard(root: &Path, force: bool) -> anyhow::Result<()> {
+    let dir = root.join(".anvil/dashboards");
+    fs::create_dir_all(&dir).context("failed to create .anvil/dashboards/")?;
+    let path = dir.join("gate-summary.dashboard.json");
+    if force || !path.exists() {
+        crate::util::atomic_write(&path, GATE_SUMMARY_SPEC.as_bytes())
+            .context("failed to write gate-summary dashboard")?;
+    }
+    Ok(())
 }
 
 fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
@@ -442,6 +466,50 @@ mod tests {
             verbose: false,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn embedded_gate_summary_spec_is_valid_json() {
+        let v: serde_json::Value =
+            serde_json::from_str(GATE_SUMMARY_SPEC).expect("embedded spec parses");
+        assert_eq!(v["title"], "Gate Summary");
+        assert_eq!(v["root"], "page");
+    }
+
+    #[test]
+    fn seeds_gate_summary_dashboard() {
+        let dir = tempfile::tempdir().unwrap();
+        run_plain(dir.path(), false).expect("init");
+        let spec = dir
+            .path()
+            .join(".anvil/dashboards/gate-summary.dashboard.json");
+        assert!(spec.exists(), "gate-summary dashboard seeded by init");
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&spec).unwrap()).unwrap();
+        assert_eq!(v["title"], "Gate Summary");
+    }
+
+    #[test]
+    fn seeding_preserves_a_user_dashboard_unless_forced() {
+        let dir = tempfile::tempdir().unwrap();
+        let dash = dir.path().join(".anvil/dashboards");
+        std::fs::create_dir_all(&dash).unwrap();
+        let path = dash.join("gate-summary.dashboard.json");
+        std::fs::write(&path, "CUSTOM").unwrap();
+
+        seed_example_dashboard(dir.path(), false).expect("seed");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "CUSTOM",
+            "existing user dashboard is not clobbered without --force"
+        );
+
+        seed_example_dashboard(dir.path(), true).expect("seed force");
+        assert_ne!(
+            std::fs::read_to_string(&path).unwrap(),
+            "CUSTOM",
+            "--force overwrites with the shipped spec"
+        );
     }
 
     #[test]

@@ -1,0 +1,89 @@
+{
+  "title": "Gate Summary",
+  "description": "Live view of the last `anvil gate` run, bound to .anvil/gates.json. Run `anvil gate` to populate, then `anvil dashboard gate-summary`.",
+  "version": "1.0",
+  "root": "page",
+  "elements": {
+    "page": {
+      "type": "Stack",
+      "props": { "direction": "vertical", "gap": "lg" },
+      "children": ["header", "metrics-row", "separator-1", "checks-section", "warnings-section"]
+    },
+    "header": {
+      "type": "Stack",
+      "props": { "direction": "horizontal", "gap": "md", "align": "center", "justify": "between" },
+      "children": ["title", "gate-status"]
+    },
+    "title": {
+      "type": "Heading",
+      "props": { "children": "Gate Run Summary", "level": 2 },
+      "children": []
+    },
+    "gate-status": {
+      "type": "StatusBadge",
+      "props": {
+        "status": { "$data": "gates.status" },
+        "label": { "$data": "gates.statusLabel" }
+      },
+      "children": []
+    },
+    "metrics-row": {
+      "type": "Grid",
+      "props": { "columns": 3, "gap": "md" },
+      "children": ["metric-checks-run", "metric-warnings", "metric-duration"]
+    },
+    "metric-checks-run": {
+      "type": "MetricCard",
+      "props": { "label": "Checks Run", "value": { "$data": "gates.checksRun" } },
+      "children": []
+    },
+    "metric-warnings": {
+      "type": "MetricCard",
+      "props": { "label": "Attention Items", "value": { "$data": "gates.warnings" } },
+      "children": []
+    },
+    "metric-duration": {
+      "type": "MetricCard",
+      "props": { "label": "Duration (s)", "value": { "$data": "gates.durationSeconds" } },
+      "children": []
+    },
+    "separator-1": {
+      "type": "Separator",
+      "props": {},
+      "children": []
+    },
+    "checks-section": {
+      "type": "Stack",
+      "props": { "direction": "vertical", "gap": "sm" },
+      "children": ["checks-heading", "checks-table"]
+    },
+    "checks-heading": {
+      "type": "Heading",
+      "props": { "children": "Check Results", "level": 3 },
+      "children": []
+    },
+    "checks-table": {
+      "type": "Table",
+      "props": {
+        "columns": ["Check", "Status", "Score", "Message"],
+        "rows": { "$data": "gates.checkRows" }
+      },
+      "children": []
+    },
+    "warnings-section": {
+      "type": "Stack",
+      "props": { "direction": "vertical", "gap": "sm" },
+      "children": ["warnings-heading", "warnings-list"]
+    },
+    "warnings-heading": {
+      "type": "Heading",
+      "props": { "children": "Attention", "level": 3 },
+      "children": []
+    },
+    "warnings-list": {
+      "type": "WarningList",
+      "props": { "warnings": { "$data": "gates.warningList" } },
+      "children": []
+    }
+  }
+}
