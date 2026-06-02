@@ -20,15 +20,31 @@
 
 use crate::json_render::TuiRegistry;
 
+mod alert;
+mod badge;
 mod card;
 mod grid;
+mod heading;
+mod metric_card;
+mod progress;
 mod separator;
 mod stack;
+mod status_badge;
+mod table;
+mod text;
 
+pub use alert::Alert;
+pub use badge::Badge;
 pub use card::Card;
 pub use grid::Grid;
+pub use heading::Heading;
+pub use metric_card::MetricCard;
+pub use progress::Progress;
 pub use separator::Separator;
 pub use stack::Stack;
+pub use status_badge::StatusBadge;
+pub use table::Table;
+pub use text::Text;
 
 /// Build a [`TuiRegistry`] with every generic base-catalogue component
 /// registered under its catalogue type name.
@@ -43,6 +59,7 @@ pub use stack::Stack;
 pub fn base_registry() -> TuiRegistry {
     let mut registry = TuiRegistry::new();
     register_layout(&mut registry);
+    register_data(&mut registry);
     registry
 }
 
@@ -53,6 +70,19 @@ fn register_layout(registry: &mut TuiRegistry) {
     registry.register("Grid", Box::new(Grid));
     registry.register("Card", Box::new(Card));
     registry.register("Separator", Box::new(Separator));
+}
+
+/// Register the data-display components (TUIDASH-005): `Heading`, `Text`,
+/// `Badge`, `StatusBadge`, `Alert`, `Progress`, `MetricCard`, `Table`.
+fn register_data(registry: &mut TuiRegistry) {
+    registry.register("Heading", Box::new(Heading));
+    registry.register("Text", Box::new(Text));
+    registry.register("Badge", Box::new(Badge));
+    registry.register("StatusBadge", Box::new(StatusBadge));
+    registry.register("Alert", Box::new(Alert));
+    registry.register("Progress", Box::new(Progress));
+    registry.register("MetricCard", Box::new(MetricCard));
+    registry.register("Table", Box::new(Table));
 }
 
 /// Shared prop-reading helpers used across components.
