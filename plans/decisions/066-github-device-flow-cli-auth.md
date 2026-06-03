@@ -84,11 +84,13 @@ The locked decisions:
    already-shipped CLIs do not misroute.
 
 4. **Account linking by GitHub numeric id.** Add a `github_id` column to
-   `beta_users`; match returning users on `github_id`. Verified-primary-email is
-   the fallback **only** for first-link of a pre-existing email-invited beta
-   user. This closes the email-change/takeover vector and the
-   private-noreply-email problem. Requires a DB migration plus first-login
-   linking logic.
+   `beta_users`; match returning users on `github_id`. For first-link of a
+   pre-existing email-invited beta record, match **any of the GitHub account's
+   verified emails** (not just the primary) against the active invited row, then
+   store `github_id`; never silently create a `pending` duplicate when an active
+   invite matches. This closes the email-change/takeover vector and the
+   private-noreply-primary problem. Requires a DB migration plus first-login
+   linking logic. See decision 7 for the invitation-binding model this serves.
 
 5. **Retire via tombstone + admin-invite rebuild.** Replace
    `apps/website/app/auth/activate/page.tsx` with a redirect/tombstone (no 404
@@ -97,8 +99,25 @@ The locked decisions:
    `POST /auth/device/confirm` **only after** the new CLI ships. Admin-invite
    repointing is in scope for this work.
 
-6. **Email OTP retained.** `anvil auth login --otp` stays the no-GitHub
-   fallback and is untouched.
+6. **Email OTP retained as the email-proof fallback.** `anvil auth login --otp`
+   stays the no-GitHub path and is the **guaranteed** way an invited user proves
+   ownership of the invited email when their GitHub account carries no matching
+   verified email. Its mint logic is untouched.
+
+7. **Invitation binding model — email-keyed account, GitHub as a linked auth
+   method.** Beta invitation stays email-keyed: the waitlist, `/admin/approve`,
+   and `/admin/invite` continue to grant `active` status to an *email*, and the
+   `beta_users` row remains keyed on `email`. A GitHub identity is a *credential*
+   linked to that row on first login (decision 4), not a second account
+   namespace. Consequences for the invite flow: the invite email **drops** the
+   retired `ACTIVATE_URL`/`userCode` and directs the user to `anvil auth login`
+   (GitHub device flow), with `--otp` to the invited address as the fallback;
+   and `/admin/invite`'s now-vestigial interactive device-code generation is
+   removed (the `tokenOnly` CI/service-account path is unaffected). Rejected:
+   invite-by-GitHub-handle (admins know the invited email, not the handle; it
+   reworks the email funnel) and a per-invite claim token (re-introduces a
+   per-invite secret + CLI flag + binding endpoint — most of what this ADR
+   deletes).
 
 ## Rationale
 
@@ -121,8 +140,14 @@ different semantics; the old path is deleted only once no shipped CLI needs it.
 
 Linking on the GitHub **numeric id** (not email) is the correct identity key:
 GitHub usernames and emails change, the numeric id does not, and GitHub users
-may present a `noreply` email. Email is used only to first-link a pre-existing
-email-invited beta record, behind a verified-primary-email check.
+may present a `noreply` primary email. Email is used only to *first-link* a
+pre-existing email-invited beta record — matched against **any** of the
+account's verified emails so an invited user with a `noreply` primary still
+binds — after which `github_id` is authoritative. Invitation stays email-keyed
+(decision 7) because the entire funnel — waitlist, approve, invite — is email;
+GitHub identity only appears at login, so it is linked there rather than made a
+parallel account key. OTP remains the email-ownership proof when no verified
+GitHub email matches.
 
 ### Alternatives Considered
 
@@ -160,13 +185,17 @@ email-invited beta record, behind a verified-primary-email check.
   - `/github-device/start` accepts **no** email and binds **no** user. The bound
     `user_id` is derived **solely** from `fetchGitHubUser(github_access_token)`
     at poll-confirmation time — this is what prevents the #1779 re-entry.
-  - The GitHub device request includes `scope=read:user user:email`; the mint
-    **requires** `email.primary && email.verified` (fail-closed) on the
-    first-link fallback path.
+  - Account identity is `github_id` (from the verified token), never a
+    body-supplied or unverified value. On the first-link path the request
+    includes `scope=read:user user:email`; the link matches an active invited
+    row against **any `verified` email** of the account (primary not required),
+    and an **unverified** email is **never** used to match (fail-closed). Once
+    linked, `github_id` is authoritative.
   - Active-status gate **parity**: device-poll mint enforces
     `status === 'active'` identically to `auth-github.ts:195-202`, emits a
-    `github_oauth_blocked` audit on non-active, and inherits scopes via
-    `findActiveScopesForUser`.
+    `github_oauth_blocked` audit on non-active, inherits scopes via
+    `findActiveScopesForUser`, and surfaces non-active as a clear terminal
+    "awaiting approval" poll state to the CLI (not a generic timeout).
   - Per-`poll_token` isolation + single-use mint: the poll lookup is keyed
     strictly on `poll_token = $hash` (never "latest confirmed"); the mint is
     gated by an atomic `DELETE … RETURNING` (reuse the `consumeDeviceCode`

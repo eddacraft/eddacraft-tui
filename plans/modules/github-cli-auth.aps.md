@@ -45,8 +45,10 @@ retires the dead path.
 - A dedicated "Anvil CLI" GitHub OAuth app (separate from `eddacraft Docs`,
   Device Flow enabled) + Key Vault `github-cli-client-id` / `github-cli-client-secret`, wired into
   `anvil-api` only
-- Account linking on the GitHub numeric `github_id` (verified-primary-email as
-  first-link fallback only) and the DB migration it needs
+- Account linking on the GitHub numeric `github_id` (first-link of an
+  email-invited record via **any verified** GitHub email) and the DB migration
+  it needs; invitation stays email-keyed with GitHub as a linked auth method
+  (ADR-066 decision 7)
 - A DB-backed `github_device_sessions` table and the single-use, hashed-at-rest
   session/mint lifecycle
 - A shared `mintLicenceForGitHubUser` helper extracted from `auth-github.ts`,
@@ -184,15 +186,21 @@ Change status to **Ready** when:
 
 - **Status:** Proposed
 - **Intent:** Link GitHub identities on the stable numeric id so returning users
-  match deterministically and the email-change/takeover vector is closed.
+  match deterministically and the email-change/takeover vector is closed, while
+  binding an email-keyed invite to the authenticating GitHub account on first
+  login (ADR-066 decision 7 — email-keyed account, GitHub as a linked method).
 - **Expected Outcome:** A DB migration adds `github_id` to `beta_users`;
-  first-login linking matches a returning user on `github_id`, and uses
-  verified-primary-email **only** to first-link a pre-existing email-invited
-  beta record; the private-noreply-email case is handled (no email match
-  required when `github_id` already links).
+  first-login linking matches a returning user on `github_id`. For first-link of
+  a pre-existing email-invited record it matches **any of the account's
+  `verified` emails** (not just the primary) against the active invited row and
+  then stores `github_id`; an active invite is **never** shadowed by a silently
+  created `pending` duplicate, and an **unverified** email never matches
+  (fail-closed). Once `github_id` is stored, email is not consulted again.
 - **Validation:** `pnpm nx test @eddacraft/anvil-api` — linking tests cover
-  returning-by-`github_id`, first-link-by-verified-email, noreply-email, and the
-  email-takeover-rejected case; the migration applies cleanly forward.
+  returning-by-`github_id`, first-link via a non-primary verified email,
+  noreply-primary, unverified-email-rejected, "active invite is linked not
+  duplicated", and the email-takeover-rejected case; the migration applies
+  cleanly forward.
 - **Files:** `apps/anvil-api/migrations/` (new migration),
   `apps/anvil-api/src/lib/` (linking logic), the new
   `mintLicenceForGitHubUser` helper
@@ -239,10 +247,12 @@ Change status to **Ready** when:
   stored `device_code`, maps GitHub's `authorization_pending` / `slow_down` /
   `expired_token` / `access_denied` responses (passing `slow_down`/`interval`
   through to the CLI); derives `user_id` **solely** from
-  `fetchGitHubUser(token)`; enforces `email.primary && email.verified`
-  fail-closed on the first-link path; enforces active-status gate parity
-  (`status === 'active'`, `github_oauth_blocked` audit on non-active, scopes via
-  `findActiveScopesForUser`); mints **single-use** via atomic
+  `fetchGitHubUser(token)`'s `github_id` (linking per GHCLIAUTH-003, matching any
+  `verified` email on first-link, fail-closed on unverified); enforces
+  active-status gate parity (`status === 'active'`, `github_oauth_blocked` audit
+  on non-active, scopes via `findActiveScopesForUser`) and returns a clear
+  terminal "awaiting approval" poll status for non-active/uninvited users (not a
+  generic timeout); mints **single-use** via atomic
   `DELETE … RETURNING` (reuse the `consumeDeviceCode` pattern), keyed strictly on
   `poll_token = $hash`; mints **exactly once, re-returnable within TTL**;
   revokes the GitHub token immediately after `fetchGitHubUser`; a cross-instance
@@ -293,21 +303,28 @@ Change status to **Ready** when:
 
 - **Status:** Proposed
 - **Intent:** Stop the dead activation page from 404-ing outstanding invite
-  links and give admin-invited users a working activation path.
+  links and rebuild admin-invite activation around the email-keyed model
+  (ADR-066 decision 7).
 - **Expected Outcome:** `apps/website/app/auth/activate/page.tsx` becomes a
-  redirect/tombstone (no 404 for outstanding ~48h invite-email links);
-  admin-invite activation (`admin.ts` invite URLs + the email template) is
-  repointed to the new path; admin-invited-user activation works again (it is
-  currently broken by #1779).
+  redirect/tombstone (no 404 for outstanding ~48h invite-email links); the
+  `sendBetaInvite` email is rewritten to **drop** the `ACTIVATE_URL`/`userCode`
+  and direct the recipient to `anvil auth login` (GitHub device flow) with
+  `--otp` to the invited address as the fallback; `/admin/invite`'s now-vestigial
+  interactive device-code generation is removed (the `tokenOnly`
+  CI/service-account path is **unaffected**); admin-invited-user activation works
+  again (it is currently broken by #1779) via first-login GitHub linking or OTP.
 - **Validation:** `pnpm nx test @eddacraft/anvil-api` + the website build/test —
-  an admin-invited user reaches a working activation path, and an old
-  `ACTIVATE_URL?code=` link resolves to the tombstone (not a 404).
+  a freshly invited user logs in via `anvil auth login` (links `github_id`) and
+  via `--otp` to the invited email; `/admin/invite` no longer writes a
+  `device_codes` row on the interactive path while `tokenOnly` still mints a
+  token; an old `ACTIVATE_URL?code=` link resolves to the tombstone (not a 404).
 - **Files:** `apps/website/app/auth/activate/page.tsx`,
-  `apps/anvil-api/src/routes/admin.ts`, the invite email template
+  `apps/anvil-api/src/routes/admin.ts`, `apps/anvil-api/src/lib/email.ts`
+  (`sendBetaInvite` + `BetaInvite` template)
 - **Dependencies:** GHCLIAUTH-006
 - **Confidence:** medium
 - **Size:** M
-- **Source:** ADR-066 decision 5.
+- **Source:** ADR-066 decisions 5/7.
 
 ---
 
@@ -408,10 +425,17 @@ Change status to **Ready** when:
 2. **New endpoints, old path retired last** — ship
    `/github-device/{start,poll}` and remove `/device/confirm` only after the
    new CLI is in users' hands (ADR-066 decisions 3/5).
-3. **Link on `github_id`, not email** — email is a first-link fallback only
+3. **Link on `github_id`, not email** — first-link of an email-invited record
+   matches **any verified** GitHub email, then `github_id` is authoritative
    (ADR-066 decision 4).
-4. **OTP retained** — `--otp` is the no-GitHub fallback and is untouched
+4. **OTP retained as the email-proof fallback** — `--otp` is the guaranteed way
+   an invited user proves the invited email when no verified GitHub email matches
    (ADR-066 decision 6).
+5. **Invitation stays email-keyed; GitHub is a linked auth method** — the
+   email funnel (waitlist → approve → invite) is unchanged; the invite email
+   drops the retired activate URL/code and points at `anvil auth login`/`--otp`,
+   and `/admin/invite`'s vestigial interactive device code is removed
+   (ADR-066 decision 7).
 
 ## Stats
 
