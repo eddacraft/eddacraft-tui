@@ -384,9 +384,24 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Parse the EXACT guarded bytes the daemon read (handed in by
         // `validate_paths`) via the injected kernel-backed parser. No parser
         // wired ⇒ `None` ⇒ a safe `Partial` (B4); the daemon never parses.
+        //
+        // DSV-012: the parse (CPU-bound tree-sitter) is offloaded onto the
+        // interactive pool via `install`, the same pool the antipattern scan
+        // already runs on (`env.pool`). This keeps the verdict's CPU work
+        // bounded by the one interactive pool, so N concurrent agents cannot
+        // each run a parse inline and oversubscribe the cores (ADR-067 / the
+        // `4 agents + 1 scan` SLO). `install` blocks this connection thread —
+        // already dedicated to awaiting this verdict — and runs the parse on a
+        // pool thread; the parser is `Send + Sync` and is handed the SAME
+        // guarded bytes (no second read → preserves the B2 no-false-attestation
+        // contract). The parse runs on the calling thread's pool stack, so a
+        // `None`-yielding (unsupported/failed) parse still costs only the cheap
+        // pool hand-off.
         let parser = state.parser.as_deref();
-        let fed_symbols =
-            move |path: &str, bytes: &[u8]| parser.and_then(|p| p.parse(Path::new(path), bytes));
+        let parse_pool = state.scheduler.interactive();
+        let fed_symbols = move |path: &str, bytes: &[u8]| {
+            parser.and_then(|p| parse_pool.install(|| p.parse(Path::new(path), bytes)))
+        };
         let response = state.with_machine(&key, |machine| {
             run_validate_paths(
                 &request,
