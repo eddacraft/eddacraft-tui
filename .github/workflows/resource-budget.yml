@@ -91,6 +91,9 @@ jobs:
       - name: Self-test — SLO gate trips on a synthetic regression
         if: success() || failure()
         run: |
+          # pipefail so the `if` sees cargo bench's exit, not tee's (which is
+          # always 0) — without it the gate-trip check would be inverted.
+          set -o pipefail
           cargo build -p eddacraft-anvil-intercept --bench ipc_roundtrip \
             --features bench-internals
           if ANVIL_BENCH_VALIDATE_STALL_MS=300 \
