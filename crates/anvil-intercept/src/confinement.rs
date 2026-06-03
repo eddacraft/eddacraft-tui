@@ -267,6 +267,16 @@ impl Confinement {
         self.mode
     }
 
+    /// The number of operator allow entries (exact + prefix). Used by the
+    /// `anvil status` surface to render `confined: N` in `Allowlist` mode
+    /// (DSV-007 Task 17). The connection's implicitly-admitted primary root is
+    /// not counted — this is the *configured* allow-list size, not the effective
+    /// admitted-root count for any one connection.
+    #[must_use]
+    pub fn allow_count(&self) -> usize {
+        self.exact.len() + self.prefixes.len()
+    }
+
     /// Build the per-connection [`AdmittedRoots`](crate::workspace_admission::AdmittedRoots)
     /// this confinement implies. The DSV-005 dispatch arm calls this once per
     /// connection to gate `validate_paths`.

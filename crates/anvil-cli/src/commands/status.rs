@@ -2,6 +2,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::time::Duration;
 
+use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
@@ -15,6 +16,7 @@ use crate::GlobalArgs;
 use crate::activation;
 use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
 use crate::commands::protection_claim_section;
+use crate::commands::watch_save_time;
 use crate::config_summary::render_rule_mode_summary;
 
 #[derive(Debug, Args)]
@@ -40,6 +42,9 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mut data = gather_status_data(".");
     let activation = activation::verify(Path::new("."));
+    // DSV-007 Task 17: best-effort save-time assurance + confinement (only when
+    // daemon routing is opt-in-enabled; `None` otherwise keeps output unchanged).
+    let save_time = gather_save_time();
 
     // DISTRIB-002: surface an update-available hint when one is
     // detected and the 24h rate-limit gate allows it. `--json` is
@@ -113,12 +118,18 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             );
             Path::new(".").to_path_buf()
         });
-        print_json(&data, &activation, daemon_snapshot.as_ref(), &worktree)?;
+        print_json(
+            &data,
+            &activation,
+            daemon_snapshot.as_ref(),
+            &worktree,
+            save_time.as_ref(),
+        )?;
     } else if !global.no_tui && std::io::stdout().is_terminal() {
         let state = StatusState::new(data);
         crate::tui::run_surface(state)?;
     } else {
-        print_plain(&data, &activation);
+        print_plain(&data, &activation, save_time);
     }
 
     Ok(())
@@ -540,7 +551,11 @@ fn is_executable(path: &Path) -> bool {
 // Output: plain text
 // ---------------------------------------------------------------------------
 
-fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagnostic) {
+fn print_plain(
+    data: &StatusData,
+    activation_diag: &activation::ActivationDiagnostic,
+    save_time: Option<SaveTimeRender>,
+) {
     // Resolve the repo root once so the witness chain at
     // `<repo-root>/anvil/witness/active.ndjson` is found even when
     // `anvil status` is invoked from a subdirectory. Falls back to
@@ -549,7 +564,7 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
     // witness line just reports "none yet" instead of pointing at
     // the wrong tree.
     let root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
-    let snapshot = build_legible_snapshot(data, activation_diag, &root);
+    let snapshot = build_legible_snapshot(data, activation_diag, &root, save_time);
     print!("{}", render_plain_legible(&snapshot));
     // Rule-mode summary line is appended as advisory context. The
     // 24-row budget is for the FULL `anvil status` plain output, so
@@ -565,6 +580,94 @@ fn print_plain(data: &StatusData, activation_diag: &activation::ActivationDiagno
         println!("{hint}");
     } else if let Some(hint) = &data.update_hint {
         println!("{}", hint.render_line());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DSV-007 Task 17: save-time assurance + confinement surface
+// ---------------------------------------------------------------------------
+
+/// The save-time assurance snapshot rendered by `anvil status`, plus the
+/// operator confinement size. Built only when daemon routing is opt-in-enabled
+/// (`ANVIL_WATCH_DAEMON`); `None` keeps default status output unchanged.
+#[derive(Debug, Clone)]
+struct SaveTimeRender {
+    /// The current assurance. A daemon-absent query is folded to
+    /// `unavailable{daemon-absent}` so status never renders a stale cached
+    /// `clean` when the daemon is gone.
+    assurance: WorkspaceAssurance,
+    /// Number of operator allow entries when the daemon is in `Allowlist`
+    /// (confined) mode; `None` in open mode.
+    confined: Option<usize>,
+}
+
+/// JSON projection of [`SaveTimeRender`] for the `--json` surface. Additive
+/// (`additionalProperties: true`), so it does not bump the status schema.
+#[derive(Serialize)]
+struct SaveTimeOutput {
+    state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confined: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_full_scan: Option<String>,
+}
+
+/// Gather the save-time assurance + confinement surface, or `None` when daemon
+/// routing is not enabled (default). Read-only and best-effort: a daemon-absent
+/// query folds to `unavailable{daemon-absent}` rather than failing.
+fn gather_save_time() -> Option<SaveTimeRender> {
+    if !watch_save_time::daemon_routing_enabled() {
+        return None;
+    }
+    let workspace =
+        crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
+    let assurance = watch_save_time::query_workspace_status(&workspace)
+        .unwrap_or_else(watch_save_time::daemon_absent_assurance);
+    Some(SaveTimeRender {
+        assurance,
+        confined: confinement_allow_count(),
+    })
+}
+
+/// The operator confinement allow-list size when the daemon is in `Allowlist`
+/// mode, else `None` (open mode, or no readable config). Read directly from the
+/// owner-only operator config (DSV-008); status runs as the same uid.
+fn confinement_allow_count() -> Option<usize> {
+    use anvil_intercept::confinement::{self, AdmissionModeFile};
+    match confinement::load() {
+        Ok(c) if c.mode() == AdmissionModeFile::Allowlist => Some(c.allow_count()),
+        _ => None,
+    }
+}
+
+/// Render the one-line save-time block for the legible plain surface. Absence is
+/// `unavailable{daemon-absent} (daemon not running)` — never a stale `clean`.
+fn render_save_time_line(render: &SaveTimeRender) -> String {
+    use std::fmt::Write as _;
+    let mut line = format!(
+        "  Save-time: {}",
+        watch_save_time::assurance_label(&render.assurance),
+    );
+    if render.assurance.state == AssuranceState::Unavailable {
+        line.push_str(" (daemon not running)");
+    }
+    if let Some(n) = render.confined {
+        let _ = write!(line, " \u{00b7} confined: {n}");
+    }
+    line
+}
+
+/// Closed-set wire string for an [`AssuranceState`] (matches the proto
+/// serialiser; used for the JSON surface).
+fn assurance_state_str(state: AssuranceState) -> &'static str {
+    match state {
+        AssuranceState::Clean => "clean",
+        AssuranceState::Stale => "stale",
+        AssuranceState::Pending => "pending",
+        AssuranceState::Running => "running",
+        AssuranceState::Unavailable => "unavailable",
     }
 }
 
@@ -611,6 +714,9 @@ struct LegibleSnapshot {
     protection: WorktreeClaimState,
     layers: LayerSummary,
     daemon: DaemonSummary,
+    /// DSV-007 Task 17: the save-time assurance + confinement line. `None` keeps
+    /// the pre-DSV legible block unchanged (daemon routing not enabled).
+    save_time: Option<SaveTimeRender>,
     witness: WitnessSummary,
     next_action: String,
 }
@@ -700,6 +806,9 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
             out.push_str("  Daemon: not running\n");
         }
     }
+    if let Some(save_time) = &s.save_time {
+        let _ = writeln!(out, "{}", render_save_time_line(save_time));
+    }
     match &s.witness {
         WitnessSummary::Last {
             commit_short,
@@ -751,6 +860,7 @@ fn build_legible_snapshot(
     data: &StatusData,
     diag: &activation::ActivationDiagnostic,
     root: &Path,
+    save_time: Option<SaveTimeRender>,
 ) -> LegibleSnapshot {
     let layers = derive_layers(data, diag);
     let protection = derive_protection(diag, &layers);
@@ -761,6 +871,7 @@ fn build_legible_snapshot(
         protection,
         layers,
         daemon,
+        save_time,
         witness,
         next_action,
     }
@@ -1181,6 +1292,12 @@ struct StatusOutput {
     /// `--touch-project-state`), `false` = the operator opted in.
     #[serde(skip_serializing_if = "Option::is_none")]
     project_writes_gated: Option<bool>,
+
+    /// DSV-007 Task 17: the save-time assurance + confinement snapshot. Present
+    /// only when daemon routing is enabled (`ANVIL_WATCH_DAEMON`); omitted under
+    /// the default so the v1 output is unchanged (`additionalProperties: true`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    save_time: Option<SaveTimeOutput>,
 }
 
 #[derive(Serialize)]
@@ -1212,6 +1329,7 @@ fn print_json(
     activation_diag: &activation::ActivationDiagnostic,
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: &Path,
+    save_time: Option<&SaveTimeRender>,
 ) -> anyhow::Result<()> {
     let claim = protection_claim_section::resolve_protection_claim(
         activation_diag,
@@ -1269,6 +1387,12 @@ fn print_json(
         // both fields derive from a single environment snapshot.
         install_root: install_root_section.0,
         project_writes_gated: install_root_section.1,
+        save_time: save_time.map(|st| SaveTimeOutput {
+            state: assurance_state_str(st.assurance.state),
+            reason: st.assurance.reason.map(watch_save_time::stale_reason_str),
+            confined: st.confined,
+            last_full_scan: st.assurance.last_full_scan.clone(),
+        }),
     };
 
     let json = serde_json::to_string_pretty(&output)?;
@@ -1773,6 +1897,68 @@ mod tests {
     const DAY_SECS: u64 = 86_400;
     const YEAR_SECS: u64 = 365 * DAY_SECS;
 
+    // --- DSV-007 Task 17: save-time assurance + confinement surface ---
+
+    #[test]
+    fn status_renders_unavailable_when_daemon_absent() {
+        let render = SaveTimeRender {
+            assurance: watch_save_time::daemon_absent_assurance(),
+            confined: None,
+        };
+        let line = render_save_time_line(&render);
+        assert!(
+            line.contains("unavailable"),
+            "an absent daemon must render unavailable, got: {line}",
+        );
+        assert!(
+            line.contains("daemon not running"),
+            "absence must say the daemon is not running, got: {line}",
+        );
+        assert!(
+            !line.contains("clean"),
+            "absence must never render a stale cached clean, got: {line}",
+        );
+    }
+
+    #[test]
+    fn status_shows_confined_count() {
+        let render = SaveTimeRender {
+            assurance: WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 1,
+                last_full_scan: None,
+            },
+            confined: Some(3),
+        };
+        let line = render_save_time_line(&render);
+        assert!(
+            line.contains("confined: 3"),
+            "allowlist mode must render the confined count, got: {line}",
+        );
+    }
+
+    #[test]
+    fn status_shows_stale_reason() {
+        let render = SaveTimeRender {
+            assurance: WorkspaceAssurance {
+                state: AssuranceState::Stale,
+                reason: Some(
+                    anvil_intercept_proto::protocol::StaleReason::CrossFileResolutionNeeded,
+                ),
+                generation: 2,
+                last_full_scan: None,
+            },
+            confined: None,
+        };
+        let line = render_save_time_line(&render);
+        assert!(line.contains("stale"), "must render the stale state, got: {line}");
+        assert!(
+            line.contains("cross-file-resolution-needed"),
+            "stale must name its reason, got: {line}",
+        );
+    }
+
     fn legible_test_snapshot(state: WorktreeClaimState) -> LegibleSnapshot {
         LegibleSnapshot {
             protection: state,
@@ -1785,6 +1971,7 @@ mod tests {
                 l5_audit: LayerState::Unknown,
             },
             daemon: DaemonSummary::NotRunning,
+            save_time: None,
             witness: WitnessSummary::None,
             next_action: "run `anvil start`".to_string(),
         }
@@ -1847,6 +2034,19 @@ mod tests {
                 pid: 4_194_303,
                 uptime: Duration::from_secs(YEAR_SECS),
             },
+            // Worst-case save-time line (longest reason + a wide confined count)
+            // so the 24-row budget covers the DSV-007 Task 17 surface too.
+            save_time: Some(SaveTimeRender {
+                assurance: WorkspaceAssurance {
+                    state: AssuranceState::Stale,
+                    reason: Some(
+                        anvil_intercept_proto::protocol::StaleReason::ConfigBoundaryPolicyEdit,
+                    ),
+                    generation: u64::MAX,
+                    last_full_scan: None,
+                },
+                confined: Some(9999),
+            }),
             witness: WitnessSummary::Last {
                 commit_short: "deadbee".to_string(),
                 age: Some(Duration::from_secs(YEAR_SECS)),

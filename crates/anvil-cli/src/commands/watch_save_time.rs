@@ -67,6 +67,46 @@ pub(crate) trait SaveTimeTransport: Send {
     /// are swallowed because a reconnect that cannot re-scan still lets the next
     /// `validate_paths` proceed.
     fn request_full_scan(&self, workspace_root: &Path) -> Result<(), SaveTimeClientError>;
+
+    /// Read-only assurance snapshot for `workspace_root` (the `anvil status`
+    /// surface — DSV-007 Task 17), without submitting a change set.
+    /// `Err(Unavailable)` ⇒ no daemon answered ⇒ status renders
+    /// `unavailable{daemon-absent}`, never a stale cached `clean`.
+    fn workspace_status(
+        &self,
+        workspace_root: &Path,
+    ) -> Result<WorkspaceAssurance, SaveTimeClientError>;
+}
+
+/// True when the user-facing surfaces (`watch` routing, `status` assurance)
+/// should engage the resident save-time daemon (DSV-007). Opt-in and
+/// default-off: the save-time daemon is not auto-started in Sub-phase A, so
+/// enabling by default would change default `watch`/`status` output for every
+/// user against an absent daemon. Operators / CI running the daemon set
+/// `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`).
+pub(crate) fn daemon_routing_enabled() -> bool {
+    std::env::var_os("ANVIL_WATCH_DAEMON").is_some_and(|value| {
+        matches!(
+            value.to_string_lossy().as_ref(),
+            "1" | "true" | "on" | "yes"
+        )
+    })
+}
+
+/// One-shot read of a worktree's [`WorkspaceAssurance`] from the daemon. `None`
+/// when no daemon answered (absent socket / dead daemon / unserved verb) — the
+/// `status` surface renders that as `unavailable{daemon-absent}` rather than a
+/// stale cached `clean`.
+#[cfg(unix)]
+pub(crate) fn query_workspace_status(workspace_root: &Path) -> Option<WorkspaceAssurance> {
+    SocketSaveTimeTransport::resolve()?
+        .workspace_status(workspace_root)
+        .ok()
+}
+
+#[cfg(not(unix))]
+pub(crate) fn query_workspace_status(_workspace_root: &Path) -> Option<WorkspaceAssurance> {
+    None
 }
 
 /// What a save-time cycle resolved to.
@@ -278,8 +318,9 @@ mod socket {
 
     use anvil_intercept::ipc;
     use anvil_intercept_proto::protocol::{
-        ANVIL_REQUEST_FULL_SCAN, ANVIL_VALIDATE_PATHS, ChangeDescriptor, RequestFullScanRequest,
-        ValidatePathsRequest, ValidatePathsResponse,
+        ANVIL_REQUEST_FULL_SCAN, ANVIL_VALIDATE_PATHS, ANVIL_WORKSPACE_STATUS, ChangeDescriptor,
+        RequestFullScanRequest, ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance,
+        WorkspaceStatusRequest, WorkspaceStatusResponse,
     };
     use serde_json::{Value, json};
 
@@ -294,6 +335,7 @@ mod socket {
     const RESPONSE_LINE_BYTES: u64 = 1 << 20;
     const REQUEST_ID: &str = "anvil-watch-validate-paths";
     const FULL_SCAN_REQUEST_ID: &str = "anvil-watch-request-full-scan";
+    const WORKSPACE_STATUS_REQUEST_ID: &str = "anvil-status-workspace-status";
 
     /// Production [`SaveTimeTransport`]: JSON-RPC over the per-user Unix socket.
     pub(crate) struct SocketSaveTimeTransport {
@@ -402,6 +444,21 @@ mod socket {
             self.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, params)
                 .map(|_| ())
         }
+
+        fn workspace_status(
+            &self,
+            workspace_root: &Path,
+        ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+            let request = WorkspaceStatusRequest {
+                workspace_root: workspace_root.to_string_lossy().into_owned(),
+            };
+            let params =
+                serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
+            let result = self.round_trip(ANVIL_WORKSPACE_STATUS, WORKSPACE_STATUS_REQUEST_ID, params)?;
+            let response: WorkspaceStatusResponse =
+                serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)?;
+            Ok(response.workspace_assurance)
+        }
     }
 }
 
@@ -462,6 +519,13 @@ mod tests {
             *self.full_scan_calls.lock().unwrap() += 1;
             Ok(())
         }
+
+        fn workspace_status(
+            &self,
+            _workspace_root: &Path,
+        ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+            Ok(clean_response().workspace_assurance)
+        }
     }
 
     fn clean_response() -> ValidatePathsResponse {
@@ -509,6 +573,13 @@ mod tests {
 
         fn request_full_scan(&self, workspace_root: &Path) -> Result<(), SaveTimeClientError> {
             self.0.request_full_scan(workspace_root)
+        }
+
+        fn workspace_status(
+            &self,
+            workspace_root: &Path,
+        ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+            self.0.workspace_status(workspace_root)
         }
     }
 

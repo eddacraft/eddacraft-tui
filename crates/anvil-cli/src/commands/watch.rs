@@ -573,20 +573,6 @@ struct DispatcherInner {
     exe_override: Option<PathBuf>,
 }
 
-/// True when `watch` should route save-time `check` validation through the
-/// resident daemon (DSV-007). Opt-in and default-off: the save-time daemon is
-/// not auto-started in Sub-phase A, so enabling routing by default would make
-/// every `anvil watch` session probe an absent daemon and WARN. Operators /
-/// CI that run the daemon set `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`).
-fn save_time_routing_enabled() -> bool {
-    std::env::var_os("ANVIL_WATCH_DAEMON").is_some_and(|value| {
-        matches!(
-            value.to_string_lossy().as_ref(),
-            "1" | "true" | "on" | "yes"
-        )
-    })
-}
-
 /// Build the save-time daemon client for a dispatcher, or `None` to keep the
 /// subprocess-only path. `None` when routing is disabled, the action is not
 /// `check`, the host is non-unix, or no socket dir can be resolved (treated as
@@ -596,8 +582,10 @@ fn build_save_time_client(
     action: &str,
     workspace_root: &std::path::Path,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
-    use crate::commands::watch_save_time::{SocketSaveTimeTransport, WatchSaveTimeClient};
-    if action != "check" || !save_time_routing_enabled() {
+    use crate::commands::watch_save_time::{
+        SocketSaveTimeTransport, WatchSaveTimeClient, daemon_routing_enabled,
+    };
+    if action != "check" || !daemon_routing_enabled() {
         return None;
     }
     let transport = SocketSaveTimeTransport::resolve()?;
@@ -1788,6 +1776,13 @@ mod tests {
                 _root: &std::path::Path,
             ) -> Result<(), SaveTimeClientError> {
                 Ok(())
+            }
+            fn workspace_status(
+                &self,
+                _root: &std::path::Path,
+            ) -> Result<anvil_intercept_proto::protocol::WorkspaceAssurance, SaveTimeClientError>
+            {
+                Err(SaveTimeClientError::Unavailable)
             }
         }
 
