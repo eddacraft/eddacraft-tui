@@ -316,7 +316,9 @@ Three correctness gates are hard blockers for Phase 2 merge:
    `workspace_root`. Because warm (incremental) and cold (full-walk) paths order
    findings differently, parity is defined as **order-normalised** by
    `(path, rule_id, span_start)` — both paths sort before constructing the
-   envelope; byte-identical raw output is not a goal. `workspace_assurance` is
+   envelope via the shared `sort_diagnostics`, a **total order** (file, rule id,
+   full span, then `summary` tiebreaker) so ties never fall back to encounter
+   order; byte-identical raw output is not a goal. `workspace_assurance` is
    explicitly carved out of parity (it is structurally incomparable between
    daemon and fallback).
    **Surface scope (reconciled 2026-06-04, DSV-009):** the antipattern family runs

@@ -332,8 +332,10 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 2. Cross-path diagnostic parity — golden corpus, identical **antipattern-family**
    finding sets (B2: scoped to `check_families: ["antipattern"]`, matching the
    `coverage: certified` claim), **order-normalised** by `(path, rule_id, span_start)`
-   via a shared sort-before-envelope normalisation; shared config discovery off
-   `workspace_root`; `workspace_assurance` carved out of parity.
+   via a shared sort-before-envelope normalisation — implemented as a **total order**
+   (`sort_diagnostics`: file, rule id, full span, then `summary` tiebreaker) so ties
+   never fall back to encounter order; shared config discovery off `workspace_root`;
+   `workspace_assurance` carved out of parity.
    **Surface scope (reconciled 2026-06-04, DSV-009):** the antipattern family runs
    only on the **save-time `validate_paths` surfaces — `watch+daemon` and
    `watch+fallback`** (`anvil check`); the parity gate

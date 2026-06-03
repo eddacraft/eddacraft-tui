@@ -2,7 +2,9 @@
 //!
 //! Proves the **antipattern-family** finding sets are identical across the two
 //! save-time delivery surfaces that run the antipattern engine — `watch+daemon`
-//! and `watch+fallback` — order-normalised by `(path, rule_id, span_start)`,
+//! and `watch+fallback` — order-normalised by `(path, rule_id, span_start)`
+//! (a total order — the shared `sort_diagnostics` adds full-span + `summary`
+//! tiebreakers so ties never fall back to encounter order),
 //! with `workspace_assurance` and daemon-only `DoS` coverage notices carved out.
 //!
 //! Scope note (the parity model, reconciled to the merged DSV-007 design): the

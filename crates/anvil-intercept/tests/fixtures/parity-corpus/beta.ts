@@ -1,1 +1,1 @@
-let other: any = thing;
+export const other: any = {};

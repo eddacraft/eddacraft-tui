@@ -148,9 +148,10 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
 }
 
 /// Canonical wire order for save-time diagnostics: sort by `(path, rule_id,
-/// span_start)` — file, then rule id, then the full 1-based span
-/// (`line, column, end_line, end_column`), then `summary` as the final
-/// tiebreaker.
+/// span_start)` — file, then rule id, then the span as the scanner reports it
+/// (`line, column, end_line, end_column`; line is 1-based, column is whatever
+/// the antipattern scanner emits — not normalised here), then `summary` as the
+/// final tiebreaker.
 ///
 /// This is the **shared sort-before-envelope normalisation** the cross-path
 /// diagnostic-parity gate (DSV-009 / ADR-061 §8) depends on: every surface that
@@ -366,8 +367,9 @@ where
             .iter()
             .map(antipattern_diagnostic),
     );
-    // Shared sort-before-envelope normalisation (DSV-009 / ADR-061 §8): emit
-    // the wire in canonical `(path, rule_id, span_start)` order so the
+    // Shared sort-before-envelope normalisation (DSV-009 / ADR-061 §8): emit the
+    // wire in canonical `(path, rule_id, span_start)` order — a total order with
+    // full-span + `summary` tiebreakers (see `sort_diagnostics`) — so the
     // cross-path parity gate holds regardless of per-path encounter order.
     sort_diagnostics(&mut diagnostics);
 
