@@ -161,10 +161,38 @@ fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<Ha
 /// See the module docs for the Sub-phase A contract. In short:
 /// - `Delete` / `Rename` / `Create` are never certified — they map to their
 ///   dedicated stale reasons.
+/// - A `ContentModify` whose `update_file` reported errors is never certified —
+///   the post-update graph state for the file is unreliable.
 /// - `ContentModify` with no public/privileged surface change certifies
 ///   self-only (`Certified{[file]}`).
 /// - `ContentModify` with a surface change is `Partial`: `ImpactSetOverflow`
 ///   if the importer closure exceeds `budget`, otherwise `ExportSurfaceChange`.
+///
+/// # Precondition
+///
+/// `sym` must reflect the post-update state of `delta.file` (i.e. `update_file`
+/// for this change has already been applied to `sym`). `export_surface_changed`
+/// reads the file's *current* symbols from `sym`; if `sym` were stale, an
+/// absent file would read as "no public surface" and a body-only change would
+/// false-certify. The daemon's `apply_delta` (DSV-004 Task 7) guarantees this
+/// ordering; the `delta.errors` guard below is the defence-in-depth backstop
+/// for the one in-band failure mode (`update_file` partially failing) that can
+/// leave `sym` inconsistent while still returning a delta.
+///
+/// # Known Sub-phase A limitations (council verdict B4)
+///
+/// The surface decision is the `previously_public` / `previously_privileged`
+/// **set**-diff (`incremental.rs` builds them as `HashSet`s keyed by
+/// `file::kind::name`), which the council accepted as conservatively safe. Two
+/// consequences follow and are deferred, not bugs:
+/// - **Name granularity / overloads.** Adding a second public symbol with the
+///   same `kind` and `name` (e.g. a TS overload of an already-public function)
+///   collapses in the set and reads as no surface change. Resolving this needs
+///   stable per-symbol identity (GV2-002, Draft).
+/// - **`TrustLevel::Boundary`.** Only `Privileged` feeds `previously_privileged`
+///   today (`incremental.rs`), and no producer assigns `Boundary` at runtime. If
+///   trust annotation later emits `Boundary` as an elevated surface, extend both
+///   that baseline and the `current_privileged` filter here together.
 #[must_use]
 pub fn certify(
     sym: &SymbolGraph,
@@ -184,11 +212,22 @@ pub fn certify(
             reason: CertifyStale::CrossFileResolution,
         },
         ChangeKind::ContentModify => {
+            // Defence in depth: a partial `update_file` failure leaves `sym`
+            // inconsistent for this file, so its surface cannot be trusted —
+            // never certify clean off an unreliable graph.
+            if !delta.errors.is_empty() {
+                return Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange,
+                };
+            }
             if !export_surface_changed(sym, delta) {
                 return Certifiability::Certified {
                     paths: vec![PathBuf::from(&delta.file)],
                 };
             }
+            // The closure is computed only to distinguish overflow from a
+            // bounded impact set; the impacted paths themselves are unused in
+            // Sub-phase A (every surface change is `Partial` regardless).
             match impact_closure(dep, &delta.file, budget) {
                 None => Certifiability::Partial {
                     reason: CertifyStale::ImpactSetOverflow,
@@ -537,6 +576,80 @@ mod tests {
                 reason: CertifyStale::ExportSurfaceChange
             },
             "with no reverse edges the closure is empty and does not overflow"
+        );
+    }
+
+    #[test]
+    fn update_errors_force_partial() {
+        // A body-only-looking delta (identical public surface) must NOT certify
+        // when update_file reported an error — the graph is unreliable for the
+        // file. Defence in depth against a partial-update stale-graph race.
+        let sym = sym_with("a.ts", &[("foo", Visibility::Public, TrustLevel::Unknown)]);
+        let mut delta = delta_for("a.ts", &["foo"], &[]);
+        delta.errors.push("symbol 7: duplicate".to_string());
+        let v = certify(
+            &sym,
+            &DependencyGraph::new(),
+            &ChangeKind::ContentModify,
+            &delta,
+            64,
+        );
+        assert!(
+            matches!(v, Certifiability::Partial { .. }),
+            "an update with errors must never certify clean"
+        );
+    }
+
+    #[test]
+    fn non_function_kind_surface_change_is_partial() {
+        // Surface detection must work for any SymbolKind, not just Function:
+        // a public Class added where none existed is a surface change.
+        let mut g = SymbolGraph::new();
+        g.add_symbol(SymbolNode {
+            id: 0,
+            kind: SymbolKind::Class,
+            name: "Widget".to_string(),
+            visibility: Visibility::Public,
+            file: "a.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+        // previously_public empty → the public Class is new → surface change.
+        let delta = delta_for("a.ts", &[], &[]);
+        assert!(export_surface_changed(&g, &delta));
+        let v = certify(
+            &g,
+            &DependencyGraph::new(),
+            &ChangeKind::ContentModify,
+            &delta,
+            64,
+        );
+        assert!(matches!(v, Certifiability::Partial { .. }));
+    }
+
+    #[test]
+    fn internal_only_file_with_no_public_surface_certifies() {
+        // Lock the legitimate empty/internal-only case: a file whose public
+        // surface is empty before and after a body-only edit certifies
+        // self-only (the errors guard must not over-reject this).
+        let sym = sym_with(
+            "a.ts",
+            &[("helper", Visibility::Internal, TrustLevel::Unknown)],
+        );
+        let delta = delta_for("a.ts", &[], &[]);
+        assert!(!export_surface_changed(&sym, &delta));
+        let v = certify(
+            &sym,
+            &DependencyGraph::new(),
+            &ChangeKind::ContentModify,
+            &delta,
+            64,
+        );
+        assert_eq!(
+            v,
+            Certifiability::Certified {
+                paths: vec![PathBuf::from("a.ts")]
+            }
         );
     }
 }

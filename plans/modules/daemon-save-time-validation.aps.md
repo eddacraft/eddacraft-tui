@@ -214,6 +214,17 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 #### DSV-004: Certifiability + interim graph cache + `FileSymbols` feed
 
 - **Status:** In Progress
+- **Progress:** Task 6 (certifiability) delivered — `certify` + `export_surface_changed`
+  in `anvil-graph-cache` (`certify.rs`), conservative export-surface default (B4),
+  importer discovery via `dependents_of` only (B1), `errors`-guard + precondition doc
+  from Council. Two crate-boundary deviations from the spec wording, both forced by
+  the dep graph: the `Partial` reason is a graph-cache-local `CertifyStale` (not the
+  wire `StaleReason`, which would add `anvil-intercept-proto` to ADR-064 §2's frozen
+  set) and the change descriptor is a local `ChangeKind` (not `anvil-intercept`'s
+  `CanonicalChange`, which would cycle) — the daemon maps both at the boundary
+  (DSV-005). Remaining (Task 7): the `(SymbolGraph, DependencyGraph)` `kernel_cache`
+  (LRU + generation-guard + unregister hook, `apply_delta`, `reverse_index_consistent_after_delta`)
+  and the kernel→daemon `FileSymbols` feed-producer wiring (`watcher.rs`).
 - **Intent:** Decide certified-vs-stale via a bounded reverse-impact closure over a
   warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache the daemon mutates
   from kernel-fed parsed symbols.
