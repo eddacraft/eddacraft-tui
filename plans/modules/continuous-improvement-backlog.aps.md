@@ -506,7 +506,7 @@ archive.
 
 ### CIB-027: Define a lightweight review path for cross-repo implementation work
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Give agents a first-class pre-PR review surface when implementation
   work happens in a downstream or sibling repository where Anvil's `/council`
   command is not available.
@@ -526,6 +526,14 @@ archive.
 - **Coordinates with:** CIB-002 (definitive skill and agent list).
 - **Confidence:** medium — process-only improvement, but needs care not to imply
   Anvil commands are portable across repositories.
+- **TDD waiver (for docs-only item):** No executable product behaviour or test
+  surface to drive red/green for the process documentation wording itself (see
+  `test-driven-development` skill: record why when cannot test-first; dev-workflow
+  rules for docs/config-only: "use schema, lint, formatting, link, or manual
+  validation instead of inventing irrelevant tests"). Replacement evidence:
+  explicit manual dry-run (non-Anvil target using general `code-reviewer` path),
+  `pnpm format:check && pnpm lint:check`, verification-before-completion gate,
+  and full pre-PR checks. The change adds no new code paths.
 
 ### CIB-028: Add a safe post-merge worktree cleanup sweep
 

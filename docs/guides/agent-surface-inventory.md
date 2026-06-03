@@ -103,6 +103,15 @@ on demand via the `skill` tool).
 `protocols.md` in the same directory is a shared protocol fragment, not an agent
 — it documents conventions consumed by the agents above.
 
+**Cross-repo review fallback (CIB-027):** When implementation work occurs in a
+downstream/sibling repository that does not have Anvil's `/council` command
+available, use a focused `code-reviewer` (or Council-role) agent pass against
+the changes plus the target repository's own CI + automated review checks.
+Record the evidence (agent transcript + target CI results) before publishing the
+PR. Do not invoke Anvil-specific `/council` or assume Anvil Council surfaces
+exist in the target. See `dev-workflow` for the full review stage and when full
+Anvil Council is not applicable.
+
 ### Global agents the anvil workflow references
 
 | Name         | Canonical source                        | Where anvil references it                                                |
