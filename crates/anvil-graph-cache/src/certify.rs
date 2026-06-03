@@ -66,9 +66,13 @@ pub enum ChangeKind {
 
 /// Why a change could not be certified self-only.
 ///
-/// Graph-cache-local: the daemon maps these to the wire `StaleReason`
-/// (DSV-005). Names mirror the wire variants they map to so the mapping is
-/// mechanical.
+/// Graph-cache-local: the daemon maps these to the wire `StaleReason` at the
+/// boundary (DSV-005). The mapping is *not* fully 1:1 — `ImpactSetOverflow`,
+/// `Deleted`, `Renamed`, and `CrossFileResolutionNeeded` match wire variant
+/// names directly, but `ExportSurfaceChange` and `UnreliableGraph` have no
+/// dedicated wire variant today and DSV-005 must choose their `StaleReason`
+/// (e.g. an export/public-API reason and a generic stale reason respectively).
+/// Variant names match the wire vocabulary where a counterpart exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CertifyStale {
     /// A public/privileged symbol surface changed; importers may be affected
@@ -81,7 +85,11 @@ pub enum CertifyStale {
     /// The file is a rename destination.
     Renamed,
     /// A newly created file whose cross-file imports are not yet resolved.
-    CrossFileResolution,
+    CrossFileResolutionNeeded,
+    /// The file's `update_file` reported errors, so the post-update graph is
+    /// unreliable and its surface cannot be trusted. A distinct cause from a
+    /// surface change — kept separate for honest telemetry/debugging.
+    UnreliableGraph,
 }
 
 /// The certifiability verdict for one changed file.
@@ -209,7 +217,7 @@ pub fn certify(
             reason: CertifyStale::Renamed,
         },
         ChangeKind::Create => Certifiability::Partial {
-            reason: CertifyStale::CrossFileResolution,
+            reason: CertifyStale::CrossFileResolutionNeeded,
         },
         ChangeKind::ContentModify => {
             // Defence in depth: a partial `update_file` failure leaves `sym`
@@ -217,7 +225,7 @@ pub fn certify(
             // never certify clean off an unreliable graph.
             if !delta.errors.is_empty() {
                 return Certifiability::Partial {
-                    reason: CertifyStale::ExportSurfaceChange,
+                    reason: CertifyStale::UnreliableGraph,
                 };
             }
             if !export_surface_changed(sym, delta) {
@@ -265,8 +273,16 @@ mod tests {
     }
 
     fn key(file: &str, name: &str) -> String {
-        // Mirrors GraphDelta::symbol_baseline_key for SymbolKind::Function.
-        format!("{file}::{:?}::{name}", SymbolKind::Function)
+        // Call the real helper (via a dummy node) so fixtures track production
+        // behaviour and can't silently desync if the key format changes.
+        GraphDelta::symbol_baseline_key(&SymbolNode {
+            id: 0,
+            kind: SymbolKind::Function,
+            name: name.to_string(),
+            visibility: Visibility::Public,
+            file: file.to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
     }
 
     fn delta_for(file: &str, prev_public: &[&str], prev_privileged: &[&str]) -> GraphDelta {
@@ -454,7 +470,7 @@ mod tests {
         assert_eq!(
             v,
             Certifiability::Partial {
-                reason: CertifyStale::CrossFileResolution
+                reason: CertifyStale::CrossFileResolutionNeeded
             }
         );
     }
@@ -594,9 +610,12 @@ mod tests {
             &delta,
             64,
         );
-        assert!(
-            matches!(v, Certifiability::Partial { .. }),
-            "an update with errors must never certify clean"
+        assert_eq!(
+            v,
+            Certifiability::Partial {
+                reason: CertifyStale::UnreliableGraph
+            },
+            "an update with errors must report UnreliableGraph, not a surface change"
         );
     }
 
