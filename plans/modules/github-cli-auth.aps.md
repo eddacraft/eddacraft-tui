@@ -43,7 +43,7 @@ retires the dead path.
   `anvil-api`, behind new versioned endpoints
   `POST /api/v1/auth/github-device/{start,poll}`
 - A dedicated "Anvil CLI" GitHub OAuth app (separate from `eddacraft Docs`,
-  Device Flow enabled) + Key Vault `github-cli-client-id`/`-secret`, wired into
+  Device Flow enabled) + Key Vault `github-cli-client-id` / `github-cli-client-secret`, wired into
   `anvil-api` only
 - Account linking on the GitHub numeric `github_id` (verified-primary-email as
   first-link fallback only) and the DB migration it needs
@@ -121,7 +121,7 @@ retires the dead path.
 Change status to **Ready** when:
 
 - [ ] The "Anvil CLI" GitHub OAuth app is registered with Device Flow enabled
-      and `github-cli-client-id`/`-secret` are provisioned (GHCLIAUTH-002)
+      and `github-cli-client-id` / `github-cli-client-secret` are provisioned (GHCLIAUTH-002)
 - [ ] The security invariants in ADR-066 are signed off (no email on `/start`,
       identity from `fetchGitHubUser` only, fail-closed verified-email, gate
       parity, single-use hashed-at-rest mint)
