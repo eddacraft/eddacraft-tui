@@ -168,10 +168,12 @@ pub fn normalise_rel(path: &str) -> Result<WinRelPath, WinEscape> {
     if path.starts_with('/') {
         return Err(WinEscape::Absolute(owned));
     }
-    // Drive specifier: a colon in the first component is a drive letter
-    // (`C:`/`C:foo`); a colon anywhere else is an alternate-data-stream.
+    // Drive specifier: a real ASCII drive letter (`A:`–`Z:`) in the first
+    // component (`C:` / `C:foo`). Any other colon — a non-drive first byte, or a
+    // colon past the first component — is an alternate-data-stream.
     let first = path.split('/').next().unwrap_or("");
-    if first.len() >= 2 && first.as_bytes()[1] == b':' {
+    let bytes = first.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
         return Err(WinEscape::Drive(owned));
     }
     if path.contains(':') {
@@ -283,9 +285,11 @@ impl Drop for OwnedHandle {
 /// of the Unix `O_NOFOLLOW` ladder.
 ///
 /// # Errors
-/// `ErrorKind::FilesystemLoop` for a reparse rejection
-/// (`STATUS_REPARSE_POINT_ENCOUNTERED`), `ErrorKind::FileTooLarge` for an
-/// over-ceiling file, or the underlying open/read error otherwise.
+/// A reparse rejection (`STATUS_REPARSE_POINT_ENCOUNTERED`) surfaces as
+/// `raw_os_error() == Some(ERROR_CANT_RESOLVE_FILENAME)` (the Unix `ELOOP`
+/// analogue — `io_error_more`'s `ErrorKind::FilesystemLoop` is still unstable);
+/// an over-ceiling file is `ErrorKind::FileTooLarge`; any other open/read
+/// failure surfaces its own error.
 pub fn read_under(dir: &WorkspaceDir, rel: &WinRelPath) -> io::Result<Vec<u8>> {
     let (last, parents) = rel
         .components
@@ -484,6 +488,13 @@ mod tests {
     fn rejects_alt_data_stream() {
         assert!(matches!(
             normalise_rel("src/lib.rs:secret"),
+            Err(WinEscape::AltDataStream(_))
+        ));
+        // A non-letter first byte before `:` is an ADS, NOT a drive specifier —
+        // only `A:`–`Z:` is a drive. (Either way it is refused; the variant must
+        // be correct.)
+        assert!(matches!(
+            normalise_rel("1:foo"),
             Err(WinEscape::AltDataStream(_))
         ));
     }
