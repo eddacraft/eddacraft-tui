@@ -1135,6 +1135,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                         worktree.to_path_buf(),
                     ));
                 }));
+            // The registry is freshly built in `DaemonState::new` without a
+            // hook, so this set is the first and must succeed. A `false` means
+            // a second install site was wired (a bug) — surface it in release
+            // logs (the failure mode is silent warm-state growth, not a crash),
+            // not only under `debug_assert`.
+            if !installed {
+                tracing::error!(
+                    target: "anvil_intercept::save_time",
+                    "unregister hook already installed — warm-state reclamation may be \
+                     wired twice; sessions will not reclaim their warm graph state",
+                );
+            }
             debug_assert!(
                 installed,
                 "the unregister hook must install on a freshly-built registry",

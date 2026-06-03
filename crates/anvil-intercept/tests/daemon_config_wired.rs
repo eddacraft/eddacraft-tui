@@ -329,6 +329,96 @@ async fn run_foreground_reclaims_warm_state_on_unregister() {
         .expect("daemon run_foreground reported error");
 }
 
+/// DSV-010 last-session semantics: warm state must SURVIVE while a peer session
+/// still holds the worktree, and be reclaimed only when the LAST session leaves.
+/// Two sub-agent sessions (distinct tags, MLP2-023) share one worktree;
+/// unregistering the first must not drop the shared warm assurance machine.
+/// A per-session hook would fail the mid-point assertion.
+#[tokio::test(flavor = "current_thread")]
+async fn warm_state_survives_until_last_session_unregisters() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let worktree = tmp.path().join("worktree");
+    std::fs::create_dir(&worktree).expect("create worktree");
+    let wt_str = worktree.to_str().expect("utf-8 worktree path");
+
+    let (shutdown, handle, socket) = spawn_daemon_with_config(&tmp, Resolved::default()).await;
+
+    let a = send_register_request(&socket, "1", "sess-a", &worktree, "claude-a").await;
+    assert!(
+        a.get("result").is_some() && a.get("error").is_none(),
+        "register a: {a:?}",
+    );
+    let b = send_register_request(&socket, "2", "sess-b", &worktree, "claude-b").await;
+    assert!(
+        b.get("result").is_some() && b.get("error").is_none(),
+        "register b: {b:?}",
+    );
+
+    let scan = send_jsonrpc(
+        &socket,
+        "3",
+        "anvil/request_full_scan",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(assurance_state(&scan), Some("pending"), "warm: {scan:?}");
+
+    // First session leaves — the peer keeps the warm state.
+    let unreg_a = send_jsonrpc(
+        &socket,
+        "4",
+        "session.unregister",
+        json!({ "session_id": "sess-a" }),
+    )
+    .await;
+    assert!(unreg_a.get("error").is_none(), "unregister a: {unreg_a:?}");
+
+    let mid = send_jsonrpc(
+        &socket,
+        "5",
+        "anvil/workspace_status",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(
+        assurance_state(&mid),
+        Some("pending"),
+        "warm state MUST survive while a peer session still holds the worktree \
+         (last-session reclamation); a `stale` here means the hook fired \
+         per-session and pulled warm state from under the live sibling. {mid:?}",
+    );
+
+    // Last session leaves — now reclaimed.
+    let unreg_b = send_jsonrpc(
+        &socket,
+        "6",
+        "session.unregister",
+        json!({ "session_id": "sess-b" }),
+    )
+    .await;
+    assert!(unreg_b.get("error").is_none(), "unregister b: {unreg_b:?}");
+
+    let after = send_jsonrpc(
+        &socket,
+        "7",
+        "anvil/workspace_status",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(
+        assurance_state(&after),
+        Some("stale"),
+        "warm state reclaimed once the LAST session leaves; got {after:?}",
+    );
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("daemon shutdown timed out")
+        .expect("daemon task join failure")
+        .expect("daemon run_foreground reported error");
+}
+
 /// INTD-016 wire-up: a daemon launched with a tightened
 /// `Resolved.ipc_limits.control_frame_max_bytes` must reject a
 /// control-lane frame that exceeds the configured cap with the

@@ -131,9 +131,23 @@ impl AntipatternConfigFile {
     fn into_config(self) -> AntipatternCheckConfig {
         let default = AntipatternCheckConfig::default();
         AntipatternCheckConfig {
+            // `patterns` empty is the *intentional* sentinel for "the daemon's
+            // built-in set" (it is also the default), so an empty list here is
+            // meaningful, not a footgun.
             patterns: self.patterns.unwrap_or(default.patterns),
             include_opt_in: self.include_opt_in.unwrap_or(default.include_opt_in),
-            extensions: self.extensions.unwrap_or(default.extensions),
+            // `extensions` is asymmetric: an EMPTY list would make
+            // `is_scannable_file` reject every path, so the antipattern scan
+            // would run over nothing and the verdict would *vacuously pass* —
+            // silently disabling save-time scanning, the dangerous direction.
+            // There is no legitimate "scan zero extensions" intent (that is
+            // equivalent to not running the daemon), so an omitted OR empty
+            // list folds to the default extension set. An operator narrows the
+            // surface with a non-empty list.
+            extensions: match self.extensions {
+                Some(exts) if !exts.is_empty() => exts,
+                _ => default.extensions,
+            },
             severity_threshold: self
                 .severity_threshold
                 .unwrap_or(default.severity_threshold),
@@ -146,7 +160,11 @@ impl AntipatternConfigFile {
 /// A missing file folds into [`AntipatternCheckConfig::default`] (`Ok`). A
 /// present file must be owner-only and parse; otherwise this returns a *loud*
 /// `Err` (the production caller fails safe on it).
-pub fn load_from(path: &Path) -> Result<AntipatternCheckConfig, AntipatternConfigError> {
+///
+/// `pub(crate)`: production code MUST go through [`load_or_fail_safe`] so the
+/// fail-safe posture cannot be bypassed; this fallible form is the crate-internal
+/// + test seam.
+pub(crate) fn load_from(path: &Path) -> Result<AntipatternCheckConfig, AntipatternConfigError> {
     let raw = match confinement::read_trusted(path) {
         Ok(Some(raw)) => raw,
         Ok(None) => return Ok(AntipatternCheckConfig::default()),
@@ -160,8 +178,9 @@ pub fn load_from(path: &Path) -> Result<AntipatternCheckConfig, AntipatternConfi
     Ok(file.into_config())
 }
 
-/// Load the antipattern config from the resolved config dir.
-pub fn load() -> Result<AntipatternCheckConfig, AntipatternConfigError> {
+/// Load the antipattern config from the resolved config dir. `pub(crate)` for
+/// the same reason as [`load_from`] — production uses [`load_or_fail_safe`].
+pub(crate) fn load() -> Result<AntipatternCheckConfig, AntipatternConfigError> {
     let dir = confinement::anvil_config_dir()
         .map_err(|err| AntipatternConfigError::from_reader(Path::new(CONFIG_FILE_NAME), err))?;
     load_from(&dir.join(CONFIG_FILE_NAME))
@@ -236,6 +255,33 @@ mod tests {
         // Untouched fields keep the default.
         assert_eq!(loaded.patterns, default.patterns);
         assert_eq!(loaded.extensions, default.extensions);
+    }
+
+    /// An explicit empty `extensions: []` must NOT disable all scanning (which
+    /// would make the verdict vacuously pass); it folds to the default
+    /// extension set, the safe direction. `patterns: []` stays the
+    /// "all built-in patterns" sentinel.
+    #[test]
+    fn empty_extensions_folds_to_default_not_scan_nothing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("antipattern.yaml");
+        fs::write(&path, "extensions: []\npatterns: []\n").expect("write");
+        set_owner_only(&path);
+
+        let loaded = load_from(&path).expect("valid config");
+        let default = AntipatternCheckConfig::default();
+        assert_eq!(
+            loaded.extensions, default.extensions,
+            "empty extensions must fold to the default set, never scan-nothing",
+        );
+        assert!(
+            !loaded.extensions.is_empty(),
+            "the effective extension set must be non-empty",
+        );
+        // A non-empty operator list is still honoured.
+        fs::write(&path, "extensions: [\".rs\"]\n").expect("write");
+        let narrowed = load_from(&path).expect("valid config");
+        assert_eq!(narrowed.extensions, vec![".rs".to_string()]);
     }
 
     /// An unknown/misspelt key is a loud parse error (`deny_unknown_fields`),

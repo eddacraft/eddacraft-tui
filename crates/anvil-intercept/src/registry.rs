@@ -405,15 +405,20 @@ pub struct SessionRegistry {
     unregister_hook: OnceLock<WorktreeUnregisterHook>,
 }
 
-/// MLP2-057: callback fired when a session leaves the registry. The
-/// hook receives the unregistered session's canonical worktree path.
-/// `unregister` fires the hook exactly once per removed session;
-/// `evict_stale` fires it once per session it evicts.
+/// MLP2-057: callback fired with a canonical worktree path when the
+/// **last** session for that worktree leaves the registry — via
+/// `unregister` or TTL-driven `evict_stale`. It fires once per worktree
+/// that has fully drained, NOT once per removed session: a worktree with
+/// a surviving peer session (MLP2-023 multi-tag) is not signalled, so a
+/// consumer can treat the call as "this worktree's per-worktree state is
+/// now reclaimable" (DSV-010).
 ///
-/// The hook runs while the registry's internal lock is held — keep
-/// the closure body short. The daemon's intended use is a single
-/// [`crate::rule_cache::RuleSetCache::invalidate`] call, which is
-/// `O(1)` and uses a separate mutex.
+/// The hook fires **outside** the registry's internal lock (see
+/// `unregister` / `evict_stale`), so it may take its own separate locks;
+/// keep the body short regardless. The daemon composes its per-worktree
+/// invalidators here — today [`crate::save_time::SaveTimeState::invalidate`],
+/// and [`crate::rule_cache::RuleSetCache::invalidate`] when MLP2-014 lands —
+/// each `O(1)` under its own mutex.
 pub type WorktreeUnregisterHook = Arc<dyn Fn(&Path) + Send + Sync>;
 
 struct Inner {
@@ -1220,27 +1225,38 @@ impl SessionRegistry {
     }
 
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
-        let worktree = {
+        let worktree_to_signal = {
             let mut inner = self.lock();
             let Some(entry) = inner.sessions.remove(id) else {
                 return Ok(false);
             };
-            let key = (
-                entry.record.worktree.clone(),
-                entry.record.agent_tag.clone(),
-            );
+            let worktree = entry.record.worktree.clone();
+            let key = (worktree.clone(), entry.record.agent_tag.clone());
             inner.by_composite.remove(&key);
             // MLP2-025: drop the lineage anchor too, if any. Linear
             // scan over `by_pid_lineage` because we don't carry the
             // (pid, starttime) on the SessionRecord — the index is the
             // authoritative anchor.
             inner.by_pid_lineage.retain(|_, sid| sid != id);
-            entry.record.worktree
+            // DSV-010: signal warm-state reclamation only when the LAST
+            // session for this canonical worktree leaves. A still-live peer
+            // (MLP2-023 lets distinct agent tags coexist on one worktree)
+            // must keep the shared warm cache + assurance machine — firing
+            // per-session would thrash a live sibling's warm state into a
+            // cold rebuild. Computed under the lock so the survivor check sees
+            // a consistent `by_composite`.
+            if inner.by_composite.keys().any(|(wt, _)| *wt == worktree) {
+                None
+            } else {
+                Some(worktree)
+            }
         };
         // MLP2-057: fire the hook AFTER the inner lock is released so a
         // slow consumer (a `SaveTimeState::invalidate` running under
         // its own mutex) does not extend the registry-lock window.
-        if let Some(hook) = self.unregister_hook.get() {
+        if let Some(worktree) = worktree_to_signal
+            && let Some(hook) = self.unregister_hook.get()
+        {
             hook(&worktree);
         }
         Ok(true)
@@ -1276,7 +1292,7 @@ impl SessionRegistry {
                 })
                 .collect();
 
-            let mut worktrees = Vec::with_capacity(to_evict.len());
+            let mut evicted_worktrees = Vec::with_capacity(to_evict.len());
             for id in &to_evict {
                 if let Some(entry) = inner.sessions.remove(id) {
                     let key = (
@@ -1284,22 +1300,32 @@ impl SessionRegistry {
                         entry.record.agent_tag.clone(),
                     );
                     inner.by_composite.remove(&key);
-                    worktrees.push(entry.record.worktree);
+                    evicted_worktrees.push(entry.record.worktree);
                 }
             }
             // MLP2-025: drop lineage anchors for every evicted session.
             inner
                 .by_pid_lineage
                 .retain(|_, sid| !to_evict.contains(sid));
-            (to_evict, worktrees)
+            // DSV-010: signal warm-state reclamation once per DISTINCT evicted
+            // worktree that has NO surviving session — same last-session rule
+            // as `unregister`. A worktree with two evicted sessions signals
+            // once; a worktree with one evicted + one live session does not
+            // signal at all (the live peer keeps the warm state).
+            let mut to_signal: Vec<PathBuf> = Vec::new();
+            for wt in &evicted_worktrees {
+                if to_signal.contains(wt) {
+                    continue;
+                }
+                if !inner.by_composite.keys().any(|(w, _)| w == wt) {
+                    to_signal.push(wt.clone());
+                }
+            }
+            (to_evict, to_signal)
         };
 
-        // MLP2-057: fire the hook for each evicted session outside
-        // the lock. Multiple sessions on the same worktree fire the
-        // hook once per session; the cache's `invalidate` is
-        // idempotent (returns `false` on the second call), so this
-        // doesn't cause spurious telemetry — but it does ensure
-        // every removed session-worktree pair is signalled.
+        // MLP2-057: fire the hook outside the lock, once per fully-drained
+        // worktree (computed under the lock above).
         if let Some(hook) = self.unregister_hook.get() {
             for worktree in &worktrees {
                 hook(worktree);
@@ -2784,6 +2810,74 @@ mod tests {
 
         assert!(registry.unregister(&sid("p1")).unwrap());
         assert_eq!(hits.lock().unwrap().clone(), vec![canonical]);
+    }
+
+    /// DSV-010: the hook fires only when the LAST session for a worktree
+    /// leaves. Two tagged sessions (MLP2-023) share one worktree;
+    /// unregistering the first must NOT signal reclamation (the peer still
+    /// holds warm state), and unregistering the second fires exactly once.
+    #[test]
+    fn unregister_hook_fires_only_on_last_session_for_worktree() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let hits_for_hook = Arc::clone(&hits);
+        let registry = SessionRegistry::new().with_unregister_hook(Arc::new(move |worktree| {
+            hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+        }));
+        let wt = make_worktree();
+        let canonical = wt.path().canonicalize().unwrap();
+        let now = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        registry
+            .register(&sid("s-a"), wt.path(), Some(&tag_a), now)
+            .unwrap();
+        registry
+            .register(&sid("s-b"), wt.path(), Some(&tag_b), now)
+            .unwrap();
+
+        // First leaves — a live peer remains, so no reclamation signal.
+        assert!(registry.unregister(&sid("s-a")).unwrap());
+        assert!(
+            hits.lock().unwrap().is_empty(),
+            "hook must not fire while a peer session still holds the worktree",
+        );
+
+        // Last leaves — fire exactly once.
+        assert!(registry.unregister(&sid("s-b")).unwrap());
+        assert_eq!(hits.lock().unwrap().clone(), vec![canonical]);
+    }
+
+    /// DSV-010: `evict_stale` likewise signals once per fully-drained
+    /// worktree. Two tagged sessions on one worktree, both evicted, fire
+    /// the hook a single time (not once per session).
+    #[test]
+    fn evict_stale_fires_hook_once_per_drained_worktree() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let hits_for_hook = Arc::clone(&hits);
+        let registry = SessionRegistry::with_ttl(Duration::from_millis(1)).with_unregister_hook(
+            Arc::new(move |worktree| {
+                hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+            }),
+        );
+        let wt = make_worktree();
+        let canonical = wt.path().canonicalize().unwrap();
+        let registered_at = Instant::now();
+        let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        registry
+            .register(&sid("e-a"), wt.path(), Some(&tag_a), registered_at)
+            .unwrap();
+        registry
+            .register(&sid("e-b"), wt.path(), Some(&tag_b), registered_at)
+            .unwrap();
+
+        let evicted = registry.evict_stale(registered_at + Duration::from_millis(2));
+        assert_eq!(evicted.len(), 2, "both sessions evicted");
+        assert_eq!(
+            hits.lock().unwrap().clone(),
+            vec![canonical],
+            "one signal for the drained worktree, not one per evicted session",
+        );
     }
 
     /// `unregister` on an unknown id is a no-op and MUST NOT fire

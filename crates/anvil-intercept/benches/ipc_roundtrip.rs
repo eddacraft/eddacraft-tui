@@ -206,8 +206,15 @@ async fn roundtrip_validate_paths() {
             .await
             .expect("read validate_paths response");
         samples.push(started.elapsed());
+        // Parse and assert the verdict shape (not a substring match) so a wire
+        // rename can't pass silently: result.workspace_assurance.state present.
+        let parsed: serde_json::Value =
+            serde_json::from_str(response.trim_end()).expect("validate_paths response json");
         assert!(
-            response.contains("\"workspace_assurance\""),
+            parsed
+                .pointer("/result/workspace_assurance/state")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
             "unexpected validate_paths response: {response}"
         );
     }

@@ -190,9 +190,20 @@ impl SaveTimeState {
         &self.confinement
     }
 
-    /// Drop a worktree's warm cache + assurance machine (wired to the registry
-    /// unregister hook so an unregistered session does not leave stale warm
-    /// state behind).
+    /// Drop a worktree's warm cache + assurance machine. Wired to the registry
+    /// unregister hook (DSV-010), which fires only when the **last** session
+    /// for the worktree leaves, so a live peer session never has its warm state
+    /// pulled out from under it.
+    ///
+    /// **Non-atomic by design:** the cache drop and the assurance-machine
+    /// removal take two separate locks in sequence, so a concurrent
+    /// `validate_paths` racing between them could re-seed a fresh machine that
+    /// this call then removes. That is harmless here — it only drops a
+    /// performance cache and the machine re-seeds to the most-conservative
+    /// `Stale(CrossFileResolutionNeeded)` (never a falsely-clean verdict), and
+    /// the worktree is fully unregistered so no client should be mid-verdict. A
+    /// future correctness-bearing consumer composed into the same hook closure
+    /// (e.g. MLP2-014's rule cache) must NOT assume atomicity across the two.
     pub fn invalidate(&self, key: &WorktreeKey) {
         self.cache.invalidate(key);
         self.lock_map().remove(key);
