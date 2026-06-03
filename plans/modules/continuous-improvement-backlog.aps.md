@@ -840,7 +840,7 @@ archive.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Let docs/plans-path PRs merge — the `main` ruleset must resolve
   required status checks that currently report a duplicate `success`+`skipped`
   pair under one name.
@@ -871,6 +871,18 @@ archive.
   design).
 - **Confidence:** high — the block is reproduced and the duplicate-name cause is
   pinned via GraphQL; the exact filler-dedup approach needs a small design call.
+- **Implementation:** Chose "consolidate into primaries" (mutually exclusive
+  by having only the primary job report under each required name). Primary
+  jobs' `if:` now ensure execution on PRs (to own the name); added guarded
+  "Skip (filler) when ..." early step + `if:` on every heavy step (checkout,
+  setup, run, etc) so filler path is cheap success with no work. Removed the
+  four twin `*-skip:` jobs + stale comments. Updated contract test
+  (`scripts/ci/integration-validation.test.sh`) and
+  `.github/workflows/README.md`. TDD: yml edit made contract test fail (red);
+  test update made it pass (green). format/lint/typecheck + dedicated
+  `test:ci-*` green (full `pnpm test` has known pre-existing cargo-flag
+  inheritance friction; used targeted ci fixtures instead). APS status kept
+  current in same PR. (PR will supply the merge evidence.)
 
 ### CIB-039: Archive clawpatch-pre-tag-v0.7.0-beta once its findings are closed out
 

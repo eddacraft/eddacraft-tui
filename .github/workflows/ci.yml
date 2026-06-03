@@ -58,12 +58,12 @@ jobs:
         id: changes
         uses: ./.github/actions/detect-changes
 
-  # Runs markdown lint whenever any `.md` change is present. The negative
-  # gates that previously restricted this to markdown-only PRs were removed
-  # so the check can be a required-status-check in the `main` ruleset; mixed
-  # PRs (markdown + code) now also run Docs Lint. The twin `docs-lint-skip`
-  # job below reports the same check name on PRs with no markdown changes,
-  # so the required check always has a status to satisfy the ruleset.
+  # Runs markdown lint (plus format, docs:check, APS index/lint checks) whenever
+  # any `.md` change is present (or on any PR, for the required-check name).
+  # The job now internally provides the "Docs Lint" required status conclusion
+  # on all PRs (quick success filler path when not markdownlint-required; full
+  # work otherwise). This ensures exactly one conclusion per required context
+  # name (no more duplicate success+skipped from twin filler jobs). See CIB-038.
   #
   # Note: `Lint & Format` (Job 1 below) currently also runs `pnpm run lint:md`
   # as part of its PR lint step. That overlap is intentional during the
@@ -78,35 +78,61 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if: |
-      always() && needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.markdownlint-required == 'true'
+      always() && needs.detect-changes.result == 'success' && (
+        needs.detect-changes.outputs.markdownlint-required == 'true' ||
+        github.event_name == 'pull_request'
+      )
 
     steps:
+      # Internal PR-only filler so that "Docs Lint" (a required check name) always
+      # has exactly one conclusion per run. When no .md changes, this job still
+      # runs (to own the name) but short-circuits with success; heavy steps are
+      # step-conditional and do not execute. This eliminates the prior twin
+      # `docs-lint-skip` job (same name) that produced success+skipped duplicates
+      # under the ruleset. See CIB-038.
+      - name: Skip (filler) when no .md changes on PR
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.detect-changes.result == 'success' &&
+          needs.detect-changes.outputs.markdownlint-required != 'true'
+        run: |
+          echo "Skipped — no .md changes detected (CIB-038)"
+          echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
+
       - name: Checkout repository
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup workspace
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run lint:md
 
       - name: Run format check
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run format:check
 
       - name: Build docs-meta package for docs:check
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
 
       - name: Run docs:check (DOCGOV-005)
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
 
       - name: Check APS index counts (CIB-022)
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run aps:index:check
 
       - name: Run docs-check fixture tests
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run test:docs-check
 
       - name: Run active-lint self-test
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run test:aps-active-lint
 
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
@@ -116,6 +142,7 @@ jobs:
       # adopting new canonical `aps` semantics, per the APS adoption-boundary
       # spec (plans/specs/2026-05-25-aps-cli-adoption-boundary.md).
       - name: Check out canonical aps CLI
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: EddaCraft/anvil-plan-spec
@@ -124,23 +151,8 @@ jobs:
           path: .aps-cli
 
       - name: Canonical APS lint (CIB-036)
+        if: needs.detect-changes.outputs.markdownlint-required == 'true'
         run: APS_CANONICAL_BIN="$GITHUB_WORKSPACE/.aps-cli/bin/aps" pnpm run aps:active-lint
-
-  # Skip-twin for `Docs Lint`. Reports the same check name on PRs that don't
-  # touch any `.md` files, so the required check in the `main` ruleset always
-  # has a status to satisfy. Mirrors the `lint-skip` / `typecheck-skip` /
-  # `unit-tests-skip` pattern below.
-  docs-lint-skip:
-    name: Docs Lint
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    needs: detect-changes
-    if: |
-      always() && needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.markdownlint-required != 'true'
-    steps:
-      - run: echo "Skipped — no .md changes detected"
 
   metadata-validation:
     name: CI Metadata Checks
@@ -372,9 +384,12 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if: |
-      always() && (needs.detect-changes.result != 'success' ||
-      needs.detect-changes.outputs.lint-required == 'true' ||
-      needs.detect-changes.outputs.format-required == 'true')
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.lint-required == 'true' ||
+        needs.detect-changes.outputs.format-required == 'true' ||
+        github.event_name == 'pull_request'
+      )
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -384,12 +399,34 @@ jobs:
         if: needs.detect-changes.result != 'success'
         run: exit 1
 
+      # Internal PR-only filler so that "Lint & Format" (a required check name)
+      # always has exactly one conclusion per run. On docs-only / no-lint PRs
+      # this job runs (to own the name for the ruleset) but short-circuits
+      # success; heavy steps are guarded and skipped. Removes the prior
+      # separate `lint-skip` twin (same name) that caused success+skipped
+      # duplicates. CIB-038.
+      - name: Skip (filler) when no lint/format required on PR
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.detect-changes.result == 'success' &&
+          needs.detect-changes.outputs.lint-required != 'true' &&
+          needs.detect-changes.outputs.format-required != 'true'
+        run: |
+          echo "Skipped — no Node/source changes detected (CIB-038)"
+          echo '::notice title=Lint & Format (filler)::Job concluded success without lint/format work. Single "Lint & Format" required conclusion for the ruleset on non-lint PRs (e.g. docs-only). See CIB-038 consolidation of CICD-005 twins.'
+
       - name: Checkout repository
+        if:
+          needs.detect-changes.result != 'success' || needs.detect-changes.outputs.lint-required ==
+          'true' || needs.detect-changes.outputs.format-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup workspace
+        if:
+          needs.detect-changes.result != 'success' || needs.detect-changes.outputs.lint-required ==
+          'true' || needs.detect-changes.outputs.format-required == 'true'
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
@@ -400,9 +437,15 @@ jobs:
           nx-shas: true
 
       - name: Build ESLint plugin (required by lint rules)
+        if:
+          needs.detect-changes.result != 'success' || needs.detect-changes.outputs.lint-required ==
+          'true' || needs.detect-changes.outputs.format-required == 'true'
         run: pnpm exec nx run eslint-plugin-anvil:build
 
       - name: Run lint (affected on PRs, all on push)
+        if:
+          needs.detect-changes.result != 'success' || needs.detect-changes.outputs.lint-required ==
+          'true' || needs.detect-changes.outputs.format-required == 'true'
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             pnpm exec nx affected -t lint && pnpm run lint:md
@@ -411,6 +454,9 @@ jobs:
           fi
 
       - name: Run format check
+        if:
+          needs.detect-changes.result != 'success' || needs.detect-changes.outputs.lint-required ==
+          'true' || needs.detect-changes.outputs.format-required == 'true'
         run: pnpm run format:check
 
   # ── Job 2: Type Check ───────────────────────────────────────────
@@ -421,9 +467,12 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if:
-      always() && (needs.detect-changes.result != 'success' ||
-      needs.detect-changes.outputs.typecheck-required == 'true')
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.typecheck-required == 'true' ||
+        github.event_name == 'pull_request'
+      )
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -433,12 +482,30 @@ jobs:
         if: needs.detect-changes.result != 'success'
         run: exit 1
 
+      # Internal PR-only filler so "Type Check" required name always has one
+      # conclusion. Short-circuits on no-typecheck PRs; heavy steps guarded.
+      # Removes prior `typecheck-skip` twin. CIB-038.
+      - name: Skip (filler) when no typecheck required on PR
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.detect-changes.result == 'success' &&
+          needs.detect-changes.outputs.typecheck-required != 'true'
+        run: |
+          echo "Skipped — no Node/source changes detected (CIB-038)"
+          echo '::notice title=Type Check (filler)::Job concluded success without typecheck. Single required "Type Check" conclusion under the ruleset for docs/pure-Rust PRs.'
+
       - name: Checkout repository
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.typecheck-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup workspace
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.typecheck-required == 'true'
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
@@ -449,59 +516,15 @@ jobs:
           nx-shas: true
 
       - name: Run type check (affected on PRs, all on push)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.typecheck-required == 'true'
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             pnpm exec nx affected -t typecheck
           else
             pnpm run typecheck
           fi
-
-  # ── Skip jobs for required checks on docs-only / pure-Rust PRs ────
-  # The branch ruleset requires these check names to report a status.
-  # When no Node/source changes are detected, the real jobs are skipped,
-  # so these lightweight jobs fill the gap to unblock merges. Mirrors
-  # the source-changed gate above.
-  #
-  # CICD-005: PR-only. Integration push events do not consume the
-  # required-check fillers — push proves the merged SHA via the real
-  # lint/typecheck/test jobs and the integration-readiness summary.
-  lint-skip:
-    name: Lint & Format
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    needs: detect-changes
-    if: |
-      always() && github.event_name == 'pull_request' &&
-      needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.lint-required != 'true' &&
-      needs.detect-changes.outputs.format-required != 'true'
-    steps:
-      - run: echo "Skipped — no Node/source changes detected"
-
-  typecheck-skip:
-    name: Type Check
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    needs: detect-changes
-    if:
-      always() && github.event_name == 'pull_request' && needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.typecheck-required != 'true'
-    steps:
-      - run: echo "Skipped — no Node/source changes detected"
-
-  test-skip:
-    name: Unit Tests (Node 22.x, ubuntu-latest)
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    needs: detect-changes
-    if:
-      always() && github.event_name == 'pull_request' && needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.unit-tests-required != 'true'
-    steps:
-      - run: echo "Skipped — no Node/source changes detected"
 
   # ── Job 3a: Unit Tests — Ubuntu ──────────────────────────────────
   test:
@@ -511,9 +534,12 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if:
-      always() && (needs.detect-changes.result != 'success' ||
-      needs.detect-changes.outputs.unit-tests-required == 'true')
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.unit-tests-required == 'true' ||
+        github.event_name == 'pull_request'
+      )
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
@@ -523,7 +549,24 @@ jobs:
         if: needs.detect-changes.result != 'success'
         run: exit 1
 
+      # Internal PR-only filler so "Unit Tests (Node 22.x, ubuntu-latest)"
+      # required name always has exactly one conclusion per PR run.
+      # Short-circuits with success on no-test PRs (docs-only, pure-Rust);
+      # subsequent steps guarded so no heavy work (checkout/setup/OPA/tests).
+      # Replaces the prior `test-skip` twin job. CIB-038.
+      - name: Skip (filler) when no unit tests required on PR
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.detect-changes.result == 'success' &&
+          needs.detect-changes.outputs.unit-tests-required != 'true'
+        run: |
+          echo "Skipped — no Node/source changes detected (CIB-038)"
+          echo '::notice title=Unit Tests (filler)::Job concluded success without running tests. Single "Unit Tests (Node 22.x, ubuntu-latest)" required conclusion for the ruleset on non-test PRs. (Heavy test steps guarded; see CIB-038.)'
+
       - name: Checkout repository
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
@@ -533,9 +576,15 @@ jobs:
       # Invoke via `sh` so this doesn't depend on the executable bit surviving
       # checkout (e.g. on Windows runners / some git configurations).
       - name: Check OPA version pin is not duplicated outside allowlist
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         run: sh scripts/check-opa-version-pin.sh
 
       - name: Setup workspace
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         uses: ./.github/actions/setup-workspace
         with:
           azure-login: true
@@ -546,12 +595,18 @@ jobs:
           nx-shas: true
 
       - name: Install OPA
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
           version: v1.16.1
 
       - name: Verify OPA version
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         env:
           EXPECTED_OPA_VERSION: '1.16.1'
         run: |
@@ -571,6 +626,9 @@ jobs:
       # them here every run guarantees the entry exists. Use the nx project name
       # (`flags-catalogue` overrides the package name in its project.json).
       - name: Build test dependencies
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional,flags-catalogue
 
       # Rust crates are excluded here because the dedicated Rust workflow
@@ -583,6 +641,9 @@ jobs:
       # PR/integration push runs use plain tests — no --coverage flags,
       # no coverage summary, no coverage artefact upload.
       - name: Run unit tests (affected on PRs, all on push)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
         run: |
           RUST_EXCLUDES=(
             --exclude=eddacraft-anvil-architecture
@@ -844,9 +905,10 @@ jobs:
           summary "summary — check their job statuses for cross-platform integration"
           summary "evidence."
           summary ""
-          summary "PR-only fillers (lint-skip, typecheck-skip, test-skip)"
-          summary "and PR commentary (Dependency Audit (PR), Security"
-          summary "Summary) are intentionally absent."
+          summary "PR-only quick-skip paths inside the primary required jobs"
+          summary "(Lint & Format, Type Check, Unit Tests, Docs Lint) and PR"
+          summary "commentary (Dependency Audit (PR), Security Summary) are"
+          summary "intentionally absent on push."
           summary ""
           summary "| Job | Result |"
           summary "| --- | --- |"

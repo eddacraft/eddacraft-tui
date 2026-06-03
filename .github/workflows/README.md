@@ -64,9 +64,17 @@ The PR contract is intentionally distinct from the integration push contract.
 See
 [CICD-005](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
 
-- PR-only status fillers (`Lint & Format` skip, `Type Check` skip, `Unit Tests`
-  skip) do not run on push — they exist to satisfy required-check status on
-  docs-only / pure-Rust PRs.
+- The primary required-check jobs (`Lint & Format`, `Type Check`, `Unit Tests`,
+  `Docs Lint`) contain internal PR-only quick-skip paths (cheap success when
+  their classifier signal is false). These ensure exactly one conclusion per
+  required check name on every PR (no more duplicate success+skipped from twin
+  filler jobs per CIB-038). On push the primaries provide `skipped` where
+  appropriate (accepted by the `Integration Readiness` aggregator).
+- **In-flight docs/plans PRs after this change:** A PR whose head was last
+  evaluated under the old twin-skip workflow may still carry duplicate or
+  skipped conclusions for the affected names. To unblock, push a new commit
+  (empty commit or rebase) to re-trigger CI under the consolidated contract; the
+  primaries will now emit a single success for the name.
 - `Dependency Audit (PR)` (`ci.yml`) is PR-only. `security.yml`'s
   `Dependency Audit` job owns the equivalent check on push.
 - `Security Summary` (`security.yml`) is PR-only — there is no PR to comment on

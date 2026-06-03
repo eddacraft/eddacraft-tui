@@ -1423,3 +1423,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** The complete-cib-items.js workflow + explicit wt-new + subagent parallel is the intended path for batch CIB; having a runner would automate more.
 - **Follow-up:** Monitor PRs 2269/2270/2271 for CI/Copilot, run addressing-pr-reviews on each after 10m; when merged update statuses in module + index via the branches; offer wt remove on the 3 new wts after safe.
 
+
+### 2026-06-04 — claude (CIB-038)
+
+- **Task:** Complete CIB-038 via /dev-workflow in this wt (fix duplicate success+skipped required check names blocking docs-path PR merges under main ruleset).
+- **Outcome:** Consolidated the four twin *-skip filler jobs into internal PR-only quick-skip steps inside the primary jobs (docs-lint, lint, typecheck, test). Each required name now has exactly one conclusion per run. Removed twins, updated contract test + README (incl. in-flight PR note) + APS + index. format/lint/typecheck + ci-* fixtures green. Mini Council (ops + pragmatic) run; findings addressed (logs/notices, index update, guard audit, in-flight docs). Committed on CIB wt (user request) with conventional msg.
+- **Worked:** APS truth gate + In Progress mark first; TDD via contract test (yml edit = red, test update = green); addressed council MAJORS (improved ::notice logs in fillers, updated index per governance, added in-flight remediation to README); rebase of wt to main done early; all per dev-workflow/AGENTS (UK English, evidence, single-purpose, CI note before final).
+- **Failed:** None (no behaviour change to actual checks; only status reporting).
+- **Friction:** pnpm test has pre-existing cargo flag inheritance awkwardness (used dedicated ci fixture tests instead); subagent council reviews took >3min to return (polled); nx sync dirtied unrelated tsconfigs during typecheck gate (reverted before commit).
+- **Improvement:** none (the consolidation was the smallest targeted fix for the ruleset duplicate).
+- **Follow-up:** Push branch, open PR to main (targeting CIB-038), run addressing-pr-reviews after 10m even if no bot comments; when merged, flip CIB-038 to Merged in module + reconcile index count/prose; offer wt remove (this is the CIB wt, ask user); monitor for any docs/plans PRs that need re-push post-merge.
