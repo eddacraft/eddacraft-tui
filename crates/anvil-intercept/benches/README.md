@@ -1,9 +1,11 @@
 # anvil-intercept benchmarks
 
 Latency and resource benchmarks for the intercept daemon
-(`anvil intercept start`). All three are `harness = false` (plain `main`, not
-Criterion) and the two that exercise internal entry points require the
-`bench-internals` feature.
+(`anvil intercept start`). All three set `harness = false`, so cargo runs each
+bench's own `main` (the gate logic + JSON/line output below);
+`midedit_roundtrip` additionally carries a Criterion harness for local
+profiling. `ipc_roundtrip` and `midedit_roundtrip` require the `bench-internals`
+feature.
 
 | Bench                       | Measures                                                                                 | Feature           |
 | --------------------------- | ---------------------------------------------------------------------------------------- | ----------------- |
