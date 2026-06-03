@@ -71,6 +71,19 @@ pub fn extract_symbols(
         Some(Language::TypeScript | Language::Tsx | Language::JavaScript | Language::Jsx) => {
             typescript::TypeScriptExtractor.extract(tree, source, &file, id_offset)
         }
+        Some(Language::Rust) => {
+            // RSTLAN-001 wires the grammar so `.rs` parses to a tree; the Rust
+            // `LanguageExtractor` lands in RSTLAN-002. Until then a `.rs` file
+            // contributes no symbols (an empty result, never an error) — the
+            // same net graph contribution as before the grammar was wired, so
+            // this is a no-op for downstream consumers rather than a regression.
+            let _ = (tree, source, id_offset);
+            FileSymbols {
+                file,
+                symbols: Vec::new(),
+                imports: Vec::new(),
+            }
+        }
         None => {
             // Reaching here means a caller passed a tree whose path has no
             // known grammar — `parse_bytes` rejects those up front, so every

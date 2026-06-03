@@ -7,6 +7,7 @@ pub enum Language {
     Tsx,
     JavaScript,
     Jsx,
+    Rust,
 }
 
 impl Language {
@@ -17,6 +18,7 @@ impl Language {
             "tsx" => Some(Self::Tsx),
             "js" | "mjs" | "cjs" => Some(Self::JavaScript),
             "jsx" => Some(Self::Jsx),
+            "rs" => Some(Self::Rust),
             _ => None,
         }
     }
@@ -27,6 +29,7 @@ impl Language {
             Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
             Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             Self::JavaScript | Self::Jsx => tree_sitter_javascript::LANGUAGE.into(),
+            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
         }
     }
 
@@ -84,6 +87,7 @@ mod tests {
             Language::Tsx.grammar_version(),
             Language::JavaScript.grammar_version(),
             Language::Jsx.grammar_version(),
+            Language::Rust.grammar_version(),
         ];
         for (i, a) in versions.iter().enumerate() {
             for b in &versions[i + 1..] {
@@ -134,8 +138,46 @@ mod tests {
     }
 
     #[test]
+    fn detects_rust() {
+        assert_eq!(
+            Language::from_path(Path::new("crates/anvil-kernel/src/main.rs")),
+            Some(Language::Rust)
+        );
+        assert_eq!(
+            Language::from_path(Path::new("lib.rs")),
+            Some(Language::Rust)
+        );
+    }
+
+    #[test]
     fn returns_none_for_unknown() {
         assert_eq!(Language::from_path(Path::new("README.md")), None);
         assert_eq!(Language::from_path(Path::new("Cargo.toml")), None);
+    }
+
+    #[test]
+    fn rust_grammar_parses_real_source() {
+        // RSTLAN-001: the bound grammar must produce a non-error tree for
+        // representative Rust source. This is the grammar-wiring acceptance —
+        // symbol extraction is RSTLAN-002. A grammar/ABI mismatch surfaces here
+        // as a `set_language` failure rather than silently downstream.
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&Language::Rust.ts_language())
+            .expect("tree-sitter-rust grammar must bind (ABI compatible)");
+        let source = r"
+            use std::collections::HashMap;
+            pub mod inner;
+
+            pub fn main() {
+                let _m: HashMap<String, u32> = HashMap::new();
+            }
+        ";
+        let tree = parser.parse(source, None).expect("parse must yield a tree");
+        assert!(
+            !tree.root_node().has_error(),
+            "well-formed Rust source must parse without errors"
+        );
+        assert_eq!(tree.root_node().kind(), "source_file");
     }
 }

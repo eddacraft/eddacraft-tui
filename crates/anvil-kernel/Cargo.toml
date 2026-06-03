@@ -16,6 +16,7 @@ anvil-rayon-init = { path = "../anvil-rayon-init", package = "eddacraft-anvil-ra
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tree-sitter-javascript = { workspace = true }
+tree-sitter-rust = { workspace = true }
 notify = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

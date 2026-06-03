@@ -5,7 +5,7 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | Ready  | 0/8  |
+| RSTLAN | @aneki | In Progress | 0/8  |
 
 **Last reviewed:** 2026-06-03 — NBI "RSTLAN re-eval — Rust anchor scoping" completed. ADR-065 (Rust T3 architecture enforcement location — Rust-native) Accepted; anchor re-scoring snapshot 2026-06-03 recorded (sequence unchanged, Rust elevated to #2 for dogfood); LANGTS 6/6 + kernel prereqs complete; module promoted Proposed → Ready with executable work items. Owner named. All Ready Checklist items now checked.
 
@@ -106,9 +106,9 @@ Change status to **Ready** when:
 
 All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-score snapshot, and LANGTS/kernel gates). Items are sequenced for minimal dependency fan-out but several can run in parallel waves once the grammar + extractor base lands (see waves in execution plan if filed).
 
-### RSTLAN-001: Wire tree-sitter-rust grammar and Language variant — Ready
+### RSTLAN-001: Wire tree-sitter-rust grammar and Language variant — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Add `tree-sitter-rust` support to the kernel parser so `.rs` files are recognised and produce a tree-sitter AST under the unified `LanguageExtractor` contract (K1 from LANGTS-005).
 - **Expected Outcome:** `Language` enum gains `Rust` variant; `from_path` returns it for `.rs`; `ts_language()` binds the grammar; `grammar_version()` produces a stable discriminator; `cargo test -p eddacraft-anvil-kernel -- parser::languages` and new Rust-specific tests pass; Cargo.toml pins the grammar crate.
 - **Scope:** `crates/anvil-kernel/Cargo.toml` (add tree-sitter-rust dep), `crates/anvil-kernel/src/parser/languages.rs` (enum + match arms + tests), parser mod re-exports if needed.
