@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
-2026-06-04
+2026-06-04 (Accepted 2026-06-04 on the go-ahead to implement DSV-010)
 
 ## Context
 
