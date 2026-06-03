@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Nodes are file paths, edges are import relationships.
 /// Built from the symbol-level import data extracted by the parser.
+#[derive(Debug)]
 pub struct DependencyGraph {
     /// Map from file to set of files it imports
     edges: HashMap<String, HashSet<String>>,

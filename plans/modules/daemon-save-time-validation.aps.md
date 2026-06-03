@@ -222,9 +222,20 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   wire `StaleReason`, which would add `anvil-intercept-proto` to ADR-064 §2's frozen
   set) and the change descriptor is a local `ChangeKind` (not `anvil-intercept`'s
   `CanonicalChange`, which would cycle) — the daemon maps both at the boundary
-  (DSV-005). Remaining (Task 7): the `(SymbolGraph, DependencyGraph)` `kernel_cache`
-  (LRU + generation-guard + unregister hook, `apply_delta`, `reverse_index_consistent_after_delta`)
-  and the kernel→daemon `FileSymbols` feed-producer wiring (`watcher.rs`).
+  (DSV-005). Task 7 (interim graph cache) delivered — `KernelGraphCache` in
+  `anvil-intercept` (`kernel_cache.rs`): bounded-LRU + per-key generation guard +
+  `invalidate` for the registry unregister hook, parse-free `apply_delta` consuming
+  already-parsed `FileSymbols` (the `daemon_dep_boundary` guard still holds — no
+  tree-sitter in the daemon), cold key → `CrossFileResolutionNeeded`, eviction →
+  generation bump (→ `WarmStateEvicted` at the DSV-005 state machine), and the
+  B1-named `reverse_index_consistent_after_delta` test. The `DependencyGraph` is
+  re-derived from the in-place-mutated `SymbolGraph` each delta (interim Sub-phase A
+  backing; the GV2 A′ hot-read swap replaces it with a resident incremental index).
+  Remaining for DSV-005, not DSV-004: the kernel→daemon `FileSymbols` feed-**producer**
+  wiring (`watcher.rs` `WatcherChangeBatch` carrying parsed symbols) — ADR-064's
+  "Task 7/8 must nail" detail, which lands with the `validate_paths` orchestration
+  that actually calls `apply_delta` with fed symbols. DSV-004's consuming contract
+  (parse-free `apply_delta(FileSymbols)`) is complete.
 - **Intent:** Decide certified-vs-stale via a bounded reverse-impact closure over a
   warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache the daemon mutates
   from kernel-fed parsed symbols.

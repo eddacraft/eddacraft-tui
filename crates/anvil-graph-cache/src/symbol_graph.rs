@@ -18,6 +18,7 @@ pub struct GraphStats {
     pub files: usize,
 }
 
+#[derive(Debug)]
 pub struct SymbolGraph {
     graph: DiGraph<SymbolNode, SymbolEdge>,
     index: HashMap<u64, NodeIndex>,

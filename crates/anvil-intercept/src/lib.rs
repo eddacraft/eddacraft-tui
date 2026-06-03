@@ -46,6 +46,7 @@ pub mod fanout;
 pub mod fence;
 pub mod interrupt;
 pub mod ipc;
+pub mod kernel_cache;
 pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
