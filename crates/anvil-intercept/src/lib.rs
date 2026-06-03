@@ -1143,8 +1143,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             if !installed {
                 tracing::error!(
                     target: "anvil_intercept::save_time",
-                    "unregister hook already installed — warm-state reclamation may be \
-                     wired twice; sessions will not reclaim their warm graph state",
+                    "unregister hook already installed before this call — warm-state \
+                     reclamation may be wired twice or in the wrong place; review the \
+                     registry hook composition",
                 );
             }
             debug_assert!(

@@ -509,7 +509,12 @@ impl SessionRegistry {
     #[must_use]
     pub fn with_unregister_hook(mut self, hook: WorktreeUnregisterHook) -> Self {
         self.unregister_hook = OnceLock::new();
-        let _ = self.unregister_hook.set(hook);
+        // The lock was just reset, so the set always succeeds; assert it so a
+        // future refactor that drops the reset can't silently no-op the hook.
+        debug_assert!(
+            self.unregister_hook.set(hook).is_ok(),
+            "freshly-reset unregister hook OnceLock must accept the hook",
+        );
         self
     }
 
@@ -1245,7 +1250,7 @@ impl SessionRegistry {
             // per-session would thrash a live sibling's warm state into a
             // cold rebuild. Computed under the lock so the survivor check sees
             // a consistent `by_composite`.
-            if inner.by_composite.keys().any(|(wt, _)| *wt == worktree) {
+            if inner.by_composite.keys().any(|(wt, _)| wt == &worktree) {
                 None
             } else {
                 Some(worktree)
