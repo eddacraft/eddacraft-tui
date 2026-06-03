@@ -561,9 +561,58 @@ struct DispatcherInner {
     /// it from another thread while the worker is polling `try_wait()`.
     in_flight: std::sync::Mutex<Option<std::process::Child>>,
     worker: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// DSV-007 Task 12: the save-time daemon client. `Some` only when daemon
+    /// routing is opt-in-enabled (`ANVIL_WATCH_DAEMON`) for a `check` watch on a
+    /// unix host with a resolvable socket dir. `None` ⇒ the pre-DSV
+    /// subprocess-only path runs unchanged (no behaviour change, no
+    /// daemon-absent WARN). Held behind a `Mutex` because the worker thread owns
+    /// the connection-lifecycle latch across coalesced dispatches.
+    save_time: Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>>,
     /// Test-only override for `current_exe()`.
     #[cfg(test)]
     exe_override: Option<PathBuf>,
+}
+
+/// True when `watch` should route save-time `check` validation through the
+/// resident daemon (DSV-007). Opt-in and default-off: the save-time daemon is
+/// not auto-started in Sub-phase A, so enabling routing by default would make
+/// every `anvil watch` session probe an absent daemon and WARN. Operators /
+/// CI that run the daemon set `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`).
+fn save_time_routing_enabled() -> bool {
+    std::env::var_os("ANVIL_WATCH_DAEMON").is_some_and(|value| {
+        matches!(
+            value.to_string_lossy().as_ref(),
+            "1" | "true" | "on" | "yes"
+        )
+    })
+}
+
+/// Build the save-time daemon client for a dispatcher, or `None` to keep the
+/// subprocess-only path. `None` when routing is disabled, the action is not
+/// `check`, the host is non-unix, or no socket dir can be resolved (treated as
+/// "no daemon infrastructure" ⇒ behave exactly as pre-DSV, no WARN).
+#[cfg(unix)]
+fn build_save_time_client(
+    action: &str,
+    workspace_root: &std::path::Path,
+) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
+    use crate::commands::watch_save_time::{SocketSaveTimeTransport, WatchSaveTimeClient};
+    if action != "check" || !save_time_routing_enabled() {
+        return None;
+    }
+    let transport = SocketSaveTimeTransport::resolve()?;
+    Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
+        Box::new(transport),
+        workspace_root.to_path_buf(),
+    )))
+}
+
+#[cfg(not(unix))]
+fn build_save_time_client(
+    _action: &str,
+    _workspace_root: &std::path::Path,
+) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
+    None
 }
 
 /// Recover from a poisoned mutex by extracting the inner guard. The mutex
@@ -588,6 +637,7 @@ impl ActionDispatcher {
         tui_parent: bool,
         sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
     ) -> Self {
+        let save_time = build_save_time_client(&action, &workspace_root);
         Self(std::sync::Arc::new(DispatcherInner {
             action,
             workspace_root,
@@ -601,6 +651,7 @@ impl ActionDispatcher {
             pending_paths: std::sync::Mutex::new(std::collections::BTreeSet::new()),
             in_flight: std::sync::Mutex::new(None),
             worker: std::sync::Mutex::new(None),
+            save_time,
             #[cfg(test)]
             exe_override: None,
         }))
@@ -758,6 +809,45 @@ impl DispatcherInner {
                 "watch check dispatch scope"
             );
         }
+
+        // DSV-007 Task 12: route the save-time check through the daemon when
+        // enabled. Engaged only for a `check` dispatch that carries changed
+        // paths — an empty set is a delete-/initial-driven cycle with nothing to
+        // send to `validate_paths` or to scope a fallback to, so it keeps the
+        // pre-DSV `--all` safety net below. A daemon verdict skips the
+        // subprocess entirely (ADR-061 §3 "never double-scans"); a daemon-absent
+        // / mid-session-death fallback warns once and drops through to the
+        // existing scoped subprocess (`check_paths` is non-empty here ⇒ scoped,
+        // never `--all`).
+        if self.action == "check"
+            && !check_paths.is_empty()
+            && let Some(client) = self.save_time.as_ref()
+        {
+            use crate::commands::watch_save_time::{SaveTimeDecision, assurance_label};
+            match recover(client.lock()).validate(check_paths.clone()) {
+                SaveTimeDecision::Validated(response) => {
+                    self.report_daemon_verdict(&response, start.elapsed());
+                    return;
+                }
+                SaveTimeDecision::FellBack {
+                    assurance, warned, ..
+                } => {
+                    if warned && !self.tui_parent {
+                        tracing::warn!(
+                            target: "anvil::watch",
+                            reason = "daemon-absent",
+                            "save-time daemon unavailable; falling back to a scoped check",
+                        );
+                        eprintln!(
+                            "[warn] anvil watch: save-time daemon unavailable — falling back to a scoped check ({})",
+                            assurance_label(&assurance),
+                        );
+                    }
+                    // Fall through to the scoped subprocess on `check_paths`.
+                }
+            }
+        }
+
         let mut cmd = build_action_command(
             &exe,
             &self.action,
@@ -858,6 +948,38 @@ impl DispatcherInner {
         }
     }
 
+    /// DSV-007: surface a daemon `validate_paths` verdict on the watch output
+    /// channel, mirroring how a subprocess `anvil check` would have reported.
+    /// TUI mode sends the action footer (the alt-screen owns the detail panel);
+    /// JSON mode emits the verdict as one NDJSON line; plain mode renders the
+    /// findings + assurance to stdout.
+    fn report_daemon_verdict(
+        &self,
+        response: &anvil_intercept_proto::protocol::ValidatePathsResponse,
+        elapsed: std::time::Duration,
+    ) {
+        let exit_code = crate::commands::watch_save_time::verdict_exit_code(response);
+        if self.sender.is_some() {
+            self.send_result(Some(exit_code), elapsed, None);
+        } else if self.json {
+            // The watch JSON surface is an NDJSON stream; the daemon verdict
+            // joins it as one additional record (a `ValidatePathsResponse`).
+            match serde_json::to_string(response) {
+                Ok(line) => println!("{line}"),
+                Err(err) => {
+                    tracing::warn!(error = %err, "failed to serialise daemon verdict for JSON watch output");
+                }
+            }
+        } else {
+            let mut stdout = std::io::stdout().lock();
+            if let Err(err) =
+                crate::commands::watch_save_time::render_daemon_verdict_plain(&mut stdout, response)
+            {
+                tracing::warn!(error = %err, "failed to render daemon verdict");
+            }
+        }
+    }
+
     fn send_result(
         &self,
         exit_code: Option<i32>,
@@ -922,6 +1044,9 @@ impl ActionDispatcher {
             pending_paths: std::sync::Mutex::new(std::collections::BTreeSet::new()),
             in_flight: std::sync::Mutex::new(None),
             worker: std::sync::Mutex::new(None),
+            // Subprocess-only by default in tests; the daemon-routing tests
+            // exercise `WatchSaveTimeClient` directly in `watch_save_time`.
+            save_time: None,
             exe_override,
         }))
     }
@@ -1637,6 +1762,64 @@ mod tests {
         assert!(
             !args.iter().any(|a| *a == std::ffi::OsStr::new("--all")),
             "scoped check must NOT re-walk the whole repo with --all, got {args:?}"
+        );
+    }
+
+    #[test]
+    fn watch_fallback_is_scoped_never_all() {
+        // DSV-007 Task 12: a daemon-absent fallback must run a scoped check over
+        // exactly the changed paths and never re-walk the repo with `--all`.
+        use crate::commands::watch_save_time::{
+            SaveTimeClientError, SaveTimeDecision, SaveTimeTransport, WatchSaveTimeClient,
+        };
+        use anvil_intercept_proto::protocol::{ChangeDescriptor, ValidatePathsResponse};
+
+        struct AbsentTransport;
+        impl SaveTimeTransport for AbsentTransport {
+            fn validate_paths(
+                &self,
+                _root: &std::path::Path,
+                _paths: &[ChangeDescriptor],
+            ) -> Result<ValidatePathsResponse, SaveTimeClientError> {
+                Err(SaveTimeClientError::Unavailable)
+            }
+            fn request_full_scan(
+                &self,
+                _root: &std::path::Path,
+            ) -> Result<(), SaveTimeClientError> {
+                Ok(())
+            }
+        }
+
+        let mut client =
+            WatchSaveTimeClient::new(Box::new(AbsentTransport), PathBuf::from("/project"));
+        let changed = vec![
+            "/project/src/a.ts".to_string(),
+            "/project/src/b.ts".to_string(),
+        ];
+        let SaveTimeDecision::FellBack { scoped_paths, .. } = client.validate(changed.clone())
+        else {
+            panic!("an absent daemon must fall back");
+        };
+        assert_eq!(
+            scoped_paths, changed,
+            "fallback must scope to exactly the changed paths",
+        );
+
+        // The dispatcher feeds `scoped_paths` to the existing scoped builder;
+        // non-empty paths guarantee no `--all`.
+        let exe = PathBuf::from("/usr/bin/anvil");
+        let ws = PathBuf::from("/project");
+        let cmd = build_action_command(&exe, "check", &scoped_paths, &ws, false, false, false);
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert!(
+            !args.iter().any(|a| *a == std::ffi::OsStr::new("--all")),
+            "daemon-absent fallback must never use --all, got {args:?}",
+        );
+        assert!(
+            args.iter()
+                .any(|a| *a == std::ffi::OsStr::new("/project/src/a.ts")),
+            "fallback must scope to the changed paths, got {args:?}",
         );
     }
 

@@ -367,7 +367,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-007: `watch` + MCP clients + status surface
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make the user-facing surfaces thin daemon clients with a safe fallback.
 - **Expected Outcome:** `watch` routes save-time validation to the daemon and falls
   back to a *scoped* (never `--all`) check on daemon absence/mid-session death,
@@ -375,9 +375,26 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   per disconnect; MCP `anvil_validate_write` re-points with a byte-identical in-process
   fallback; `anvil status` renders `clean|stale|pending|running|unavailable` (+ reason,
   + `confined: N`).
+- **Progress (2026-06-03):** Task 12 (`watch` client) delivered —
+  `crates/anvil-cli/src/commands/watch_save_time.rs` is the daemon `validate_paths`
+  client + connection-lifecycle state machine (warn-once-per-disconnect, reconnect
+  re-issues `request_full_scan`, mid-session death ⇒ scoped fallback +
+  `unavailable{daemon-absent}`). Wired into `watch.rs`'s `run_one_action`, **opt-in via
+  `ANVIL_WATCH_DAEMON`** (default-off so the not-yet-auto-started daemon does not change
+  default watch behaviour — trunk-releasable, per the release-gating model).
+- **Task 13 reconciliation (council-confirmed 2026-06-03):** the execution-plan wording
+  "re-point the in-process scan to daemon `validate_paths`" is corrected to **the daemon's
+  `scan_buffer` verb**. MCP `anvil_validate_write` is a *pre-write* gate over *proposed
+  content not yet on disk*; `validate_paths` has a frozen content-free wire and reads the
+  exact openat2-guarded bytes from disk (ADR-061 §2/§7), so routing proposed content
+  through it would be a false attestation. ADR-061 §3 only says MCP "re-points… to the
+  daemon" — never names `validate_paths`. The existing `scan_buffer` + byte-identical
+  embedded fallback already satisfies §3; Task 13 = the named tests + this note. Consequence
+  for DSV-009 / Task 15: the **"MCP+daemon" parity leg uses `scan_buffer`, not
+  `validate_paths`** (both route to the same `run_antipattern_check`).
 - **Validation:** `cargo test -p eddacraft-anvil -- watch`; the MCP tool tests; status
   render tests.
-- **Files:** `crates/anvil-cli/src/commands/{watch,status}.rs`,
+- **Files:** `crates/anvil-cli/src/commands/{watch,watch_save_time,status}.rs`,
   `crates/anvil-cli/src/mcp/{validation.rs,tools/validate_write.rs}`
 - **Confidence:** medium
 - **Priority:** High

@@ -39,6 +39,7 @@ pub mod update;
 pub mod validate;
 pub mod version;
 pub mod watch;
+pub mod watch_save_time;
 pub mod welcome;
 pub mod wizard;
 pub mod workspace;
