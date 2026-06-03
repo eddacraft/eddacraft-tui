@@ -1012,11 +1012,24 @@ fn run_start(args: &StartArgs) -> Result<()> {
         // DSV-005: inject the kernel-backed symbol parser so the daemon can
         // return Certified verdicts (ADR-064: tree-sitter links into this
         // binary, never the `anvil-intercept` crate). Unix-only — the verdict
-        // path is unix-gated.
+        // path is unix-gated. `ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER=1` is a
+        // break-glass that withholds the parser (the daemon then returns safe
+        // `Partial` verdicts) without a redeploy if the parser ever misbehaves.
         #[cfg(unix)]
-        let opts = opts.with_symbol_parser(std::sync::Arc::new(
-            crate::intercept_symbol_parser::KernelSymbolParser::new(),
-        ));
+        let opts = if std::env::var_os("ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER")
+            .is_some_and(|value| value == "1")
+        {
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                "ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER=1 — symbol parser withheld; \
+                 validate_paths will return Partial verdicts only",
+            );
+            opts
+        } else {
+            opts.with_symbol_parser(std::sync::Arc::new(
+                crate::intercept_symbol_parser::KernelSymbolParser::new(),
+            ))
+        };
         run_foreground(opts, token).await
     })
 }

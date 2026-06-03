@@ -1104,11 +1104,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 confinement::load_or_fail_closed(),
             );
             // DSV-005: inject the dependency-inverted kernel parser if anvil-cli
-            // wired one. Without it, verdicts stay `Partial` — warn so the
-            // degraded mode is observable, not a silent feature-off.
+            // wired one.
             if let Some(parser) = opts.symbol_parser.clone() {
                 state = state.with_parser(parser);
-            } else {
+            }
+            // Without a parser, verdicts stay `Partial` — warn so the degraded
+            // mode is observable, not a silent feature-off.
+            if !state.has_parser() {
                 tracing::warn!(
                     target: "anvil_intercept::save_time",
                     "no symbol parser injected — validate_paths returns Partial verdicts only \

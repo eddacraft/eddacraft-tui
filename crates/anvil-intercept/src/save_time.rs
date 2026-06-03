@@ -561,10 +561,58 @@ mod tests {
         );
     }
 
+    /// A parser that records the (path, bytes) it was handed, so a test can
+    /// prove the daemon forwards the exact guarded bytes it read.
+    #[derive(Debug, Default)]
+    struct CapturingParser {
+        seen: Mutex<Vec<(String, Vec<u8>)>>,
+    }
+
+    impl SymbolParser for CapturingParser {
+        fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+            self.seen
+                .lock()
+                .unwrap()
+                .push((path.to_string_lossy().into_owned(), bytes.to_vec()));
+            None
+        }
+    }
+
+    /// The parser is handed the **exact** bytes the daemon read and hashed —
+    /// the Content Enricher "enrich the message you hold" property (no second
+    /// read that could race the edit).
+    #[test]
+    fn parser_receives_the_exact_guarded_bytes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).expect("mkdir");
+        let body = b"export const value = 41;".to_vec();
+        fs::write(src.join("a.ts"), &body).expect("write");
+
+        let capture = Arc::new(CapturingParser::default());
+        let state = state().with_parser(capture.clone());
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .validate_paths(&ValidatePathsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                paths: vec![modified("src/a.ts")],
+            })
+            .expect("admitted");
+
+        let seen = capture.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "the parser was invoked for the one path");
+        assert_eq!(seen[0].0, "src/a.ts");
+        assert_eq!(seen[0].1, body, "the parser got the bytes the daemon read");
+        // And those bytes are the ones echoed as the daemon-computed hash.
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(crate::validate_paths::content_hash(&body).as_str()),
+        );
+    }
+
     /// With an injected parser delivering a matching (body-only) surface over
     /// the warm cache, a clean edit certifies end to end through the daemon —
-    /// proving the dependency-inverted feed unblocks `Certified` and that the
-    /// symbols parsed are the bytes the daemon read (no second read).
+    /// proving the dependency-inverted feed unblocks `Certified`.
     #[test]
     fn validate_certifies_when_parser_feeds_matching_surface() {
         let tmp = tempfile::tempdir().expect("tempdir");

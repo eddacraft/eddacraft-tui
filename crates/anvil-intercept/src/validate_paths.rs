@@ -197,8 +197,10 @@ struct PathOutcome {
 ///
 /// Dependencies are injected so the orchestration is testable without a live
 /// daemon: `read_guarded` is the Task 3 openat2 read; `fed_symbols` is the
-/// kernel→daemon `FileSymbols` feed (Task 7 producer) — until it delivers
-/// symbols for a path, that path cannot be certified and is conservatively
+/// injected `SymbolParser` feed (DSV-005 — wired from `anvil-cli` via
+/// `ForegroundOpts::with_symbol_parser`), called with the **same** guarded bytes
+/// just read. Until a parser is wired (or for an unparseable file) it yields
+/// `None`, so that path cannot be certified and is conservatively
 /// `Partial(CrossFileResolutionNeeded)`, which is safe.
 pub fn validate_paths<R, F>(
     request: &ValidatePathsRequest,
