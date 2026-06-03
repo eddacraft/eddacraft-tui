@@ -55,7 +55,9 @@ const SAVE_TIME_SERVICE_P95_BUDGET: Duration = Duration::from_millis(80);
 #[cfg(unix)]
 const QUEUE_WAIT_WARN: Duration = Duration::from_millis(80);
 
-/// Agents in the concurrency ramp (ADR-061 §9: "4 agents + 1 background scan").
+/// Agents in the *gated* concurrency point (ADR-061 §9: "4 agents + 1
+/// background scan"). The opt-in `ANVIL_BENCH_VALIDATE_AGENTS` sweep
+/// ([`run_agent_sweep`]) varies this to chart the saturation curve.
 #[cfg(unix)]
 const RAMP_AGENTS: usize = 4;
 
@@ -241,23 +243,25 @@ fn gate(label: &str, p95: Duration, budget: Duration) -> bool {
     }
 }
 
-/// Drive the `4 agents + 1 background scan` ramp and return the agents'
-/// interactive `validate_paths` latencies (DSV-006 / Task 16, ADR-061 §9).
+/// Drive `agents` concurrent `validate_paths` clients + 1 background scan and
+/// return the agents' interactive latencies (DSV-006 / Task 16, ADR-061 §9).
 ///
-/// Each agent drives its OWN workspace (distinct `WorktreeKey`), so the ramp
+/// Each agent drives its OWN workspace (distinct `WorktreeKey`), so this
 /// measures interactive-pool contention, not per-key assurance-lock
 /// serialisation. The background scan is a CPU-competing thread standing in for
 /// the daemon's background pool (production placement is the background pool;
 /// the bench models the core contention it creates). The scanner stops as soon
-/// as the agents finish so the scope barrier can complete.
+/// as the agents finish so the scope barrier can complete. `agents` is floored
+/// at 1.
 #[cfg(unix)]
-fn run_concurrency_ramp(state: &SaveTimeState) -> Vec<Duration> {
-    let agent_ws: Vec<tempfile::TempDir> = (0..RAMP_AGENTS).map(|_| make_workspace(1)).collect();
+fn run_concurrency_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
+    let agents = agents.max(1);
+    let agent_ws: Vec<tempfile::TempDir> = (0..agents).map(|_| make_workspace(1)).collect();
     let scan_ws = make_workspace(64);
     let caps = DosCaps::default();
     let scan_files = walk_capped(scan_ws.path(), caps.max_walk_depth, caps.max_walk_files);
     let latencies: Mutex<Vec<Duration>> =
-        Mutex::new(Vec::with_capacity(RAMP_AGENTS * RAMP_ITERS_PER_AGENT));
+        Mutex::new(Vec::with_capacity(agents * RAMP_ITERS_PER_AGENT));
     let cancel = ScanCancel::new();
 
     std::thread::scope(|s| {
@@ -268,7 +272,7 @@ fn run_concurrency_ramp(state: &SaveTimeState) -> Vec<Duration> {
                 });
             }
         });
-        let agents: Vec<_> = agent_ws
+        let handles: Vec<_> = agent_ws
             .iter()
             .map(|ws| {
                 let req = modify_request(ws.path());
@@ -285,7 +289,7 @@ fn run_concurrency_ramp(state: &SaveTimeState) -> Vec<Duration> {
                 })
             })
             .collect();
-        for a in agents {
+        for a in handles {
             a.join().expect("agent thread");
         }
         cancel.cancel();
@@ -296,9 +300,11 @@ fn run_concurrency_ramp(state: &SaveTimeState) -> Vec<Duration> {
 }
 
 /// The DSV-006 / Task 16 concurrency SLO: warm `validate_paths` p95, the
-/// `4 agents + 1 background scan` ramp, and the daemon-absent scoped-fallback
-/// comparison. Returns `true` if any gated p95 breached its budget (the name's
-/// polarity matches the `if slo_gate_failed() { exit(1) }` call site).
+/// `4 agents + 1 background scan` ramp, the daemon-absent scoped-fallback
+/// comparison, and (opt-in) a report-only stepped agent-count sweep
+/// ([`run_agent_sweep`]). Returns `true` if any *gated* p95 breached its budget
+/// (the name's polarity matches the `if slo_gate_failed() { exit(1) }` call
+/// site); the sweep never affects the return.
 ///
 /// This is the **service** harness (ADR-031 `validation.service`): it drives
 /// the verdict path in-process on the daemon's interactive pool, the exact work
@@ -350,7 +356,7 @@ fn slo_gate_failed() -> bool {
     );
 
     // --- Case B: 4 agents + 1 background scan ramp (gated ≤ 80 ms) ---
-    let mut ramp = run_concurrency_ramp(&state);
+    let mut ramp = run_concurrency_ramp(&state, RAMP_AGENTS);
     report_dimensions(
         "validation.service:validate_paths:4agents+scan",
         "save",
@@ -398,7 +404,50 @@ fn slo_gate_failed() -> bool {
         &mut fallback,
     );
 
+    // --- Optional Case D: stepped agent-count sweep (opt-in, report-only) ---
+    run_agent_sweep(&state);
+
     failed
+}
+
+/// Optional stepped agent-count sweep (DSV-006 diagnostic, opt-in via
+/// `ANVIL_BENCH_VALIDATE_AGENTS=1,2,4,8`). Unlike the fixed 4-agent gate (Case
+/// B), this is **report-only**: it prints interactive p95 at each concurrency
+/// level so the saturation knee — and the headroom against the 80 ms budget —
+/// is visible, without failing when a deliberately-overloaded level crosses
+/// budget. The default CI run leaves the env unset and stays a single gate
+/// point (mirrors how `load-ramp.sh` separates `--smoke` from the full ramp).
+#[cfg(unix)]
+fn run_agent_sweep(state: &SaveTimeState) {
+    let Ok(spec) = std::env::var("ANVIL_BENCH_VALIDATE_AGENTS") else {
+        return;
+    };
+    let levels: Vec<usize> = spec
+        .split(',')
+        .filter_map(|s| s.trim().parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .collect();
+    if levels.is_empty() {
+        return;
+    }
+    println!("note: validate_paths agent sweep (report-only) levels={levels:?}");
+    for n in levels {
+        let mut lat = run_concurrency_ramp(state, n);
+        let label = format!("validation.service:validate_paths:sweep:{n}agents+scan");
+        report_dimensions(&label, "save", "default-v1");
+        report(&label, &mut lat);
+        let p95 = lat[percentile_index(lat.len(), 95)];
+        let verdict = if p95 <= SAVE_TIME_SERVICE_P95_BUDGET {
+            "within"
+        } else {
+            "OVER"
+        };
+        println!(
+            "sweep: {n} agents + 1 scan -> interactive p95 {} ({verdict} {} budget)",
+            fmt(p95),
+            fmt(SAVE_TIME_SERVICE_P95_BUDGET),
+        );
+    }
 }
 
 #[cfg(unix)]
