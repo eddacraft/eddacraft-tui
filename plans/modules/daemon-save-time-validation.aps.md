@@ -263,9 +263,12 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 - **Progress:** 10a (spine) delivered via PR #2253 — `crates/anvil-intercept/src/workspace_pool.rs`
   builds the two cooperating rayon pools (small interactive + background) from one
   per-host budget and adds the per-`WorktreeKey` in-flight admission token (the Task 8
-  predecessor). Remaining (10b/Task 11/Task 16, gated on DSV-005): the chunked-yield
-  background-scan loop, the parse-size + walk-depth DoS caps, and the `4 agents + 1 scan`
-  SLO bench + CI gate.
+  predecessor). 10b delivered via PR #2272 — the chunked-yield background-scan loop
+  (`run_chunked_scan` + `ScanCancel`/`ScanOutcome`): the background scan checks a cancel
+  flag at every chunk boundary so it hands cores back to interactive work within one
+  chunk, with `processed` doubling as a resume offset. Remaining (Task 11/Task 16, gated
+  on DSV-005): the parse-size + walk-depth DoS caps, and the `4 agents + 1 scan` SLO
+  bench + CI gate.
 - **Expected Outcome:** A small interactive `rayon::ThreadPool` (10a, spine — a Task 8
   predecessor) + a chunked-yield background pool (10b); per-workspace in-flight token;
   parse-size + walk-depth caps; a `validate_paths` warm-read + `4 agents + 1 scan`
