@@ -400,7 +400,7 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
     };
     if let Some(cursor) = baseline.continuation.as_deref() {
         println!(
-            "anvil: baseline {action} (current posture — {} findings, baselined as-is; resume from `{cursor}` with another `anvil baseline`)",  // CIB-016 pairs with "new regressions — M findings since baseline" in subsequent check/gate/activation scans (see activation/render.rs)
+            "anvil: baseline {action} (current posture — {} findings, baselined as-is; resume from `{cursor}` with another `anvil baseline`)", // CIB-016 pairs with "new regressions — M findings since baseline" in subsequent check/gate/activation scans (see activation/render.rs)
             baseline.findings.len(),
         );
     } else {
