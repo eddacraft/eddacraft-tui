@@ -1,6 +1,6 @@
 # Post-merge: feat-dsv-007-watch-mcp-status
 
-PR: #NNN
+PR: #2284
 Branch: `feat/dsv-007-watch-mcp-status`
 APS: DSV-007
 Merged: <!-- filled by cleanup agent -->
