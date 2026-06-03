@@ -1413,4 +1413,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** none.
 - **Improvement:** none (straightforward resolution of known friction).
 - **Follow-up:** none.
+### 2026-06-03 — claude (CIB items via dev-workflow)
+
+- **Task:** Complete CIB items in this wt using different branches via /dev-workflow (per complete-cib-items workflow contract and dev-workflow).
+- **Outcome:** 3 Ready CIB items completed end-to-end on dedicated branches (wt-new from main): CIB-032 (PR #2269: oxfmt pnpm exec guard + policy + hook), CIB-016 (PR #2270: posture vs new regressions phrasing in baseline + tutorial), CIB-027 (PR #2271: cross-repo review fallback in agent-surface-inventory). Each followed APS gate, In Progress mark, TDD/manual validation, full local gates, CI log append, conventional commit, push, gh PR.
+- **Worked:** Used scripts/dev/wt-new.sh for main-first branches; search_replace + run for edits/gates/sims; subagent dispatch attempted in parallel (killed after slow exploration); direct drive for visibility on 3 items; all per AGENTS/CLAUDE/dev-workflow (UK English, single-purpose, evidence before claim).
+- **Failed:** Spawned isolation subagents for 016/027/028 explored but hit env/build time (killed to avoid duplication; controlled wts succeeded).
+- **Friction:** Isolation wts from spawn_subagent not visible in `wt list` (used explicit wt-new for control); package.json format in one wt showed bare oxfmt until edit.
+- **Improvement:** The complete-cib-items.js workflow + explicit wt-new + subagent parallel is the intended path for batch CIB; having a runner would automate more.
+- **Follow-up:** Monitor PRs 2269/2270/2271 for CI/Copilot, run addressing-pr-reviews on each after 10m; when merged update statuses in module + index via the branches; offer wt remove on the 3 new wts after safe.
 
