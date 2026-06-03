@@ -279,7 +279,7 @@ archive.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `anvil baseline` + `cutoff_commit` already
   distinguish first-scan posture from new regressions mechanically.
   The UX doesn't name that distinction. Adding the phrasing turns

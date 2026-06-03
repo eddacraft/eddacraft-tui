@@ -400,12 +400,12 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
     };
     if let Some(cursor) = baseline.continuation.as_deref() {
         println!(
-            "anvil: baseline {action} ({} findings; resume from `{cursor}` with another `anvil baseline`)",
+            "anvil: baseline {action} (current posture — {} findings, baselined as-is; resume from `{cursor}` with another `anvil baseline`)",
             baseline.findings.len(),
         );
     } else {
         println!(
-            "anvil: baseline {action} ({} findings)",
+            "anvil: baseline {action} (current posture — {} findings, baselined as-is)",
             baseline.findings.len(),
         );
     }
@@ -430,7 +430,7 @@ fn run_verify(repo_root: &Path) -> Result<()> {
         .context("load baseline")?
         .context("no baseline at anvil/baseline.json — run `anvil baseline` first")?;
     println!(
-        "anvil: baseline ok ({} findings, cutoff={})",
+        "anvil: baseline ok (current posture — {} findings, baselined as-is; cutoff={})",
         baseline.findings.len(),
         baseline.cutoff_commit.as_deref().unwrap_or("<none>"),
     );

@@ -96,7 +96,7 @@ ACTIVATION
     Cursor: live_validation
     Claude Code: live_validation
   watch: not_requested
-  baseline: present (4 findings recorded; future scans will diff against this set as wiring lands)
+  baseline: present (current posture — 4 findings, baselined as-is; future scans will report new regressions)
   languages:
     TypeScript (37 files): supported — anchor + extension match
   install:
@@ -121,7 +121,7 @@ ACTIVATION
     Cursor: restart_required
     Claude Code: restart_required
   watch: not_requested
-  baseline: present (0 findings recorded; future scans will diff against this set as wiring lands)
+  baseline: present (current posture — 0 findings, baselined as-is; future scans will report new regressions)
   languages:
     TypeScript (37 files): supported — anchor + extension match
   install:
@@ -146,7 +146,7 @@ ACTIVATION
   mcp: not detected
   watch: offered
   note: MCP pre-write validation is not attached. Watch mode fallback validates saved file changes only — it cannot intercept MCP tool writes before they happen.
-  baseline: present (0 findings recorded; future scans will diff against this set as wiring lands)
+  baseline: present (current posture — 0 findings, baselined as-is; future scans will report new regressions)
   languages:
     TypeScript (37 files): supported — anchor + extension match
   next: Install Cursor or Claude Code for pre-write protection, or run `anvil start --watch` for save-time fallback.
