@@ -213,7 +213,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-004: Certifiability + interim graph cache + `FileSymbols` feed
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Decide certified-vs-stale via a bounded reverse-impact closure over a
   warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache the daemon mutates
   from kernel-fed parsed symbols.

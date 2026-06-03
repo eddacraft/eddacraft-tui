@@ -7,11 +7,13 @@
 //! already-parsed `FileSymbols` / `ImportEdge` (from `anvil-kernel-types`); it
 //! never parses. `anvil-kernel` re-exports this crate as its `graph` module.
 
+pub mod certify;
 pub mod dependency;
 pub mod incremental;
 pub mod symbol_graph;
 pub mod trust;
 
+pub use certify::{Certifiability, CertifyStale, ChangeKind, certify, export_surface_changed};
 pub use dependency::DependencyGraph;
 pub use incremental::{GraphDelta, re_resolve_imports, remove_file, update_file};
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
