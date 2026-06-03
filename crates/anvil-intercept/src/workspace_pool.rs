@@ -1,5 +1,6 @@
-//! DSV-006a / Sub-phase A Task 10a — the daemon's two cooperating work pools
-//! and per-workspace in-flight admission token (ADR-061 §4 resource model).
+//! DSV-006 / Sub-phase A Task 10 — the daemon's two cooperating work pools, the
+//! per-workspace in-flight admission token, and the chunked-yield background
+//! scan loop (ADR-061 §4 resource model).
 //!
 //! # Why two pools, not one
 //!
@@ -14,10 +15,12 @@
 //! pool cannot drain the interactive pool's threads.
 //!
 //! Co-operation between the pools (background scans handing cores back under
-//! interactive load) is the chunked cancel/yield loop — that is Task 10b and
-//! lives elsewhere. This module owns only the **construction** of the pools
-//! (the hard predecessor of Task 8, which runs the antipattern check on the
-//! interactive pool) plus the admission token.
+//! interactive load) is the chunked cancel/yield loop ([`run_chunked_scan`] +
+//! [`ScanCancel`], Task 10b): rayon has no task preemption, so the background
+//! scan voluntarily checks a cancel flag at every chunk boundary and stops
+//! within one chunk when interactive work arrives. This module also owns the
+//! **construction** of the pools (the hard predecessor of Task 8, which runs
+//! the antipattern check on the interactive pool) plus the admission token.
 //!
 //! # Admission token
 //!
@@ -28,6 +31,7 @@
 //! interactive pool.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::available_parallelism;
 
@@ -157,6 +161,101 @@ fn build_pool(name: &'static str, threads: usize) -> Result<ThreadPool, Schedule
         .map_err(|source| SchedulerError::PoolBuild { name, source })
 }
 
+/// Cooperative cancellation handle for a background scan (Task 10b).
+///
+/// rayon has no task preemption and the two pools never steal across each other
+/// ([`WorkScheduler`]), so cooperation — a saturated background scan handing its
+/// cores back when interactive load arrives — is *explicit*: the scan checks
+/// this flag at every chunk boundary, and any other thread (e.g. the IPC
+/// listener admitting a `validate_paths` request) flips it via [`ScanCancel::cancel`].
+///
+/// Cheap to clone — every clone observes the same flag.
+#[derive(Debug, Clone, Default)]
+pub struct ScanCancel {
+    flag: Arc<AtomicBool>,
+}
+
+impl ScanCancel {
+    /// A fresh, un-cancelled handle.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Request the scan to yield at its next chunk boundary. Idempotent and safe
+    /// to call from any thread.
+    pub fn cancel(&self) {
+        self.flag.store(true, Ordering::Release);
+    }
+
+    /// Whether cancellation has been requested.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.flag.load(Ordering::Acquire)
+    }
+}
+
+/// How a chunked background scan ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanOutcome {
+    /// Every item was processed.
+    Completed,
+    /// Cancellation was observed at a chunk boundary; the scan yielded after
+    /// `processed` items. At most one chunk's worth of work runs after a
+    /// [`ScanCancel::cancel`] requested mid-chunk. A yield only ever happens
+    /// *before* a not-yet-started chunk, so `processed` is always the sum of
+    /// whole completed chunks — never a partial-chunk count.
+    Yielded {
+        /// Items processed before yielding. Doubles as a resume offset: the
+        /// caller may continue with `&items[processed..]` on a fresh
+        /// [`run_chunked_scan`] call.
+        processed: usize,
+    },
+}
+
+/// Run `work` over `items` in chunks of `chunk_size`, checking `cancel` *before*
+/// each chunk so a background scan hands its cores back within one chunk of a
+/// cancel request (ADR-061 §4 cooperative yield).
+///
+/// The flag is checked at chunk boundaries, never per item, so the per-item
+/// overhead is just the work itself; the trade-off is latency-bounded by the
+/// chunk size. Because the check is before each chunk:
+///
+/// - over a non-empty `items`, cancelling before the first chunk yields
+///   immediately with `processed == 0` and `work` is never called;
+/// - cancelling mid-chunk finishes the current chunk (at most `chunk_size - 1`
+///   further items) and then yields, so `processed` is always a whole number of
+///   completed chunks.
+///
+/// An empty `items` has no chunks, so the cancel check never runs and the result
+/// is [`ScanOutcome::Completed`] (nothing to scan) regardless of the flag.
+///
+/// `items` is a slice (not an iterator) so a yielded scan can be resumed with
+/// `&items[processed..]`. `chunk_size` is floored at 1 — a zero chunk would
+/// never make progress.
+pub fn run_chunked_scan<T, F>(
+    items: &[T],
+    chunk_size: usize,
+    cancel: &ScanCancel,
+    mut work: F,
+) -> ScanOutcome
+where
+    F: FnMut(&T),
+{
+    let chunk_size = chunk_size.max(1);
+    let mut processed = 0;
+    for chunk in items.chunks(chunk_size) {
+        if cancel.is_cancelled() {
+            return ScanOutcome::Yielded { processed };
+        }
+        for item in chunk {
+            work(item);
+            processed += 1;
+        }
+    }
+    ScanOutcome::Completed
+}
+
 /// Per-[`WorktreeKey`] in-flight-work admission, layered over the IPC listener's
 /// per-connection semaphore. Bounds how many `validate_paths` requests for a
 /// single workspace may be in flight at once.
@@ -258,6 +357,7 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use std::sync::Barrier;
+    use std::sync::atomic::AtomicUsize;
 
     fn key(p: &str) -> WorktreeKey {
         WorktreeKey::from_canonical(PathBuf::from(p))
@@ -383,5 +483,155 @@ mod tests {
             .try_admit(&k)
             .expect("at least one unit always admitted");
         assert!(adm.try_admit(&k).is_none(), "but only one");
+    }
+
+    /// The core 10b guarantee: once cancellation is requested mid-chunk, the
+    /// scan runs at most the rest of the current chunk and then yields at the
+    /// next boundary — never the whole repo. Deterministic via a self-cancel:
+    /// item 25 lives in chunk index 2 (items 20..30), so that chunk finishes
+    /// (through 29) and the check before chunk 3 (items 30..) yields.
+    #[test]
+    fn background_scan_yields_within_one_chunk_on_cancel() {
+        let items: Vec<usize> = (0..100).collect();
+        let chunk = 10;
+        let cancel = ScanCancel::new();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+
+        let outcome = run_chunked_scan(&items, chunk, &cancel, |&i| {
+            lock(&seen).push(i);
+            if i == 25 {
+                cancel.cancel();
+            }
+        });
+
+        assert_eq!(outcome, ScanOutcome::Yielded { processed: 30 });
+        let seen = lock(&seen);
+        assert_eq!(seen.len(), 30, "only the cancelled chunk's worth ran on");
+        assert_eq!(seen.last(), Some(&29), "stopped at the chunk boundary");
+        // Cancel was requested at item 25; only items 26..=29 — the 4 remaining
+        // items in chunk 2, fewer than one full chunk — ran after it, and no
+        // item from chunk 3 onward started.
+    }
+
+    #[test]
+    fn background_scan_runs_to_completion_without_cancel() {
+        let items: Vec<usize> = (0..37).collect();
+        let cancel = ScanCancel::new();
+        let count = AtomicUsize::new(0);
+
+        let outcome = run_chunked_scan(&items, 8, &cancel, |_| {
+            count.fetch_add(1, Ordering::Relaxed);
+        });
+
+        assert_eq!(outcome, ScanOutcome::Completed);
+        assert_eq!(count.load(Ordering::Relaxed), 37, "every item processed");
+    }
+
+    #[test]
+    fn background_scan_yields_immediately_when_cancelled_before_start() {
+        let items: Vec<usize> = (0..50).collect();
+        let cancel = ScanCancel::new();
+        cancel.cancel();
+        let mut ran = 0usize;
+
+        let outcome = run_chunked_scan(&items, 10, &cancel, |_| ran += 1);
+
+        assert_eq!(outcome, ScanOutcome::Yielded { processed: 0 });
+        assert_eq!(ran, 0, "work is never invoked once cancelled up front");
+    }
+
+    #[test]
+    fn background_scan_over_empty_items_completes_even_if_cancelled() {
+        // An empty corpus has no chunks, so the cancel check never runs: the
+        // documented result is Completed (nothing to scan), not Yielded, even
+        // with the flag pre-set.
+        let items: [usize; 0] = [];
+        let cancel = ScanCancel::new();
+        cancel.cancel();
+        let mut ran = 0usize;
+
+        let outcome = run_chunked_scan(&items, 10, &cancel, |_| ran += 1);
+
+        assert_eq!(outcome, ScanOutcome::Completed);
+        assert_eq!(ran, 0);
+    }
+
+    #[test]
+    fn background_scan_chunk_size_floors_at_one() {
+        // A zero chunk size would never make progress; it is clamped to 1 so the
+        // scan still runs (and still yields between every item).
+        let items: Vec<usize> = (0..5).collect();
+        let cancel = ScanCancel::new();
+        let count = AtomicUsize::new(0);
+
+        let outcome = run_chunked_scan(&items, 0, &cancel, |_| {
+            count.fetch_add(1, Ordering::Relaxed);
+        });
+
+        assert_eq!(outcome, ScanOutcome::Completed);
+        assert_eq!(count.load(Ordering::Relaxed), 5);
+    }
+
+    /// The real cross-thread scenario: a scan running on the background pool is
+    /// asked to yield by another thread (standing in for the IPC listener
+    /// admitting interactive work). It must observe the cancel via the shared
+    /// flag and stop at a chunk boundary, well before completing the corpus.
+    ///
+    /// Made deterministic — independent of thread scheduling, so it cannot flake
+    /// or race to `Completed` on a single-core / loaded host — by pinning the
+    /// scan inside the first item until the cancel is provably visible: the
+    /// `underway` barrier proves the scan reached item 0, then the work closure
+    /// busy-waits (cooperatively, via `yield_now`) until `is_cancelled()` reads
+    /// true. The scan therefore cannot advance past chunk 0 until the canceller
+    /// has run, so the yield lands at exactly one chunk every time.
+    #[test]
+    fn background_scan_on_pool_yields_to_concurrent_canceller() {
+        let sched = WorkScheduler::with_budget(PoolBudget {
+            interactive: 1,
+            background: 1,
+        })
+        .expect("build pools");
+
+        let items: Vec<usize> = (0..100_000).collect();
+        let chunk = 256;
+        let cancel = ScanCancel::new();
+        let started = AtomicUsize::new(0);
+        let underway = Barrier::new(2);
+
+        let outcome = std::thread::scope(|s| {
+            let canceller = s.spawn(|| {
+                underway.wait(); // the scan is provably at item 0
+                cancel.cancel();
+            });
+
+            let out = sched.background().install(|| {
+                run_chunked_scan(&items, chunk, &cancel, |_| {
+                    // On the first item only: release the canceller, then hold
+                    // here until its cancel is observable across the threads.
+                    // yield_now keeps a single-core host from starving it.
+                    if started.fetch_add(1, Ordering::Relaxed) == 0 {
+                        underway.wait();
+                        while !cancel.is_cancelled() {
+                            std::thread::yield_now();
+                        }
+                    }
+                })
+            });
+
+            canceller.join().expect("canceller thread");
+            out
+        });
+
+        match outcome {
+            ScanOutcome::Yielded { processed } => {
+                // The flag was set during item 0, so chunk 0 finishes and the
+                // check before chunk 1 yields — a chunk-aligned stop, far short
+                // of the whole corpus. Asserting on the outcome's own counter
+                // (not a per-item proxy) verifies the real invariant.
+                assert_eq!(processed, chunk, "yields exactly one chunk after cancel");
+                assert!(processed < items.len(), "stopped before the whole corpus");
+            }
+            ScanOutcome::Completed => panic!("a concurrently cancelled scan must yield"),
+        }
     }
 }
