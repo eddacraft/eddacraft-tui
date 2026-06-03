@@ -28,8 +28,9 @@
 
 #![cfg(target_os = "linux")]
 
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
@@ -44,20 +45,36 @@ const AIR_GAP_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// Spawn `cmd` and wait up to [`AIR_GAP_TIMEOUT`]. On timeout, kill the
 /// child and panic so a wedged command under test surfaces as a clear,
-/// bounded failure rather than an indefinite hang. The commands run
-/// through this harness emit little output, so reading the piped
-/// stdout/stderr after exit cannot fill the pipe buffer and stall.
-fn output_within_timeout(cmd: &mut Command) -> std::process::Output {
+/// bounded failure rather than an indefinite hang.
+///
+/// stdout/stderr are drained in dedicated threads (the same pattern as
+/// `anvil-policy`'s OPA runner) so a child that fills the OS pipe buffer
+/// can never wedge on `write(2)` — which would otherwise masquerade as a
+/// timeout — and so there is a single wait path: the status comes from
+/// `try_wait`, and `wait_with_output` is never called afterwards (calling
+/// a second wait on an already-reaped child is the footgun documented at
+/// `crates/anvil-policy/src/opa.rs`).
+fn output_within_timeout(cmd: &mut Command) -> Output {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = cmd.spawn().expect("failed to spawn harness");
+
+    let mut out_pipe = child.stdout.take().expect("stdout piped above");
+    let mut err_pipe = child.stderr.take().expect("stderr piped above");
+    let out_reader = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = out_pipe.read_to_end(&mut buf);
+        buf
+    });
+    let err_reader = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = err_pipe.read_to_end(&mut buf);
+        buf
+    });
+
     let start = Instant::now();
-    loop {
-        if child
-            .try_wait()
-            .expect("try_wait on harness child")
-            .is_some()
-        {
-            break;
+    let status = loop {
+        if let Some(status) = child.try_wait().expect("try_wait on harness child") {
+            break status;
         }
         if start.elapsed() >= AIR_GAP_TIMEOUT {
             let _ = child.kill();
@@ -68,10 +85,15 @@ fn output_within_timeout(cmd: &mut Command) -> std::process::Output {
             );
         }
         std::thread::sleep(Duration::from_millis(50));
+    };
+
+    let stdout = out_reader.join().expect("stdout reader thread");
+    let stderr = err_reader.join().expect("stderr reader thread");
+    Output {
+        status,
+        stdout,
+        stderr,
     }
-    child
-        .wait_with_output()
-        .expect("collect harness output after exit")
 }
 
 // KEEP-IN-SYNC: `harness_path` + `run_air_gapped` are mirrored in
