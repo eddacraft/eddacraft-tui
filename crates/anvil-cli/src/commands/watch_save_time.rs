@@ -464,9 +464,9 @@ mod socket {
             // Fire-and-forget: the daemon starts the scan on receipt, so the ack
             // is irrelevant and we must not stall the interactive watch loop (up
             // to `REQUEST_TIMEOUT`) waiting for it on the reconnect hot path. A
-            // detached thread sends the frame on its own connection and drops the
-            // reply; any failure is best-effort-ignored (the next `validate_paths`
-            // still proceeds).
+            // detached thread runs the whole round-trip (connect + send + read)
+            // off the watch loop and discards the parsed reply; any failure is
+            // best-effort-ignored (the next `validate_paths` still proceeds).
             let request = RequestFullScanRequest {
                 workspace_root: workspace_root.to_string_lossy().into_owned(),
             };
