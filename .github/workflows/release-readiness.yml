@@ -67,18 +67,19 @@ jobs:
       retention-days: ${{ steps.retention.outputs.days }}
       failure-class: ${{ steps.validate.outputs.failure-class }}
     steps:
-      - name: Checkout trusted default branch for SHA validation
+      - name: Checkout trusted ref for SHA validation
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: main
+          ref: ${{ inputs.expectedReachableFrom == 'migration-dev' && 'dev' || 'main' }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate source SHA is trusted and reachable from main
-        id: validate
+      - name: Validate source SHA is trusted and reachable from expected base
+        id: source-trust-validation
         shell: bash
         env:
           SOURCE_SHA: ${{ inputs.sourceSha }}
+          EXPECTED_REACHABLE_FROM: ${{ inputs.expectedReachableFrom }}
         run: |
           set -euo pipefail
 
@@ -88,23 +89,21 @@ jobs:
             exit 1
           fi
 
-          git fetch --no-tags origin main
-
+          # History of the trusted ref is already present locally from the preceding checkout (fetch-depth: 0).
+          # No extra `git fetch` (avoids auth issues with persist-credentials: false and is redundant).
           if ! git cat-file -e "${SOURCE_SHA}^{commit}" 2>/dev/null; then
             echo "::error::sourceSha does not resolve to a commit in this repository"
             echo "failure-class=unknown-sha" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          if ! git merge-base --is-ancestor "${SOURCE_SHA}" "origin/main"; then
-            echo "::error::sourceSha must be reachable from origin/main"
+          if ! git merge-base --is-ancestor "${SOURCE_SHA}" HEAD; then
+            echo "::error::sourceSha must be reachable from ${EXPECTED_REACHABLE_FROM}"
             echo "failure-class=untrusted-sha" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          short_sha="$(git rev-parse --short=12 "${SOURCE_SHA}")"
           echo "checked-out-sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
-          echo "short-sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "failure-class=none" >> "$GITHUB_OUTPUT"
       - name: Checkout requested SHA
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
