@@ -46,6 +46,7 @@ run_oxfmt() {
   if [[ -x "$PROJECT_DIR/node_modules/.bin/oxfmt" ]]; then
     "$PROJECT_DIR/node_modules/.bin/oxfmt" --write "$REL_PATH" 2>&1 || true
   elif command -v oxfmt >/dev/null 2>&1; then
+    echo "oxfmt: using global (stale risk); run 'pnpm install' in worktree for local (CIB-032)" >&2
     oxfmt --write "$REL_PATH" 2>&1 || true
   fi
 }

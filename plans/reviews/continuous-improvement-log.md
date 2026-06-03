@@ -1403,3 +1403,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** index.aps.md is a 37k-token monster — had to use grep + exact string replaces rather than broad edits; no local `wt` flag for "from main in sibling" forced a two-command sequence.
 - **Improvement:** The NBI selector in index is an effective "single source of next planning trigger"; completing it via planning-workflow + agent-edited APS feels like the intended loop. Consider a small `scripts/aps/promote-ready.mjs` helper for future anchor scoping (not filed).
 - **Follow-up:** Hand back to dev-workflow for first RSTLAN-001 (grammar) once user confirms; the Ready items are now authorised. Update NBI table with whatever is next best (USAGE 0/3, EDGE 0/24, or a CIB) in a future bookkeeping pass. No post-merge review file needed (this was APS+ADR scoping, not a feature PR).
+
+### 2026-06-03 — claude (CIB-032)
+
+- **Task:** Complete CIB-032 (fresh worktrees fall back to stale global oxfmt) via full dev-workflow on dedicated `chore/cib-032-*` branch.
+- **Outcome:** `package.json` scripts and post-edit hook now resolve oxfmt via pnpm exec / explicit local first (no silent stale global); worktree-policy.md documents the guard + post-start install guarantee; manual no-modules sim + pnpm run format:check validated actionable behaviour; CIB-032 marked In Progress in module; format:check + relevant lint green.
+- **Worked:** Used scripts/dev/wt-new.sh for proper main-first branch+wt; search_replace for precise edits; ran pnpm format:check (which now exercises the fixed path); simulated fresh state for acceptance; followed APS In-Progress-before-code rule.
+- **Failed:** n/a (small, no behaviour change).
+- **Friction:** none.
+- **Improvement:** none (straightforward resolution of known friction).
+- **Follow-up:** none.
+

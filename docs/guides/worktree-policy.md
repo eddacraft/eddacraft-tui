@@ -257,6 +257,21 @@ Three behaviours matter for a clean fresh worktree:
   build output above it. The steps stay non-fatal on purpose — a transient break
   should not lock you out of the very worktree you need to fix it in.
 
+## oxfmt resolution in fresh worktrees (CIB-032)
+
+`format` / `format:check` (and post-edit hook) now invoke oxfmt via
+`pnpm exec oxfmt` (package.json) or explicit local `.bin` first (hook). This
+guarantees the workspace-pinned version once `node_modules` exists, and produces
+a clear actionable failure (plus guidance) if a fresh/manual worktree has no
+`node_modules` yet.
+
+`wt`-managed worktrees run the `install` post-start which ensures `node_modules`
+(and symlinks). Manual `git worktree add` or cleaned trees still require an
+explicit `pnpm install` first; the scripts no longer silently fall back to a
+stale global `oxfmt` on PATH.
+
+See CIB-032 in `plans/modules/continuous-improvement-backlog.aps.md`.
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)

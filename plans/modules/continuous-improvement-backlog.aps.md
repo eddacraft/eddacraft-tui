@@ -688,7 +688,7 @@ archive.
 
 ### CIB-032: Fresh worktrees fall back to a stale global oxfmt, producing false format failures
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** A freshly created `git worktree` has no `node_modules`, so
   `pnpm run format:check` / `pnpm run lint` resolve `oxfmt` from a stale
   **global** install instead of the workspace-pinned `oxfmt@^0.51.0`. The older
