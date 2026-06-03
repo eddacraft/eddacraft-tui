@@ -89,6 +89,15 @@ Sizing: **T** = trivial (add/​tighten an assertion, < ~15 lines), **S** = smal
 | CLAWP-047 | `anvil-witness/tests/concurrency.rs` | `Arc<Barrier>` to force simultaneous append contention | S |
 | CLAWP-037 | `anvil-intercept/tests/` (new) | process-level binary test: `--help` + invalid invocation via `env!("CARGO_BIN_EXE_anvil-intercept")` (no new dev-dep); SIGTERM-spawn variant optional | **M** |
 
+> **Tracking note:** of these 24 items, **23 are tracked under
+> [#1740](https://github.com/eddacraft/anvil-001/issues/1740)**.
+> **CLAWP-037 is the exception** — it is tracked under its own individual issue
+> [#1643](https://github.com/eddacraft/anvil-001/issues/1643) (it is *not* in
+> #1740's "items covered" list) and is sourced from the APS module. It is
+> grouped into PR 3 here only because it shares the `anvil-intercept` crate with
+> CLAWP-064; that crate co-location is a convenience, not a change to its
+> tracking.
+
 ## The 3 non-mechanical items
 
 - **CLAWP-055** — looks like a design decision (Warn vs Block for `git clean -f`)
@@ -116,4 +125,5 @@ Sizing: **T** = trivial (add/​tighten an assertion, < ~15 lines), **S** = smal
 
 - Tracker module: [`plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
 - Original audit export: [`plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`](../audits/2026-05-19-clawpatch-v0.7.0-beta.json)
-- Batch tracker issue: [#1740](https://github.com/eddacraft/anvil-001/issues/1740)
+- Batch tracker issue (23 items): [#1740](https://github.com/eddacraft/anvil-001/issues/1740)
+- CLAWP-037 individual issue: [#1643](https://github.com/eddacraft/anvil-001/issues/1643)
