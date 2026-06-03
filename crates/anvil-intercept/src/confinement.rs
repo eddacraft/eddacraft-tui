@@ -86,6 +86,11 @@ pub enum ConfinementError {
         owner_uid: u32,
         current_uid: u32,
     },
+    /// The config path is a symlink. A symlinked config could redirect the read
+    /// to a file another principal controls, so it is refused (distinct from
+    /// [`ConfinementError::NotOwnerOnly`] — there is no owner/mode to report).
+    #[error("confinement config {0} is a symlink — refusing (it could redirect the read)")]
+    SymlinkedConfig(PathBuf),
     /// The config file exists but does not parse.
     #[error("confinement config {path} is malformed: {source}")]
     Parse {
@@ -432,12 +437,7 @@ fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
         // `O_NOFOLLOW` on a symlinked leaf surfaces as `ELOOP` — a symlinked
         // config is untrusted (it could redirect to another principal's file).
         Err(err) if err.raw_os_error() == Some(nix::libc::ELOOP) => {
-            return Err(ConfinementError::NotOwnerOnly {
-                path: path.to_path_buf(),
-                mode: 0,
-                owner_uid: 0,
-                current_uid: nix::unistd::Uid::current().as_raw(),
-            });
+            return Err(ConfinementError::SymlinkedConfig(path.to_path_buf()));
         }
         Err(source) => {
             return Err(ConfinementError::Io {
@@ -502,13 +502,36 @@ pub fn load() -> Result<Confinement, ConfinementError> {
 }
 
 /// Production loader: load the confinement config, **failing closed + loud** on
-/// any error. On failure the error is logged at `error` and the most
-/// restrictive [`Confinement::fail_closed`] posture is returned, so a broken or
-/// untrusted config never silently opens the daemon.
+/// an *untrusted* config. A broken or untrusted config (wrong owner, symlinked,
+/// malformed) is logged at `error` and the most restrictive
+/// [`Confinement::fail_closed`] posture is returned, so it never silently opens
+/// the daemon.
+///
+/// [`ConfinementError::NoConfigDir`] is the one exception: it means no config
+/// *location* could be resolved (no `ANVIL_HOME`/`XDG_CONFIG_HOME`/`HOME`) — an
+/// absent config, not an untrusted one. It is treated like a missing file
+/// (default `open`) with a `warn`, so a daemon that resolves its socket via
+/// `XDG_RUNTIME_DIR` but lacks a config-dir env var is not silently forced into
+/// primary-root-only allowlist mode.
 #[must_use]
 pub fn load_or_fail_closed() -> Confinement {
-    match load() {
+    resolve_or_fail_closed(load())
+}
+
+/// Pure policy mapper for [`load_or_fail_closed`] — unit-testable without
+/// mutating process env. `Ok` passes through; `NoConfigDir` (absent location)
+/// defaults to `open` with a `warn`; every other (untrusted/malformed) error
+/// fails closed with an `error`.
+fn resolve_or_fail_closed(result: Result<Confinement, ConfinementError>) -> Confinement {
+    match result {
         Ok(confinement) => confinement,
+        Err(ConfinementError::NoConfigDir) => {
+            tracing::warn!(
+                "no confinement config directory could be resolved \
+                 (no ANVIL_HOME/XDG_CONFIG_HOME/HOME) — defaulting to open admission"
+            );
+            Confinement::open_default()
+        }
         Err(err) => {
             tracing::error!(
                 error = %err,
@@ -935,8 +958,31 @@ mod tests {
 
         let err = load_from(&link).expect_err("a symlinked config must be refused");
         assert!(
-            matches!(err, ConfinementError::NotOwnerOnly { .. }),
-            "expected NotOwnerOnly (symlink refused), got {err:?}"
+            matches!(err, ConfinementError::SymlinkedConfig(_)),
+            "expected SymlinkedConfig (symlink refused), got {err:?}"
+        );
+    }
+
+    #[test]
+    fn no_config_dir_defaults_to_open_untrusted_fails_closed() {
+        // An unresolvable config *location* (absent env) is absence, not an
+        // untrusted config — it defaults to open (like a missing file), not
+        // primary-root-only allowlist.
+        assert_eq!(
+            resolve_or_fail_closed(Err(ConfinementError::NoConfigDir)),
+            Confinement::open_default(),
+            "NoConfigDir is absence → open, not fail-closed"
+        );
+        // A genuinely untrusted/malformed config still fails closed.
+        assert_eq!(
+            resolve_or_fail_closed(Err(ConfinementError::SymlinkedConfig(PathBuf::from("/x")))),
+            Confinement::fail_closed(),
+            "an untrusted config fails closed"
+        );
+        // Ok passes through unchanged.
+        assert_eq!(
+            resolve_or_fail_closed(Ok(Confinement::open_default())),
+            Confinement::open_default()
         );
     }
 
