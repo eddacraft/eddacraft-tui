@@ -147,6 +147,49 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
     }
 }
 
+/// Canonical wire order for save-time diagnostics: sort by `(path, rule_id,
+/// span_start)` — file, then rule id, then the full 1-based span
+/// (`line, column, end_line, end_column`), then `summary` as the final
+/// tiebreaker.
+///
+/// This is the **shared sort-before-envelope normalisation** the cross-path
+/// diagnostic-parity gate (DSV-009 / ADR-061 §8) depends on: every surface that
+/// assembles a diagnostic envelope (the daemon `validate_paths` path here, and
+/// the `watch`/`anvil check` fallback) orders findings by the same key, so two
+/// paths that discover the same antipattern findings in different encounter
+/// orders still emit byte-identical envelopes.
+///
+/// The key is a **total order** over distinct diagnostics: the span +
+/// `summary` tiebreakers mean two findings only compare `Equal` when they are
+/// genuine duplicates (same rule, span, and message). Without them, ties would
+/// fall back to encounter order — which differs between the bytes path and the
+/// disk path and is `rayon`-scheduling-dependent — so the gate could flake or
+/// pass falsely. Because the key is total, `sort_unstable_by` is correct and
+/// avoids the stable sort's auxiliary allocation. `Option` span fields sort
+/// `None` before `Some`, which is deterministic.
+pub fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {
+    diagnostics.sort_unstable_by(|a, b| {
+        (
+            a.location.file.as_str(),
+            a.source.rule_id.as_str(),
+            a.location.line,
+            a.location.column,
+            a.location.end_line,
+            a.location.end_column,
+            a.summary.as_str(),
+        )
+            .cmp(&(
+                b.location.file.as_str(),
+                b.source.rule_id.as_str(),
+                b.location.line,
+                b.location.column,
+                b.location.end_line,
+                b.location.end_column,
+                b.summary.as_str(),
+            ))
+    });
+}
+
 /// Hex-encoded SHA-256 of the daemon-read bytes — the authoritative content
 /// hash echoed in `evaluated[]`. The client's `content_hash` hint is **never**
 /// used for this (the daemon re-reads under the openat2 guard).
@@ -306,10 +349,12 @@ where
         Some(request.workspace_root.as_str()),
         env.pool,
     );
-    // Daemon-emitted per-path diagnostics (parse-size-cap notices) come first,
-    // then the antipattern findings. `take` moves the diagnostic out rather than
-    // cloning its `String` fields — the later `outcomes.into_iter()` only reads
-    // `evaluated`, so the emptied `diagnostic` is never observed again.
+    // Collect daemon-emitted per-path diagnostics (parse-size-cap notices) and
+    // the antipattern findings into one vec; `sort_diagnostics` below imposes
+    // the canonical wire order (the two kinds interleave by path — neither is
+    // "first"). `take` moves the diagnostic out rather than cloning its `String`
+    // fields — the later `outcomes.into_iter()` only reads `evaluated`, so the
+    // emptied `diagnostic` is never observed again.
     let mut diagnostics: Vec<Diagnostic> = outcomes
         .iter_mut()
         .filter_map(|o| o.diagnostic.take())
@@ -321,6 +366,10 @@ where
             .iter()
             .map(antipattern_diagnostic),
     );
+    // Shared sort-before-envelope normalisation (DSV-009 / ADR-061 §8): emit
+    // the wire in canonical `(path, rule_id, span_start)` order so the
+    // cross-path parity gate holds regardless of per-path encounter order.
+    sort_diagnostics(&mut diagnostics);
 
     let graph_certified = outcomes.iter().all(|o| o.graph_certified);
     let first_stale = outcomes.iter().find_map(|o| o.stale_reason);

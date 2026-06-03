@@ -226,7 +226,7 @@ here.)
 | `crates/anvil-cli/src/mcp/tools/validate_write.rs` + `crates/anvil-cli/src/mcp/validation.rs` | Modify | `anvil_validate_write` re-point: in-process scan in `validation.rs` routes to daemon `validate_paths`, in-process fallback |
 | `crates/anvil-cli/src/commands/status.rs` (or TUI surface) | Modify | Render assurance state incl `unavailable` + `confined: N` |
 | `crates/anvil-intercept/benches/ipc_roundtrip.rs` | Modify | `validate_paths` warm-read latency + concurrency SLO case |
-| `crates/anvil-intercept/tests/diagnostic_parity.rs` | Create | Order-normalised golden parity across the 4 paths |
+| `crates/anvil-intercept/tests/diagnostic_parity.rs` | Create | Order-normalised golden parity across the 2 antipattern surfaces (watch+daemon, watch+fallback); MCP secret-family parity gated separately (DSV-009) |
 | `crates/anvil-checks/src/antipattern/check.rs` | Modify | **B7:** extract a daemon entrypoint that takes **pre-read guarded bytes** (not paths; closes the `fs::read_to_string` TOCTOU at `check.rs:118`) + a **`&rayon::ThreadPool`** so Task 10's interactive pool governs it (replaces the global-pool `.par_iter()` at `check.rs:113`). See Task 8 for the signature-vs-wrapper decision and the full disk-caller list. |
 
 > **MCP write-gate location (fact-checked):** the tool is `crates/anvil-cli/src/mcp/tools/validate_write.rs` (declared `mod.rs:10`, registered `tools/registry.rs:24`); the live in-process scan + timeout logic is in `crates/anvil-cli/src/mcp/validation.rs`. That `validation.rs` scan call is the Task-13 re-point site.
@@ -498,7 +498,7 @@ Operator-level config (`ANVIL_HOME`/XDG, owner-only): `admission = open|allowlis
 - Create: `crates/anvil-intercept/tests/diagnostic_parity.rs`
 - Fixture: `crates/anvil-intercept/tests/fixtures/parity-corpus/`
 
-Run a fixed corpus through all four paths (watch+daemon, watch+fallback, MCP+daemon, MCP+fallback); assert identical finding sets **order-normalised** by `(path, rule_id, span_start)`. `workspace_assurance` carved out.
+Run a fixed corpus through the **antipattern-family** save-time paths and assert identical finding sets **order-normalised** by `(path, rule_id, span_start)`, `workspace_assurance` carved out. **Scope reconciled (2026-06-04, DSV-009):** the antipattern family runs on `watch+daemon` (`validate_paths`, guarded bytes) and `watch+fallback` (`anvil check`, disk) — the gate covers those two. MCP `anvil_validate_write` deliberately stays on the `scan_buffer` verb (secret/launch family, `default_rule_registry()`) per Task 13/DSV-007, so it has no antipattern findings; its `daemon`↔`embedded` parity is gated separately (the `scan_buffer`/embedded parity tests). The original four-path antipattern framing pre-dated that decision (corrected in contract §7.2).
 
 - [ ] Write the test + fixture; verify it fails (paths diverge before sort normalisation is wired).
 - [ ] Add the shared sort-before-envelope normalisation; verify pass.

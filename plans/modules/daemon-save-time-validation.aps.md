@@ -426,11 +426,21 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-009: Cross-path diagnostic parity gate
 
-- **Status:** Ready
-- **Intent:** Prove the four delivery paths (watch+daemon, watch+fallback, MCP+daemon,
-  MCP+fallback) return identical finding sets.
-- **Expected Outcome:** An order-normalised golden parity test over a fixed corpus,
-  `workspace_assurance` carved out, run as a gate.
+- **Status:** In Progress
+- **Intent:** Prove the antipattern-family delivery paths return identical finding sets.
+  **Scope reconciled (2026-06-04):** the antipattern family runs on the save-time
+  `validate_paths` surfaces — **`watch+daemon` and `watch+fallback`** — so the gate
+  covers those two. MCP `anvil_validate_write` deliberately stays on the `scan_buffer`
+  verb (secret/launch-reasoning family, `default_rule_registry()`) per DSV-007 and
+  produces no antipattern findings; its `daemon`↔`embedded` parity is gated separately
+  on that family. The original "four-path antipattern parity" framing pre-dated that
+  DSV-007 decision and is corrected in contract §7.2.
+- **Expected Outcome:** An order-normalised golden parity test over a fixed corpus
+  proving `watch+daemon` (`validate_paths`, guarded bytes) ≡ `watch+fallback`
+  (`anvil check`, disk) antipattern finding sets, byte-identical under a shared
+  `sort_diagnostics` normalisation fed in opposite orders; `workspace_assurance` and
+  daemon-only `DoS` notices carved out; run as a gate. Backed by a production
+  sort-before-envelope normalisation in `validate_paths`.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --test diagnostic_parity`.
 - **Files:** `crates/anvil-intercept/tests/diagnostic_parity.rs`,
   `crates/anvil-intercept/tests/fixtures/parity-corpus/`

@@ -331,10 +331,19 @@ allow = [ "/abs/path", "/abs/prefix/*" ]   # exact + prefix entries
 1. Exhaustive invalidation taxonomy (§2) incl. mandatory inode classification.
 2. Cross-path diagnostic parity — golden corpus, identical **antipattern-family**
    finding sets (B2: scoped to `check_families: ["antipattern"]`, matching the
-   `coverage: certified` claim) across watch+daemon, watch+fallback, MCP+daemon,
-   MCP+fallback, **order-normalised** by `(path, rule_id, span_start)`; shared
-   config discovery off `workspace_root`; `workspace_assurance` carved out of
-   parity.
+   `coverage: certified` claim), **order-normalised** by `(path, rule_id, span_start)`
+   via a shared sort-before-envelope normalisation; shared config discovery off
+   `workspace_root`; `workspace_assurance` carved out of parity.
+   **Surface scope (reconciled 2026-06-04, DSV-009):** the antipattern family runs
+   only on the **save-time `validate_paths` surfaces — `watch+daemon` and
+   `watch+fallback`** (`anvil check`); the parity gate
+   (`crates/anvil-intercept/tests/diagnostic_parity.rs`) covers those two. The MCP
+   `anvil_validate_write` surface deliberately stays on the `scan_buffer` verb
+   (secret + launch-reasoning / boundary family, `default_rule_registry()`), so it
+   produces **no** antipattern findings; its `daemon`↔`embedded` parity is gated
+   separately on that family (the `scan_buffer`/embedded parity tests). The earlier
+   "across … MCP+daemon, MCP+fallback" antipattern framing pre-dated the DSV-007
+   decision to keep MCP on `scan_buffer` and is corrected here.
 3. `workspace_root` authorisation + read-safety (§4).
 
 ## 8. Resource model & SLO

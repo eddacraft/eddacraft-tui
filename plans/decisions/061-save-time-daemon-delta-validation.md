@@ -312,13 +312,22 @@ Three correctness gates are hard blockers for Phase 2 merge:
 2. **Cross-path diagnostic parity** — a golden-corpus test asserting identical
    **antipattern-family** finding sets (B2: scoped to
    `check_families: ["antipattern"]`, matching the `coverage: certified` claim)
-   across watch+daemon, watch+fallback, MCP+daemon, MCP+fallback,
-   with shared config discovery off `workspace_root`. Because warm (incremental)
-   and cold (full-walk) paths order findings differently, parity is defined as
-   **order-normalised** by `(path, rule_id, span_start)` — both paths sort
-   before constructing the envelope; byte-identical raw output is not a goal.
-   `workspace_assurance` is explicitly carved out of parity (it is structurally
-   incomparable between daemon and fallback).
+   across the antipattern surfaces, with shared config discovery off
+   `workspace_root`. Because warm (incremental) and cold (full-walk) paths order
+   findings differently, parity is defined as **order-normalised** by
+   `(path, rule_id, span_start)` — both paths sort before constructing the
+   envelope; byte-identical raw output is not a goal. `workspace_assurance` is
+   explicitly carved out of parity (it is structurally incomparable between
+   daemon and fallback).
+   **Surface scope (reconciled 2026-06-04, DSV-009):** the antipattern family runs
+   only on the save-time `validate_paths` surfaces — **`watch+daemon` and
+   `watch+fallback`** (`anvil check`); the gate
+   (`crates/anvil-intercept/tests/diagnostic_parity.rs`) covers those two. MCP
+   `anvil_validate_write` deliberately stays on the `scan_buffer` verb (secret +
+   launch-reasoning / boundary family, `default_rule_registry()`) per DSV-007, so it
+   has no antipattern findings; its `daemon`↔`embedded` parity is gated separately on
+   that family. The earlier "across … MCP+daemon, MCP+fallback" antipattern framing
+   pre-dated that DSV-007 decision and is corrected here (see contract §7.2).
 3. **`workspace_root` authorisation + read-safety** (§7).
 
 ### 9. Assurance lifecycle, observability, and fallback
