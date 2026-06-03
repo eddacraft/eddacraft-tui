@@ -1356,6 +1356,8 @@ dependencies = [
 name = "eddacraft-anvil-intercept-win32"
 version = "0.7.4-beta"
 dependencies = [
+ "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "windows-sys 0.61.2",
 ]
