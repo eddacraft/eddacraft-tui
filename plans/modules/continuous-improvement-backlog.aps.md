@@ -865,10 +865,11 @@ archive.
 
 ### CIB-039: Archive clawpatch-pre-tag-v0.7.0-beta once its findings are closed out
 
-- **Status:** Blocked
-- **Blocked on:** clawpatch findings closure — the module still carries ~47
-  `Draft` plus `Deferred`/`Ship` CLAWP-NNN findings; it cannot be archived until
-  those are resolved/merged or explicitly dispositioned.
+- **Status:** Ready
+- **Readiness (2026-06-03):** unblocked — every CLAWP-NNN finding is now
+  terminal (53 Merged, 11 Ship, 1 Deferred-tracked) after the #1740
+  test-hardening batch (PRs #2261 / #2265 / #2267, reconcile #2268) and the
+  CIB-039 disposition pass. The archival cascade below can now proceed.
 - **Intent:** Retire the v0.7.0-beta pre-tag release-findings tracker once its
   findings are closed, and drop the canonical-lint carve-out added for it.
 - **Expected Outcome:** `plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md` is
