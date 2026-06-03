@@ -828,10 +828,16 @@ impl DispatcherInner {
                             reason = "daemon-absent",
                             "save-time daemon unavailable; falling back to a scoped check",
                         );
-                        eprintln!(
-                            "[warn] anvil watch: save-time daemon unavailable — falling back to a scoped check ({})",
-                            assurance_label(&assurance),
-                        );
+                        // The structured `tracing::warn!` above is the JSON-mode
+                        // channel (stderr, structured); the bare advisory line is
+                        // for the human plain surface only (WOUT-003 — do not mix
+                        // unstructured text into a JSON consumer's stderr).
+                        if !self.json {
+                            eprintln!(
+                                "[warn] anvil watch: save-time daemon unavailable — falling back to a scoped check ({})",
+                                assurance_label(&assurance),
+                            );
+                        }
                     }
                     // Fall through to the subprocess scoped to exactly the
                     // client-returned changed paths (non-empty here ⇒ never
@@ -943,9 +949,15 @@ impl DispatcherInner {
 
     /// DSV-007: surface a daemon `validate_paths` verdict on the watch output
     /// channel, mirroring how a subprocess `anvil check` would have reported.
-    /// TUI mode sends the action footer (the alt-screen owns the detail panel);
-    /// JSON mode emits the verdict as one NDJSON line; plain mode renders the
-    /// findings + assurance to stdout.
+    ///
+    /// - TUI mode: send the action footer (the alt-screen owns the detail panel).
+    /// - JSON mode: stay silent on stdout. WOUT-003 reserves stdout for the v1
+    ///   NDJSON `WatchEventEnvelope` stream; injecting a `ValidatePathsResponse`
+    ///   there would be an undiscriminated foreign record. This matches the
+    ///   subprocess path, whose child stdout is `Null` in JSON mode
+    ///   (`child_stdio_policy`), so neither backend emits per-save findings into
+    ///   the event stream. (Cross-surface verdict shaping is DSV-009 / Task 15.)
+    /// - Plain mode: render the findings + assurance to stdout.
     fn report_daemon_verdict(
         &self,
         response: &anvil_intercept_proto::protocol::ValidatePathsResponse,
@@ -955,14 +967,14 @@ impl DispatcherInner {
         if self.sender.is_some() {
             self.send_result(Some(exit_code), elapsed, None);
         } else if self.json {
-            // The watch JSON surface is an NDJSON stream; the daemon verdict
-            // joins it as one additional record (a `ValidatePathsResponse`).
-            match serde_json::to_string(response) {
-                Ok(line) => println!("{line}"),
-                Err(err) => {
-                    tracing::warn!(error = %err, "failed to serialise daemon verdict for JSON watch output");
-                }
-            }
+            // Stdout is the event stream; do not pollute it. Surface the verdict
+            // on the diagnostic channel instead so it is observable without
+            // breaking NDJSON consumers.
+            tracing::debug!(
+                exit_code,
+                findings = response.diagnostics.len(),
+                "save-time daemon verdict (suppressed from JSON event stream)"
+            );
         } else {
             let mut stdout = std::io::stdout().lock();
             if let Err(err) =

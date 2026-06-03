@@ -622,12 +622,21 @@ fn gather_save_time() -> Option<SaveTimeRender> {
         return None;
     }
     let workspace = crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
-    let assurance = watch_save_time::query_workspace_status(&workspace)
-        .unwrap_or_else(watch_save_time::daemon_absent_assurance);
-    Some(SaveTimeRender {
-        assurance,
-        confined: confinement_allow_count(),
-    })
+    match watch_save_time::query_workspace_status(&workspace) {
+        // Daemon answered: report assurance + the confinement size it is
+        // enforcing.
+        Some(assurance) => Some(SaveTimeRender {
+            assurance,
+            confined: confinement_allow_count(),
+        }),
+        // No daemon answered: report `unavailable{daemon-absent}` and omit the
+        // confined count — asserting a confinement size while the daemon is not
+        // running would be misleading (nothing is enforcing it).
+        None => Some(SaveTimeRender {
+            assurance: watch_save_time::daemon_absent_assurance(),
+            confined: None,
+        }),
+    }
 }
 
 /// The operator confinement allow-list size when the daemon is in `Allowlist`

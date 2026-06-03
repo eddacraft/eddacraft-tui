@@ -156,9 +156,13 @@ impl WatchSaveTimeClient {
     /// Run one save-time cycle for `changed_paths` (absolute paths of the files
     /// changed since the last dispatch).
     pub(crate) fn validate(&mut self, changed_paths: Vec<String>) -> SaveTimeDecision {
+        // Drop any path that is not under the workspace root: the wire is
+        // root-relative and the daemon authorises against the admitted root, so
+        // an out-of-root path could never be certified and must never be sent as
+        // a bogus relative path.
         let descriptors: Vec<ChangeDescriptor> = changed_paths
             .iter()
-            .map(|p| classify_change(p, &self.workspace_root))
+            .filter_map(|p| classify_change(p, &self.workspace_root))
             .collect();
 
         match self
@@ -168,8 +172,10 @@ impl WatchSaveTimeClient {
             Ok(response) => {
                 if !self.connected {
                     // Reconnect: re-establish the baseline so assurance comes
-                    // back from `stale`, not a pre-disconnect `clean`. Best
-                    // effort — a failed re-scan must not block this verdict.
+                    // back from `stale`, not a pre-disconnect `clean`. The socket
+                    // transport fires this off-thread (the daemon starts the scan
+                    // on receipt; the ack is irrelevant), so it never stalls this
+                    // reconnect verdict.
                     let _ = self.transport.request_full_scan(&self.workspace_root);
                     self.connected = true;
                     self.warned = false;
@@ -202,16 +208,18 @@ pub(crate) fn daemon_absent_assurance() -> WorkspaceAssurance {
     }
 }
 
-/// Classify one changed path into a wire [`ChangeDescriptor`]. The daemon
-/// re-derives identity from disk and never trusts these hints for a verdict, so
-/// the classification is coarse: a path that still exists on disk is `Modified`,
-/// one that no longer does is `Deleted`. `content_hash`/`mtime` are left unset —
-/// watch has no cheaper-than-the-daemon hint to offer.
-fn classify_change(absolute_path: &str, workspace_root: &Path) -> ChangeDescriptor {
+/// Classify one changed path into a wire [`ChangeDescriptor`], or `None` when the
+/// path is not under `workspace_root` (the wire is root-relative; an out-of-root
+/// path is dropped rather than sent as a bogus absolute "relative" path). The
+/// daemon re-derives identity from disk and never trusts these hints for a
+/// verdict, so the classification is coarse: a path that still exists on disk is
+/// `Modified`, one that no longer does is `Deleted`. `content_hash`/`mtime` are
+/// left unset — watch has no cheaper-than-the-daemon hint to offer.
+fn classify_change(absolute_path: &str, workspace_root: &Path) -> Option<ChangeDescriptor> {
     let abs = Path::new(absolute_path);
     let relative = abs
         .strip_prefix(workspace_root)
-        .unwrap_or(abs)
+        .ok()?
         .to_string_lossy()
         .replace('\\', "/");
     let change = if abs.exists() {
@@ -219,12 +227,12 @@ fn classify_change(absolute_path: &str, workspace_root: &Path) -> ChangeDescript
     } else {
         ChangeKindWire::Deleted
     };
-    ChangeDescriptor {
+    Some(ChangeDescriptor {
         path: relative,
         change,
         content_hash: None,
         mtime: None,
-    }
+    })
 }
 
 /// Exit-code parity with `anvil check`: any `Error`-severity finding is a
@@ -405,6 +413,12 @@ mod socket {
             let line = read_capped_line(&mut reader)?;
             let envelope: Value =
                 serde_json::from_str(&line).map_err(|_| SaveTimeClientError::Unavailable)?;
+            // Reject a response whose id does not match the request id — a stale
+            // or misrouted frame must not be accepted as this request's verdict
+            // (mirrors the MCP client's `validate_jsonrpc_response_shape`).
+            if envelope.get("id").and_then(Value::as_str) != Some(id) {
+                return Err(SaveTimeClientError::Unavailable);
+            }
             // A JSON-RPC error (incl. -32601 "save-time not enabled") means the
             // daemon cannot serve a verdict ⇒ fall back, same as absence.
             envelope
@@ -447,13 +461,25 @@ mod socket {
         }
 
         fn request_full_scan(&self, workspace_root: &Path) -> Result<(), SaveTimeClientError> {
+            // Fire-and-forget: the daemon starts the scan on receipt, so the ack
+            // is irrelevant and we must not stall the interactive watch loop (up
+            // to `REQUEST_TIMEOUT`) waiting for it on the reconnect hot path. A
+            // detached thread sends the frame on its own connection and drops the
+            // reply; any failure is best-effort-ignored (the next `validate_paths`
+            // still proceeds).
             let request = RequestFullScanRequest {
                 workspace_root: workspace_root.to_string_lossy().into_owned(),
             };
-            let params =
-                serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            self.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, &params)
-                .map(|_| ())
+            let Ok(params) = serde_json::to_value(&request) else {
+                return Ok(());
+            };
+            let socket_path = self.socket_path.clone();
+            std::thread::spawn(move || {
+                let transport = SocketSaveTimeTransport { socket_path };
+                let _ =
+                    transport.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, &params);
+            });
+            Ok(())
         }
 
         fn workspace_status(
