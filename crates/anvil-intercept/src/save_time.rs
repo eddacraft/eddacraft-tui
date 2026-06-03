@@ -39,7 +39,7 @@ use std::collections::HashMap;
 use std::io;
 use std::os::fd::BorrowedFd;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_intercept_proto::protocol::{
@@ -70,8 +70,13 @@ const SAVE_TIME_CERTIFY_BUDGET: usize = 256;
 pub struct SaveTimeState {
     /// The warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache.
     cache: KernelGraphCache,
-    /// The per-`WorktreeKey` workspace-assurance state machines.
-    assurance: Mutex<HashMap<WorktreeKey, AssuranceMachine>>,
+    /// The per-`WorktreeKey` workspace-assurance state machines. Each machine
+    /// sits behind its **own** lock so a verdict on one worktree (which holds
+    /// its machine lock across the antipattern scan) does not serialise verdicts
+    /// on other worktrees; the outer map lock is held only to fetch/insert the
+    /// per-key handle. Same-worktree verdicts still serialise (correct — one
+    /// in-flight verdict per worktree).
+    assurance: Mutex<HashMap<WorktreeKey, Arc<Mutex<AssuranceMachine>>>>,
     /// Antipattern check configuration (patterns, extensions, threshold).
     config: AntipatternCheckConfig,
     /// The two cooperating rayon pools; the antipattern scan runs on the
@@ -113,10 +118,17 @@ impl SaveTimeState {
     /// state behind).
     pub fn invalidate(&self, key: &WorktreeKey) {
         self.cache.invalidate(key);
-        self.lock_assurance().remove(key);
+        self.lock_map().remove(key);
     }
 
-    fn lock_assurance(&self) -> std::sync::MutexGuard<'_, HashMap<WorktreeKey, AssuranceMachine>> {
+    #[allow(clippy::type_complexity)]
+    fn lock_map(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<WorktreeKey, Arc<Mutex<AssuranceMachine>>>> {
+        // The map critical section is allocation-only (entry/insert/remove) and
+        // does not panic, so a poisoned lock cannot leave a half-mutated map —
+        // recover the guard rather than propagate the poison (mirrors
+        // `workspace_pool`'s rationale).
         self.assurance
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -124,11 +136,19 @@ impl SaveTimeState {
 
     /// Run `f` against the worktree's assurance machine, inserting a fresh one
     /// (`Stale(CrossFileResolutionNeeded)`, B6) on first contact.
+    ///
+    /// The outer map lock is held only long enough to fetch the per-key handle;
+    /// `f` (which may run the antipattern scan) executes under the **per-key**
+    /// machine lock, so verdicts on distinct worktrees proceed in parallel.
     fn with_machine<R>(&self, key: &WorktreeKey, f: impl FnOnce(&mut AssuranceMachine) -> R) -> R {
-        let mut guard = self.lock_assurance();
-        // `AssuranceMachine::default()` is `new()` — `Stale(CrossFileResolutionNeeded)` (B6).
-        let machine = guard.entry(key.clone()).or_default();
-        f(machine)
+        let machine = {
+            let mut guard = self.lock_map();
+            // `Arc<Mutex<AssuranceMachine>>::default()` ⇒ a fresh machine, i.e.
+            // `Stale(CrossFileResolutionNeeded)` (B6), on first contact.
+            Arc::clone(guard.entry(key.clone()).or_default())
+        };
+        let mut machine = machine.lock().unwrap_or_else(PoisonError::into_inner);
+        f(&mut machine)
     }
 }
 
@@ -159,11 +179,21 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         request: &ValidatePathsRequest,
     ) -> Result<ValidatePathsResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
-        let key = WorktreeKey::from_canonical(root.clone());
         // Copy the shared-state reference so `state.*` reads stay disjoint from
         // the per-connection `self.admitted` field the held fd borrows.
         let state = self.state;
         let fd = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        // Key on the *canonical* root so the assurance machine + warm cache key
+        // on the same value `AdmittedRoots` admitted under — a symlinked or
+        // non-canonical client root must not split state into two keys.
+        let canonical = canonical_root(&root)?;
+        let key = WorktreeKey::from_canonical(canonical.clone());
+        // The pure core keys the cache off `request.workspace_root`, so feed it
+        // the canonical form too (it is also the antipattern display root).
+        let request = ValidatePathsRequest {
+            workspace_root: canonical.to_string_lossy().into_owned(),
+            paths: request.paths.clone(),
+        };
 
         // All reads go through the held dirfd — the guarded bytes the
         // antipattern check scans, never a re-opened path (B7 / security C2).
@@ -179,11 +209,27 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             pool: state.scheduler.interactive(),
             budget: SAVE_TIME_CERTIFY_BUDGET,
         };
-        Ok(state.with_machine(&key, |machine| {
+        let response = state.with_machine(&key, |machine| {
             // `fed_symbols` is stubbed `None` until the kernel feed lands (Task
             // 7 producer) — every verdict is a safe `Partial` (B4).
-            run_validate_paths(request, &state.cache, machine, read_guarded, |_| None, &env)
-        }))
+            run_validate_paths(
+                &request,
+                &state.cache,
+                machine,
+                read_guarded,
+                |_| None,
+                &env,
+            )
+        });
+        tracing::debug!(
+            target: "anvil_intercept::save_time",
+            workspace_root = %canonical.display(),
+            paths = request.paths.len(),
+            coverage = ?response.coverage,
+            assurance = ?response.workspace_assurance.state,
+            "validate_paths verdict",
+        );
+        Ok(response)
     }
 
     fn workspace_status(
@@ -191,9 +237,9 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         request: &WorkspaceStatusRequest,
     ) -> Result<WorkspaceStatusResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
-        let key = WorktreeKey::from_canonical(root.clone());
         let state = self.state;
         authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let key = WorktreeKey::from_canonical(canonical_root(&root)?);
         let workspace_assurance = state.with_machine(&key, |machine| machine.snapshot());
         Ok(WorkspaceStatusResponse {
             workspace_assurance,
@@ -205,11 +251,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         request: &RequestFullScanRequest,
     ) -> Result<RequestFullScanResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
-        let key = WorktreeKey::from_canonical(root.clone());
         let state = self.state;
         authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let key = WorktreeKey::from_canonical(canonical_root(&root)?);
         let workspace_assurance = state.with_machine(&key, |machine| {
-            // An explicit client request is interactive (client-blocking).
+            // An explicit client request is interactive (client-blocking). This
+            // queues the scan (→ `Pending`); the scan *executor* that drives
+            // `Pending → Running → Clean` is DSV-006 (Task 16) — until it lands
+            // the worktree stays `Pending` (a restart demotes it to `Stale`).
             machine.request_full_scan(ScanPriority::Interactive);
             machine.snapshot()
         });
@@ -217,6 +266,13 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             workspace_assurance,
         })
     }
+}
+
+/// Canonicalise an already-admitted root for use as the assurance/cache key.
+/// The root resolved at admission, so a failure here is an internal error
+/// (a race that removed the root between admission and keying).
+fn canonical_root(root: &Path) -> Result<PathBuf, SaveTimeError> {
+    std::fs::canonicalize(root).map_err(SaveTimeError::Io)
 }
 
 /// Authorise `root` against the connection's admitted set, building it on first
@@ -365,12 +421,14 @@ mod tests {
         assert_eq!(resp.workspace_assurance.reason, None);
     }
 
-    /// In allowlist mode an unlisted root is refused before any byte is read.
+    /// In allowlist mode: the primary check-in root (first verb) is implicitly
+    /// admitted, an allow-listed (non-primary) root is admitted via the policy,
+    /// and an unlisted non-primary root is refused before any byte is read.
     #[test]
-    fn allowlist_refuses_unlisted_root() {
-        let allowed = tempfile::tempdir().expect("tempdir");
-        let other = tempfile::tempdir().expect("tempdir");
-        // Confine to `allowed` only.
+    fn allowlist_admits_listed_root_and_refuses_unlisted() {
+        let primary = tempfile::tempdir().expect("tempdir"); // not listed
+        let allowed = tempfile::tempdir().expect("tempdir"); // listed exact
+        let unlisted = tempfile::tempdir().expect("tempdir"); // not listed
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: vec![crate::confinement::AllowEntry {
@@ -384,19 +442,21 @@ mod tests {
             confinement,
         );
         let mut conn = SaveTimeConn::new(&state);
-        // The first verb seeds the primary root; use `other` as primary so the
-        // allowlist (which lists only `allowed`) does NOT implicitly cover it.
-        // A status query on `other`'s sibling is refused.
-        let request = WorkspaceStatusRequest {
-            workspace_root: other.path().to_string_lossy().into_owned(),
+
+        let status = |conn: &mut SaveTimeConn, dir: &tempfile::TempDir| {
+            conn.workspace_status(&WorkspaceStatusRequest {
+                workspace_root: dir.path().to_string_lossy().into_owned(),
+            })
         };
-        // `other` becomes the implicitly-admitted primary, so it authorises;
-        // a *different* unlisted root does not.
-        conn.workspace_status(&request).expect("primary admitted");
-        let third = tempfile::tempdir().expect("tempdir");
-        let refused = conn.workspace_status(&WorkspaceStatusRequest {
-            workspace_root: third.path().to_string_lossy().into_owned(),
-        });
+
+        // The first verb's root becomes the implicitly-admitted primary, even
+        // though it is not on the allow list.
+        status(&mut conn, &primary).expect("primary check-in root is implicitly admitted");
+        // An explicitly allow-listed root is admitted — the primary use case for
+        // allowlist mode (this exercises AdmittedRoots::authorise's allow path).
+        status(&mut conn, &allowed).expect("an allow-listed root is admitted");
+        // A root that is neither the primary nor on the allow list is refused.
+        let refused = status(&mut conn, &unlisted);
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
             "an unlisted, non-primary root must be refused: {refused:?}",

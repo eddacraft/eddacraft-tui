@@ -2354,9 +2354,16 @@ fn handle_save_time_jsonrpc(
     is_notification: bool,
     save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
 ) -> Option<Value> {
-    // Verbs are request-shaped; a notification is a silent no-op (mirrors the
-    // status query's contract).
+    // Verbs are request-shaped (they mutate / read per-worktree assurance), so
+    // a notification cannot carry a verdict back. Drop it but log — a save-time
+    // verb sent as a notification is a client mistake, not a no-op to swallow
+    // silently (mirrors the scan_buffer notification handling).
     if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::save_time",
+            %method,
+            "ignoring save-time verb sent as a notification: request id required",
+        );
         return None;
     }
     let Some(dispatch) = save_time else {
@@ -2434,22 +2441,38 @@ fn save_time_result<T: serde::Serialize>(
                 json!({"error": err.to_string()}),
             ),
         },
-        Err(SaveTimeError::NotAdmitted) => jsonrpc_request_error(
-            response_id,
-            traceparent,
-            false,
-            SAVE_TIME_NOT_ADMITTED_CODE,
-            "Workspace not admitted",
-            json!({"reason": "workspace-not-admitted"}),
-        ),
-        Err(SaveTimeError::Io(err)) => jsonrpc_request_error(
-            response_id,
-            traceparent,
-            false,
-            -32603,
-            "Internal error",
-            json!({"error": err.to_string()}),
-        ),
+        Err(SaveTimeError::NotAdmitted) => {
+            // A refusal is operationally meaningful (allowlist wall or a
+            // vanished root) — surface it so an operator can diagnose a
+            // `workspace-not-admitted` reply without reading the wire.
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                "save-time verb refused: workspace not admitted",
+            );
+            jsonrpc_request_error(
+                response_id,
+                traceparent,
+                false,
+                SAVE_TIME_NOT_ADMITTED_CODE,
+                "Workspace not admitted",
+                json!({"reason": "workspace-not-admitted"}),
+            )
+        }
+        Err(SaveTimeError::Io(err)) => {
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                error = %err,
+                "save-time verb failed: could not open the admitted workspace root",
+            );
+            jsonrpc_request_error(
+                response_id,
+                traceparent,
+                false,
+                -32603,
+                "Internal error",
+                json!({"error": err.to_string()}),
+            )
+        }
     }
 }
 
@@ -4911,6 +4934,70 @@ mod tests {
         .expect("response");
 
         assert_eq!(response["error"]["code"], -32601);
+    }
+
+    /// DSV-005: `workspace_status` and `request_full_scan` route to the
+    /// save-time arm too (not just `validate_paths`), guarding against a
+    /// method-constant or routing-condition typo the unit tests would miss.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_workspace_status_and_full_scan() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+        let root = tmp.path().to_string_lossy().into_owned();
+
+        // workspace_status → Stale (B6 cold workspace), not a Method-not-found.
+        let ws = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_WORKSPACE_STATUS,
+                "id": "ws-1",
+                "params": {"workspace_root": root},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("workspace_status response");
+        assert!(ws.get("error").is_none(), "must route, not error: {ws}");
+        assert_eq!(ws["result"]["workspace_assurance"]["state"], "stale");
+
+        // request_full_scan → Pending (queued job).
+        let fs = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN,
+                "id": "fs-1",
+                "params": {"workspace_root": root},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("request_full_scan response");
+        assert!(fs.get("error").is_none(), "must route, not error: {fs}");
+        assert_eq!(fs["result"]["workspace_assurance"]["state"], "pending");
     }
 
     // ----- Recording dispatcher used by behaviour tests. ------------

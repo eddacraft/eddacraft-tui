@@ -1064,8 +1064,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // focused on the verdict path.
         #[cfg(unix)]
         let save_time_state = {
-            let scheduler = workspace_pool::WorkScheduler::new()
-                .context("failed to build the save-time work scheduler")?;
+            let scheduler = workspace_pool::WorkScheduler::new().with_context(|| {
+                format!(
+                    "failed to build the save-time work scheduler (budget: {:?})",
+                    workspace_pool::PoolBudget::from_host()
+                )
+            })?;
+            // The antipattern family runs on the daemon's built-in pattern set.
+            // There is no operator override surface for it yet (unlike the
+            // confinement policy, which loads from anvil-home); the default IS
+            // the configured set, not a silent degrade-from-error. An operator
+            // antipattern-config load path is future work (it must propagate
+            // `Result::Err`, never fold a load failure into the default).
             Arc::new(save_time::SaveTimeState::new(
                 scheduler,
                 anvil_checks::antipattern::types::AntipatternCheckConfig::default(),
