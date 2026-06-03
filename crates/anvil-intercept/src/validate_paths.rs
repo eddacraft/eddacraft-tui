@@ -33,9 +33,18 @@ use crate::assurance::{AssuranceMachine, ChangeCtx, taxonomy_reason};
 use crate::change_class::CanonicalChange;
 use crate::kernel_cache::KernelGraphCache;
 use crate::rule_cache::WorktreeKey;
+use crate::workspace_pool::DosCaps;
 
 /// `source_module` stamped on every save-time antipattern diagnostic.
 const ANTIPATTERN_SOURCE_MODULE: &str = "anvil-checks::antipattern";
+
+/// Rule id stamped on the parse-size-cap coverage diagnostic (DSV-006 / Task
+/// 11). Stable so a consumer can group / suppress it.
+const PARSE_SIZE_CAP_RULE_ID: &str = "intercept-parse-size-cap";
+
+/// `source_module` for daemon-emitted resource-cap diagnostics — distinct from
+/// the antipattern family, which never produced this.
+const DOS_SOURCE_MODULE: &str = "anvil-intercept::dos";
 
 /// Map a wire [`ChangeKindWire`] to the daemon's internal [`CanonicalChange`]
 /// (the taxonomy input). A rename carries its prior path through.
@@ -158,6 +167,35 @@ fn change_has_bytes(change: &ChangeKindWire) -> bool {
     matches!(change, ChangeKindWire::Created | ChangeKindWire::Modified)
 }
 
+/// The coverage diagnostic emitted when a file exceeds the parse-size `DoS` cap
+/// (Task 11). It is a *coverage notice*, not a finding: the antipattern family
+/// never ran on this path and the verdict cannot certify it. Severity is
+/// `Warning` per "warnings over blocks" — the save still proceeds; the user is
+/// told that coverage was reduced for this one path.
+fn oversized_diagnostic(path: &str, size: usize, cap: usize) -> Diagnostic {
+    Diagnostic::new(
+        PARSE_SIZE_CAP_RULE_ID,
+        Severity::Warning,
+        format!(
+            "file skipped: {size} bytes exceeds the {cap}-byte save-time parse-size cap; \
+             antipattern coverage is reduced for this path until it is split or excluded"
+        ),
+        Location {
+            file: path.to_string(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        },
+        Category::Other,
+        DiagnosticSource {
+            rule_id: PARSE_SIZE_CAP_RULE_ID.to_string(),
+            source_module: DOS_SOURCE_MODULE.to_string(),
+        },
+        Mode::known(KnownMode::SaveTime),
+    )
+}
+
 /// The non-per-path environment for a [`validate_paths`] run: the antipattern
 /// config, the interactive rayon pool the scan runs on (DSV-006/Task 10), and
 /// the reverse-impact certify budget. Grouped so the entry point stays readable.
@@ -168,17 +206,26 @@ pub struct ValidateEnv<'a> {
     pub pool: &'a rayon::ThreadPool,
     /// Reverse-impact closure budget passed to `certify`.
     pub budget: usize,
+    /// Per-workspace `DoS` caps (DSV-006 / Task 11). The parse-size cap is
+    /// applied per path here; the walk-depth cap governs the background scan
+    /// executor (cf. [`walk_capped`](crate::workspace_pool::walk_capped)).
+    pub caps: &'a DosCaps,
 }
 
 /// The per-path outcome the orchestration folds into the response.
 struct PathOutcome {
     evaluated: EvaluatedPath,
-    /// `(path, bytes)` for the antipattern scan; `None` when unreadable.
+    /// `(path, bytes)` for the antipattern scan; `None` when unreadable or
+    /// skipped by the parse-size cap.
     scanned: Option<(String, Vec<u8>)>,
     /// `true` when the change is graph-certifiable self-contained.
     graph_certified: bool,
     /// The staleness cause when not graph-certified.
     stale_reason: Option<StaleReason>,
+    /// A daemon-emitted diagnostic for this path (currently only the
+    /// parse-size-cap coverage notice); folded into the response alongside the
+    /// antipattern findings.
+    diagnostic: Option<Diagnostic>,
 }
 
 /// Run the save-time verdict for one change set against the warm cache.
@@ -232,11 +279,19 @@ where
         }
     }
 
-    let outcomes: Vec<PathOutcome> = order
+    let mut outcomes: Vec<PathOutcome> = order
         .iter()
         .map(|path| {
             let desc = last[path];
-            per_path_outcome(desc, &key, cache, &read_guarded, &fed_symbols, env.budget)
+            per_path_outcome(
+                desc,
+                &key,
+                cache,
+                &read_guarded,
+                &fed_symbols,
+                env.budget,
+                env.caps,
+            )
         })
         .collect();
 
@@ -251,12 +306,21 @@ where
         Some(request.workspace_root.as_str()),
         env.pool,
     );
-    let diagnostics = antipattern
-        .warnings
-        .warnings
-        .iter()
-        .map(antipattern_diagnostic)
+    // Daemon-emitted per-path diagnostics (parse-size-cap notices) come first,
+    // then the antipattern findings. `take` moves the diagnostic out rather than
+    // cloning its `String` fields — the later `outcomes.into_iter()` only reads
+    // `evaluated`, so the emptied `diagnostic` is never observed again.
+    let mut diagnostics: Vec<Diagnostic> = outcomes
+        .iter_mut()
+        .filter_map(|o| o.diagnostic.take())
         .collect();
+    diagnostics.extend(
+        antipattern
+            .warnings
+            .warnings
+            .iter()
+            .map(antipattern_diagnostic),
+    );
 
     let graph_certified = outcomes.iter().all(|o| o.graph_certified);
     let first_stale = outcomes.iter().find_map(|o| o.stale_reason);
@@ -287,6 +351,7 @@ fn per_path_outcome<R, F>(
     read_guarded: &R,
     fed_symbols: &F,
     budget: usize,
+    caps: &DosCaps,
 ) -> PathOutcome
 where
     R: Fn(&str) -> std::io::Result<Vec<u8>>,
@@ -296,12 +361,25 @@ where
     let ctx = ChangeCtx::for_path(&desc.path, false);
     let taxonomy = taxonomy_reason(&canonical, &ctx);
 
-    // Read guarded bytes + daemon hash for content-bearing changes.
+    // Read guarded bytes + daemon hash for content-bearing changes, enforcing
+    // the parse-size DoS cap (Task 11) before any parse/scan/hash work. Two
+    // layers: the *read* is already bounded to
+    // `path_safety::MAX_GUARDED_READ_BYTES` (a file beyond the hard memory
+    // ceiling is refused at the read), and this softer `max_parse_bytes` cap
+    // skips the *super-linear* parse + antipattern scan for a file that read OK
+    // but is still too big to scan — detected on its read length and skipped
+    // (never parsed, scanned, or hashed) with a coverage diagnostic.
+    let mut oversized: Option<usize> = None;
     let (content_h, scanned) = if change_has_bytes(&desc.change) {
         match read_guarded(&desc.path) {
+            Ok(bytes) if bytes.len() > caps.max_parse_bytes => {
+                oversized = Some(bytes.len());
+                (None, None)
+            }
             Ok(bytes) => (Some(content_hash(&bytes)), Some((desc.path.clone(), bytes))),
-            // A read failure (gone / symlink rejected by the openat2 guard) is a
-            // staleness signal, not certifiable.
+            // A read failure (gone, symlink rejected by the openat2 guard, or
+            // over the guarded-read ceiling) is a staleness signal, not
+            // certifiable.
             Err(_) => (None, None),
         }
     } else {
@@ -313,6 +391,18 @@ where
         content_hash: content_h,
     };
 
+    // Oversized: skipped before parse/scan. It cannot be certified (the warm
+    // cache never saw its symbols) and carries a coverage diagnostic.
+    if let Some(size) = oversized {
+        return PathOutcome {
+            evaluated,
+            scanned: None,
+            graph_certified: false,
+            stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+            diagnostic: Some(oversized_diagnostic(&desc.path, size, caps.max_parse_bytes)),
+        };
+    }
+
     // Certifiability. taxonomy `Some` (delete/rename/create/gitignore/config/...)
     // is non-certifiable up front. Only a plain ContentModify reaches certify.
     if let Some(reason) = taxonomy {
@@ -321,6 +411,7 @@ where
             scanned,
             graph_certified: false,
             stale_reason: Some(reason),
+            diagnostic: None,
         };
     }
 
@@ -331,6 +422,7 @@ where
             scanned,
             graph_certified: false,
             stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+            diagnostic: None,
         };
     };
 
@@ -344,6 +436,7 @@ where
             scanned,
             graph_certified: false,
             stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+            diagnostic: None,
         };
     };
 
@@ -362,12 +455,14 @@ where
             scanned,
             graph_certified: true,
             stale_reason: None,
+            diagnostic: None,
         },
         Certifiability::Partial { reason } => PathOutcome {
             evaluated,
             scanned,
             graph_certified: false,
             stale_reason: Some(wire_stale_reason(reason)),
+            diagnostic: None,
         },
     }
 }
@@ -608,6 +703,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                caps: &DosCaps::default(),
             },
         );
 
@@ -653,6 +749,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                caps: &DosCaps::default(),
             },
         );
         assert_eq!(resp.coverage, Coverage::Partial);
@@ -686,6 +783,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                caps: &DosCaps::default(),
             },
         );
         assert_eq!(
@@ -729,6 +827,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                caps: &DosCaps::default(),
             },
         );
         assert_eq!(
@@ -779,6 +878,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 0, // budget 0 ⇒ any importer overflows
+                caps: &DosCaps::default(),
             },
         );
         assert_eq!(resp.coverage, Coverage::Partial);
@@ -786,6 +886,119 @@ mod tests {
             resp.workspace_assurance.reason,
             Some(StaleReason::ImpactSetOverflow),
             "an overflow marks the workspace stale with ImpactSetOverflow"
+        );
+    }
+
+    #[test]
+    fn oversized_file_skipped_with_diagnostic() {
+        // A file past the parse-size cap is never parsed/scanned/hashed: it
+        // yields a coverage diagnostic, no daemon hash, and a Partial verdict
+        // (it cannot be certified), and the workspace goes stale.
+        let big = vec![b'x'; 64]; // 64 bytes
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/huge.ts".to_string(), big.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        // Cap below the file size so it is treated as oversized; a parser that
+        // would otherwise certify proves the skip happens *before* certify.
+        let caps = DosCaps {
+            max_parse_bytes: 16,
+            ..DosCaps::default()
+        };
+        let fed = |p: &str, _: &[u8]| {
+            (p == "src/huge.ts").then(|| file_symbols("src/huge.ts", &["foo"], &[], 0))
+        };
+        let resp = validate_paths(
+            &request(vec![desc("src/huge.ts", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            fed,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                caps: &caps,
+            },
+        );
+
+        assert_eq!(
+            resp.coverage,
+            Coverage::Partial,
+            "oversized ⇒ not certified"
+        );
+        assert_eq!(
+            resp.evaluated[0].content_hash, None,
+            "oversized file is not hashed"
+        );
+        assert_eq!(
+            resp.diagnostics.len(),
+            1,
+            "exactly the parse-size-cap coverage diagnostic"
+        );
+        let d = &resp.diagnostics[0];
+        assert_eq!(d.id, PARSE_SIZE_CAP_RULE_ID);
+        assert_eq!(d.severity, Severity::Warning);
+        assert_eq!(d.category, Category::Other);
+        assert_eq!(d.source.source_module, DOS_SOURCE_MODULE);
+        assert_eq!(d.location.file, "src/huge.ts");
+        assert!(
+            d.summary.contains("64") && d.summary.contains("16"),
+            "diagnostic names the size and the cap: {}",
+            d.summary
+        );
+        assert_eq!(
+            resp.workspace_assurance.reason,
+            Some(StaleReason::CrossFileResolutionNeeded),
+            "an uncertifiable oversized change marks the workspace stale"
+        );
+    }
+
+    #[test]
+    fn file_at_cap_is_scanned_not_skipped() {
+        // Boundary: a file exactly at the cap is NOT oversized (strict `>`),
+        // so it is read + hashed normally.
+        let bytes = b"const value = 1;".to_vec(); // 16 bytes
+        let cap = bytes.len();
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/a.ts".to_string(), bytes.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let caps = DosCaps {
+            max_parse_bytes: cap,
+            ..DosCaps::default()
+        };
+        let resp = validate_paths(
+            &request(vec![desc("src/a.ts", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                caps: &caps,
+            },
+        );
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(content_hash(&bytes).as_str()),
+            "a file exactly at the cap is read + hashed, not skipped"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "no parse-size diagnostic for an at-cap file"
         );
     }
 
@@ -803,6 +1016,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                caps: &DosCaps::default(),
             },
         );
         assert_eq!(resp.evaluated[0].content_hash, None);

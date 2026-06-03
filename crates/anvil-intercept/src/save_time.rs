@@ -60,7 +60,7 @@ use crate::path_safety::{normalise_rel, read_under};
 use crate::rule_cache::WorktreeKey;
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
 use crate::workspace_admission::AdmittedRoots;
-use crate::workspace_pool::WorkScheduler;
+use crate::workspace_pool::{DosCaps, WorkScheduler};
 
 /// The reverse-impact certify budget for the interactive verdict path. Bounds
 /// the importer-closure walk per certify so a pathological fan-out cannot stall
@@ -130,6 +130,12 @@ pub struct SaveTimeState {
     /// yields `None` and every verdict stays a safe `Partial` (the daemon never
     /// parses on its own); a `Some` is wired from `anvil-cli`.
     parser: Option<Arc<dyn SymbolParser>>,
+    /// Per-workspace `DoS` caps (DSV-006 / Task 11): the parse-size cap the
+    /// verdict path enforces per file. Daemon-level policy, immutable once
+    /// built; defaults to [`DosCaps::default`] (a future operator-config
+    /// surface can override it — the same deferred surface noted for the
+    /// antipattern config).
+    caps: DosCaps,
 }
 
 impl SaveTimeState {
@@ -149,6 +155,7 @@ impl SaveTimeState {
             scheduler,
             confinement,
             parser: None,
+            caps: DosCaps::default(),
         }
     }
 
@@ -157,6 +164,15 @@ impl SaveTimeState {
     #[must_use]
     pub fn with_parser(mut self, parser: Arc<dyn SymbolParser>) -> Self {
         self.parser = Some(parser);
+        self
+    }
+
+    /// Override the per-workspace [`DosCaps`] (DSV-006 / Task 11). Defaults to
+    /// [`DosCaps::default`]; this is the seam a future operator-config surface
+    /// (and tests) set them through.
+    #[must_use]
+    pub fn with_caps(mut self, caps: DosCaps) -> Self {
+        self.caps = caps;
         self
     }
 
@@ -363,6 +379,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             config: &state.config,
             pool: state.scheduler.interactive(),
             budget: SAVE_TIME_CERTIFY_BUDGET,
+            caps: &state.caps,
         };
         // Parse the EXACT guarded bytes the daemon read (handed in by
         // `validate_paths`) via the injected kernel-backed parser. No parser

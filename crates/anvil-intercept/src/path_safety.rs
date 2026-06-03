@@ -231,10 +231,41 @@ fn read_under_ladder(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>
     read_fd_to_end(file_fd)
 }
 
+/// Hard upper bound on the bytes [`read_under`] will buffer for one file — the
+/// daemon's memory-DoS ceiling (DSV-006 / Task 11).
+///
+/// A same-uid peer must not be able to make the verdict path allocate an
+/// unbounded buffer by pointing it at an enormous file. This ceiling sits
+/// **above** the configurable parse-size cap
+/// ([`DosCaps::max_parse_bytes`](crate::workspace_pool::DosCaps::max_parse_bytes),
+/// default 2 MiB): a file between the two is read and then skipped-with-a-
+/// diagnostic by the verdict path, while a file beyond this ceiling is refused
+/// at the read with `FileTooLarge` before the buffer grows past it. 64 MiB is
+/// far larger than any file the antipattern family meaningfully scans, so the
+/// ceiling only ever trips on pathological input.
+pub const MAX_GUARDED_READ_BYTES: u64 = 64 * 1024 * 1024;
+
 fn read_fd_to_end(fd: OwnedFd) -> io::Result<Vec<u8>> {
-    let mut file = File::from(fd);
+    read_fd_capped(fd, MAX_GUARDED_READ_BYTES)
+}
+
+/// Read at most `max_bytes` of `fd`, refusing a file that delivers more.
+///
+/// The allocation is bounded to `max_bytes + 1`: a file over the ceiling is
+/// *refused* (`FileTooLarge`), never truncated to a wrong, hashable prefix — a
+/// truncated buffer would yield a verdict over content that is not what is on
+/// disk. The `+ 1` distinguishes "exactly at the ceiling" (allowed) from "over
+/// it" (refused) without a separate fstat that could race the read.
+fn read_fd_capped(fd: OwnedFd, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let file = File::from(fd);
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
+    let read = file.take(max_bytes + 1).read_to_end(&mut buf)?;
+    if read as u64 > max_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::FileTooLarge,
+            format!("file exceeds the {max_bytes}-byte guarded-read ceiling"),
+        ));
+    }
     Ok(buf)
 }
 
@@ -242,6 +273,29 @@ fn read_fd_to_end(fd: OwnedFd) -> io::Result<Vec<u8>> {
 mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
+
+    // ---- read ceiling (DSV-006 / Task 11 memory-DoS guard) ----
+
+    #[test]
+    fn read_fd_capped_refuses_oversized_without_truncating() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("ten.bin");
+        std::fs::write(&path, b"0123456789").expect("write 10 bytes");
+
+        let open = || OwnedFd::from(File::open(&path).expect("open"));
+
+        // Under the cap: full content returned.
+        assert_eq!(
+            read_fd_capped(open(), 100).expect("small read"),
+            b"0123456789"
+        );
+        // Exactly at the cap: allowed (the `+ 1` headroom makes the boundary
+        // inclusive).
+        assert_eq!(read_fd_capped(open(), 10).expect("at-cap read").len(), 10);
+        // Over the cap: refused with FileTooLarge, never a truncated prefix.
+        let err = read_fd_capped(open(), 5).expect_err("over-cap refused");
+        assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
+    }
 
     // ---- normalise_rel ----
 

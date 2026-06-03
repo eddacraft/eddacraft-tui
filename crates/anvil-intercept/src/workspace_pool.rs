@@ -31,6 +31,7 @@
 //! interactive pool.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::available_parallelism;
@@ -356,6 +357,133 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Per-workspace denial-of-service caps for the save-time path (DSV-006 / Task
+/// 11, ADR-061 §4).
+///
+/// Three work vectors are unbounded by default and a hostile or merely
+/// pathological workspace can drive any of them to starve the daemon:
+///
+/// - a single enormous file the verdict path would parse + antipattern-scan
+///   ([`max_parse_bytes`](Self::max_parse_bytes));
+/// - a deeply nested directory tree a background full scan would descend
+///   ([`max_walk_depth`](Self::max_walk_depth)); and
+/// - a directory tree with an enormous *file count* a full scan would
+///   accumulate ([`max_walk_files`](Self::max_walk_files)).
+///
+/// The classic fourth vector — symlink cycles — is already dead on the verdict
+/// read path via the Task 3 `openat2(RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH)`
+/// guard, and [`walk_capped`] does not follow symlinked directories, so it does
+/// not need a separate cap here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DosCaps {
+    /// Largest file (in bytes) the verdict path will parse + antipattern-scan.
+    /// A file above this is skipped with a diagnostic and never parsed (the
+    /// parse + scan are the expensive, super-linear work; see
+    /// [`validate_paths`](crate::validate_paths)). A separate, larger
+    /// memory-DoS ceiling on the *read* itself lives at
+    /// [`path_safety::MAX_GUARDED_READ_BYTES`](crate::path_safety::MAX_GUARDED_READ_BYTES).
+    pub max_parse_bytes: usize,
+    /// Deepest directory nesting a background full scan will descend. Files
+    /// directly in the workspace root are depth 1; a file deeper than this is
+    /// not collected (see [`walk_capped`]).
+    pub max_walk_depth: usize,
+    /// Largest number of files a single background-scan walk will collect. The
+    /// depth cap alone does not bound a *wide* tree (millions of files at a
+    /// shallow depth), so the walk stops once this many files are gathered.
+    pub max_walk_files: usize,
+}
+
+impl DosCaps {
+    /// Default parse-size cap: 2 MiB. Source files the antipattern family
+    /// targets sit far below this; a file above it is almost always generated,
+    /// vendored, or hostile, and skipping its parse costs only a localised
+    /// coverage gap (surfaced as a diagnostic), never a wrong verdict.
+    pub const DEFAULT_MAX_PARSE_BYTES: usize = 2 * 1024 * 1024;
+
+    /// Default walk-depth cap. Real source trees are nowhere near this deep;
+    /// the cap exists to stop an adversarial or symlink-free-but-cyclic-by-name
+    /// tree from making a full scan run unboundedly.
+    pub const DEFAULT_MAX_WALK_DEPTH: usize = 64;
+
+    /// Default walk file-count cap: 100k files. A real source workspace is well
+    /// under this; the cap bounds the walk's result allocation against a
+    /// pathologically wide tree.
+    pub const DEFAULT_MAX_WALK_FILES: usize = 100_000;
+}
+
+impl Default for DosCaps {
+    fn default() -> Self {
+        Self {
+            max_parse_bytes: Self::DEFAULT_MAX_PARSE_BYTES,
+            max_walk_depth: Self::DEFAULT_MAX_WALK_DEPTH,
+            max_walk_files: Self::DEFAULT_MAX_WALK_FILES,
+        }
+    }
+}
+
+/// Walk `root` collecting regular files, descending at most `max_depth`
+/// directory levels and collecting at most `max_files` files (DSV-006 / Task 11
+/// walk caps, ADR-061 §4).
+///
+/// Depth semantics: files directly in `root` are depth 1, files one directory
+/// down are depth 2, and so on; a file deeper than `max_depth` is not
+/// collected. `max_depth` and `max_files` are each floored at 1 so the call
+/// always at least lists (some of) the root's own files. The walk stops as soon
+/// as `max_files` files are gathered — the cap bounds the result allocation
+/// against a pathologically wide tree.
+///
+/// The traversal uses an **explicit stack**, not recursion: a recursive form
+/// would put the directory nesting on the thread stack, which a deep (or
+/// operator-misconfigured) `max_depth` could overflow. The stack form is O(1)
+/// in call frames at any depth.
+///
+/// Symlinked directories are **not** followed. A background scan that chased
+/// symlinks would reintroduce the cycle `DoS` the verdict read path already
+/// closes with `openat2(RESOLVE_NO_SYMLINKS)` (Task 3); the walk mirrors that
+/// stance with a cheap `file_type()` check rather than a second realpath. A
+/// directory that cannot be read (permissions, races) is skipped silently — a
+/// best-effort scan never aborts the whole walk over one unreadable subtree.
+///
+/// This is the bounded primitive the background full-scan executor consumes; it
+/// is allocation-simple (returns an owned `Vec`) because the executor chunks
+/// the result through [`run_chunked_scan`].
+#[must_use]
+pub fn walk_capped(root: &Path, max_depth: usize, max_files: usize) -> Vec<PathBuf> {
+    let max_depth = max_depth.max(1);
+    let max_files = max_files.max(1);
+    let mut out = Vec::new();
+    // (directory, depth-of-the-entries-inside-it). Seeding at depth 1 makes the
+    // root's own files depth 1.
+    let mut stack: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 1)];
+    while let Some((dir, depth)) = stack.pop() {
+        if depth > max_depth {
+            continue;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            // Never follow symlinks — a symlinked directory could form a cycle
+            // or escape the workspace, the same DoS the read path forbids.
+            if file_type.is_symlink() {
+                continue;
+            }
+            if file_type.is_dir() {
+                stack.push((entry.path(), depth + 1));
+            } else if file_type.is_file() {
+                out.push(entry.path());
+                if out.len() >= max_files {
+                    return out;
+                }
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +493,118 @@ mod tests {
 
     fn key(p: &str) -> WorktreeKey {
         WorktreeKey::from_canonical(PathBuf::from(p))
+    }
+
+    /// File-count cap large enough to be irrelevant for the depth/symlink tests.
+    const UNCAPPED_FILES: usize = usize::MAX;
+
+    fn names_of(paths: &[PathBuf]) -> std::collections::HashSet<String> {
+        paths
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn dos_caps_defaults_are_sane() {
+        let caps = DosCaps::default();
+        assert_eq!(caps.max_parse_bytes, 2 * 1024 * 1024);
+        assert_eq!(caps.max_walk_depth, 64);
+        assert_eq!(caps.max_walk_files, 100_000);
+    }
+
+    #[test]
+    fn walk_depth_capped() {
+        // root/a.txt           depth 1  -> included
+        // root/d1/b.txt        depth 2  -> included (cap = 2)
+        // root/d1/d2/c.txt     depth 3  -> excluded
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let d1 = root.join("d1");
+        let d2 = d1.join("d2");
+        std::fs::create_dir_all(&d2).expect("nested dirs");
+        std::fs::write(root.join("a.txt"), b"a").expect("a");
+        std::fs::write(d1.join("b.txt"), b"b").expect("b");
+        std::fs::write(d2.join("c.txt"), b"c").expect("c");
+
+        let names = names_of(&walk_capped(root, 2, UNCAPPED_FILES));
+        assert!(names.contains("a.txt"), "depth-1 file collected");
+        assert!(
+            names.contains("b.txt"),
+            "depth-2 file collected (at the cap)"
+        );
+        assert!(
+            !names.contains("c.txt"),
+            "depth-3 file is past the cap and must be skipped: {names:?}"
+        );
+    }
+
+    #[test]
+    fn walk_depth_cap_floors_at_one() {
+        // A zero cap is clamped to 1 — the root's own files are always listed.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::write(root.join("top.txt"), b"x").expect("top");
+        std::fs::create_dir(root.join("sub")).expect("sub");
+        std::fs::write(root.join("sub").join("deep.txt"), b"y").expect("deep");
+
+        let names = names_of(&walk_capped(root, 0, UNCAPPED_FILES));
+        assert!(names.contains("top.txt"), "root files listed even at cap 0");
+        assert!(!names.contains("deep.txt"), "but nothing below depth 1");
+    }
+
+    #[test]
+    fn walk_file_count_capped() {
+        // Twelve files at the root; a cap of 5 returns exactly 5 (the cap bounds
+        // the result allocation against a pathologically wide tree).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        for i in 0..12 {
+            std::fs::write(root.join(format!("f{i}.txt")), b"x").expect("file");
+        }
+        assert_eq!(
+            walk_capped(root, 8, 5).len(),
+            5,
+            "walk stops at the file-count cap"
+        );
+    }
+
+    #[test]
+    fn walk_deep_tree_does_not_overflow_the_stack() {
+        // A 512-deep chain would risk a recursive walk's thread stack on some
+        // hosts; the iterative form handles it. The leaf sits past the depth
+        // cap, proving deep descent terminates by the cap, not by crashing.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut dir = tmp.path().to_path_buf();
+        for _ in 0..512 {
+            dir = dir.join("d");
+            std::fs::create_dir(&dir).expect("nested dir");
+        }
+        std::fs::write(dir.join("leaf.txt"), b"x").expect("leaf");
+        let names = names_of(&walk_capped(tmp.path(), 256, UNCAPPED_FILES));
+        assert!(!names.contains("leaf.txt"), "leaf is past the depth cap");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn walk_does_not_follow_symlinked_dirs() {
+        // A symlinked directory is never descended — chasing it would
+        // reintroduce the cycle/escape DoS the read path forbids (Task 3).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let real = root.join("real");
+        std::fs::create_dir(&real).expect("real dir");
+        std::fs::write(real.join("inside.txt"), b"z").expect("inside");
+        std::os::unix::fs::symlink(&real, root.join("link")).expect("symlink");
+
+        let found = walk_capped(root, 16, UNCAPPED_FILES);
+        // `inside.txt` is reachable once (via `real/`), never twice (the
+        // `link/` symlink is not followed).
+        let inside_hits = found
+            .iter()
+            .filter(|p| p.file_name().is_some_and(|n| n == "inside.txt"))
+            .count();
+        assert_eq!(inside_hits, 1, "symlinked dir not followed: {found:?}");
     }
 
     #[test]
