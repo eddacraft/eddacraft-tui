@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 311 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 312 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1338,6 +1338,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `same-file` | 1.0.6 | MIT License | https://github.com/BurntSushi/same-file |
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
 | `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
+| `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
 | `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `tree-sitter` | 0.26.9 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.12.1 | MIT License | https://github.com/BurntSushi/bstr |
