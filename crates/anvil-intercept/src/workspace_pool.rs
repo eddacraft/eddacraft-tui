@@ -223,9 +223,13 @@ pub enum ScanOutcome {
 ///
 /// - over a non-empty `items`, cancelling before the first chunk yields
 ///   immediately with `processed == 0` and `work` is never called;
-/// - cancelling mid-chunk finishes the current chunk (at most `chunk_size - 1`
-///   further items) and then yields, so `processed` is always a whole number of
-///   completed chunks.
+/// - cancelling mid-chunk always finishes the current chunk (at most
+///   `chunk_size - 1` further items). If a later chunk remains, the check before
+///   it yields with `processed` a whole number of completed chunks. If the
+///   cancel lands in the *final* chunk there is no later boundary to observe it,
+///   so the scan finishes that chunk and returns [`ScanOutcome::Completed`] —
+///   a mid-chunk cancel near the end does not guarantee `Yielded`. Either way no
+///   *new* chunk starts once the flag is set.
 ///
 /// An empty `items` has no chunks, so the cancel check never runs and the result
 /// is [`ScanOutcome::Completed`] (nothing to scan) regardless of the flag.
@@ -538,6 +542,33 @@ mod tests {
 
         assert_eq!(outcome, ScanOutcome::Yielded { processed: 0 });
         assert_eq!(ran, 0, "work is never invoked once cancelled up front");
+    }
+
+    #[test]
+    fn background_scan_cancelled_in_final_chunk_completes_not_yields() {
+        // A cancel observed during the last chunk has no later boundary to act
+        // on: the scan finishes that chunk and returns Completed, not Yielded.
+        // This pins the doc contract that a mid-chunk cancel near the end does
+        // not guarantee Yielded.
+        let items: Vec<usize> = (0..20).collect();
+        let chunk = 10;
+        let cancel = ScanCancel::new();
+        let count = AtomicUsize::new(0);
+
+        let outcome = run_chunked_scan(&items, chunk, &cancel, |&i| {
+            count.fetch_add(1, Ordering::Relaxed);
+            // Fire during the second (final) chunk, items 10..20.
+            if i == 15 {
+                cancel.cancel();
+            }
+        });
+
+        assert_eq!(outcome, ScanOutcome::Completed);
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            20,
+            "the final chunk still runs to its end"
+        );
     }
 
     #[test]
