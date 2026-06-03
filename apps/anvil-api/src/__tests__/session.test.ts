@@ -23,13 +23,16 @@ const sql = {} as never;
 const user = { id: 'user-1', email: 'alice@example.com' };
 
 beforeEach(() => {
+  // resetAllMocks wipes implementations as well as call history; re-state every
+  // default below so each test starts from the same baseline.
+  vi.resetAllMocks();
   vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta', 'preview']);
   vi.mocked(signLicence).mockResolvedValue('signed.jwt.token');
   vi.mocked(hashToken).mockImplementation((t: string) => `hash:${t}`);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
 });
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => vi.restoreAllMocks());
 
 describe('mintSession', () => {
   it('signs a licence with the resolved scopes and the given identity', async () => {
