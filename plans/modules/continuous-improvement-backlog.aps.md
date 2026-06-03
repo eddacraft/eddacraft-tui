@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 29/46    |
+| CIB | —     | In Progress | 29/47    |
 
 ## Purpose
 
@@ -1110,3 +1110,32 @@ archive.
   a gating check); audience resolved (`staff-internal-developer`), the remaining
   implementation choice is the existing licence-gate command-metadata path vs. a
   dedicated check.
+
+### CIB-047: Surface the save-time daemon-absent fallback in the watch TUI
+
+- **Status:** Ready
+- **Intent:** DSV-007 made `anvil watch` a thin save-time-daemon client with a
+  scoped fallback (opt-in behind `ANVIL_WATCH_DAEMON`). The "warn once per
+  disconnect" contract is honoured on the plain/non-TUI surface
+  (`tracing::warn!` plus an advisory stderr line), but in TUI mode the warn is
+  suppressed — the alt-screen owns stdout/stderr — so a TUI user gets a
+  correct-but-silent demotion to a scoped subprocess check when the daemon dies
+  mid-session, with no in-TUI indicator. Surface it so the warn-once contract
+  holds on the TUI surface too.
+- **Expected Outcome:** when watch is in TUI mode and a save-time cycle falls
+  back (daemon absent / mid-session death), the watch action footer (or status
+  strip) shows a once-per-disconnect indicator (e.g. `daemon: unavailable —
+  scoped fallback`) that resets on reconnect. No change to the non-TUI surface
+  or to the default-off `ANVIL_WATCH_DAEMON` gate.
+- **Validation:** a render/unit test that a TUI fallback cycle produces the
+  footer indicator once per disconnect and clears on reconnect.
+- **Identified From:** DSV-007 (PR #2284) batch council — kernel-maintainer
+  MINOR: the warn-once-per-disconnect contract currently holds only for the
+  non-TUI path (`crates/anvil-cli/src/commands/watch.rs` gates the advisory on
+  `!self.tui_parent`).
+- **Coordinates with:** `crates/anvil-cli/src/commands/watch.rs` (the `FellBack`
+  dispatch arm + the TUI `ActionResultLine` path);
+  `crates/anvil-cli/src/commands/watch_save_time.rs` (the `SaveTimeDecision`
+  `warned` flag is already computed); the `anvil-tui` watch surface.
+- **Confidence:** medium — small additive UI signal; the `warned` flag already
+  exists, the work is plumbing it to the TUI footer.
