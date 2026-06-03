@@ -43,8 +43,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_intercept_proto::protocol::{
-    RequestFullScanRequest, RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse,
-    WorkspaceStatusRequest, WorkspaceStatusResponse,
+    AssuranceState, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
+    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 
 use crate::assurance::{AssuranceMachine, ScanPriority};
@@ -135,11 +136,14 @@ impl SaveTimeState {
     }
 
     /// Run `f` against the worktree's assurance machine, inserting a fresh one
-    /// (`Stale(CrossFileResolutionNeeded)`, B6) on first contact.
+    /// (`Stale(CrossFileResolutionNeeded)`, B6) on first contact, and emit a
+    /// transition record (DSV-005 Task 9) when `f` changed the coarse state or
+    /// staleness reason.
     ///
     /// The outer map lock is held only long enough to fetch the per-key handle;
     /// `f` (which may run the antipattern scan) executes under the **per-key**
-    /// machine lock, so verdicts on distinct worktrees proceed in parallel.
+    /// machine lock, so verdicts on distinct worktrees proceed in parallel. The
+    /// transition record is emitted *after* the machine lock is released.
     fn with_machine<R>(&self, key: &WorktreeKey, f: impl FnOnce(&mut AssuranceMachine) -> R) -> R {
         let machine = {
             let mut guard = self.lock_map();
@@ -147,9 +151,73 @@ impl SaveTimeState {
             // `Stale(CrossFileResolutionNeeded)` (B6), on first contact.
             Arc::clone(guard.entry(key.clone()).or_default())
         };
-        let mut machine = machine.lock().unwrap_or_else(PoisonError::into_inner);
-        f(&mut machine)
+        let (result, transition) = {
+            let mut machine = machine.lock().unwrap_or_else(PoisonError::into_inner);
+            let before = machine.snapshot();
+            let result = f(&mut machine);
+            let after = machine.snapshot();
+            let transition = transition_between(
+                &before,
+                &after,
+                machine.scan_started_at().map(str::to_string),
+            );
+            (result, transition)
+        };
+        if let Some(transition) = transition {
+            emit_assurance_transition(key.as_path(), &transition);
+        }
+        result
     }
+}
+
+/// One observed workspace-assurance transition. The coarse `from`/`to` states
+/// and `grouping` ride the ADR-035 [`NotificationEnvelope`](crate::telemetry)
+/// (built by `telemetry::envelope_for_assurance_transition`); the precise
+/// machine fields here ride the mirrored `tracing` event only — they are kept
+/// off the wire `NotificationContext` until that struct + `redact_envelope` are
+/// extended (Task 9 Cond A).
+struct AssuranceTransition {
+    from: AssuranceState,
+    to: AssuranceState,
+    reason: Option<StaleReason>,
+    generation: u64,
+    scan_started_at: Option<String>,
+}
+
+/// A transition is observed when the coarse `state` OR the staleness `reason`
+/// changed across `f` — a same-state same-reason verdict (e.g. a re-stale with
+/// the identical cause) is not a transition and emits nothing.
+fn transition_between(
+    before: &WorkspaceAssurance,
+    after: &WorkspaceAssurance,
+    scan_started_at: Option<String>,
+) -> Option<AssuranceTransition> {
+    (before.state != after.state || before.reason != after.reason).then_some(AssuranceTransition {
+        from: before.state,
+        to: after.state,
+        reason: after.reason,
+        generation: after.generation,
+        scan_started_at,
+    })
+}
+
+/// Emit the mirrored `tracing` event for one assurance transition. The
+/// structured ADR-035 envelope (the operator-facing surface) is built from the
+/// same `from`/`to`/`reason` by `telemetry::envelope_for_assurance_transition`
+/// and routed through the fanout when the Phase E producer wire-up reads it;
+/// the machine fields below ride this event so they never cross the envelope
+/// wire prematurely (Cond A).
+fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransition) {
+    tracing::info!(
+        target: "anvil_intercept::assurance",
+        workspace_root = %workspace_root.display(),
+        from = ?transition.from,
+        to = ?transition.to,
+        reason = ?transition.reason,
+        generation = transition.generation,
+        scan_started_at = transition.scan_started_at.as_deref(),
+        "workspace assurance transition",
+    );
 }
 
 /// Per-connection save-time context: borrows the shared [`SaveTimeState`] and
@@ -460,6 +528,43 @@ mod tests {
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
             "an unlisted, non-primary root must be refused: {refused:?}",
+        );
+    }
+
+    fn assurance(state: AssuranceState, reason: Option<StaleReason>) -> WorkspaceAssurance {
+        WorkspaceAssurance {
+            state,
+            reason,
+            generation: 0,
+            last_full_scan: None,
+        }
+    }
+
+    /// DSV-005 Task 9: a state change OR a reason change is a transition; a
+    /// same-state, same-reason verdict emits nothing.
+    #[test]
+    fn transition_detected_on_state_or_reason_change() {
+        let stale_cross = assurance(
+            AssuranceState::Stale,
+            Some(StaleReason::CrossFileResolutionNeeded),
+        );
+        let pending = assurance(AssuranceState::Pending, None);
+        let stale_overflow = assurance(AssuranceState::Stale, Some(StaleReason::ImpactSetOverflow));
+
+        // State change → transition.
+        let t = transition_between(&stale_cross, &pending, None).expect("state change");
+        assert_eq!(t.from, AssuranceState::Stale);
+        assert_eq!(t.to, AssuranceState::Pending);
+
+        // Same state, different reason → transition (the cause changed).
+        let t = transition_between(&stale_cross, &stale_overflow, None)
+            .expect("reason change is a transition");
+        assert_eq!(t.reason, Some(StaleReason::ImpactSetOverflow));
+
+        // No change → no transition.
+        assert!(
+            transition_between(&stale_cross, &stale_cross, None).is_none(),
+            "an unchanged verdict is not a transition",
         );
     }
 }

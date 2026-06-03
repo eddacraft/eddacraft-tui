@@ -3,6 +3,7 @@ use std::process;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use anvil_intercept_proto::protocol::{AssuranceState, StaleReason};
 pub use anvil_kernel_types::diagnostics::ControlDecision;
 use anvil_kernel_types::diagnostics::Severity;
 use anvil_kernel_types::{
@@ -208,6 +209,21 @@ impl TelemetryEmitter {
         correlation.worktree = Some(worktree.display().to_string());
         let context = self.next_context(correlation);
         envelope_for_fence_transition(&context, worktree, transition)
+    }
+
+    /// DSV-005 Task 9: build the envelope for one workspace-assurance
+    /// transition (`from` → `to`, with the staleness `reason` when relevant).
+    pub fn envelope_for_assurance_transition(
+        &mut self,
+        mut correlation: TelemetryCorrelation,
+        workspace_root: &str,
+        from: AssuranceState,
+        to: AssuranceState,
+        reason: Option<StaleReason>,
+    ) -> NotificationEnvelope {
+        correlation.worktree = Some(workspace_root.to_string());
+        let context = self.next_context(correlation);
+        envelope_for_assurance_transition(&context, workspace_root, from, to, reason)
     }
 
     fn next_context(&mut self, correlation: TelemetryCorrelation) -> TelemetryContext {
@@ -547,6 +563,104 @@ pub(crate) fn envelope_for_fence_transition(
         transition: Some(NotificationTransition {
             from: from.to_string(),
             to: to.to_string(),
+        }),
+    };
+
+    envelope(context, None, notification, Some(grouping))
+}
+
+/// The wire-lowercase token for an [`AssuranceState`] (matches the proto
+/// `snake_case` serialisation), used in the `grouping.transition` block.
+fn assurance_state_token(state: AssuranceState) -> &'static str {
+    match state {
+        AssuranceState::Clean => "clean",
+        AssuranceState::Stale => "stale",
+        AssuranceState::Pending => "pending",
+        AssuranceState::Running => "running",
+        AssuranceState::Unavailable => "unavailable",
+    }
+}
+
+/// Human message for an assurance transition to `to`, naming the `reason`
+/// when the workspace went stale/unavailable.
+fn assurance_message(to: AssuranceState, reason: Option<StaleReason>) -> String {
+    match to {
+        AssuranceState::Clean => "workspace assurance restored to clean".to_string(),
+        AssuranceState::Pending => "full workspace scan queued".to_string(),
+        AssuranceState::Running => "full workspace scan started".to_string(),
+        AssuranceState::Stale => match reason {
+            Some(reason) => format!("workspace marked stale: {}", stale_reason_token(reason)),
+            None => "workspace marked stale".to_string(),
+        },
+        AssuranceState::Unavailable => match reason {
+            Some(reason) => format!(
+                "workspace assurance unavailable: {}",
+                stale_reason_token(reason)
+            ),
+            None => "workspace assurance unavailable".to_string(),
+        },
+    }
+}
+
+/// A stable, human-leaning token for a [`StaleReason`] (the wire kebab string).
+fn stale_reason_token(reason: StaleReason) -> &'static str {
+    match reason {
+        StaleReason::CrossFileResolutionNeeded => "cross-file-resolution-needed",
+        StaleReason::Deleted => "deleted",
+        StaleReason::Renamed => "renamed",
+        StaleReason::SymlinkRetarget => "symlink-retarget",
+        StaleReason::ConfigBoundaryPolicyEdit => "config-boundary-policy-edit",
+        StaleReason::GitignoreScopeChange => "gitignore-scope-change",
+        StaleReason::ImpactSetOverflow => "impact-set-overflow",
+        StaleReason::WarmStateEvicted => "warm-state-evicted",
+        StaleReason::ScanTimeout => "scan-timeout",
+        StaleReason::DaemonAbsent => "daemon-absent",
+        StaleReason::UnknownClass => "unknown-class",
+        StaleReason::Unknown => "unknown",
+    }
+}
+
+/// DSV-005 Task 9: build the ADR-035 notification envelope for one workspace
+/// assurance transition, mirroring [`envelope_for_fence_transition`].
+///
+/// `priority` is `High` for a transition **to** `Stale`/`Unavailable` (the
+/// workspace can no longer be trusted clean), else `Normal`. The grouping key
+/// is `intercept:assurance:<workspace_root>` and `grouping.transition` carries
+/// the wire state tokens.
+///
+/// The precise machine fields (`reason`, `generation`, `scan_started_at`) are
+/// **deliberately not** placed on the wire `notification.context` — that struct
+/// is `{file, source}` today, and extending it needs a matching
+/// `fanout::redact_envelope` update so the fields stay redaction-safe across
+/// sessions (a future prerequisite). They ride a mirrored `tracing` event at
+/// the emission site instead.
+#[must_use]
+pub(crate) fn envelope_for_assurance_transition(
+    context: &TelemetryContext,
+    workspace_root: &str,
+    from: AssuranceState,
+    to: AssuranceState,
+    reason: Option<StaleReason>,
+) -> NotificationEnvelope {
+    let priority = match to {
+        AssuranceState::Stale | AssuranceState::Unavailable => NotificationPriority::High,
+        AssuranceState::Clean | AssuranceState::Pending | AssuranceState::Running => {
+            NotificationPriority::Normal
+        }
+    };
+    let notification = Notification::new(
+        NotificationClass::FenceState,
+        priority,
+        "workspace assurance state changed",
+        assurance_message(to, reason),
+    )
+    // Cond A: context carries no machine fields — `{file: None, source}` only.
+    .with_context(notification_context(None));
+    let grouping = NotificationGrouping {
+        key: Some(format!("intercept:assurance:{workspace_root}")),
+        transition: Some(NotificationTransition {
+            from: assurance_state_token(from).to_string(),
+            to: assurance_state_token(to).to_string(),
         }),
     };
 
@@ -908,11 +1022,13 @@ mod tests {
     use anvil_kernel_types::{NotificationClass, NotificationPriority};
 
     use crate::enforcement::{EnforcementDecision, InterruptDecision};
+    use anvil_intercept_proto::protocol::{AssuranceState, StaleReason};
+
     use crate::telemetry::{
         ControlDecision, DEGRADED_FENCE_CASCADE, DEGRADED_FENCE_CASCADE_CLEAR,
         DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition, TelemetryContext, TelemetryCorrelation,
-        TelemetryEmitter, delivered_envelope_for_decision, envelope_for_fence_transition,
-        notification_mapping,
+        TelemetryEmitter, delivered_envelope_for_decision, envelope_for_assurance_transition,
+        envelope_for_fence_transition, notification_mapping,
     };
 
     /// MLP2-025b: pin the reason-string value. A future enum migration
@@ -1031,6 +1147,74 @@ mod tests {
         );
         assert_eq!(transition.from, "active");
         assert_eq!(transition.to, "fenced");
+    }
+
+    /// DSV-005 Task 9: an assurance transition becomes a `FenceState`-class
+    /// envelope whose grouping carries `{from,to}` and whose message names the
+    /// reason on `→Stale`. Cond A (the negative): the wire `notification.context`
+    /// must NOT carry the machine fields (`reason`/`generation`/`scan_started_at`)
+    /// — those ride the `tracing` mirror until `NotificationContext` +
+    /// `redact_envelope` are extended.
+    #[test]
+    fn transition_emits_notification_envelope() {
+        let envelope = envelope_for_assurance_transition(
+            &context(),
+            "/worktrees/demo",
+            AssuranceState::Clean,
+            AssuranceState::Stale,
+            Some(StaleReason::ImpactSetOverflow),
+        );
+        let grouping = envelope.grouping.clone().expect("grouping");
+        let transition = grouping.transition.clone().expect("transition");
+
+        assert_eq!(envelope.notification.class, NotificationClass::FenceState);
+        // `→Stale` is High priority (the workspace can no longer be trusted).
+        assert_eq!(envelope.notification.priority, NotificationPriority::High);
+        assert!(envelope.mirror.is_none());
+        assert_eq!(
+            grouping.key.as_deref(),
+            Some("intercept:assurance:/worktrees/demo")
+        );
+        assert_eq!(transition.from, "clean");
+        assert_eq!(transition.to, "stale");
+        assert!(
+            envelope
+                .notification
+                .message
+                .contains("impact-set-overflow"),
+            "the message names the reason: {}",
+            envelope.notification.message
+        );
+
+        // Cond A: the wire context carries ONLY `{file, source}` — never the
+        // machine fields. Serialise and assert their absence so a future
+        // `NotificationContext` extension cannot silently leak them.
+        let context_json = serde_json::to_value(&envelope.notification.context)
+            .expect("serialise notification context");
+        let obj = context_json.as_object().expect("context is an object");
+        for leaked in ["reason", "generation", "scan_started_at"] {
+            assert!(
+                !obj.contains_key(leaked),
+                "notification.context must not carry the machine field `{leaked}`: {context_json}"
+            );
+        }
+    }
+
+    /// A transition `→Clean`/`→Pending`/`→Running` is Normal priority (a
+    /// lifecycle step, not a trust loss).
+    #[test]
+    fn assurance_transition_to_lifecycle_state_is_normal_priority() {
+        let envelope = envelope_for_assurance_transition(
+            &context(),
+            "/wt",
+            AssuranceState::Stale,
+            AssuranceState::Pending,
+            None,
+        );
+        assert_eq!(envelope.notification.priority, NotificationPriority::Normal);
+        let transition = envelope.grouping.unwrap().transition.unwrap();
+        assert_eq!(transition.from, "stale");
+        assert_eq!(transition.to, "pending");
     }
 
     #[test]
