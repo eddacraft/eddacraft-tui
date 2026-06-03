@@ -22,7 +22,7 @@
 
 use std::path::Path;
 
-use anvil_intercept_proto::protocol::StaleReason;
+use anvil_intercept_proto::protocol::{AssuranceState, StaleReason, WorkspaceAssurance};
 
 use crate::change_class::CanonicalChange;
 
@@ -121,6 +121,176 @@ pub fn taxonomy_reason(change: &CanonicalChange, ctx: &ChangeCtx) -> Option<Stal
         CanonicalChange::Create => Some(StaleReason::CrossFileResolutionNeeded),
         // The single potentially-certifiable case.
         CanonicalChange::ContentModify => None,
+    }
+}
+
+/// Priority of a requested full scan (DSV-005 Task 9 `request_full_scan`): an
+/// interactive (client-blocking) scan jumps the queue ahead of a background one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanPriority {
+    /// Client is waiting on the result; run on the interactive pool.
+    Interactive,
+    /// Opportunistic warm-up; run on the background pool.
+    Background,
+}
+
+/// The per-worktree workspace-assurance state machine (DSV-005 Task 9,
+/// ADR-061 §9). Drives the lifecycle `validate_paths` reports and renders the
+/// wire [`WorkspaceAssurance`].
+///
+/// Lifecycle (contract §6 + council B6): a fresh / cold-key worktree starts
+/// **`Stale(CrossFileResolutionNeeded)`** — never `Clean` — and reaches `Clean`
+/// only via a completed full scan
+/// (`request_full_scan` → `Pending` → [`start_scan`](Self::start_scan) →
+/// `Running` → [`complete_scan`](Self::complete_scan) → `Clean`). It drops back
+/// to `Stale` on any uncertifiable delta ([`record_verdict`](Self::record_verdict)
+/// / [`mark_stale`](Self::mark_stale)), a [`scan_timeout`](Self::scan_timeout),
+/// or a daemon [`restart`](Self::on_restart) that abandons an in-flight scan.
+///
+/// Invariant (mirrors the wire): `reason` is `Some` exactly when the state is
+/// `Stale`/`Unavailable`; [`snapshot`](Self::snapshot) enforces it. `generation`
+/// is the opaque turnover token that bumps on warm-state eviction / cold
+/// rebuild. `scan_started_at` is internal lifecycle bookkeeping (it has no wire
+/// field — it rides the tracing mirror per Task 9) and is `Some` only while
+/// `Running`.
+#[derive(Debug, Clone)]
+pub struct AssuranceMachine {
+    state: AssuranceState,
+    reason: Option<StaleReason>,
+    generation: u64,
+    last_full_scan: Option<String>,
+    scan_started_at: Option<String>,
+}
+
+impl AssuranceMachine {
+    /// A fresh worktree: `Stale(CrossFileResolutionNeeded)` (B6 — never clean
+    /// on first contact; cross-file imports are unresolved until a scan).
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            state: AssuranceState::Stale,
+            reason: Some(StaleReason::CrossFileResolutionNeeded),
+            generation: 0,
+            last_full_scan: None,
+            scan_started_at: None,
+        }
+    }
+
+    /// The current coarse state.
+    #[must_use]
+    pub fn state(&self) -> AssuranceState {
+        self.state
+    }
+
+    /// The current staleness cause, if any.
+    #[must_use]
+    pub fn reason(&self) -> Option<StaleReason> {
+        self.reason
+    }
+
+    /// The opaque warm-state turnover token.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The RFC 3339 start time of the in-flight scan, if `Running`. Internal
+    /// bookkeeping — no wire field; rides the tracing mirror (Task 9).
+    #[must_use]
+    pub fn scan_started_at(&self) -> Option<&str> {
+        self.scan_started_at.as_deref()
+    }
+
+    /// Render the wire snapshot, enforcing the `reason`-iff-`Stale`/`Unavailable`
+    /// invariant regardless of any stale `reason` left on a lifecycle state.
+    #[must_use]
+    pub fn snapshot(&self) -> WorkspaceAssurance {
+        let reason = match self.state {
+            AssuranceState::Stale | AssuranceState::Unavailable => self.reason,
+            AssuranceState::Clean | AssuranceState::Pending | AssuranceState::Running => None,
+        };
+        WorkspaceAssurance {
+            state: self.state,
+            reason,
+            generation: self.generation,
+            last_full_scan: self.last_full_scan.clone(),
+        }
+    }
+
+    /// An uncertifiable delta makes the workspace stale with `reason`.
+    pub fn mark_stale(&mut self, reason: StaleReason) {
+        self.state = AssuranceState::Stale;
+        self.reason = Some(reason);
+        self.scan_started_at = None;
+    }
+
+    /// Fold a `validate_paths` verdict into the workspace state.
+    ///
+    /// A `certified` verdict leaves the state unchanged — it keeps a `Clean`
+    /// workspace clean, but does **not** by itself clear a `Stale` workspace
+    /// (only a completed full scan does: stale→pending→running→clean). An
+    /// uncertifiable verdict makes the workspace stale with `stale_reason`
+    /// (defaulting to `CrossFileResolutionNeeded` if none was supplied).
+    pub fn record_verdict(&mut self, certified: bool, stale_reason: Option<StaleReason>) {
+        if certified {
+            return;
+        }
+        self.mark_stale(stale_reason.unwrap_or(StaleReason::CrossFileResolutionNeeded));
+    }
+
+    /// Queue a full scan. Idempotent while a scan is already `Running`. Returns
+    /// `priority` so the caller can build the job handle.
+    pub fn request_full_scan(&mut self, priority: ScanPriority) -> ScanPriority {
+        if self.state != AssuranceState::Running {
+            self.state = AssuranceState::Pending;
+            self.reason = None;
+            self.scan_started_at = None;
+        }
+        priority
+    }
+
+    /// Begin a queued scan (`now` = RFC 3339 start time).
+    pub fn start_scan(&mut self, now: String) {
+        self.state = AssuranceState::Running;
+        self.reason = None;
+        self.scan_started_at = Some(now);
+    }
+
+    /// A scan completed: the workspace is `Clean` (`now` = RFC 3339 completion).
+    pub fn complete_scan(&mut self, now: String) {
+        self.state = AssuranceState::Clean;
+        self.reason = None;
+        self.last_full_scan = Some(now);
+        self.scan_started_at = None;
+    }
+
+    /// A scan exceeded its time budget ⇒ `Stale(ScanTimeout)`.
+    pub fn scan_timeout(&mut self) {
+        self.mark_stale(StaleReason::ScanTimeout);
+    }
+
+    /// A daemon restart abandons any in-flight scan and loses warm state: a
+    /// `Pending`/`Running` workspace becomes `Stale(WarmStateEvicted)`. A
+    /// terminal `Clean`/`Stale` is left as-is (a restart does not invent a
+    /// verdict for an already-settled workspace).
+    pub fn on_restart(&mut self) {
+        if matches!(
+            self.state,
+            AssuranceState::Pending | AssuranceState::Running
+        ) {
+            self.mark_stale(StaleReason::WarmStateEvicted);
+        }
+    }
+
+    /// Bump the opaque turnover token on warm-state eviction / cold rebuild.
+    pub fn bump_generation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+    }
+}
+
+impl Default for AssuranceMachine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -275,6 +445,128 @@ mod tests {
         assert_eq!(
             taxonomy_reason(&CanonicalChange::Delete, &ctx),
             Some(StaleReason::GitignoreScopeChange)
+        );
+    }
+
+    // ---- AssuranceMachine (Task 9 state machine) ----
+
+    #[test]
+    fn initial_workspace_state_is_stale_not_clean() {
+        // B6: a fresh / cold-key workspace must NOT start clean.
+        let m = AssuranceMachine::new();
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::CrossFileResolutionNeeded));
+        let snap = m.snapshot();
+        assert_eq!(snap.state, AssuranceState::Stale);
+        assert_eq!(snap.reason, Some(StaleReason::CrossFileResolutionNeeded));
+    }
+
+    #[test]
+    fn stale_requires_reason() {
+        // Stale/Unavailable snapshots carry a reason; lifecycle states do not.
+        let mut m = AssuranceMachine::new();
+        m.mark_stale(StaleReason::ImpactSetOverflow);
+        assert_eq!(m.snapshot().reason, Some(StaleReason::ImpactSetOverflow));
+
+        m.start_scan("2026-06-03T00:00:00Z".to_string());
+        assert_eq!(
+            m.snapshot().reason,
+            None,
+            "a Running snapshot has no staleness reason"
+        );
+
+        m.complete_scan("2026-06-03T00:00:01Z".to_string());
+        assert_eq!(
+            m.snapshot().reason,
+            None,
+            "a Clean snapshot has no staleness reason"
+        );
+    }
+
+    #[test]
+    fn running_carries_scan_started_at() {
+        let mut m = AssuranceMachine::new();
+        assert_eq!(m.scan_started_at(), None);
+        m.request_full_scan(ScanPriority::Interactive);
+        assert_eq!(m.state(), AssuranceState::Pending);
+        assert_eq!(m.scan_started_at(), None, "pending has no start time");
+
+        m.start_scan("2026-06-03T12:00:00Z".to_string());
+        assert_eq!(m.state(), AssuranceState::Running);
+        assert_eq!(m.scan_started_at(), Some("2026-06-03T12:00:00Z"));
+    }
+
+    #[test]
+    fn full_scan_lifecycle_reaches_clean() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        m.complete_scan("t1".to_string());
+        assert_eq!(m.state(), AssuranceState::Clean);
+        assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
+        assert_eq!(m.scan_started_at(), None);
+    }
+
+    #[test]
+    fn certified_verdict_keeps_clean_but_does_not_clear_stale() {
+        let mut m = AssuranceMachine::new();
+        // Cold/stale: a certified single-path verdict does NOT clear it — only
+        // a full scan can (stale→pending→running→clean).
+        m.record_verdict(true, None);
+        assert_eq!(m.state(), AssuranceState::Stale);
+
+        // Once clean (via a scan), a certified verdict keeps it clean...
+        m.request_full_scan(ScanPriority::Interactive);
+        m.start_scan("t0".to_string());
+        m.complete_scan("t1".to_string());
+        m.record_verdict(true, None);
+        assert_eq!(m.state(), AssuranceState::Clean);
+
+        // ...and an uncertifiable verdict makes it stale with the reason.
+        m.record_verdict(false, Some(StaleReason::ImpactSetOverflow));
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::ImpactSetOverflow));
+    }
+
+    #[test]
+    fn scan_timeout_to_stale() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Interactive);
+        m.start_scan("t0".to_string());
+        m.scan_timeout();
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
+        assert_eq!(m.scan_started_at(), None);
+    }
+
+    #[test]
+    fn restart_running_becomes_stale() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Interactive);
+        m.start_scan("t0".to_string());
+        m.on_restart();
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::WarmStateEvicted));
+
+        // A restart does not disturb an already-settled Clean workspace.
+        let mut clean = AssuranceMachine::new();
+        clean.request_full_scan(ScanPriority::Interactive);
+        clean.start_scan("t0".to_string());
+        clean.complete_scan("t1".to_string());
+        clean.on_restart();
+        assert_eq!(clean.state(), AssuranceState::Clean);
+    }
+
+    #[test]
+    fn workspace_status_reports_state_and_generation() {
+        let mut m = AssuranceMachine::new();
+        m.bump_generation();
+        m.bump_generation();
+        let snap = m.snapshot();
+        assert_eq!(snap.state, AssuranceState::Stale);
+        assert_eq!(
+            snap.generation, 2,
+            "generation bumps on warm-state turnover"
         );
     }
 }
