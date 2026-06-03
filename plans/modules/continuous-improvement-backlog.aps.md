@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 28/45    |
+| CIB | —     | In Progress | 28/46    |
 
 ## Purpose
 
@@ -1038,3 +1038,59 @@ archive.
   alongside `@eddacraft/transactional`, guaranteeing the entry exists on every
   run. Verified locally: `apps/anvil-api` goes from 0-test import failures to
   411 passing tests with the catalogue dist built.
+
+### CIB-046: Gate the `anvil plan dashboard` APS surface behind an internal-developer feature flag
+
+- **Status:** Ready
+- **Intent:** The APS dashboard (`anvil plan dashboard`) renders Anvil's own
+  plan internals but ships always-on, unauthenticated, and documented as
+  **Class: User-explicit**. That posture is not a deliberate access decision —
+  the command was deliberately added to the auth-bypass set
+  (`bypass_auth_plan_dashboard`) so it could be dogfooded locally while
+  `anvil auth` was unavailable; the execution plan
+  (`plans/execution/2026-05-24-aps-tui-dashboard.md` §104/§110) recorded that
+  workaround as an "unauthenticated classification matching local planning
+  commands". Feature-flagging was never considered in the spec, module, or
+  ADR-055. Bring the surface under the FLAGCAT catalogue as an
+  internal-developer-only feature.
+- **Expected Outcome:**
+  - New flag `tui-dashboard.aps-dashboard` defined once in `flags/manifest.json`
+    under a new `tui-dashboard` group in `flags/groups.json` (the existing
+    `dashboard` group is the **web** dashboard surface and must not be reused),
+    scoped to a new `staff-internal-developer` audience (staff axis) added to
+    `flags/audiences.json`. Flag flows through the TS surfaces, the Rust
+    `build.rs` codegen, and the manifest<->TS<->Rust drift gates (nx
+    `test:flags-catalogue` + `cargo test` kernel-types) with no drift.
+  - `anvil plan dashboard` is hidden/refused unless the flag resolves enabled
+    for the caller, and the command is removed from the auth-bypass set.
+  - A local escape hatch that is **not** "open to everyone" survives `anvil auth`
+    being down — gate acceptance on the `tui-dashboard.aps-dashboard` flag or on
+    `ANVIL_ADMIN_KEY` (the `admin` command already authenticates this way
+    without personal credentials, per `bypass_auth_admin`), so the original
+    dogfooding need is met without an unauthenticated public command.
+  - `docs/runbooks/cli-surface.md` reclassifies `anvil plan` from
+    **User-explicit** to an internal/staff class.
+- **Validation:** flag-catalogue drift tests green (TS + Rust); with the flag
+  disabled (and no `ANVIL_ADMIN_KEY`), `anvil plan dashboard` is hidden/refused;
+  with the flag enabled for an internal-developer caller **or** with
+  `ANVIL_ADMIN_KEY` set, the dashboard opens with `anvil auth` down; an
+  `auth_bypass`/`requires_auth` test asserts `plan dashboard` is no longer in
+  the bypass set; `cli-surface.md` no longer lists it as User-explicit.
+- **Decision (resolved 2026-06-03):** add a new `staff-internal-developer`
+  audience (staff axis) to `flags/audiences.json` rather than reuse
+  `staff-anvil-internal` — "internal developer" is intentionally narrower than
+  "all Anvil staff".
+- **Identified From:** 2026-06-03 review of public/operator docs for APS
+  dashboard references — confirmed no public-docs leak, but the command is
+  unflagged, unauthenticated, and operator-classed by way of the local
+  auth-down workaround. Good flag-by-default exemplar (a code-defined feature,
+  flip via PR).
+- **Coordinates with:** `flags/manifest.json`, `flags/groups.json`,
+  `flags/audiences.json` (FLAGCAT catalogue); `crates/anvil-cli/src/commands/plan.rs`
+  and `crates/anvil-cli/src/main.rs` (subcommand wiring + `bypass_auth_plan_dashboard`
+  / `requires_auth`); `crates/anvil-cli/src/feature_flags.rs` (command-gating
+  metadata path used by `cli.licence-gate`); `docs/runbooks/cli-surface.md`.
+- **Confidence:** medium — mechanically additive (new flag + group + audience +
+  a gating check); audience resolved (`staff-internal-developer`), the remaining
+  implementation choice is the existing licence-gate command-metadata path vs. a
+  dedicated check.
