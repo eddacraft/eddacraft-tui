@@ -198,7 +198,7 @@ Change status to **Ready** when:
   (fail-closed). Once `github_id` is stored, email is not consulted again.
 - **Validation:** `pnpm nx test @eddacraft/anvil-api` — linking tests cover
   returning-by-`github_id`, first-link via a non-primary verified email,
-  noreply-primary, unverified-email-rejected, "active invite is linked not
+  noreply primary email, unverified-email-rejected, "active invite is linked not
   duplicated", and the email-takeover-rejected case; the migration applies
   cleanly forward.
 - **Files:** `apps/anvil-api/migrations/` (new migration),
@@ -254,7 +254,7 @@ Change status to **Ready** when:
   terminal "awaiting approval" poll status for non-active/uninvited users (not a
   generic timeout); mints **single-use** via atomic
   `DELETE … RETURNING` (reuse the `consumeDeviceCode` pattern), keyed strictly on
-  `poll_token = $hash`; mints **exactly once, re-returnable within TTL**;
+  `poll_token_hash = $hash`; mints **exactly once, re-returnable within TTL**;
   revokes the GitHub token immediately after `fetchGitHubUser`; a cross-instance
   DB gate ensures at most one instance polls GitHub per `device_code` per
   interval window; secrets never appear in structured logs.

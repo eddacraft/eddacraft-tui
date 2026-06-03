@@ -89,7 +89,7 @@ The locked decisions:
    verified emails** (not just the primary) against the active invited row, then
    store `github_id`; never silently create a `pending` duplicate when an active
    invite matches. This closes the email-change/takeover vector and the
-   private-noreply-primary problem. Requires a DB migration plus first-login
+   private/noreply primary email problem. Requires a DB migration plus first-login
    linking logic. See decision 7 for the invitation-binding model this serves.
 
 5. **Retire via tombstone + admin-invite rebuild.** Replace
@@ -197,7 +197,7 @@ GitHub email matches.
     `findActiveScopesForUser`, and surfaces non-active as a clear terminal
     "awaiting approval" poll state to the CLI (not a generic timeout).
   - Per-`poll_token` isolation + single-use mint: the poll lookup is keyed
-    strictly on `poll_token = $hash` (never "latest confirmed"); the mint is
+    strictly on `poll_token_hash = $hash` (never "latest confirmed"); the mint is
     gated by an atomic `DELETE … RETURNING` (reuse the `consumeDeviceCode`
     pattern). The 256-bit `poll_token` is hashed at rest with the existing
     pepper; the GitHub `device_code` is also hashed at rest.
