@@ -197,11 +197,21 @@ impl IdentityTable {
 /// lower-cased probe file and checking whether its upper-cased name resolves
 /// to the same inode. Best-effort: any I/O failure defaults to the safe
 /// case-sensitive answer (`false`), which never collapses distinct paths.
+///
+/// The probe name is pid-unique and opened with `create_new(true)`, so it never
+/// truncates a pre-existing file — if the name somehow already exists, the
+/// probe bails to the safe answer rather than clobbering data.
 #[must_use]
 pub fn probe_case_insensitive(root: &Path) -> bool {
-    let lower = root.join(".anvil-case-probe");
-    let upper = root.join(".ANVIL-CASE-PROBE");
-    if std::fs::write(&lower, b"").is_err() {
+    let pid = std::process::id();
+    let lower = root.join(format!(".anvil-case-probe-{pid}"));
+    let upper = root.join(format!(".ANVIL-CASE-PROBE-{pid}"));
+    if std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lower)
+        .is_err()
+    {
         return false;
     }
     let result = match (PathIdentity::of(&lower), PathIdentity::of(&upper)) {
@@ -307,9 +317,9 @@ mod tests {
         let baseline = PathIdentity::of(&tmp.path().join("a.rs")).unwrap().unwrap();
         table.record("a.rs", baseline);
 
-        // Mutate the file with no watcher event delivered. Sleep a beat so
-        // mtime advances on coarse-resolution clocks; the size change alone is
-        // also enough to register drift.
+        // Mutate the file with no watcher event delivered. The size change
+        // alone registers drift, so no sleep is needed even if the mtime clock
+        // is too coarse to advance within the test.
         std::fs::write(tmp.path().join("a.rs"), b"second-and-longer").unwrap();
 
         let drift = table.stat_on_validate(tmp.path(), &["a.rs"]).unwrap();

@@ -28,8 +28,15 @@
 
 #![forbid(unsafe_code)]
 
+// DSV-003 ingest-spine modules are Unix-only (nix/openat2/std::os::unix) — the
+// daemon's save-time read path is a Linux/macOS concern; Windows named-pipe
+// `validate_paths` is tracked separately as out of scope. Gated so the
+// `x86_64-pc-windows-msvc` build (which lacks the `cfg(unix)` `nix` dep) stays
+// green.
+#[cfg(unix)]
 pub mod assurance;
 pub mod auth;
+#[cfg(unix)]
 pub mod change_class;
 pub mod config;
 pub mod dos;
@@ -42,6 +49,7 @@ pub mod ipc;
 pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
+#[cfg(unix)]
 pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
@@ -51,6 +59,7 @@ pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
+#[cfg(unix)]
 pub mod workspace_admission;
 pub mod workspace_pool;
 
