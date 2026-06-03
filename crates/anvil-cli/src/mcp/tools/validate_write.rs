@@ -1575,6 +1575,88 @@ mod tests {
         assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
     }
 
+    // DSV-007 Task 13: the two named tests for the MCP daemon re-point.
+    //
+    // Reconciliation note (council-confirmed 2026-06-03): the execution-plan
+    // wording "re-point the in-process scan to daemon `validate_paths`" is an
+    // error. `anvil_validate_write` is a *pre-write* gate over *proposed content
+    // not yet on disk*; the daemon `validate_paths` verb has a frozen
+    // content-free wire and certifies the *on-disk* bytes it reads itself
+    // (ADR-061 §2/§7), so routing proposed content through it would attest the
+    // stale on-disk file. The correct daemon verb for buffer content is
+    // `scan_buffer` (preWrite mode) — already wired here via
+    // `LocalDaemonValidationClient`. ADR-061 §3 only says MCP "re-points… to the
+    // daemon" (not `validate_paths`). Consequence for the Task 15 / DSV-009
+    // four-path parity gate: the "MCP+daemon" leg exercises `scan_buffer`, not
+    // `validate_paths` (both route to the same `run_antipattern_check`).
+
+    #[test]
+    fn validate_write_uses_daemon_when_present() {
+        // A reachable daemon serves the verdict (backend=daemon); the MCP tool
+        // does not re-scan in-process.
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Diagnostics(vec![sample_daemon_diagnostic()]),
+        };
+        let payload = parse_payload(&call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+
+        assert_eq!(
+            payload["correlation"]["backend"], "daemon",
+            "a present daemon must serve the verdict, not the embedded scanner",
+        );
+        assert_eq!(payload["correlation"]["daemonStatus"], "available");
+        assert_eq!(
+            payload["diagnostics"][0]["source"]["rule_id"],
+            "secret-detection",
+        );
+    }
+
+    #[test]
+    fn validate_write_in_process_fallback() {
+        // A daemon-absent call falls back to the in-process scanner, still
+        // catching the secret. The byte-identical guarantee against the daemon
+        // envelope is pinned by `daemon_and_embedded_paths_emit_identical_diagnostic_envelopes`
+        // (in-process) and `live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope`
+        // (over a real socket); this test pins the standalone fallback path.
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::Unavailable,
+        };
+        let payload = parse_payload(&call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+
+        assert_eq!(
+            payload["correlation"]["backend"], "embedded",
+            "a daemon-absent call must fall back to the in-process scanner",
+        );
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+        assert_eq!(
+            payload["decision"], "block",
+            "the in-process fallback must still catch the secret",
+        );
+        assert_eq!(
+            payload["diagnostics"][0]["source"]["rule_id"],
+            "secret-detection",
+        );
+    }
+
     // Match `validate_connected_peer_for_client`'s cfg gate: peer-cred is
     // implemented on Linux (SO_PEERCRED) and macOS (getpeereid) only; on
     // BSD/Solaris the helper still returns "not implemented", which would

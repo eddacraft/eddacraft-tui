@@ -94,9 +94,13 @@ impl ValidationBackend {
 /// can carry an explicit signal rather than implying state by absence:
 ///
 /// - `Available`: the daemon answered with structured diagnostics.
-/// - `NotWired`: the daemon client reported `Unavailable` (the current
-///   stub state — no daemon is wired up yet); the embedded validator
-///   served the response.
+/// - `NotWired`: the daemon client reported `Unavailable` — no reachable
+///   daemon answered (absent socket / dead daemon); the embedded validator
+///   served the response. (DSV-007: the daemon `scan_buffer` path IS wired,
+///   so this is "no daemon running", not "feature unimplemented". `validate_write`
+///   stays on `scan_buffer`, not `validate_paths`, because it is a pre-write
+///   gate over proposed content the daemon has not read — see the tool's
+///   reconciliation note.)
 /// - `Unavailable`: the daemon was expected but failed operationally
 ///   (e.g. socket timeout, IPC parse error). No diagnostics were
 ///   produced; the response carries an `error` payload.
@@ -559,11 +563,12 @@ pub fn validate_pre_write(
             diagnostics,
         }),
         DaemonValidationOutcome::Unavailable => {
-            // `Unavailable` is the stub-default path: no daemon is
-            // wired in yet, so we silently demote to embedded. The
-            // response surfaces this via `daemon_status: NotWired`
-            // so the agent can observe the demotion without parsing
-            // backend strings.
+            // `Unavailable` = no reachable daemon answered (absent socket /
+            // dead daemon). We silently demote to the byte-identical embedded
+            // validator; the response surfaces this via `daemon_status: NotWired`
+            // so the agent can observe the demotion without parsing backend
+            // strings. (DSV-007: the daemon `scan_buffer` path is wired — this is
+            // the daemon-absent fallback, not an unimplemented stub.)
             let mut result = embedded_validate_pre_write(request);
             result.daemon_status = DaemonStatus::NotWired;
             Ok(result)
