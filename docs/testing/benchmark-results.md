@@ -1,8 +1,8 @@
 # Benchmark Results
 
-| Type  | Authority | Owner                                                                                                            | Status | Freshness                                                                 |
-| ----- | --------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------- |
-| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)) | Live   | Created 2026-06-03 from `crates/anvil-intercept/benches/ipc_roundtrip.rs` |
+| Type  | Authority | Owner                                                                                                            | Status | Freshness                                                                     |
+| ----- | --------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
+| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)) | Live   | RLB-002/003/004/005 resource-budget run added 2026-06-04 (created 2026-06-03) |
 
 | Upstream                                                                                                             | Downstream                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -99,16 +99,26 @@ recorded dev-box baselines (2026-04-28 unless noted):
 Pass/fail ceilings are pinned in `crates/anvil-bench/src/budget.rs` and
 documented with rationale in
 [`resource-budget.md`](../policies/resource-budget.md); the live verdicts are
-the `resource-budget-verdicts` CI artifact. Summary of the pinned ceilings (not
-a measured run — see the artifact for measurements):
+the `resource-budget-verdicts` CI artifact. CPU is scaled so 100% is one
+fully-saturated core; RSS is peak resident-set MiB.
 
-- **`anvil watch` idle** — steady-state CPU ≤ 5%, peak RSS ≤ 200 MiB.
-- **intercept daemon (RLB-003)** — idle steady-state + burst ceilings (the
-  daemon must not idle hot — GH #2156).
-- **MCP server (RLB-004)** — idle + burst ceilings for
-  `anvil mcp serve --stdio`.
-- **concurrent all-three (RLB-005)** + the multi-agent watch load ramp (RLB-001,
-  `scripts/bench/load-ramp.sh`) — dispatch-only / quiet-box tier.
+### 2026-06-04, dev box (release binary) — every budget `status: pass`
+
+| Process / phase                      | CPU (measured / budget) | RSS (measured / budget) | Status |
+| ------------------------------------ | ----------------------- | ----------------------- | ------ |
+| `anvil watch` — churn path (RLB-002) | 7.0% / 50%              | 16.1 / 300 MiB          | pass   |
+| intercept daemon — idle (RLB-003)    | 0.0% / 5%               | 10.9 / 96 MiB           | pass   |
+| intercept daemon — burst (RLB-003)   | 100.9% / 250%           | 10.9 / 128 MiB          | pass   |
+| MCP server (RLB-004)                 | 83.5% / 200%            | 9.7 / 96 MiB            | pass   |
+| concurrent all-three (RLB-005)       | 189.6% / 800%           | 35.5 / 700 MiB          | pass   |
+
+Every process sits far inside its ceiling — RSS is single-digit-to-low-tens of
+MiB against 96–700 MiB budgets, and the intercept daemon idles at **0% CPU /
+10.9 MiB** (the "must not idle hot" guard from GH #2156 holds). Burst CPU caps
+at ~one core (intercept) / ~83% (MCP); the three-process aggregate peaks at ~1.9
+cores against the 8-core (800%) ceiling. The multi-agent watch load ramp
+(RLB-001, `scripts/bench/load-ramp.sh`) is a separate dispatch-only / quiet-box
+harness, not run here.
 
 ## Run index
 
