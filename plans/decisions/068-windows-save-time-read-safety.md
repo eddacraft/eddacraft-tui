@@ -48,7 +48,7 @@ closes.
 This ADR decides **how the Windows read path reproduces the §7 guarantees**, and
 where it lives. It is *only* about read-safety; the Windows peer-SID
 authorisation check (`GetNamedPipeClientProcessId → OpenProcessToken →
-TokenUser` SID compare, the SO_PEERCRED analog — ADR-061 §7) is a separate
+TokenUser` SID compare, the SO_PEERCRED analogue — ADR-061 §7) is a separate
 DSV-010 prerequisite, not this decision.
 
 ## Decision
@@ -61,18 +61,18 @@ crate on Windows).
 
 The Windows guard is **`NtCreateFile` anchored at a held workspace directory
 handle, with `OBJ_DONT_REPARSE`**, with a per-component `FILE_OPEN_REPARSE_POINT`
-ladder fallback — the direct analog of `openat2 + O_PATH dirfd + O_NOFOLLOW
+ladder fallback — the direct analogue of `openat2 + O_PATH dirfd + O_NOFOLLOW
 ladder`:
 
 - **Anchor / identity (C2):** open the workspace root once at admission as a
   directory handle; pass it as `OBJECT_ATTRIBUTES.RootDirectory` for every
   per-path open. The held handle pins the directory object, so a post-admission
-  retarget cannot redirect reads — the Windows analog of the held `O_PATH` dirfd.
-- **No reparse traversal (symlink + junction; `RESOLVE_NO_SYMLINKS` analog):**
+  retarget cannot redirect reads — the Windows analogue of the held `O_PATH` dirfd.
+- **No reparse traversal (symlink + junction; `RESOLVE_NO_SYMLINKS` analogue):**
   set **`OBJ_DONT_REPARSE`**, which fails the open if *any* component is a reparse
   point. This is the production-proven mechanism Go adopted for `os.Root`
   (golang/go#73080).
-- **Beneath-root (`RESOLVE_BENEATH` analog):** resolve relative to the
+- **Beneath-root (`RESOLVE_BENEATH` analogue):** resolve relative to the
   `RootDirectory` handle (resolution starts at the root) and reject escapes
   structurally before any open (see the hardened normaliser below).
 - **Fallback ladder:** where the whole-path `OBJ_DONT_REPARSE` open cannot be
