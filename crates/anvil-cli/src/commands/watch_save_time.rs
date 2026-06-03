@@ -734,9 +734,14 @@ mod tests {
     /// `validate_paths` request, reads the reply, and maps a daemon that does
     /// not serve save-time (a `NoopDispatcher` listener answers `-32601`) to
     /// `Unavailable` — i.e. the real wire degrades to the scoped fallback rather
-    /// than panicking or hanging. Linux-gated to match the IPC fixture tests in
-    /// `mcp::validation`.
-    #[cfg(target_os = "linux")]
+    /// than panicking or hanging. Runs on Linux **and macOS** — macOS is a
+    /// short-term-supported save-time target and the `cfg(unix)` transport runs
+    /// there, so the round-trip is exercised on both (matching the MCP parity
+    /// test `live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope`,
+    /// which is `any(linux, macos)`). This is a round-trip parity check, not a
+    /// timing assertion, so it does not inherit the Darwin `UnixStream`-timeout
+    /// caveat that keeps `mcp::validation`'s *timing* tests Linux-only.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn socket_transport_maps_unserved_daemon_to_unavailable() {
         use std::os::unix::fs::PermissionsExt;
