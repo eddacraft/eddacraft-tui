@@ -8,13 +8,11 @@ import process from 'node:process';
 // modules and are therefore excluded from canonical `aps lint`. Keep this list
 // tiny and justified — each entry is a different document *type*, not a module
 // that merely needs migrating.
-const NON_CANONICAL_MODULES = new Set([
-  // Release-findings tracker (release-council pass output), not a feature
-  // module: its CLAWP-NNN entries are bug findings with Severity/Resolution,
-  // not Intent/Outcome/Validation work items. Retire/archive once the
-  // v0.7.0-beta findings are closed out (CIB-036).
-  'plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md',
-]);
+//
+// Currently empty: the v0.7.0-beta clawpatch release-findings tracker that
+// previously lived here was archived to plans/archive/modules/ (CIB-039), which
+// removes it from the active walk scope, so its carve-out is no longer needed.
+const NON_CANONICAL_MODULES = new Set();
 
 const args = process.argv.slice(2);
 

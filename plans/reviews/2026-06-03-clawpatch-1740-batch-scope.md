@@ -1,7 +1,7 @@
 # Clawpatch #1740 test-hardening batch — scope (2026-06-03)
 
 **Purpose:** execution scope for burning down the remaining open
-[`clawpatch-pre-tag-v0.7.0-beta`](../modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
+[`clawpatch-pre-tag-v0.7.0-beta`](../archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
 findings that sit in the low-severity test-hygiene batch tracker
 ([#1740](https://github.com/eddacraft/anvil-001/issues/1740)). Produced by a
 2026-06-03 verify sweep of every remaining Draft finding against `origin/main`.
@@ -123,7 +123,7 @@ Sizing: **T** = trivial (add/​tighten an assertion, < ~15 lines), **S** = smal
 
 ## Source of truth
 
-- Tracker module: [`plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
+- Tracker module: [`plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
 - Original audit export: [`plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`](../audits/2026-05-19-clawpatch-v0.7.0-beta.json)
 - Batch tracker issue (23 items): [#1740](https://github.com/eddacraft/anvil-001/issues/1740)
 - CLAWP-037 individual issue: [#1643](https://github.com/eddacraft/anvil-001/issues/1643)

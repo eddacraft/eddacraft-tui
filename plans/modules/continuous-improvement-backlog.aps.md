@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 28/46    |
+| CIB | —     | In Progress | 29/46    |
 
 ## Purpose
 
@@ -874,11 +874,17 @@ archive.
 
 ### CIB-039: Archive clawpatch-pre-tag-v0.7.0-beta once its findings are closed out
 
-- **Status:** Ready
-- **Readiness (2026-06-03):** unblocked — every CLAWP-NNN finding is now
-  terminal (53 Merged, 11 Ship, 1 Deferred-tracked) after the #1740
-  test-hardening batch (PRs #2261 / #2265 / #2267, reconcile #2268) and the
-  CIB-039 disposition pass. The archival cascade below can now proceed.
+- **Status:** Merged 2026-06-03 via this PR
+- **Resolution (2026-06-03):** all CLAWP-NNN findings were dispositioned to
+  terminal (53 Merged, 11 Ship, 1 Deferred-tracked) by the #1740 test-hardening
+  batch (PRs #2261 / #2265 / #2267, reconcile #2268) and the disposition pass
+  (#2274). The tracker was then archived: `git mv`-d to
+  `plans/archive/modules/`, the `clawpatch` entry removed from
+  `NON_CANONICAL_MODULES` in `scripts/aps/active-lint.mjs` (the archived file
+  falls out of the active walk scope, so the carve-out is no longer needed), the
+  index row repointed to the archive path, and inbound links updated.
+  `pnpm aps:active-lint` stays green without the exclusion. Release-tag inclusion
+  is moot — this is a planning-history doc, not shipped code.
 - **Intent:** Retire the v0.7.0-beta pre-tag release-findings tracker once its
   findings are closed, and drop the canonical-lint carve-out added for it.
 - **Expected Outcome:** `plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md` is
