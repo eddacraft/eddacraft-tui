@@ -57,6 +57,13 @@ assert_contains "${ci_workflow}" "Skip (filler) when no unit tests required on P
 assert_contains "${ci_workflow}" "Skip (filler) when no .md changes on PR"
 # And that the filler steps are inside the primary job defs (not as top level *-skip).
 # (The old twin job ids are gone; the echo strings live under the real job names.)
+# Verify the filler steps themselves are gated to pull_request only (per CIB-038 design).
+for filler in 'Skip (filler) when no lint/format required on PR' 'Skip (filler) when no typecheck required on PR' 'Skip (filler) when no unit tests required on PR' 'Skip (filler) when no .md changes on PR'; do
+  if ! grep -A 10 -F "name: $filler" "${ci_workflow}" | grep -q "github.event_name == 'pull_request'"; then
+    echo "expected filler step \"$filler\" in ${ci_workflow} to gate on github.event_name == 'pull_request'" >&2
+    exit 1
+  fi
+done
 
 # ── PR-only dependency audit ────────────────────────────────────
 # ci.yml hosts the PR-summary Trivy job ("Dependency Audit (PR)"). The

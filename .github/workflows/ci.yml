@@ -78,12 +78,17 @@ jobs:
       'ubuntu-latest' }}
     needs: detect-changes
     if: |
-      always() && needs.detect-changes.result == 'success' && (
+      always() && (
+        needs.detect-changes.result != 'success' ||
         needs.detect-changes.outputs.markdownlint-required == 'true' ||
         github.event_name == 'pull_request'
       )
 
     steps:
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       # Internal PR-only filler so that "Docs Lint" (a required check name) always
       # has exactly one conclusion per run. When no .md changes, this job still
       # runs (to own the name) but short-circuits with success; heavy steps are
@@ -100,39 +105,57 @@ jobs:
           echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
 
       - name: Checkout repository
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup workspace
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run lint:md
 
       - name: Run format check
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run format:check
 
       - name: Build docs-meta package for docs:check
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
 
       - name: Run docs:check (DOCGOV-005)
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
 
       - name: Check APS index counts (CIB-022)
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run aps:index:check
 
       - name: Run docs-check fixture tests
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run test:docs-check
 
       - name: Run active-lint self-test
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run test:aps-active-lint
 
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
@@ -142,7 +165,9 @@ jobs:
       # adopting new canonical `aps` semantics, per the APS adoption-boundary
       # spec (plans/specs/2026-05-25-aps-cli-adoption-boundary.md).
       - name: Check out canonical aps CLI
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: EddaCraft/anvil-plan-spec
@@ -151,7 +176,9 @@ jobs:
           path: .aps-cli
 
       - name: Canonical APS lint (CIB-036)
-        if: needs.detect-changes.outputs.markdownlint-required == 'true'
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
         run: APS_CANONICAL_BIN="$GITHUB_WORKSPACE/.aps-cli/bin/aps" pnpm run aps:active-lint
 
   metadata-validation:
