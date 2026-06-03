@@ -34,6 +34,7 @@
 // `x86_64-pc-windows-msvc` build (which lacks the `cfg(unix)` `nix` dep) stays
 // green.
 #[cfg(unix)]
+pub mod antipattern_config;
 pub mod assurance;
 pub mod auth;
 #[cfg(unix)]
@@ -1086,15 +1087,15 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     workspace_pool::PoolBudget::from_host()
                 )
             })?;
-            // The antipattern family runs on the daemon's built-in pattern set.
-            // There is no operator override surface for it yet (unlike the
-            // confinement policy, which loads from anvil-home); the default IS
-            // the configured set, not a silent degrade-from-error. An operator
-            // antipattern-config load path is future work (it must propagate
-            // `Result::Err`, never fold a load failure into the default).
+            // The antipattern family runs the operator-configured pattern set
+            // (DSV-011), loaded owner-only from `antipattern.yaml` beside the
+            // confinement config. Fail-safe + loud: a missing config ⇒ the full
+            // default set; an untrusted/malformed config ⇒ the full default set
+            // with an `error` log — a broken config never silently disables
+            // save-time checks, and never silently degrades.
             let mut state = save_time::SaveTimeState::new(
                 scheduler,
-                anvil_checks::antipattern::types::AntipatternCheckConfig::default(),
+                antipattern_config::load_or_fail_safe(),
                 confinement::load_or_fail_closed(),
             );
             // DSV-005: inject the dependency-inverted kernel parser if anvil-cli

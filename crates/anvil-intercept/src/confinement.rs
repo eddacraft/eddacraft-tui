@@ -365,27 +365,49 @@ impl Confinement {
 /// Precedence mirrors [`crate::ipc::resolve_socket_dir`]: a non-empty
 /// `ANVIL_HOME` prefix re-roots the file directly under the prefix; otherwise
 /// `$XDG_CONFIG_HOME/anvil`; otherwise `$HOME/.config/anvil`.
-fn config_path_from(
+fn config_dir_from(
     anvil_home: Option<PathBuf>,
     xdg_config_home: Option<PathBuf>,
     home: Option<PathBuf>,
 ) -> Result<PathBuf, ConfinementError> {
     if let Some(prefix) = anvil_home {
-        return Ok(prefix.join(CONFIG_FILE_NAME));
+        return Ok(prefix);
     }
     if let Some(dir) = xdg_config_home {
-        return Ok(dir.join("anvil").join(CONFIG_FILE_NAME));
+        return Ok(dir.join("anvil"));
     }
     if let Some(home) = home {
-        return Ok(home.join(".config").join("anvil").join(CONFIG_FILE_NAME));
+        return Ok(home.join(".config").join("anvil"));
     }
     Err(ConfinementError::NoConfigDir)
+}
+
+fn config_path_from(
+    anvil_home: Option<PathBuf>,
+    xdg_config_home: Option<PathBuf>,
+    home: Option<PathBuf>,
+) -> Result<PathBuf, ConfinementError> {
+    Ok(config_dir_from(anvil_home, xdg_config_home, home)?.join(CONFIG_FILE_NAME))
 }
 
 /// The operator confinement config path for the current user. Resolved via the
 /// daemon's own [`crate::anvil_home_prefix`] (item 8 — no `anvil-cli` path).
 pub fn config_path() -> Result<PathBuf, ConfinementError> {
     config_path_from(
+        crate::anvil_home_prefix(),
+        non_empty_env("XDG_CONFIG_HOME"),
+        non_empty_env("HOME").or_else(|| non_empty_env("USERPROFILE")),
+    )
+}
+
+/// The anvil operator config **directory** (no filename) for the current user,
+/// resolved with the same `ANVIL_HOME`/XDG/HOME precedence as [`config_path`].
+/// Shared with other daemon-owned operator configs that live beside the
+/// confinement file — e.g. the save-time antipattern config
+/// ([`crate::antipattern_config`]) — so every operator surface resolves its
+/// directory through one daemon-owned resolver, never an `anvil-cli` path.
+pub(crate) fn anvil_config_dir() -> Result<PathBuf, ConfinementError> {
+    config_dir_from(
         crate::anvil_home_prefix(),
         non_empty_env("XDG_CONFIG_HOME"),
         non_empty_env("HOME").or_else(|| non_empty_env("USERPROFILE")),
@@ -432,8 +454,14 @@ fn owner_only_violation(meta: &std::fs::Metadata) -> Option<(u32, u32, u32)> {
 /// `SO_PEERCRED` same-uid floor for it (only the same uid can rewrite their own
 /// `~/.config` / `ANVIL_HOME`). That is in-model — confinement tightens *within*
 /// the same-uid boundary, it does not claim a cross-uid one.
+///
+/// `pub(crate)` so other daemon-owned operator configs that live beside the
+/// confinement file (e.g. [`crate::antipattern_config`]) reuse this one audited
+/// owner-only reader rather than re-implementing the TOCTOU-safe open. Those
+/// callers map [`ConfinementError`] into their own error at the boundary, so
+/// the confinement-flavoured Display strings never surface for them.
 #[cfg(unix)]
-fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
+pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
     use std::io::Read;
     use std::os::unix::fs::OpenOptionsExt;
 
@@ -478,7 +506,7 @@ fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
 }
 
 #[cfg(not(unix))]
-fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
+pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
     match std::fs::read_to_string(path) {
         Ok(raw) => Ok(Some(raw)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
