@@ -485,13 +485,16 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   (today `#![cfg(unix)]`) and its read path are lifted to a cross-platform boundary;
   same-user peer authorisation via the named-pipe ACL / `pipe_name_for_current_user`
   (the SO_PEERCRED equivalent); the frozen wire and verdict semantics are unchanged.
-- **Open design risk (resolve before Ready):** the verdict's read-safety guard
-  (`path_safety.rs` — an `openat2` + `RESOLVE_BENEATH` held dirfd) has **no Windows
-  analogue**. A Windows guarded read that preserves the "daemon reads the exact bytes
-  it certifies, no symlink/junction escape, no TOCTOU" contract (B2 / security C2/C3)
-  needs a design decision — likely an ADR (`NtCreateFile` with reparse-point controls
-  / handle-based reads, or a documented weaker guarantee). This is the gating unknown;
-  the rest is mechanical parity.
+- **Read-safety design (was the gating unknown — now drafted as
+  [ADR-068](../decisions/068-windows-save-time-read-safety.md), Proposed):** the
+  verdict's Unix guard (`path_safety.rs` — `openat2(RESOLVE_NO_SYMLINKS |
+  RESOLVE_BENEATH)` against a held `O_PATH` dirfd) has no Windows analogue. ADR-068
+  mirrors it with `NtCreateFile` anchored at a held workspace directory handle +
+  `OBJ_DONT_REPARSE` (per-component `FILE_OPEN_REPARSE_POINT` ladder fallback),
+  preserving C2 (held-handle identity), no-reparse traversal (symlinks + junctions),
+  beneath-root, and B2 (read-then-certify; refuse oversized, never truncate), in
+  `anvil-intercept-win32` so the daemon stays `forbid(unsafe_code)`. **DSV-010 goes
+  Ready when ADR-068 is Accepted.**
 - **Validation:** a Windows IPC fixture round-trip (mirroring the MLP2-075 `windows_*`
   tests) proving the three verbs answer over the named pipe — the *test* binds a
   per-PID pipe name so it never collides with a real per-user daemon on the same
@@ -501,7 +504,7 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   `crates/anvil-intercept-win32/`.
 - **Confidence:** low — gated on the read-safety design decision above.
 - **Priority:** High (short-term-supported target).
-- **Dependencies:** DSV-005; an accepted Windows read-safety ADR.
+- **Dependencies:** DSV-005; [ADR-068](../decisions/068-windows-save-time-read-safety.md) Accepted (Windows read-safety).
 - **Source:** DSV-007 follow-up (macOS + Windows are short-term save-time targets);
   ADR-015; brainstorms `2026-05-01-hearth-rearchitecture.md` /
   `2026-05-07-daemon-sessions-surfaces-boundaries.md`.
