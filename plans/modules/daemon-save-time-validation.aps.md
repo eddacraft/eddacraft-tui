@@ -527,6 +527,194 @@ read-safety design risk that likely needs an ADR before it goes Ready.
 
 ---
 
+### Sub-phase A — deferred follow-ups (post-merge debt)
+
+The DSV-005/006/007 capstone PRs each merged with a small set of follow-ups
+explicitly deferred to keep the verdict path focused. These items track that
+debt as first-class work rather than buried `Deferred:` notes. None re-opens a
+Merged item; each is an additive improvement under the frozen wire.
+
+#### DSV-040: Registry unregister-hook warm-state reclamation
+
+- **Status:** Merged 2026-06-04 via PR #2296
+- **Intent:** Reclaim a worktree's warm `SaveTimeState` (graph cache + assurance
+  machine) when its last session leaves the registry, so an unregister/evict
+  does not leave warm state resident until LRU pressure or process exit.
+- **Expected Outcome:** `SessionRegistry::set_unregister_hook` installs the hook
+  post-construction (the warm cache is built after the registry in
+  `run_foreground`); the daemon's single composed closure calls
+  `SaveTimeState::invalidate` keyed on the canonical worktree path (matching the
+  key `validate_paths` warms under); `RuleSetCache::invalidate` joins the same
+  closure when MLP2-014 lands. Memory-promptness, not a correctness fix (the
+  cache is already LRU + generation-guarded).
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib -- set_unregister_hook invalidate_reclaims`;
+  `cargo test -p eddacraft-anvil-intercept --test daemon_config_wired -- run_foreground_reclaims_warm_state_on_unregister`
+  (a negative check confirms the socket test reads `pending` — fails — when the
+  hook body is neutered).
+- **Files:** `crates/anvil-intercept/src/{registry,save_time,lib}.rs`,
+  `crates/anvil-intercept/tests/daemon_config_wired.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** DSV-005
+- **Source:** DSV-005 deferred note ("registry unregister-hook wiring for
+  warm-state reclamation"); MLP2-057.
+
+---
+
+#### DSV-041: Operator antipattern-config surface
+
+- **Status:** Merged 2026-06-04 via PR #2296
+- **Progress (2026-06-04):** delivered — `crates/anvil-intercept/src/antipattern_config.rs`
+  loads an owner-only `antipattern.yaml` (a local `deny_unknown_fields` file
+  struct overlays the named fields onto `AntipatternCheckConfig::default`),
+  reusing confinement's one audited `read_trusted` owner-only/`O_NOFOLLOW`
+  reader (exposed `pub(crate)`) and the shared `anvil_config_dir` resolver — no
+  duplicated security code, errors mapped to a neutral
+  `AntipatternConfigError` at the boundary. `run_foreground` now calls
+  `antipattern_config::load_or_fail_safe()` in place of the hardcoded default.
+  Fail-safe posture: missing ⇒ full default set; untrusted/malformed ⇒ full
+  default set + `error` log (a broken config never silently disables checks, the
+  opposite-and-safe direction from confinement's fail-*closed*). 6 unit tests
+  (missing/partial-overlay/unknown-key/group-writable/symlink/no-dir). Wiring is
+  a single visible consumption beside the trusted `confinement::load_or_fail_closed()`
+  (loaders are value-consumption, not the inert-builder #1671 class the
+  `daemon_config_wired` socket tests guard). **Deferred:** an `anvil antipattern`
+  CLI + an operator docs page (a behavioural end-to-end test needs an `ANVIL_HOME`
+  test seam to avoid env races).
+- **Intent:** Give operators a config surface to select/tune the save-time
+  antipattern check set, instead of the hardcoded `AntipatternCheckConfig::default()`
+  the daemon constructs at startup.
+- **Expected Outcome:** A loader mirroring `confinement::load_or_fail_closed`
+  (ANVIL_HOME/XDG, owner-only, `deny_unknown_fields`): missing file ⇒ default
+  (permissive, the configured set); malformed/untrusted ⇒ fail-closed + loud,
+  never a silent degrade-to-default; the loader propagates `Result::Err`.
+  `run_foreground` calls it in place of the hardcoded default. Never read from a
+  repo `.anvil.yaml`.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept antipattern_config`;
+  a `daemon_config_wired`-style test proving a configured pattern set reaches the
+  save-time verdict.
+- **Files:** `crates/anvil-intercept/src/antipattern_config.rs` (new),
+  `crates/anvil-intercept/src/lib.rs`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** DSV-005, DSV-008 (confinement loader is the pattern)
+- **Source:** DSV-005 deferred note ("operator antipattern-config surface").
+
+---
+
+#### DSV-042: Interactive-pool offload of the synchronous parse
+
+- **Status:** Merged 2026-06-04 via PR #2296
+- **Progress (2026-06-04):** delivered — the `fed_symbols` parse closure in
+  `save_time.rs` now runs `p.parse(..)` via `state.scheduler.interactive().install(..)`
+  instead of inline on the IPC connection thread, so the verdict's CPU work
+  (parse + the antipattern scan, already on `env.pool`) is bounded by the one
+  interactive pool and N concurrent agents cannot oversubscribe cores. The pure
+  `validate_paths` core is unchanged. Correctness-neutral: the parser is handed
+  the SAME guarded bytes (no second read, B2 preserved) and the
+  `parser_receives_the_exact_guarded_bytes` + `validate_certifies_when_parser_feeds_matching_surface`
+  tests stay green — the verdict is byte-identical, just computed on a pool
+  thread. **Perf is CI-gated, not locally measured:** the `resource-budgets`
+  warm-p95 gate (DSV-006) is the authority; this loaded dev box cannot produce a
+  clean absolute p95 (it sits ~3 orders under the 80 ms budget regardless).
+- **Intent:** Move the synchronous symbol parse off the IPC dispatch thread onto
+  the interactive rayon pool so a large-file parse cannot block the dispatch
+  thread for the duration of a tree-sitter parse.
+- **Expected Outcome:** The `fed_symbols` parse runs via the interactive
+  `WorkScheduler` pool (`pool.install`) rather than inline; verdict determinism
+  and the guarded-bytes contract (parse the EXACT bytes the daemon hashed, no
+  second read) are preserved; tree-sitter `Parser` `!Sync` is respected (built
+  per call). The `4 agents + 1 scan` warm p95 stays under the ADR-031 80 ms
+  budget on the `resource-budgets` CI gate.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept -- save_time validate_paths`;
+  `cargo bench -p eddacraft-anvil-intercept ipc_roundtrip` (quiet box; CI gate is authority).
+- **Files:** `crates/anvil-intercept/src/{validate_paths,save_time}.rs`
+- **Confidence:** medium
+- **Priority:** Low
+- **Dependencies:** DSV-005, DSV-006
+- **Source:** DSV-005/006 deferred note ("interactive-pool offload of the
+  synchronous parse"); ADR-067 ("later optimisation").
+
+---
+
+#### DSV-043: `validation.roundtrip` transport bench for `validate_paths`
+
+- **Status:** Merged 2026-06-04 via PR #2296
+- **Progress (2026-06-04):** delivered — `benches/ipc_roundtrip.rs` gains
+  `roundtrip_validate_paths()`, a report-only transport case that drives a warm
+  `validate_paths` over the daemon socket (a listener with `with_save_time_state`
+  + bench parser, one persistent connection so admission is paid once). It
+  reports `validation.roundtrip:validate_paths` beside the in-process
+  `validation.service:validate_paths` gate, so transport overhead = roundtrip
+  p95 − service p95 is visible (locally ~0.066 ms vs ~0.040 ms ⇒ ~0.026 ms of
+  socket framing/serialise). Report-only by design (the SLO gate stays the
+  in-process service case; transport latency on a loaded box is noisy and not
+  what ADR-031 governs). Verified locally: the verdict round-trips and the
+  `workspace_assurance` envelope assertion passes all 200 samples; the SLO gate
+  still PASSes. The earlier `validation.roundtrip` (session.list) case stays as
+  the generic transport baseline.
+- **Intent:** Add the documented-deferred transport-level bench that drives a
+  real client through the daemon socket against `validate_paths` (the existing
+  `validation.roundtrip` case only drives `session.list`; `midedit_roundtrip`
+  only drives `scan_buffer`).
+- **Expected Outcome:** A bench case that opens a daemon socket connection and
+  measures a warm `validate_paths` round-trip (write + dispatch + serialise +
+  read), reported alongside the in-process `validation.service` case so the
+  transport overhead is visible. Local run is constrained by daemon/socket setup
+  on a loaded box; the CI `resource-budgets` runner is the authority.
+- **Validation:** `cargo bench -p eddacraft-anvil-intercept ipc_roundtrip`
+  (quiet box / CI).
+- **Files:** `crates/anvil-intercept/benches/ipc_roundtrip.rs`
+- **Confidence:** medium
+- **Priority:** Low
+- **Dependencies:** DSV-005, DSV-007
+- **Source:** DSV-006 deferred note ("transport (`validation.roundtrip`) harness
+  … lands with those clients in DSV-007"); confirmed NOT landed in #2284.
+
+---
+
+#### DSV-044: Emit assurance/fence transitions through the production fanout (Phase E)
+
+- **Status:** Blocked
+- **Blocked reason (grounded 2026-06-04):** the subscriber surface this depends
+  on is owned by [MLP2-071](multilayer-protection-v2.aps.md) **Phase 2**, which
+  is itself deferred: "no in-tree producer broadcasts notification envelopes to
+  network subscribers today … the IPC accept-loop multiplex that routes the
+  `SubscribeTelemetry` frame through to `Fanout::register` and the producer site
+  that calls `Fanout::route` are deferred until the production
+  `NotificationEnvelope` broadcaster feature lands" (tracking at #1722; wave-1
+  doc at `crates/anvil-intercept/src/fanout.rs:73-99`). DSV's only slice — the
+  assurance-transition emission call sites — **cannot** land before that reader
+  exists: an emit with no `Fanout::route` reader is dead code, and an emit that
+  bypasses `Fanout::route` is a cross-session telemetry scoping-leak bug (the
+  whole point of INTD-015 redaction). Not started; gated on MLP2-071 Phase 2.
+- **Intent:** Route the DSV-built assurance- (and fence-) transition notification
+  envelopes through the production `Fanout::route` so subscribers actually
+  receive them, instead of the envelopes being constructed only on the tracing
+  mirror / in tests.
+- **Expected Outcome:** When an assurance transition occurs, the production code
+  path builds the envelope (`telemetry::envelope_for_assurance_transition`) and
+  routes it through `Fanout::route` to authorised subscribers. **Cross-module:**
+  the subscribe-handler (`IpcCommand::SubscribeTelemetry` per-connection JSON-RPC
+  handler → `Fanout::register`) and the producer broadcaster are
+  [MLP2-071](multilayer-protection-v2.aps.md) Phase 2 / Phase E, *not* DSV; DSV
+  owns only the assurance-transition emission call sites. Security-sensitive
+  (per-session telemetry scoping + cross-session redaction) — warrants its own
+  design/Council pass coordinated with the MLP2-071 owner; do not land the
+  emission sites before the MLP2-071 fanout reader exists (an emit with no reader
+  is dead code; an emit that bypasses `Fanout::route` is a scoping-leak bug).
+- **Validation:** the MLP2-071 Phase E subscribe/broadcast tests plus a DSV
+  assurance-transition-emits-through-fanout test.
+- **Files:** `crates/anvil-intercept/src/{save_time,telemetry,fence}.rs` (DSV
+  slice); `crates/anvil-intercept/src/{ipc,lib}.rs` (MLP2-071 slice)
+- **Confidence:** low
+- **Priority:** Low
+- **Dependencies:** MLP2-071 Phase E (subscribe handler + broadcaster); DSV-005
+- **Source:** DSV-005 deferred note ("`Fanout::route` subscriber delivery (Phase
+  E)"); MLP2-071 Phase 2.
+
+---
+
 ### Sub-phase A′ — GV2 hot-read swap
 
 #### DSV-020: Swap the GV2 hot-read slice under the frozen wire
@@ -588,6 +776,8 @@ read-safety design risk that likely needs an ADR before it goes Ready.
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
+| A-W — Windows + cross-platform parity | 2 | 0/2 done | Proposed |
+| A — deferred follow-ups | 5 | 4/5 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **9/11 done** | **In Progress** |
+| **Total** | **18** | **13/18 done** | **In Progress** |
