@@ -20,7 +20,8 @@
 //! alongside the 16-writer sanity test.
 
 use anvil_witness::{GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter};
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::{Arc, Barrier};
 use tempfile::TempDir;
 
 fn line_for_thread(seq: u64, prev: &str, thread_id: usize) -> WitnessLine {
@@ -53,16 +54,24 @@ fn run_concurrent(n_writers: usize) {
     );
     let prev = GenesisAnchor::Fresh.anchor_string().to_string();
 
+    // CLAWP-047: force simultaneous append contention. Without the
+    // barrier, threads could be scheduled to run sequentially and the
+    // serialisation lock would never actually be contended, so the test
+    // could pass without exercising concurrent appends. All writers
+    // build their line first, then release together on the barrier.
+    let barrier = Arc::new(Barrier::new(n_writers));
     let mut handles = Vec::with_capacity(n_writers);
     for thread_id in 0..n_writers {
         let writer = writer.clone();
         let prev = prev.clone();
+        let barrier = barrier.clone();
         handles.push(std::thread::spawn(move || {
             // Each writer uses the same prev hash (the GENESIS
             // anchor) because we're testing serialisation under
             // load, not chain semantics — see the module doc.
             // Real callers chain from the running tip.
             let line = line_for_thread(thread_id as u64 + 1, &prev, thread_id);
+            barrier.wait();
             writer.append(&line).unwrap();
         }));
     }
@@ -70,19 +79,35 @@ fn run_concurrent(n_writers: usize) {
         h.join().unwrap();
     }
 
-    // Every line should parse without interleaving.
+    // CLAWP-046: assert every writer's record survived exactly once, not
+    // just that the line *count* matches. Collect each line's commit_sha
+    // and require the on-disk set to equal the expected per-thread set
+    // (`t{thread_id}-{seq}`) — a lost write masked by a duplicate, or a
+    // corrupted identity, would keep the count at N but fail this.
     let on_disk = std::fs::read_to_string(writer.active_path()).unwrap();
+    let mut seen: HashSet<String> = HashSet::new();
     let mut parsed = 0;
     for raw in on_disk.lines() {
         if raw.is_empty() {
             continue;
         }
-        let _: WitnessLine = serde_json::from_str(raw).expect("interleaved bytes in chain");
+        let line: WitnessLine = serde_json::from_str(raw).expect("interleaved bytes in chain");
+        seen.insert(
+            line.commit_sha
+                .expect("each witness line carries a commit_sha"),
+        );
         parsed += 1;
     }
     assert_eq!(
         parsed, n_writers,
         "expected {n_writers} clean lines on disk, got {parsed}"
+    );
+    let expected: HashSet<String> = (0..n_writers)
+        .map(|thread_id| format!("t{thread_id}-{}", thread_id + 1))
+        .collect();
+    assert_eq!(
+        seen, expected,
+        "every writer's record must survive exactly once (no lost or duplicated appends)"
     );
 }
 

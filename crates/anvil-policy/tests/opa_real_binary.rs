@@ -246,7 +246,11 @@ fn coverage_min_passes_at_threshold() {
     };
 
     let mut input = base_input();
-    input["context"]["coverage"] = json!({"lines": 95});
+    // CLAWP-050: test the EXACT threshold boundary. The rego fires on
+    // `coverage < min_coverage` (default 80), so 80 is the first value
+    // that must PASS — `95` left the `== threshold` edge untested while
+    // `coverage_min_flags_below_threshold` covers the failing side at 50.
+    input["context"]["coverage"] = json!({"lines": 80});
 
     let result = executor.evaluate(&policies, &input).expect("evaluate ok");
 
@@ -257,7 +261,7 @@ fn coverage_min_passes_at_threshold() {
         .collect();
     assert!(
         cov.is_empty(),
-        "high coverage should produce no coverage_min violations, got {cov:?}"
+        "coverage exactly at the threshold (80) must not violate coverage_min, got {cov:?}"
     );
 }
 

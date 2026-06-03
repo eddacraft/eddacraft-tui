@@ -158,7 +158,12 @@ fn full_event_with_nested_types_round_trips() {
 
 #[test]
 fn graph_types_round_trip_together() {
-    let node = SymbolNode {
+    // CLAWP-061: round-trip BOTH endpoints' nodes alongside the edge and
+    // assert the edge references a present node on each end. The prior
+    // test created only the `from` node (id 10) and checked `edge.from`,
+    // so the `to` endpoint (id 20) was a dangling reference that
+    // round-tripped undetected.
+    let source = SymbolNode {
         id: 10,
         kind: SymbolKind::Export,
         name: "default".into(),
@@ -166,22 +171,44 @@ fn graph_types_round_trip_together() {
         file: "index.ts".into(),
         trust_level: TrustLevel::Boundary,
     };
-
+    let target = SymbolNode {
+        id: 20,
+        kind: SymbolKind::Module,
+        name: "dep".into(),
+        visibility: Visibility::Internal,
+        file: "src/dep.ts".into(),
+        trust_level: TrustLevel::Internal,
+    };
     let edge = SymbolEdge {
-        from: 10,
-        to: 20,
+        from: source.id,
+        to: target.id,
         edge_type: EdgeType::Imports,
     };
 
-    let node_json = serde_json::to_string(&node).unwrap();
-    let edge_json = serde_json::to_string(&edge).unwrap();
+    let source_back: SymbolNode =
+        serde_json::from_str(&serde_json::to_string(&source).unwrap()).unwrap();
+    let target_back: SymbolNode =
+        serde_json::from_str(&serde_json::to_string(&target).unwrap()).unwrap();
+    let edge_back: SymbolEdge =
+        serde_json::from_str(&serde_json::to_string(&edge).unwrap()).unwrap();
 
-    let node_back: SymbolNode = serde_json::from_str(&node_json).unwrap();
-    let edge_back: SymbolEdge = serde_json::from_str(&edge_json).unwrap();
-
-    // The edge should reference the node's id
-    assert_eq!(edge_back.from, node_back.id);
-    assert_eq!(node_back.trust_level, TrustLevel::Boundary);
+    // Pin each endpoint to its specific node (stronger than mere
+    // set-membership, which a swapped from/to would also satisfy), and
+    // require the two endpoints to be distinct — no dangling or
+    // self-referential edge.
+    assert_eq!(
+        edge_back.from, source_back.id,
+        "edge source must reference the source node"
+    );
+    assert_eq!(
+        edge_back.to, target_back.id,
+        "edge target must reference the target node (no dangling endpoint)"
+    );
+    assert_ne!(
+        edge_back.from, edge_back.to,
+        "edge must connect two distinct nodes"
+    );
+    assert_eq!(source_back.trust_level, TrustLevel::Boundary);
 }
 
 // -- All trust levels can be assigned to nodes --
@@ -228,5 +255,90 @@ fn both_engines_produce_valid_events() {
         let json = serde_json::to_string(&event).unwrap();
         let back: EngineEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(back.engine, engine);
+    }
+}
+
+// -- EventType binds to its matching payload variant --
+
+#[test]
+fn event_type_pairs_with_its_payload_variant() {
+    // CLAWP-062: pin the EventType<->EventPayload pairing across all four
+    // event kinds. The other tests each construct one specific pairing,
+    // but nothing asserted that a given EventType binds to its matching
+    // payload variant — a regression that crossed them (or dropped a
+    // variant) would not be caught.
+    let events = [
+        EngineEvent {
+            event_type: EventType::Violation,
+            seq: 1,
+            timestamp: "t".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Violation {
+                policy_id: "p".into(),
+                file: "f.ts".into(),
+                symbol: "S".into(),
+                message: "m".into(),
+            },
+        },
+        EngineEvent {
+            event_type: EventType::Error,
+            seq: 2,
+            timestamp: "t".into(),
+            engine: EngineId::Legacy,
+            payload: EventPayload::Error(ErrorPayload {
+                code: ErrorCode::ParseError,
+                file: None,
+                message: "m".into(),
+                recoverable: false,
+            }),
+        },
+        EngineEvent {
+            event_type: EventType::Snapshot,
+            seq: 3,
+            timestamp: "t".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 0,
+                files_watched: 1,
+                changed_path: None,
+            },
+        },
+        EngineEvent {
+            event_type: EventType::Progress,
+            seq: 4,
+            timestamp: "t".into(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Progress {
+                phase: "init".into(),
+                current: 0,
+                total: 1,
+            },
+        },
+    ];
+
+    for event in events {
+        // Correct pairing round-trips cleanly for every kind.
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EngineEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.event_type, event.event_type);
+
+        // The real guard: tamper the wire `event_type` so it disagrees
+        // with the payload variant, and assert the deserialiser REJECTS
+        // it. (A positive `matches!` after `from_str` would be
+        // tautological — `EngineEvent`'s `try_from` already enforces the
+        // pairing, so a mismatch can't survive deserialisation. Asserting
+        // the rejection per kind is what actually exercises the invariant.)
+        let mut wire = serde_json::to_value(&event).unwrap();
+        let mismatched = if wire["event_type"] == serde_json::json!("Progress") {
+            "Violation"
+        } else {
+            "Progress"
+        };
+        wire["event_type"] = serde_json::json!(mismatched);
+        assert!(
+            serde_json::from_str::<EngineEvent>(&wire.to_string()).is_err(),
+            "event_type `{mismatched}` disagreeing with the payload must be rejected: {wire}"
+        );
     }
 }

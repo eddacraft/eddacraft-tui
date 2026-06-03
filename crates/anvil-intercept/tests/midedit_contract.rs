@@ -470,7 +470,7 @@ pub fn busy_request(idx: usize) -> Value {
 ///   2.0 §5.1).
 /// - `error.message = "Server busy"`.
 /// - No silent pass: `result` MUST NOT be present.
-pub fn assert_busy_response(response: &Value) {
+pub fn assert_busy_response(response: &Value, expected_id: &str) {
     assert_envelope_is_error_or_diagnostics(response);
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(
@@ -478,6 +478,15 @@ pub fn assert_busy_response(response: &Value) {
         "busy must map to -32000 (Server busy): {response}",
     );
     assert_eq!(response["error"]["message"], "Server busy");
+    // CLAWP-064: the helper's doc promised "id echoed by the consumer"
+    // but never asserted it — a daemon that dropped or mismatched the
+    // JSON-RPC id on the busy path would have passed. Pin it here so
+    // every caller gets the id-echo guarantee, not just the one that
+    // happened to assert it externally.
+    assert_eq!(
+        response["id"], expected_id,
+        "busy response must echo the request id `{expected_id}`: {response}",
+    );
     assert!(
         response.get("result").is_none(),
         "busy must NOT silently pass with a result: {response}",
@@ -1047,8 +1056,7 @@ async fn rust_consumer_surfaces_server_busy() {
     // for every consumer.
     let mut busy_client = harness.connect().await;
     let busy_response = send_frame(&mut busy_client, &busy_request(99)).await;
-    assert_busy_response(&busy_response);
-    assert_eq!(busy_response["id"], "contract-busy-99");
+    assert_busy_response(&busy_response, "contract-busy-99");
 
     // Release blockers and tidy up.
     barrier.wait();
@@ -1154,9 +1162,9 @@ async fn rust_consumer_busy_response_satisfies_envelope_invariant() {
         "id": "contract-busy-third"
     });
     let busy = send_frame(&mut busy_client, &busy_request).await;
-    assert_envelope_is_error_or_diagnostics(&busy);
-    assert_eq!(busy["error"]["code"], -32000);
-    assert_eq!(busy["error"]["message"], "Server busy");
+    // CLAWP-064: route through the shared helper so this second busy path
+    // also pins the JSON-RPC id echo, not just the error code/message.
+    assert_busy_response(&busy, "contract-busy-third");
 
     // Release blockers and tidy up.
     barrier.wait();
