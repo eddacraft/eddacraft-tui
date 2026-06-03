@@ -205,22 +205,38 @@ function buildPayloadForArchitecture(id: string): string {
 
 #[test]
 fn does_not_flag_hex_hashes_in_lockfile() {
-    // Lockfiles contain lots of hex hashes that look high-entropy
-    let content = "\
-integrity sha512-abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\n\
-resolved \"https://registry.yarnpkg.com/foo/-/foo-1.0.0.tgz#abcdef0123456789abcdef0123456789abcdef01\"\n";
+    // CLAWP-063: exercise the entropy path AND the hex-shape allowlist
+    // (`^[a-f0-9]{64}$`) this test protects. Two subtleties the prior
+    // form missed: (1) the hash must sit in a quoted/assignment position
+    // or the entropy extractor never captures it as a candidate (a bare
+    // `sha512-<hash>` token is invisible to the scanner, so scoring it was
+    // vacuous regardless of threshold); (2) suppression must be proven to
+    // come from the shape allowlist, not from filename/extension handling.
+    let hex64 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    let entropy_count = |body: &str| -> usize {
+        scan_content(body, "yarn.lock", &config_with_entropy(3.0))
+            .iter()
+            .filter(|f| f.pattern_name == "High Entropy String")
+            .count()
+    };
 
-    let findings = scan_content(content, "yarn.lock", &config_without_entropy());
-    // Pattern-based findings on lockfiles: the hex hashes should be allowlisted
-    let non_allowlisted = findings
-        .iter()
-        .filter(|f| f.pattern_name != "High Entropy String")
-        .count();
-    // Lockfiles are commonly skipped by extension, but when scanned directly
-    // hex hashes should still be allowlisted
+    // The 64-char hex integrity hash is extracted (quoted assignment) and
+    // must be suppressed by the shape allowlist.
+    assert_eq!(
+        entropy_count(&format!("integrity = '{hex64}'\n")),
+        0,
+        "a 64-char hex lockfile hash must be allowlisted even with entropy enabled"
+    );
+
+    // Control (non-vacuity): the SAME length, SAME position, SAME
+    // filename — only the leading char is non-hex, so it fails the
+    // `^[a-f0-9]{64}$` shape allowlist. It MUST fire, proving the clean
+    // result above is the allowlist discriminating on shape, not the
+    // scanner being silent (extension-skip / non-extraction).
+    let not_hex = format!("z{}", &hex64[1..]);
     assert!(
-        non_allowlisted == 0 || findings.is_empty(),
-        "hex hashes in lockfiles should be allowlisted"
+        entropy_count(&format!("integrity = '{not_hex}'\n")) >= 1,
+        "a same-length non-hex high-entropy value must fire (else this test is vacuous)"
     );
 }
 

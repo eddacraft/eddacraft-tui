@@ -53,6 +53,13 @@ fn fixture_repo_yields_one_unignored_finding_and_one_suppressed() {
         prod.suppression_reason.as_deref(),
         Some("frozen replay fixture for the gitignore hygiene test")
     );
+    // CLAWP-053: the suppressed finding's kind and suggested_pattern were
+    // unchecked — only the `.env.local` finding had them asserted. A
+    // suppressed finding that drifted to the wrong kind/pattern (e.g. a
+    // bad suggested `.gitignore` line a user would paste) would slip
+    // through. Mirror the `.env.local` assertions on the suppressed one.
+    assert_eq!(prod.kind, GitignoreFindingKind::UnignoredEnvFile);
+    assert_eq!(prod.suggested_pattern, ".env.production");
 }
 
 #[test]

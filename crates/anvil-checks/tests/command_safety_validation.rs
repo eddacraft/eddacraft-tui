@@ -166,10 +166,15 @@ fn unwraps_nested_sudo_bash() {
     assert!(rm_cmd.is_some(), "should find the inner rm command");
 
     let rm = rm_cmd.unwrap();
-    assert!(
-        rm.wrapper_chain.contains(&"sudo".to_string())
-            || rm.wrapper_chain.contains(&"bash".to_string()),
-        "wrapper chain should include sudo or bash, got: {:?}",
+    // CLAWP-054: assert the FULL nested wrapper chain in order. The prior
+    // `contains(sudo) || contains(bash)` passed if either token appeared,
+    // so a regression that lost one wrapper (or reordered the provenance)
+    // went undetected. `sudo bash -c "rm ..."` must unwrap to exactly
+    // ["sudo", "bash"].
+    assert_eq!(
+        rm.wrapper_chain,
+        vec!["sudo".to_string(), "bash".to_string()],
+        "nested wrapper chain should be exactly [sudo, bash], got: {:?}",
         rm.wrapper_chain
     );
 }
@@ -223,9 +228,15 @@ fn warns_on_git_clean_f() {
 
     assert!(matched.is_some(), "should match a rule for git clean -f");
     let rule = matched.unwrap();
-    assert!(
-        matches!(rule.action, CommandAction::Warn | CommandAction::Block),
-        "git clean -f should be warned or blocked"
+    // CLAWP-055: pin the action to exactly `Warn`. The loose
+    // `Warn | Block` matcher was internally inconsistent with
+    // `check_reports_correct_score_for_mixed_findings`, which counts
+    // `git clean -f` as a single *warning* (`summary.warned == 1`). The
+    // two tests must encode the same contract.
+    assert_eq!(
+        rule.action,
+        CommandAction::Warn,
+        "git clean -f is a Warn (matches the score test's warned==1)"
     );
 }
 

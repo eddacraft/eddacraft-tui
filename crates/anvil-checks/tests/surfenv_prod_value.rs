@@ -33,15 +33,54 @@ fn prod_in_local_fixture_yields_expected_findings() {
     let suppressed: Vec<_> = findings.iter().filter(|f| f.suppressed).collect();
     assert_eq!(suppressed.len(), 1, "exactly one suppressed finding");
     assert_eq!(suppressed[0].key, "LEGACY_HOST");
+    // CLAWP-039: pin the suppressed finding's indicator too, so the full
+    // 4-finding set is asserted by key + indicator. `classify_entry`
+    // checks `value_has_prod_host_segment` before `value_mentions_production`,
+    // so `api.production.acme.io` (a `.production.` host segment) resolves
+    // to ProdHostSegment, not ValueMentionsProduction.
+    assert_eq!(suppressed[0].indicator, ProdIndicator::ProdHostSegment);
 
     let staging_finding = findings.iter().find(|f| f.key == "SECONDARY_HOST");
     assert!(staging_finding.is_none(), "staging host must short-circuit");
 
-    let key_suffix = findings
-        .iter()
-        .find(|f| f.indicator == ProdIndicator::KeySuffixProd)
-        .expect("SECRET_PROD key-suffix finding");
-    assert_eq!(key_suffix.key, "SECRET_PROD");
+    // CLAWP-039: pin the full expected finding set by key + indicator,
+    // not just the count and two of the four. Asserting each fixture
+    // line's (key, indicator) triple catches a regression that drops one
+    // finding while spuriously adding another — which would keep the
+    // count at 4 and pass the looser checks. (LEGACY_HOST is covered by
+    // the suppressed-finding assertion above.)
+    let by_key = |k: &str| {
+        findings
+            .iter()
+            .find(|f| f.key == k)
+            .unwrap_or_else(|| panic!("no SURFENV-003 finding for `{k}`: {findings:#?}"))
+    };
+
+    let database_url = by_key("DATABASE_URL");
+    assert_eq!(
+        database_url.indicator,
+        ProdIndicator::ProdHostSegment,
+        "DATABASE_URL=postgres://prod-db... is a prod host segment"
+    );
+    assert!(
+        !database_url.suppressed,
+        "DATABASE_URL is an active finding"
+    );
+
+    let feature_flags = by_key("FEATURE_FLAGS_ENV");
+    assert_eq!(
+        feature_flags.indicator,
+        ProdIndicator::ValueMentionsProduction,
+        "FEATURE_FLAGS_ENV=production mentions production"
+    );
+    assert!(
+        !feature_flags.suppressed,
+        "FEATURE_FLAGS_ENV is an active finding"
+    );
+
+    let key_suffix = by_key("SECRET_PROD");
+    assert_eq!(key_suffix.indicator, ProdIndicator::KeySuffixProd);
+    assert!(!key_suffix.suppressed, "SECRET_PROD is an active finding");
     assert!(
         !key_suffix
             .redacted_excerpt

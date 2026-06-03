@@ -84,9 +84,15 @@ export class UserService {
         .filter(|w| w.id == "AP-003")
         .collect();
 
-    assert!(
-        any_warnings.len() >= 3,
-        "should detect at least 3 uses of `any` (cache, return type, cast)"
+    // CLAWP-041: assert the EXACT count. The fixture has exactly three
+    // `any` uses (the `cache` field, the `Promise<any>` return type, and
+    // the `as any` cast); a `>= 3` lower bound would pass even if the
+    // scanner emitted duplicate or spurious AP-003 warnings for the same
+    // source.
+    assert_eq!(
+        any_warnings.len(),
+        3,
+        "expected exactly 3 AP-003 warnings (cache field, return type, cast), got {any_warnings:#?}"
     );
 }
 
@@ -105,6 +111,32 @@ export async function fetchData(url: string) {
     assert!(
         result.warnings.iter().any(|w| w.id == "AP-006"),
         "should detect the empty catch block"
+    );
+}
+
+#[test]
+fn non_empty_catch_block_does_not_trigger_ap006() {
+    // CLAWP-042: paired negative for `detects_empty_catch_block_in_error_handler`.
+    // Without it, AP-006 could fire on every `catch` regardless of body
+    // and the positive test would still pass. The discriminator is body
+    // EMPTINESS, so the catch braces must be on a single line (matching
+    // the positive test's `} catch (err) {}` layout) and differ only in
+    // having a real body — otherwise the test would be passing on layout,
+    // not emptiness.
+    let content = "\
+export async function fetchData(url: string) {
+  try {
+    const response = await fetch(url);
+    return response.json();
+  } catch (err) { console.error('fetch failed', err); throw err; }
+}
+";
+
+    let result = scan_file("src/api/client.ts", content, None);
+    assert!(
+        !result.warnings.iter().any(|w| w.id == "AP-006"),
+        "a non-empty single-line catch block must not trigger AP-006, got: {:?}",
+        result.warnings
     );
 }
 
