@@ -367,7 +367,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-007: `watch` + MCP clients + status surface
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2284
 - **Intent:** Make the user-facing surfaces thin daemon clients with a safe fallback.
 - **Expected Outcome:** `watch` routes save-time validation to the daemon and falls
   back to a *scoped* (never `--all`) check on daemon absence/mid-session death,
@@ -501,7 +501,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 7/9 done | In Progress |
+| A — Interim-cache `validate_paths` | 9 | 8/9 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **7/11 done** | **In Progress** |
+| **Total** | **11** | **8/11 done** | **In Progress** |
