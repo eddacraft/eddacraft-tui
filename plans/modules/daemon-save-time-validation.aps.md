@@ -55,6 +55,9 @@ persistence) without consumers re-integrating.
   SLO bench + CI gate
 - `watch` and MCP daemon clients, the scoped daemon-absent fallback, and the
   `anvil status` assurance surface
+- Cross-platform parity for that save-time surface: the daemon + `watch`/`status`
+  clients on **macOS** (shipped — `cfg(unix)`) and **Windows** (named pipe — the
+  short-term gap tracked as DSV-010/011), not just Linux
 - Opt-in workspace confinement mode and the `anvil workspace` CLI
 - The cross-path diagnostic parity gate
 - The GV2 hot-read swap (A′) and warm-start persistence (B) as sequenced
@@ -67,9 +70,11 @@ persistence) without consumers re-integrating.
   *consumes* it
 - Running the structural policy invariants on the save-time hot path (ADR-061
   deliberately keeps them on whole-repo `anvil gate`)
-- Cross-uid trust boundaries (the SO_PEERCRED same-uid boundary is the only one
-  claimed)
-- Windows named-pipe `validate_paths` GA (parity tracked separately)
+- Cross-uid trust boundaries (the SO_PEERCRED same-uid boundary, and its Windows
+  per-user named-pipe equivalent, are the only ones claimed)
+- Windows GA *hardening* beyond same-user functional parity (Job Object
+  containment, service-mode autostart, code-signing) — the parity itself is now in
+  scope (DSV-010/011), this is the layer above it
 - Replacing the embedded in-process fallback path
 
 ## Interfaces
@@ -448,6 +453,68 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 - **Priority:** High
 - **Dependencies:** DSV-005, DSV-007
 - **Source:** subphase-a Task 15; ADR-061 §8.
+
+---
+
+### Sub-phase A-W — Windows + cross-platform parity
+
+Parity for the Sub-phase A save-time surface on the other short-term-supported
+targets. macOS already works (the daemon and `watch`/`status` clients are
+`cfg(unix)`, so they run on Darwin — the only macOS gap was a Linux-gated test,
+closed in PR #2291). Windows is the real gap: the save-time verbs are not served
+and the clients are `cfg(not(unix))` stubs. DSV-010/011 (Proposed 2026-06-04,
+drafted as a DSV-007 follow-up) bring Windows to parity; DSV-010 carries an open
+read-safety design risk that likely needs an ADR before it goes Ready.
+
+#### DSV-010: Windows named-pipe save-time daemon
+
+- **Status:** Proposed
+- **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
+  the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
+  support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP
+  `scan_buffer` / protection-claim Windows client).
+- **Expected Outcome:** `validate_paths` / `workspace_status` / `request_full_scan`
+  are dispatched and answered on Windows over the per-user named pipe; `save_time.rs`
+  (today `#![cfg(unix)]`) and its read path are lifted to a cross-platform boundary;
+  same-user peer authorisation via the named-pipe ACL / `pipe_name_for_current_user`
+  (the SO_PEERCRED equivalent); the frozen wire and verdict semantics are unchanged.
+- **Open design risk (resolve before Ready):** the verdict's read-safety guard
+  (`path_safety.rs` — an `openat2` + `RESOLVE_BENEATH` held dirfd) has **no Windows
+  analogue**. A Windows guarded read that preserves the "daemon reads the exact bytes
+  it certifies, no symlink/junction escape, no TOCTOU" contract (B2 / security C2/C3)
+  needs a design decision — likely an ADR (`NtCreateFile` with reparse-point controls
+  / handle-based reads, or a documented weaker guarantee). This is the gating unknown;
+  the rest is mechanical parity.
+- **Validation:** a Windows IPC fixture round-trip (mirroring the MLP2-075 `windows_*`
+  tests) proving the three verbs answer over a per-PID pipe; the cross-path parity gate
+  (DSV-009) extended to a Windows path.
+- **Files:** `crates/anvil-intercept/src/{save_time,path_safety,ipc}.rs`,
+  `crates/anvil-intercept-win32/`.
+- **Confidence:** low — gated on the read-safety design decision above.
+- **Priority:** High (short-term-supported target).
+- **Dependencies:** DSV-005; an accepted Windows read-safety ADR.
+- **Source:** DSV-007 follow-up (macOS + Windows are short-term save-time targets);
+  ADR-015; brainstorms `2026-05-01-hearth-rearchitecture.md` /
+  `2026-05-07-daemon-sessions-surfaces-boundaries.md`.
+
+#### DSV-011: Windows `watch` + `status` save-time clients
+
+- **Status:** Proposed
+- **Intent:** Make the Windows user-facing surfaces thin save-time-daemon clients,
+  matching the Unix `watch` / `status` wiring shipped in DSV-007.
+- **Expected Outcome:** a `WindowsPipeSaveTimeTransport` (parallel to the MCP
+  `WindowsPipeDaemonValidationClient`) backs the `cfg(not(unix))` stubs in
+  `watch_save_time.rs` (`query_workspace_status`, `build_save_time_client`), so
+  `watch` routes save-time validation and `anvil status` renders the assurance
+  surface on Windows — under the same opt-in (`ANVIL_WATCH_DAEMON`) gate and scoped
+  fallback as Unix.
+- **Validation:** the watch socket round-trip + status render tests extended to a
+  Windows named-pipe fixture (mirroring the MLP2-075 Windows test pattern).
+- **Files:** `crates/anvil-cli/src/commands/{watch_save_time,watch,status}.rs`.
+- **Confidence:** medium — mechanical once DSV-010 serves the verbs on Windows.
+- **Priority:** High (short-term-supported target).
+- **Dependencies:** DSV-010.
+- **Source:** DSV-007 follow-up; ADR-015.
 
 ---
 
