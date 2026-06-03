@@ -37,6 +37,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anvil_intercept_proto::protocol::{
+    RequestFullScanRequest, RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse,
+    WorkspaceStatusRequest, WorkspaceStatusResponse,
+};
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
 use serde_json::{Value, json};
@@ -44,6 +48,60 @@ use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::task::JoinSet;
 use tracing::{Instrument, field};
+
+#[cfg(unix)]
+use crate::save_time::{SaveTimeConn, SaveTimeState};
+
+/// DSV-005: why a save-time verb could not be honoured for a `workspace_root`.
+/// Defined cross-platform so the dispatch signature is uniform; only the unix
+/// daemon implements the verbs ([`SaveTimeDispatch`]).
+#[derive(Debug)]
+pub enum SaveTimeError {
+    /// The root is not admitted on this connection (allowlist refusal, or a
+    /// root that no longer resolves). Maps to a `workspace-not-admitted` reply.
+    NotAdmitted,
+    /// The admitted root's dirfd could not be opened. Maps to an internal error.
+    Io(std::io::Error),
+}
+
+/// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
+/// Implemented by [`crate::save_time::SaveTimeConn`] on unix; on Windows there
+/// is no implementor (save-time `validate_paths` GA is out of scope), so the
+/// dispatch arm replies `Method not found`.
+///
+/// `Send` so the per-connection trait object can be held across the connection
+/// handler's `.await` points (the handler future is spawned on a tokio
+/// `JoinSet`, which requires `Send`). `SaveTimeConn` satisfies this: its shared
+/// state is `Sync` and its admitted-root set is `Send`.
+pub trait SaveTimeDispatch: Send {
+    /// Certify a change set, returning the verdict-shaped response.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn validate_paths(
+        &mut self,
+        request: &ValidatePathsRequest,
+    ) -> Result<ValidatePathsResponse, SaveTimeError>;
+
+    /// Report the read-only workspace-assurance snapshot.
+    ///
+    /// # Errors
+    /// As for [`Self::validate_paths`].
+    fn workspace_status(
+        &mut self,
+        request: &WorkspaceStatusRequest,
+    ) -> Result<WorkspaceStatusResponse, SaveTimeError>;
+
+    /// Queue a full scan and return the post-request assurance snapshot.
+    ///
+    /// # Errors
+    /// As for [`Self::validate_paths`].
+    fn request_full_scan(
+        &mut self,
+        request: &RequestFullScanRequest,
+    ) -> Result<RequestFullScanResponse, SaveTimeError>;
+}
 
 use crate::ShutdownToken;
 use crate::dos::{IpcLimits, RpsBucket};
@@ -621,6 +679,12 @@ pub struct IpcListener<D: SessionDispatcher> {
     /// spoof check.
     #[cfg(unix)]
     cross_check: Option<CrossCheckContext>,
+    /// DSV-005: the shared save-time verdict state (warm graph cache,
+    /// per-worktree assurance, confinement policy). Set by the daemon at
+    /// startup via [`Self::with_save_time_state`]; `None` for tests and
+    /// embedded listeners that do not serve the save-time verbs.
+    #[cfg(unix)]
+    save_time: Option<Arc<SaveTimeState>>,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -669,6 +733,19 @@ impl<D: SessionDispatcher> IpcListener<D> {
     #[must_use]
     pub fn with_cross_check_context(mut self, context: CrossCheckContext) -> Self {
         self.cross_check = Some(context);
+        self
+    }
+
+    /// DSV-005: wire the shared save-time verdict state. The daemon's
+    /// `run_foreground` builder calls this once with the warm graph cache,
+    /// per-worktree assurance machines, antipattern config, interactive pool,
+    /// and operator confinement policy. Listeners without it reply
+    /// `Method not found` to the three save-time verbs (tests, embedded
+    /// callers, the Windows named-pipe listener — Sub-phase A is unix-only).
+    #[cfg(unix)]
+    #[must_use]
+    pub fn with_save_time_state(mut self, state: Arc<SaveTimeState>) -> Self {
+        self.save_time = Some(state);
         self
     }
 }
@@ -787,6 +864,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             limits: IpcLimits::default(),
             status_provider: Arc::new(NoopStatusProvider),
             cross_check: None,
+            save_time: None,
         })
     }
 
@@ -804,6 +882,8 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let status_provider = Arc::clone(&self.status_provider);
         // MLP2-025b: captured once for the listener; cloned per spawn.
         let cross_check = self.cross_check.clone();
+        // DSV-005: shared save-time state, cloned per spawn.
+        let save_time = self.save_time.clone();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
         ));
@@ -847,9 +927,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // the stream into the handler.
                             let peer_pid = peer_pid_for_tokio_unix_stream(&stream);
                             let conn_cross_check = cross_check.clone();
+                            let conn_save_time = save_time.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1050,9 +1131,18 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // disables the write-time spoof check (tests, embedded
     // callers, listeners not wired to a daemon registry+fence).
     cross_check: Option<CrossCheckContext>,
+    // DSV-005: shared save-time verdict state. `None` for listeners that do
+    // not serve the save-time verbs. Unix-only — the verbs read through
+    // `openat2`-guarded dirfds (Windows GA out of scope).
+    #[cfg(unix)] save_time: Option<Arc<SaveTimeState>>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
+
+    // DSV-005: the per-connection save-time context owns this connection's
+    // admitted-root set (built lazily on the first verb) over the shared state.
+    #[cfg(unix)]
+    let mut save_time_conn = save_time.as_deref().map(SaveTimeConn::new);
 
     // INTD-016: per-connection RPS bucket.
     let mut bucket = RpsBucket::from_limits(&limits, std::time::Instant::now());
@@ -1157,6 +1247,15 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         match serde_json::from_str::<Value>(line) {
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
+                    // DSV-005: hand the per-connection save-time context to the
+                    // dispatcher (as the cross-platform trait object). `None` on
+                    // Windows / listeners without save-time state.
+                    #[cfg(unix)]
+                    let save_time_arg: Option<&mut dyn SaveTimeDispatch> = save_time_conn
+                        .as_mut()
+                        .map(|conn| conn as &mut dyn SaveTimeDispatch);
+                    #[cfg(not(unix))]
+                    let save_time_arg: Option<&mut dyn SaveTimeDispatch> = None;
                     if let Some(response) = handle_jsonrpc_value(
                         value,
                         &dispatcher,
@@ -1164,6 +1263,7 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                         &status_provider,
                         peer_pid,
                         cross_check.as_ref(),
+                        save_time_arg,
                     )
                     .await
                     {
@@ -1351,7 +1451,7 @@ pub async fn handle_jsonrpc_value_for_benchmark<D: SessionDispatcher>(
     // MLP2-025b: benchmark fixture; no real socket, so no peer PID,
     // and no cross-check context (we're measuring the rule-engine
     // hot path, not the security cross-check).
-    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status, None, None).await
+    handle_jsonrpc_value(value, dispatcher, scan_buffer, &status, None, None, None).await
 }
 
 fn is_jsonrpc_frame(value: &Value) -> bool {
@@ -1878,6 +1978,11 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
     // MLP2-025b: optional cross-check capability bundle threaded
     // from `handle_connection`. `None` disables the spoof check.
     cross_check: Option<&CrossCheckContext>,
+    // DSV-005: per-connection save-time verb dispatcher. `None` disables the
+    // three save-time verbs (no save-time state, or Windows). The `+ '_`
+    // decouples the trait-object lifetime from the `&mut` reborrow so the batch
+    // loop can hand each item a short reborrow.
+    mut save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
 ) -> Option<Value> {
     match value {
         Value::Array(items) => {
@@ -1940,6 +2045,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                     status_provider,
                     peer_pid,
                     cross_check,
+                    save_time.as_deref_mut(),
                 )
                 .await
                 {
@@ -1960,6 +2066,7 @@ async fn handle_jsonrpc_value<D: SessionDispatcher>(
                 status_provider,
                 peer_pid,
                 cross_check,
+                save_time,
             )
             .await
         }
@@ -2010,6 +2117,8 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     peer_pid: Option<u32>,
     // MLP2-025b: optional cross-check capability bundle.
     cross_check: Option<&CrossCheckContext>,
+    // DSV-005: per-connection save-time verb dispatcher (`None` ⇒ verbs off).
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
 ) -> Option<Value> {
     let Value::Object(map) = value else {
         return Some(jsonrpc_error(
@@ -2143,6 +2252,26 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         });
     }
 
+    // Save-time verbs (DSV-005): `validate_paths` / `workspace_status` /
+    // `request_full_scan`. Special-method routed (like scan_buffer / status)
+    // because they need the per-connection admitted-root set + shared save-time
+    // state, which `dispatch_session_jsonrpc` (session-registry only) lacks.
+    if method == anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS
+        || method == anvil_intercept_proto::protocol::ANVIL_WORKSPACE_STATUS
+        || method == anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN
+    {
+        return dispatch_span.in_scope(|| {
+            handle_save_time_jsonrpc(
+                method,
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
     dispatch_span.in_scope(|| {
         dispatch_session_jsonrpc(
             method,
@@ -2203,6 +2332,120 @@ fn handle_query_status_jsonrpc(
             response_id,
             traceparent,
             is_notification,
+            -32603,
+            "Internal error",
+            json!({"error": err.to_string()}),
+        ),
+    }
+}
+
+/// JSON-RPC application error code for a save-time verb refused because its
+/// `workspace_root` is not admitted on the connection (allowlist confinement).
+const SAVE_TIME_NOT_ADMITTED_CODE: i64 = -32010;
+
+/// Route a save-time verb (DSV-005) to the per-connection dispatcher. The
+/// dispatch arm has already matched `method` against the three save-time
+/// constants, so the `else` branch here is `request_full_scan`.
+fn handle_save_time_jsonrpc(
+    method: &str,
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    // Verbs are request-shaped; a notification is a silent no-op (mirrors the
+    // status query's contract).
+    if is_notification {
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        // No save-time state wired (tests, embedded callers, Windows). The verb
+        // exists in the protocol but is not served here.
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "save-time validation is not enabled on this daemon"}),
+        );
+    };
+
+    if method == anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS {
+        match serde_json::from_value::<ValidatePathsRequest>(params.clone()) {
+            Ok(request) => {
+                save_time_result(dispatch.validate_paths(&request), response_id, traceparent)
+            }
+            Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+        }
+    } else if method == anvil_intercept_proto::protocol::ANVIL_WORKSPACE_STATUS {
+        match serde_json::from_value::<WorkspaceStatusRequest>(params.clone()) {
+            Ok(request) => save_time_result(
+                dispatch.workspace_status(&request),
+                response_id,
+                traceparent,
+            ),
+            Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+        }
+    } else {
+        match serde_json::from_value::<RequestFullScanRequest>(params.clone()) {
+            Ok(request) => save_time_result(
+                dispatch.request_full_scan(&request),
+                response_id,
+                traceparent,
+            ),
+            Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+        }
+    }
+}
+
+/// A save-time request body that did not deserialise ⇒ `Invalid params`.
+fn save_time_invalid_params(
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    err: &serde_json::Error,
+) -> Option<Value> {
+    jsonrpc_request_error(
+        response_id,
+        traceparent,
+        false,
+        -32602,
+        "Invalid params",
+        json!({"reason": err.to_string()}),
+    )
+}
+
+/// Serialise a save-time verb outcome into a JSON-RPC success / error envelope.
+fn save_time_result<T: serde::Serialize>(
+    result: Result<T, SaveTimeError>,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+) -> Option<Value> {
+    match result {
+        Ok(response) => match serde_json::to_value(response) {
+            Ok(value) => Some(jsonrpc_success(response_id, traceparent, value)),
+            Err(err) => jsonrpc_request_error(
+                response_id,
+                traceparent,
+                false,
+                -32603,
+                "Internal error",
+                json!({"error": err.to_string()}),
+            ),
+        },
+        Err(SaveTimeError::NotAdmitted) => jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            SAVE_TIME_NOT_ADMITTED_CODE,
+            "Workspace not admitted",
+            json!({"reason": "workspace-not-admitted"}),
+        ),
+        Err(SaveTimeError::Io(err)) => jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
             -32603,
             "Internal error",
             json!({"error": err.to_string()}),
@@ -4565,6 +4808,7 @@ mod tests {
             &status,
             None,
             None,
+            None,
         )
         .await
         .expect("response");
@@ -4579,6 +4823,94 @@ mod tests {
         );
         assert_eq!(fields.get("parent_id").as_deref(), Some("b7ad6b7169203331"));
         assert_eq!(fields.get("trace_flags").as_deref(), Some("01"));
+    }
+
+    /// DSV-005 Task 8: a `validate_paths` frame is routed to the save-time
+    /// dispatch arm (not the session dispatcher) and answered with a
+    /// verdict-shaped result. With a cold workspace + stubbed feed the verdict
+    /// is `Partial`, which is the safe default.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_validate_paths() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(tmp.path().join("src")).expect("mkdir");
+        std::fs::write(tmp.path().join("src/a.ts"), b"export const x = 1;").expect("write");
+
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS,
+                "id": "vp-1",
+                "params": {
+                    "workspace_root": tmp.path().to_string_lossy(),
+                    "paths": [{"path": "src/a.ts", "change": "modified"}],
+                },
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a validate_paths request returns a response");
+
+        // Routed to the save-time handler: a verdict-shaped success, not a
+        // `Method not found` from the session dispatcher.
+        assert_eq!(response["id"], "vp-1");
+        assert!(
+            response.get("error").is_none(),
+            "validate_paths must route to the save-time arm, not error: {response}",
+        );
+        let result = &response["result"];
+        assert_eq!(result["coverage"], "partial");
+        assert_eq!(result["workspace_assurance"]["state"], "stale");
+        assert_eq!(result["evaluated"][0]["path"], "src/a.ts");
+    }
+
+    /// Without save-time state wired the verb is not served — the arm replies
+    /// `Method not found` rather than falling through to the session dispatcher.
+    #[tokio::test]
+    async fn validate_paths_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS,
+                "id": "vp-2",
+                "params": {"workspace_root": "/tmp/x", "paths": []},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
     }
 
     // ----- Recording dispatcher used by behaviour tests. ------------
@@ -5769,6 +6101,7 @@ mod tests {
             &status,
             None,
             None,
+            None,
         )
         .await
         .expect("scan_buffer response");
@@ -5835,6 +6168,7 @@ mod tests {
             &status,
             None,
             None,
+            None,
         )
         .await
         .expect("scan response");
@@ -5878,6 +6212,7 @@ mod tests {
             &status,
             None,
             None,
+            None,
         )
         .await
         .expect("scan response");
@@ -5918,6 +6253,7 @@ mod tests {
             &dispatcher,
             &scan_buffer,
             &status,
+            None,
             None,
             None,
         )
@@ -5993,6 +6329,7 @@ mod tests {
                 &dispatcher,
                 &scan_buffer,
                 &status,
+                None,
                 None,
                 None,
             )

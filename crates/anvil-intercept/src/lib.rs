@@ -56,6 +56,8 @@ pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
+#[cfg(unix)]
+pub mod save_time;
 pub mod status;
 pub mod tag_env;
 pub mod telemetry;
@@ -1044,6 +1046,33 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // `Copy`-friendly without borrowing `opts` across the `map`.
         let ipc_limits = opts.enforcement_config.ipc_limits;
 
+        // DSV-005: build the shared save-time verdict state — the warm graph
+        // cache, the per-worktree assurance machines, the antipattern config,
+        // the two cooperating rayon pools (the antipattern scan runs on the
+        // interactive pool, B7), and the operator confinement policy (open by
+        // default; fail-closed on an untrusted config). Injected into the
+        // listener so the three save-time verbs are served from the first
+        // connection.
+        //
+        // The registry unregister hook (drop a worktree's warm state on
+        // session unregister, via `SaveTimeState::invalidate`) is a memory
+        // reclamation optimisation, not a correctness requirement — the
+        // assurance/cache state is worktree-scoped, so it is correct to persist
+        // it across sessions for the same worktree. Wiring it needs a registry
+        // post-construction hook setter (today only the consuming
+        // `with_unregister_hook` builder exists); deferred to keep this PR
+        // focused on the verdict path.
+        #[cfg(unix)]
+        let save_time_state = {
+            let scheduler = workspace_pool::WorkScheduler::new()
+                .context("failed to build the save-time work scheduler")?;
+            Arc::new(save_time::SaveTimeState::new(
+                scheduler,
+                anvil_checks::antipattern::types::AntipatternCheckConfig::default(),
+                confinement::load_or_fail_closed(),
+            ))
+        };
+
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
             ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
@@ -1053,7 +1082,8 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         .map(|listener| {
             let listener = listener
                 .with_status_provider(Arc::clone(&status_provider))
-                .with_limits(ipc_limits);
+                .with_limits(ipc_limits)
+                .with_save_time_state(Arc::clone(&save_time_state));
             #[cfg(target_os = "linux")]
             let listener = listener.with_cross_check_context(ipc::CrossCheckContext {
                 registry: Arc::clone(&daemon_state.registry),
