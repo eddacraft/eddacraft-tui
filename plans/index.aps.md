@@ -389,6 +389,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | [admin-cli](./archive/modules/admin-cli.aps.md)                       | ADMINCLI  | Complete | 13/13    | BAUTH        |
 | [admin-cli-hardening](./archive/modules/admin-cli-hardening.aps.md)   | ADMINCLIH | Complete | 4/4      | ADMINCLI     |
 | [email-broadcast](./modules/email-broadcast.aps.md)                   | EMAIL     | In Progress | 10/10    | ADMINCLIH    |
+| [github-cli-auth](./modules/github-cli-auth.aps.md)                   | GHCLIAUTH | Proposed | 0/11     | BAUTH, DOCSAUTH |
 
 **Design specs:**
 
