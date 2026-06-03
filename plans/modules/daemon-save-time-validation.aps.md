@@ -482,10 +482,24 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   ladder `read_under` (reparse/junction refused as `ERROR_CANT_RESOLVE_FILENAME`,
   the Unix-`ELOOP` analogue), the Windows-hardened `normalise_rel`
   (backslash/drive/UNC/device/ADS/trailing-dot/reserved-name), and the 64 MiB
-  refuse-don't-truncate cap (B2), with fixture tests. Cross-compile-checked +
-  clippy-clean on `x86_64-pc-windows-gnu`; runtime-verified by Windows CI.
-  Remaining: lift `save_time.rs` off `#![cfg(unix)]` to dispatch this guard,
-  wire the IPC dispatch on Windows, and the peer-SID auth check (then DSV-011).
+  refuse-don't-truncate cap (B2), with fixture tests (incl. a privilege-free
+  `mklink /J` junction test). **Verified by cross-compile-check + clippy `-D
+  warnings` on `x86_64-pc-windows-gnu`** — the project's current Windows bar
+  (PR #2182 precedent). The fixture tests do **not** run in CI yet (see the
+  finding below), so the FFI is type-verified, not runtime-verified.
+- **Finding (2026-06-04) — Windows workspace build is pre-existing-red,
+  expanding DSV-010 scope.** `cargo build/test --workspace` on `windows-msvc`
+  fails before reaching this crate: `crates/anvil-intercept/src/change_class.rs`
+  is unix-gated yet consumed by non-gated `assurance.rs`/`validate_paths.rs`
+  (`unresolved import crate::change_class`). So making the **daemon crate
+  Windows-buildable** (cfg-cleaning `change_class`, `save_time`, `path_safety`,
+  `workspace_admission`, the assurance/validate spine) is a prerequisite of the
+  remaining DSV-010 work, not just "lift `save_time.rs`". Only once the
+  workspace builds on Windows can the guard's fixture tests run on the `rust.yml`
+  windows matrix (`cargo test --workspace`).
+- **Remaining:** make the daemon crate Windows-buildable (above); lift
+  `save_time.rs` off `#![cfg(unix)]` to dispatch this guard; wire the IPC
+  dispatch on Windows; the peer-SID auth check; then DSV-011 clients.
 - **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
   the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
   support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP
