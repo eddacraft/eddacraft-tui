@@ -123,7 +123,7 @@ Sizing: **T** = trivial (add/​tighten an assertion, < ~15 lines), **S** = smal
 
 ## Source of truth
 
-- Tracker module: [`plans/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
+- Tracker module: [`plans/archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
 - Original audit export: [`plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`](../audits/2026-05-19-clawpatch-v0.7.0-beta.json)
 - Batch tracker issue (23 items): [#1740](https://github.com/eddacraft/anvil-001/issues/1740)
 - CLAWP-037 individual issue: [#1643](https://github.com/eddacraft/anvil-001/issues/1643)
