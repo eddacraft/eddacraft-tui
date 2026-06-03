@@ -183,16 +183,16 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-003: Daemon ingest spine — auth, read-safety, change classification, taxonomy
 
-- **Status:** In Progress
-- **Scope note (2026-06-03):** the ingest-spine *components* land in this PR —
+- **Status:** Merged 2026-06-03 via PR #2264
+- **Scope note (2026-06-03):** the ingest-spine *components* landed in PR #2264 —
   `path_safety` (Task 3, openat2 dirfd read-safety), `change_class` (Task 4,
   inode classification), `assurance` taxonomy half (Task 5), and a standalone,
   unit-tested `workspace_admission::AdmittedRoots` (Task 2's per-connection
   admitted-root set). Task 2's `ipc.rs` per-connection threading + the live
-  `validate_workspace_roots`/`authorise` caller (B7) are intentionally deferred
+  `validate_workspace_roots`/`authorise` caller (B7) were intentionally deferred
   to **DSV-005**: `validate_paths` is the admitted-root set's only real consumer,
-  so wiring lands with that dispatch arm rather than as inert plumbing here. The
-  item stays **In Progress** until that wiring merges.
+  so the wiring landed with that dispatch arm (DSV-005, PR #2282) rather than as
+  inert plumbing here. With that wiring merged, the item is complete.
 - **Intent:** Establish the load-bearing trust + ingest path the verdict depends on:
   net-new workspace-root authorisation, openat2 read-safety, inode-based change
   classification, and a default-deny invalidation taxonomy.
@@ -213,7 +213,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-004: Certifiability + interim graph cache + `FileSymbols` feed
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2273
 - **Progress:** Task 6 (certifiability) delivered — `certify` + `export_surface_changed`
   in `anvil-graph-cache` (`certify.rs`), conservative export-surface default (B4),
   importer discovery via `dependents_of` only (B1), `errors`-guard + precondition doc
@@ -258,9 +258,11 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-005: `validate_paths` orchestration + assurance lifecycle
 
-- **Status:** In Progress
-- **Progress (2026-06-03):** delivered on `feat/dsv-005-ipc-wiring` as three
-  council-reviewed change-sets (status flips to Merged when the PR lands):
+- **Status:** Merged 2026-06-03 via PR #2282
+- **Progress (2026-06-03):** delivered across the DSV-005 PR set (#2276 B7
+  predecessor, #2278 Task 9 state machine, #2279/#2280 Task 8, #2282 the
+  capstone ipc wiring + envelopes + symbol feed) as three council-reviewed
+  change-sets:
   1. **ipc wiring + per-connection admission.** `save_time::{SaveTimeState,
      SaveTimeConn}` route the three verbs through the `ipc.rs` special-method
      dispatch (mirroring `scan_buffer`), threaded cross-platform as
@@ -308,7 +310,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-006: Resource model — two-pool scheduler, DoS caps, SLO gate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2283
 - **Intent:** Keep the interactive verdict path responsive under concurrent agents +
   background scans, and gate latency in CI.
 - **Progress:** 10a (spine) delivered via PR #2253 — `crates/anvil-intercept/src/workspace_pool.rs`
@@ -317,9 +319,32 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   predecessor). 10b delivered via PR #2272 — the chunked-yield background-scan loop
   (`run_chunked_scan` + `ScanCancel`/`ScanOutcome`): the background scan checks a cancel
   flag at every chunk boundary so it hands cores back to interactive work within one
-  chunk, with `processed` doubling as a resume offset. Remaining (Task 11/Task 16, gated
-  on DSV-005): the parse-size + walk-depth DoS caps, and the `4 agents + 1 scan` SLO
-  bench + CI gate.
+  chunk, with `processed` doubling as a resume offset. **Task 11 (DoS caps) delivered**
+  — `workspace_pool::DosCaps` (parse-size + walk-depth) plus the symlink-skipping
+  `walk_capped` primitive the background-scan executor consumes; `validate_paths`
+  enforces the parse-size cap per file, skipping an oversized file before any
+  parse/scan/hash and emitting a `Warning` coverage diagnostic (`intercept-parse-size-cap`,
+  category `Other`) while marking the path `Partial`. **Task 16 (SLO bench + CI gate)
+  delivered** — `benches/ipc_roundtrip.rs` gains the in-process `validation.service`
+  warm `validate_paths` p95 case, the `4 agents + 1 background scan` ramp (each agent on
+  its own `WorktreeKey` → measures interactive-pool contention), the RLB-008 >80 ms
+  pre-service queue-wait WARN, and the RLB-002 daemon-absent scoped-fallback comparison;
+  the bench exits non-zero when interactive p95 breaches the ADR-031 80 ms save-time
+  budget. The gate runs on the **per-PR/push `resource-budgets` job** of
+  `resource-budget.yml` (ADR-061 §9 "not optional"): the bench is in-process (no
+  daemon/inotify, unlike the dispatch-only load-ramp job) and the measured warm p95
+  sits ~3 orders of magnitude under the 80 ms budget, so it gates on the standard
+  runner without the flake risk a tight latency SLO would carry. A
+  synthetic-regression self-test step (build-first, so a compile failure is not
+  mistaken for a gate trip) proves the gate is live — verified locally: a 300 ms
+  injected stall fails the gate, exit 1. A second, defence-in-depth memory-DoS guard
+  was added to the guarded read itself (`path_safety::MAX_GUARDED_READ_BYTES`, 64 MiB):
+  a file beyond the hard ceiling is refused at the read before its buffer grows, so the
+  parse-size cap is a parse/scan guard layered above a real read-allocation bound.
+- **Deferred:** the transport (`validation.roundtrip`) harness for a real `watch`/MCP
+  driver lands with those clients in DSV-007. (The loaded dev box cannot produce a
+  clean absolute p95 — warm p95 here is ~0.03 ms — but the CI runner is the authority
+  for the gate, not the dev box.)
 - **Expected Outcome:** A small interactive `rayon::ThreadPool` (10a, spine — a Task 8
   predecessor) + a chunked-yield background pool (10b); per-workspace in-flight token;
   parse-size + walk-depth caps; a `validate_paths` warm-read + `4 agents + 1 scan`
@@ -328,7 +353,11 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   `cargo bench -p eddacraft-anvil-intercept ipc_roundtrip` (quiet box); CI gate fails
   on a synthetic regression.
 - **Files:** `crates/anvil-intercept/src/workspace_pool.rs`,
-  `crates/anvil-intercept/benches/ipc_roundtrip.rs`
+  `crates/anvil-intercept/src/validate_paths.rs`,
+  `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-intercept/src/path_safety.rs`,
+  `crates/anvil-intercept/benches/ipc_roundtrip.rs`,
+  `.github/workflows/resource-budget.yml`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** None for the interactive-pool construction (10a — itself a DSV-005/Task-8 predecessor); **DSV-005 for the DoS caps (Task 11 also modifies `validate_paths.rs`) and the SLO bench (Task 16 depends on 8+10)**. The SLO gate is an ADR-061 §9 Phase-2 merge dependency.
@@ -455,7 +484,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 3/9 done | In Progress |
+| A — Interim-cache `validate_paths` | 9 | 7/9 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **3/11 done** | **In Progress** |
+| **Total** | **11** | **7/11 done** | **In Progress** |
