@@ -330,7 +330,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-008: Confinement mode + `anvil workspace` CLI
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2275
 - **Intent:** Give operators an opt-in confinement boundary above the same-uid trust
   model.
 - **Expected Outcome:** Operator-level config (`ANVIL_HOME`/XDG, owner-only) with
@@ -426,7 +426,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 2/9 done | In Progress |
+| A — Interim-cache `validate_paths` | 9 | 3/9 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **2/11 done** | **In Progress** |
+| **Total** | **11** | **3/11 done** | **In Progress** |
