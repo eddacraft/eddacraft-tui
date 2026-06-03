@@ -329,7 +329,7 @@ async fn run_foreground_reclaims_warm_state_on_unregister() {
         .expect("daemon run_foreground reported error");
 }
 
-/// DSV-010 last-session semantics: warm state must SURVIVE while a peer session
+/// DSV-040 last-session semantics: warm state must SURVIVE while a peer session
 /// still holds the worktree, and be reclaimed only when the LAST session leaves.
 /// Two sub-agent sessions (distinct tags, MLP2-023) share one worktree;
 /// unregistering the first must not drop the shared warm assurance machine.

@@ -1088,7 +1088,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 )
             })?;
             // The antipattern family runs the operator-configured pattern set
-            // (DSV-011), loaded owner-only from `antipattern.yaml` beside the
+            // (DSV-041), loaded owner-only from `antipattern.yaml` beside the
             // confinement config. Fail-safe + loud: a missing config ⇒ the full
             // default set; an untrusted/malformed config ⇒ the full default set
             // with an `error` log — a broken config never silently disables

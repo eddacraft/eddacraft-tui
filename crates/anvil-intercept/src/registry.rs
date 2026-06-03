@@ -411,7 +411,7 @@ pub struct SessionRegistry {
 /// that has fully drained, NOT once per removed session: a worktree with
 /// a surviving peer session (MLP2-023 multi-tag) is not signalled, so a
 /// consumer can treat the call as "this worktree's per-worktree state is
-/// now reclaimable" (DSV-010).
+/// now reclaimable" (DSV-040).
 ///
 /// The hook fires **outside** the registry's internal lock (see
 /// `unregister` / `evict_stale`), so it may take its own separate locks;
@@ -1243,7 +1243,7 @@ impl SessionRegistry {
             // (pid, starttime) on the SessionRecord — the index is the
             // authoritative anchor.
             inner.by_pid_lineage.retain(|_, sid| sid != id);
-            // DSV-010: signal warm-state reclamation only when the LAST
+            // DSV-040: signal warm-state reclamation only when the LAST
             // session for this canonical worktree leaves. A still-live peer
             // (MLP2-023 lets distinct agent tags coexist on one worktree)
             // must keep the shared warm cache + assurance machine — firing
@@ -1312,7 +1312,7 @@ impl SessionRegistry {
             inner
                 .by_pid_lineage
                 .retain(|_, sid| !to_evict.contains(sid));
-            // DSV-010: signal warm-state reclamation once per DISTINCT evicted
+            // DSV-040: signal warm-state reclamation once per DISTINCT evicted
             // worktree that has NO surviving session — same last-session rule
             // as `unregister`. A worktree with two evicted sessions signals
             // once; a worktree with one evicted + one live session does not
@@ -2817,7 +2817,7 @@ mod tests {
         assert_eq!(hits.lock().unwrap().clone(), vec![canonical]);
     }
 
-    /// DSV-010: the hook fires only when the LAST session for a worktree
+    /// DSV-040: the hook fires only when the LAST session for a worktree
     /// leaves. Two tagged sessions (MLP2-023) share one worktree;
     /// unregistering the first must NOT signal reclamation (the peer still
     /// holds warm state), and unregistering the second fires exactly once.
@@ -2852,7 +2852,7 @@ mod tests {
         assert_eq!(hits.lock().unwrap().clone(), vec![canonical]);
     }
 
-    /// DSV-010: `evict_stale` likewise signals once per fully-drained
+    /// DSV-040: `evict_stale` likewise signals once per fully-drained
     /// worktree. Two tagged sessions on one worktree, both evicted, fire
     /// the hook a single time (not once per session).
     #[test]

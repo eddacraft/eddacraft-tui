@@ -125,7 +125,7 @@ fn main() {
         report_dimensions("validation.roundtrip", "watch", "none");
         report("validation.roundtrip", &mut roundtrip_samples);
 
-        // DSV-013: the transport-level `validate_paths` round-trip (the verdict
+        // DSV-043: the transport-level `validate_paths` round-trip (the verdict
         // verb over the socket, vs the trivial `session.list` above).
         roundtrip_validate_paths().await;
 
@@ -146,7 +146,7 @@ fn main() {
     }
 }
 
-/// DSV-013: drive a warm `validate_paths` (the real verdict verb) over the
+/// DSV-043: drive a warm `validate_paths` (the real verdict verb) over the
 /// daemon socket so the socket framing + serialisation overhead of an *actual
 /// verdict* is visible next to the in-process `validation.service:validate_paths`
 /// gate (transport p95 − service p95 = the socket overhead). Report-only: the
@@ -397,7 +397,7 @@ fn run_concurrency_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
 /// the verdict path in-process on the daemon's interactive pool, the exact work
 /// the SLO governs. The transport (`validation.roundtrip:validate_paths`)
 /// harness that drives the same verdict verb over the daemon socket lives in
-/// `main` (DSV-013); it is report-only — the gate stays this in-process case.
+/// `main` (DSV-043); it is report-only — the gate stays this in-process case.
 #[cfg(unix)]
 fn slo_gate_failed() -> bool {
     let stall = Duration::from_millis(

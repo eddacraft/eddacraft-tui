@@ -191,7 +191,7 @@ impl SaveTimeState {
     }
 
     /// Drop a worktree's warm cache + assurance machine. Wired to the registry
-    /// unregister hook (DSV-010), which fires only when the **last** session
+    /// unregister hook (DSV-040), which fires only when the **last** session
     /// for the worktree leaves, so a live peer session never has its warm state
     /// pulled out from under it.
     ///
@@ -396,7 +396,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // `validate_paths`) via the injected kernel-backed parser. No parser
         // wired ⇒ `None` ⇒ a safe `Partial` (B4); the daemon never parses.
         //
-        // DSV-012: the parse (CPU-bound tree-sitter) is offloaded onto the
+        // DSV-042: the parse (CPU-bound tree-sitter) is offloaded onto the
         // interactive pool via `install`, the same pool the antipattern scan
         // already runs on (`env.pool`). This keeps the verdict's CPU work
         // bounded by the one interactive pool, so N concurrent agents cannot

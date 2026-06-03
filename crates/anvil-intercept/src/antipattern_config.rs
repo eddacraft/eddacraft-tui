@@ -1,4 +1,4 @@
-//! DSV-011: operator config surface for the save-time antipattern check set.
+//! DSV-041: operator config surface for the save-time antipattern check set.
 //!
 //! Without this, the daemon ran `validate_paths`' antipattern family on a
 //! hardcoded [`AntipatternCheckConfig::default`] — an operator could not
