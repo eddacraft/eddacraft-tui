@@ -71,12 +71,44 @@ jobs:
         run: |
           set -o pipefail
           cargo bench -p anvil-bench --bench mcp_resource_budget | tee mcp-resource-budget.json
+      # DSV-006 / Task 16: the interactive `validate_paths` concurrency SLO
+      # (4 agents + 1 background scan, ADR-061 §9 / RLB-008). This bench is
+      # in-process (no daemon/inotify, unlike the load-ramp job), and the
+      # measured warm p95 sits ~3 orders of magnitude under the 80 ms ADR-031
+      # save-time budget, so it gates on the standard push/PR runner without the
+      # flake risk a tight latency SLO would carry. The bench exits non-zero on a
+      # p95 breach, so the step itself is the gate (ADR-061 §9 "not optional").
+      - name: Measure validate_paths concurrency SLO (RLB-008 / DSV-006)
+        run: |
+          set -o pipefail
+          cargo bench -p eddacraft-anvil-intercept --bench ipc_roundtrip \
+            --features bench-internals | tee validate-paths-slo.log
+      # Prove the gate is live: a 300 ms injected stall MUST drive interactive
+      # p95 past the budget and exit non-zero. Build first so a *compile* failure
+      # is an unambiguous error rather than being mistaken for "gate tripped"
+      # (both exit non-zero). `success() || failure()` runs this even if the real
+      # SLO step above tripped, so the liveness proof always executes.
+      - name: Self-test — SLO gate trips on a synthetic regression
+        if: success() || failure()
+        run: |
+          cargo build -p eddacraft-anvil-intercept --bench ipc_roundtrip \
+            --features bench-internals
+          if ANVIL_BENCH_VALIDATE_STALL_MS=300 \
+              cargo bench -p eddacraft-anvil-intercept --bench ipc_roundtrip \
+              --features bench-internals 2>&1 | tee validate-paths-slo-selftest.log; then
+            echo "::error::validate_paths SLO gate did not fail on a 300 ms synthetic regression"
+            exit 1
+          fi
+          echo "validate_paths SLO gate correctly fails on a synthetic regression"
       - name: Upload resource budget verdicts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: resource-budget-verdicts
-          path: '*-resource-budget.json'
+          path: |
+            *-resource-budget.json
+            validate-paths-slo.log
+            validate-paths-slo-selftest.log
           if-no-files-found: ignore
           retention-days: 30
 
