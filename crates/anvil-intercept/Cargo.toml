@@ -36,6 +36,12 @@ bench-internals = []
 [dependencies]
 anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-attribution" }
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+# DSV-005 Task 8: the save-time `validate_paths` path runs the antipattern check
+# over guarded bytes via `run_antipattern_check_bytes`. anvil-checks depends only
+# on `anvil-kernel-types` (regex scanner) — NOT `anvil-kernel`/tree-sitter — so
+# this stays inside ADR-064's no-parser-in-the-daemon boundary (the
+# `daemon_dep_boundary` guard verifies).
+anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 # Parser-free graph state + algorithms (ADR-064). Inherits `petgraph` only —
 # does NOT pull in `anvil-kernel`/tree-sitter. Backs the daemon save-time cache.
 anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
@@ -89,7 +95,6 @@ anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-
 # this adds no new heavy build; the dependency is acyclic (anvil-bench does
 # not depend on anvil-intercept).
 anvil-bench = { path = "../anvil-bench", package = "anvil-bench" }
-anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 criterion = { workspace = true }
 tempfile.workspace = true

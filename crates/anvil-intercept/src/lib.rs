@@ -60,6 +60,7 @@ pub mod status;
 pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
+pub mod validate_paths;
 pub mod watcher;
 #[cfg(unix)]
 pub mod workspace_admission;
