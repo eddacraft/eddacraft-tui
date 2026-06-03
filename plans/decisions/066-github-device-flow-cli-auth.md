@@ -2,11 +2,11 @@
 
 ## Status
 
-Proposed
+Accepted (2026-06-04, Josh — decision owner)
 
 ## Date
 
-2026-06-03
+2026-06-03 (proposed) · 2026-06-04 (accepted)
 
 ## Context
 
