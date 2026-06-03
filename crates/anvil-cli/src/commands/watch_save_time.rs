@@ -132,7 +132,7 @@ pub(crate) enum SaveTimeDecision {
 /// The persistent per-`watch` save-time client. Holds the daemon connection
 /// posture across coalesced dispatches: whether we believe the daemon is
 /// reachable (`connected`) and whether the current disconnect has already
-/// WARNed (`warned`).
+/// warned (`warned`).
 pub(crate) struct WatchSaveTimeClient {
     transport: Box<dyn SaveTimeTransport>,
     workspace_root: PathBuf,
@@ -161,7 +161,10 @@ impl WatchSaveTimeClient {
             .map(|p| classify_change(p, &self.workspace_root))
             .collect();
 
-        match self.transport.validate_paths(&self.workspace_root, &descriptors) {
+        match self
+            .transport
+            .validate_paths(&self.workspace_root, &descriptors)
+        {
             Ok(response) => {
                 if !self.connected {
                     // Reconnect: re-establish the baseline so assurance comes
@@ -230,15 +233,12 @@ fn classify_change(absolute_path: &str, workspace_root: &Path) -> ChangeDescript
 /// failure line.
 #[must_use]
 pub(crate) fn verdict_exit_code(response: &ValidatePathsResponse) -> i32 {
-    if response
-        .diagnostics
-        .iter()
-        .any(|d| d.severity == Severity::Error)
-    {
-        1
-    } else {
-        0
-    }
+    i32::from(
+        response
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error),
+    )
 }
 
 /// Render a daemon verdict to a plain-text sink (the non-TUI, non-JSON watch
@@ -259,7 +259,11 @@ pub(crate) fn render_daemon_verdict_plain<W: Write>(
             || diag.location.file.clone(),
             |l| format!("{}:{l}", diag.location.file),
         );
-        writeln!(sink, "  {} ({severity}) — {} [{line}]", diag.id, diag.summary)?;
+        writeln!(
+            sink,
+            "  {} ({severity}) — {} [{line}]",
+            diag.id, diag.summary
+        )?;
     }
     writeln!(
         sink,
@@ -363,8 +367,8 @@ mod socket {
         fn connect(&self) -> Result<UnixStream, SaveTimeClientError> {
             ipc::validate_socket_path_for_client(&self.socket_path)
                 .map_err(|_| SaveTimeClientError::Unavailable)?;
-            let stream =
-                UnixStream::connect(&self.socket_path).map_err(|_| SaveTimeClientError::Unavailable)?;
+            let stream = UnixStream::connect(&self.socket_path)
+                .map_err(|_| SaveTimeClientError::Unavailable)?;
             ipc::validate_connected_peer_for_client(&stream)
                 .map_err(|_| SaveTimeClientError::Unavailable)?;
             stream
@@ -379,7 +383,12 @@ mod socket {
         /// Send one JSON-RPC request frame and return the parsed `result` value.
         /// A mid-stream drop / EOF / timeout / JSON-RPC error all map to
         /// `Unavailable` — the daemon is dead-for-this-batch.
-        fn round_trip(&self, method: &str, id: &str, params: Value) -> Result<Value, SaveTimeClientError> {
+        fn round_trip(
+            &self,
+            method: &str,
+            id: &str,
+            params: &Value,
+        ) -> Result<Value, SaveTimeClientError> {
             let mut stream = self.connect()?;
             let frame = json!({
                 "jsonrpc": "2.0",
@@ -388,7 +397,9 @@ mod socket {
                 "id": id,
             });
             writeln!(stream, "{frame}").map_err(|_| SaveTimeClientError::Unavailable)?;
-            stream.flush().map_err(|_| SaveTimeClientError::Unavailable)?;
+            stream
+                .flush()
+                .map_err(|_| SaveTimeClientError::Unavailable)?;
 
             let mut reader = BufReader::new(stream);
             let line = read_capped_line(&mut reader)?;
@@ -431,7 +442,7 @@ mod socket {
             };
             let params =
                 serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            let result = self.round_trip(ANVIL_VALIDATE_PATHS, REQUEST_ID, params)?;
+            let result = self.round_trip(ANVIL_VALIDATE_PATHS, REQUEST_ID, &params)?;
             serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)
         }
 
@@ -441,7 +452,7 @@ mod socket {
             };
             let params =
                 serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            self.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, params)
+            self.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, &params)
                 .map(|_| ())
         }
 
@@ -454,7 +465,8 @@ mod socket {
             };
             let params =
                 serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            let result = self.round_trip(ANVIL_WORKSPACE_STATUS, WORKSPACE_STATUS_REQUEST_ID, params)?;
+            let result =
+                self.round_trip(ANVIL_WORKSPACE_STATUS, WORKSPACE_STATUS_REQUEST_ID, &params)?;
             let response: WorkspaceStatusResponse =
                 serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)?;
             Ok(response.workspace_assurance)
@@ -476,15 +488,14 @@ mod tests {
     /// script is exhausted it returns a clean verdict. Records the call counts so
     /// the reconnect/re-scan contract can be asserted.
     struct FakeTransport {
-        outcomes: Mutex<std::collections::VecDeque<Result<ValidatePathsResponse, SaveTimeClientError>>>,
+        outcomes:
+            Mutex<std::collections::VecDeque<Result<ValidatePathsResponse, SaveTimeClientError>>>,
         validate_calls: Mutex<usize>,
         full_scan_calls: Mutex<usize>,
     }
 
     impl FakeTransport {
-        fn new(
-            outcomes: Vec<Result<ValidatePathsResponse, SaveTimeClientError>>,
-        ) -> Self {
+        fn new(outcomes: Vec<Result<ValidatePathsResponse, SaveTimeClientError>>) -> Self {
             Self {
                 outcomes: Mutex::new(outcomes.into_iter().collect()),
                 validate_calls: Mutex::new(0),

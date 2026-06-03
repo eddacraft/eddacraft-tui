@@ -621,8 +621,7 @@ fn gather_save_time() -> Option<SaveTimeRender> {
     if !watch_save_time::daemon_routing_enabled() {
         return None;
     }
-    let workspace =
-        crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
+    let workspace = crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
     let assurance = watch_save_time::query_workspace_status(&workspace)
         .unwrap_or_else(watch_save_time::daemon_absent_assurance);
     Some(SaveTimeRender {
@@ -1952,7 +1951,10 @@ mod tests {
             confined: None,
         };
         let line = render_save_time_line(&render);
-        assert!(line.contains("stale"), "must render the stale state, got: {line}");
+        assert!(
+            line.contains("stale"),
+            "must render the stale state, got: {line}"
+        );
         assert!(
             line.contains("cross-file-resolution-needed"),
             "stale must name its reason, got: {line}",

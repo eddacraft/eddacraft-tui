@@ -781,7 +781,7 @@ impl DispatcherInner {
         // Only `check` accumulates paths (see `on_snapshot`), so skip the lock
         // entirely for `gate` rather than draining an always-empty set
         // (Copilot review #2184).
-        let check_paths: Vec<String> = if self.action == "check" {
+        let mut check_paths: Vec<String> = if self.action == "check" {
             let mut guard = recover(self.pending_paths.lock());
             std::mem::take(&mut *guard).into_iter().collect()
         } else {
@@ -818,7 +818,9 @@ impl DispatcherInner {
                     return;
                 }
                 SaveTimeDecision::FellBack {
-                    assurance, warned, ..
+                    assurance,
+                    scoped_paths,
+                    warned,
                 } => {
                     if warned && !self.tui_parent {
                         tracing::warn!(
@@ -831,7 +833,10 @@ impl DispatcherInner {
                             assurance_label(&assurance),
                         );
                     }
-                    // Fall through to the scoped subprocess on `check_paths`.
+                    // Fall through to the subprocess scoped to exactly the
+                    // client-returned changed paths (non-empty here ⇒ never
+                    // `--all`).
+                    check_paths = scoped_paths;
                 }
             }
         }
