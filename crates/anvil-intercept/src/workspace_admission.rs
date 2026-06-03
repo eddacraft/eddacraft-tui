@@ -1,0 +1,274 @@
+//! DSV-003 Task 2 (ADR-061 §4): the per-connection admitted-workspace-root set.
+//!
+//! `validate_paths` is the first daemon verb to read arbitrary on-disk paths a
+//! client names, so a verb is authorised against a root **iff** that root has
+//! been admitted on this connection. Each admitted entry pairs the *canonical*
+//! root path (the key an incoming `workspace_root` is matched against) with the
+//! once-opened `O_PATH` dirfd from [`crate::path_safety::open_workspace_dirfd`]
+//! — the read anchor and the workspace identity. All later **reads** go through
+//! the held fd, so a root-directory retarget after admission cannot redirect
+//! them (security C2); a stale fd fails closed rather than re-resolving the
+//! path.
+//!
+//! This swap-immunity is for *reads*, not for the *admission* step: admission
+//! canonicalises the root string and then opens it, so a same-uid writer could
+//! in principle swap the directory between the canonicalise (which decides
+//! allowlist membership) and the open (which pins the fd). That window is
+//! in-model — the trust boundary is `SO_PEERCRED` same-uid (contract §4), so
+//! allowlist confinement is only ever as strong as that boundary — and crosses
+//! no privilege boundary.
+//!
+//! ## Admission modes (security C3)
+//!
+//! - **Open** (default): the set grows on first contact — the first time a
+//!   nameable root is authorised it is auto-admitted. A compromised *same-uid*
+//!   agent can therefore adopt any root it can name and read arbitrary on-disk
+//!   content under the daemon. This is acceptable **only** because the trust
+//!   boundary is `SO_PEERCRED` same-uid; no intra-uid boundary is claimed
+//!   (contract §4).
+//! - **Allowlist**: only operator-pre-admitted roots are authorised; an
+//!   unlisted root is refused. This is the confinement boundary for operators
+//!   who need one (the `anvil workspace` CLI that configures it is DSV-008).
+//!
+//! Workspace identity is derived purely from the canonicalised path + the held
+//! dirfd. There is deliberately **no** procfs per-pid working-directory lookup
+//! anywhere in the auth path — a connection's working directory is not its
+//! workspace.
+//!
+//! **Scope (DSV-003):** this is the standalone, unit-tested admission
+//! component. Threading a `&mut AdmittedRoots` through the `ipc.rs` connection
+//! handler and calling [`AdmittedRoots::authorise`] from the `validate_paths`
+//! dispatch arm is DSV-005 work — that arm is the only real consumer, so the
+//! wiring lands with it rather than as inert plumbing here.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::io;
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::path::{Path, PathBuf};
+
+use crate::path_safety::open_workspace_dirfd;
+
+/// How the admitted-root set decides whether to admit a not-yet-seen root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmissionMode {
+    /// First-touch adopt: any nameable root is auto-admitted on first contact.
+    Open,
+    /// Confinement: only operator-pre-admitted roots are authorised.
+    Allowlist,
+}
+
+/// A per-connection set of admitted workspace roots, each paired with its held
+/// `O_PATH` dirfd (read anchor + identity).
+#[derive(Debug)]
+pub struct AdmittedRoots {
+    mode: AdmissionMode,
+    /// Canonical roots permitted in `Allowlist` mode. Empty in `Open` mode.
+    allowed: BTreeSet<PathBuf>,
+    /// Canonical root → held dirfd. Insertion-once; never re-resolved.
+    admitted: BTreeMap<PathBuf, OwnedFd>,
+}
+
+impl AdmittedRoots {
+    /// Open mode: the set grows on first contact.
+    #[must_use]
+    pub fn new_open() -> Self {
+        Self {
+            mode: AdmissionMode::Open,
+            allowed: BTreeSet::new(),
+            admitted: BTreeMap::new(),
+        }
+    }
+
+    /// Allowlist mode: only roots in `allowed` may be admitted. Each entry is
+    /// canonicalised at construction; entries that do not currently resolve
+    /// are dropped (they cannot match a real, openable root anyway).
+    #[must_use]
+    pub fn new_allowlist<I>(allowed: I) -> Self
+    where
+        I: IntoIterator<Item = PathBuf>,
+    {
+        let allowed = allowed
+            .into_iter()
+            .filter_map(|p| std::fs::canonicalize(p).ok())
+            .collect();
+        Self {
+            mode: AdmissionMode::Allowlist,
+            allowed,
+            admitted: BTreeMap::new(),
+        }
+    }
+
+    /// This connection's admission mode.
+    #[must_use]
+    pub fn mode(&self) -> AdmissionMode {
+        self.mode
+    }
+
+    /// Whether `canonical_root` is currently admitted (already has a held fd).
+    #[must_use]
+    pub fn is_admitted(&self, canonical_root: &Path) -> bool {
+        self.admitted.contains_key(canonical_root)
+    }
+
+    /// Explicitly admit a root: open its dirfd once and store it under its
+    /// canonical path. Idempotent — a second call for an already-admitted root
+    /// keeps the original fd (identity is pinned at first admission).
+    ///
+    /// # Errors
+    /// Propagates canonicalisation / open failures (root missing or not a
+    /// directory).
+    pub fn admit(&mut self, root: &Path) -> io::Result<()> {
+        let canonical = std::fs::canonicalize(root)?;
+        if self.admitted.contains_key(&canonical) {
+            return Ok(());
+        }
+        let dirfd = open_workspace_dirfd(&canonical)?;
+        self.admitted.insert(canonical, dirfd);
+        Ok(())
+    }
+
+    /// Authorise a verb against `workspace_root`, returning the held read
+    /// anchor (dirfd) iff the root is authorised on this connection.
+    ///
+    /// - `Open` mode: a not-yet-admitted root is auto-admitted (first-touch)
+    ///   and its fd returned.
+    /// - `Allowlist` mode: an already-admitted root returns its fd; an
+    ///   unadmitted-but-allowed root is admitted then returned; an unlisted
+    ///   root returns `Ok(None)` (refused).
+    ///
+    /// # Errors
+    /// Propagates the open/canonicalise error when admission is attempted for
+    /// a root that should be admissible but cannot be opened.
+    pub fn authorise(&mut self, workspace_root: &Path) -> io::Result<Option<BorrowedFd<'_>>> {
+        // A root that does not resolve is never authorised — but this is a
+        // refusal, not a hard error (the client named a vanished path).
+        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+            return Ok(None);
+        };
+
+        if !self.admitted.contains_key(&canonical) {
+            let admissible = match self.mode {
+                AdmissionMode::Open => true,
+                AdmissionMode::Allowlist => self.allowed.contains(&canonical),
+            };
+            if !admissible {
+                return Ok(None);
+            }
+            let dirfd = open_workspace_dirfd(&canonical)?;
+            self.admitted.insert(canonical.clone(), dirfd);
+        }
+
+        Ok(self.admitted.get(&canonical).map(AsFd::as_fd))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::fd::AsRawFd;
+
+    #[test]
+    fn validate_paths_authorised_for_session_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut roots = AdmittedRoots::new_open();
+        roots.admit(tmp.path()).expect("admit root");
+
+        let fd = roots
+            .authorise(tmp.path())
+            .expect("authorise io")
+            .expect("an admitted root is authorised");
+        // A live, readable anchor fd.
+        assert!(fd.as_raw_fd() >= 0);
+    }
+
+    #[test]
+    fn validate_paths_refused_for_unrelated_root_in_allowlist_mode() {
+        let allowed = tempfile::tempdir().expect("tempdir");
+        let other = tempfile::tempdir().expect("tempdir");
+
+        let mut roots = AdmittedRoots::new_allowlist([allowed.path().to_path_buf()]);
+        // The allowed root authorises...
+        assert!(
+            roots.authorise(allowed.path()).expect("io").is_some(),
+            "allowlisted root must authorise"
+        );
+        // ...an unrelated root does not, and is NOT silently admitted.
+        assert!(
+            roots.authorise(other.path()).expect("io").is_none(),
+            "an unlisted root must be refused in allowlist mode"
+        );
+        let canonical_other = std::fs::canonicalize(other.path()).unwrap();
+        assert!(!roots.is_admitted(&canonical_other));
+    }
+
+    #[test]
+    fn root_set_grows_on_first_touch_in_open_mode() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut roots = AdmittedRoots::new_open();
+        let canonical = std::fs::canonicalize(tmp.path()).unwrap();
+
+        assert!(
+            !roots.is_admitted(&canonical),
+            "not admitted before first touch"
+        );
+        // First authorise auto-admits in open mode.
+        assert!(roots.authorise(tmp.path()).expect("io").is_some());
+        assert!(roots.is_admitted(&canonical), "admitted after first touch");
+    }
+
+    #[test]
+    fn admission_pins_the_fd_identity_across_calls() {
+        // The dirfd is opened once and reused — re-authorising the same root
+        // returns the same underlying fd, not a freshly re-resolved one (C2).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut roots = AdmittedRoots::new_open();
+
+        let first = roots
+            .authorise(tmp.path())
+            .expect("io")
+            .unwrap()
+            .as_raw_fd();
+        let second = roots
+            .authorise(tmp.path())
+            .expect("io")
+            .unwrap()
+            .as_raw_fd();
+        assert_eq!(first, second, "the held dirfd is pinned at first admission");
+    }
+
+    #[test]
+    fn unresolvable_root_is_refused_not_errored() {
+        let mut roots = AdmittedRoots::new_open();
+        let result = roots.authorise(Path::new("/no/such/anvil/root"));
+        assert!(
+            matches!(result, Ok(None)),
+            "a vanished root is a refusal, not a hard error: {result:?}"
+        );
+    }
+
+    #[test]
+    fn no_cwd_in_auth_path() {
+        // The workspace is identified by its canonical path + held dirfd, never
+        // by the peer's working directory. Guard against a regression that
+        // reaches for the procfs per-pid working directory or the process
+        // working directory in the admission/read path. Needles are assembled
+        // at runtime so this test's own source does not trip the check.
+        let admission = include_str!("workspace_admission.rs");
+        let path_safety = include_str!("path_safety.rs");
+        let proc_needle = format!("/{}/", "proc");
+        let cwd_needle = format!("current{}dir", "_");
+        for (name, src) in [
+            ("workspace_admission", admission),
+            ("path_safety", path_safety),
+        ] {
+            assert!(
+                !src.contains(&proc_needle),
+                "{name} must not consult the procfs per-pid working directory in the auth/read path"
+            );
+            assert!(
+                !src.contains(&cwd_needle),
+                "{name} must not consult the process working directory in the auth/read path"
+            );
+        }
+    }
+}

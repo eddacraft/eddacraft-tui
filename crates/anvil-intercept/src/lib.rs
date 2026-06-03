@@ -28,7 +28,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod assurance;
 pub mod auth;
+pub mod change_class;
 pub mod config;
 pub mod dos;
 pub mod embedded;
@@ -40,6 +42,7 @@ pub mod ipc;
 pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
+pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
@@ -48,6 +51,7 @@ pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
 pub mod watcher;
+pub mod workspace_admission;
 pub mod workspace_pool;
 
 pub use auth::{

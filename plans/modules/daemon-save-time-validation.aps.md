@@ -183,7 +183,16 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-003: Daemon ingest spine — auth, read-safety, change classification, taxonomy
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Scope note (2026-06-03):** the ingest-spine *components* land in this PR —
+  `path_safety` (Task 3, openat2 dirfd read-safety), `change_class` (Task 4,
+  inode classification), `assurance` taxonomy half (Task 5), and a standalone,
+  unit-tested `workspace_admission::AdmittedRoots` (Task 2's per-connection
+  admitted-root set). Task 2's `ipc.rs` per-connection threading + the live
+  `validate_workspace_roots`/`authorise` caller (B7) are intentionally deferred
+  to **DSV-005**: `validate_paths` is the admitted-root set's only real consumer,
+  so wiring lands with that dispatch arm rather than as inert plumbing here. The
+  item stays **In Progress** until that wiring merges.
 - **Intent:** Establish the load-bearing trust + ingest path the verdict depends on:
   net-new workspace-root authorisation, openat2 read-safety, inode-based change
   classification, and a default-deny invalidation taxonomy.
