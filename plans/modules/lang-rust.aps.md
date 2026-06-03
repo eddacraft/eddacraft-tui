@@ -118,9 +118,9 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** high — grammar crate is mature; pattern follows existing TS/JS wiring.
 - **Files:** crates/anvil-kernel/Cargo.toml, crates/anvil-kernel/src/parser/languages.rs
 
-### RSTLAN-002: Implement Rust symbol and import extraction (mod/use shapes) — Ready
+### RSTLAN-002: Implement Rust symbol and import extraction (mod/use shapes) — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Provide a `rust.rs` extractor (implementing `LanguageExtractor`) that walks the tree-sitter-rust AST and emits `SymbolNode`s + `ImportEdge`s for Rust module shapes so the symbol graph and downstream consumers (architecture, drift, checks) see Rust crates.
 - **Expected Outcome:** `FileSymbols` for `.rs` files contains module symbols, use/import edges (relative crate:: super:: self::, pub use, namespaced uses, #[path] re-exports resolved at least to the declaring file), extern crate; dispatch arm in `extract_symbols` routes Language::Rust to the new extractor; existing TS paths unaffected; round-trip tests on representative Rust idioms pass.
 - **Scope:** New `crates/anvil-kernel/src/parser/extract/rust.rs` (or query-driven), update `extract/mod.rs` dispatch + Language match, `FileSymbols`/`ImportEdge` if Rust needs additive fields (keep minimal), tests/fixtures under parser/extract or integration.
