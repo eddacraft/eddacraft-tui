@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | Draft  |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-06-04
 
 ## Purpose
 
@@ -115,22 +115,36 @@ can tap the same deterministic model Anvil already trusts.
 Change status to **Ready** when:
 
 - [ ] Graph taxonomy accepted by architecture review
-- [ ] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners
+- [x] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners —
+      ratified in [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted
+      2026-06-01, Josh as sole owner of the INTD, DRVR, and GV2 surfaces)
 - [ ] Stable identity model reviewed against git rename and symbol rename cases
-- [ ] Persistence strategy ADR drafted or explicitly assigned to GV2-021
+- [x] Persistence strategy ADR drafted or explicitly assigned to GV2-021 —
+      assigned to GV2-021, with its content concretely specified in
+      `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 (ADR
+      itself not yet drafted)
 - [ ] Privacy review completed for persisted provenance/session fields
-- [ ] GCTX module updated to depend on GV2 rather than owning foundation work
+- [x] GCTX module updated to depend on GV2 rather than owning foundation work —
+      [graph-context-delivery](graph-context-delivery.aps.md) declares GV2 as a
+      dependency and lists schemas, stable IDs, deltas, hot indexes, and
+      persistence as GV2-owned (out of GCTX scope)
 - [ ] Validation commands for the first implementation slice are concrete
 
 > **ADR-061 (Accepted 2026-06-01, council `plan-5768ae0c`) is the consuming
 > save-time contract** for the GV2 hot-read slice (GV2-010/011/020/022). ADR-061
-> deliberately does **not** close the "Hot-path/non-hot-path boundary agreed with
-> INTD and DRVR owners" checkbox above — that gate remains the blocker for
-> sub-phase A′ (swapping the GV2 hot-read slice under the frozen `validate_paths`
-> wire). GV2-021's persistence/privacy/crash-safety content is now specified
-> concretely in `plans/specs/2026-06-01-daemon-save-time-validation-contract.md`
-> §9 (warm-start restores indexes, never the verdict; default-off; per-uid
-> owner-only snapshot location; structural-identity-only privacy line).
+> deliberately left the "Hot-path/non-hot-path boundary agreed with INTD and DRVR
+> owners" gate open; **[ADR-063](../decisions/063-gv2-hot-path-boundary.md)
+> (Accepted 2026-06-01) now closes it** — it pins the hot-path admission
+> invariant, the read allowlist, the denylist, and the miss/stale policy across
+> the INTD, DRVR, and GV2 surfaces, ratifies the boundary checkbox above, and
+> clears GV2-022 to freeze. Sub-phase A′ is therefore no longer decision-blocked;
+> it now depends on **implementing** the GV2 hot-read slice (GV2-010/011/020/022,
+> all still Draft) under the frozen `validate_paths` wire. GV2-021's
+> persistence/privacy/crash-safety content is specified concretely in
+> `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 (warm-start
+> restores indexes, never the verdict; default-off; per-uid owner-only snapshot
+> location; structural-identity-only privacy line); sub-phase B remains blocked
+> on the GV2-021 ADR itself being drafted.
 
 ---
 
