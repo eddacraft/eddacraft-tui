@@ -7,6 +7,11 @@
 #![cfg(windows)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+// DSV-010 / ADR-068: the Windows save-time read-safety guard (the Unix
+// `path_safety` analogue). Kept in its own module; the unsafe NtCreateFile FFI
+// stays here so `anvil-intercept` keeps `#![forbid(unsafe_code)]`.
+pub mod read_safety;
+
 use std::ffi::{OsStr, c_void};
 use std::io;
 use std::mem::size_of;

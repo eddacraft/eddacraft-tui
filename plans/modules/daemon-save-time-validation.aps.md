@@ -475,7 +475,17 @@ read-safety design risk that likely needs an ADR before it goes Ready.
 
 #### DSV-010: Windows named-pipe save-time daemon
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Progress (2026-06-04):** increment 1 — the ADR-068 read-safety **guard** —
+  delivered as `crates/anvil-intercept-win32/src/read_safety.rs`: `WorkspaceDir`
+  held-handle anchor (C2), the per-component `NtCreateFile` + `OBJ_DONT_REPARSE`
+  ladder `read_under` (reparse/junction refused as `ERROR_CANT_RESOLVE_FILENAME`,
+  the Unix-`ELOOP` analogue), the Windows-hardened `normalise_rel`
+  (backslash/drive/UNC/device/ADS/trailing-dot/reserved-name), and the 64 MiB
+  refuse-don't-truncate cap (B2), with fixture tests. Cross-compile-checked +
+  clippy-clean on `x86_64-pc-windows-gnu`; runtime-verified by Windows CI.
+  Remaining: lift `save_time.rs` off `#![cfg(unix)]` to dispatch this guard,
+  wire the IPC dispatch on Windows, and the peer-SID auth check (then DSV-011).
 - **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
   the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
   support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP

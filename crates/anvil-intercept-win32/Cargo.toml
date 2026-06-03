@@ -9,8 +9,12 @@ description = "Windows-only Win32 helpers for the Anvil intercept daemon"
 [lib]
 name = "anvil_intercept_win32"
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [dependencies]
 tokio = { workspace = true }
+thiserror = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
@@ -20,4 +24,9 @@ windows-sys = { version = "0.61", features = [
   "Win32_Storage_FileSystem",
   "Win32_System_JobObjects",
   "Win32_System_Threading",
+  # DSV-010 / ADR-068: the NtCreateFile read-safety guard.
+  "Wdk_Storage_FileSystem",
+  "Wdk_Foundation",
+  "Win32_System_IO",
+  "Win32_System_Kernel",
 ] }
