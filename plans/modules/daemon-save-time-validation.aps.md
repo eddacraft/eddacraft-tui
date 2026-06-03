@@ -258,22 +258,51 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-005: `validate_paths` orchestration + assurance lifecycle
 
-- **Status:** Ready
-- **Intent:** Wire the verdict end to end and run the workspace assurance state
-  machine + `workspace_status` / `request_full_scan` verbs.
+- **Status:** In Progress
+- **Progress (2026-06-03):** delivered on `feat/dsv-005-ipc-wiring` as three
+  council-reviewed change-sets (status flips to Merged when the PR lands):
+  1. **ipc wiring + per-connection admission.** `save_time::{SaveTimeState,
+     SaveTimeConn}` route the three verbs through the `ipc.rs` special-method
+     dispatch (mirroring `scan_buffer`), threaded cross-platform as
+     `Option<&mut dyn SaveTimeDispatch>`. This lands DSV-003 Task 2's deferred
+     `ipc.rs` admission threading: each verb authorises `workspace_root` against
+     the per-connection `AdmittedRoots` before any read, and every byte is read
+     through the held openat2 dirfd (B7 / security C2). Verdict keyed on the
+     **canonical** root; per-key `Arc<Mutex<AssuranceMachine>>` so cross-worktree
+     verdicts don't serialise. `request_full_scan` queues a scan (the executor is
+     DSV-006); client hashes never trusted.
+  2. **Task 9 notification envelopes.** `telemetry::envelope_for_assurance_transition`
+     mirrors the fence envelope (class `FenceState`, priority high for
+     →stale/→unavailable, `grouping.key=intercept:assurance:<root>`); each
+     transition emits it + a tracing mirror carrying the machine fields, which
+     stay **off** the wire `NotificationContext` (Cond A). Production `Fanout::route`
+     delivery is the shared Phase E producer wire-up (as for fence transitions).
+  3. **Kernel symbol feed (Task 7) as a dependency-inverted parse hook.** Modelled
+     as the EIP **Content Enricher behind a Messaging Gateway** (see
+     [ADR-067](../decisions/067-daemon-symbol-feed-parse-hook.md)): the daemon
+     defines the `SymbolParser` trait (no tree-sitter — ADR-064 holds), and
+     `anvil-cli` injects a kernel-backed impl via `ForegroundOpts`. `validate_paths`
+     hands the parser the **exact** guarded bytes it hashed (no second read → no
+     B2 race), unblocking real `Certified` verdicts. The async watcher feed is
+     reframed as a future advisory cache-warmer, never the verdict source.
+- **Deferred (tracked):** `Fanout::route` subscriber delivery (Phase E);
+  the interactive-pool **offload** of the synchronous parse + the `4 agents + 1
+  scan` **SLO bench** (DSV-006 Task 16); the registry unregister-hook wiring for
+  warm-state reclamation; an operator antipattern-config surface.
 - **Expected Outcome:** Orchestration runs auth → classify → guarded-bytes read →
   apply-delta → certify → antipattern check (on guarded bytes + the interactive pool)
   → coalesce → assurance; the lifecycle emits ADR-035 notification envelopes (machine
   fields on the tracing mirror only); client-supplied hashes are never trusted for a
   verdict.
-- **Validation:** `cargo test -p eddacraft-anvil-intercept validate_paths assurance`.
-- **Files:** `crates/anvil-intercept/src/{validate_paths,assurance}.rs`,
-  `crates/anvil-intercept/src/ipc.rs`,
-  `crates/anvil-checks/src/antipattern/check.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept save_time validate_paths telemetry`;
+  `cargo test -p eddacraft-anvil intercept_symbol_parser`;
+  `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary`.
+- **Files:** `crates/anvil-intercept/src/{validate_paths,save_time,telemetry,ipc,lib}.rs`,
+  `crates/anvil-cli/src/intercept_symbol_parser.rs`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** DSV-004, DSV-006
-- **Source:** subphase-a Tasks 8–9; council B6/B7/item 8.
+- **Source:** subphase-a Tasks 8–9; council B6/B7/item 8; ADR-067.
 
 ---
 
