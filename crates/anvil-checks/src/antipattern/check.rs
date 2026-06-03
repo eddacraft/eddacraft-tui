@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use rayon::prelude::*;
 
-use crate::antipattern::scanner::{ScanOptions, scan_file};
+use crate::antipattern::scanner::{ScanOptions, ScanResult, scan_file};
 use crate::antipattern::types::{
     AntipatternCheckConfig, AntipatternCheckResult, WarningResult, WarningSeverity,
     create_warning_result,
@@ -91,36 +92,24 @@ fn normalise_file_path(file_path: &str, workspace_root: Option<&str>) -> String 
     }
 }
 
-#[must_use]
-pub fn run_antipattern_check(
-    files: &[&str],
-    config: &AntipatternCheckConfig,
-    workspace_root: Option<&str>,
-) -> AntipatternCheckResult {
-    let scan_options = ScanOptions {
+fn scan_options_from_config(config: &AntipatternCheckConfig) -> ScanOptions {
+    ScanOptions {
         patterns: if config.patterns.is_empty() {
             None
         } else {
             Some(config.patterns.clone())
         },
         include_opt_in: config.include_opt_in,
-    };
+    }
+}
 
-    // Scan files concurrently on the rayon thread pool. `filter_map` drops
-    // non-scannable / unreadable files; `collect` materialises a Vec so we
-    // can fold into aggregate state deterministically below.
-    let per_file_results: Vec<_> = files
-        .par_iter()
-        .filter_map(|file_path| {
-            if !is_scannable_file(file_path, config) {
-                return None;
-            }
-            let content = fs::read_to_string(file_path).ok()?;
-            let relative_path = normalise_file_path(file_path, workspace_root);
-            Some(scan_file(&relative_path, &content, Some(&scan_options)))
-        })
-        .collect();
-
+/// Fold per-file scan results into the aggregate check verdict (warnings,
+/// score, pass/fail, message). Shared by both the disk-reading wrapper and the
+/// bytes core so the two cannot diverge.
+fn aggregate_scan_results(
+    per_file_results: Vec<ScanResult>,
+    config: &AntipatternCheckConfig,
+) -> AntipatternCheckResult {
     let files_scanned = per_file_results.len();
     let mut all_warnings = Vec::new();
     let mut all_patterns_checked = BTreeSet::new();
@@ -162,12 +151,97 @@ pub fn run_antipattern_check(
     }
 }
 
+/// Lazily-built default rayon pool for the disk-reading [`run_antipattern_check`]
+/// wrapper. The daemon (DSV-005) supplies its own interactive pool to
+/// [`run_antipattern_check_bytes`]; everyone else shares this one.
+fn default_pool() -> &'static rayon::ThreadPool {
+    static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .build()
+            .expect("build default antipattern rayon pool")
+    })
+}
+
+/// Run the anti-pattern check over already-read file bytes, on an injected
+/// rayon pool. This is the core the daemon's save-time `validate_paths` path
+/// (DSV-005 Task 8) calls with the openat2-guarded bytes it already read
+/// (Task 3) and its interactive pool (DSV-006/Task 10): it never re-opens a
+/// file (closing the TOCTOU window a re-read would reopen) and never bleeds
+/// onto the global rayon pool. `files` pairs each path with its content bytes.
+///
+/// Bytes are decoded with [`String::from_utf8_lossy`]; the scanner is a
+/// text-pattern matcher, and the disk wrapper only ever supplies valid UTF-8
+/// (it reads via `read_to_string`), so the lossy path is exercised only by
+/// callers that knowingly hand non-UTF-8 bytes.
+#[must_use]
+pub fn run_antipattern_check_bytes(
+    files: &[(&str, &[u8])],
+    config: &AntipatternCheckConfig,
+    workspace_root: Option<&str>,
+    pool: &rayon::ThreadPool,
+) -> AntipatternCheckResult {
+    let scan_options = scan_options_from_config(config);
+
+    // Scan supplied bytes concurrently on the *injected* pool. `filter_map`
+    // drops non-scannable files; the bytes are already in hand, so no file is
+    // re-opened here.
+    let per_file_results: Vec<ScanResult> = pool.install(|| {
+        files
+            .par_iter()
+            .filter_map(|(file_path, bytes)| {
+                if !is_scannable_file(file_path, config) {
+                    return None;
+                }
+                let content = String::from_utf8_lossy(bytes);
+                let relative_path = normalise_file_path(file_path, workspace_root);
+                Some(scan_file(&relative_path, &content, Some(&scan_options)))
+            })
+            .collect()
+    });
+
+    aggregate_scan_results(per_file_results, config)
+}
+
+/// Run the anti-pattern check by reading each path from disk.
+///
+/// Thin wrapper over [`run_antipattern_check_bytes`]: it reads each scannable
+/// file via `fs::read_to_string` (skipping unreadable / non-UTF-8 files, as
+/// before) on the [`default_pool`], then delegates. The disk-reading CLI
+/// surfaces have no openat2 guard and legitimately read from cwd, so they keep
+/// this entry point; only the save-time daemon uses the bytes core.
+#[must_use]
+pub fn run_antipattern_check(
+    files: &[&str],
+    config: &AntipatternCheckConfig,
+    workspace_root: Option<&str>,
+) -> AntipatternCheckResult {
+    let owned: Vec<(&str, Vec<u8>)> = files
+        .iter()
+        .filter(|file_path| is_scannable_file(file_path, config))
+        .filter_map(|&file_path| {
+            fs::read_to_string(file_path)
+                .ok()
+                .map(|content| (file_path, content.into_bytes()))
+        })
+        .collect();
+    let borrowed: Vec<(&str, &[u8])> = owned
+        .iter()
+        .map(|(path, bytes)| (*path, bytes.as_slice()))
+        .collect();
+
+    run_antipattern_check_bytes(&borrowed, config, workspace_root, default_pool())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::antipattern::check::run_antipattern_check;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use crate::antipattern::check::{run_antipattern_check, run_antipattern_check_bytes};
     use crate::antipattern::types::{AntipatternCheckConfig, WarningSeverity};
 
     fn create_temp_dir(name: &str) -> PathBuf {
@@ -313,5 +387,57 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn run_antipattern_check_bytes_scans_supplied_bytes_not_disk() {
+        // `phantom.ts` does not exist on disk: if the core re-read the path it
+        // would find nothing (files_scanned == 0). It must scan the supplied
+        // bytes instead, so the `any` anti-pattern is found in a 1-file scan.
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .expect("test pool");
+        let bytes: &[u8] = b"const value: any = source;";
+        let files: [(&str, &[u8]); 1] = [("phantom.ts", bytes)];
+
+        let config = AntipatternCheckConfig {
+            severity_threshold: WarningSeverity::Warning,
+            ..AntipatternCheckConfig::default()
+        };
+        let result = run_antipattern_check_bytes(&files, &config, None, &pool);
+
+        assert_eq!(
+            result.files_scanned, 1,
+            "supplied bytes were scanned even though the path does not exist on disk"
+        );
+        assert_eq!(
+            result.warnings.summary.warnings, 1,
+            "the anti-pattern in the supplied bytes was detected"
+        );
+    }
+
+    #[test]
+    fn run_antipattern_check_bytes_runs_on_supplied_pool() {
+        // A pool whose workers flip a flag on start. After a scan that does real
+        // per-file work, the flag proves the *supplied* pool's threads ran the
+        // work (rather than the global pool).
+        let used = Arc::new(AtomicBool::new(false));
+        let used_in_handler = Arc::clone(&used);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .start_handler(move |_| used_in_handler.store(true, Ordering::SeqCst))
+            .build()
+            .expect("test pool");
+
+        let bytes: &[u8] = b"const value: any = source;";
+        let files: [(&str, &[u8]); 1] = [("a.ts", bytes)];
+        let _ =
+            run_antipattern_check_bytes(&files, &AntipatternCheckConfig::default(), None, &pool);
+
+        assert!(
+            used.load(Ordering::SeqCst),
+            "the scan must execute on the injected pool, not the global one"
+        );
     }
 }
