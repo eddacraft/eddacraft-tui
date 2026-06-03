@@ -426,7 +426,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-009: Cross-path diagnostic parity gate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2294
 - **Intent:** Prove the antipattern-family delivery paths return identical finding sets.
   **Scope reconciled (2026-06-04):** the antipattern family runs on the save-time
   `validate_paths` surfaces — **`watch+daemon` and `watch+fallback`** — so the gate
@@ -511,7 +511,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
-| A — Interim-cache `validate_paths` | 9 | 8/9 done | In Progress |
+| A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **11** | **8/11 done** | **In Progress** |
+| **Total** | **11** | **9/11 done** | **In Progress** |
