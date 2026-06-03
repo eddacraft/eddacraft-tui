@@ -578,6 +578,57 @@ mod tests {
         );
     }
 
+    /// DSV: the registry unregister hook's closure body — drop a worktree's
+    /// warm graph cache + assurance machine — actually reclaims both. A
+    /// `validate_paths` with a parser warms the cache and seeds the assurance
+    /// machine for the canonical key; `invalidate` (what `run_foreground`'s
+    /// hook calls) must leave neither behind.
+    #[test]
+    fn invalidate_reclaims_warm_cache_and_assurance_machine() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).expect("mkdir");
+        fs::write(src.join("a.ts"), b"export function foo() { return 1; }").expect("write");
+
+        let state = state().with_parser(Arc::new(FixedParser {
+            file: "src/a.ts".to_string(),
+            names: vec!["foo".to_string()],
+        }));
+        let mut conn = SaveTimeConn::new(&state);
+        let request = ValidatePathsRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            paths: vec![modified("src/a.ts")],
+        };
+        conn.validate_paths(&request).expect("admitted");
+
+        // The cache + assurance machine key on the CANONICAL root — the same
+        // value the registry's unregister hook reconstructs from the canonical
+        // worktree path.
+        let key = WorktreeKey::from_canonical(
+            std::fs::canonicalize(tmp.path()).expect("canonicalize root"),
+        );
+        assert!(
+            state.cache.contains(&key),
+            "validate_paths must warm the graph cache for the canonical key",
+        );
+        assert!(
+            state.lock_map().contains_key(&key),
+            "validate_paths must seed the assurance machine for the canonical key",
+        );
+
+        // Fire the hook's closure body.
+        state.invalidate(&key);
+
+        assert!(
+            !state.cache.contains(&key),
+            "invalidate must drop the warm cache entry",
+        );
+        assert!(
+            !state.lock_map().contains_key(&key),
+            "invalidate must drop the assurance machine",
+        );
+    }
+
     /// A parser that records the (path, bytes) it was handed, so a test can
     /// prove the daemon forwards the exact guarded bytes it read.
     #[derive(Debug, Default)]

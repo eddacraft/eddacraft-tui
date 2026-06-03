@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anvil_intercept_proto::session::{AgentTag, LineageAnchor};
@@ -388,14 +388,21 @@ pub struct SessionRegistry {
     /// startup from `Resolved::session_per_worktree_max`. Tests
     /// override via [`SessionRegistry::with_per_worktree_cap`].
     per_worktree_cap: usize,
-    /// MLP2-057: opt-in hook fired with the canonical worktree path
-    /// each time a session is unregistered (deliberate
+    /// MLP2-057 / DSV: opt-in hook fired with the canonical worktree
+    /// path each time a session is unregistered (deliberate
     /// `unregister` or TTL-driven `evict_stale`). The daemon wires
-    /// this to [`crate::rule_cache::RuleSetCache::invalidate`] so
-    /// rule-cache lifetime tracks session lifetime. Default is
-    /// `None`; embedded-mode tests that don't construct a cache
-    /// aren't forced to plumb one through.
-    unregister_hook: Option<WorktreeUnregisterHook>,
+    /// this to [`crate::save_time::SaveTimeState::invalidate`] (drop a
+    /// worktree's warm graph cache + assurance machine on the last
+    /// session leaving) — and, when MLP2-014 lands the rule cache, the
+    /// same closure additionally calls
+    /// [`crate::rule_cache::RuleSetCache::invalidate`]. A `OnceLock`
+    /// (not `Option`) so the daemon can install the hook *after* it has
+    /// `Arc`-wrapped the registry, via
+    /// [`SessionRegistry::set_unregister_hook`] — the warm cache it
+    /// reclaims is constructed later in `run_foreground` than the
+    /// registry. Empty by default; embedded-mode tests that construct
+    /// no cache aren't forced to plumb one through.
+    unregister_hook: OnceLock<WorktreeUnregisterHook>,
 }
 
 /// MLP2-057: callback fired when a session leaves the registry. The
@@ -477,24 +484,44 @@ impl SessionRegistry {
             }),
             ttl,
             per_worktree_cap: DEFAULT_PER_WORKTREE_CAP,
-            unregister_hook: None,
+            unregister_hook: OnceLock::new(),
         }
     }
 
     /// MLP2-057: builder-style hook registration. The hook fires
     /// once per session removed via `unregister` or `evict_stale`,
     /// receiving the unregistered session's canonical worktree
-    /// path. The daemon wires this to
-    /// [`crate::rule_cache::RuleSetCache::invalidate`] so a
-    /// register/unregister cycle leaves no cache residue.
+    /// path. The daemon's `run_foreground` installs the hook through
+    /// the post-construction [`SessionRegistry::set_unregister_hook`]
+    /// instead (the warm cache it reclaims outlives this builder);
+    /// this builder remains the seam tests use to drive the hook on a
+    /// freshly-constructed registry.
     ///
     /// Calling this method a second time replaces the prior hook —
-    /// only one hook is supported in v1, since the daemon's call
-    /// site is the single intended consumer.
+    /// the builder owns `self`, so it resets the `OnceLock`. Only one
+    /// hook is supported, since the daemon's call site composes every
+    /// invalidator into a single closure.
     #[must_use]
     pub fn with_unregister_hook(mut self, hook: WorktreeUnregisterHook) -> Self {
-        self.unregister_hook = Some(hook);
+        self.unregister_hook = OnceLock::new();
+        let _ = self.unregister_hook.set(hook);
         self
+    }
+
+    /// MLP2-057 / DSV: install the unregister hook on an already
+    /// `Arc`-wrapped registry. Unlike the consuming
+    /// [`SessionRegistry::with_unregister_hook`] builder, this works
+    /// after construction — `run_foreground` builds the registry
+    /// first and the warm [`crate::save_time::SaveTimeState`] the hook
+    /// reclaims only later, so the hook cannot be supplied at build
+    /// time.
+    ///
+    /// Set-once: returns `true` if the hook was installed, `false` if
+    /// one was already present (the caller composes every invalidator
+    /// into a single closure, so a second install is a wiring bug, not
+    /// a runtime condition).
+    pub fn set_unregister_hook(&self, hook: WorktreeUnregisterHook) -> bool {
+        self.unregister_hook.set(hook).is_ok()
     }
 
     /// MLP2-024: builder-style override of the per-worktree cap.
@@ -1211,9 +1238,9 @@ impl SessionRegistry {
             entry.record.worktree
         };
         // MLP2-057: fire the hook AFTER the inner lock is released so a
-        // slow consumer (a `RuleSetCache::invalidate` running under
+        // slow consumer (a `SaveTimeState::invalidate` running under
         // its own mutex) does not extend the registry-lock window.
-        if let Some(hook) = self.unregister_hook.as_ref() {
+        if let Some(hook) = self.unregister_hook.get() {
             hook(&worktree);
         }
         Ok(true)
@@ -1273,7 +1300,7 @@ impl SessionRegistry {
         // idempotent (returns `false` on the second call), so this
         // doesn't cause spurious telemetry — but it does ensure
         // every removed session-worktree pair is signalled.
-        if let Some(hook) = self.unregister_hook.as_ref() {
+        if let Some(hook) = self.unregister_hook.get() {
             for worktree in &worktrees {
                 hook(worktree);
             }
@@ -2725,6 +2752,38 @@ mod tests {
         assert!(removed);
         let observed = hits.lock().unwrap().clone();
         assert_eq!(observed, vec![canonical]);
+    }
+
+    /// DSV: the post-construction `set_unregister_hook` installs the
+    /// same hook the builder does, on an already-`Arc`-wrapped
+    /// registry — the path `run_foreground` uses because the warm
+    /// cache the hook reclaims is built after the registry. First
+    /// install wins; a second returns `false` and does not replace.
+    #[test]
+    fn set_unregister_hook_installs_post_construction() {
+        let hits = Arc::new(Mutex::new(Vec::<PathBuf>::new()));
+        let registry = Arc::new(SessionRegistry::new());
+
+        let hits_for_hook = Arc::clone(&hits);
+        let installed = registry.set_unregister_hook(Arc::new(move |worktree| {
+            hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
+        }));
+        assert!(installed, "first install must succeed on an empty OnceLock");
+
+        // A second install is refused — the daemon composes every
+        // invalidator into one closure, so a second set is a wiring bug.
+        let refused = registry.set_unregister_hook(Arc::new(|_| {}));
+        assert!(!refused, "second install must be refused, not replace");
+
+        let wt = make_worktree();
+        let canonical = wt.path().canonicalize().unwrap();
+        registry
+            .register(&sid("p1"), wt.path(), None, Instant::now())
+            .unwrap();
+        assert!(hits.lock().unwrap().is_empty());
+
+        assert!(registry.unregister(&sid("p1")).unwrap());
+        assert_eq!(hits.lock().unwrap().clone(), vec![canonical]);
     }
 
     /// `unregister` on an unknown id is a no-op and MUST NOT fire

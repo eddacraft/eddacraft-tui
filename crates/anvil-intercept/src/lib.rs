@@ -1074,16 +1074,10 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // interactive pool, B7), and the operator confinement policy (open by
         // default; fail-closed on an untrusted config). Injected into the
         // listener so the three save-time verbs are served from the first
-        // connection.
-        //
-        // The registry unregister hook (drop a worktree's warm state on
-        // session unregister, via `SaveTimeState::invalidate`) is a memory
-        // reclamation optimisation, not a correctness requirement — the
-        // assurance/cache state is worktree-scoped, so it is correct to persist
-        // it across sessions for the same worktree. Wiring it needs a registry
-        // post-construction hook setter (today only the consuming
-        // `with_unregister_hook` builder exists); deferred to keep this PR
-        // focused on the verdict path.
+        // connection. The registry unregister hook that reclaims a
+        // worktree's warm state (cache + assurance machine) on session
+        // unregister is installed below, once both the registry and
+        // `save_time_state` exist.
         #[cfg(unix)]
         let save_time_state = {
             let scheduler = workspace_pool::WorkScheduler::new().with_context(|| {
@@ -1119,6 +1113,32 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             }
             Arc::new(state)
         };
+
+        // DSV: reclaim a worktree's warm state (graph cache + assurance
+        // machine) when its last session leaves the registry. The hook is
+        // installed post-construction because `save_time_state` is built
+        // after the registry. The registry fires it with the canonical
+        // worktree path, which matches the key `validate_paths` warmed the
+        // cache under (both canonicalise via `std::fs::canonicalize`), so
+        // the `invalidate` lands on the right key. This is the single
+        // composition point for unregister-time invalidators — when
+        // MLP2-014 lands the rule cache, its `invalidate` joins this same
+        // closure rather than competing for the registry's one hook slot.
+        #[cfg(unix)]
+        {
+            let warm_state = Arc::clone(&save_time_state);
+            let installed = daemon_state
+                .registry
+                .set_unregister_hook(Arc::new(move |worktree| {
+                    warm_state.invalidate(&rule_cache::WorktreeKey::from_canonical(
+                        worktree.to_path_buf(),
+                    ));
+                }));
+            debug_assert!(
+                installed,
+                "the unregister hook must install on a freshly-built registry",
+            );
+        }
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {

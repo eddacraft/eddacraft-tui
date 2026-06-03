@@ -13,10 +13,14 @@
 //!   configurability — the cap shipped at `DEFAULT_PER_WORKTREE_MAX`
 //!   regardless of `enforcement.session.per_worktree_max` in
 //!   `.anvil.yaml`).
-//! * `SessionRegistry::with_unregister_hook` (MLP2-057). Deferred: the
-//!   hook's only consumer is `RuleSetCache::invalidate`, and the cache
-//!   is not constructed in `run_foreground` until MLP2-014 lands.
-//!   Wiring it now would be a no-op pretending to be a fix.
+//! * `SessionRegistry::with_unregister_hook` (MLP2-057). Now WIRED (DSV):
+//!   `run_foreground` installs the hook via the post-construction
+//!   `SessionRegistry::set_unregister_hook` so an unregistered session
+//!   drops its worktree's warm `SaveTimeState` (graph cache + assurance
+//!   machine). `RuleSetCache::invalidate` remains its second intended
+//!   consumer — when MLP2-014 constructs that cache it joins the same
+//!   composed closure. Pinned below by
+//!   `run_foreground_reclaims_warm_state_on_unregister`.
 //!
 //! These tests pin the wire-up by going through the real socket via
 //! `run_foreground`. They would have failed on `main` before the fix,
@@ -121,6 +125,43 @@ async fn send_register_request(
     serde_json::from_str(response.trim_end()).expect("response json")
 }
 
+/// Send one JSON-RPC frame over a fresh connection and return the parsed
+/// response. Each call opens its own socket (admission is per-connection), so
+/// the save-time verbs re-admit their root each time.
+async fn send_jsonrpc(
+    socket: &std::path::Path,
+    request_id: &str,
+    method: &str,
+    params: Value,
+) -> Value {
+    let mut stream = UnixStream::connect(socket).await.expect("connect socket");
+    let frame = json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": request_id,
+    });
+    let line = format!("{frame}\n");
+    stream
+        .write_all(line.as_bytes())
+        .await
+        .expect("write jsonrpc frame");
+
+    let mut reader = BufReader::new(stream);
+    let mut response = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut response))
+        .await
+        .expect("response timeout")
+        .expect("read response");
+    serde_json::from_str(response.trim_end()).expect("response json")
+}
+
+/// The `result.workspace_assurance.state` of a save-time verb response.
+fn assurance_state(resp: &Value) -> Option<&str> {
+    resp.pointer("/result/workspace_assurance/state")
+        .and_then(Value::as_str)
+}
+
 /// MLP2-024 wire-up: a daemon launched with
 /// `Resolved.session_per_worktree_max = 2` must refuse the third
 /// concurrent registration on the same worktree. Before the fix,
@@ -178,6 +219,106 @@ async fn run_foreground_applies_session_per_worktree_cap_from_config() {
         "rejection must echo the CONFIGURED cap value (2), not the daemon's \
          compile-time default ({}). data.error={data_error:?}",
         anvil_intercept::registry::DEFAULT_PER_WORKTREE_CAP,
+    );
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("daemon shutdown timed out")
+        .expect("daemon task join failure")
+        .expect("daemon run_foreground reported error");
+}
+
+/// MLP2-057 / DSV wire-up: a daemon must reclaim a worktree's warm save-time
+/// state (graph cache + assurance machine) when its session leaves the
+/// registry. Before the fix, `run_foreground` constructed the registry with no
+/// unregister hook, so `SaveTimeState::invalidate` had no caller and the warm
+/// state outlived the session — the MLP2-057 builder was inert in production
+/// (the #1671 pattern).
+///
+/// The probe is deterministic and needs no symbol parser:
+/// `request_full_scan` moves the assurance machine `Stale → Pending`, a
+/// distinguishable warm state. After unregister, a fresh `workspace_status`
+/// must see the cold-start machine (`Stale(CrossFileResolutionNeeded)`), not
+/// the persisted `Pending`. An unwired daemon keeps the machine and still
+/// reads `pending` here — failing the test.
+#[tokio::test(flavor = "current_thread")]
+async fn run_foreground_reclaims_warm_state_on_unregister() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let worktree = tmp.path().join("worktree");
+    std::fs::create_dir(&worktree).expect("create worktree");
+    let wt_str = worktree.to_str().expect("utf-8 worktree path");
+
+    let (shutdown, handle, socket) = spawn_daemon_with_config(&tmp, Resolved::default()).await;
+
+    // A session to unregister later — its worktree is the one we warm.
+    let reg = send_register_request(&socket, "1", "sess-warm", &worktree, "claude-warm").await;
+    assert!(
+        reg.get("result").is_some() && reg.get("error").is_none(),
+        "registration must succeed; got {reg:?}",
+    );
+
+    // Warm the assurance machine to a distinguishable Pending.
+    let scan = send_jsonrpc(
+        &socket,
+        "2",
+        "anvil/request_full_scan",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(
+        assurance_state(&scan),
+        Some("pending"),
+        "request_full_scan must queue a scan (warm → Pending); got {scan:?}",
+    );
+
+    let before = send_jsonrpc(
+        &socket,
+        "3",
+        "anvil/workspace_status",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(
+        assurance_state(&before),
+        Some("pending"),
+        "the warm Pending must be observable before unregister; got {before:?}",
+    );
+
+    // Unregister → the hook must drop the worktree's warm state.
+    let unreg = send_jsonrpc(
+        &socket,
+        "4",
+        "session.unregister",
+        json!({ "session_id": "sess-warm" }),
+    )
+    .await;
+    assert!(
+        unreg.get("error").is_none(),
+        "unregister must succeed; got {unreg:?}",
+    );
+
+    let after = send_jsonrpc(
+        &socket,
+        "5",
+        "anvil/workspace_status",
+        json!({ "workspace_root": wt_str }),
+    )
+    .await;
+    assert_eq!(
+        assurance_state(&after),
+        Some("stale"),
+        "warm state must be reclaimed on unregister: a fresh cold machine is \
+         Stale, not the persisted Pending. A `pending` here means \
+         `run_foreground` never installed the unregister hook — \
+         warm-state reclamation is inert in production. Response: {after:?}",
+    );
+    assert_eq!(
+        after
+            .pointer("/result/workspace_assurance/reason")
+            .and_then(Value::as_str),
+        Some("cross-file-resolution-needed"),
+        "the reclaimed worktree reports the cold-start reason; got {after:?}",
     );
 
     shutdown.trigger();
