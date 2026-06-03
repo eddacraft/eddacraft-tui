@@ -577,6 +577,36 @@ mod tests {
     }
 
     #[test]
+    fn refuses_junctioned_parent_component() {
+        // A directory junction is a reparse point creatable WITHOUT privilege
+        // (unlike symlinks, which need Developer Mode / admin), so this reliably
+        // verifies the `OBJ_DONT_REPARSE` rejection even on an unprivileged CI
+        // runner — the symlink tests above skip there.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(tmp.path().join("real")).unwrap();
+        std::fs::write(tmp.path().join("real/secret"), b"x").unwrap();
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(tmp.path().join("jx"))
+            .arg(tmp.path().join("real"))
+            .status()
+            .expect("run mklink");
+        assert!(
+            status.success(),
+            "mklink /J creates a junction without privilege"
+        );
+
+        let dir = WorkspaceDir::open(tmp.path()).expect("open root");
+        let rel = normalise_rel("jx/secret").unwrap();
+        let err = read_under(&dir, &rel).expect_err("a junctioned parent must be refused");
+        assert_eq!(
+            err.raw_os_error(),
+            Some(ERROR_CANT_RESOLVE_FILENAME),
+            "junction (reparse) rejection must surface ERROR_CANT_RESOLVE_FILENAME: {err}"
+        );
+    }
+
+    #[test]
     fn stale_root_handle_fails_closed_not_reresolved() {
         // C2: the held handle is the workspace identity. After admission,
         // retargeting the root path must NOT redirect reads — the held handle
