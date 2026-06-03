@@ -35,6 +35,13 @@ persistence) without consumers re-integrating.
   Action plan:
   [`execution/2026-06-01-daemon-save-time-subphase-a.md`](../execution/2026-06-01-daemon-save-time-subphase-a.md)
   (Tasks 0–17).
+- **Sub-phase A-W — Windows + cross-platform parity.** Bring the Sub-phase A
+  save-time surface (daemon verbs + `watch`/`status` clients) to the other
+  short-term-supported targets. macOS already works (`cfg(unix)`); Windows is the
+  gap (verbs unserved, clients are `cfg(not(unix))` stubs). Proposed (DSV-010/011);
+  DSV-010 carries an open Windows read-safety design risk that likely needs an ADR
+  before it goes Ready. Same frozen wire and interim backing as Sub-phase A — a
+  *platform* axis, not a *backing* swap, so it is orthogonal to A′/B.
 - **Sub-phase A′ — GV2 hot-read swap.** Replace the interim cache with the GV2
   resident warm-index slice (GV2-010/011/020/022) under the unchanged wire.
   Blocked on the GV2 hot-/non-hot-path boundary gate.
@@ -486,8 +493,10 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   / handle-based reads, or a documented weaker guarantee). This is the gating unknown;
   the rest is mechanical parity.
 - **Validation:** a Windows IPC fixture round-trip (mirroring the MLP2-075 `windows_*`
-  tests) proving the three verbs answer over a per-PID pipe; the cross-path parity gate
-  (DSV-009) extended to a Windows path.
+  tests) proving the three verbs answer over the named pipe — the *test* binds a
+  per-PID pipe name so it never collides with a real per-user daemon on the same
+  runner (the MLP2-075 rationale), while production uses the per-user pipe from the
+  Expected Outcome; the cross-path parity gate (DSV-009) extended to a Windows path.
 - **Files:** `crates/anvil-intercept/src/{save_time,path_safety,ipc}.rs`,
   `crates/anvil-intercept-win32/`.
 - **Confidence:** low — gated on the read-safety design decision above.
