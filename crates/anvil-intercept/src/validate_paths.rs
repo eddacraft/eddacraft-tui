@@ -16,13 +16,23 @@
 
 use std::path::PathBuf;
 
-use anvil_checks::antipattern::types::{Warning, WarningSeverity};
-use anvil_graph_cache::certify::{CertifyStale, ChangeKind};
-use anvil_intercept_proto::protocol::{ChangeKindWire, StaleReason};
+use anvil_checks::antipattern::check::run_antipattern_check_bytes;
+use anvil_checks::antipattern::types::{AntipatternCheckConfig, Warning, WarningSeverity};
+use anvil_graph_cache::certify::{Certifiability, CertifyStale, ChangeKind, certify};
+use anvil_intercept_proto::protocol::{
+    ChangeDescriptor, ChangeKindWire, CheckFamily, Coverage, EvaluatedPath, StaleReason,
+    ValidatePathsRequest, ValidatePathsResponse,
+};
 use anvil_kernel_types::diagnostics::KnownMode;
-use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
+use anvil_kernel_types::{
+    Category, Diagnostic, DiagnosticSource, FileSymbols, Location, Mode, Severity,
+};
+use sha2::{Digest, Sha256};
 
+use crate::assurance::{AssuranceMachine, ChangeCtx, taxonomy_reason};
 use crate::change_class::CanonicalChange;
+use crate::kernel_cache::KernelGraphCache;
+use crate::rule_cache::WorktreeKey;
 
 /// `source_module` stamped on every save-time antipattern diagnostic.
 const ANTIPATTERN_SOURCE_MODULE: &str = "anvil-checks::antipattern";
@@ -125,6 +135,232 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
         diagnostic
     } else {
         diagnostic.with_remediation_hint(warning.suggestion.clone())
+    }
+}
+
+/// Hex-encoded SHA-256 of the daemon-read bytes — the authoritative content
+/// hash echoed in `evaluated[]`. The client's `content_hash` hint is **never**
+/// used for this (the daemon re-reads under the openat2 guard).
+#[must_use]
+pub fn content_hash(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let digest = Sha256::digest(bytes);
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+/// Whether a wire change has on-disk bytes the daemon should read + hash.
+/// `Deleted` and `Renamed` carry no readable content (cf. [`EvaluatedPath`]).
+fn change_has_bytes(change: &ChangeKindWire) -> bool {
+    matches!(change, ChangeKindWire::Created | ChangeKindWire::Modified)
+}
+
+/// The non-per-path environment for a [`validate_paths`] run: the antipattern
+/// config, the interactive rayon pool the scan runs on (DSV-006/Task 10), and
+/// the reverse-impact certify budget. Grouped so the entry point stays readable.
+pub struct ValidateEnv<'a> {
+    /// Antipattern check configuration (patterns, extensions, threshold).
+    pub config: &'a AntipatternCheckConfig,
+    /// The pool the antipattern scan executes on.
+    pub pool: &'a rayon::ThreadPool,
+    /// Reverse-impact closure budget passed to `certify`.
+    pub budget: usize,
+}
+
+/// The per-path outcome the orchestration folds into the response.
+struct PathOutcome {
+    evaluated: EvaluatedPath,
+    /// `(path, bytes)` for the antipattern scan; `None` when unreadable.
+    scanned: Option<(String, Vec<u8>)>,
+    /// `true` when the change is graph-certifiable self-contained.
+    graph_certified: bool,
+    /// The staleness cause when not graph-certified.
+    stale_reason: Option<StaleReason>,
+}
+
+/// Run the save-time verdict for one change set against the warm cache.
+///
+/// For each (coalesced) path: classify it (taxonomy), read the openat2-guarded
+/// bytes and compute the **daemon's** content hash, certify a `ContentModify`
+/// against the warm `(SymbolGraph, DependencyGraph)` cache, and collect bytes
+/// for the antipattern scan. The verdict is then assembled:
+/// - `coverage = Certified` iff **every** path is graph-certifiable self-contained
+///   **and** the antipattern family found nothing blocking; otherwise `Partial`.
+///   `check_families` is always `[antipattern]` (the family that ran).
+/// - `workspace_assurance` is driven by **graph** certifiability only (an
+///   antipattern finding is a diagnostic, not a workspace-staleness cause): an
+///   uncertifiable change marks the workspace stale via the [`AssuranceMachine`].
+/// - `evaluated[]` echoes the daemon-computed hash, never the client hint.
+///
+/// Dependencies are injected so the orchestration is testable without a live
+/// daemon: `read_guarded` is the Task 3 openat2 read; `fed_symbols` is the
+/// kernel→daemon `FileSymbols` feed (Task 7 producer) — until it delivers
+/// symbols for a path, that path cannot be certified and is conservatively
+/// `Partial(CrossFileResolutionNeeded)`, which is safe.
+pub fn validate_paths<R, F>(
+    request: &ValidatePathsRequest,
+    cache: &KernelGraphCache,
+    assurance: &mut AssuranceMachine,
+    read_guarded: R,
+    fed_symbols: F,
+    env: &ValidateEnv<'_>,
+) -> ValidatePathsResponse
+where
+    R: Fn(&str) -> std::io::Result<Vec<u8>>,
+    F: Fn(&str) -> Option<FileSymbols>,
+{
+    let key = WorktreeKey::from_canonical(PathBuf::from(&request.workspace_root));
+
+    // Coalesce: keep the last descriptor per path. The daemon re-reads current
+    // bytes, so same-path descriptors resolve to one daemon hash (identical-hash
+    // collapse); a later descriptor for the same path wins (distinct-hash → latest).
+    let mut order: Vec<String> = Vec::new();
+    let mut last: std::collections::HashMap<String, &ChangeDescriptor> =
+        std::collections::HashMap::new();
+    for desc in &request.paths {
+        if last.insert(desc.path.clone(), desc).is_none() {
+            order.push(desc.path.clone());
+        }
+    }
+
+    let outcomes: Vec<PathOutcome> = order
+        .iter()
+        .map(|path| {
+            let desc = last[path];
+            per_path_outcome(desc, &key, cache, &read_guarded, &fed_symbols, env.budget)
+        })
+        .collect();
+
+    // Antipattern scan over the guarded bytes (B7: bytes + injected pool).
+    let scanned: Vec<(&str, &[u8])> = outcomes
+        .iter()
+        .filter_map(|o| o.scanned.as_ref().map(|(p, b)| (p.as_str(), b.as_slice())))
+        .collect();
+    let antipattern = run_antipattern_check_bytes(
+        &scanned,
+        env.config,
+        Some(request.workspace_root.as_str()),
+        env.pool,
+    );
+    let diagnostics = antipattern
+        .warnings
+        .warnings
+        .iter()
+        .map(antipattern_diagnostic)
+        .collect();
+
+    let graph_certified = outcomes.iter().all(|o| o.graph_certified);
+    let first_stale = outcomes.iter().find_map(|o| o.stale_reason);
+
+    // Workspace assurance is driven by GRAPH certifiability only.
+    assurance.record_verdict(graph_certified, first_stale);
+
+    let coverage = if graph_certified && antipattern.passed {
+        Coverage::Certified
+    } else {
+        Coverage::Partial
+    };
+
+    ValidatePathsResponse {
+        diagnostics,
+        evaluated: outcomes.into_iter().map(|o| o.evaluated).collect(),
+        workspace_assurance: assurance.snapshot(),
+        coverage,
+        check_families: vec![CheckFamily::Antipattern],
+    }
+}
+
+/// Compute one path's verdict contribution (read + hash + classify + certify).
+fn per_path_outcome<R, F>(
+    desc: &ChangeDescriptor,
+    key: &WorktreeKey,
+    cache: &KernelGraphCache,
+    read_guarded: &R,
+    fed_symbols: &F,
+    budget: usize,
+) -> PathOutcome
+where
+    R: Fn(&str) -> std::io::Result<Vec<u8>>,
+    F: Fn(&str) -> Option<FileSymbols>,
+{
+    let canonical = canonical_change(&desc.change);
+    let ctx = ChangeCtx::for_path(&desc.path, false);
+    let taxonomy = taxonomy_reason(&canonical, &ctx);
+
+    // Read guarded bytes + daemon hash for content-bearing changes.
+    let (content_h, scanned) = if change_has_bytes(&desc.change) {
+        match read_guarded(&desc.path) {
+            Ok(bytes) => (Some(content_hash(&bytes)), Some((desc.path.clone(), bytes))),
+            // A read failure (gone / symlink rejected by the openat2 guard) is a
+            // staleness signal, not certifiable.
+            Err(_) => (None, None),
+        }
+    } else {
+        (None, None)
+    };
+
+    let evaluated = EvaluatedPath {
+        path: desc.path.clone(),
+        content_hash: content_h,
+    };
+
+    // Certifiability. taxonomy `Some` (delete/rename/create/gitignore/config/...)
+    // is non-certifiable up front. Only a plain ContentModify reaches certify.
+    if let Some(reason) = taxonomy {
+        return PathOutcome {
+            evaluated,
+            scanned,
+            graph_certified: false,
+            stale_reason: Some(reason),
+        };
+    }
+
+    // ContentModify with no readable bytes ⇒ cannot certify.
+    if scanned.is_none() {
+        return PathOutcome {
+            evaluated,
+            scanned,
+            graph_certified: false,
+            stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+        };
+    }
+
+    // Certify against the warm cache, but only if the kernel feed has delivered
+    // this path's parsed symbols (the daemon never parses). Until then: Partial.
+    let Some(symbols) = fed_symbols(&desc.path) else {
+        return PathOutcome {
+            evaluated,
+            scanned,
+            graph_certified: false,
+            stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+        };
+    };
+
+    let outcome = cache.apply_delta(key, ChangeKind::ContentModify, symbols);
+    let verdict = cache
+        .with_graphs(key, |sym, dep| {
+            certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, budget)
+        })
+        .unwrap_or(Certifiability::Partial {
+            reason: CertifyStale::CrossFileResolutionNeeded,
+        });
+
+    match verdict {
+        Certifiability::Certified { .. } => PathOutcome {
+            evaluated,
+            scanned,
+            graph_certified: true,
+            stale_reason: None,
+        },
+        Certifiability::Partial { reason } => PathOutcome {
+            evaluated,
+            scanned,
+            graph_certified: false,
+            stale_reason: Some(wire_stale_reason(reason)),
+        },
     }
 }
 
@@ -273,5 +509,292 @@ mod tests {
             d.remediation_hint, None,
             "a blank suggestion must not become a placeholder hint"
         );
+    }
+
+    // ---- orchestration ----
+
+    use anvil_kernel_types::{ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
+    use std::collections::HashMap;
+
+    fn pool() -> rayon::ThreadPool {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("test pool")
+    }
+
+    fn wt() -> WorktreeKey {
+        WorktreeKey::from_canonical(PathBuf::from("/wt"))
+    }
+
+    /// A `FileSymbols` for `file` with public functions `names` and import
+    /// specifiers `imports`, ids from `base`.
+    fn file_symbols(file: &str, names: &[&str], imports: &[&str], base: u64) -> FileSymbols {
+        FileSymbols {
+            file: file.to_string(),
+            symbols: names
+                .iter()
+                .enumerate()
+                .map(|(i, n)| SymbolNode {
+                    id: base + i as u64,
+                    kind: SymbolKind::Function,
+                    name: (*n).to_string(),
+                    visibility: Visibility::Public,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::Unknown,
+                })
+                .collect(),
+            imports: imports
+                .iter()
+                .map(|src| ImportEdge {
+                    from_file: file.to_string(),
+                    to_source: (*src).to_string(),
+                    line: 0,
+                })
+                .collect(),
+        }
+    }
+
+    fn desc(path: &str, change: ChangeKindWire, hint: Option<&str>) -> ChangeDescriptor {
+        ChangeDescriptor {
+            path: path.to_string(),
+            change,
+            content_hash: hint.map(str::to_string),
+            mtime: None,
+        }
+    }
+
+    fn request(paths: Vec<ChangeDescriptor>) -> ValidatePathsRequest {
+        ValidatePathsRequest {
+            workspace_root: "/wt".to_string(),
+            paths,
+        }
+    }
+
+    #[test]
+    fn evaluated_echoes_daemon_computed_hash_not_client_hint() {
+        // Client sends a bogus hint; the daemon re-reads and echoes ITS hash.
+        let bytes = b"const value = 1;".to_vec();
+        let expected = content_hash(&bytes);
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/a.ts".to_string(), bytes.clone())]);
+
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc(
+                "src/a.ts",
+                ChangeKindWire::Modified,
+                Some("deadbeef-bogus-client-hash"),
+            )]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+            },
+        );
+
+        assert_eq!(resp.evaluated.len(), 1);
+        assert_eq!(resp.evaluated[0].path, "src/a.ts");
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(expected.as_str()),
+            "evaluated echoes the daemon-computed hash, never the client hint"
+        );
+        assert_ne!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some("deadbeef-bogus-client-hash")
+        );
+    }
+
+    #[test]
+    fn client_supplied_hash_not_trusted_for_verdict() {
+        // Even with no fed symbols (so certify can't run), the verdict is driven
+        // by the daemon's reading, not the client hint — result is Partial and
+        // the evaluated hash is the daemon's.
+        let bytes = b"const value = 1;".to_vec();
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/a.ts".to_string(), bytes.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc(
+                "src/a.ts",
+                ChangeKindWire::Modified,
+                Some("client-says-clean"),
+            )]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_| None, // feed has not delivered symbols → cannot certify
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+            },
+        );
+        assert_eq!(resp.coverage, Coverage::Partial);
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(content_hash(&bytes).as_str())
+        );
+    }
+
+    #[test]
+    fn coalesce_collapses_identical_path_to_one_evaluated() {
+        let bytes = b"const value = 1;".to_vec();
+        let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), bytes)]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![
+                desc("src/a.ts", ChangeKindWire::Modified, None),
+                desc("src/a.ts", ChangeKindWire::Modified, None),
+            ]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+            },
+        );
+        assert_eq!(
+            resp.evaluated.len(),
+            1,
+            "two descriptors for the same path collapse to one evaluated entry"
+        );
+    }
+
+    #[test]
+    fn validate_paths_certified_clean_for_self_contained_edit() {
+        // Pre-warm the cache so a body-only re-edit (same public surface)
+        // certifies self-contained. Clean bytes ⇒ antipattern passes ⇒ Certified.
+        let cache = KernelGraphCache::new();
+        cache.apply_delta(
+            &wt(),
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["foo"], &[], 0),
+        );
+
+        let clean = b"export function foo() { return 1; }".to_vec();
+        let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), clean)]);
+        // Feed delivers the same public surface (foo) — a body-only change.
+        let fed = |p: &str| (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["foo"], &[], 0));
+
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/a.ts", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            fed,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+            },
+        );
+        assert_eq!(
+            resp.coverage,
+            Coverage::Certified,
+            "a self-contained body-only edit with a clean antipattern scan is certified"
+        );
+        assert_eq!(resp.check_families, vec![CheckFamily::Antipattern]);
+    }
+
+    #[test]
+    fn validate_paths_partial_stale_on_overflow() {
+        // b.ts imports a.ts; warm both. A public-surface change to a.ts pulls in
+        // b.ts; with budget 0 the impact closure overflows ⇒ Partial, and the
+        // workspace is marked stale with ImpactSetOverflow.
+        let cache = KernelGraphCache::new();
+        cache.apply_delta(
+            &wt(),
+            ChangeKind::Create,
+            file_symbols("src/b.ts", &["b_fn"], &["./a"], 0),
+        );
+        cache.apply_delta(
+            &wt(),
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["foo"], &[], 10),
+        );
+
+        let bytes = b"export function bar() {}".to_vec();
+        let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), bytes)]);
+        // Surface change: foo -> bar.
+        let fed = |p: &str| (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["bar"], &[], 20));
+
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/a.ts", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            fed,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 0, // budget 0 ⇒ any importer overflows
+            },
+        );
+        assert_eq!(resp.coverage, Coverage::Partial);
+        assert_eq!(
+            resp.workspace_assurance.reason,
+            Some(StaleReason::ImpactSetOverflow),
+            "an overflow marks the workspace stale with ImpactSetOverflow"
+        );
+    }
+
+    #[test]
+    fn deleted_path_has_no_daemon_hash_and_is_partial() {
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/gone.ts", ChangeKindWire::Deleted, None)]),
+            &cache,
+            &mut assurance,
+            |_| Err(std::io::ErrorKind::NotFound.into()),
+            |_| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+            },
+        );
+        assert_eq!(resp.evaluated[0].content_hash, None);
+        assert_eq!(resp.coverage, Coverage::Partial);
+        assert_eq!(resp.workspace_assurance.reason, Some(StaleReason::Deleted));
     }
 }
