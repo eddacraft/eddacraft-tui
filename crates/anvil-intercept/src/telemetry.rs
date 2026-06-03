@@ -634,6 +634,15 @@ fn stale_reason_token(reason: StaleReason) -> &'static str {
 /// `fanout::redact_envelope` update so the fields stay redaction-safe across
 /// sessions (a future prerequisite). They ride a mirrored `tracing` event at
 /// the emission site instead.
+///
+/// The notification `class` is [`NotificationClass::FenceState`] (shared with
+/// fence transitions, per the spec) — subscribers discriminate assurance from
+/// fence events on the `grouping.key` prefix (`intercept:assurance:` vs
+/// `intercept:fence:`); a dedicated class is a future consideration.
+///
+/// Precondition: `from != to` (a transition). The save-time caller guards this
+/// (`with_machine` only emits on a real change); a `from == to` call yields a
+/// degenerate `transition.{from,to}` pair.
 #[must_use]
 pub(crate) fn envelope_for_assurance_transition(
     context: &TelemetryContext,
@@ -1215,6 +1224,25 @@ mod tests {
         let transition = envelope.grouping.unwrap().transition.unwrap();
         assert_eq!(transition.from, "stale");
         assert_eq!(transition.to, "pending");
+    }
+
+    /// A transition `→Unavailable` is a trust-loss event and is High priority,
+    /// like `→Stale` (guards against the High-priority arm being narrowed to
+    /// `Stale`-only).
+    #[test]
+    fn assurance_transition_to_unavailable_is_high_priority() {
+        let envelope = envelope_for_assurance_transition(
+            &context(),
+            "/wt",
+            AssuranceState::Clean,
+            AssuranceState::Unavailable,
+            Some(StaleReason::DaemonAbsent),
+        );
+        assert_eq!(envelope.notification.priority, NotificationPriority::High);
+        assert_eq!(
+            envelope.grouping.unwrap().transition.unwrap().to,
+            "unavailable"
+        );
     }
 
     #[test]

@@ -154,13 +154,18 @@ impl SaveTimeState {
         let (result, transition) = {
             let mut machine = machine.lock().unwrap_or_else(PoisonError::into_inner);
             let before = machine.snapshot();
+            // The scan start time is cleared by a transition *out* of Running
+            // (`complete_scan`/`mark_stale`), so capture it both sides and keep
+            // whichever is set: the new start on `→Running`, else the start the
+            // ending scan had been running with.
+            let before_started = machine.scan_started_at().map(str::to_string);
             let result = f(&mut machine);
             let after = machine.snapshot();
-            let transition = transition_between(
-                &before,
-                &after,
-                machine.scan_started_at().map(str::to_string),
-            );
+            let scan_started_at = machine
+                .scan_started_at()
+                .map(str::to_string)
+                .or(before_started);
+            let transition = transition_between(&before, &after, scan_started_at);
             (result, transition)
         };
         if let Some(transition) = transition {
@@ -207,17 +212,39 @@ fn transition_between(
 /// and routed through the fanout when the Phase E producer wire-up reads it;
 /// the machine fields below ride this event so they never cross the envelope
 /// wire prematurely (Cond A).
+///
+/// Phase E note: routing the envelope to subscribers requires threading the
+/// connection's session correlation in (the fanout default-denies an envelope
+/// with no `originating_session_id`); this tracing mirror is same-uid-local and
+/// carries no such requirement.
+///
+/// Level: a coarse state change (e.g. `clean → stale`, `stale → pending`) is a
+/// trust/lifecycle boundary and logs at `info`; a same-state change of only the
+/// staleness *reason* (`stale → stale` with a new cause) is routine under heavy
+/// editing and logs at `debug` to keep the stream readable.
 fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransition) {
-    tracing::info!(
-        target: "anvil_intercept::assurance",
-        workspace_root = %workspace_root.display(),
-        from = ?transition.from,
-        to = ?transition.to,
-        reason = ?transition.reason,
-        generation = transition.generation,
-        scan_started_at = transition.scan_started_at.as_deref(),
-        "workspace assurance transition",
-    );
+    let workspace_root = workspace_root.display();
+    if transition.from == transition.to {
+        tracing::debug!(
+            target: "anvil_intercept::assurance",
+            %workspace_root,
+            state = ?transition.to,
+            reason = ?transition.reason,
+            generation = transition.generation,
+            "workspace assurance staleness reason changed",
+        );
+    } else {
+        tracing::info!(
+            target: "anvil_intercept::assurance",
+            %workspace_root,
+            from = ?transition.from,
+            to = ?transition.to,
+            reason = ?transition.reason,
+            generation = transition.generation,
+            scan_started_at = transition.scan_started_at.as_deref(),
+            "workspace assurance transition",
+        );
+    }
 }
 
 /// Per-connection save-time context: borrows the shared [`SaveTimeState`] and
@@ -556,9 +583,12 @@ mod tests {
         assert_eq!(t.from, AssuranceState::Stale);
         assert_eq!(t.to, AssuranceState::Pending);
 
-        // Same state, different reason → transition (the cause changed).
+        // Same state, different reason → transition (the cause changed); both
+        // ends stay Stale.
         let t = transition_between(&stale_cross, &stale_overflow, None)
             .expect("reason change is a transition");
+        assert_eq!(t.from, AssuranceState::Stale);
+        assert_eq!(t.to, AssuranceState::Stale);
         assert_eq!(t.reason, Some(StaleReason::ImpactSetOverflow));
 
         // No change → no transition.
