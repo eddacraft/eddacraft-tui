@@ -110,14 +110,15 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     // PR #1293 review fix (Copilot): the original copy said "future
     // changes are checked", which over-claimed — this PR ships the
     // baseline contract but does not yet wire watch / check / audit
-    // to filter on it. The wording is now future-tense ("future
-    // scans will diff against this set") and explicitly notes that
-    // the diffing wiring lands in follow-up PRs.
+    // to filter on it. The wording is now future-tense and uses the
+    // CIB-016 "current posture — N findings, baselined as-is" / "new
+    // regressions" framing (subsequent scans will report new regressions
+    // once diff wiring lands).
     match (&d.baseline_summary, d.baseline_present) {
         (Some(s), _) if s.secret > 0 => {
             let _ = writeln!(
                 out,
-                "  baseline: present ({} recorded — {} antipattern, {} secret-shaped)",
+                "  baseline: present (current posture — {} findings, baselined as-is — {} antipattern, {} secret-shaped)",
                 s.total, s.antipattern, s.secret,
             );
             let _ = writeln!(
@@ -128,7 +129,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
         (Some(s), _) => {
             let _ = writeln!(
                 out,
-                "  baseline: present ({} findings recorded; future scans will diff against this set as wiring lands)",
+                "  baseline: present (current posture — {} findings, baselined as-is; future scans will report new regressions)",
                 s.total,
             );
         }
