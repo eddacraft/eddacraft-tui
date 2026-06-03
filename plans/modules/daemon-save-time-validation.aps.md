@@ -330,7 +330,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-008: Confinement mode + `anvil workspace` CLI
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Give operators an opt-in confinement boundary above the same-uid trust
   model.
 - **Expected Outcome:** Operator-level config (`ANVIL_HOME`/XDG, owner-only) with

@@ -41,3 +41,4 @@ pub mod version;
 pub mod watch;
 pub mod welcome;
 pub mod wizard;
+pub mod workspace;

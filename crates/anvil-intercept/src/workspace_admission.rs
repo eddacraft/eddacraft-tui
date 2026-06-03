@@ -57,13 +57,57 @@ pub enum AdmissionMode {
     Allowlist,
 }
 
+/// The set of roots permitted in `Allowlist` mode: a set of *exact* canonical
+/// roots plus a list of *prefix* canonical roots (a root at or beneath a prefix
+/// is permitted, so a single `prefix` entry confines a whole subtree).
+///
+/// Built by [`crate::confinement`] from operator config (DSV-008, Task 14) and
+/// applied here, so the daemon's admission decision understands both the exact
+/// and the subtree (`prefix`) forms of an operator allow entry. Empty in `Open`
+/// mode (the set grows on first contact instead).
+#[derive(Debug, Default, Clone)]
+pub struct AllowPolicy {
+    /// Canonical roots matched exactly.
+    exact: BTreeSet<PathBuf>,
+    /// Canonical roots whose entire subtree is permitted.
+    prefixes: Vec<PathBuf>,
+}
+
+impl AllowPolicy {
+    /// Build a policy from already-canonicalised exact + prefix roots. The
+    /// caller is responsible for canonicalisation so a `prefix` match compares
+    /// like-for-like against a canonical incoming root.
+    #[must_use]
+    pub fn new(
+        exact: impl IntoIterator<Item = PathBuf>,
+        prefixes: impl IntoIterator<Item = PathBuf>,
+    ) -> Self {
+        Self {
+            exact: exact.into_iter().collect(),
+            prefixes: prefixes.into_iter().collect(),
+        }
+    }
+
+    /// Whether `canonical_root` is permitted: an exact match, or at/beneath any
+    /// prefix root. `starts_with` is component-wise, so `/a/b` permits `/a/b/c`
+    /// but never the sibling `/a/b-other`.
+    #[must_use]
+    pub fn permits(&self, canonical_root: &Path) -> bool {
+        self.exact.contains(canonical_root)
+            || self
+                .prefixes
+                .iter()
+                .any(|prefix| canonical_root.starts_with(prefix))
+    }
+}
+
 /// A per-connection set of admitted workspace roots, each paired with its held
 /// `O_PATH` dirfd (read anchor + identity).
 #[derive(Debug)]
 pub struct AdmittedRoots {
     mode: AdmissionMode,
-    /// Canonical roots permitted in `Allowlist` mode. Empty in `Open` mode.
-    allowed: BTreeSet<PathBuf>,
+    /// Roots permitted in `Allowlist` mode. Empty in `Open` mode.
+    allow: AllowPolicy,
     /// Canonical root → held dirfd. Insertion-once; never re-resolved.
     admitted: BTreeMap<PathBuf, OwnedFd>,
 }
@@ -74,26 +118,35 @@ impl AdmittedRoots {
     pub fn new_open() -> Self {
         Self {
             mode: AdmissionMode::Open,
-            allowed: BTreeSet::new(),
+            allow: AllowPolicy::default(),
             admitted: BTreeMap::new(),
         }
     }
 
-    /// Allowlist mode: only roots in `allowed` may be admitted. Each entry is
-    /// canonicalised at construction; entries that do not currently resolve
-    /// are dropped (they cannot match a real, openable root anyway).
+    /// Allowlist mode over exact roots only. Each entry is canonicalised at
+    /// construction; entries that do not currently resolve are dropped (they
+    /// cannot match a real, openable root anyway). For prefix (subtree) entries
+    /// or operator-config-driven policies use [`Self::new_allowlist_with_policy`].
     #[must_use]
     pub fn new_allowlist<I>(allowed: I) -> Self
     where
         I: IntoIterator<Item = PathBuf>,
     {
-        let allowed = allowed
+        let exact = allowed
             .into_iter()
-            .filter_map(|p| std::fs::canonicalize(p).ok())
-            .collect();
+            .filter_map(|p| std::fs::canonicalize(p).ok());
+        Self::new_allowlist_with_policy(AllowPolicy::new(exact, std::iter::empty()))
+    }
+
+    /// Allowlist mode driven by an explicit [`AllowPolicy`] (exact + prefix).
+    /// This is the seam [`crate::confinement`] uses to apply operator
+    /// confinement config (DSV-008): the policy already carries the
+    /// canonicalised allow roots plus the implicitly-admitted primary root.
+    #[must_use]
+    pub fn new_allowlist_with_policy(allow: AllowPolicy) -> Self {
         Self {
             mode: AdmissionMode::Allowlist,
-            allowed,
+            allow,
             admitted: BTreeMap::new(),
         }
     }
@@ -149,7 +202,7 @@ impl AdmittedRoots {
         if !self.admitted.contains_key(&canonical) {
             let admissible = match self.mode {
                 AdmissionMode::Open => true,
-                AdmissionMode::Allowlist => self.allowed.contains(&canonical),
+                AdmissionMode::Allowlist => self.allow.permits(&canonical),
             };
             if !admissible {
                 return Ok(None);
@@ -234,6 +287,37 @@ mod tests {
             .unwrap()
             .as_raw_fd();
         assert_eq!(first, second, "the held dirfd is pinned at first admission");
+    }
+
+    #[test]
+    fn allow_policy_prefix_permits_subtree_not_sibling() {
+        // A single `prefix` entry confines a whole subtree, but the
+        // component-wise `starts_with` must not leak to a sibling whose name
+        // merely shares a textual prefix.
+        let policy = AllowPolicy::new(
+            [PathBuf::from("/srv/exact")],
+            [PathBuf::from("/home/op/projects")],
+        );
+        assert!(
+            policy.permits(Path::new("/srv/exact")),
+            "exact root permitted"
+        );
+        assert!(
+            policy.permits(Path::new("/home/op/projects")),
+            "the prefix root itself is permitted"
+        );
+        assert!(
+            policy.permits(Path::new("/home/op/projects/foo/bar")),
+            "a root beneath the prefix is permitted"
+        );
+        assert!(
+            !policy.permits(Path::new("/home/op/projects-other")),
+            "a textual-prefix sibling is NOT permitted (component-wise match)"
+        );
+        assert!(
+            !policy.permits(Path::new("/srv/other")),
+            "an unlisted root is refused"
+        );
     }
 
     #[test]

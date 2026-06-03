@@ -187,6 +187,12 @@ enum Commands {
     Migrate(commands::migrate::MigrateArgs),
     /// Manage the Anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),
+    /// Manage operator workspace confinement for the intercept daemon.
+    ///
+    /// Switches the daemon's admission boundary from the default
+    /// first-touch-adopt (`open`) to an operator `allowlist`, and manages
+    /// the allow entries. Sits above the `SO_PEERCRED` same-uid trust floor.
+    Workspace(commands::workspace::WorkspaceArgs),
     /// Validate commits against policy using the L4 rule engine.
     ///
     /// Dedicated surface for CI lanes that don't sit inside git's
@@ -277,6 +283,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Insights(_) => "insights",
         Commands::Migrate(_) => "migrate",
         Commands::Intercept(_) => "intercept",
+        Commands::Workspace(_) => "workspace",
         Commands::L4Validate(_) => "l4-validate",
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
@@ -1041,6 +1048,7 @@ fn main() -> ExitCode {
         Commands::Insights(args) => commands::insights::run(args, &cli.global),
         Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
+        Commands::Workspace(args) => commands::workspace::run(args, &cli.global),
         Commands::L4Validate(args) => commands::l4_validate::run(args, &cli.global),
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),

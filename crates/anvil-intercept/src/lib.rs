@@ -39,6 +39,7 @@ pub mod auth;
 #[cfg(unix)]
 pub mod change_class;
 pub mod config;
+pub mod confinement;
 pub mod dos;
 pub mod embedded;
 pub mod enforcement;
