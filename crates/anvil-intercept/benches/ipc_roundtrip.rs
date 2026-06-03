@@ -411,12 +411,14 @@ fn slo_gate_failed() -> bool {
 }
 
 /// Optional stepped agent-count sweep (DSV-006 diagnostic, opt-in via
-/// `ANVIL_BENCH_VALIDATE_AGENTS=1,2,4,8`). Unlike the fixed 4-agent gate (Case
-/// B), this is **report-only**: it prints interactive p95 at each concurrency
-/// level so the saturation knee — and the headroom against the 80 ms budget —
-/// is visible, without failing when a deliberately-overloaded level crosses
-/// budget. The default CI run leaves the env unset and stays a single gate
-/// point (mirrors how `load-ramp.sh` separates `--smoke` from the full ramp).
+/// `ANVIL_BENCH_VALIDATE_AGENTS`). The value is a comma-separated list of
+/// positive integers — any counts, e.g. `1,2,4,8,16`. Unlike the fixed 4-agent
+/// gate (Case B), this is **report-only**: it prints interactive p95 at each
+/// concurrency level so the saturation knee — and the headroom against the
+/// 80 ms budget — is visible, without failing when a deliberately-overloaded
+/// level crosses budget. The default CI run leaves the env unset and stays a
+/// single gate point (mirrors how `load-ramp.sh` separates `--smoke` from the
+/// full ramp).
 #[cfg(unix)]
 fn run_agent_sweep(state: &SaveTimeState) {
     let Ok(spec) = std::env::var("ANVIL_BENCH_VALIDATE_AGENTS") else {
@@ -428,6 +430,13 @@ fn run_agent_sweep(state: &SaveTimeState) {
         .filter(|&n| n > 0)
         .collect();
     if levels.is_empty() {
+        // The env was set but yielded no usable levels (e.g. a wrong separator
+        // like `1;2;4`). Surface it loudly rather than silently no-op — an
+        // opt-in diagnostic that prints nothing reads as "the sweep is broken".
+        println!(
+            "WARN: ANVIL_BENCH_VALIDATE_AGENTS={spec:?} parsed no positive-integer \
+             levels (expected a comma-separated list like `1,2,4,8`); sweep skipped"
+        );
         return;
     }
     println!("note: validate_paths agent sweep (report-only) levels={levels:?}");
