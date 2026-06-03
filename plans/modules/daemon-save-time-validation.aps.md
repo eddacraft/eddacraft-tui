@@ -294,9 +294,9 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   → coalesce → assurance; the lifecycle emits ADR-035 notification envelopes (machine
   fields on the tracing mirror only); client-supplied hashes are never trusted for a
   verdict.
-- **Validation:** `cargo test -p eddacraft-anvil-intercept save_time validate_paths telemetry`;
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib -- save_time validate_paths telemetry`;
   `cargo test -p eddacraft-anvil intercept_symbol_parser`;
-  `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary`.
+  `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary --test save_time_wired`.
 - **Files:** `crates/anvil-intercept/src/{validate_paths,save_time,telemetry,ipc,lib}.rs`,
   `crates/anvil-cli/src/intercept_symbol_parser.rs`
 - **Confidence:** medium

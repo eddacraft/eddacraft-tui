@@ -2462,7 +2462,7 @@ fn save_time_result<T: serde::Serialize>(
             tracing::warn!(
                 target: "anvil_intercept::save_time",
                 error = %err,
-                "save-time verb failed: could not open the admitted workspace root",
+                "save-time verb failed: i/o error resolving or opening the workspace root",
             );
             jsonrpc_request_error(
                 response_id,
