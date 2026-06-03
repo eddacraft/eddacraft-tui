@@ -246,23 +246,51 @@ fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: 
             }
         }
         // `foo::bar as baz` — the edge tracks the imported path, not the alias.
+        // A `self as x` leaf still means "the parent module itself".
         "use_as_clause" => {
             let path = node
                 .child_by_field_name("path")
                 .map(|p| node_text(p, source))
                 .unwrap_or_default();
-            out.push(join_path(prefix, &path));
+            if path == "self" {
+                push_module_self(prefix, out);
+            } else {
+                out.push(join_path(prefix, &path));
+            }
         }
-        // `foo::*` — record the module the glob reaches into.
+        // `foo::*` — record the module the glob reaches into. The scope is
+        // accumulated in `prefix` by the enclosing `scoped_use_list`; combine it
+        // with any path child (covers both grammar shapes) and skip an empty
+        // result rather than emit a bare `*` edge.
         "use_wildcard" => {
-            let path = node
+            let child = node
                 .named_child(0)
                 .map(|p| node_text(p, source))
                 .unwrap_or_default();
-            out.push(join_path(prefix, &path));
+            let full = join_path(prefix, &child);
+            if !full.is_empty() {
+                out.push(full);
+            }
         }
-        // Leaf paths: `foo`, `crate::a::B`, `super::x`, `self::y`.
-        _ => out.push(join_path(prefix, &node_text(node, source))),
+        // A bare `self` leaf in a group — `use foo::{self, bar}` — imports the
+        // parent module itself, so the edge is the prefix, not `prefix::self`.
+        _ => {
+            let text = node_text(node, source);
+            if text == "self" {
+                push_module_self(prefix, out);
+            } else {
+                // Leaf paths: `foo`, `crate::a::B`, `super::x`, `self::y`.
+                out.push(join_path(prefix, &text));
+            }
+        }
+    }
+}
+
+/// `self` as a use-list leaf refers to the enclosing module path. Emit that
+/// prefix as the edge (a top-level bare `use self;` has no prefix → no edge).
+fn push_module_self(prefix: &str, out: &mut Vec<String>) {
+    if !prefix.is_empty() {
+        out.push(prefix.to_string());
     }
 }
 
@@ -290,15 +318,21 @@ fn join_path(prefix: &str, path: &str) -> String {
     }
 }
 
-/// Strip generic arguments from a type expression: `Foo<T>` → `Foo`.
+/// Best-effort owner name for an `impl`'s `Owner.method` symbols. Strips a
+/// leading reference / raw-pointer prefix (`impl Trait for &Foo` → `Foo`) so the
+/// owner is the nominal type, then drops generic arguments (`Foo<T>` → `Foo`).
+/// Exotic Self types (`[T]`, `dyn Trait`, tuples, lifetime-annotated refs) keep
+/// their text — a slightly odd owner name is harmless (an odd edge, never a
+/// false violation), and proc-macro/lifetime-aware resolution is out of scope.
 fn base_type_name(ty: &str) -> String {
-    ty.split('<')
-        .next()
-        .unwrap_or(ty)
-        .trim()
-        .trim_end_matches('>')
-        .trim()
-        .to_string()
+    let ty = ty.trim();
+    let ty = ty
+        .strip_prefix("&mut ")
+        .or_else(|| ty.strip_prefix('&'))
+        .or_else(|| ty.strip_prefix("*const "))
+        .or_else(|| ty.strip_prefix("*mut "))
+        .unwrap_or(ty);
+    ty.split('<').next().unwrap_or(ty).trim().to_string()
 }
 
 /// Visibility of an item, read from a leading `visibility_modifier`. Bare `pub`
@@ -519,6 +553,72 @@ extern crate serde;
     fn pub_use_is_recorded_as_an_edge() {
         let fs = extract(b"pub use crate::internal::Widget;\n");
         assert!(sources(&fs).contains(&"crate::internal::Widget"));
+    }
+
+    #[test]
+    fn use_list_self_imports_the_parent_module() {
+        // `use foo::{self, bar}` — the `self` leaf is the parent module itself,
+        // so the edge is `foo`, not `foo::self`. Common idiom; regression guard.
+        let fs = extract(b"use std::fs::{self, OpenOptions};\nuse crate::util::{self};\n");
+        let s = sources(&fs);
+        assert!(s.contains(&"std::fs"), "`{{self}}` ⇒ parent module: {s:?}");
+        assert!(s.contains(&"std::fs::OpenOptions"), "sibling leaf: {s:?}");
+        assert!(
+            s.contains(&"crate::util"),
+            "lone `{{self}}` ⇒ parent: {s:?}"
+        );
+        assert!(
+            !s.iter().any(|p| p.ends_with("::self")),
+            "no edge should end in ::self, got {s:?}"
+        );
+    }
+
+    #[test]
+    fn trait_impl_methods_are_qualified_by_the_implementing_type() {
+        // `impl Trait for Type` qualifies methods by the *implementing type*,
+        // not the trait — the owner comes from the `type` field.
+        let fs = extract(
+            b"
+struct Printer;
+impl std::fmt::Display for Printer {
+    fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result { Ok(()) }
+}
+",
+        );
+        let methods = names_of(&fs, SymbolKind::Method);
+        assert!(methods.contains(&"Printer.fmt"), "got {methods:?}");
+        assert!(
+            !methods.iter().any(|m| m.starts_with("Display")),
+            "owner must be the impl type, not the trait: {methods:?}"
+        );
+    }
+
+    #[test]
+    fn impl_for_reference_type_strips_the_borrow_prefix() {
+        // `impl Trait for &Foo` ⇒ owner `Foo`, never `&Foo` (no phantom symbol).
+        let fs = extract(
+            b"
+struct Foo;
+impl std::fmt::Debug for &Foo {
+    fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result { Ok(()) }
+}
+",
+        );
+        let methods = names_of(&fs, SymbolKind::Method);
+        assert!(methods.contains(&"Foo.fmt"), "got {methods:?}");
+        assert!(
+            !methods.iter().any(|m| m.contains('&')),
+            "borrow prefix must be stripped from the owner: {methods:?}"
+        );
+    }
+
+    #[test]
+    fn const_and_static_items_emit_no_symbol() {
+        // Per the module scope, top-level const/static are not symbols. This
+        // pins the invariant so a future change can't silently start emitting
+        // them (they would land as the wrong `SymbolKind`).
+        let fs = extract(b"const MAX: usize = 8;\nstatic NAME: &str = \"anvil\";\n");
+        assert!(fs.symbols.is_empty(), "got {:?}", fs.symbols);
     }
 
     #[test]
