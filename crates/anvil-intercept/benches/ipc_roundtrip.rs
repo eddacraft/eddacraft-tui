@@ -125,6 +125,10 @@ fn main() {
         report_dimensions("validation.roundtrip", "watch", "none");
         report("validation.roundtrip", &mut roundtrip_samples);
 
+        // DSV-013: the transport-level `validate_paths` round-trip (the verdict
+        // verb over the socket, vs the trivial `session.list` above).
+        roundtrip_validate_paths().await;
+
         shutdown.trigger();
         tokio::time::timeout(Duration::from_secs(1), handle)
             .await
@@ -140,6 +144,82 @@ fn main() {
         eprintln!("validate_paths SLO gate failed (see FAIL lines above)");
         std::process::exit(1);
     }
+}
+
+/// DSV-013: drive a warm `validate_paths` (the real verdict verb) over the
+/// daemon socket so the socket framing + serialisation overhead of an *actual
+/// verdict* is visible next to the in-process `validation.service:validate_paths`
+/// gate (transport p95 − service p95 = the socket overhead). Report-only: the
+/// SLO gate stays the in-process service case, since transport latency on a
+/// loaded box is noisy and not what ADR-031 governs. One persistent connection
+/// (as `watch` holds) pays admission once, then every iteration measures the
+/// warm round-trip.
+#[cfg(unix)]
+async fn roundtrip_validate_paths() {
+    let state = Arc::new(build_state(Duration::ZERO));
+    let ws = make_workspace(1);
+    let root = ws.path().to_string_lossy().into_owned();
+    let dir = tempfile::tempdir().expect("socket tempdir");
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+        .expect("secure tempdir permissions");
+    let socket = dir.path().join("intercept-vp.sock");
+    let listener = IpcListener::bind(&socket, NoopDispatcher)
+        .expect("bind validate_paths listener")
+        .with_save_time_state(Arc::clone(&state));
+    let (shutdown, token) = Shutdown::new();
+    let handle = tokio::spawn(async move { listener.serve(token).await });
+
+    let frame = json!({
+        "jsonrpc": "2.0",
+        "method": "anvil/validate_paths",
+        "params": {
+            "workspace_root": root,
+            "paths": [ { "path": "src/m0.ts", "change": "modified" } ],
+        },
+        "id": "vp",
+    });
+    let line = format!("{frame}\n");
+    let client = UnixStream::connect(&socket)
+        .await
+        .expect("connect validate_paths client");
+    let mut client = BufReader::new(client);
+    for _ in 0..20 {
+        client
+            .get_mut()
+            .write_all(line.as_bytes())
+            .await
+            .expect("warm-up write");
+        let mut warm = String::new();
+        client.read_line(&mut warm).await.expect("warm-up read");
+    }
+    let mut samples = Vec::with_capacity(SAMPLES);
+    for _ in 0..SAMPLES {
+        let started = Instant::now();
+        client
+            .get_mut()
+            .write_all(line.as_bytes())
+            .await
+            .expect("write validate_paths request");
+        let mut response = String::new();
+        client
+            .read_line(&mut response)
+            .await
+            .expect("read validate_paths response");
+        samples.push(started.elapsed());
+        assert!(
+            response.contains("\"workspace_assurance\""),
+            "unexpected validate_paths response: {response}"
+        );
+    }
+    report_dimensions("validation.roundtrip:validate_paths", "save", "default-v1");
+    report("validation.roundtrip:validate_paths", &mut samples);
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(1), handle)
+        .await
+        .expect("validate_paths listener timeout")
+        .expect("validate_paths listener join")
+        .expect("validate_paths listener ok");
 }
 
 /// A deterministic stub [`SymbolParser`] for the bench. The real kernel-backed
@@ -308,8 +388,9 @@ fn run_concurrency_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
 ///
 /// This is the **service** harness (ADR-031 `validation.service`): it drives
 /// the verdict path in-process on the daemon's interactive pool, the exact work
-/// the SLO governs. The transport (`validation.roundtrip`) harness for a real
-/// `watch` / MCP driver lands with those clients in DSV-007.
+/// the SLO governs. The transport (`validation.roundtrip:validate_paths`)
+/// harness that drives the same verdict verb over the daemon socket lives in
+/// `main` (DSV-013); it is report-only — the gate stays this in-process case.
 #[cfg(unix)]
 fn slo_gate_failed() -> bool {
     let stall = Duration::from_millis(
