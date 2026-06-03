@@ -259,11 +259,14 @@ Three behaviours matter for a clean fresh worktree:
 
 ## oxfmt resolution in fresh worktrees (CIB-032)
 
-`format` / `format:check` (and post-edit hook) now invoke oxfmt via
-`pnpm exec oxfmt` (package.json) or explicit local `.bin` first (hook). This
-guarantees the workspace-pinned version once `node_modules` exists, and produces
-a clear actionable failure (plus guidance) if a fresh/manual worktree has no
-`node_modules` yet.
+Scripts (`format` / `format:check`) now invoke oxfmt via `pnpm exec oxfmt`
+(package.json). This guarantees the workspace-pinned version once `node_modules`
+exists, and `pnpm exec` produces a clear actionable failure (plus "did you mean
+to install?" guidance) if the local project has no `node_modules` yet.
+
+The post-edit hook prefers the local `.bin/oxfmt` first and emits a warning to
+stderr if it falls back to a global `oxfmt` (stale risk); if neither is present
+it skips silently (best-effort, unchanged from before).
 
 `wt`-managed worktrees run the `install` post-start which ensures `node_modules`
 (and symlinks). Manual `git worktree add` or cleaned trees still require an
