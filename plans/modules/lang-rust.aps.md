@@ -5,7 +5,7 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | In Progress | 0/8  |
+| RSTLAN | @aneki | In Progress | 2/8  |
 
 **Last reviewed:** 2026-06-03 — NBI "RSTLAN re-eval — Rust anchor scoping" completed. ADR-065 (Rust T3 architecture enforcement location — Rust-native) Accepted; anchor re-scoring snapshot 2026-06-03 recorded (sequence unchanged, Rust elevated to #2 for dogfood); LANGTS 6/6 + kernel prereqs complete; module promoted Proposed → Ready with executable work items. Owner named. All Ready Checklist items now checked.
 
@@ -106,9 +106,9 @@ Change status to **Ready** when:
 
 All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-score snapshot, and LANGTS/kernel gates). Items are sequenced for minimal dependency fan-out but several can run in parallel waves once the grammar + extractor base lands (see waves in execution plan if filed).
 
-### RSTLAN-001: Wire tree-sitter-rust grammar and Language variant — In Progress
+### RSTLAN-001: Wire tree-sitter-rust grammar and Language variant — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2303
 - **Intent:** Add `tree-sitter-rust` support to the kernel parser so `.rs` files are recognised and produce a tree-sitter AST under the unified `LanguageExtractor` contract (K1 from LANGTS-005).
 - **Expected Outcome:** `Language` enum gains `Rust` variant; `from_path` returns it for `.rs`; `ts_language()` binds the grammar; `grammar_version()` produces a stable discriminator; `cargo test -p eddacraft-anvil-kernel -- parser::languages` and new Rust-specific tests pass; Cargo.toml pins the grammar crate.
 - **Scope:** `crates/anvil-kernel/Cargo.toml` (add tree-sitter-rust dep), `crates/anvil-kernel/src/parser/languages.rs` (enum + match arms + tests), parser mod re-exports if needed.
@@ -118,9 +118,9 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** high — grammar crate is mature; pattern follows existing TS/JS wiring.
 - **Files:** crates/anvil-kernel/Cargo.toml, crates/anvil-kernel/src/parser/languages.rs
 
-### RSTLAN-002: Implement Rust symbol and import extraction (mod/use shapes) — In Progress
+### RSTLAN-002: Implement Rust symbol and import extraction (mod/use shapes) — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2303
 - **Intent:** Provide a `rust.rs` extractor (implementing `LanguageExtractor`) that walks the tree-sitter-rust AST and emits `SymbolNode`s + `ImportEdge`s for Rust module shapes so the symbol graph and downstream consumers (architecture, drift, checks) see Rust crates.
 - **Expected Outcome:** `FileSymbols` for `.rs` files contains module symbols, use/import edges (relative crate:: super:: self::, pub use, namespaced uses, #[path] re-exports resolved at least to the declaring file), extern crate; dispatch arm in `extract_symbols` routes Language::Rust to the new extractor; existing TS paths unaffected; round-trip tests on representative Rust idioms pass.
 - **Scope:** New `crates/anvil-kernel/src/parser/extract/rust.rs` (or query-driven), update `extract/mod.rs` dispatch + Language match, `FileSymbols`/`ImportEdge` if Rust needs additive fields (keep minimal), tests/fixtures under parser/extract or integration.
@@ -141,6 +141,27 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Validation:** `cargo test -p eddacraft-anvil-checks` (or equivalent) + fixture pairs asserting the named patterns fire on representative bad Rust and are clean/suppressible on good equivalents; end-to-end `anvil check` on a temp Rust file with the patterns.
 - **Confidence:** high for basic rules; medium for precise "non-test" and "hot loop" heuristics.
 - **Files:** patterns/, crates/anvil-checks/src/
+- **Detection-mechanism finding (2026-06-04, during -003 scoping):** the
+  `anvil-checks` antipattern scanner is **regex + same-line post-filter only**
+  (`scanner.rs::rewrite_spec`; `FilterSpec::Negative`/`TrailingByteOrEol` act on
+  the matched line, with no adjacent-line or AST context). This splits the
+  catalogue by feasibility:
+  - **Regex-clean, low-FP (ship as-is):** `todo!()` / `unimplemented!()` shipped
+    — rare in tests, no context needed.
+  - **Needs `#[cfg(test)]`-module awareness:** `unwrap()` / `expect()` (non-test)
+    and `panic!` (lib) — a path-based allowlist cannot see inline
+    `#[cfg(test)] mod tests`, so a pure-regex version false-positives heavily on
+    Anvil's own inline unit tests and would fail the §16.5 #9 FP bar at -008.
+  - **Needs adjacent-line context:** `unsafe` without a `// SAFETY:` comment
+    (the comment is on the preceding line).
+  - **Needs real AST:** serde hygiene (`deny_unknown_fields`, `flatten`,
+    secret-field `Deserialize`) and `.clone()`-in-hot-loop.
+  Implication: RSTLAN-003 wants a detection-context decision before build —
+  accept-FP-with-aggressive-allowlists, or invest in cfg(test)/AST-aware
+  detection (the new RSTLAN-002 kernel Rust extractor is the natural home for an
+  AST detection path). Recommend splitting: **-003** = regex-clean rules now,
+  **-003b** (new) = the context/AST-dependent rules, gated on that decision.
+  Owner steer requested before implementing.
 
 ### RSTLAN-004: Entry-point detection for Rust binaries and workspaces — Ready
 
