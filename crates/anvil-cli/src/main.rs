@@ -7,6 +7,8 @@ mod config_view;
 mod feature_flags;
 mod insights;
 mod install_root;
+#[cfg(unix)]
+mod intercept_symbol_parser;
 mod l4_engine;
 mod mcp;
 mod output;

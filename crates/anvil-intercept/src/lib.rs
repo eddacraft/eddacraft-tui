@@ -276,6 +276,13 @@ pub struct ForegroundOpts {
     /// is what the post-#1671 audit closure rule asks for — see the
     /// regression test `daemon_config_wired::*` for the contract.
     enforcement_config: config::Resolved,
+    /// DSV-005: the dependency-inverted kernel-backed symbol parser the daemon
+    /// enriches its verdict with (a Messaging Gateway — the daemon never links
+    /// tree-sitter). `None` ⇒ verdicts stay `Partial`. `anvil-cli` injects the
+    /// real impl via [`Self::with_symbol_parser`]. Unix-only (the verdict path
+    /// is unix-gated; Windows `validate_paths` GA is out of scope).
+    #[cfg(unix)]
+    symbol_parser: Option<Arc<dyn save_time::SymbolParser>>,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -292,6 +299,8 @@ impl ForegroundOpts {
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
+            #[cfg(unix)]
+            symbol_parser: None,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -312,6 +321,7 @@ impl ForegroundOpts {
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
+            symbol_parser: None,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -383,6 +393,18 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_enforcement_config(mut self, enforcement_config: config::Resolved) -> Self {
         self.enforcement_config = enforcement_config;
+        self
+    }
+
+    /// DSV-005: inject the kernel-backed [`save_time::SymbolParser`]. `anvil-cli`
+    /// calls this (it deps both the kernel and the daemon, so the tree-sitter
+    /// parser links into the *binary*, never the `anvil-intercept` crate —
+    /// ADR-064 holds). Without it the daemon answers `validate_paths` with safe
+    /// `Partial` verdicts only.
+    #[cfg(unix)]
+    #[must_use]
+    pub fn with_symbol_parser(mut self, parser: Arc<dyn save_time::SymbolParser>) -> Self {
+        self.symbol_parser = Some(parser);
         self
     }
 
@@ -1076,11 +1098,24 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             // the configured set, not a silent degrade-from-error. An operator
             // antipattern-config load path is future work (it must propagate
             // `Result::Err`, never fold a load failure into the default).
-            Arc::new(save_time::SaveTimeState::new(
+            let mut state = save_time::SaveTimeState::new(
                 scheduler,
                 anvil_checks::antipattern::types::AntipatternCheckConfig::default(),
                 confinement::load_or_fail_closed(),
-            ))
+            );
+            // DSV-005: inject the dependency-inverted kernel parser if anvil-cli
+            // wired one. Without it, verdicts stay `Partial` — warn so the
+            // degraded mode is observable, not a silent feature-off.
+            if let Some(parser) = opts.symbol_parser.clone() {
+                state = state.with_parser(parser);
+            } else {
+                tracing::warn!(
+                    target: "anvil_intercept::save_time",
+                    "no symbol parser injected — validate_paths returns Partial verdicts only \
+                     (no Certified); the kernel-backed parser is wired by anvil-cli",
+                );
+            }
+            Arc::new(state)
         };
 
         #[cfg(unix)]

@@ -210,7 +210,11 @@ pub fn validate_paths<R, F>(
 ) -> ValidatePathsResponse
 where
     R: Fn(&str) -> std::io::Result<Vec<u8>>,
-    F: Fn(&str) -> Option<FileSymbols>,
+    // `fed_symbols` is handed the **exact** guarded bytes the daemon read and
+    // hashed for this path, so the parsed symbols provably describe the bytes
+    // the verdict attests — never a second read that could race the edit
+    // (a B2 false-attestation hazard).
+    F: Fn(&str, &[u8]) -> Option<FileSymbols>,
 {
     let key = WorktreeKey::from_canonical(PathBuf::from(&request.workspace_root));
 
@@ -284,7 +288,7 @@ fn per_path_outcome<R, F>(
 ) -> PathOutcome
 where
     R: Fn(&str) -> std::io::Result<Vec<u8>>,
-    F: Fn(&str) -> Option<FileSymbols>,
+    F: Fn(&str, &[u8]) -> Option<FileSymbols>,
 {
     let canonical = canonical_change(&desc.change);
     let ctx = ChangeCtx::for_path(&desc.path, false);
@@ -319,18 +323,20 @@ where
     }
 
     // ContentModify with no readable bytes ⇒ cannot certify.
-    if scanned.is_none() {
+    let Some((_, bytes)) = scanned.as_ref() else {
         return PathOutcome {
             evaluated,
             scanned,
             graph_certified: false,
             stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
         };
-    }
+    };
 
-    // Certify against the warm cache, but only if the kernel feed has delivered
-    // this path's parsed symbols (the daemon never parses). Until then: Partial.
-    let Some(symbols) = fed_symbols(&desc.path) else {
+    // Certify against the warm cache, but only if the feed parsed THIS path's
+    // guarded bytes into symbols (the daemon never parses — the symbols come
+    // from the injected kernel-backed parser over the exact bytes just read).
+    // Until a parser is wired: Partial.
+    let Some(symbols) = fed_symbols(&desc.path, bytes) else {
         return PathOutcome {
             evaluated,
             scanned,
@@ -595,7 +601,7 @@ mod tests {
                     .cloned()
                     .ok_or(std::io::ErrorKind::NotFound.into())
             },
-            |_| None,
+            |_, _| None,
             &ValidateEnv {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
@@ -640,7 +646,7 @@ mod tests {
                     .cloned()
                     .ok_or(std::io::ErrorKind::NotFound.into())
             },
-            |_| None, // feed has not delivered symbols → cannot certify
+            |_, _| None, // feed has not delivered symbols → cannot certify
             &ValidateEnv {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
@@ -673,7 +679,7 @@ mod tests {
                     .cloned()
                     .ok_or(std::io::ErrorKind::NotFound.into())
             },
-            |_| None,
+            |_, _| None,
             &ValidateEnv {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
@@ -701,7 +707,9 @@ mod tests {
         let clean = b"export function foo() { return 1; }".to_vec();
         let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), clean)]);
         // Feed delivers the same public surface (foo) — a body-only change.
-        let fed = |p: &str| (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["foo"], &[], 0));
+        let fed = |p: &str, _: &[u8]| {
+            (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["foo"], &[], 0))
+        };
 
         let mut assurance = AssuranceMachine::new();
         let resp = validate_paths(
@@ -749,7 +757,9 @@ mod tests {
         let bytes = b"export function bar() {}".to_vec();
         let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), bytes)]);
         // Surface change: foo -> bar.
-        let fed = |p: &str| (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["bar"], &[], 20));
+        let fed = |p: &str, _: &[u8]| {
+            (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["bar"], &[], 20))
+        };
 
         let mut assurance = AssuranceMachine::new();
         let resp = validate_paths(
@@ -786,7 +796,7 @@ mod tests {
             &cache,
             &mut assurance,
             |_| Err(std::io::ErrorKind::NotFound.into()),
-            |_| None,
+            |_, _| None,
             &ValidateEnv {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),

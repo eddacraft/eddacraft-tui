@@ -1008,11 +1008,16 @@ fn run_start(args: &StartArgs) -> Result<()> {
         // for why parse / IO failures must be fatal.
         let enforcement_config = config::load_for_daemon_cwd()
             .context("anvil intercept: failed to load enforcement config")?;
-        run_foreground(
-            ForegroundOpts::default().with_enforcement_config(enforcement_config),
-            token,
-        )
-        .await
+        let opts = ForegroundOpts::default().with_enforcement_config(enforcement_config);
+        // DSV-005: inject the kernel-backed symbol parser so the daemon can
+        // return Certified verdicts (ADR-064: tree-sitter links into this
+        // binary, never the `anvil-intercept` crate). Unix-only — the verdict
+        // path is unix-gated.
+        #[cfg(unix)]
+        let opts = opts.with_symbol_parser(std::sync::Arc::new(
+            crate::intercept_symbol_parser::KernelSymbolParser::new(),
+        ));
+        run_foreground(opts, token).await
     })
 }
 

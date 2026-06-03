@@ -23,12 +23,15 @@
 //! cannot be retargeted after admission (security C2/C3 — see
 //! [`crate::workspace_admission`]).
 //!
-//! ## `fed_symbols`
+//! ## Symbols feed ([`SymbolParser`])
 //!
-//! The kernel→daemon `FileSymbols` feed (ADR-064, Task 7 producer) is not wired
-//! yet, so `fed_symbols` returns `None` for every path: every verdict is a safe
-//! `Partial(CrossFileResolutionNeeded)` (B4 conservative default) until the feed
-//! lands. The orchestration is otherwise live end to end.
+//! To certify, the verdict needs the edited file's parsed [`FileSymbols`]. The
+//! daemon never parses (ADR-064); instead it enriches the change it holds by
+//! computing symbols through an injected [`SymbolParser`] (a Messaging Gateway —
+//! the tree-sitter impl lives in `anvil-cli`), handing it the **exact**
+//! openat2-guarded bytes it read and hashed. When no parser is injected the feed
+//! yields `None` and every verdict is a safe `Partial(CrossFileResolutionNeeded)`
+//! (B4 conservative default).
 //!
 //! Unix-only: the verbs read arbitrary on-disk paths through `openat2`-guarded
 //! dirfds, which have no Windows analogue in Sub-phase A (Windows `validate_paths`
@@ -47,6 +50,7 @@ use anvil_intercept_proto::protocol::{
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
     WorkspaceStatusResponse,
 };
+use anvil_kernel_types::FileSymbols;
 
 use crate::assurance::{AssuranceMachine, ScanPriority};
 use crate::confinement::Confinement;
@@ -63,6 +67,42 @@ use crate::workspace_pool::WorkScheduler;
 /// the interactive pool; an overflow degrades to `Partial(ImpactSetOverflow)`,
 /// which is safe. The `DoS` parse-size / walk-depth caps are DSV-006 (Task 11).
 const SAVE_TIME_CERTIFY_BUDGET: usize = 256;
+
+/// Turns a file's bytes into [`FileSymbols`]. Injected (dependency-inverted) so
+/// the daemon obtains parsed symbols WITHOUT linking a parser (ADR-064): this
+/// trait is defined in the daemon crate, the tree-sitter-backed impl lives in
+/// `anvil-cli` and is wired in via `ForegroundOpts`.
+///
+/// ## Integration-pattern framing (EIP)
+///
+/// This is a **Messaging Gateway**: the daemon codes against the domain method
+/// (`parse(bytes) → symbols`) and only the injected impl knows the transport
+/// (an in-process call today; a future out-of-process parser service could sit
+/// behind the same trait without touching the daemon). The verdict path uses it
+/// as a **Content Enricher by Computation** — the daemon's save-time change
+/// message lacks the parsed symbols, so it augments *the message it already
+/// holds* (the guarded bytes it read and hashed) by computing them here. That
+/// "enrich the message you hold" property is what makes the verdict race-free:
+/// the daemon hands the impl the **exact** openat2-guarded bytes it attested, so
+/// there is no second read that could race the edit (a B2 false-attestation
+/// hazard). A push-based watcher feed that enriched from its *own* earlier read
+/// would be a different message and is therefore only ever an advisory
+/// cache-warmer, never the attestation source.
+///
+/// ## Symbol-id contract
+///
+/// The impl MUST assign symbol ids from a path-stable, collision-resistant base
+/// (not the parser's default per-file 0-based ids) so re-parsing a file yields
+/// matching ids and distinct files do not collide in the warm graph.
+///
+/// `Debug` so the injecting `ForegroundOpts` (which derives `Debug`) can hold an
+/// `Arc<dyn SymbolParser>`; impls are expected to be simple/stateless.
+pub trait SymbolParser: Send + Sync + std::fmt::Debug {
+    /// Parse `bytes` (the guarded content of `path`) into symbols, or `None`
+    /// when the language is unsupported or the parse fails — a `None` keeps the
+    /// verdict a safe `Partial`.
+    fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols>;
+}
 
 /// Shared, cross-connection save-time state. Held in an `Arc` on the
 /// `IpcListener` and cloned per connection; every interior field is safe to
@@ -86,6 +126,10 @@ pub struct SaveTimeState {
     /// The operator confinement policy a per-connection admitted-root set is
     /// built from (open by default).
     confinement: Confinement,
+    /// The injected kernel-backed parser. `None` (the default) ⇒ `fed_symbols`
+    /// yields `None` and every verdict stays a safe `Partial` (the daemon never
+    /// parses on its own); a `Some` is wired from `anvil-cli`.
+    parser: Option<Arc<dyn SymbolParser>>,
 }
 
 impl SaveTimeState {
@@ -104,7 +148,23 @@ impl SaveTimeState {
             config,
             scheduler,
             confinement,
+            parser: None,
         }
+    }
+
+    /// Inject the kernel-backed [`SymbolParser`] (dependency-inverted from
+    /// `anvil-cli`). Without it, verdicts stay `Partial`.
+    #[must_use]
+    pub fn with_parser(mut self, parser: Arc<dyn SymbolParser>) -> Self {
+        self.parser = Some(parser);
+        self
+    }
+
+    /// Whether a parser is wired (used by `run_foreground` to warn on a
+    /// daemon that will only ever return `Partial`).
+    #[must_use]
+    pub fn has_parser(&self) -> bool {
+        self.parser.is_some()
     }
 
     /// The operator confinement policy (used by the registry unregister hook
@@ -304,15 +364,19 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             pool: state.scheduler.interactive(),
             budget: SAVE_TIME_CERTIFY_BUDGET,
         };
+        // Parse the EXACT guarded bytes the daemon read (handed in by
+        // `validate_paths`) via the injected kernel-backed parser. No parser
+        // wired ⇒ `None` ⇒ a safe `Partial` (B4); the daemon never parses.
+        let parser = state.parser.as_deref();
+        let fed_symbols =
+            move |path: &str, bytes: &[u8]| parser.and_then(|p| p.parse(Path::new(path), bytes));
         let response = state.with_machine(&key, |machine| {
-            // `fed_symbols` is stubbed `None` until the kernel feed lands (Task
-            // 7 producer) — every verdict is a safe `Partial` (B4).
             run_validate_paths(
                 &request,
                 &state.cache,
                 machine,
                 read_guarded,
-                |_| None,
+                fed_symbols,
                 &env,
             )
         });
@@ -389,9 +453,11 @@ fn authorise_root<'f>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_graph_cache::certify::ChangeKind;
     use anvil_intercept_proto::protocol::{
         AssuranceState, ChangeDescriptor, ChangeKindWire, Coverage, StaleReason,
     };
+    use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
     use std::fs;
 
     fn state() -> SaveTimeState {
@@ -400,6 +466,43 @@ mod tests {
             AntipatternCheckConfig::default(),
             Confinement::open_default(),
         )
+    }
+
+    /// A `FileSymbols` for `file` exporting public functions `names`, ids from
+    /// `base` (mirrors the `validate_paths` test helper).
+    fn file_symbols(file: &str, names: &[&str], base: u64) -> FileSymbols {
+        FileSymbols {
+            file: file.to_string(),
+            symbols: names
+                .iter()
+                .enumerate()
+                .map(|(i, n)| SymbolNode {
+                    id: base + i as u64,
+                    kind: SymbolKind::Function,
+                    name: (*n).to_string(),
+                    visibility: Visibility::Public,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::Unknown,
+                })
+                .collect(),
+            imports: Vec::new(),
+        }
+    }
+
+    /// A parser that hands back a fixed surface for `file` regardless of bytes —
+    /// stands in for the kernel-backed parser so the consumption path is testable
+    /// without tree-sitter.
+    #[derive(Debug)]
+    struct FixedParser {
+        file: String,
+        names: Vec<String>,
+    }
+
+    impl SymbolParser for FixedParser {
+        fn parse(&self, _path: &Path, _bytes: &[u8]) -> Option<FileSymbols> {
+            let names: Vec<&str> = self.names.iter().map(String::as_str).collect();
+            Some(file_symbols(&self.file, &names, 0))
+        }
     }
 
     fn modified(path: &str) -> ChangeDescriptor {
@@ -455,6 +558,44 @@ mod tests {
         assert_eq!(
             resp.evaluated[0].content_hash, None,
             "an escaping path is refused by the guard, so there is nothing to hash",
+        );
+    }
+
+    /// With an injected parser delivering a matching (body-only) surface over
+    /// the warm cache, a clean edit certifies end to end through the daemon —
+    /// proving the dependency-inverted feed unblocks `Certified` and that the
+    /// symbols parsed are the bytes the daemon read (no second read).
+    #[test]
+    fn validate_certifies_when_parser_feeds_matching_surface() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).expect("mkdir");
+        fs::write(src.join("a.ts"), b"export function foo() { return 2; }").expect("write");
+
+        let state = state().with_parser(Arc::new(FixedParser {
+            file: "src/a.ts".to_string(),
+            names: vec!["foo".to_string()],
+        }));
+        // Pre-warm the cache with the prior surface (foo) under the canonical
+        // key the verdict will use, so a body-only re-edit is self-contained.
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let key = WorktreeKey::from_canonical(canonical);
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["foo"], 0),
+        );
+
+        let mut conn = SaveTimeConn::new(&state);
+        let request = ValidatePathsRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            paths: vec![modified("src/a.ts")],
+        };
+        let resp = conn.validate_paths(&request).expect("admitted");
+        assert_eq!(
+            resp.coverage,
+            Coverage::Certified,
+            "a self-contained body-only edit with a fed matching surface certifies",
         );
     }
 
