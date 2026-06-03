@@ -10,13 +10,18 @@
 //!
 //! # Dependency graph maintenance
 //!
-//! After each delta the `DependencyGraph` is re-derived from the
-//! incrementally-maintained `SymbolGraph`'s resolved import edges. This is the
-//! **interim** Sub-phase A backing: it is provably consistent with a cold
-//! rebuild (it *is* a rebuild from the same source the cold path uses), at an
-//! O(edges) cost per save that the GV2 sub-phase A′ hot-read swap (ADR-063)
-//! later replaces with a resident incremental reverse index under the same
-//! frozen wire. The `SymbolGraph` itself is mutated in place (never rebuilt).
+//! `apply_delta` mirrors `anvil-kernel`'s `watch.rs` exactly: it updates the
+//! `SymbolGraph` in place, maintains a per-key `all_imports` accumulator, and
+//! re-runs [`re_resolve_imports`] so a forward reference (a file processed
+//! before its import target) resolves once the target lands. The
+//! `DependencyGraph` is then re-derived from the resolved import edges. This is
+//! the **interim** Sub-phase A backing: re-deriving is O(edges) per save, which
+//! the GV2 sub-phase A′ hot-read swap (ADR-063) later replaces with a resident
+//! incremental reverse index under the same frozen wire. Because the warm path
+//! runs the same update + re-resolve the cold rebuild does, the reverse index
+//! stays consistent with a cold rebuild across arbitrary delta sequences
+//! (`reverse_index_consistent_after_delta`). The `SymbolGraph` itself is mutated
+//! in place (never rebuilt).
 //!
 //! # Bounded capacity, generation guard, unregister hook
 //!
@@ -40,9 +45,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use anvil_graph_cache::certify::ChangeKind;
-use anvil_graph_cache::{DependencyGraph, GraphDelta, SymbolGraph, remove_file, update_file};
+use anvil_graph_cache::{
+    DependencyGraph, GraphDelta, SymbolGraph, re_resolve_imports, remove_file, update_file,
+};
 use anvil_intercept_proto::protocol::StaleReason;
-use anvil_kernel_types::{EdgeType, FileSymbols};
+use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge};
 
 use crate::rule_cache::WorktreeKey;
 
@@ -56,6 +63,15 @@ pub const DEFAULT_KERNEL_CACHE_CAPACITY: usize = 1024;
 struct Entry {
     sym: SymbolGraph,
     dep: DependencyGraph,
+    /// Every live import edge in the worktree, keyed by `from_file`. Mirrors
+    /// `anvil-kernel`'s `watch.rs` `all_imports`: `update_file` can only resolve
+    /// an import whose target file is already in the graph, so a file processed
+    /// before its import targets leaves the edge unresolved. Re-running
+    /// `re_resolve_imports` against this accumulator after each delta retries
+    /// those forward references — without it the warm graph would permanently
+    /// miss cross-file edges the cold rebuild resolves, and `dependents_of`
+    /// would under-report importers (a false-clean certify hazard).
+    all_imports: Vec<ImportEdge>,
     /// Generation at this entry's most recent access; the lowest in the map is
     /// the LRU victim.
     last_used: u64,
@@ -166,6 +182,18 @@ impl KernelGraphCache {
     /// alongside a warm read, then re-checks here before trusting that read: an
     /// eviction or invalidate between snapshot and use bumps the generation, so
     /// this returns `false` and the caller must treat its read as stale.
+    ///
+    /// # Scope of the guard
+    ///
+    /// This guards against **eviction and invalidate** only — `apply_delta`
+    /// mutates a warm pair in place and deliberately does **not** bump the
+    /// generation (a save is not an invalidation of the cache slot). It is
+    /// therefore *not* a defence against a concurrent `apply_delta` racing a
+    /// reader on the same key; that is prevented one layer up by the DSV-006
+    /// per-`WorktreeKey` in-flight admission token, which serialises
+    /// apply/validate for a key. The guard's job is the cross-event case: a key
+    /// evicted (capacity pressure from other worktrees) or unregistered between
+    /// a reader's snapshot and its use.
     #[must_use]
     pub fn is_generation_current(&self, key: &WorktreeKey, generation: u64) -> bool {
         self.generation(key) == generation
@@ -180,21 +208,24 @@ impl KernelGraphCache {
     ) -> Option<R> {
         let mut guard = self.lock();
         let recency = guard.next_recency;
+        guard.next_recency = recency.wrapping_add(1);
         let entry = guard.map.get_mut(key)?;
         entry.last_used = recency;
-        guard.next_recency = recency.wrapping_add(1);
-        let entry = guard.map.get(key)?;
         Some(f(&entry.sym, &entry.dep))
     }
 
     /// Apply one **already-parsed** delta to `key`'s warm graph pair, building
     /// the pair cold on first contact.
     ///
-    /// `symbols` is consumed as-is — the daemon never parses. `ContentModify`
-    /// and `Create` re-extract the file's symbols via
-    /// [`anvil_graph_cache::update_file`]; `Delete` drops them via
-    /// [`anvil_graph_cache::remove_file`] (its `symbols.file` names the path).
-    /// The `DependencyGraph` is re-derived from the updated `SymbolGraph`.
+    /// `symbols` is consumed as-is — the daemon never parses. `ContentModify`,
+    /// `Create`, and `Rename` (destination) re-extract the file's symbols via
+    /// [`anvil_graph_cache::update_file`] then retry forward-reference imports
+    /// via [`anvil_graph_cache::re_resolve_imports`]; `Delete` drops the file
+    /// via [`anvil_graph_cache::remove_file`] (its `symbols.file` names the
+    /// path). The `DependencyGraph` is re-derived from the updated
+    /// `SymbolGraph`. A `Delete` against a key with no warm pair is a no-op: it
+    /// builds no phantom entry and returns `cold_reason: None` (there is nothing
+    /// to invalidate).
     pub fn apply_delta(
         &self,
         key: &WorktreeKey,
@@ -204,26 +235,49 @@ impl KernelGraphCache {
         let mut guard = self.lock();
 
         let cold = !guard.map.contains_key(key);
+
+        // A Delete on a cold key has nothing to remove — never materialise an
+        // empty phantom entry (it would occupy a capacity slot and read back as
+        // "no symbols / no importers" rather than "not warm").
+        if cold && change == ChangeKind::Delete {
+            return ApplyOutcome {
+                delta: remove_file(&mut SymbolGraph::new(), &symbols.file),
+                generation: guard.generations.get(key).copied().unwrap_or(0),
+                cold_reason: None,
+            };
+        }
+
         if cold && guard.map.len() >= self.capacity {
             evict_lru(&mut guard);
         }
 
         let recency = guard.next_recency;
         guard.next_recency = recency.wrapping_add(1);
-        guard.generations.entry(key.clone()).or_insert(0);
 
         let entry = guard.map.entry(key.clone()).or_insert_with(|| Entry {
             sym: SymbolGraph::new(),
             dep: DependencyGraph::new(),
+            all_imports: Vec::new(),
             last_used: recency,
         });
         entry.last_used = recency;
 
-        let delta = match change {
-            ChangeKind::Delete => remove_file(&mut entry.sym, &symbols.file),
-            // ContentModify / Create / Rename(destination) all re-extract the
-            // file's symbols from the fed `FileSymbols`.
-            _ => update_file(&mut entry.sym, symbols),
+        let file = symbols.file.clone();
+        let delta = if change == ChangeKind::Delete {
+            let delta = remove_file(&mut entry.sym, &file);
+            entry.all_imports.retain(|i| i.from_file != file);
+            delta
+        } else {
+            // ContentModify / Create / Rename(destination) re-extract the file's
+            // symbols, then retry every accumulated import so a forward
+            // reference (a file processed before its target) resolves once the
+            // target lands — matching the cold-rebuild path (watch.rs).
+            let new_imports = symbols.imports.clone();
+            let delta = update_file(&mut entry.sym, symbols);
+            entry.all_imports.retain(|i| i.from_file != file);
+            entry.all_imports.extend(new_imports);
+            re_resolve_imports(&mut entry.sym, &entry.all_imports);
+            delta
         };
         entry.dep = derive_dependency_graph(&entry.sym);
 
@@ -453,6 +507,22 @@ mod tests {
     }
 
     #[test]
+    fn delete_on_cold_key_creates_no_phantom_entry() {
+        // A Delete for a worktree the cache never warmed must not materialise an
+        // empty entry (it would occupy a capacity slot and read back as
+        // "no symbols / no importers" rather than "not warm").
+        let cache = KernelGraphCache::new();
+        let k = key("a");
+        let out = cache.apply_delta(&k, ChangeKind::Delete, file_symbols("gone.ts", &[], &[], 0));
+        assert!(!cache.contains(&k), "Delete on a cold key warms nothing");
+        assert_eq!(cache.len(), 0);
+        assert_eq!(
+            out.cold_reason, None,
+            "a Delete is not a cold cross-file build"
+        );
+    }
+
+    #[test]
     fn invalidate_drops_entry_and_bumps_generation() {
         let cache = KernelGraphCache::new();
         let k = key("a");
@@ -499,23 +569,30 @@ mod tests {
             for (change, syms) in steps().into_iter().take(n) {
                 cache.apply_delta(&k, change, syms);
             }
-            // Cold rebuild: replay the same first n steps into a fresh graph.
+            // True cold rebuild: replay the same first n steps into a fresh
+            // graph WITH the same all_imports accumulation + re_resolve_imports
+            // the warm path uses — otherwise the cold side would never resolve
+            // forward references and the comparison would be vacuous (both
+            // empty). This mirrors anvil-kernel's watch.rs cold path.
             let mut cold = SymbolGraph::new();
+            let mut cold_imports: Vec<ImportEdge> = Vec::new();
             for (change, syms) in steps().into_iter().take(n) {
-                match change {
-                    ChangeKind::Delete => {
-                        remove_file(&mut cold, &syms.file);
-                    }
-                    _ => {
-                        update_file(&mut cold, syms);
-                    }
+                let file = syms.file.clone();
+                if change == ChangeKind::Delete {
+                    remove_file(&mut cold, &file);
+                    cold_imports.retain(|i| i.from_file != file);
+                } else {
+                    let new_imports = syms.imports.clone();
+                    update_file(&mut cold, syms);
+                    cold_imports.retain(|i| i.from_file != file);
+                    cold_imports.extend(new_imports);
+                    re_resolve_imports(&mut cold, &cold_imports);
                 }
             }
             let cold_dep = derive_dependency_graph(&cold);
 
             let consistent = cache
                 .with_graphs(&k, |_, dep| {
-                    // Compare reverse edges for every file touched in the cold rebuild.
                     for f in ["a/a.ts", "a/b.ts"] {
                         let mut warm = dep.dependents_of(f);
                         let mut cold = cold_dep.dependents_of(f);
@@ -533,5 +610,26 @@ mod tests {
                 "reverse index diverged from cold rebuild at step {n}"
             );
         }
+
+        // Non-vacuous guard: after step 2 (b.ts imports ./a, then a.ts lands)
+        // the forward reference MUST have resolved — b.ts is a dependent of
+        // a.ts. This is exactly the edge the missing re_resolve_imports dropped.
+        let cache = KernelGraphCache::new();
+        for (change, syms) in steps().into_iter().take(2) {
+            cache.apply_delta(&k, change, syms);
+        }
+        let dependents = cache
+            .with_graphs(&k, |_, dep| {
+                dep.dependents_of("a/a.ts")
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(
+            dependents,
+            vec!["a/b.ts".to_string()],
+            "forward-reference import b.ts -> ./a must resolve once a.ts lands"
+        );
     }
 }
