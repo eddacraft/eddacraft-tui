@@ -528,12 +528,13 @@ archive.
   Anvil commands are portable across repositories.
 - **TDD waiver (for docs-only item):** No executable product behaviour or test
   surface to drive red/green for the process documentation wording itself (see
-  `test-driven-development` skill: record why when cannot test-first; dev-workflow
-  rules for docs/config-only: "use schema, lint, formatting, link, or manual
-  validation instead of inventing irrelevant tests"). Replacement evidence:
-  explicit manual dry-run (non-Anvil target using general `code-reviewer` path),
-  `pnpm format:check && pnpm lint:check`, verification-before-completion gate,
-  and full pre-PR checks. The change adds no new code paths.
+  `test-driven-development` skill: record why when cannot reasonably test-first;
+  dev-workflow/AGENTS guidance for docs/config-only changes prefers schema, lint,
+  formatting, links, or manual validation over inventing irrelevant tests).
+  Replacement evidence: explicit manual dry-run (non-Anvil target using general
+  `code-reviewer` path), `pnpm format:check && pnpm lint:check`,
+  verification-before-completion gate, and full pre-PR checks. The change adds
+  no new code paths.
 
 ### CIB-028: Add a safe post-merge worktree cleanup sweep
 

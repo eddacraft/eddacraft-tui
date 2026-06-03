@@ -105,12 +105,12 @@ on demand via the `skill` tool).
 
 **Cross-repo review fallback (CIB-027):** When implementation work occurs in a
 downstream/sibling repository that does not have Anvil's `/council` command
-available, use a focused `code-reviewer` (or Council-role) agent pass against
-the changes plus the target repository's own CI + automated review checks.
-Record the evidence (agent transcript + target CI results) before publishing the
-PR. Do not invoke Anvil-specific `/council` or assume Anvil Council surfaces
-exist in the target. See `dev-workflow` for the full review stage and when full
-Anvil Council is not applicable.
+available, use a focused code review (e.g. any available `code-reviewer` agent
+or equivalent in the target environment, augmented by the target repository's
+own CI and automated review checks). Record the evidence (review notes + target
+CI results) before publishing the PR. Do not invoke Anvil-specific `/council` or
+assume Anvil Council surfaces exist in the target. See `dev-workflow` for the
+full review stage and when full Anvil Council is not applicable.
 
 ### Global agents the anvil workflow references
 
