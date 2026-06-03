@@ -3,14 +3,14 @@
 
 # GitHub CLI Auth
 
-| ID        | Owner  | Status   | Progress |
-| --------- | ------ | -------- | -------- |
-| GHCLIAUTH | @aneki | Proposed | 0/11     |
+| ID        | Owner  | Status      | Progress |
+| --------- | ------ | ----------- | -------- |
+| GHCLIAUTH | @aneki | In Progress | 0/11     |
 
-**Last reviewed:** 2026-06-03 (created from the planning council that adopted
-[ADR-066](../decisions/066-github-device-flow-cli-auth.md). Module stays
-**Proposed** — execution is not authorised until the OAuth app is provisioned
-and the security/ops invariants are signed off per ADR-066.)
+**Last reviewed:** 2026-06-04 (ADR-066 Accepted; GHCLIAUTH-001 — the dependency-free
+`mintSession` helper extraction — started since it needs neither the OAuth app nor
+live testing. The live items GHCLIAUTH-004/-005/-006 remain gated on GHCLIAUTH-002
+(OAuth app provisioning) and the security/ops invariant sign-off per ADR-066.)
 
 ## Purpose
 
@@ -134,7 +134,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-001: Extract shared GitHub-user licence-mint helper
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Give the GitHub-identity licence mint a single home so the new
   device-poll path and the existing callback path mint identically.
 - **Expected Outcome:** A `mintLicenceForGitHubUser(sql, ghUser)` (a.k.a.

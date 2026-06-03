@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import {
   findUserByEmail,
@@ -10,21 +10,17 @@ import {
   findActiveOtpCodes,
   incrementOtpAttemptsBatch,
   consumeOtpCode,
-  insertRefreshToken,
-  findActiveScopesForUser,
 } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
-import { signLicence } from '../lib/licence.js';
+import { mintSession } from '../lib/session.js';
 import { hashToken } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
-import type { LicenceClaims } from '../lib/licence.js';
 
 const debug = createDebugger('api');
 
 const OTP_EXPIRY_SECONDS = 600;
 const MAX_ACTIVE_CODES = 3;
 const MAX_ATTEMPTS = 3;
-const REFRESH_TTL_DAYS = 90;
 
 function generateOtpCode(): string {
   const num = (parseInt(randomBytes(4).toString('hex'), 16) % 900000) + 100000;
@@ -140,42 +136,17 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
-  // Read scopes from the user's most recent active access_tokens row so a
-  // user invited with a graded scope (e.g. `preview`) keeps it through the
-  // OTP path. Defaults to `['beta']` for users with no prior access_tokens
-  // row. Same fix as auth-session/auth-device/auth-github landed in
-  // eae47b3d — auth-otp was missed in that round.
-  const scopes = await findActiveScopesForUser(sql, user.id);
-
-  // Sign a 7-day JWT
-  const claims: LicenceClaims = {
-    sub: user.id,
-    email: user.email,
+  // Mint the licence + refresh token. Scope resolution carries a graded-scope
+  // grant (e.g. `preview`) through the OTP path; defaults to `['beta']`
+  // (FLAGM-005 — auth-otp was missed in the eae47b3d round).
+  const session = await mintSession(sql, {
+    user,
     identity: { provider: 'email', id: null },
-    org: null,
-    tier: 'pro',
-    scopes,
-    seats: 1,
-  };
+  });
 
-  const license = await signLicence(claims, undefined, 7);
-
-  // Generate refresh token
-  const rawRefreshToken = randomBytes(32).toString('hex');
-  const refreshHash = hashToken(rawRefreshToken);
-  const familyId = randomUUID();
-  const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-  await insertRefreshToken(sql, user.id, refreshHash, familyId, refreshExpiresAt);
-
-  const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   debug('otp verified successfully', { userId: user.id });
 
-  return c.json({
-    license,
-    refreshToken: rawRefreshToken,
-    expiresAt: jwtExpiresAt.toISOString(),
-  });
+  return c.json(session);
 });
 
 export { authOtp };

@@ -1,24 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
-import {
-  findUserByEmail,
-  insertPendingUser,
-  insertAuditLog,
-  insertRefreshToken,
-  findActiveScopesForUser,
-} from '../db/queries.js';
-import { signLicence } from '../lib/licence.js';
-import { hashToken } from '../lib/token.js';
+import { findUserByEmail, insertPendingUser, insertAuditLog } from '../db/queries.js';
+import { mintSession } from '../lib/session.js';
 import { createDebugger } from '../lib/debug.js';
-import type { LicenceClaims } from '../lib/licence.js';
 
 const debug = createDebugger('api');
-
-const REFRESH_TTL_DAYS = 90;
-const JWT_TTL_DAYS = 7;
 
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
@@ -201,46 +189,22 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
     return c.json({ error: 'Account pending approval' }, 403);
   }
 
-  // Read scopes from the user's most recent active access_tokens row so a
-  // user invited with a graded scope (e.g. `preview`) keeps it through the
-  // GitHub OAuth flow. Defaults to `['beta']` for users with no prior
-  // access_tokens row (typical first-time GitHub sign-up path).
-  const scopes = await findActiveScopesForUser(sql, user.id);
-
-  // Sign a 7-day JWT
-  const claims: LicenceClaims = {
-    sub: user.id,
-    email: user.email,
+  // Mint the licence + refresh token. Scope resolution keeps a user invited
+  // with a graded scope (e.g. `preview`) on that scope through the GitHub OAuth
+  // flow; defaults to `['beta']` for first-time sign-ups.
+  const session = await mintSession(sql, {
+    user,
     identity: { provider: 'github', id: String(ghUser.id) },
-    org: null,
-    tier: 'pro',
-    scopes,
-    seats: 1,
-  };
-
-  const license = await signLicence(claims, undefined, JWT_TTL_DAYS);
-
-  // Generate refresh token
-  const rawRefreshToken = randomBytes(32).toString('hex');
-  const refreshHash = hashToken(rawRefreshToken);
-  const familyId = randomUUID();
-  const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-  await insertRefreshToken(sql, user.id, refreshHash, familyId, refreshExpiresAt);
+  });
 
   await insertAuditLog(sql, 'github_oauth_login', user.email, {
     githubId: ghUser.id,
     githubLogin: ghUser.login,
   });
 
-  const jwtExpiresAt = new Date(Date.now() + JWT_TTL_DAYS * 24 * 60 * 60 * 1000);
   debug('github oauth login successful', { userId: user.id, githubId: ghUser.id });
 
-  return c.json({
-    license,
-    refreshToken: rawRefreshToken,
-    expiresAt: jwtExpiresAt.toISOString(),
-  });
+  return c.json(session);
 });
 
 export { authGithub };

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import {
   findUserByEmail,
@@ -14,8 +14,6 @@ import {
   pollDeviceCode,
   deviceCodeExistsByPollToken,
   consumeDeviceCode,
-  insertRefreshToken,
-  findActiveScopesForUser,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 import {
@@ -23,13 +21,12 @@ import {
   generateUserCode,
   isUserCodeCollision,
 } from '../lib/device-code.js';
-import { signLicence, type LicenceClaims } from '../lib/licence.js';
+import { mintSession } from '../lib/session.js';
 import { hashToken } from '../lib/token.js';
 import { requireAuth } from '../middleware/require-auth.js';
 
 const debug = createDebugger('auth-device');
 
-const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 const POLL_INTERVAL_S = 5;
 
 // Per-code brute-force ceiling for /device/confirm. Once a user_code row has
@@ -247,39 +244,17 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
     return c.json({ status: 'expired' });
   }
 
-  // Read scopes from the user's most recent active access_tokens row so a
-  // user invited with a graded scope (e.g. `preview`) keeps it through the
-  // device-code activation flow. Defaults to `['beta']` for users with no
-  // prior access_tokens row.
-  const scopes = await findActiveScopesForUser(sql, user.id);
-
-  const claims: LicenceClaims = {
-    sub: user.id,
-    email: user.email,
+  // Mint the licence + refresh token. Scope resolution keeps a graded-scope
+  // grant (e.g. `preview`) through the device-code activation flow; defaults
+  // to `['beta']` for users with no prior access_tokens row.
+  const session = await mintSession(sql, {
+    user,
     identity: { provider: 'email', id: null },
-    org: null,
-    tier: 'pro',
-    scopes,
-    seats: 1,
-  };
-  const license = await signLicence(claims, undefined, 7);
+  });
 
-  const rawRefreshToken = randomBytes(32).toString('hex');
-  const refreshHash = hashToken(rawRefreshToken);
-  const familyId = randomUUID();
-  const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-
-  await insertRefreshToken(sql, userId, refreshHash, familyId, refreshExpiresAt);
-
-  const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   debug('device code consumed, licence issued');
 
-  return c.json({
-    status: 'confirmed',
-    license,
-    refreshToken: rawRefreshToken,
-    expiresAt: jwtExpiresAt.toISOString(),
-  });
+  return c.json({ status: 'confirmed', ...session });
 });
 
 export { authDevice };

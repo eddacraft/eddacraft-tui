@@ -1,23 +1,18 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import {
   findRefreshTokenByHash,
   consumeRefreshToken,
   revokeRefreshFamilyAndAccessTokensForUser,
-  insertRefreshToken,
   findUserById,
-  findActiveScopesForUser,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
-import { signLicence, type LicenceClaims } from '../lib/licence.js';
+import { mintSession } from '../lib/session.js';
 import { createDebugger } from '../lib/debug.js';
 
 const debug = createDebugger('auth-session');
-
-const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1).max(200),
@@ -82,41 +77,18 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     return c.json({ error: 'Token reuse detected' }, 401);
   }
 
-  // Generate new refresh token in the same family
-  const rawToken = randomBytes(32).toString('hex');
-  const newHash = hashToken(rawToken);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
-
-  await insertRefreshToken(sql, record.user_id, newHash, record.family_id, expiresAt);
-
-  // Carry the user's current scopes forward on every refresh. Reading from
-  // `access_tokens` (rather than hardcoding `['beta']`) stops scope grants
-  // issued via `admin invite` (FLAGM-005) from being silently downgraded
-  // on the user's first refresh.
-  const scopes = await findActiveScopesForUser(sql, user.id);
-
-  // Sign a new 7-day JWT
-  const claims: LicenceClaims = {
-    sub: user.id,
-    email: user.email,
+  // Mint a new licence + refresh token, rotating within the same family.
+  // Scopes are carried forward from `access_tokens` (FLAGM-005) so an
+  // `admin invite` grant is not silently downgraded on the user's first refresh.
+  const session = await mintSession(sql, {
+    user,
     identity: { provider: 'email', id: null },
-    org: null,
-    tier: 'pro',
-    scopes,
-    seats: 1,
-  };
-
-  const license = await signLicence(claims, undefined, 7);
-  const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    familyId: record.family_id,
+  });
 
   debug('session refreshed', { userId: user.id, familyId: record.family_id });
 
-  return c.json({
-    license,
-    refreshToken: rawToken,
-    expiresAt: jwtExpiresAt.toISOString(),
-  });
+  return c.json(session);
 });
 
 export { authSession };
