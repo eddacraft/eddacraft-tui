@@ -4,9 +4,9 @@
 
 | ID    | Owner  | Status      | Progress |
 | ----- | ------ | ----------- | -------- |
-| CLAWP | @aneki | In Progress | 29/65    |
+| CLAWP | @aneki | In Progress | 53/65    |
 
-**Last reviewed:** 2026-06-03 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159. A 2026-06-01 reconcile against the 2026-05-31 v0.7.3-beta sweep (`plans/reviews/2026-05-31-clawpatch-triage.md` §A, tracked as a portable backlog in `plans/reviews/2026-05-31-clawpatch-rust-followups.md`, PR #2172) found that eleven of the twelve actionable Rust §A findings had **already shipped as pure-code fixes never tracked here**, verified against `origin/main` source: credential-load coercion → exit `EXIT_CONFIG_ERROR` (PR #2173), pre-dispatch auth `--format json` envelopes (PR #2180), `InterruptReason` 1-based invariant made unrepresentable via `Option<NonZeroU32>` (PR #2174), `EngineEvent` event_type/payload validation (PR #2176), Win32 named-pipe SQOS cap + `GetExitCodeProcess` liveness (PR #2182), `anvil-checks-napi` `.node` freshness guard widened to all native build inputs (PR #2181), and the four `anvil-baseline`/`anvil-witness`/`anvil-checks-napi` docs/re-export corrections (PR #2178). These need no CLAWP item. The single still-open §A finding — `scan_buffer` cannot enforce session ownership because `ScanBufferRequest` omits an authenticated `session_id` — is filed below as **CLAWP-065** (Merged 2026-06-01 via PR #2211). A 2026-06-03 verify sweep of the remaining Draft findings against `origin/main` reconciled four more whose fixes had **already shipped untracked**: CLAWP-034 (PR #1186 `a4e1fc58`), CLAWP-043 (PR #1114 `a33c2ab6`), CLAWP-044 (PR #1163 `336d5adc`), CLAWP-051 (PR #1653 `c21b7d08`) — now Merged (25/65 → 29/65). The 28 findings still open are all low-severity test-gaps plus the three JS/TS config nits (CLAWP-006/-010/-032) on the retiring JS/TS surface.)
+**Last reviewed:** 2026-06-03 (twenty-four findings now Merged: CLAWP-001 PR #1732 `6c106a4d`, CLAWP-008 PR #1765 `7c1fcce4`, CLAWP-011 PR #1791 `be927818`, CLAWP-012 PR #1772 `8eae1cfe`, CLAWP-013 PR #1788 `af78867f`, CLAWP-014 PR #1786 `ab00ee9a`, CLAWP-015 PR #1783 `0e63b52e`, CLAWP-021 PR #1764 `8d2d8da7`, CLAWP-022 PR #1770 `265f45d9`, CLAWP-028 PR #1763, CLAWP-029 PR #1789 `5fc13990`, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065 (post-review burn-down 2026-05-29). CLAWP-008 clears the only fix-before-tag obligation still outstanding from the release-council pass-2 verdict map. Per the release runbook §2 loop rule, the `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json` artefact is now invalidated by the post-merge bits — a fresh `claw-sweep` on the new `main` SHA is required before §2 council can run. Original filing: 2026-05-19 at v0.7.0-beta cut pre-flight; 64 open findings tracked here, 5 fixed findings recorded in the report file but not tracked as tasks since they need no action. A 2026-05-30 GitHub-issue burn-down batch closed seven more: CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142. A 2026-05-31 reconcile recorded four more whose fixes had already merged: CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159. A 2026-06-01 reconcile against the 2026-05-31 v0.7.3-beta sweep (`plans/reviews/2026-05-31-clawpatch-triage.md` §A, tracked as a portable backlog in `plans/reviews/2026-05-31-clawpatch-rust-followups.md`, PR #2172) found that eleven of the twelve actionable Rust §A findings had **already shipped as pure-code fixes never tracked here**, verified against `origin/main` source: credential-load coercion → exit `EXIT_CONFIG_ERROR` (PR #2173), pre-dispatch auth `--format json` envelopes (PR #2180), `InterruptReason` 1-based invariant made unrepresentable via `Option<NonZeroU32>` (PR #2174), `EngineEvent` event_type/payload validation (PR #2176), Win32 named-pipe SQOS cap + `GetExitCodeProcess` liveness (PR #2182), `anvil-checks-napi` `.node` freshness guard widened to all native build inputs (PR #2181), and the four `anvil-baseline`/`anvil-witness`/`anvil-checks-napi` docs/re-export corrections (PR #2178). These need no CLAWP item. The single still-open §A finding — `scan_buffer` cannot enforce session ownership because `ScanBufferRequest` omits an authenticated `session_id` — is filed below as **CLAWP-065** (Merged 2026-06-01 via PR #2211). A 2026-06-03 verify sweep of the remaining Draft findings against `origin/main` reconciled four more whose fixes had **already shipped untracked**: CLAWP-034 (PR #1186 `a4e1fc58`), CLAWP-043 (PR #1114 `a33c2ab6`), CLAWP-044 (PR #1163 `336d5adc`), CLAWP-051 (PR #1653 `c21b7d08`) — now Merged (25/65 → 29/65). The 2026-06-03 #1740 test-hardening batch then implemented 24 of the open test-gap findings as pure-code PRs and this reconcile flips them to Merged (29/65 → 53/65): PR #2261 (CLAWP-035/-040/-045/-048/-052/-056/-057/-058/-059/-060), PR #2265 (CLAWP-039/-041/-042/-053/-054/-055/-063), PR #2267 (CLAWP-046/-047/-050/-061/-062/-064 and CLAWP-037, the latter tracked under #1643). Six findings remain open: CLAWP-005 (Deferred, blocked on `anvil-rmcp`), CLAWP-023 + CLAWP-049 (Draft test-gaps — TS dual-run engine and Windows OPA path-glob, both deferred), and the three JS/TS config nits CLAWP-006/-010/-032 on the retiring surface.)
 
 ## Purpose
 
@@ -619,7 +619,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_e20f33eb79` — Rust integration test eddacraft-anvil/air_gapped
 - **Severity / Triage / Category:** low / risk / build-release
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — bounded the air-gap harness with a kill-on-timeout, pipe-draining wrapper
 - **Recommendation:** Run the harness through a bounded child process helper with a short timeout; on timeout, kill the child and fail the test with captured stdout/stderr and argv.
 - **Evidence:** `crates/anvil-cli/tests/air_gapped.rs:73` (`run_air_gapped`), `crates/anvil-cli/tests/air_gapped.rs:101` (`run_air_gapped_without_dev`), `crates/anvil-cli/tests/air_gapped.rs:136` (`anvil_status_verify_json_exits_cleanly_with_no_network`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -643,7 +643,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_cli-command_43c5f1e5c2` — Rust command eddacraft-anvil-intercept
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1643) — process-level binary contract test (--help, invalid invocation); SIGTERM lifecycle deferred
 - **Recommendation:** Add a small process-level integration test for the binary contract, at minimum covering help/usage and invalid invocation. If feasible on Unix, also spawn `anvil-intercept start` under an isolated temporary HOME/state directory, send SIGTERM, and assert it exits successfully.
 - **Evidence:** `crates/anvil-intercept/src/main.rs:21` (`Cli`), `crates/anvil-intercept/src/main.rs:38` (`main`), `crates/anvil-intercept/tests/jsonrpc_conformance.rs:74` (`with_dispatcher_and_scan_buffer`), _+1 more in the report_
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -666,7 +666,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_07b2e91acd` — Rust integration test eddacraft-anvil-checks/surfenv_prod_value
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — assert all four SURFENV-003 findings by key + indicator
 - **Recommendation:** Assert the exact expected finding set, for example by comparing keys and indicators for DATABASE_URL/prod host, FEATURE_FLAGS_ENV/production value, SECRET_PROD/key suffix, and LEGACY_HOST/suppressed.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_prod_value.rs:23` (`prod_in_local_fixture_yields_expected_findings`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -677,7 +677,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_07da3568bc` — Rust integration test eddacraft-anvil/ai_guardrail_profile
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — validate every diagnostic envelope, not just the first
 - **Recommendation:** Iterate over every diagnostic and assert the required payload fields and category type for each one, then collect categories with a hard failure on missing or non-string values.
 - **Evidence:** `crates/anvil-cli/tests/ai_guardrail_profile.rs:55` (`ai_profile_emits_diagnostic_envelope_in_json_mode`), `crates/anvil-cli/tests/ai_guardrail_profile.rs:75` (`ai_profile_emits_diagnostic_envelope_in_json_mode`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -688,7 +688,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_10e78e1ec5` — Rust integration test eddacraft-anvil-checks/antipattern_scanning
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — assert the exact AP-003 count
 - **Recommendation:** Assert the exact number of AP-003 warnings for this fixture, and ideally assert distinct source lines or spans for the three expected occurrences.
 - **Evidence:** `crates/anvil-checks/tests/antipattern_scanning.rs:80` (`detects_explicit_any_in_realistic_service`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -699,7 +699,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_10e78e1ec5` — Rust integration test eddacraft-anvil-checks/antipattern_scanning
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — add a non-empty-catch negative test (AP-006 absent)
 - **Recommendation:** Add a negative integration test with one or more non-empty catch blocks and assert that AP-006 is absent for those cases.
 - **Evidence:** `crates/anvil-checks/tests/antipattern_scanning.rs:93` (`detects_empty_catch_block`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -743,7 +743,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_42e9aad964` — Rust integration test eddacraft-anvil/spawn_probe
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — negative handshake test — a wedged MCP server times out within budget without promotion
 - **Recommendation:** Add a negative timeout integration test using an installed MCP entry whose command hangs or never emits a JSON-RPC initialize response, then assert `status --verify` returns within the expected budget plus tight CI slack and does not promote the client.
 - **Evidence:** `crates/anvil-cli/tests/spawn_probe.rs:114` (`handshake_against_real_anvil_promotes_restart_required_client`), `crates/anvil-cli/tests/spawn_probe.rs:142` (`handshake_against_real_anvil_promotes_restart_required_client`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -754,7 +754,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_43eb68bbe4` — Rust integration test eddacraft-anvil-witness/concurrency
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — exact commit_sha set match across all writers
 - **Recommendation:** Collect parsed WitnessLine values and assert that the observed seq or commit_sha set exactly matches the expected values for all thread IDs.
 - **Evidence:** `crates/anvil-witness/tests/concurrency.rs:26` (`line_for_thread`), `crates/anvil-witness/tests/concurrency.rs:73` (`run_concurrent`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -765,7 +765,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_43eb68bbe4` — Rust integration test eddacraft-anvil-witness/concurrency
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — Arc<Barrier> to force simultaneous append contention
 - **Recommendation:** Add an Arc<Barrier> shared by all worker threads and the main thread, have workers wait before calling append, then release them together after all handles are spawned.
 - **Evidence:** `crates/anvil-witness/tests/concurrency.rs:56` (`run_concurrent`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -776,7 +776,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_5361f7c11c` — Rust integration test eddacraft-anvil/watch_json_output
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — extract_json_blocks fails loud on an unparseable fenced JSON block
 - **Recommendation:** Return a `Result` from `extract_json_blocks` or panic with the block content/location when a fenced `json` block fails to parse.
 - **Evidence:** `crates/anvil-cli/tests/watch_json_output.rs:415` (`extract_json_blocks`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -798,7 +798,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_5cabaeb54d` — Rust integration test eddacraft-anvil-policy/opa_real_binary
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — test the exact coverage_min boundary (lines == 80)
 - **Recommendation:** Change this test to use 80, or add a separate exact-threshold test while keeping the high-coverage case if desired.
 - **Evidence:** `crates/anvil-policy/tests/opa_real_binary.rs:238` (`coverage_min_passes_at_threshold`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -826,7 +826,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_67ce748437` — Rust integration test eddacraft-anvil/status_render
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — gate fixture-update on ANVIL_UPDATE_FIXTURES == "1" exactly
 - **Recommendation:** Require the environment variable to equal `1` exactly, and panic or ignore any other value so accidental configuration cannot turn golden assertions into fixture rewrites.
 - **Evidence:** `crates/anvil-cli/tests/status_render.rs:42` (`assert_or_update_fixture`), `crates/anvil-cli/tests/status_render.rs:47` (`assert_or_update_fixture`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -837,7 +837,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_771f54e1ca` — Rust integration test eddacraft-anvil-checks/surfenv_gitignore_hygiene
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — assert the suppressed finding kind + suggested_pattern
 - **Recommendation:** Add assertions for the suppressed finding's kind and suggested_pattern, mirroring the .env.local checks.
 - **Evidence:** `crates/anvil-checks/tests/surfenv_gitignore_hygiene.rs:40` (`fixture_repo_yields_one_unignored_finding_and_one_suppressed`), `crates/anvil-checks/tests/surfenv_gitignore_hygiene.rs:44` (`fixture_repo_yields_one_unignored_finding_and_one_suppressed`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -848,7 +848,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_79bc3daaff` — Rust integration test eddacraft-anvil-checks/command_safety_validation
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — assert the full nested wrapper chain [sudo, bash]
 - **Recommendation:** Assert the full expected nested wrapper chain for the parsed rm command, preferably in order, e.g. ["sudo", "bash"].
 - **Evidence:** `crates/anvil-checks/tests/command_safety_validation.rs:168` (`unwraps_nested_sudo_bash`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -859,7 +859,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_79bc3daaff` — Rust integration test eddacraft-anvil-checks/command_safety_validation
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — pin `git clean -f` to Warn (consistent with the score test)
 - **Recommendation:** Pick one intended behaviour for git clean -f. If the intended default is Warn, make warns_on_git_clean_f assert CommandAction::Warn exactly; if Block is acceptable, loosen or parameterise the score test so it does not encode a contradictory contract.
 - **Evidence:** `crates/anvil-checks/tests/command_safety_validation.rs:219` (`warns_on_git_clean_f`), `crates/anvil-checks/tests/command_safety_validation.rs:496` (`check_reports_correct_score_for_mixed_findings`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -870,7 +870,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_9c19d7b3f9` — Rust integration test eddacraft-anvil/version_offline
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — assert current_version == CARGO_PKG_VERSION
 - **Recommendation:** Compare `parsed["current_version"]` to the expected crate/package version available to the integration test, rather than only checking that it is non-empty.
 - **Evidence:** `crates/anvil-cli/tests/version_offline.rs:67` (`version_offline_json_keys_are_stable`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -881,7 +881,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_9c19d7b3f9` — Rust integration test eddacraft-anvil/version_offline
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — prove `version` needs no auth by isolating ANVIL_HOME + bypass vars
 - **Recommendation:** Explicitly remove the known Anvil auth-related environment variables for this command, or use `env_clear()` and then add only the minimal variables needed for the binary to execute in the test environment.
 - **Evidence:** `crates/anvil-cli/tests/version_offline.rs:76` (`version_offline_does_not_require_auth`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -892,7 +892,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_ac76327313` — Rust integration test eddacraft-anvil/status_verify_languages
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — bind each language to its coverage tier on the same render row
 - **Recommendation:** Assert the association between each language and its expected tier, for example by matching full output rows/lines or by isolating the languages block and checking that the TypeScript row contains supported and the Python row contains unsupported.
 - **Evidence:** `crates/anvil-cli/tests/status_verify_languages.rs:163` (`human_render_shows_per_language_breakdown`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -903,7 +903,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_ac76327313` — Rust integration test eddacraft-anvil/status_verify_languages
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — assert the exact unclassified-file count
 - **Recommendation:** Make the expected count precise for this fixture, or add a second assertion that classified language files do not affect unclassified_files_seen. If .anvilrc is intentionally counted or ignored, encode that decision explicitly in the expected value.
 - **Evidence:** `crates/anvil-cli/tests/status_verify_languages.rs:188` (`unclassified_files_surface_in_json_output`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -914,7 +914,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_ac76327313` — Rust integration test eddacraft-anvil/status_verify_languages
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2261 (#1740 batch) — exercise the .git exclusion via a Go file only under .git
 - **Recommendation:** Add a source-like file under .git, such as .git/hooks/pre-commit.py or .git/objects/example.rs, and assert that it does not produce a Python or Rust language entry or increase files_seen.
 - **Evidence:** `crates/anvil-cli/tests/status_verify_languages.rs:206` (`vendored_dirs_are_excluded_from_language_count`), `crates/anvil-cli/tests/status_verify_languages.rs:230` (`vendored_dirs_are_excluded_from_language_count`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -925,7 +925,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_c0c1a8f559` — Rust integration test eddacraft-anvil-kernel-types/type_invariants
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — round-trip both edge endpoints, assert neither dangles
 - **Recommendation:** Create both source and target nodes, round-trip them with the edge, and assert that both edge_back.from and edge_back.to are present in the deserialised node id set.
 - **Evidence:** `crates/anvil-kernel-types/tests/type_invariants.rs:153` (`graph_types_round_trip_together`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -936,7 +936,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_c0c1a8f559` — Rust integration test eddacraft-anvil-kernel-types/type_invariants
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — reject a tampered event_type that disagrees with the payload
 - **Recommendation:** Add a helper/assertion that maps each EventType to the expected EventPayload variant and use it in the event tests, including coverage for all four event kinds. If mismatched events should be rejected, add a negative deserialisation or validation test around that contract.
 - **Evidence:** `crates/anvil-kernel-types/tests/type_invariants.rs:39` (`engine_event_binds_engine_id_to_payload`), `crates/anvil-kernel-types/tests/type_invariants.rs:117` (`full_event_with_nested_types_round_trips`), `crates/anvil-kernel-types/tests/type_invariants.rs:207` (`both_engines_produce_valid_events`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -947,7 +947,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_ded28997b4` — Rust integration test eddacraft-anvil-checks/secret_detection
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2265 (#1740 batch) — run the lockfile-hash test with entropy enabled + a non-hex control
 - **Recommendation:** Run this case with entropy enabled, preferably with a threshold low enough to exercise the hash-like strings, and assert that no findings are returned for lockfile integrity and resolved hash lines.
 - **Evidence:** `crates/anvil-checks/tests/secret_detection.rs:151` (`does_not_flag_hex_hashes_in_lockfile`), `crates/anvil-checks/tests/secret_detection.rs:143` (`does_not_flag_hex_hashes_in_lockfile`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
@@ -958,7 +958,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_e6f2772c8e` — Rust integration test eddacraft-anvil-intercept/midedit_contract
 - **Severity / Triage / Category:** low / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Merged 2026-06-03 via PR #2267 (#1740 batch) — assert the busy response echoes the JSON-RPC id
 - **Recommendation:** Change the public busy assertion to take an expected id, or provide an `assert_busy_response_for(response, idx_or_id)` helper that validates `response["id"]` alongside the existing busy error shape.
 - **Evidence:** `crates/anvil-intercept/tests/midedit_contract.rs:460` (`assert_busy_response`), `crates/anvil-intercept/tests/midedit_contract.rs:993` (`rust_consumer_surfaces_server_busy`)
 - **Source:** Clawpatch pre-tag sweep 2026-05-19 (full finding body in `plans/audits/2026-05-19-clawpatch-v0.7.0-beta.json`).
