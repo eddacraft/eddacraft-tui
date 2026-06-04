@@ -9,14 +9,56 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
-## [0.7.4-beta] — TBD — Side-by-Side Installs
+## [0.8.0-beta] — TBD — The Save-Time Daemon
+
+The first minor since `v0.7.0-beta`, earned on architecture: it begins moving
+save-time governance off per-save cold-spawned `check` and onto a persistent
+intercept daemon that validates deltas (ADR-061). Most of the daemon work so far
+is foundational plumbing; the user-visible surface is the new `anvil status`
+assurance fields, opt-in workspace confinement, and the gate-summary dashboard.
+Release date pending the tag.
+
+### Added
+
+- **`anvil status` surfaces save-time assurance and workspace confinement.**
+  Status now reports whether save-time validation is being served by the
+  persistent daemon and the workspace's confinement state, so the active
+  protection posture is observable.
+- **Opt-in workspace confinement mode.** A new opt-in mode confines the daemon's
+  save-time validation to an admitted workspace root.
+- **Live gate-summary dashboard.** `anvil gate` now persists run results to
+  `.anvil/gates.json`
+  ([#2242](https://github.com/eddacraft/anvil-001/issues/2242)), and a new live
+  gate-summary dashboard surface renders them
+  ([#2237](https://github.com/eddacraft/anvil-001/issues/2237)).
+- **First-run adoption hint.** Anvil surfaces a first-week adoption signal hint
+  to help new projects find their footing.
+
+### Changed
+
+- **`anvil watch` routes save-time checks through the persistent intercept
+  daemon.** The shift from cold-spawning `check` on every save to daemon-served
+  delta validation lands behind the existing watch surface — the durable fix for
+  the watch-CPU report
+  ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)) that
+  `v0.7.4-beta` addressed only with a stopgap.
+
+### Fixed
+
+- **Windows home resolution honours `USERPROFILE` / `HOME`.** Home-directory
+  resolution on Windows now respects `USERPROFILE`/`HOME` consistently.
+- **`anvil suppress` rejects drive-relative paths** (e.g. `C:foo`), not just
+  rooted ones.
+- **Deep-tree TUI rendering no longer overflows the stack** on deep component
+  trees.
+
+## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 
 A distribution and stability patch on the `v0.7.3-beta` slate. The headline is
 an `ANVIL_HOME` install-root override that lets a development or candidate Anvil
 run beside a production install without colliding on state. It also lands a
 watch CPU fix that keeps per-save checks scoped to what actually changed, plus
-Windows daemon hardening and a few CLI correctness fixes. Release date pending
-the tag.
+Windows daemon hardening and a few CLI correctness fixes.
 
 ### Added
 
@@ -58,11 +100,11 @@ the tag.
   longer resolves to an empty install root; it falls back to the default
   consistently.
 
-## [0.7.3-beta] — TBD — Surfacing the Signal
+## [0.7.3-beta] — 2026-05-31 — Surfacing the Signal
 
 A product-surface release: native read-only TUI dashboards, SARIF 2.1.0 findings
 export on the scan commands, and new `anvil insights` views make Anvil's
-existing signal visible and exportable. Release date pending the tag.
+existing signal visible and exportable.
 
 ### Added
 
@@ -263,7 +305,7 @@ running and enforcing the worktree.
 - WinGet: `winget upgrade --id eddacraft.anvil`.
 - Scoop: `scoop update anvil`.
 
-## [0.7.0-beta] — 2026-05-20 — Daemon-Working: End-to-End Verifiable Protection
+## [0.7.0-beta] — 2026-05-21 — Daemon-Working: End-to-End Verifiable Protection
 
 The release theme is **daemon-working**: the protection claim is now verifiable
 from code state alone. Hooks, the witness chain, baseline adoption, L4 policy,

@@ -32,7 +32,7 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.7.4-beta` (shipped 2026-05-31) — watch save-time CPU fix
+- **Latest tag:** `v0.7.4-beta` (shipped 2026-06-01) — watch save-time CPU fix
   (RLB-007) + `ANVIL_HOME` install-root override (DISTRIB-006). Post-tag `main`
   also carries the Windows home-resolution + `eddacraft-tui` deep-tree fixes.
 - **Cadence:** the six-week sit-on hold is **retired** (2026-06-01) — minors cut

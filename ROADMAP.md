@@ -1,8 +1,9 @@
 # Anvil Roadmap
 
-**Last updated:** 2026-05-28 (fact-refresh — Horizon 0 and Horizon 1 marked
-shipped through `v0.7.2-beta`; thematic framing and next-window selection are
-unchanged, pending a strategic pass)
+**Last updated:** 2026-06-05 (fact-refresh — Horizon 0 and Horizon 1 marked
+shipped through `v0.7.4-beta`; `v0.8.0-beta` "The Save-Time Daemon" is the
+active window; thematic framing and next-window selection are unchanged, pending
+a strategic pass)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -86,8 +87,9 @@ No item ships until every state is reachable in fixtures and rendered claims
 match.
 
 **Shipped:** `v0.7.0-beta` (2026-05-21), followed by patches `v0.7.1-beta`
-(2026-05-22) and `v0.7.2-beta` (2026-05-25). Detailed sequencing, waves, and
-parallelisation in the [v0.7.0 release record](./plans/releases/v0.7.0-beta.md).
+(2026-05-22), `v0.7.2-beta` (2026-05-25), `v0.7.3-beta` (2026-05-31), and
+`v0.7.4-beta` (2026-06-01). Detailed sequencing, waves, and parallelisation in
+the [v0.7.0 release record](./plans/releases/v0.7.0-beta.md).
 
 ### Horizon 2 — Team-Lead Surface
 
