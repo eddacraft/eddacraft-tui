@@ -129,17 +129,21 @@ fn resolve_module_file(
     base_dir: &Path,
     segments: &[&str],
 ) -> Option<String> {
+    // A raw identifier (`r#type`, `r#async`) names a module whose file on disk
+    // uses the bare name (`type.rs`); strip the `r#` syntax before probing.
+    let bare = |s: &str| s.strip_prefix("r#").unwrap_or(s).to_string();
     let mut segs = segments;
     while let Some((last, parents)) = segs.split_last() {
         let mut dir = base_dir.to_path_buf();
         for p in parents {
-            dir.push(p);
+            dir.push(bare(p));
         }
+        let last = bare(last);
         let as_file = dir.join(format!("{last}.rs"));
         if workspace_root.join(&as_file).is_file() {
             return rel_slash(&as_file);
         }
-        let as_mod = dir.join(last).join("mod.rs");
+        let as_mod = dir.join(&last).join("mod.rs");
         if workspace_root.join(&as_mod).is_file() {
             return rel_slash(&as_mod);
         }
@@ -374,6 +378,19 @@ mod tests {
         assert_eq!(
             resolve_rust_import(tmp.path(), "lib.rs", "crate::config"),
             None
+        );
+    }
+
+    #[test]
+    fn raw_identifier_segments_resolve_to_bare_filenames() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        touch(tmp.path(), "Cargo.toml");
+        touch(tmp.path(), "src/lib.rs");
+        // `mod r#type` lives in `type.rs` on disk (raw prefix is syntax only).
+        touch(tmp.path(), "src/type.rs");
+        assert_eq!(
+            resolve_rust_import(tmp.path(), "src/lib.rs", "crate::r#type::Thing"),
+            Some("src/type.rs".to_string())
         );
     }
 
