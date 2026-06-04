@@ -23,8 +23,8 @@
     "clsx": "^2.1.1",
     "jose": "^6.2.3",
     "prism-react-renderer": "^2.4.1",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "@docusaurus/types": "3.10.1",
     "@docusaurus/plugin-content-docs": "3.10.1"
   },
