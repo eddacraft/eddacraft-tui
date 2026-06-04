@@ -144,8 +144,10 @@ Change status to **Ready** when:
 > persistence/privacy/crash-safety content is specified concretely in
 > `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 (warm-start
 > restores indexes, never the verdict; default-off; per-uid owner-only snapshot
-> location; structural-identity-only privacy line); sub-phase B remains blocked
-> on the GV2-021 ADR itself being drafted.
+> location; structural-identity-only privacy line), now ratified as
+> [ADR-069](../decisions/069-graph-v2-persistence.md) (Accepted 2026-06-04). Sub-phase
+> B is therefore no longer decision-blocked; it now depends on **implementing** the
+> warm-start persistence the ADR specifies.
 
 ---
 

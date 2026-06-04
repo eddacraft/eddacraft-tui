@@ -59,8 +59,9 @@ write atomically and discard safely?**
 
 ## Decision
 
-Persist the warm graph indexes as a **versioned, self-describing serde binary
-snapshot** — not an embedded database, not a zero-copy mmap store — owned by
+Persist the warm graph indexes as a **versioned, sealed-canonical-DTO serde
+binary snapshot** (`postcard`) — not an embedded database, not a zero-copy mmap
+store, and **not** a self-describing codec (§1 rejects CBOR) — owned by
 `eddacraft-anvil-graph-cache`, written and read by the daemon
 (`anvil-intercept`), **default-off** in v1.
 
