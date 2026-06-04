@@ -42,6 +42,23 @@ fn scan(path: &str, content: &str) -> AstScanOutput {
     scan_bytes(&[(path, content.as_bytes())], None, &test_opts())
 }
 
+/// Like [`fires`] but with `include_opt_in` set — for opt-in rules (RS-004).
+fn fires_opt_in(path: &str, content: &str, id: &str) -> bool {
+    let opts = AstScanOptions {
+        registry_path: Some(workspace_registry_path()),
+        include_opt_in: true,
+    };
+    let out = scan_bytes(&[(path, content.as_bytes())], None, &opts);
+    assert!(
+        out.init_errors.is_empty(),
+        "init errors: {:?}",
+        out.init_errors
+    );
+    out.warnings
+        .iter()
+        .any(|w| w.id == id && w.suppressed.is_none())
+}
+
 // --- RS-001 unwrap / expect -------------------------------------------------
 
 #[test]
@@ -85,6 +102,29 @@ fn rs001_not_excluded_by_cfg_not_test() {
 fn rs001_excluded_in_tests_directory() {
     let src = "fn t() { foo().unwrap(); }\n";
     assert!(!fires("crates/x/tests/it.rs", src, "RS-001"));
+}
+
+#[test]
+fn rs001_excluded_in_test_module_file() {
+    // RSTLAN-008 dogfood: a `tests.rs` file is included via
+    // `#[cfg(test)] mod tests;` from lib.rs, so the file itself has no cfg
+    // marker — exclude it by basename.
+    let src = "fn t() { foo().unwrap(); }\n";
+    assert!(!fires("crates/x/src/tests.rs", src, "RS-001"));
+}
+
+#[test]
+fn rs001_excluded_in_build_script() {
+    // RSTLAN-008 dogfood: build scripts panic/unwrap idiomatically and are not
+    // shipped runtime code.
+    let src = "fn main() { something().unwrap(); }\n";
+    assert!(!fires("crates/x/build.rs", src, "RS-001"));
+}
+
+#[test]
+fn rs002_excluded_in_build_script() {
+    let src = "fn main() { panic!(\"build failed\"); }\n";
+    assert!(!fires("crates/x/build.rs", src, "RS-002"));
 }
 
 #[test]
@@ -155,27 +195,35 @@ fn rs003_fires_when_unrelated_statement_intervenes() {
 
 #[test]
 fn rs004_fires_on_deserialize_without_deny() {
+    // RS-004 is opt-in (RSTLAN-008): flags every Deserialize struct, so it is
+    // off by default and exercised here with include_opt_in.
     let src = "#[derive(Debug, Deserialize)]\nstruct Config { port: u16 }\n";
-    assert!(fires("src/lib.rs", src, "RS-004"));
+    assert!(fires_opt_in("src/lib.rs", src, "RS-004"));
+}
+
+#[test]
+fn rs004_off_by_default() {
+    let src = "#[derive(Debug, Deserialize)]\nstruct Config { port: u16 }\n";
+    assert!(!fires("src/lib.rs", src, "RS-004"));
 }
 
 #[test]
 fn rs004_clean_with_deny_unknown_fields() {
     let src =
         "#[derive(Deserialize)]\n#[serde(deny_unknown_fields)]\nstruct Config { port: u16 }\n";
-    assert!(!fires("src/lib.rs", src, "RS-004"));
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-004"));
 }
 
 #[test]
 fn rs004_silent_without_deserialize_derive() {
     let src = "#[derive(Debug, Clone)]\nstruct Plain { port: u16 }\n";
-    assert!(!fires("src/lib.rs", src, "RS-004"));
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-004"));
 }
 
 #[test]
 fn rs004_handles_path_qualified_derive() {
     let src = "#[derive(serde::Deserialize)]\nstruct Config { port: u16 }\n";
-    assert!(fires("src/lib.rs", src, "RS-004"));
+    assert!(fires_opt_in("src/lib.rs", src, "RS-004"));
 }
 
 // --- Cross-cutting ----------------------------------------------------------

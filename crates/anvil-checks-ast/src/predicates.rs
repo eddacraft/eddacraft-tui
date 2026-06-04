@@ -59,11 +59,27 @@ pub(crate) fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
 
 /// A Cargo integration-test / bench / example target — a separate crate with no
 /// `#[cfg(test)]` ancestor, so the cfg walk alone can't exclude it (ADR-071 §4).
+/// Paths the unwrap/expect/panic rules treat as not shipped non-test runtime —
+/// where a panic is either a test failure or an idiomatic build-time abort, so
+/// flagging it is noise (RSTLAN-008 dogfood finding):
+///
+/// - Cargo integration-test / bench / example targets (`tests/`, `benches/`,
+///   `examples/`) — separate crates with no `#[cfg(test)]` ancestor the cfg walk
+///   could see.
+/// - Separate unit-test module files included via `#[cfg(test)] mod tests;`
+///   (`tests.rs` / `test.rs`) — the file itself carries no in-file `cfg(test)`
+///   marker, so the cfg walk can't reach it.
+/// - Build scripts (`build.rs`) — panicking / `unwrap()` is the idiomatic
+///   build-time error path and the script is not shipped runtime code.
 #[must_use]
 pub(crate) fn path_is_test_target(path: &str) -> bool {
-    path.replace('\\', "/")
-        .split('/')
+    let norm = path.replace('\\', "/");
+    norm.split('/')
         .any(|seg| matches!(seg, "tests" | "benches" | "examples"))
+        || matches!(
+            norm.rsplit('/').next(),
+            Some("tests.rs" | "test.rs" | "build.rs")
+        )
 }
 
 /// True when `node` (or any ancestor) is gated by a `#[cfg(test)]`-style

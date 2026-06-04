@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-06-04T19:48:46.784Z",
+  "compiled_at": "2026-06-04T20:20:23.091Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -1057,10 +1057,10 @@
         ".rs"
       ],
       "allowlist": [],
-      "nudge": "This struct derives `Deserialize` but is missing\n`#[serde(deny_unknown_fields)]`, so it silently accepts and discards unexpected\ninput fields — hiding typos and protocol drift in external data. Add\n`#[serde(deny_unknown_fields)]` so unknown keys become an error.\n\nIf the struct must tolerate forward-compatible extra fields (a deliberately\nlenient external contract), suppress with that reason:\n`// @anvil-ignore RS-004 -- forward-compatible wire format`.",
+      "nudge": "This struct derives `Deserialize` but is missing\n`#[serde(deny_unknown_fields)]`, so it silently accepts and discards unexpected\ninput fields — hiding typos and protocol drift in external data. Add\n`#[serde(deny_unknown_fields)]` so unknown keys become an error.\n\nThis rule is **opt-in**: it flags every `Deserialize` struct, but\n`deny_unknown_fields` is only warranted on structs fed by external/untrusted\ninput, so enable it where strict wire hygiene matters rather than by default.\n\nIf a struct must tolerate forward-compatible extra fields (a deliberately\nlenient external contract), suppress with that reason:\n`// @anvil-ignore RS-004 -- forward-compatible wire format`.",
       "related": [],
       "enabled": true,
-      "opt_in": false,
+      "opt_in": true,
       "family_name": "Rust Reliability",
       "category": "error-handling",
       "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",

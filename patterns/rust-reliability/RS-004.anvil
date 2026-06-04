@@ -19,7 +19,7 @@ detection:
 
 related: []
 enabled: true
-opt_in: false
+opt_in: true
 ---
 
 This struct derives `Deserialize` but is missing
@@ -27,6 +27,10 @@ This struct derives `Deserialize` but is missing
 input fields — hiding typos and protocol drift in external data. Add
 `#[serde(deny_unknown_fields)]` so unknown keys become an error.
 
-If the struct must tolerate forward-compatible extra fields (a deliberately
+This rule is **opt-in**: it flags every `Deserialize` struct, but
+`deny_unknown_fields` is only warranted on structs fed by external/untrusted
+input, so enable it where strict wire hygiene matters rather than by default.
+
+If a struct must tolerate forward-compatible extra fields (a deliberately
 lenient external contract), suppress with that reason:
 `// @anvil-ignore RS-004 -- forward-compatible wire format`.
