@@ -10,9 +10,9 @@
     "license-checker": "25.0.1",
     "markdownlint-cli": "^0.48.0",
     "nx": "^22.7.5",
-    "oxfmt": "^0.52.0",
-    "oxlint": "^1.67.0",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }

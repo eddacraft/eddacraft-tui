@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@eddacraft/anvil-runtime": "workspace:*",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   },
   "keywords": [
     "anvil",
