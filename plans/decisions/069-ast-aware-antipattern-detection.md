@@ -151,8 +151,12 @@ path only — never on the save-time daemon hot path.
 
 5. **Suppression** resolves on the matched node's **start line** via the existing
    `// @anvil-ignore <ID> -- <reason>` parser (already multi-comment-syntax aware,
-   so Rust `//` works). Node start-line is the deterministic, author-predictable
-   anchor.
+   so Rust `//` works). To match the regex scanner's existing convention — the
+   directive sits on the line **immediately preceding** the finding's anchor line
+   — an AST finding is suppressed by placing the directive on the line directly
+   above the node's start-line (for a multi-line match like a serde `struct_item`,
+   that is the line above the `struct` keyword / first attribute). Node start-line
+   is the deterministic, author-predictable anchor (Copilot review on #2310).
 
 6. **Determinism** is preserved: tree-sitter parse and query evaluation are
    deterministic; AST results merge into the same `(line, column, id)` sort the
