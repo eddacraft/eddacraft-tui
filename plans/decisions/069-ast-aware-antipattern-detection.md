@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted 2026-06-04 (design council — SOUND-WITH-CHANGES, changes folded in)
 
 ## Date
 
