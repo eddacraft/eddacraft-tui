@@ -5,7 +5,7 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | In Progress | 2/8  |
+| RSTLAN | @aneki | In Progress | 3/8  |
 
 **Last reviewed:** 2026-06-03 — NBI "RSTLAN re-eval — Rust anchor scoping" completed. ADR-065 (Rust T3 architecture enforcement location — Rust-native) Accepted; anchor re-scoring snapshot 2026-06-03 recorded (sequence unchanged, Rust elevated to #2 for dogfood); LANGTS 6/6 + kernel prereqs complete; module promoted Proposed → Ready with executable work items. Owner named. All Ready Checklist items now checked.
 
@@ -163,9 +163,10 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
   **-003b** (new) = the context/AST-dependent rules, gated on that decision.
   Owner steer requested before implementing.
 
-### RSTLAN-004: Entry-point detection for Rust binaries and workspaces — Ready
+### RSTLAN-004: Entry-point detection for Rust binaries and workspaces — Merged
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-04 via PR #2319
+- **Delivery note:** `anvil_architecture::detect_rust_entry_points` shipped as the detection primitive (Cargo.toml `[[bin]]`/`[lib]`/`src/main.rs`/auto `src/bin/*.rs`/`[[example]]` across workspace members, `exclude`/`autobins`-aware, deterministic). Consumption into a created baseline awaits an architecture-baseline-creation CLI path (none exists yet — only test helpers build baselines); the primitive lands ahead of that consumer. Council-hardened (kernel + adversarial).
 - **Intent:** Ensure `anvil` knows the entry points of a Rust workspace (bins, lib roots, [[bin]] targets) so baseline + layer assignment + "what to protect" are correct for multi-crate Rust projects.
 - **Expected Outcome:** Entry-point detector (or kernel equivalent) surfaces `src/main.rs` `fn main`, `Cargo.toml` [[bin]]/[[example]], workspace member roots; these appear in architecture baselines and `anvil architecture` surfaces for mixed or pure-Rust repos.
 - **Scope:** Extension of entry-detector (TS or Rust arch crate), or new Rust-side collector consumed by `anvil-architecture`; integration in gate / baseline creation paths; tests on the Anvil monorepo itself.
@@ -175,9 +176,9 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** medium — entry detection currently lives in TS analyser; Rust path needs the hand-off point clarified in implementation.
 - **Files:** crates/anvil-architecture/, crates/anvil-cli/src/commands/gate.rs (or shared), packages/anvil/core/src/architecture/entry-detector.ts (legacy updates only)
 
-### RSTLAN-005: Layer/boundary enforcement reaches Rust crates and modules (per ADR-065) — Ready
+### RSTLAN-005: Layer/boundary enforcement reaches Rust crates and modules (per ADR-065) — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make `anvil architecture validate`, `anvil gate`, baseline diff, and new-edge classification work for cross-crate Rust imports and Rust↔TS boundaries inside a mixed workspace, using the Rust-native path.
 - **Expected Outcome:** `collect_source_files` already includes .rs; `extract_import_edges` (gate) and architecture validator consume kernel-supplied Rust edges (from RSTLAN-002); Rust `use` / `mod` resolved to actual files for layer matching; violations emitted for new cross-layer Rust edges; baseline round-trips include .rs files; "new edges only" contract holds for Rust changes.
 - **Scope:** Updates to `crates/anvil-cli/src/commands/gate.rs` (remove JS/TS hard filter, use kernel for .rs or all when available), `crates/anvil-architecture` resolver extensions if ImportEdge shape insufficient for Rust, any TS analyser parity notes (legacy), integration tests, Anvil monorepo architecture.yaml if needed for dogfood.

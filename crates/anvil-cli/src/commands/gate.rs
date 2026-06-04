@@ -997,7 +997,10 @@ fn extract_import_edges(
     let mut parser = anvil_kernel::parser::Parser::new();
     let mut edges = Vec::new();
 
-    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs"];
+    // RSTLAN-005: `.rs` joins the JS/TS family so Rust crates participate in
+    // architecture/boundary analysis. The kernel parser dispatches by extension,
+    // so `parse_bytes` handles `.rs` via the Rust extractor (RSTLAN-002).
+    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs"];
 
     // Collect file paths to parse — either from the pre-collected list or via walkdir.
     let owned_paths: Vec<String>;
@@ -1009,8 +1012,9 @@ fn extract_import_edges(
     };
 
     for rel_path in file_paths {
-        // Filter to JS/TS — the pre-collected list from collect_source_files
-        // may include .rs and other file types matched by architecture layer globs.
+        // Filter to parseable languages — the pre-collected list from
+        // collect_source_files may include other file types matched by
+        // architecture layer globs.
         let ext = std::path::Path::new(rel_path)
             .extension()
             .and_then(|e| e.to_str())
@@ -1033,15 +1037,23 @@ fn extract_import_edges(
             anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, &path, 0);
 
         for import in &file_symbols.imports {
-            // Only resolve relative imports (starting with . or ..).
-            if !import.to_source.starts_with('.') {
-                continue;
-            }
+            // TS/JS relative specifiers (`./`, `../`) resolve lexically; Rust
+            // module paths (`crate::`/`super::`/`self::`, containing `::`)
+            // resolve against the owning crate's module tree. Everything else
+            // (bare npm packages, `std::`/external crates) targets code outside
+            // the workspace and is skipped — never a boundary violation.
+            let resolved = if import.to_source.starts_with('.') {
+                resolve_import(rel_path, &import.to_source)
+            } else if import.to_source.contains("::") {
+                anvil_architecture::resolve_rust_import(project_root, rel_path, &import.to_source)
+            } else {
+                None
+            };
 
-            if let Some(resolved) = resolve_import(rel_path, &import.to_source) {
+            if let Some(to_file) = resolved {
                 edges.push(anvil_architecture::ImportEdge {
                     from_file: rel_path.clone(),
-                    to_file: resolved,
+                    to_file,
                     line: import.line,
                 });
             }
@@ -3122,6 +3134,99 @@ rules: []
             "core importing from app should produce a boundary violation"
         );
         assert!(!result.valid);
+    }
+
+    #[test]
+    fn architecture_detects_rust_crate_path_violations() {
+        // RSTLAN-005: a cross-layer Rust `use crate::…` import must produce a
+        // boundary violation, just like the TS case above.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            r#"
+schema_version: "0.1.0"
+template: custom
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+  app:
+    patterns: ["src/app/**"]
+    depends_on: ["core"]
+rules: []
+"#,
+        )
+        .unwrap();
+
+        // A Cargo.toml at the root is what `resolve_rust_import` walks to for the
+        // crate `src/` root.
+        std::fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        let core_dir = tmp.path().join("src/core");
+        let app_dir = tmp.path().join("src/app");
+        std::fs::create_dir_all(&core_dir).unwrap();
+        std::fs::create_dir_all(&app_dir).unwrap();
+        // core → app is forbidden (core depends_on []).
+        std::fs::write(
+            core_dir.join("entity.rs"),
+            "use crate::app::service::Service;\npub struct Entity;\n",
+        )
+        .unwrap();
+        std::fs::write(app_dir.join("service.rs"), "pub struct Service;\n").unwrap();
+
+        let edges = extract_import_edges(tmp.path(), None);
+        assert!(
+            edges
+                .iter()
+                .any(|e| e.from_file == "src/core/entity.rs" && e.to_file == "src/app/service.rs"),
+            "the crate::app::service import should resolve to src/app/service.rs, got {edges:?}"
+        );
+
+        let definition = anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
+        let result =
+            anvil_architecture::validate_with_edges(tmp.path(), &definition, &edges).unwrap();
+        assert!(
+            !result.violations.is_empty(),
+            "core importing from app (Rust crate:: path) should violate the boundary"
+        );
+        assert!(!result.valid);
+    }
+
+    #[test]
+    fn architecture_rust_external_imports_are_not_violations() {
+        // `std::`/external-crate imports target code outside the workspace and
+        // must never be flagged.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            r#"
+schema_version: "0.1.0"
+template: custom
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+rules: []
+"#,
+        )
+        .unwrap();
+        std::fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+        let core_dir = tmp.path().join("src/core");
+        std::fs::create_dir_all(&core_dir).unwrap();
+        std::fs::write(
+            core_dir.join("entity.rs"),
+            "use std::collections::HashMap;\nuse serde::Deserialize;\npub struct Entity;\n",
+        )
+        .unwrap();
+
+        let edges = extract_import_edges(tmp.path(), None);
+        assert!(
+            edges.is_empty(),
+            "external/std imports must not produce in-workspace edges, got {edges:?}"
+        );
     }
 
     // ── Plan scoping tests ─────────────────────────────────────────────
