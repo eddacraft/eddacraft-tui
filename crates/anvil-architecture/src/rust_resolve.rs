@@ -39,24 +39,40 @@ pub fn resolve_rust_import(
     let segments: Vec<&str> = module_path.split("::").filter(|s| !s.is_empty()).collect();
     let (anchor, rest) = segments.split_first()?;
 
+    // Only `crate`/`self`/`super` reference this workspace; `std`, external
+    // crates and bare identifiers are out.
+    if !matches!(*anchor, "crate" | "self" | "super") {
+        return None;
+    }
+
+    let src_root = crate_src_root(workspace_root, from_file)?;
+    // Intra-crate module resolution is only sound when the importing file lives
+    // inside the crate's `src/` module tree. A file outside it — `benches/`,
+    // `tests/`, `examples/`, a loose script, or a bare filename — is its own
+    // compilation unit (or not part of the tree at all), so `module_dir_of` /
+    // the `super` walk would be meaningless. Skip conservatively rather than
+    // risk resolving against the wrong tree (e.g. a workspace-root `src/`).
+    if !Path::new(from_file).starts_with(&src_root) {
+        return None;
+    }
+
     match *anchor {
-        "crate" => {
-            let base = crate_src_root(workspace_root, from_file)?;
-            resolve_module_file(workspace_root, &base, rest)
-        }
+        "crate" => resolve_module_file(workspace_root, &src_root, rest),
         "self" => {
-            let base = module_dir_of(workspace_root, from_file)?;
+            let base = module_dir_of(from_file)?;
             resolve_module_file(workspace_root, &base, rest)
         }
         "super" => {
-            // Count the leading run of `super` (`super::super::x`).
+            // `supers` counts the whole leading run including the anchor, so the
+            // tail to resolve is `rest[(supers - 1)..]` (rest already excludes
+            // the anchor).
             let supers = 1 + rest.iter().take_while(|s| **s == "super").count();
-            let tail = &segments[supers..];
-            let src_root = crate_src_root(workspace_root, from_file)?;
-            let mut base = module_dir_of(workspace_root, from_file)?;
+            let tail = &rest[supers - 1..];
+            let mut base = module_dir_of(from_file)?;
             for _ in 0..supers {
                 // The parent module's children live one directory up; never
-                // climb above the crate `src/` root.
+                // climb above the crate `src/` root (guaranteed terminating
+                // because `from_file` is under `src_root`).
                 if base == src_root {
                     return None;
                 }
@@ -64,8 +80,7 @@ pub fn resolve_rust_import(
             }
             resolve_module_file(workspace_root, &base, tail)
         }
-        // `std`, an external crate, or a bare identifier — not in this workspace.
-        _ => None,
+        _ => unreachable!("anchor pre-filtered above"),
     }
 }
 
@@ -73,16 +88,20 @@ pub fn resolve_rust_import(
 /// ancestors to the nearest directory containing a `Cargo.toml`, then append
 /// `src`. Workspace-relative.
 fn crate_src_root(workspace_root: &Path, from_file: &str) -> Option<PathBuf> {
+    // The candidate is only accepted if `<crate>/src` actually exists, so a
+    // crate with no `src/` (or a non-Rust tree) yields `None` rather than a
+    // phantom root.
+    let accept = |src: PathBuf| workspace_root.join(&src).is_dir().then_some(src);
     let mut dir = Path::new(from_file).parent();
     while let Some(d) = dir {
         if workspace_root.join(d).join("Cargo.toml").is_file() {
-            return Some(d.join("src"));
+            return accept(d.join("src"));
         }
         dir = d.parent();
     }
     // Single-crate repo with the manifest at the root (`from_file = src/…`).
     if workspace_root.join("Cargo.toml").is_file() {
-        return Some(PathBuf::from("src"));
+        return accept(PathBuf::from("src"));
     }
     None
 }
@@ -90,7 +109,7 @@ fn crate_src_root(workspace_root: &Path, from_file: &str) -> Option<PathBuf> {
 /// The directory in which `from_file`'s **child** modules live: the same
 /// directory for a crate root (`lib.rs`/`main.rs`) or a `mod.rs`, else a
 /// directory named after the file stem (`a/b.rs` → `a/b/`).
-fn module_dir_of(_workspace_root: &Path, from_file: &str) -> Option<PathBuf> {
+fn module_dir_of(from_file: &str) -> Option<PathBuf> {
     let path = Path::new(from_file);
     let parent = path.parent()?;
     let stem = path.file_stem()?.to_str()?;
@@ -133,10 +152,17 @@ fn resolve_module_file(
 /// Render an already-workspace-relative path with forward slashes, refusing any
 /// `..` component (defence in depth — module resolution should never produce one).
 fn rel_slash(path: &Path) -> Option<String> {
-    if path
+    let has_parent = path
         .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
+        .any(|c| matches!(c, std::path::Component::ParentDir));
+    // A `..` here would mean an upstream bug (resolution should never produce
+    // one); fail loud under test, degrade to a dropped edge in release.
+    debug_assert!(
+        !has_parent,
+        "resolved path escaped via `..`: {}",
+        path.display()
+    );
+    if has_parent {
         return None;
     }
     Some(path.to_str()?.replace('\\', "/"))
@@ -313,6 +339,41 @@ mod tests {
         assert_eq!(
             resolve_rust_import(tmp.path(), "src/a/b/c.rs", "super::super::super::top::T"),
             Some("src/top.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn import_from_outside_src_is_not_resolved() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        single_crate(tmp.path());
+        // A bench/test/script file lives outside the crate `src/` tree; its
+        // intra-crate paths are skipped conservatively (no resolving against
+        // a workspace-root `src/`).
+        touch(tmp.path(), "benches/bench.rs");
+        touch(tmp.path(), "scripts/migrate.rs");
+        assert_eq!(
+            resolve_rust_import(tmp.path(), "benches/bench.rs", "crate::config::Settings"),
+            None
+        );
+        assert_eq!(
+            resolve_rust_import(tmp.path(), "scripts/migrate.rs", "super::config"),
+            None
+        );
+    }
+
+    #[test]
+    fn bare_filename_from_file_is_not_resolved() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        single_crate(tmp.path());
+        // A bare `lib.rs` (no directory) is not under `src/` → conservative skip,
+        // never a climb above the root.
+        assert_eq!(
+            resolve_rust_import(tmp.path(), "lib.rs", "super::whatever"),
+            None
+        );
+        assert_eq!(
+            resolve_rust_import(tmp.path(), "lib.rs", "crate::config"),
+            None
         );
     }
 
