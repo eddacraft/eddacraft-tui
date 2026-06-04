@@ -1,4 +1,4 @@
-# ADR-069: AST-aware anti-pattern detection (off the daemon hot path)
+# ADR-071: AST-aware anti-pattern detection (off the daemon hot path)
 
 ## Status
 
