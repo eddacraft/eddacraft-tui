@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
-import { findUserByEmail, insertPendingUser, insertAuditLog } from '../db/queries.js';
+import { linkOrCreateGitHubUser, insertAuditLog } from '../db/queries.js';
 import { mintSession } from '../lib/session.js';
 import { createDebugger } from '../lib/debug.js';
 
@@ -76,7 +76,7 @@ async function exchangeCodeForToken(code: string): Promise<string> {
 
 async function fetchGitHubUser(
   accessToken: string
-): Promise<{ id: number; login: string; email: string }> {
+): Promise<{ id: number; login: string; email: string; verifiedEmails: string[] }> {
   const [userRes, emailsRes] = await Promise.all([
     fetch(GITHUB_USER_URL, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
@@ -100,8 +100,17 @@ async function fetchGitHubUser(
   if (!primary) {
     throw new Error('No verified primary email on GitHub account');
   }
+  // All verified emails (incl. the primary) are the first-link match surface —
+  // a user whose primary is a `noreply` address still binds via a verified
+  // secondary (GHCLIAUTH-003 / ADR-066). Unverified emails are never included.
+  const verifiedEmails = emails.filter((e) => e.verified).map((e) => e.email.toLowerCase().trim());
 
-  return { id: user.id, login: user.login, email: primary.email.toLowerCase().trim() };
+  return {
+    id: user.id,
+    login: user.login,
+    email: primary.email.toLowerCase().trim(),
+    verifiedEmails,
+  };
 }
 
 async function revokeGitHubToken(accessToken: string): Promise<void> {
@@ -142,7 +151,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   debug('POST /auth/github/callback');
   const { code } = c.req.valid('json');
 
-  let ghUser: { id: number; login: string; email: string };
+  let ghUser: { id: number; login: string; email: string; verifiedEmails: string[] };
   try {
     const accessToken = await exchangeCodeForToken(code);
     ghUser = await fetchGitHubUser(accessToken);
@@ -154,38 +163,34 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   }
 
   const sql = getClient();
-  let user = await findUserByEmail(sql, ghUser.email);
+  // Resolve the beta_users row: match on github_id, else first-link an active
+  // invited row via any verified email, else create a pending row
+  // (GHCLIAUTH-003). The active-status gate below stays here, per-caller.
+  const { user, isNewPending, didFirstLink } = await linkOrCreateGitHubUser(sql, ghUser);
 
-  if (!user) {
-    // ON CONFLICT handles concurrent signups for the same email
-    const isNewUser = !!(await insertPendingUser(
-      sql,
-      ghUser.email,
-      ghUser.login,
-      `GitHub OAuth signup (github:${ghUser.id})`
-    ));
-
-    user = await findUserByEmail(sql, ghUser.email);
-    if (!user) {
-      debug('failed to create or find user', { email: ghUser.email });
-      return c.json({ error: 'GitHub authentication failed' }, 401);
-    }
-
-    if (isNewUser) {
-      await insertAuditLog(sql, 'github_oauth_signup', ghUser.email, {
-        githubId: ghUser.id,
-        githubLogin: ghUser.login,
-      });
-      debug('created pending user via github oauth', { email: ghUser.email, githubId: ghUser.id });
-    }
+  if (isNewPending) {
+    await insertAuditLog(sql, 'github_oauth_signup', user.email, {
+      githubId: ghUser.id,
+      githubLogin: ghUser.login,
+    });
+    debug('created pending user via github oauth', { email: user.email, githubId: ghUser.id });
+  } else if (didFirstLink) {
+    // Audit the moment a GitHub id is bound to a pre-existing active invite —
+    // the one path that realises ADR-066's accepted email==account residual
+    // risk, so it must leave a distinct, correlatable trail.
+    await insertAuditLog(sql, 'github_oauth_link', user.email, {
+      githubId: ghUser.id,
+      githubLogin: ghUser.login,
+    });
+    debug('linked github identity to existing user', { userId: user.id, githubId: ghUser.id });
   }
 
   if (user.status !== 'active') {
-    await insertAuditLog(sql, 'github_oauth_blocked', ghUser.email, {
+    await insertAuditLog(sql, 'github_oauth_blocked', user.email, {
       githubId: ghUser.id,
       status: user.status,
     });
-    debug('github oauth for non-active user', { email: ghUser.email, status: user.status });
+    debug('github oauth for non-active user', { email: user.email, status: user.status });
     return c.json({ error: 'Account pending approval' }, 403);
   }
 

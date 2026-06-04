@@ -184,7 +184,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-003: `beta_users.github_id` migration + first-login linking
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Link GitHub identities on the stable numeric id so returning users
   match deterministically and the email-change/takeover vector is closed, while
   binding an email-keyed invite to the authenticating GitHub account on first

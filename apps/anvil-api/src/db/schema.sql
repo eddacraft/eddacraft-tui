@@ -12,6 +12,10 @@ CREATE TABLE beta_users (
   status     text NOT NULL DEFAULT 'active'
              CHECK (status IN ('active', 'pending', 'suspended', 'banned')),
   notes      text,
+  -- GHCLIAUTH-003 (ADR-066): GitHub numeric id, linked on first GitHub login.
+  -- Sparse + nullable; authoritative match key for returning users once set.
+  -- Email stays the invitation key. NULLs are distinct under UNIQUE.
+  github_id  bigint UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

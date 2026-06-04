@@ -32,6 +32,12 @@ const BetaUserSchema = z.object({
   name: z.string().nullable(),
   status: z.string(),
   notes: z.string().nullable(),
+  // GHCLIAUTH-003: GitHub numeric id, linked on first GitHub login. The Neon
+  // driver may surface a bigint as a string; coerce to number (GitHub ids are
+  // well under 2^53). `z.null()` is listed first so an explicit NULL is not
+  // coerced to 0. `.optional()` keeps the output type assignable from row
+  // fixtures that predate this column (real rows always carry it post-015).
+  github_id: z.union([z.null(), z.coerce.number()]).optional(),
   created_at: DateStringSchema,
   updated_at: DateStringSchema,
 });
@@ -650,6 +656,122 @@ export async function insertPendingUser(
   );
   if (!r[0]) return null;
   return String(r[0].id);
+}
+
+/** Look up a beta user by their linked GitHub numeric id (authoritative). */
+export async function findUserByGitHubId(
+  sql: NeonClient,
+  githubId: number
+): Promise<BetaUser | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM beta_users WHERE github_id = ${githubId} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return BetaUserSchema.parse(r[0]);
+}
+
+/**
+ * Find an **active** beta user whose email matches ANY of the supplied
+ * (already verified, lowercased) GitHub emails. Used to first-link a GitHub
+ * identity to a pre-existing email-invited record. Restricted to `active` so a
+ * pending/suspended row is never auto-linked, and so an active invite is never
+ * shadowed by a freshly created pending duplicate (GHCLIAUTH-003 / ADR-066).
+ *
+ * Safety on an already-linked row relies on GitHub's guarantee that a verified
+ * email belongs to exactly one GitHub account: a third-party account cannot
+ * present a verified email already bound to another user, so this match cannot
+ * re-bind a different `github_id` onto an existing linked row.
+ */
+export async function findActiveUserByAnyEmail(
+  sql: NeonClient,
+  emails: string[]
+): Promise<BetaUser | null> {
+  if (emails.length === 0) return null;
+  const r = rows(
+    await sql`
+    SELECT * FROM beta_users
+    WHERE status = 'active' AND email = ANY(${emails})
+    ORDER BY created_at ASC
+    LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return BetaUserSchema.parse(r[0]);
+}
+
+/** Store the GitHub numeric id on a beta_users row (idempotent first-link). */
+export async function linkGitHubIdToUser(
+  sql: NeonClient,
+  userId: string,
+  githubId: number
+): Promise<BetaUser> {
+  const r = rows(
+    await sql`
+    UPDATE beta_users
+    SET github_id = ${githubId}, updated_at = now()
+    WHERE id = ${userId}
+    RETURNING *
+  `
+  );
+  return BetaUserSchema.parse(r[0]);
+}
+
+/** A verified GitHub identity, as resolved from the token by the auth route. */
+export interface GitHubIdentity {
+  id: number;
+  login: string;
+  /** Primary verified email — the address a brand-new user is created under. */
+  email: string;
+  /** All verified emails (lowercased) — the first-link match surface. */
+  verifiedEmails: string[];
+}
+
+/**
+ * Resolve the beta_users row for a GitHub identity, linking or creating as
+ * needed. Precedence (GHCLIAUTH-003 / ADR-066 decision 4):
+ *   1. Match on `github_id` (authoritative for returning users).
+ *   2. Else first-link: match an **active** invited row by ANY verified email,
+ *      store `github_id`, and return it.
+ *   3. Else create (or surface an existing non-active) `pending` row keyed on
+ *      the primary email — the caller's active-status gate then rejects it.
+ *
+ * The caller owns the active-status gate, audit logging, and session mint; this
+ * helper only resolves identity → row so `/auth/github/callback` and the
+ * device-flow poll path (GHCLIAUTH-005) share one linking implementation.
+ */
+export async function linkOrCreateGitHubUser(
+  sql: NeonClient,
+  ghUser: GitHubIdentity
+): Promise<{ user: BetaUser; isNewPending: boolean; didFirstLink: boolean }> {
+  const byId = await findUserByGitHubId(sql, ghUser.id);
+  if (byId) return { user: byId, isNewPending: false, didFirstLink: false };
+
+  const byEmail = await findActiveUserByAnyEmail(sql, ghUser.verifiedEmails);
+  if (byEmail) {
+    // First-link: bind this GitHub id to a pre-existing active invite. This is
+    // the one moment ADR-066's accepted "verified-email control == account
+    // control" residual risk materialises, so the caller audit-logs it.
+    const linked = await linkGitHubIdToUser(sql, byEmail.id, ghUser.id);
+    return { user: linked, isNewPending: false, didFirstLink: true };
+  }
+
+  // No github_id match and no active invite: create a pending row, or surface an
+  // existing (non-active) row with the same email for the caller to reject.
+  const insertedId = await insertPendingUser(
+    sql,
+    ghUser.email,
+    ghUser.login,
+    `GitHub OAuth signup (github:${ghUser.id})`
+  );
+  const user = insertedId
+    ? await findUserById(sql, insertedId)
+    : await findUserByEmail(sql, ghUser.email);
+  if (!user) {
+    throw new Error('failed to create or resolve beta user for GitHub identity');
+  }
+  return { user, isNewPending: insertedId !== null, didFirstLink: false };
 }
 
 /**

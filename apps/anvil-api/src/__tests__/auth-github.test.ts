@@ -8,8 +8,7 @@ vi.mock('../db/client.js', () => ({
 }));
 
 vi.mock('../db/queries.js', () => ({
-  findUserByEmail: vi.fn(),
-  insertPendingUser: vi.fn(),
+  linkOrCreateGitHubUser: vi.fn(),
   insertAuditLog: vi.fn().mockResolvedValue({
     id: 'audit-1',
     action: '',
@@ -30,9 +29,8 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 });
 
 import {
-  findUserByEmail,
+  linkOrCreateGitHubUser,
   insertAuditLog,
-  insertPendingUser,
   insertRefreshToken,
   findActiveScopesForUser,
 } from '../db/queries.js';
@@ -62,8 +60,22 @@ beforeEach(() => {
   // not just call history — so every mock needs its default re-stated here to
   // keep each test hermetic).
   vi.mocked(hashToken).mockReturnValue('mocked-refresh-hash');
-  vi.mocked(findUserByEmail).mockResolvedValue(null);
-  vi.mocked(insertPendingUser).mockResolvedValue(null);
+  // Default: a brand-new pending user (overridden per lifecycle test). Tests
+  // that fail before resolving identity assert this was never called.
+  vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+    user: {
+      id: 'user-1',
+      email: 'octo@example.com',
+      name: 'octocat',
+      status: 'pending',
+      notes: null,
+      github_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    isNewPending: true,
+    didFirstLink: false,
+  });
   vi.mocked(insertAuditLog).mockResolvedValue({
     id: 'audit-1',
     action: '',
@@ -147,19 +159,19 @@ describe('POST /auth/github/callback', () => {
     it('rejects missing code via Zod with 400', async () => {
       const res = await callback({});
       expect(res.status).toBe(400);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('rejects empty code strings via Zod with 400', async () => {
       const res = await callback({ code: '' });
       expect(res.status).toBe(400);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('rejects codes longer than 256 chars via Zod with 400', async () => {
       const res = await callback({ code: 'x'.repeat(257) });
       expect(res.status).toBe(400);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
   });
 
@@ -172,7 +184,7 @@ describe('POST /auth/github/callback', () => {
       const res = await callback({ code: 'gh-code' });
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: 'GitHub authentication failed' });
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('returns 401 when GitHub returns an OAuth error body', async () => {
@@ -185,7 +197,7 @@ describe('POST /auth/github/callback', () => {
 
       const res = await callback({ code: 'gh-code' });
       expect(res.status).toBe(401);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('returns 401 when the user profile fetch fails', async () => {
@@ -200,7 +212,7 @@ describe('POST /auth/github/callback', () => {
 
       const res = await callback({ code: 'gh-code' });
       expect(res.status).toBe(401);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('returns 401 when the account has no verified primary email', async () => {
@@ -221,7 +233,7 @@ describe('POST /auth/github/callback', () => {
 
       const res = await callback({ code: 'gh-code' });
       expect(res.status).toBe(401);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
     it('returns 401 when GITHUB_CLIENT_ID/SECRET are unset', async () => {
@@ -230,7 +242,7 @@ describe('POST /auth/github/callback', () => {
 
       const res = await callback({ code: 'gh-code' });
       expect(res.status).toBe(401);
-      expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
+      expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
   });
 
@@ -264,26 +276,28 @@ describe('POST /auth/github/callback', () => {
 
     it('creates a pending user on first-time signup and returns 403 account_pending', async () => {
       mockHappyGitHub();
-      vi.mocked(findUserByEmail).mockResolvedValueOnce(null).mockResolvedValueOnce({
-        id: 'user-1',
-        email: 'octo@example.com',
-        name: 'octocat',
-        status: 'pending',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'octo@example.com',
+          name: 'octocat',
+          status: 'pending',
+          notes: null,
+          github_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: true,
+        didFirstLink: false,
       });
-      vi.mocked(insertPendingUser).mockResolvedValue('user-1');
 
       const res = await callback({ code: 'gh-code' });
 
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ error: 'Account pending approval' });
-      expect(vi.mocked(insertPendingUser)).toHaveBeenCalledWith(
+      expect(vi.mocked(linkOrCreateGitHubUser)).toHaveBeenCalledWith(
         expect.anything(),
-        'octo@example.com',
-        'octocat',
-        expect.stringContaining('github:42')
+        expect.objectContaining({ id: 42, login: 'octocat' })
       );
       expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
         expect.anything(),
@@ -302,20 +316,24 @@ describe('POST /auth/github/callback', () => {
 
     it('returns 403 without issuing tokens for an existing non-active user', async () => {
       mockHappyGitHub();
-      vi.mocked(findUserByEmail).mockResolvedValue({
-        id: 'user-2',
-        email: 'octo@example.com',
-        name: 'octocat',
-        status: 'suspended',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-2',
+          email: 'octo@example.com',
+          name: 'octocat',
+          status: 'suspended',
+          notes: null,
+          github_id: 42,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: false,
+        didFirstLink: false,
       });
 
       const res = await callback({ code: 'gh-code' });
 
       expect(res.status).toBe(403);
-      expect(vi.mocked(insertPendingUser)).not.toHaveBeenCalled();
       expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
       expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
         expect.anything(),
@@ -323,18 +341,29 @@ describe('POST /auth/github/callback', () => {
         'octo@example.com',
         expect.objectContaining({ status: 'suspended' })
       );
+      expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'github_oauth_signup',
+        expect.anything(),
+        expect.anything()
+      );
     });
 
     it('issues a licence JWT and refresh token for an active user', async () => {
       mockHappyGitHub({ email: 'active@example.com' });
-      vi.mocked(findUserByEmail).mockResolvedValue({
-        id: 'user-3',
-        email: 'active@example.com',
-        name: 'octocat',
-        status: 'active',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-3',
+          email: 'active@example.com',
+          name: 'octocat',
+          status: 'active',
+          notes: null,
+          github_id: 42,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: false,
+        didFirstLink: false,
       });
 
       const res = await callback({ code: 'gh-code' });
@@ -360,19 +389,34 @@ describe('POST /auth/github/callback', () => {
         'active@example.com',
         expect.objectContaining({ githubId: 42 })
       );
-      expect(vi.mocked(insertPendingUser)).not.toHaveBeenCalled();
     });
 
-    it('returns 401 when the pending insert + follow-up find both miss', async () => {
-      mockHappyGitHub();
-      vi.mocked(findUserByEmail).mockResolvedValue(null);
-      vi.mocked(insertPendingUser).mockResolvedValue(null);
+    it('audits github_oauth_link when first-linking an active invite', async () => {
+      mockHappyGitHub({ email: 'invited@example.com' });
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-4',
+          email: 'invited@example.com',
+          name: 'octocat',
+          status: 'active',
+          notes: null,
+          github_id: 42,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: false,
+        didFirstLink: true,
+      });
 
       const res = await callback({ code: 'gh-code' });
 
-      expect(res.status).toBe(401);
-      expect(await res.json()).toEqual({ error: 'GitHub authentication failed' });
-      expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'github_oauth_link',
+        'invited@example.com',
+        expect.objectContaining({ githubId: 42, githubLogin: 'octocat' })
+      );
     });
   });
 });
