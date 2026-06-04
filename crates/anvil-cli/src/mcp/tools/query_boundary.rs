@@ -492,6 +492,26 @@ mod tests {
     }
 
     #[test]
+    fn reports_boundary_violation_for_rust_files() {
+        // RSTLAN-007: the MCP boundary-query surface assigns layers and flags
+        // violations for `.rs` files exactly as for `.ts` — layer matching is
+        // path-glob based, so Rust crates participate with no language gate.
+        let workspace = workspace_with_baseline();
+        let result = call(&json!({
+            "sourceFile": "src/domain/entity.rs",
+            "targetFile": "src/controllers/handler.rs",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["allowed"], false);
+        assert_eq!(payload["reason"], "boundary-violation");
+        assert_eq!(payload["sourceLayer"], "domain");
+        assert_eq!(payload["targetLayer"], "presentation");
+    }
+
+    #[test]
     fn returns_unassigned_layer_when_source_does_not_match() {
         let workspace = workspace_with_baseline();
         let result = call(&json!({

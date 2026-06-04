@@ -229,7 +229,13 @@ fn merge_rules_into_boundaries(
 }
 
 /// Known source file extensions for extensionless import resolution.
-const IMPORT_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs"];
+///
+/// RSTLAN-007: `rs` is included so a Rust import edge whose target was left
+/// extensionless (e.g. a `mod foo;` resolved only to `src/foo`) still resolves
+/// to `src/foo.rs` for layer lookup rather than being silently treated as
+/// unassigned. Fully-resolved Rust edges (the common case — `resolve_rust_import`
+/// already appends `.rs`) match exactly and never reach this fallback.
+const IMPORT_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs"];
 
 /// ESM `.js` extension mappings — when a `.js` import specifier doesn't match
 /// an actual `.js` file, try these TypeScript equivalents (common in ESM
@@ -927,5 +933,77 @@ mod tests {
         assert!(!result.valid);
         assert!(!result.violations.is_empty());
         assert_eq!(result.violations[0].edge.from, "src/core/entity.ts");
+    }
+
+    // --- RSTLAN-007: the validate surface reports Rust crates/modules ---------
+
+    #[test]
+    fn assign_layer_matches_rust_file() {
+        // Layer assignment is path-glob based, so `.rs` files land in layers the
+        // same way `.ts` files do — there is no language gate.
+        let layers = sample_layers();
+        let assignment = assign_layer("src/core/entity.rs", &layers);
+        assert_eq!(assignment.layer.as_deref(), Some("core"));
+        assert_eq!(assignment.confidence, DetectionConfidence::High);
+    }
+
+    #[test]
+    fn validate_surface_detects_rust_cross_layer_violation() {
+        // The same public validate surface the CLI/MCP/dashboard sit on must
+        // flag a forbidden Rust cross-layer import, with the `.rs` paths
+        // appearing verbatim in the violation (no "Rust ignored" silent path).
+        let definition = sample_definition(sample_layers());
+        let files = vec!["src/core/entity.rs".into(), "src/app/service.rs".into()];
+        let edges = vec![ImportEdge {
+            // core -> app violates the dependency direction (crate::app::service).
+            from_file: "src/core/entity.rs".into(),
+            to_file: "src/app/service.rs".into(),
+            line: 7,
+        }];
+
+        let result = validate_with_files_and_edges(&definition, &files, &edges);
+
+        assert!(
+            !result.valid,
+            "a forbidden Rust cross-layer import must fail"
+        );
+        assert!(result.boundary_checking_active);
+        let v = result
+            .violations
+            .first()
+            .expect("expected a Rust boundary violation");
+        assert_eq!(v.edge.from, "src/core/entity.rs");
+        assert_eq!(v.edge.to, "src/app/service.rs");
+    }
+
+    #[test]
+    fn check_boundaries_resolves_extensionless_rust_target() {
+        // RSTLAN-007: a Rust edge whose target was left extensionless still
+        // resolves to the `.rs` file for layer lookup (IMPORT_EXTENSIONS now
+        // carries `rs`), so it is not silently treated as unassigned.
+        let assignments = assign_layers(
+            &["src/core/entity.rs".into(), "src/app/service.rs".into()],
+            &sample_layers(),
+        );
+        let boundaries = vec![Boundary {
+            name: "core-cannot-use-app".into(),
+            from: "core".into(),
+            to: "app".into(),
+            severity: BoundarySeverity::Error,
+            message: "core must not depend on app".into(),
+            confidence: None,
+        }];
+        let edges = vec![ImportEdge {
+            from_file: "src/core/entity.rs".into(),
+            to_file: "src/app/service".into(), // extensionless
+            line: 3,
+        }];
+
+        let violations = check_boundaries(&assignments, &boundaries, &edges);
+        assert_eq!(
+            violations.len(),
+            1,
+            "extensionless Rust target must resolve to src/app/service.rs"
+        );
     }
 }
