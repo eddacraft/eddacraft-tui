@@ -606,7 +606,7 @@ shared operational prerequisites for Track 3 surfaces and Track 4 packs; it does
 not duplicate their rule-catalogue work.
 
 **Next target set:** Phase 1 stays the first cut unless re-scored:
-`LANGTS` (complete 6/6), `RSTLAN` (In Progress 3/8), `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
+`LANGTS` (complete 6/6), `RSTLAN` (In Progress 4/8), `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
 needed OPSUP slices and FLAGCAT catalogue-bootstrap slice completed first or
 cited as `Blocks on:` callouts in the owning tasks. Modules still marked
 `Proposed` must be promoted to `Ready` with executable tasks before
