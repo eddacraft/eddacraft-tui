@@ -575,8 +575,9 @@ struct DispatcherInner {
 
 /// Build the save-time daemon client for a dispatcher, or `None` to keep the
 /// subprocess-only path. `None` when routing is disabled, the action is not
-/// `check`, the host is non-unix, or no socket dir can be resolved (treated as
-/// "no daemon infrastructure" ⇒ behave exactly as pre-DSV, no WARN).
+/// `check`, or no daemon endpoint can be resolved (treated as "no daemon
+/// infrastructure" ⇒ behave exactly as pre-DSV, no WARN). Unix uses the socket
+/// transport; Windows the named-pipe transport (DSV-011).
 #[cfg(unix)]
 fn build_save_time_client(
     action: &str,
@@ -595,7 +596,25 @@ fn build_save_time_client(
     )))
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn build_save_time_client(
+    action: &str,
+    workspace_root: &std::path::Path,
+) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
+    use crate::commands::watch_save_time::{
+        WatchSaveTimeClient, WindowsPipeSaveTimeTransport, daemon_routing_enabled,
+    };
+    if action != "check" || !daemon_routing_enabled() {
+        return None;
+    }
+    let transport = WindowsPipeSaveTimeTransport::resolve()?;
+    Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
+        Box::new(transport),
+        workspace_root.to_path_buf(),
+    )))
+}
+
+#[cfg(not(any(unix, windows)))]
 fn build_save_time_client(
     _action: &str,
     _workspace_root: &std::path::Path,

@@ -41,13 +41,6 @@ use anvil_kernel_types::Severity;
 /// `unavailable{daemon-absent}` — so the type is intentionally coarse: the
 /// distinction the surfaces care about is "did the daemon give us a verdict or
 /// not", not the specific transport failure.
-// DSV-010a: the save-time client machinery is only *constructed* on Unix today
-// (the `SocketSaveTimeTransport` + `build_save_time_client` are `cfg(unix)`); the
-// Windows pipe transport that exercises it is DSV-011. Keep the types compiling
-// on Windows (the `DispatcherInner.save_time` field is platform-neutral) but
-// allow the not-yet-used surface there rather than cascading `cfg(unix)` through
-// the dispatcher.
-#[cfg_attr(not(unix), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SaveTimeClientError {
     /// No verdict: the daemon was absent, refused, errored, or the connection
@@ -60,9 +53,6 @@ pub(crate) enum SaveTimeClientError {
 /// reconnect → re-scan) is unit-testable with an in-process fake, while the
 /// production impl ([`SocketSaveTimeTransport`]) speaks JSON-RPC over the Unix
 /// socket.
-// `cfg_attr(not(unix), allow(dead_code))`: see `SaveTimeClientError` (DSV-010a) —
-// `workspace_status` and the other verbs have no Windows caller until DSV-011.
-#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) trait SaveTimeTransport: Send {
     /// Certify `paths` under `workspace_root`. `Err(Unavailable)` means no
     /// verdict (absent / dead / timed-out daemon) and triggers the fallback.
@@ -114,7 +104,14 @@ pub(crate) fn query_workspace_status(workspace_root: &Path) -> Option<WorkspaceA
         .ok()
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+pub(crate) fn query_workspace_status(workspace_root: &Path) -> Option<WorkspaceAssurance> {
+    WindowsPipeSaveTimeTransport::resolve()?
+        .workspace_status(workspace_root)
+        .ok()
+}
+
+#[cfg(not(any(unix, windows)))]
 pub(crate) fn query_workspace_status(_workspace_root: &Path) -> Option<WorkspaceAssurance> {
     None
 }
@@ -154,9 +151,6 @@ pub(crate) struct WatchSaveTimeClient {
 }
 
 impl WatchSaveTimeClient {
-    // DSV-010a: `new` is only called by the `cfg(unix)` `build_save_time_client`;
-    // dead on Windows until DSV-011 wires the pipe client.
-    #[cfg_attr(not(unix), allow(dead_code))]
     pub(crate) fn new(transport: Box<dyn SaveTimeTransport>, workspace_root: PathBuf) -> Self {
         Self {
             transport,
@@ -331,12 +325,85 @@ pub(crate) fn stale_reason_str(reason: StaleReason) -> &'static str {
     }
 }
 
+/// Shared JSON-RPC-over-stream framing for the save-time transports (the Unix
+/// socket and the Windows named pipe). Platform-neutral — both transports
+/// connect their own way, then hand the connected stream here.
+mod framing {
+    use std::io::{BufRead, BufReader, Read, Write};
+
+    use serde_json::{Value, json};
+
+    use super::SaveTimeClientError;
+
+    /// Cap the single NDJSON response line so a hostile/buggy daemon cannot make
+    /// the client buffer unboundedly. Matches the MCP client's response cap.
+    pub(super) const RESPONSE_LINE_BYTES: u64 = 1 << 20;
+    pub(super) const REQUEST_ID: &str = "anvil-watch-validate-paths";
+    pub(super) const FULL_SCAN_REQUEST_ID: &str = "anvil-watch-request-full-scan";
+    pub(super) const WORKSPACE_STATUS_REQUEST_ID: &str = "anvil-status-workspace-status";
+
+    /// Send one JSON-RPC request frame over `stream` and return the parsed
+    /// `result` value. A mid-stream drop / EOF / id mismatch / JSON-RPC error all
+    /// map to `Unavailable` — the daemon is dead-for-this-batch.
+    pub(super) fn round_trip_over<S: Read + Write>(
+        mut stream: S,
+        method: &str,
+        id: &str,
+        params: &Value,
+    ) -> Result<Value, SaveTimeClientError> {
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": id,
+        });
+        writeln!(stream, "{frame}").map_err(|_| SaveTimeClientError::Unavailable)?;
+        stream
+            .flush()
+            .map_err(|_| SaveTimeClientError::Unavailable)?;
+
+        let mut reader = BufReader::new(stream);
+        let line = read_capped_line(&mut reader)?;
+        let envelope: Value =
+            serde_json::from_str(&line).map_err(|_| SaveTimeClientError::Unavailable)?;
+        // Reject a response whose id does not match the request id — a stale or
+        // misrouted frame must not be accepted as this request's verdict.
+        if envelope.get("id").and_then(Value::as_str) != Some(id) {
+            return Err(SaveTimeClientError::Unavailable);
+        }
+        // A JSON-RPC error (incl. -32601 "save-time not enabled") means the
+        // daemon cannot serve a verdict ⇒ fall back, same as absence.
+        envelope
+            .get("result")
+            .cloned()
+            .ok_or(SaveTimeClientError::Unavailable)
+    }
+
+    /// Read a single newline-terminated response line under the byte cap. An
+    /// empty read (daemon closed mid-response) or an over-cap / unframed line is
+    /// `Unavailable`.
+    fn read_capped_line(reader: &mut impl BufRead) -> Result<String, SaveTimeClientError> {
+        let mut buf = Vec::new();
+        let read = reader
+            .by_ref()
+            .take(RESPONSE_LINE_BYTES + 1)
+            .read_until(b'\n', &mut buf)
+            .map_err(|_| SaveTimeClientError::Unavailable)?;
+        if read == 0 || buf.len() as u64 > RESPONSE_LINE_BYTES || !buf.ends_with(b"\n") {
+            return Err(SaveTimeClientError::Unavailable);
+        }
+        String::from_utf8(buf).map_err(|_| SaveTimeClientError::Unavailable)
+    }
+}
+
 #[cfg(unix)]
 pub(crate) use socket::SocketSaveTimeTransport;
 
+#[cfg(windows)]
+pub(crate) use pipe::WindowsPipeSaveTimeTransport;
+
 #[cfg(unix)]
 mod socket {
-    use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -347,20 +414,15 @@ mod socket {
         RequestFullScanRequest, ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance,
         WorkspaceStatusRequest, WorkspaceStatusResponse,
     };
-    use serde_json::{Value, json};
+    use serde_json::Value;
 
+    use super::framing;
     use super::{SaveTimeClientError, SaveTimeTransport};
 
     /// Per-request wall-clock budget. A daemon that does not answer within this
     /// window is treated as dead-for-this-batch (scoped fallback) rather than
     /// stalling the watch loop. Matches the MCP client's `DAEMON_REQUEST_TIMEOUT`.
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
-    /// Cap the single NDJSON response line so a hostile/buggy daemon cannot make
-    /// watch buffer unboundedly. Matches the MCP client's response cap.
-    const RESPONSE_LINE_BYTES: u64 = 1 << 20;
-    const REQUEST_ID: &str = "anvil-watch-validate-paths";
-    const FULL_SCAN_REQUEST_ID: &str = "anvil-watch-request-full-scan";
-    const WORKSPACE_STATUS_REQUEST_ID: &str = "anvil-status-workspace-status";
 
     /// Production [`SaveTimeTransport`]: JSON-RPC over the per-user Unix socket.
     pub(crate) struct SocketSaveTimeTransport {
@@ -401,60 +463,16 @@ mod socket {
             Ok(stream)
         }
 
-        /// Send one JSON-RPC request frame and return the parsed `result` value.
-        /// A mid-stream drop / EOF / timeout / JSON-RPC error all map to
-        /// `Unavailable` — the daemon is dead-for-this-batch.
+        /// Connect and run one JSON-RPC round-trip over the socket, via the
+        /// shared `framing` helper.
         fn round_trip(
             &self,
             method: &str,
             id: &str,
             params: &Value,
         ) -> Result<Value, SaveTimeClientError> {
-            let mut stream = self.connect()?;
-            let frame = json!({
-                "jsonrpc": "2.0",
-                "method": method,
-                "params": params,
-                "id": id,
-            });
-            writeln!(stream, "{frame}").map_err(|_| SaveTimeClientError::Unavailable)?;
-            stream
-                .flush()
-                .map_err(|_| SaveTimeClientError::Unavailable)?;
-
-            let mut reader = BufReader::new(stream);
-            let line = read_capped_line(&mut reader)?;
-            let envelope: Value =
-                serde_json::from_str(&line).map_err(|_| SaveTimeClientError::Unavailable)?;
-            // Reject a response whose id does not match the request id — a stale
-            // or misrouted frame must not be accepted as this request's verdict
-            // (mirrors the MCP client's `validate_jsonrpc_response_shape`).
-            if envelope.get("id").and_then(Value::as_str) != Some(id) {
-                return Err(SaveTimeClientError::Unavailable);
-            }
-            // A JSON-RPC error (incl. -32601 "save-time not enabled") means the
-            // daemon cannot serve a verdict ⇒ fall back, same as absence.
-            envelope
-                .get("result")
-                .cloned()
-                .ok_or(SaveTimeClientError::Unavailable)
+            framing::round_trip_over(self.connect()?, method, id, params)
         }
-    }
-
-    /// Read a single newline-terminated response line under the byte cap. An
-    /// empty read (daemon closed mid-response) or an over-cap / unframed line is
-    /// `Unavailable`.
-    fn read_capped_line(reader: &mut impl BufRead) -> Result<String, SaveTimeClientError> {
-        let mut buf = Vec::new();
-        let read = reader
-            .by_ref()
-            .take(RESPONSE_LINE_BYTES + 1)
-            .read_until(b'\n', &mut buf)
-            .map_err(|_| SaveTimeClientError::Unavailable)?;
-        if read == 0 || buf.len() as u64 > RESPONSE_LINE_BYTES || !buf.ends_with(b"\n") {
-            return Err(SaveTimeClientError::Unavailable);
-        }
-        String::from_utf8(buf).map_err(|_| SaveTimeClientError::Unavailable)
     }
 
     impl SaveTimeTransport for SocketSaveTimeTransport {
@@ -469,7 +487,7 @@ mod socket {
             };
             let params =
                 serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            let result = self.round_trip(ANVIL_VALIDATE_PATHS, REQUEST_ID, &params)?;
+            let result = self.round_trip(ANVIL_VALIDATE_PATHS, framing::REQUEST_ID, &params)?;
             serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)
         }
 
@@ -489,8 +507,11 @@ mod socket {
             let socket_path = self.socket_path.clone();
             std::thread::spawn(move || {
                 let transport = SocketSaveTimeTransport { socket_path };
-                let _ =
-                    transport.round_trip(ANVIL_REQUEST_FULL_SCAN, FULL_SCAN_REQUEST_ID, &params);
+                let _ = transport.round_trip(
+                    ANVIL_REQUEST_FULL_SCAN,
+                    framing::FULL_SCAN_REQUEST_ID,
+                    &params,
+                );
             });
             Ok(())
         }
@@ -504,8 +525,123 @@ mod socket {
             };
             let params =
                 serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
-            let result =
-                self.round_trip(ANVIL_WORKSPACE_STATUS, WORKSPACE_STATUS_REQUEST_ID, &params)?;
+            let result = self.round_trip(
+                ANVIL_WORKSPACE_STATUS,
+                framing::WORKSPACE_STATUS_REQUEST_ID,
+                &params,
+            )?;
+            let response: WorkspaceStatusResponse =
+                serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)?;
+            Ok(response.workspace_assurance)
+        }
+    }
+}
+
+#[cfg(windows)]
+mod pipe {
+    use std::path::Path;
+
+    use anvil_intercept_proto::protocol::{
+        ANVIL_REQUEST_FULL_SCAN, ANVIL_VALIDATE_PATHS, ANVIL_WORKSPACE_STATUS, ChangeDescriptor,
+        RequestFullScanRequest, ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance,
+        WorkspaceStatusRequest, WorkspaceStatusResponse,
+    };
+    use serde_json::Value;
+
+    use super::framing;
+    use super::{SaveTimeClientError, SaveTimeTransport};
+
+    /// DSV-011: production [`SaveTimeTransport`] on Windows — JSON-RPC over the
+    /// per-user named pipe. The owner-only pipe DACL (`anvil-intercept-win32`) is
+    /// the same-user boundary, the SO_PEERCRED analogue; the JSON-RPC framing is
+    /// shared with the Unix socket transport via [`framing`].
+    ///
+    /// Until DSV-010b serves the save-time verbs on Windows the daemon replies
+    /// `Method not found`, which folds to `Unavailable` → the watch/status
+    /// surfaces fall back exactly as they do against an absent daemon.
+    ///
+    /// NOTE: the synchronous named-pipe client has no read timeout, so a wedged
+    /// daemon could stall a call (the Unix transport bounds this via
+    /// `set_read_timeout`). The daemon is a local same-user process, so this is an
+    /// edge case; a pipe read-timeout is deferred to DSV-010b hardening.
+    pub(crate) struct WindowsPipeSaveTimeTransport {
+        pipe_name: String,
+    }
+
+    impl WindowsPipeSaveTimeTransport {
+        /// Resolve the canonical per-user pipe. `None` when the pipe name cannot
+        /// be resolved (treated as a permanently-absent daemon → fallback).
+        pub(crate) fn resolve() -> Option<Self> {
+            anvil_intercept_win32::pipe_name_for_current_user()
+                .ok()
+                .map(|pipe_name| Self { pipe_name })
+        }
+
+        /// Connect and run one JSON-RPC round-trip over the pipe, via the shared
+        /// `framing` helper. Any connect/IO failure folds to `Unavailable`.
+        fn round_trip(
+            &self,
+            method: &str,
+            id: &str,
+            params: &Value,
+        ) -> Result<Value, SaveTimeClientError> {
+            let client = anvil_intercept_win32::connect_owner_only_pipe_client(&self.pipe_name)
+                .map_err(|_| SaveTimeClientError::Unavailable)?;
+            framing::round_trip_over(client, method, id, params)
+        }
+    }
+
+    impl SaveTimeTransport for WindowsPipeSaveTimeTransport {
+        fn validate_paths(
+            &self,
+            workspace_root: &Path,
+            paths: &[ChangeDescriptor],
+        ) -> Result<ValidatePathsResponse, SaveTimeClientError> {
+            let request = ValidatePathsRequest {
+                workspace_root: workspace_root.to_string_lossy().into_owned(),
+                paths: paths.to_vec(),
+            };
+            let params =
+                serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
+            let result = self.round_trip(ANVIL_VALIDATE_PATHS, framing::REQUEST_ID, &params)?;
+            serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)
+        }
+
+        fn request_full_scan(&self, workspace_root: &Path) -> Result<(), SaveTimeClientError> {
+            // Fire-and-forget on a detached thread (mirrors the socket transport):
+            // the daemon starts the scan on receipt, so do not stall the watch loop.
+            let request = RequestFullScanRequest {
+                workspace_root: workspace_root.to_string_lossy().into_owned(),
+            };
+            let Ok(params) = serde_json::to_value(&request) else {
+                return Ok(());
+            };
+            let pipe_name = self.pipe_name.clone();
+            std::thread::spawn(move || {
+                let transport = WindowsPipeSaveTimeTransport { pipe_name };
+                let _ = transport.round_trip(
+                    ANVIL_REQUEST_FULL_SCAN,
+                    framing::FULL_SCAN_REQUEST_ID,
+                    &params,
+                );
+            });
+            Ok(())
+        }
+
+        fn workspace_status(
+            &self,
+            workspace_root: &Path,
+        ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+            let request = WorkspaceStatusRequest {
+                workspace_root: workspace_root.to_string_lossy().into_owned(),
+            };
+            let params =
+                serde_json::to_value(&request).map_err(|_| SaveTimeClientError::Unavailable)?;
+            let result = self.round_trip(
+                ANVIL_WORKSPACE_STATUS,
+                framing::WORKSPACE_STATUS_REQUEST_ID,
+                &params,
+            )?;
             let response: WorkspaceStatusResponse =
                 serde_json::from_value(result).map_err(|_| SaveTimeClientError::Unavailable)?;
             Ok(response.workspace_assurance)

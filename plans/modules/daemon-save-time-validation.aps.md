@@ -546,7 +546,20 @@ read-safety design risk that likely needs an ADR before it goes Ready.
 
 #### DSV-011: Windows `watch` + `status` save-time clients
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Progress (2026-06-04):** brought forward alongside DSV-010a (it resolves the
+  same windows dead-code: the save-time client machinery had no Windows
+  constructor). `WindowsPipeSaveTimeTransport` (`watch_save_time.rs`) speaks
+  JSON-RPC over the per-user named pipe via `anvil-intercept-win32`'s
+  `connect_owner_only_pipe_client` (owner-only DACL = the SO_PEERCRED analogue);
+  the JSON-RPC framing is now shared with the Unix socket transport via a neutral
+  `framing` module. `query_workspace_status` + `build_save_time_client` gain
+  Windows arms. Until DSV-010b serves the verbs on Windows the daemon replies
+  `Method not found` → folds to fallback (same as daemon-absent), so the Windows
+  client is functional in fallback mode now. Cross-platform framing + unix path
+  verified locally; the Windows path is CI-verified (rust.yml matrix). **Known
+  gap:** the synchronous pipe client has no read timeout (the Unix transport
+  bounds via `set_read_timeout`) — deferred to DSV-010b hardening.
 - **Intent:** Make the Windows user-facing surfaces thin save-time-daemon clients,
   matching the Unix `watch` / `status` wiring shipped in DSV-007.
 - **Expected Outcome:** a `WindowsPipeSaveTimeTransport` (parallel to the MCP
