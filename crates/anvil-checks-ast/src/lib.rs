@@ -272,8 +272,12 @@ fn scan_one(
                 .or_else(|| capture_node(&rule.query, m, "name"))
                 .unwrap_or(target);
             let pos = anchor.start_position();
+            // `line` is 1-based (tree-sitter `row` is 0-based). `column` stays a
+            // 0-based byte offset to match the regex scanner's `Warning.location`
+            // convention (anvil-checks scanner.rs) — tree-sitter `column` is
+            // already a 0-based byte offset within the row (Copilot review).
             let line = pos.row + 1;
-            let column = pos.column + 1;
+            let column = pos.column;
             let suppressed = suppression_for(&lines, line, &rule.cp.id);
             out.push(warning_from_match(&rule.cp, path, line, column, suppressed));
         }
@@ -388,7 +392,8 @@ fn parse_skip_warning(path: &str, reason: &str) -> Warning {
         location: Location {
             file: path.to_string(),
             line: 1,
-            column: Some(1),
+            // 0-based byte-offset column, matching the regex scanner convention.
+            column: Some(0),
             end_line: None,
             end_column: None,
         },
@@ -427,7 +432,14 @@ fn suppression_for(lines: &[&str], line_number: usize, pattern_id: &str) -> Opti
 }
 
 fn rule_is_allowlisted(path: &str, rule: &LoadedRule) -> bool {
-    rule.allowlist.iter().any(|g| g.matches(path))
+    // Match against the full path and the basename, so both path globs
+    // (`**/generated/**`) and bare basename globs (`build.rs`, `*.gen.rs`) work
+    // — a plain `glob::Pattern` won't cross `/`, so a bare basename pattern
+    // would otherwise never match a nested path (Copilot review).
+    let basename = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    rule.allowlist
+        .iter()
+        .any(|g| g.matches(path) || g.matches(basename))
 }
 
 fn path_has_rust_extension(path: &str) -> bool {
