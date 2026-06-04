@@ -5,7 +5,7 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 0/11     |
+| GHCLIAUTH | @aneki | In Progress | 1/11     |
 
 **Last reviewed:** 2026-06-04 (ADR-066 Accepted; GHCLIAUTH-001 — the dependency-free
 `mintSession` helper extraction — started since it needs neither the OAuth app nor
@@ -134,7 +134,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-001: Extract shared GitHub-user licence-mint helper
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2302
 - **Intent:** Give the GitHub-identity licence mint a single home so the new
   device-poll path and the existing callback path mint identically.
 - **Expected Outcome:** A `mintLicenceForGitHubUser(sql, ghUser)` (a.k.a.
