@@ -57,8 +57,6 @@ pub(crate) fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
     node.utf8_text(src).unwrap_or("")
 }
 
-/// A Cargo integration-test / bench / example target — a separate crate with no
-/// `#[cfg(test)]` ancestor, so the cfg walk alone can't exclude it (ADR-071 §4).
 /// Paths the unwrap/expect/panic rules treat as not shipped non-test runtime —
 /// where a panic is either a test failure or an idiomatic build-time abort, so
 /// flagging it is noise (RSTLAN-008 dogfood finding):
@@ -66,9 +64,9 @@ pub(crate) fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
 /// - Cargo integration-test / bench / example targets (`tests/`, `benches/`,
 ///   `examples/`) — separate crates with no `#[cfg(test)]` ancestor the cfg walk
 ///   could see.
-/// - Separate unit-test module files included via `#[cfg(test)] mod tests;`
-///   (`tests.rs` / `test.rs`) — the file itself carries no in-file `cfg(test)`
-///   marker, so the cfg walk can't reach it.
+/// - Separate test / bench module files included via `#[cfg(test)] mod tests;`
+///   (`tests.rs` / `test.rs` / `bench.rs`) — the file itself carries no in-file
+///   `cfg(test)` marker, so the cfg walk can't reach it.
 /// - Build scripts (`build.rs`) — panicking / `unwrap()` is the idiomatic
 ///   build-time error path and the script is not shipped runtime code.
 #[must_use]
@@ -78,7 +76,7 @@ pub(crate) fn path_is_test_target(path: &str) -> bool {
         .any(|seg| matches!(seg, "tests" | "benches" | "examples"))
         || matches!(
             norm.rsplit('/').next(),
-            Some("tests.rs" | "test.rs" | "build.rs")
+            Some("tests.rs" | "test.rs" | "bench.rs" | "build.rs")
         )
 }
 
@@ -90,10 +88,38 @@ pub(crate) fn path_is_test_target(path: &str) -> bool {
 pub(crate) fn in_cfg_test(node: Node, src: &[u8]) -> bool {
     let mut cur = Some(node);
     while let Some(n) = cur {
+        // Outer attributes (`#[cfg(test)] mod tests { … }`) are preceding
+        // siblings of the gated item.
         if preceding_attrs_have_test_cfg(n, src) {
             return true;
         }
+        // Inner attributes (`mod tests { #![cfg(test)] … }`) are leading
+        // children of the gated scope's body.
+        if has_inner_test_cfg(n, src) {
+            return true;
+        }
         cur = n.parent();
+    }
+    false
+}
+
+/// Check a scope body for a leading `#![cfg(test)]` inner attribute. Inner
+/// attributes must precede all items, so the scan stops at the first
+/// non-attribute, non-comment child.
+fn has_inner_test_cfg(node: Node, src: &[u8]) -> bool {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        match child.kind() {
+            // `inner_attribute_item` carries the same `(attribute …)` child as
+            // the outer `attribute_item`, so the cfg parser is shared.
+            "inner_attribute_item" => {
+                if attr_item_is_test_cfg(child, src) {
+                    return true;
+                }
+            }
+            "line_comment" | "block_comment" => {}
+            _ => break,
+        }
     }
     false
 }
@@ -157,19 +183,31 @@ fn token_tree_has_unnegated_test(tt: Node, src: &[u8], negated: bool) -> bool {
 }
 
 /// RS-003 — true when the `unsafe` block already carries a `// SAFETY:` comment
-/// on its immediately-preceding sibling line (AST-sibling semantics, not byte
-/// proximity, so a blank line does not defeat it but an intervening statement
-/// does). The predicate fires when this returns `false`.
+/// on an immediately-preceding sibling line at any level between the block and
+/// its enclosing statement (AST-sibling semantics, not byte proximity, so a
+/// blank line does not defeat it but an intervening statement does). Walking the
+/// chain — not just the statement anchor — covers a `// SAFETY:` written inside
+/// a `match` arm (the comment precedes the `match_arm`, not the whole `match`).
+/// The predicate fires when this returns `false`.
 #[must_use]
 pub(crate) fn has_preceding_safety_comment(unsafe_block: Node, src: &[u8]) -> bool {
     let anchor = statement_anchor(unsafe_block);
-    let Some(prev) = anchor.prev_named_sibling() else {
-        return false;
-    };
-    if !matches!(prev.kind(), "line_comment" | "block_comment") {
-        return false;
+    let mut cur = unsafe_block;
+    loop {
+        if let Some(prev) = cur.prev_named_sibling()
+            && matches!(prev.kind(), "line_comment" | "block_comment")
+            && is_safety_comment(node_text(prev, src))
+        {
+            return true;
+        }
+        if cur.id() == anchor.id() {
+            return false;
+        }
+        match cur.parent() {
+            Some(p) => cur = p,
+            None => return false,
+        }
     }
-    is_safety_comment(node_text(prev, src))
 }
 
 /// Climb to the node that sits directly in a statement list (`block`,
@@ -188,20 +226,37 @@ fn statement_anchor(node: Node) -> Node {
 }
 
 fn is_safety_comment(text: &str) -> bool {
-    // Strip the comment delimiters (`//`, `///`, `/*`) and leading whitespace,
-    // then match `SAFETY` case-insensitively — mirrors ADR-071's
-    // `(?i)^\s*//+\s*SAFETY`.
+    // Strip the comment delimiters (`//`, `///`, `/*`, `/*!`) and leading
+    // whitespace, then require the literal word `SAFETY` (ASCII,
+    // case-insensitive) — mirrors ADR-071's `(?i)^\s*//+\s*SAFETY`. Compared at
+    // the byte level so a multi-byte char straddling index 6 cannot panic, and
+    // the following byte must be a non-alphanumeric word boundary so `SAFETYFOO`
+    // does not count.
     let t = text
         .trim_start_matches('/')
-        .trim_start_matches('*')
+        .trim_start_matches(['*', '!'])
         .trim_start();
-    t.len() >= "SAFETY".len() && t[..6.min(t.len())].eq_ignore_ascii_case("SAFETY")
+    let bytes = t.as_bytes();
+    bytes
+        .get(..6)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"SAFETY"))
+        && bytes.get(6).is_none_or(|c| !c.is_ascii_alphanumeric())
 }
 
-/// RS-004 — true when `struct_item` derives `Deserialize` but no preceding
-/// attribute supplies `#[serde(deny_unknown_fields)]`.
+/// RS-004 — true when a named-field `struct_item` derives `Deserialize` but no
+/// preceding attribute supplies `#[serde(deny_unknown_fields)]`.
+///
+/// Tuple structs and unit structs are skipped: `deny_unknown_fields` is a no-op
+/// on them (serde only applies it to named fields), so flagging them would give
+/// misleading advice (council adversarial MINOR).
 #[must_use]
 pub(crate) fn struct_lacks_deny_unknown(struct_item: Node, src: &[u8]) -> bool {
+    if struct_item
+        .child_by_field_name("body")
+        .is_none_or(|body| body.kind() != "field_declaration_list")
+    {
+        return false;
+    }
     let attrs = preceding_attribute_items(struct_item);
     let derives_deserialize = attrs.iter().any(|a| attr_derive_contains(*a, src));
     if !derives_deserialize {

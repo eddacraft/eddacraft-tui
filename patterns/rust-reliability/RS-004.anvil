@@ -27,9 +27,11 @@ This struct derives `Deserialize` but is missing
 input fields — hiding typos and protocol drift in external data. Add
 `#[serde(deny_unknown_fields)]` so unknown keys become an error.
 
-This rule is **opt-in**: it flags every `Deserialize` struct, but
+This rule is **opt-in**: it flags every named-field `Deserialize` struct, but
 `deny_unknown_fields` is only warranted on structs fed by external/untrusted
 input, so enable it where strict wire hygiene matters rather than by default.
+Scope: named-field structs only — tuple structs, unit structs (where
+`deny_unknown_fields` is a no-op) and enums are not covered.
 
 If a struct must tolerate forward-compatible extra fields (a deliberately
 lenient external contract), suppress with that reason:

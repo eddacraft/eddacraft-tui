@@ -28,4 +28,5 @@ the lifetime is sound). The comment is what makes the block reviewable — witho
 it the next edit cannot tell what must stay true.
 
 The detector only fires when the immediately-preceding line is not already a
-`// SAFETY:` comment, so a justified block is silent.
+`// SAFETY:` comment, so a justified block is silent. Scope: `unsafe { … }`
+blocks only — `unsafe fn` declarations are not covered by this rule.

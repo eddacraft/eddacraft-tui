@@ -780,6 +780,10 @@ fn run_check_antipattern(
         Some(&root_str),
         &anvil_checks_ast::AstScanOptions::default(),
     );
+    // Surface scanner-init failures (council operations MAJOR) on stderr.
+    for err in &ast.init_errors {
+        eprintln!("anvil: AST anti-pattern rule load error: {err}");
+    }
 
     if result.files_scanned == 0 && ast.files_scanned == 0 {
         return CheckResult {

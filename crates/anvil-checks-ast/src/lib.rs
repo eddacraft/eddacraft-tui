@@ -68,6 +68,8 @@ struct LoadedRule {
     cp: CompiledPattern,
     query: Query,
     kind: AstRuleKind,
+    /// Allowlist globs compiled once at load (not per file × rule).
+    allowlist: Vec<glob::Pattern>,
 }
 
 struct LoadOutcome {
@@ -118,10 +120,16 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
                     init_errors.push(format!("AST rule {} query has no `@target` capture", cp.id));
                     continue;
                 }
+                let allowlist = cp
+                    .allowlist
+                    .iter()
+                    .filter_map(|p| glob::Pattern::new(p).ok())
+                    .collect();
                 rules.push(LoadedRule {
                     cp: cp.clone(),
                     query,
                     kind,
+                    allowlist,
                 });
             }
             Err(err) => init_errors.push(format!(
@@ -158,6 +166,16 @@ pub fn scan_bytes(
     let mut warnings = Vec::new();
     let mut files_scanned = 0_usize;
 
+    // One parser for the whole pass — `Parser::parse` is reusable across files
+    // (council perf finding); a fresh allocation per file is wasted work.
+    let mut parser = tree_sitter::Parser::new();
+    if parser.set_language(&rust_language()).is_err() {
+        return AstScanOutput {
+            init_errors,
+            ..AstScanOutput::default()
+        };
+    }
+
     for (path, bytes) in files {
         if !path_has_rust_extension(path) {
             continue;
@@ -167,7 +185,7 @@ pub fn scan_bytes(
         };
         let relative = normalise_path(path, workspace_root);
         files_scanned += 1;
-        scan_one(&relative, content, &rules, &mut warnings);
+        scan_one(&mut parser, &relative, content, &rules, &mut warnings);
     }
 
     sort_warnings(&mut warnings);
@@ -199,11 +217,13 @@ pub fn scan_paths(
     scan_bytes(&refs, workspace_root, opts)
 }
 
-fn scan_one(path: &str, content: &str, rules: &[LoadedRule], out: &mut Vec<Warning>) {
-    let mut parser = tree_sitter::Parser::new();
-    if parser.set_language(&rust_language()).is_err() {
-        return;
-    }
+fn scan_one(
+    parser: &mut tree_sitter::Parser,
+    path: &str,
+    content: &str,
+    rules: &[LoadedRule],
+    out: &mut Vec<Warning>,
+) {
     let Some(tree) = parser.parse(content, None) else {
         out.push(parse_skip_warning(
             path,
@@ -224,7 +244,7 @@ fn scan_one(path: &str, content: &str, rules: &[LoadedRule], out: &mut Vec<Warni
     let lines: Vec<&str> = content.lines().collect();
 
     for rule in rules {
-        if rule_is_allowlisted(path, &rule.cp) {
+        if rule_is_allowlisted(path, rule) {
             continue;
         }
         let mut cursor = QueryCursor::new();
@@ -243,7 +263,15 @@ fn scan_one(path: &str, content: &str, rules: &[LoadedRule], out: &mut Vec<Warni
             if !eval(rule.kind, &ctx) {
                 continue;
             }
-            let pos = target.start_position();
+            // Anchor the finding on the most specific captured token — the
+            // `unwrap`/`expect` method or the macro name — so a multi-line
+            // method chain reports on the `.unwrap()` line (and the
+            // `@anvil-ignore` directive sits directly above it), not on the
+            // start of the receiver expression. Falls back to `@target`.
+            let anchor = capture_node(&rule.query, m, "method")
+                .or_else(|| capture_node(&rule.query, m, "name"))
+                .unwrap_or(target);
+            let pos = anchor.start_position();
             let line = pos.row + 1;
             let column = pos.column + 1;
             let suppressed = suppression_for(&lines, line, &rule.cp.id);
@@ -398,10 +426,8 @@ fn suppression_for(lines: &[&str], line_number: usize, pattern_id: &str) -> Opti
     })
 }
 
-fn rule_is_allowlisted(path: &str, cp: &CompiledPattern) -> bool {
-    cp.allowlist
-        .iter()
-        .any(|pat| glob::Pattern::new(pat).is_ok_and(|g| g.matches(path)))
+fn rule_is_allowlisted(path: &str, rule: &LoadedRule) -> bool {
+    rule.allowlist.iter().any(|g| g.matches(path))
 }
 
 fn path_has_rust_extension(path: &str) -> bool {

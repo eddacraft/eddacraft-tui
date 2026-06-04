@@ -92,6 +92,29 @@ fn rs001_excluded_in_cfg_all_test() {
 }
 
 #[test]
+fn rs001_excluded_by_inner_cfg_test_attribute() {
+    // Council adversarial MAJOR: `#![cfg(test)]` inner attribute (a leading
+    // child of the mod body, not a preceding sibling) must also exclude.
+    let src = "mod it {\n    #![cfg(test)]\n    fn t() { foo().unwrap(); }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-001"));
+}
+
+#[test]
+fn rs001_reports_on_unwrap_line_in_multiline_chain() {
+    // Council adversarial MAJOR: a multi-line chain must report on the
+    // `.unwrap()` line (line 4), not the receiver's start line (line 2), so the
+    // @anvil-ignore directive sits directly above the unwrap.
+    let src = "fn run() {\n    let v = thing()\n        .transform()\n        .unwrap();\n}\n";
+    let out = scan("src/lib.rs", src);
+    let w = out
+        .warnings
+        .iter()
+        .find(|w| w.id == "RS-001")
+        .expect("RS-001 warning");
+    assert_eq!(w.location.line, 4, "should report on the .unwrap() line");
+}
+
+#[test]
 fn rs001_not_excluded_by_cfg_not_test() {
     // cfg(not(test)) is production code — the unwrap must still fire.
     let src = "#[cfg(not(test))]\nmod prod { fn t() { foo().unwrap(); } }\n";
@@ -191,6 +214,31 @@ fn rs003_fires_when_unrelated_statement_intervenes() {
     assert!(fires("src/lib.rs", src, "RS-003"));
 }
 
+#[test]
+fn rs003_clean_with_safety_comment_inside_match_arm() {
+    // Council kernel-maintainer MAJOR: a `// SAFETY:` comment written inside a
+    // match arm precedes the match_arm, not the whole match statement.
+    let src = "fn run() {\n    match x {\n        // SAFETY: valid for this arm\n        Foo => unsafe { deref(p); }\n        _ => {}\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_does_not_panic_on_multibyte_comment() {
+    // Council kernel-maintainer CRITICAL: byte-slicing `// SAFETÉ` at index 6
+    // used to split a multi-byte char and panic.
+    let src = "fn run() {\n    // SAFETÉ accentué\n    unsafe { deref(p); }\n}\n";
+    // The comment is not a SAFETY word boundary, so the rule still fires — but
+    // crucially this must not panic.
+    assert!(fires("src/lib.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_safety_requires_word_boundary() {
+    // `SAFETYNET` is not a SAFETY comment (no word boundary).
+    let src = "fn run() {\n    // SAFETYNET is unrelated\n    unsafe { deref(p); }\n}\n";
+    assert!(fires("src/lib.rs", src, "RS-003"));
+}
+
 // --- RS-004 serde deny_unknown_fields --------------------------------------
 
 #[test]
@@ -224,6 +272,16 @@ fn rs004_silent_without_deserialize_derive() {
 fn rs004_handles_path_qualified_derive() {
     let src = "#[derive(serde::Deserialize)]\nstruct Config { port: u16 }\n";
     assert!(fires_opt_in("src/lib.rs", src, "RS-004"));
+}
+
+#[test]
+fn rs004_skips_tuple_and_unit_structs() {
+    // Council adversarial MINOR: deny_unknown_fields is a no-op on tuple/unit
+    // structs, so flagging them gives misleading advice.
+    let tuple = "#[derive(Deserialize)]\nstruct Point(f64, f64);\n";
+    assert!(!fires_opt_in("src/lib.rs", tuple, "RS-004"));
+    let unit = "#[derive(Deserialize)]\nstruct Marker;\n";
+    assert!(!fires_opt_in("src/lib.rs", unit, "RS-004"));
 }
 
 // --- Cross-cutting ----------------------------------------------------------

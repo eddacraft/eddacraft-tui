@@ -291,6 +291,13 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                         include_opt_in: args.include_opt_in,
                     },
                 );
+                // Surface scanner-init failures (malformed ast_query, missing
+                // predicate) to the operator on stderr so a silently-dropped
+                // rule is visible without a tracing subscriber and without
+                // corrupting JSON/SARIF stdout (council operations MAJOR).
+                for err in &ast.init_errors {
+                    eprintln!("anvil: AST anti-pattern rule load error: {err}");
+                }
                 if result.files_scanned > 0 || ast.files_scanned > 0 {
                     any_files_scanned = true;
                 }

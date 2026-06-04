@@ -15,7 +15,7 @@ allowlist: []
 
 detection:
   type: regex
-  pattern: '\b(?:todo|unimplemented)!\s*\('
+  pattern: '\b(?:todo|unimplemented)!\s*[\(\[\{]'
 
 related: []
 enabled: true
