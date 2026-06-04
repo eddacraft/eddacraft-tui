@@ -1,6 +1,6 @@
 //! DSV-003 Task 4 (ADR-061 §5): inode-aware change classification.
 //!
-//! The watcher feed reports a coarse [`ChangeKind`] (`Created`/`Modified`/
+//! The watcher feed reports a coarse `ChangeKind` (`Created`/`Modified`/
 //! `Removed`) per path, but that hint alone cannot distinguish an
 //! atomic-save (write-temp-then-rename-over, which surfaces as a `Created`
 //! event on a path that already existed) from a genuine new file. Getting
@@ -88,7 +88,7 @@ pub enum CanonicalChange {
     Delete,
     /// The path is the *destination* of a rename; `from` is the prior
     /// root-relative path. Produced by the orchestrator's rename correlation
-    /// (DSV-005), not by [`classify`] — included here so the invalidation
+    /// (DSV-005), not by `classify` — included here so the invalidation
     /// taxonomy (DSV-003 Task 5) has a type to map.
     Rename {
         /// The prior root-relative path the file was renamed from.

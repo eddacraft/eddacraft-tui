@@ -557,7 +557,10 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   Windows arms. Until DSV-010b serves the verbs on Windows the daemon replies
   `Method not found` → folds to fallback (same as daemon-absent), so the Windows
   client is functional in fallback mode now. Cross-platform framing + unix path
-  verified locally; the Windows path is CI-verified (rust.yml matrix). **Known
+  verified locally; the Windows path is verified green on the `rust.yml`
+  `windows-msvc` matrix (the full suite passes — including the ADR-068 guard's
+  reparse/junction-rejection, C2, and B2 tests, which runtime-caught a wrong
+  `STATUS_REPARSE_POINT_ENCOUNTERED` constant cross-check could not). **Known
   gap:** the synchronous pipe client has no read timeout (the Unix transport
   bounds via `set_read_timeout`) — deferred to DSV-010b hardening.
 - **Intent:** Make the Windows user-facing surfaces thin save-time-daemon clients,
