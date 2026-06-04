@@ -403,6 +403,22 @@ fn deferred_debt_rule_fires_on_rust_source() {
 }
 
 #[test]
+fn js_ts_rules_stay_silent_on_rust_source() {
+    // The two-level filter (scan-set ∩ per-pattern file_extensions) must keep
+    // JS/TS-specific rules off `.rs`. Pins this so a future registry change that
+    // wrongly adds `.rs` to a JS/TS rule's file_extensions is caught here.
+    let result = scan_file("src/main.rs", "let x: any = value; // as any\n", None);
+    assert!(
+        result
+            .warnings
+            .iter()
+            .all(|w| w.id != "AP-003" && w.id != "AP-004"),
+        "JS/TS rules (AP-003/AP-004) must not fire on .rs, got {:?}",
+        result.warnings.iter().map(|w| &w.id).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn run_antipattern_check_scans_rust_files_by_default() {
     // The orchestrator reads `.rs` files by default (the scan-set change), so a
     // Rust file with un-ticketed debt is surfaced — before RSTLAN-006 it was
