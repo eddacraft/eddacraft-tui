@@ -250,7 +250,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: github.event_name != 'pull_request'
-        uses: taiki-e/install-action@60ae4ce63c7aeb6e96d7f572c1ec7fafbb17ca80 # v2.79.10
+        uses: taiki-e/install-action@25435dc8dd3baed7417e0c96d3fe89013a5b2e09 # v2.81.3
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
@@ -375,7 +375,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-hakari
-        uses: taiki-e/install-action@60ae4ce63c7aeb6e96d7f572c1ec7fafbb17ca80 # v2.79.10
+        uses: taiki-e/install-action@25435dc8dd3baed7417e0c96d3fe89013a5b2e09 # v2.81.3
         with:
           tool: cargo-hakari@${{ env.CARGO_HAKARI_VERSION }}
       - name: Verify workspace-hack manifest is current
@@ -404,7 +404,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-deny
-        uses: taiki-e/install-action@60ae4ce63c7aeb6e96d7f572c1ec7fafbb17ca80 # v2.79.10
+        uses: taiki-e/install-action@25435dc8dd3baed7417e0c96d3fe89013a5b2e09 # v2.81.3
         with:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: Run cargo deny check
@@ -429,7 +429,7 @@ jobs:
           shared-key: rust-ci
           save-if: 'false'
       - name: Install cargo-about
-        uses: taiki-e/install-action@60ae4ce63c7aeb6e96d7f572c1ec7fafbb17ca80 # v2.79.10
+        uses: taiki-e/install-action@25435dc8dd3baed7417e0c96d3fe89013a5b2e09 # v2.81.3
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
       # ATTRIB-012: Node driver tests need Node + npm (render + strict
