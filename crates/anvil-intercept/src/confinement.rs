@@ -406,6 +406,11 @@ pub fn config_path() -> Result<PathBuf, ConfinementError> {
 /// confinement file — e.g. the save-time antipattern config
 /// ([`crate::antipattern_config`]) — so every operator surface resolves its
 /// directory through one daemon-owned resolver, never an `anvil-cli` path.
+///
+/// `#[cfg(unix)]`: the only caller is the (Unix-gated) `antipattern_config`
+/// loader, so this is dead code on Windows (DSV-010a). DSV-010b revisits the
+/// daemon's Windows operator-config surface.
+#[cfg(unix)]
 pub(crate) fn anvil_config_dir() -> Result<PathBuf, ConfinementError> {
     config_dir_from(
         crate::anvil_home_prefix(),
