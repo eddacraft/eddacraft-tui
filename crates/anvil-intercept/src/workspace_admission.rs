@@ -4,11 +4,11 @@
 //! client names, so a verb is authorised against a root **iff** that root has
 //! been admitted on this connection. Each admitted entry pairs the *canonical*
 //! root path (the key an incoming `workspace_root` is matched against) with the
-//! once-opened `O_PATH` dirfd from [`crate::path_safety::open_workspace_dirfd`]
-//! — the read anchor and the workspace identity. All later **reads** go through
-//! the held fd, so a root-directory retarget after admission cannot redirect
-//! them (security C2); a stale fd fails closed rather than re-resolving the
-//! path.
+//! once-opened [`WorkspaceAnchor`](crate::workspace_anchor::WorkspaceAnchor) —
+//! the read anchor and the workspace identity (a Unix `O_PATH` dirfd or a
+//! Windows directory handle). All later **reads** go through the held anchor, so
+//! a root-directory retarget after admission cannot redirect them (security C2);
+//! a stale anchor fails closed rather than re-resolving the path.
 //!
 //! This swap-immunity is for *reads*, not for the *admission* step: admission
 //! canonicalises the root string and then opens it, so a same-uid writer could
@@ -43,10 +43,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
-use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::{Path, PathBuf};
 
-use crate::path_safety::open_workspace_dirfd;
+use crate::workspace_anchor::WorkspaceAnchor;
 
 /// How the admitted-root set decides whether to admit a not-yet-seen root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,14 +101,15 @@ impl AllowPolicy {
 }
 
 /// A per-connection set of admitted workspace roots, each paired with its held
-/// `O_PATH` dirfd (read anchor + identity).
+/// [`WorkspaceAnchor`] (read anchor + identity — a Unix dirfd or a Windows
+/// directory handle).
 #[derive(Debug)]
 pub struct AdmittedRoots {
     mode: AdmissionMode,
     /// Roots permitted in `Allowlist` mode. Empty in `Open` mode.
     allow: AllowPolicy,
-    /// Canonical root → held dirfd. Insertion-once; never re-resolved.
-    admitted: BTreeMap<PathBuf, OwnedFd>,
+    /// Canonical root → held anchor. Insertion-once; never re-resolved.
+    admitted: BTreeMap<PathBuf, WorkspaceAnchor>,
 }
 
 impl AdmittedRoots {
@@ -163,9 +163,10 @@ impl AdmittedRoots {
         self.admitted.contains_key(canonical_root)
     }
 
-    /// Explicitly admit a root: open its dirfd once and store it under its
-    /// canonical path. Idempotent — a second call for an already-admitted root
-    /// keeps the original fd (identity is pinned at first admission).
+    /// Explicitly admit a root: open its [`WorkspaceAnchor`] once and store it
+    /// under its canonical path. Idempotent — a second call for an
+    /// already-admitted root keeps the original anchor (identity is pinned at
+    /// first admission).
     ///
     /// # Errors
     /// Propagates canonicalisation / open failures (root missing or not a
@@ -175,24 +176,24 @@ impl AdmittedRoots {
         if self.admitted.contains_key(&canonical) {
             return Ok(());
         }
-        let dirfd = open_workspace_dirfd(&canonical)?;
-        self.admitted.insert(canonical, dirfd);
+        let anchor = WorkspaceAnchor::open(&canonical)?;
+        self.admitted.insert(canonical, anchor);
         Ok(())
     }
 
     /// Authorise a verb against `workspace_root`, returning the held read
-    /// anchor (dirfd) iff the root is authorised on this connection.
+    /// [`WorkspaceAnchor`] iff the root is authorised on this connection.
     ///
     /// - `Open` mode: a not-yet-admitted root is auto-admitted (first-touch)
-    ///   and its fd returned.
-    /// - `Allowlist` mode: an already-admitted root returns its fd; an
+    ///   and its anchor returned.
+    /// - `Allowlist` mode: an already-admitted root returns its anchor; an
     ///   unadmitted-but-allowed root is admitted then returned; an unlisted
     ///   root returns `Ok(None)` (refused).
     ///
     /// # Errors
     /// Propagates the open/canonicalise error when admission is attempted for
     /// a root that should be admissible but cannot be opened.
-    pub fn authorise(&mut self, workspace_root: &Path) -> io::Result<Option<BorrowedFd<'_>>> {
+    pub fn authorise(&mut self, workspace_root: &Path) -> io::Result<Option<&WorkspaceAnchor>> {
         // A root that does not resolve is never authorised — but this is a
         // refusal, not a hard error (the client named a vanished path).
         let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
@@ -207,31 +208,34 @@ impl AdmittedRoots {
             if !admissible {
                 return Ok(None);
             }
-            let dirfd = open_workspace_dirfd(&canonical)?;
-            self.admitted.insert(canonical.clone(), dirfd);
+            let anchor = WorkspaceAnchor::open(&canonical)?;
+            self.admitted.insert(canonical.clone(), anchor);
         }
 
-        Ok(self.admitted.get(&canonical).map(AsFd::as_fd))
+        Ok(self.admitted.get(&canonical))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::fd::AsRawFd;
 
     #[test]
     fn validate_paths_authorised_for_session_root() {
         let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("marker"), b"present").expect("write marker");
         let mut roots = AdmittedRoots::new_open();
         roots.admit(tmp.path()).expect("admit root");
 
-        let fd = roots
+        let anchor = roots
             .authorise(tmp.path())
             .expect("authorise io")
             .expect("an admitted root is authorised");
-        // A live, readable anchor fd.
-        assert!(fd.as_raw_fd() >= 0);
+        // A live, readable anchor: it reads a file beneath the held root.
+        assert_eq!(
+            anchor.read_rel("marker").expect("read via anchor"),
+            b"present"
+        );
     }
 
     #[test]
@@ -270,23 +274,20 @@ mod tests {
     }
 
     #[test]
-    fn admission_pins_the_fd_identity_across_calls() {
-        // The dirfd is opened once and reused — re-authorising the same root
-        // returns the same underlying fd, not a freshly re-resolved one (C2).
+    fn admission_pins_the_anchor_identity_across_calls() {
+        // The anchor is opened once and reused — re-authorising the same root
+        // returns the same held anchor, not a freshly re-resolved one (C2).
+        // Identity is checked by address: the second authorise must hand back
+        // the exact same stored `WorkspaceAnchor` (no second open).
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut roots = AdmittedRoots::new_open();
 
-        let first = roots
-            .authorise(tmp.path())
-            .expect("io")
-            .unwrap()
-            .as_raw_fd();
-        let second = roots
-            .authorise(tmp.path())
-            .expect("io")
-            .unwrap()
-            .as_raw_fd();
-        assert_eq!(first, second, "the held dirfd is pinned at first admission");
+        let first = std::ptr::from_ref(roots.authorise(tmp.path()).expect("io").unwrap()) as usize;
+        let second = std::ptr::from_ref(roots.authorise(tmp.path()).expect("io").unwrap()) as usize;
+        assert_eq!(
+            first, second,
+            "the held anchor is pinned at first admission"
+        );
     }
 
     #[test]

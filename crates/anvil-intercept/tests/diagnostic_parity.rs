@@ -225,3 +225,48 @@ fn daemon_envelope_is_independent_of_input_order() {
          (the shared sort-before-envelope normalisation must be wired)"
     );
 }
+
+/// DSV-010b: extend the DSV-009 cross-path parity gate to the **Windows delivery
+/// path**. The Windows daemon reads guarded bytes through the ADR-068
+/// `WorkspaceAnchor` (the `NtCreateFile`/`OBJ_DONT_REPARSE` read guard); those
+/// bytes must produce the byte-identical antipattern envelope as the disk
+/// fallback. This proves the Windows guard reads the *exact* on-disk bytes (no
+/// reparse-follow, no truncation, no normalisation drift) the verdict attests —
+/// the same parity claim the in-memory `daemon_path` proves for the engine, now
+/// carried through the real Windows read primitive.
+#[cfg(windows)]
+#[test]
+fn antipattern_findings_match_across_windows_anchor_and_fallback_paths() {
+    use anvil_intercept::workspace_anchor::WorkspaceAnchor;
+
+    let dir = corpus_dir();
+    let root = dir.to_string_lossy().into_owned();
+
+    // Read the corpus through the held Windows anchor (the production read
+    // primitive), keyed by the workspace-relative path the daemon dispatch uses.
+    let anchor = WorkspaceAnchor::open(&dir).expect("open corpus anchor");
+    let reads: HashMap<String, Vec<u8>> = CORPUS
+        .iter()
+        .map(|&p| {
+            (
+                p.to_string(),
+                anchor.read_rel(p).expect("anchor read corpus fixture"),
+            )
+        })
+        .collect();
+
+    let daemon = daemon_path(&root, &reads);
+    let fallback = fallback_path(&root);
+
+    assert!(
+        daemon.len() >= 3,
+        "parity corpus must produce >= 3 antipattern findings (got {}) — \
+         a vacuous empty-set parity is not a gate",
+        daemon.len()
+    );
+    assert_eq!(
+        daemon, fallback,
+        "the Windows anchor-read envelope must be byte-identical to the disk \
+         fallback — the ADR-068 guard must read the exact on-disk bytes"
+    );
+}

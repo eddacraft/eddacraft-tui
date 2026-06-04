@@ -18,9 +18,9 @@
 //! [`AdmittedRoots`] set before touching any byte: the set is built once per
 //! connection from the operator [`Confinement`] (open by default; allowlist when
 //! confined), seeded with the first-named root as the primary check-in root, and
-//! grows on first contact in open mode. All reads go through the held `O_PATH`
-//! dirfd, so a refused root never reaches the filesystem and an admitted root
-//! cannot be retargeted after admission (security C2/C3 — see
+//! grows on first contact in open mode. All reads go through the held
+//! [`WorkspaceAnchor`], so a refused root never reaches the filesystem and an
+//! admitted root cannot be retargeted after admission (security C2/C3 — see
 //! [`crate::workspace_admission`]).
 //!
 //! ## Symbols feed ([`SymbolParser`])
@@ -29,18 +29,19 @@
 //! daemon never parses (ADR-064); instead it enriches the change it holds by
 //! computing symbols through an injected [`SymbolParser`] (a Messaging Gateway —
 //! the tree-sitter impl lives in `anvil-cli`), handing it the **exact**
-//! openat2-guarded bytes it read and hashed. When no parser is injected the feed
+//! anchor-guarded bytes it read and hashed. When no parser is injected the feed
 //! yields `None` and every verdict is a safe `Partial(CrossFileResolutionNeeded)`
 //! (B4 conservative default).
 //!
-//! Unix-only: the verbs read arbitrary on-disk paths through `openat2`-guarded
-//! dirfds, which have no Windows analogue in Sub-phase A (Windows `validate_paths`
-//! GA is tracked separately — DSV out-of-scope).
-#![cfg(unix)]
+//! Cross-platform (DSV-010b / ADR-070 Stage 2): the verbs read arbitrary
+//! on-disk paths a client names through a held [`WorkspaceAnchor`] — a Unix
+//! `openat2`-guarded dirfd or a Windows directory-handle + `OBJ_DONT_REPARSE`
+//! ladder (ADR-068). The verdict spine is platform-neutral; only the anchor's
+//! read primitive is platform-split, behind the one type.
+#![cfg(any(unix, windows))]
 
 use std::collections::HashMap;
 use std::io;
-use std::os::fd::BorrowedFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -56,10 +57,10 @@ use crate::assurance::{AssuranceMachine, ScanPriority};
 use crate::confinement::Confinement;
 use crate::ipc::{SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
-use crate::path_safety::{normalise_rel, read_under};
 use crate::rule_cache::WorktreeKey;
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
 use crate::workspace_admission::AdmittedRoots;
+use crate::workspace_anchor::WorkspaceAnchor;
 use crate::workspace_pool::{DosCaps, WorkScheduler};
 
 /// The reverse-impact certify budget for the interactive verdict path. Bounds
@@ -364,7 +365,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Copy the shared-state reference so `state.*` reads stay disjoint from
         // the per-connection `self.admitted` field the held fd borrows.
         let state = self.state;
-        let fd = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
         // Key on the *canonical* root so the assurance machine + warm cache key
         // on the same value `AdmittedRoots` admitted under — a symlinked or
         // non-canonical client root must not split state into two keys.
@@ -377,14 +378,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             paths: request.paths.clone(),
         };
 
-        // All reads go through the held dirfd — the guarded bytes the
+        // All reads go through the held anchor — the guarded bytes the
         // antipattern check scans, never a re-opened path (B7 / security C2).
-        let read_guarded = move |rel: &str| -> io::Result<Vec<u8>> {
-            let parsed = normalise_rel(rel).map_err(|escape| {
-                io::Error::new(io::ErrorKind::InvalidInput, format!("{escape:?}"))
-            })?;
-            read_under(fd, &parsed)
-        };
+        // `WorkspaceAnchor::read_rel` normalises + structurally validates the
+        // path and reads it beneath the held handle (no symlink / no reparse,
+        // refuse-don't-truncate over the ceiling) on whichever platform.
+        let read_guarded = move |rel: &str| -> io::Result<Vec<u8>> { anchor.read_rel(rel) };
 
         let env = ValidateEnv {
             config: &state.config,
@@ -479,14 +478,14 @@ fn canonical_root(root: &Path) -> Result<PathBuf, SaveTimeError> {
 
 /// Authorise `root` against the connection's admitted set, building it on first
 /// contact (seeded with `root` as the primary check-in root). Returns the held
-/// read-anchor dirfd. Kept a free function over the `admitted` field (not a
-/// `&mut self` method) so the returned fd's borrow stays disjoint from the
+/// read [`WorkspaceAnchor`]. Kept a free function over the `admitted` field (not
+/// a `&mut self` method) so the returned anchor's borrow stays disjoint from the
 /// caller's shared-state reads.
 fn authorise_root<'f>(
     admitted: &'f mut Option<AdmittedRoots>,
     confinement: &Confinement,
     root: &Path,
-) -> Result<BorrowedFd<'f>, SaveTimeError> {
+) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
     let set = admitted.get_or_insert_with(|| confinement.to_admitted_roots(root));
     set.authorise(root)
         .map_err(SaveTimeError::Io)?

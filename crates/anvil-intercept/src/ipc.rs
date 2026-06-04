@@ -49,25 +49,24 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::task::JoinSet;
 use tracing::{Instrument, field};
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use crate::save_time::{SaveTimeConn, SaveTimeState};
 
 /// DSV-005: why a save-time verb could not be honoured for a `workspace_root`.
-/// Defined cross-platform so the dispatch signature is uniform; only the unix
-/// daemon implements the verbs ([`SaveTimeDispatch`]).
+/// Defined cross-platform so the dispatch signature is uniform.
 #[derive(Debug)]
 pub enum SaveTimeError {
     /// The root is not admitted on this connection (allowlist refusal, or a
     /// root that no longer resolves). Maps to a `workspace-not-admitted` reply.
     NotAdmitted,
-    /// The admitted root's dirfd could not be opened. Maps to an internal error.
+    /// The admitted root's anchor could not be opened. Maps to an internal error.
     Io(std::io::Error),
 }
 
 /// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
-/// Implemented by [`crate::save_time::SaveTimeConn`] on unix; on Windows there
-/// is no implementor (save-time `validate_paths` GA is out of scope), so the
-/// dispatch arm replies `Method not found`.
+/// Implemented by [`crate::save_time::SaveTimeConn`] on both Unix and Windows
+/// (DSV-010b); a listener without a wired [`SaveTimeState`] still replies
+/// `Method not found` (tests, embedded callers).
 ///
 /// `Send` so the per-connection trait object can be held across the connection
 /// handler's `.await` points (the handler future is spawned on a tokio
@@ -699,6 +698,11 @@ pub struct IpcListener<D: SessionDispatcher> {
     status_provider: Arc<dyn StatusProvider>,
     #[cfg(windows)]
     cross_check: Option<CrossCheckContext>,
+    /// DSV-010b: the shared save-time verdict state, served over the named pipe
+    /// just as on Unix. `None` ⇒ the three save-time verbs reply `Method not
+    /// found` (tests, embedded callers).
+    #[cfg(windows)]
+    save_time: Option<Arc<SaveTimeState>>,
     #[cfg(not(any(unix, windows)))]
     _marker: std::marker::PhantomData<D>,
 }
@@ -736,13 +740,13 @@ impl<D: SessionDispatcher> IpcListener<D> {
         self
     }
 
-    /// DSV-005: wire the shared save-time verdict state. The daemon's
+    /// DSV-005 / DSV-010b: wire the shared save-time verdict state. The daemon's
     /// `run_foreground` builder calls this once with the warm graph cache,
     /// per-worktree assurance machines, antipattern config, interactive pool,
-    /// and operator confinement policy. Listeners without it reply
-    /// `Method not found` to the three save-time verbs (tests, embedded
-    /// callers, the Windows named-pipe listener — Sub-phase A is unix-only).
-    #[cfg(unix)]
+    /// and operator confinement policy. Served over the Unix socket and the
+    /// Windows named pipe alike. Listeners without it reply `Method not found`
+    /// to the three save-time verbs (tests, embedded callers).
+    #[cfg(any(unix, windows))]
     #[must_use]
     pub fn with_save_time_state(mut self, state: Arc<SaveTimeState>) -> Self {
         self.save_time = Some(state);
@@ -1006,6 +1010,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             limits: IpcLimits::default(),
             status_provider: Arc::new(NoopStatusProvider),
             cross_check: None,
+            save_time: None,
         })
     }
 
@@ -1018,6 +1023,9 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let limits = self.limits;
         let status_provider = Arc::clone(&self.status_provider);
         let cross_check = self.cross_check.clone();
+        // DSV-010b: shared save-time state, cloned per spawn (parallels the Unix
+        // serve loop).
+        let save_time = self.save_time.clone();
         let mut joinset: JoinSet<()> = JoinSet::new();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
@@ -1047,6 +1055,32 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 &pipe_name,
                                 anvil_intercept_win32::PipeInstance::Additional,
                             )?;
+                            // DSV-010b / ADR-070 step 4: belt-and-suspenders
+                            // peer-SID check (parity for the Unix `SO_PEERCRED`
+                            // same-uid gate). The owner-only pipe DACL already
+                            // refuses a different-SID client at the kernel; this
+                            // explicit `GetNamedPipeClientProcessId → token SID`
+                            // compare is defence in depth. Fail closed: a client
+                            // that is not the owner, or whose SID cannot be
+                            // established, is refused.
+                            use std::os::windows::io::AsRawHandle;
+                            match anvil_intercept_win32::named_pipe_client_is_owner(
+                                connected_server.as_raw_handle(),
+                            ) {
+                                Ok(true) => {}
+                                Ok(false) => {
+                                    tracing::warn!(target: "anvil_intercept::ipc", "rejecting named-pipe client: peer SID is not the pipe owner");
+                                    eprintln!("anvil-intercept: rejecting named-pipe client: peer SID is not the pipe owner");
+                                    drop(connected_server);
+                                    continue;
+                                }
+                                Err(err) => {
+                                    tracing::warn!(target: "anvil_intercept::ipc", error = %err, "rejecting named-pipe client: peer SID validation failed");
+                                    eprintln!("anvil-intercept: rejecting named-pipe client: peer SID validation failed: {err}");
+                                    drop(connected_server);
+                                    continue;
+                                }
+                            }
                             let Ok(connection_permit) = connection_permits.clone().try_acquire_owned() else {
                                 tracing::warn!(target: "anvil_intercept::ipc", "dropping named-pipe connection: active connection limit reached");
                                 eprintln!("anvil-intercept: dropping named-pipe connection: active connection limit reached");
@@ -1058,6 +1092,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_status = Arc::clone(&status_provider);
                             let conn_token = token.clone();
                             let conn_cross_check = cross_check.clone();
+                            let conn_save_time = save_time.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
                                 // MLP2-025b: Windows peer-PID is
@@ -1072,7 +1107,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 // becomes the documented fail-closed
                                 // default for un-validated peers.
                                 let peer_pid: Option<u32> = None;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1131,17 +1166,17 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // disables the write-time spoof check (tests, embedded
     // callers, listeners not wired to a daemon registry+fence).
     cross_check: Option<CrossCheckContext>,
-    // DSV-005: shared save-time verdict state. `None` for listeners that do
-    // not serve the save-time verbs. Unix-only — the verbs read through
-    // `openat2`-guarded dirfds (Windows GA out of scope).
-    #[cfg(unix)] save_time: Option<Arc<SaveTimeState>>,
+    // DSV-005 / DSV-010b: shared save-time verdict state. `None` for listeners
+    // that do not serve the save-time verbs. Served on both Unix and Windows —
+    // the reads go through a platform-neutral `WorkspaceAnchor`.
+    #[cfg(any(unix, windows))] save_time: Option<Arc<SaveTimeState>>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
 
     // DSV-005: the per-connection save-time context owns this connection's
     // admitted-root set (built lazily on the first verb) over the shared state.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     let mut save_time_conn = save_time.as_deref().map(SaveTimeConn::new);
 
     // INTD-016: per-connection RPS bucket.
@@ -1248,13 +1283,14 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
                     // DSV-005: hand the per-connection save-time context to the
-                    // dispatcher (as the cross-platform trait object). `None` on
-                    // Windows / listeners without save-time state.
-                    #[cfg(unix)]
+                    // dispatcher (as the cross-platform trait object). `None`
+                    // only on exotic non-unix/-windows targets, or listeners
+                    // without save-time state.
+                    #[cfg(any(unix, windows))]
                     let save_time_arg: Option<&mut dyn SaveTimeDispatch> = save_time_conn
                         .as_mut()
                         .map(|conn| conn as &mut dyn SaveTimeDispatch);
-                    #[cfg(not(unix))]
+                    #[cfg(not(any(unix, windows)))]
                     let save_time_arg: Option<&mut dyn SaveTimeDispatch> = None;
                     if let Some(response) = handle_jsonrpc_value(
                         value,

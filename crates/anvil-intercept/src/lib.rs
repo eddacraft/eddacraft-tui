@@ -33,7 +33,11 @@
 // `validate_paths` is tracked separately as out of scope. Gated so the
 // `x86_64-pc-windows-msvc` build (which lacks the `cfg(unix)` `nix` dep) stays
 // green.
-#[cfg(unix)]
+// DSV-010b: the operator antipattern-config loader is platform-neutral (it reads
+// through `confinement::read_trusted`, which has a `cfg(not(unix))` arm); only
+// its tests are `cfg(all(test, unix))`. `run_foreground` loads it on Windows too
+// now that the save-time path is served there.
+#[cfg(any(unix, windows))]
 pub mod antipattern_config;
 pub mod assurance;
 pub mod auth;
@@ -59,7 +63,11 @@ pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
-#[cfg(unix)]
+// DSV-010b / ADR-070 Stage 2: the save-time verbs are served on both Unix and
+// Windows. `save_time` / `workspace_admission` code against the neutral
+// [`workspace_anchor::WorkspaceAnchor`] (Unix dirfd / the Windows ADR-068 guard)
+// rather than a bare fd, so they are no longer Unix-only.
+#[cfg(any(unix, windows))]
 pub mod save_time;
 pub mod status;
 pub mod tag_env;
@@ -67,8 +75,12 @@ pub mod telemetry;
 pub mod unregistered;
 pub mod validate_paths;
 pub mod watcher;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub mod workspace_admission;
+/// The platform-neutral workspace read anchor (Unix dirfd / Windows directory
+/// handle) the verdict path codes against (DSV-010b / ADR-070).
+#[cfg(any(unix, windows))]
+pub mod workspace_anchor;
 pub mod workspace_pool;
 
 pub use auth::{
@@ -282,9 +294,12 @@ pub struct ForegroundOpts {
     /// DSV-005: the dependency-inverted kernel-backed symbol parser the daemon
     /// enriches its verdict with (a Messaging Gateway — the daemon never links
     /// tree-sitter). `None` ⇒ verdicts stay `Partial`. `anvil-cli` injects the
-    /// real impl via [`Self::with_symbol_parser`]. Unix-only (the verdict path
-    /// is unix-gated; Windows `validate_paths` GA is out of scope).
-    #[cfg(unix)]
+    /// real impl via [`Self::with_symbol_parser`]. DSV-010b: the plumbing is
+    /// symmetric on Windows (the save-time path is served there now); the
+    /// tree-sitter injection itself stays Unix in `anvil-cli` for now, so the
+    /// Windows daemon currently runs parser-less (`Partial` verdicts) — the
+    /// documented degraded mode Unix also uses when no parser is wired.
+    #[cfg(any(unix, windows))]
     symbol_parser: Option<Arc<dyn save_time::SymbolParser>>,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
@@ -302,7 +317,7 @@ impl ForegroundOpts {
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
-            #[cfg(unix)]
+            #[cfg(any(unix, windows))]
             symbol_parser: None,
             #[cfg(unix)]
             ipc_socket: None,
@@ -342,6 +357,7 @@ impl ForegroundOpts {
             fence_store: None,
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
+            symbol_parser: None,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -404,7 +420,7 @@ impl ForegroundOpts {
     /// parser links into the *binary*, never the `anvil-intercept` crate —
     /// ADR-064 holds). Without it the daemon answers `validate_paths` with safe
     /// `Partial` verdicts only.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[must_use]
     pub fn with_symbol_parser(mut self, parser: Arc<dyn save_time::SymbolParser>) -> Self {
         self.symbol_parser = Some(parser);
@@ -1081,7 +1097,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // worktree's warm state (cache + assurance machine) on session
         // unregister is installed below, once both the registry and
         // `save_time_state` exist.
-        #[cfg(unix)]
+        // DSV-010b / ADR-070 Stage 2: served on both Unix and Windows. The
+        // verdict spine + the config loaders are platform-neutral; the read
+        // anchor is the only platform-split (a Unix dirfd / the Windows ADR-068
+        // guard, behind `WorkspaceAnchor`). The tree-sitter parser injection is
+        // still Unix-only in `anvil-cli`, so the Windows daemon runs parser-less
+        // (safe `Partial` verdicts — the documented degraded mode) for now.
+        #[cfg(any(unix, windows))]
         let save_time_state = {
             let scheduler = workspace_pool::WorkScheduler::new().with_context(|| {
                 format!(
@@ -1099,6 +1121,20 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 scheduler,
                 antipattern_config::load_or_fail_safe(),
                 confinement::load_or_fail_closed(),
+            );
+            // DSV-010b: on Windows the trusted-config read (`read_trusted`) has no
+            // owner/symlink verification yet (the `O_NOFOLLOW` + owner-mode check
+            // is `cfg(unix)`), so the confinement / antipattern config is loaded
+            // without the ownership floor Unix enforces. Warn so the weaker
+            // config-trust posture is observable, never silent — the Windows-hardened
+            // ACL check (`GetSecurityInfo`) is a tracked GA-hardening follow-up.
+            #[cfg(windows)]
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                "Windows: operator config (confinement / antipattern) is read without \
+                 owner/symlink verification (the trusted-config ownership check is \
+                 Unix-only) — a Windows-GA hardening follow-up; ensure the Anvil config \
+                 directory is ACL-restricted to this user",
             );
             // DSV-005: inject the dependency-inverted kernel parser if anvil-cli
             // wired one.
@@ -1127,7 +1163,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // composition point for unregister-time invalidators — when
         // MLP2-014 lands the rule cache, its `invalidate` joins this same
         // closure rather than competing for the registry's one hook slot.
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
             let warm_state = Arc::clone(&save_time_state);
             let installed = daemon_state
@@ -1183,9 +1219,14 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             ipc::IpcListener::bind_default_with_scan_buffer_service(dispatcher, scan_buffer)
         }
         .map(|listener| {
+            // DSV-010b: serve the three save-time verbs on Windows too. The
+            // cross-check context stays Linux-only (`SO_PEERCRED` PID-based);
+            // the Windows peer boundary is the owner-only pipe DACL plus the
+            // explicit peer-SID compare in the accept loop.
             listener
                 .with_status_provider(Arc::clone(&status_provider))
                 .with_limits(ipc_limits)
+                .with_save_time_state(Arc::clone(&save_time_state))
         })
         .context("failed to bind intercept IPC listener")?;
 

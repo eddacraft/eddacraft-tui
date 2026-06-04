@@ -29,4 +29,7 @@ windows-sys = { version = "0.61", features = [
   "Wdk_Foundation",
   "Win32_System_IO",
   "Win32_System_Kernel",
+  # DSV-010b / ADR-070 step 4: peer-SID validation of a connected named-pipe
+  # client (GetNamedPipeClientProcessId).
+  "Win32_System_Pipes",
 ] }

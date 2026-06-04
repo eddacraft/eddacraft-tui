@@ -37,12 +37,16 @@
 //!
 //! ## Platform scope
 //!
-//! The config/file/path layer is platform-neutral, but the owner-only read
-//! check and [`Confinement::to_admitted_roots`] are `cfg(unix)` — the daemon's
-//! `validate_paths` enforcement point is itself Unix-only in sub-phase A
-//! (Windows named-pipe parity is tracked separately). On a non-Unix build the
-//! owner-only check is a no-op; confinement is not a supported enforcement
-//! boundary there.
+//! The config/file/path layer is platform-neutral, and since DSV-010b
+//! [`Confinement::to_admitted_roots`] is served on both Unix and Windows (the
+//! `validate_paths` enforcement point now answers over the Windows named pipe
+//! too — ADR-070 Stage 2). The **owner-only trusted read** of the config file
+//! (`read_trusted`) is still `cfg(unix)`: it verifies owner + mode bits via an
+//! `O_NOFOLLOW` open, which has no implemented Windows analogue yet. On Windows
+//! the config is read without that ownership/symlink check (a Windows-GA
+//! hardening follow-up — `GetSecurityInfo` ACL verification), so a malformed or
+//! attacker-planted config is not flagged the way it is on Unix; `run_foreground`
+//! emits a `warn` on Windows so the weaker config-trust posture is observable.
 
 use std::path::{Path, PathBuf};
 
@@ -210,7 +214,8 @@ impl ConfinementConfigFile {
 /// The resolved confinement policy a connection is admitted under.
 ///
 /// The mode + allow roots are platform-neutral; the daemon-side bridge into the
-/// `cfg(unix)` admission machinery is [`Confinement::to_admitted_roots`].
+/// admission machinery is [`Confinement::to_admitted_roots`] (served on both Unix
+/// and Windows since DSV-010b).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Confinement {
     mode: AdmissionModeFile,
@@ -291,7 +296,9 @@ impl Confinement {
     ///   `warn` (they cannot match a real, openable root anyway); a
     ///   filesystem-root prefix entry is ignored with a `warn` (it would admit
     ///   everything — the write path rejects it, this guards hand-edited files).
-    #[cfg(unix)]
+    // DSV-010b: served on both Unix and Windows now that `AdmittedRoots` holds a
+    // platform-neutral `WorkspaceAnchor`; the body is pure path logic.
+    #[cfg(any(unix, windows))]
     #[must_use]
     pub fn to_admitted_roots(
         &self,
@@ -407,10 +414,12 @@ pub fn config_path() -> Result<PathBuf, ConfinementError> {
 /// ([`crate::antipattern_config`]) — so every operator surface resolves its
 /// directory through one daemon-owned resolver, never an `anvil-cli` path.
 ///
-/// `#[cfg(unix)]`: the only caller is the (Unix-gated) `antipattern_config`
-/// loader, so this is dead code on Windows (DSV-010a). DSV-010b revisits the
-/// daemon's Windows operator-config surface.
-#[cfg(unix)]
+/// DSV-010b: now served on both Unix and Windows (the save-time daemon answers
+/// over the Windows named pipe and loads its operator antipattern config there
+/// too). The body is the same `config_dir_from` resolver `config_path` uses, so
+/// it is platform-neutral; only the Unix `read_trusted` ownership floor over the
+/// resolved file is still Unix-only (a Windows-GA hardening follow-up).
+#[cfg(any(unix, windows))]
 pub(crate) fn anvil_config_dir() -> Result<PathBuf, ConfinementError> {
     config_dir_from(
         crate::anvil_home_prefix(),

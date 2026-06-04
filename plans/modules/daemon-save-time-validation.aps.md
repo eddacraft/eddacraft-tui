@@ -475,7 +475,7 @@ read-safety design risk that likely needs an ADR before it goes Ready.
 
 #### DSV-010: Windows named-pipe save-time daemon
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-05 via PR #2328
 - **Progress (2026-06-04):** increment 1 — the ADR-068 read-safety **guard** —
   delivered as `crates/anvil-intercept-win32/src/read_safety.rs`: `WorkspaceDir`
   held-handle anchor (C2), the per-component `NtCreateFile` + `OBJ_DONT_REPARSE`
@@ -507,10 +507,56 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   `not enabled` on Windows (ipc.rs). Unix build + tests unchanged (verified);
   Windows verified via the `rust.yml` matrix (local cross-check of the full crate
   is blocked by `aws-lc-sys`' C build needing an msvc/mingw toolchain).
-- **Remaining — DSV-010b (functional, ADR-069 Stage 2):** introduce the
-  `WorkspaceAnchor` (Unix dirfd / the built guard) + Windows `PathIdentity`
-  (`FILE_ID_INFO`) + peer-SID auth, lift `save_time` to dispatch them, enable the
-  verbs on Windows, extend the DSV-009 parity gate; then DSV-011 clients.
+- **Progress — DSV-010b (functional, ADR-070 Stage 2, 2026-06-05):** the verbs
+  are now served on Windows. Delivered: the platform-neutral
+  `crate::workspace_anchor::WorkspaceAnchor` (Unix `O_PATH` dirfd via
+  `path_safety` / the Windows ADR-068 `read_safety::WorkspaceDir` guard, behind
+  one `read_rel`); `AdmittedRoots`, `save_time`, and `confinement::to_admitted_roots`
+  lifted off `#[cfg(unix)]` onto the anchor (`save_time`/`workspace_admission` →
+  `#[cfg(any(unix, windows))]`); the `ipc.rs` listener `save_time` field +
+  `with_save_time_state` + `handle_connection` save-time arg made cross-platform
+  and wired through the Windows named-pipe serve loop; `run_foreground` builds
+  `SaveTimeState` + the unregister hook on Windows too; and the ADR-070 step-4
+  peer-SID belt-and-suspenders (`anvil_intercept_win32::named_pipe_client_is_owner`
+  — `GetNamedPipeClientProcessId → token SID` compare, fail-closed) in the accept
+  loop beside the owner-only pipe DACL. Tests: a Windows IPC round-trip
+  (`tests/save_time_wired_windows.rs`, per-PID pipe, MLP2-075 pattern) proving the
+  three verbs answer over the pipe via `run_foreground`, and the DSV-009 parity
+  gate extended to the Windows anchor read path (`diagnostic_parity.rs`). Verified
+  locally: Unix build + full suite (586 + integration, green), `anvil-intercept-win32`
+  `windows-gnu` clippy `-D warnings`, fmt + workspace clippy. The Windows daemon
+  crate is not locally compilable (`aws-lc-sys` C build needs an msvc/mingw
+  toolchain), so the Windows arms + Windows tests are runtime-verified on the
+  `rust.yml` `windows-msvc` matrix (the DSV-010a / DSV-011 precedent).
+- **Scoped out of DSV-010b (deliberate):**
+  - **Windows `PathIdentity` (`FILE_ID_INFO`)** — the inode `PathIdentity` /
+    `IdentityTable` (`change_class`) has **zero callers** outside its own module
+    on either platform: the verbs read-and-certify, and change classification
+    arrives pre-formed on the wire as the neutral `CanonicalChange`. A Windows
+    `FILE_ID_INFO` identity would be unused FFI weakening nothing real; defer it
+    to whenever `IdentityTable` is activated (a cross-platform follow-up).
+  - **Windows tree-sitter parser injection** — the daemon's `symbol_parser`
+    plumbing is symmetric on Windows, but the `anvil-cli` tree-sitter injection
+    (`intercept_symbol_parser`) stays Unix-only for now, so the Windows daemon
+    runs parser-less (safe `Partial` verdicts — the documented degraded mode Unix
+    also uses without a parser; the antipattern diagnostics + DSV-009 parity hold
+    regardless). Lifting the injection (→ `Certified` on Windows) is a small
+    follow-up. Then DSV-011 clients (already in fallback mode) light up.
+- **Windows-GA hardening follow-ups (Council 2026-06-05, deferred — consistent
+  with ADR-070's "Windows GA hardening stays out of scope"):**
+  - **Peer-SID check off the accept-loop thread.** `named_pipe_client_is_owner`
+    runs synchronously in the named-pipe accept loop (`OpenProcess` +
+    `GetTokenInformation` ×2); normally microseconds, but a pathologically slow
+    same-uid peer could stall the single-threaded accept loop. Move it to
+    `spawn_blocking`. (Same-uid is already the trust boundary, so the practical
+    risk is low; deferred over adding async restructuring to the
+    not-locally-compilable Windows arm.)
+  - **Windows trusted-config ownership check.** `confinement::read_trusted` /
+    `antipattern_config` verify owner + mode bits via `O_NOFOLLOW` on Unix; the
+    `cfg(not(unix))` arm reads without that check. DSV-010b promotes this
+    pre-existing stub to production on Windows — mitigated for now by a startup
+    `warn` (no silent degradation). The real fix is a `GetSecurityInfo` ACL
+    verification + owner-only config-dir creation on Windows.
 - **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
   the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
   support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP

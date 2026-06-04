@@ -16,6 +16,7 @@ use std::ffi::{OsStr, c_void};
 use std::io;
 use std::mem::size_of;
 use std::os::windows::ffi::OsStrExt;
+use std::os::windows::io::RawHandle;
 use std::ptr::{null_mut, slice_from_raw_parts};
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
@@ -36,6 +37,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
+use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
@@ -90,6 +92,64 @@ impl PipeInstance {
 /// Stable SID string for the current process token's user.
 pub fn current_user_sid() -> io::Result<String> {
     current_user_sid_string()
+}
+
+/// Whether the process at the *client* end of a connected named-pipe **server**
+/// handle runs under the same user SID as this (the daemon) process.
+///
+/// DSV-010b / ADR-070 step 4. The owner-only DACL on the pipe
+/// ([`create_owner_only_pipe_server`]) already refuses a different-SID client at
+/// the kernel — same-SID is the boundary, mirroring the Unix owner-only socket
+/// perms. This explicit `GetNamedPipeClientProcessId → token SID` compare is the
+/// belt-and-suspenders parity for the Unix `SO_PEERCRED` same-uid check (defence
+/// in depth; closes the `peer_pid = None` gap, MLP2-028). Because the client
+/// handle is still connected during the check, the queried PID is live, so the
+/// PID-reuse window the Unix peer check also carries is in-model.
+///
+/// `server_handle` MUST be a connected named-pipe **server** handle, passed as a
+/// [`std::os::windows::io::RawHandle`] (e.g. tokio's
+/// `NamedPipeServer::as_raw_handle()` after `connect().await`) so the
+/// `forbid(unsafe_code)` daemon can call this without naming a Win32 `HANDLE`.
+/// The handle is borrowed, never closed.
+///
+/// # Errors
+/// Propagates the OS error if the client PID, the client process token, or
+/// either user SID cannot be read.
+pub fn named_pipe_client_is_owner(server_handle: RawHandle) -> io::Result<bool> {
+    let client_pid = named_pipe_client_pid(server_handle)?;
+    let client_sid = process_user_sid(client_pid)?;
+    let current_sid = current_user_sid_string()?;
+    Ok(client_sid == current_sid)
+}
+
+/// PID of the process at the client end of a connected named-pipe server handle.
+fn named_pipe_client_pid(server_handle: RawHandle) -> io::Result<u32> {
+    let mut pid: u32 = 0;
+    // SAFETY: `server_handle` is a live, connected named-pipe server handle the
+    // caller owns (`RawHandle` is `*mut c_void`, i.e. a Win32 `HANDLE`); `&mut
+    // pid` is a valid out parameter. The call only reads the client PID and
+    // never closes the handle.
+    let ok = unsafe { GetNamedPipeClientProcessId(server_handle as HANDLE, &mut pid) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(pid)
+}
+
+/// The token-user SID string of the process identified by `pid`.
+fn process_user_sid(pid: u32) -> io::Result<String> {
+    let process = ProcessHandle::open_query(pid)?;
+    let mut token: HANDLE = null_mut();
+    // SAFETY: `process.0` is a live process handle opened with
+    // PROCESS_QUERY_LIMITED_INFORMATION (sufficient for OpenProcessToken with
+    // TOKEN_QUERY); `&mut token` is a valid out pointer for an owned token
+    // handle we wrap in `Token` (closed exactly once on drop).
+    let ok = unsafe { OpenProcessToken(process.0, TOKEN_QUERY, &mut token) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let token = Token(token);
+    sid_string_from_token(token.0)
 }
 
 /// Compute the per-user named-pipe rendezvous path
@@ -577,11 +637,19 @@ impl Drop for LocalMem {
 
 fn current_user_sid_string() -> io::Result<String> {
     let token = Token::current_process()?;
+    sid_string_from_token(token.0)
+}
+
+/// Extract the `TOKEN_USER` SID from an open access token and render it as a
+/// string. Shared by the current-process SID lookup and the peer-SID check
+/// (DSV-010b) so both go through one audited `GetTokenInformation(TokenUser)`
+/// path. `token` is borrowed; the caller owns and closes it.
+fn sid_string_from_token(token: HANDLE) -> io::Result<String> {
     let mut len = 0;
     // SAFETY: First call intentionally passes a null buffer to obtain the
     // required byte count in `len`.
     unsafe {
-        GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut len);
+        GetTokenInformation(token, TokenUser, null_mut(), 0, &mut len);
     }
     if len == 0 {
         return Err(io::Error::last_os_error());
@@ -589,15 +657,8 @@ fn current_user_sid_string() -> io::Result<String> {
 
     let mut buffer = vec![0_u8; len as usize];
     // SAFETY: `buffer` is valid for `len` bytes and receives a TOKEN_USER.
-    let ok = unsafe {
-        GetTokenInformation(
-            token.0,
-            TokenUser,
-            buffer.as_mut_ptr().cast(),
-            len,
-            &mut len,
-        )
-    };
+    let ok =
+        unsafe { GetTokenInformation(token, TokenUser, buffer.as_mut_ptr().cast(), len, &mut len) };
     if ok == 0 {
         return Err(io::Error::last_os_error());
     }
@@ -850,5 +911,57 @@ mod tests {
         let err = connect_owner_only_pipe_client(&nonexistent)
             .expect_err("connecting to a missing pipe must error");
         assert_eq!(err.kind(), io::ErrorKind::NotFound, "got: {err:?}");
+    }
+
+    /// DSV-010b: a same-process client validates as owner. The daemon's
+    /// Windows accept loop calls `named_pipe_client_is_owner` on the connected
+    /// server handle as the belt-and-suspenders parity for the Unix
+    /// `SO_PEERCRED` same-uid check; a client opened from this very process
+    /// shares the user SID, so the check must return `Ok(true)`.
+    #[test]
+    fn named_pipe_client_is_owner_true_for_a_same_process_client() {
+        use std::os::windows::io::AsRawHandle;
+        use std::thread;
+        use std::time::Duration;
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-win32-owner-test-{}",
+            std::process::id(),
+        );
+        // Multi-thread runtime: a worker drives the async server task while the
+        // main thread runs the synchronous client (mirrors the round-trip test).
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        let server = {
+            let _guard = runtime.enter();
+            create_owner_only_pipe_server(&pipe_name, PipeInstance::First).expect("bind server")
+        };
+
+        let server_task = runtime.spawn(async move {
+            let server = server;
+            server.connect().await.expect("server accept");
+            // Same-process client ⇒ same user SID ⇒ owner. Query the live PID
+            // via the connected server handle (never closing it).
+            named_pipe_client_is_owner(server.as_raw_handle()).map_err(|e| e.to_string())
+        });
+
+        let client_pipe_name = pipe_name.clone();
+        let client_thread = thread::spawn(move || {
+            let client = connect_owner_only_pipe_client(&client_pipe_name).expect("client connect");
+            // Hold the client open while the server queries the live client PID.
+            thread::sleep(Duration::from_millis(200));
+            drop(client);
+        });
+
+        let owner = runtime.block_on(server_task).expect("server task joins");
+        client_thread.join().expect("client thread joins");
+        assert_eq!(
+            owner,
+            Ok(true),
+            "a same-process (same-user) client must validate as owner",
+        );
     }
 }
