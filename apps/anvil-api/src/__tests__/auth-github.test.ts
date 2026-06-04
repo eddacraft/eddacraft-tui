@@ -7,18 +7,23 @@ vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('../db/queries.js', () => ({
-  linkOrCreateGitHubUser: vi.fn(),
-  insertAuditLog: vi.fn().mockResolvedValue({
-    id: 'audit-1',
-    action: '',
-    actor: '',
-    metadata: {},
-    created_at: new Date().toISOString(),
-  }),
-  insertRefreshToken: vi.fn().mockResolvedValue(undefined),
-  findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
-}));
+vi.mock('../db/queries.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../db/queries.js')>();
+  return {
+    // Keep the real error class so the route's `instanceof` check resolves.
+    GitHubAccountLinkConflictError: actual.GitHubAccountLinkConflictError,
+    linkOrCreateGitHubUser: vi.fn(),
+    insertAuditLog: vi.fn().mockResolvedValue({
+      id: 'audit-1',
+      action: '',
+      actor: '',
+      metadata: {},
+      created_at: new Date().toISOString(),
+    }),
+    insertRefreshToken: vi.fn().mockResolvedValue(undefined),
+    findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
+  };
+});
 
 vi.mock('../lib/token.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/token.js')>();
@@ -33,6 +38,7 @@ import {
   insertAuditLog,
   insertRefreshToken,
   findActiveScopesForUser,
+  GitHubAccountLinkConflictError,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
 
@@ -417,6 +423,60 @@ describe('POST /auth/github/callback', () => {
         'invited@example.com',
         expect.objectContaining({ githubId: 42, githubLogin: 'octocat' })
       );
+    });
+
+    it('passes only verified emails (lowercased) to the linker; a noreply primary binds via a verified secondary', async () => {
+      mockFetch({
+        'https://github.com/login/oauth/access_token': {
+          ok: true,
+          json: { access_token: 'gh-token', token_type: 'bearer' },
+        },
+        'https://api.github.com/user': {
+          ok: true,
+          json: { id: 7, login: 'octo', name: 'Octo', avatar_url: null },
+        },
+        'https://api.github.com/user/emails': {
+          ok: true,
+          json: [
+            { email: 'Octo@users.noreply.github.com', primary: true, verified: true },
+            { email: 'Real@Example.com', primary: false, verified: true },
+            { email: 'unverified@evil.example', primary: false, verified: false },
+          ],
+        },
+        'https://api.github.com/applications/': { ok: true, json: {} },
+      });
+
+      await callback({ code: 'gh-code' });
+
+      // The unverified address must never reach the first-link match surface,
+      // and both primary + verified secondary are lowercased.
+      expect(vi.mocked(linkOrCreateGitHubUser)).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          id: 7,
+          email: 'octo@users.noreply.github.com',
+          verifiedEmails: ['octo@users.noreply.github.com', 'real@example.com'],
+        })
+      );
+    });
+
+    it('returns 401 and audits github_oauth_link_conflict when the linker rejects a takeover', async () => {
+      mockHappyGitHub({ email: 'shared@example.com', id: 222 });
+      vi.mocked(linkOrCreateGitHubUser).mockRejectedValue(
+        new GitHubAccountLinkConflictError()
+      );
+
+      const res = await callback({ code: 'gh-code' });
+
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: 'GitHub authentication failed' });
+      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+        expect.anything(),
+        'github_oauth_link_conflict',
+        'shared@example.com',
+        expect.objectContaining({ githubId: 222 })
+      );
+      expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
     });
   });
 });

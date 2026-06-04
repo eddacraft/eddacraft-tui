@@ -5,6 +5,7 @@ import {
   findActiveUserByAnyEmail,
   linkGitHubIdToUser,
   linkOrCreateGitHubUser,
+  GitHubAccountLinkConflictError,
   type GitHubIdentity,
 } from '../db/queries.js';
 
@@ -66,10 +67,16 @@ describe('findActiveUserByAnyEmail', () => {
 });
 
 describe('linkGitHubIdToUser', () => {
-  it('stores the github_id and returns the updated row', async () => {
+  it('first-links the github_id and returns the updated row', async () => {
     const sql = seqSql([userRow({ github_id: 42 })]);
     const user = await linkGitHubIdToUser(sql, 'user-1', 42);
-    expect(user.github_id).toBe(42);
+    expect(user?.github_id).toBe(42);
+  });
+
+  it('returns null when the row is already linked (guarded UPDATE matched 0 rows)', async () => {
+    // WHERE github_id IS NULL means an already-linked row yields no RETURNING row.
+    const sql = seqSql([]);
+    expect(await linkGitHubIdToUser(sql, 'user-1', 42)).toBeNull();
   });
 });
 
@@ -95,6 +102,44 @@ describe('linkOrCreateGitHubUser', () => {
     expect(isNewPending).toBe(false);
     expect(didFirstLink).toBe(true);
     expect(vi.mocked(sql)).toHaveBeenCalledTimes(3);
+  });
+
+  it('2b. rejects an email match on a row already linked to a DIFFERENT account', async () => {
+    // The email moved between GitHub accounts: account 42 presents a verified
+    // email that now resolves to an active row already bound to github_id 999.
+    // github_id is authoritative once linked — reject, never re-bind or mint.
+    const sql = seqSql(
+      [], // no github_id match for 42
+      [userRow({ email: 'alice@example.com', github_id: 999 })] // active row, already linked
+    );
+    await expect(linkOrCreateGitHubUser(sql, ghUser)).rejects.toBeInstanceOf(
+      GitHubAccountLinkConflictError
+    );
+    expect(vi.mocked(sql)).toHaveBeenCalledTimes(2); // never attempts the link UPDATE
+  });
+
+  it('2c. first-link race: row linked concurrently to THIS account is returned, not re-bound', async () => {
+    const sql = seqSql(
+      [], // no github_id match
+      [userRow({ github_id: null })], // active, unlinked at SELECT time
+      [], // guarded UPDATE matched 0 rows (linked concurrently)
+      [userRow({ github_id: 42 })] // re-resolve by github_id: bound to THIS account
+    );
+    const { user, didFirstLink } = await linkOrCreateGitHubUser(sql, ghUser);
+    expect(user.github_id).toBe(42);
+    expect(didFirstLink).toBe(false); // someone else won the first-link
+  });
+
+  it('2d. first-link race: row linked concurrently to a DIFFERENT account fails closed', async () => {
+    const sql = seqSql(
+      [], // no github_id match
+      [userRow({ github_id: null })], // active, unlinked at SELECT time
+      [], // guarded UPDATE matched 0 rows
+      [] // re-resolve by github_id finds nothing for 42 -> not ours
+    );
+    await expect(linkOrCreateGitHubUser(sql, ghUser)).rejects.toBeInstanceOf(
+      GitHubAccountLinkConflictError
+    );
   });
 
   it('3. creates a pending row when nothing matches', async () => {

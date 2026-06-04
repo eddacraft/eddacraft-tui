@@ -2,7 +2,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
-import { linkOrCreateGitHubUser, insertAuditLog } from '../db/queries.js';
+import {
+  linkOrCreateGitHubUser,
+  insertAuditLog,
+  GitHubAccountLinkConflictError,
+} from '../db/queries.js';
 import { mintSession } from '../lib/session.js';
 import { createDebugger } from '../lib/debug.js';
 
@@ -166,7 +170,28 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   // Resolve the beta_users row: match on github_id, else first-link an active
   // invited row via any verified email, else create a pending row
   // (GHCLIAUTH-003). The active-status gate below stays here, per-caller.
-  const { user, isNewPending, didFirstLink } = await linkOrCreateGitHubUser(sql, ghUser);
+  let result: Awaited<ReturnType<typeof linkOrCreateGitHubUser>>;
+  try {
+    result = await linkOrCreateGitHubUser(sql, ghUser);
+  } catch (err) {
+    if (err instanceof GitHubAccountLinkConflictError) {
+      // A verified email resolved to an active row already linked to a
+      // different github_id — a rejected (re)link/takeover attempt. Audit it,
+      // then fail closed with the same generic 401 as other auth failures
+      // (no account enumeration).
+      await insertAuditLog(sql, 'github_oauth_link_conflict', ghUser.email, {
+        githubId: ghUser.id,
+        githubLogin: ghUser.login,
+      });
+      debug('github link conflict — rejected', { githubId: ghUser.id });
+    } else {
+      debug('github account linking failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return c.json({ error: 'GitHub authentication failed' }, 401);
+  }
+  const { user, isNewPending, didFirstLink } = result;
 
   if (isNewPending) {
     await insertAuditLog(sql, 'github_oauth_signup', user.email, {

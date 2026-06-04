@@ -679,10 +679,11 @@ export async function findUserByGitHubId(
  * pending/suspended row is never auto-linked, and so an active invite is never
  * shadowed by a freshly created pending duplicate (GHCLIAUTH-003 / ADR-066).
  *
- * Safety on an already-linked row relies on GitHub's guarantee that a verified
- * email belongs to exactly one GitHub account: a third-party account cannot
- * present a verified email already bound to another user, so this match cannot
- * re-bind a different `github_id` onto an existing linked row.
+ * May return a row that is already linked (non-null `github_id`). The caller
+ * (`linkOrCreateGitHubUser`) inspects `github_id` and **rejects** a match whose
+ * row is already bound to a different account rather than re-binding it —
+ * `github_id` is authoritative once linked (ADR-066 decision 4). This is the
+ * fail-closed guard for the email-moved-between-GitHub-accounts vector.
  */
 export async function findActiveUserByAnyEmail(
   sql: NeonClient,
@@ -701,20 +702,27 @@ export async function findActiveUserByAnyEmail(
   return BetaUserSchema.parse(r[0]);
 }
 
-/** Store the GitHub numeric id on a beta_users row (idempotent first-link). */
+/**
+ * First-link the GitHub numeric id onto a row that is **not yet linked**.
+ * Guarded `WHERE github_id IS NULL` so an already-linked row is never re-bound
+ * (`github_id` is authoritative once set — ADR-066 decision 4) and so concurrent
+ * first-links race safely (only one UPDATE matches). Returns `null` when the row
+ * was already linked (0 rows updated), letting the caller fail closed.
+ */
 export async function linkGitHubIdToUser(
   sql: NeonClient,
   userId: string,
   githubId: number
-): Promise<BetaUser> {
+): Promise<BetaUser | null> {
   const r = rows(
     await sql`
     UPDATE beta_users
     SET github_id = ${githubId}, updated_at = now()
-    WHERE id = ${userId}
+    WHERE id = ${userId} AND github_id IS NULL
     RETURNING *
   `
   );
+  if (!r[0]) return null;
   return BetaUserSchema.parse(r[0]);
 }
 
@@ -726,6 +734,20 @@ export interface GitHubIdentity {
   email: string;
   /** All verified emails (lowercased) — the first-link match surface. */
   verifiedEmails: string[];
+}
+
+/**
+ * A verified GitHub email resolved to an **active row already linked to a
+ * different `github_id`** (e.g. the email was removed from one GitHub account
+ * and re-verified on another). `github_id` is authoritative once linked
+ * (ADR-066 decision 4), so the email no longer controls binding and the login
+ * is rejected fail-closed rather than re-binding or minting that account.
+ */
+export class GitHubAccountLinkConflictError extends Error {
+  constructor() {
+    super('github identity conflicts with an existing linked account');
+    this.name = 'GitHubAccountLinkConflictError';
+  }
 }
 
 /**
@@ -750,11 +772,26 @@ export async function linkOrCreateGitHubUser(
 
   const byEmail = await findActiveUserByAnyEmail(sql, ghUser.verifiedEmails);
   if (byEmail) {
-    // First-link: bind this GitHub id to a pre-existing active invite. This is
-    // the one moment ADR-066's accepted "verified-email control == account
-    // control" residual risk materialises, so the caller audit-logs it.
+    if (byEmail.github_id != null) {
+      // The matched active row is already linked. `findUserByGitHubId` above
+      // would have returned it if it were THIS account, so a non-null
+      // `github_id` here means a *different* GitHub account is presenting a
+      // verified email that now resolves to someone else's linked row.
+      // `github_id` is authoritative once linked (ADR-066 decision 4) — never
+      // re-bind, never mint. Fail closed.
+      throw new GitHubAccountLinkConflictError();
+    }
+    // First-link: bind this GitHub id to a pre-existing, unlinked active invite.
+    // This is the one moment ADR-066's accepted "verified-email control ==
+    // account control" residual risk materialises, so the caller audit-logs it.
     const linked = await linkGitHubIdToUser(sql, byEmail.id, ghUser.id);
-    return { user: linked, isNewPending: false, didFirstLink: true };
+    if (linked) return { user: linked, isNewPending: false, didFirstLink: true };
+    // Lost a concurrent first-link race (the row was linked between the SELECT
+    // and the guarded UPDATE). Re-resolve by github_id and accept it only if it
+    // bound to THIS account; otherwise fail closed.
+    const now = await findUserByGitHubId(sql, ghUser.id);
+    if (now) return { user: now, isNewPending: false, didFirstLink: false };
+    throw new GitHubAccountLinkConflictError();
   }
 
   // No github_id match and no active invite: create a pending row, or surface an
