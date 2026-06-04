@@ -327,7 +327,7 @@ Change status to **Ready** when:
 
 #### GV2-021: ADR — graph persistence and snapshot strategy
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2301
 - **Intent:** Record the persistence decision for Graph v2, reconciling the
   current GCTX rkyv/SQLite assumptions with daemon, hot-read, privacy, and
   schema-version requirements.
@@ -341,8 +341,8 @@ Change status to **Ready** when:
   2026-06-04** (Josh) — sealed canonical-DTO load-once snapshot (`postcard`, not
   rkyv/SQLite/CBOR), default-off, restore-indexes-never-verdict, discard-and-rebuild
   versioning, structural-identity-only privacy line; reviewed by full council +
-  design council (SOUND-WITH-FIXES, all folded in). Item completes (→ Merged) on
-  PR [#2301](https://github.com/eddacraft/anvil-001/pull/2301) merge.
+  design council (SOUND-WITH-FIXES, all folded in). **Merged 2026-06-04 via PR
+  [#2301](https://github.com/eddacraft/anvil-001/pull/2301)** (`d8caed47`).
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-001, GV2-003
@@ -421,5 +421,5 @@ Change status to **Ready** when:
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 0/3 done | Draft |
 | 1 — Graph Schemas | 5 | 0/5 done | Draft |
-| 2 — Runtime Substrate | 4 | 0/4 done | Draft |
-| **Total** | **12** | **0/12 done** | **Draft** |
+| 2 — Runtime Substrate | 4 | 1/4 done | Draft |
+| **Total** | **12** | **1/12 done** | **Draft** |
