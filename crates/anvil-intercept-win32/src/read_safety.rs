@@ -52,10 +52,12 @@ const SYNCHRONIZE: u32 = 0x0010_0000;
 const OBJ_CASE_INSENSITIVE: u32 = 0x0000_0040;
 const OBJ_DONT_REPARSE: u32 = 0x0000_1000;
 
-// NTSTATUS values (i32). `STATUS_REPARSE_POINT_ENCOUNTERED` is the
-// `OBJ_DONT_REPARSE` rejection — the Windows ELOOP analogue.
+// NTSTATUS values (i32). `STATUS_REPARSE_POINT_ENCOUNTERED` (0xC000050B) is the
+// error-level status `OBJ_DONT_REPARSE` raises when a path component is a reparse
+// point — the Windows ELOOP analogue. (Verified at runtime on the Windows CI
+// matrix: a junction/symlink open returns exactly this code.)
 const STATUS_SUCCESS: i32 = 0;
-const STATUS_REPARSE_POINT_ENCOUNTERED: i32 = 0x8000_0016_u32 as i32;
+const STATUS_REPARSE_POINT_ENCOUNTERED: i32 = 0xC000_050B_u32 as i32;
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034_u32 as i32;
 const STATUS_OBJECT_PATH_NOT_FOUND: i32 = 0xC000_003A_u32 as i32;
 const STATUS_ACCESS_DENIED: i32 = 0xC000_0022_u32 as i32;
