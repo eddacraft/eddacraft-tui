@@ -441,6 +441,6 @@ Change status to **Ready** when:
 
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| MVP — headless login (001–006, gated on 002) | 6 | 0/6 done | Proposed |
+| MVP — headless login (001–006, gated on 002) | 6 | 1/6 done | In Progress |
 | Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **0/11 done** | **Proposed** |
+| **Total** | **11** | **1/11 done** | **In Progress** |
