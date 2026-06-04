@@ -5,6 +5,7 @@ pub const ANVIL_DIR: &str = ".anvil";
 
 pub mod baseline;
 pub mod definition;
+pub mod detection;
 pub mod types;
 mod util;
 pub mod validator;
@@ -18,6 +19,7 @@ pub use baseline::{
 pub use definition::{
     ArchitectureDefinition, ArchitectureTemplate, get_available_templates, validate_definition,
 };
+pub use detection::detect_rust_entry_points;
 pub use types::{
     ArchitectureBaseline, Boundary, BoundarySeverity, BoundaryViolation, EntryPoint, Layer,
     LayerAssignment, Layers, create_default_boundaries, create_default_layers, create_violation_id,
