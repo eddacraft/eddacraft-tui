@@ -1,0 +1,32 @@
+---
+id: RS-004
+type: rule
+family: rust-reliability
+title: Deserialize struct without deny_unknown_fields
+version: 1
+
+severity: info
+confidence: medium
+spectrum_position: 5
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(struct_item) @target'
+
+related: []
+enabled: true
+opt_in: false
+---
+
+This struct derives `Deserialize` but is missing
+`#[serde(deny_unknown_fields)]`, so it silently accepts and discards unexpected
+input fields — hiding typos and protocol drift in external data. Add
+`#[serde(deny_unknown_fields)]` so unknown keys become an error.
+
+If the struct must tolerate forward-compatible extra fields (a deliberately
+lenient external contract), suppress with that reason:
+`// @anvil-ignore RS-004 -- forward-compatible wire format`.

@@ -95,3 +95,39 @@ fn kernel_still_links_tree_sitter() {
          surface, but its normal dependency tree no longer contains it:\n{tree}"
     );
 }
+
+#[test]
+fn daemon_does_not_link_ast_checks_crate() {
+    // ADR-071 §1: `eddacraft-anvil-checks-ast` is the gate-time AST tier. It
+    // carries tree-sitter + tree-sitter-rust and is a terminal command-path
+    // crate (only `anvil-cli` and test crates may depend on it). The resident
+    // daemon must not reach it transitively — that would drag tree-sitter back
+    // onto the save-time hot path and break ADR-064. The tree-sitter check
+    // above already covers the dep this crate pulls in; this asserts the crate
+    // itself is absent by name too, so a future edit that adds it as a
+    // (tree-sitter-free, hypothetically) dep still fails loudly.
+    for package in ["eddacraft-anvil-intercept", "eddacraft-anvil-graph-cache"] {
+        let tree = normal_dep_tree(package);
+        assert!(
+            !tree.contains("eddacraft-anvil-checks-ast"),
+            "{package} must not link eddacraft-anvil-checks-ast (ADR-071 §1 \
+             terminal command-path crate), but its normal dependency tree \
+             contains it:\n{tree}"
+        );
+    }
+}
+
+#[test]
+fn ast_checks_crate_carries_tree_sitter_rust() {
+    // Positive control for the guard above (ADR-071 §1): if `anvil-checks-ast`
+    // ever lost its `tree-sitter-rust` dependency, `daemon_does_not_link_*`
+    // could pass for the wrong reason (the grammar dropped from the crate
+    // entirely). Pin that the AST tier really does carry the Rust grammar.
+    let tree = normal_dep_tree("eddacraft-anvil-checks-ast");
+    assert!(
+        tree.contains("tree-sitter-rust"),
+        "eddacraft-anvil-checks-ast is expected to own the tree-sitter-rust \
+         grammar for the AST tier, but its normal dependency tree no longer \
+         contains it:\n{tree}"
+    );
+}

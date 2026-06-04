@@ -278,16 +278,43 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 };
                 let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
                 let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
-                if result.files_scanned > 0 {
+                // ADR-071: the gate-time AST tier (Rust unwrap/unsafe/serde/panic
+                // rules the regex scanner can't express). `anvil check` is a
+                // gate-time surface, never the save-time daemon, so running it
+                // here respects ADR-064 — the daemon links neither this crate
+                // nor tree-sitter (the `daemon_dep_boundary` guard verifies).
+                let ast = anvil_checks_ast::scan_paths(
+                    &file_refs,
+                    workspace_root.as_deref(),
+                    &anvil_checks_ast::AstScanOptions {
+                        registry_path: None,
+                        include_opt_in: args.include_opt_in,
+                    },
+                );
+                if result.files_scanned > 0 || ast.files_scanned > 0 {
                     any_files_scanned = true;
                 }
-                for w in &result.warnings.warnings {
+                // Merge both tiers into one deterministic order (ADR-071 §7).
+                let mut merged: Vec<(&Warning, bool)> =
+                    Vec::with_capacity(result.warnings.warnings.len() + ast.warnings.len());
+                merged.extend(result.warnings.warnings.iter().map(|w| (w, false)));
+                merged.extend(ast.warnings.iter().map(|w| (w, true)));
+                merged.sort_by(|(a, _), (b, _)| {
+                    a.location
+                        .file
+                        .cmp(&b.location.file)
+                        .then_with(|| a.location.line.cmp(&b.location.line))
+                        .then_with(|| a.location.column.cmp(&b.location.column))
+                        .then_with(|| a.id.cmp(&b.id))
+                });
+                for (w, is_ast) in &merged {
                     aggregated_warnings.push(antipattern_warning_to_json(w));
                     if mode == OutputMode::Sarif {
-                        sarif.add_warning(w);
+                        sarif.add_warning_tiered(w, *is_ast);
                     }
                 }
                 aggregated_patterns.extend(result.patterns_checked);
+                aggregated_patterns.extend(ast.patterns_checked);
                 checks_run.push((*check_name).to_string());
             }
             "secret-detection" => {
@@ -544,8 +571,16 @@ struct SarifAccumulator {
 
 impl SarifAccumulator {
     fn add_warning(&mut self, w: &Warning) {
+        self.add_warning_tiered(w, false);
+    }
+
+    /// Add a warning, tagging its rule descriptor with the AST tier when it
+    /// comes from the gate-time AST scanner (ADR-071 §9).
+    fn add_warning_tiered(&mut self, w: &Warning, is_ast: bool) {
         self.rules.entry(w.id.clone()).or_insert_with(|| {
-            sarif::ReportingDescriptor::new(w.id.clone()).short_description(w.title.clone())
+            let rule =
+                sarif::ReportingDescriptor::new(w.id.clone()).short_description(w.title.clone());
+            if is_ast { rule.tier("ast") } else { rule }
         });
         let line = u32::try_from(w.location.line).unwrap_or(u32::MAX);
         // `Warning.location.column` is a 0-based byte offset, but SARIF

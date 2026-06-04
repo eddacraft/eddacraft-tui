@@ -1,0 +1,97 @@
+---
+id: rust-reliability
+type: definition
+name: Rust Reliability
+category: error-handling
+targets: [source]
+related: [deferred-debt]
+tensions: []
+rules: [RS-001, RS-002, RS-003, RS-004, RS-005]
+---
+
+## What It Is
+
+The Rust reliability family flags language-level habits that quietly trade a
+compile-time guarantee for a run-time gamble: `unwrap()` / `expect()` that turn
+a recoverable `Result`/`Option` into a panic, `panic!()` reached from
+non-test code, `unsafe { … }` blocks that ship without a `// SAFETY:`
+justification, `Deserialize` structs that accept unknown input fields, and
+`todo!()` / `unimplemented!()` macros left in shipped code.
+
+These are the Rust analogues of the TypeScript escape hatches Anvil already
+governs (`any`, `as any`, broad `eslint-disable`). Each one is sometimes the
+right call — which is why this family defaults to **info** severity for the
+ubiquitous patterns and leans on suppression-with-reason rather than blocking.
+
+## Why It's Harmful
+
+- A stray `unwrap()` converts an anticipated error path into a process abort,
+  often far from where the real fault was introduced.
+- `panic!()` in library code removes the caller's ability to recover; it should
+  be an explicit, justified choice, not a reflex.
+- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader
+  cannot tell which invariant the author was relying on, so the next edit can
+  silently break it.
+- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently
+  accepts (and discards) unexpected input, masking typos and protocol drift in
+  external data — the exact surface where strictness pays off.
+- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the
+  first caller to reach it.
+
+## The Spectrum
+
+From most to least severe in practice: a shipped `todo!()` (certain panic),
+then unguarded `unsafe`, then `unwrap`/`expect`/`panic!` in production paths,
+then serde structs that accept unknown fields. The detectors are AST-aware so
+test code (`#[cfg(test)]` modules, `tests/`, `benches/`, `examples/`) and
+already-justified `unsafe` blocks do not produce noise.
+
+## The Right Response
+
+Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a
+`// SAFETY:` comment that names the upheld invariant directly above each
+`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;
+finish or ticket the `todo!()`. When a panic is genuinely correct (an
+infallible invariant, a `main()` startup failure), suppress the finding with a
+reason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.
+
+## Detection Signals
+
+- `.unwrap()` / `.expect(...)` method calls outside `#[cfg(test)]` modules and
+  outside `tests/` / `benches/` / `examples/` targets (RS-001).
+- `panic!(...)` macro invocations reached from non-test code (RS-002).
+- `unsafe { … }` blocks whose immediately-preceding line is not a
+  `// SAFETY:` comment (RS-003).
+- `struct`s that derive `Deserialize` but carry no
+  `#[serde(deny_unknown_fields)]` attribute (RS-004).
+- `todo!()` / `unimplemented!()` macro calls in shipped source (RS-005).
+
+## Example
+
+### Observed
+
+```rust
+pub fn parse_port(raw: &str) -> u16 {
+    let unsafe_ptr = raw.as_ptr();
+    unsafe { *unsafe_ptr };          // RS-003: no // SAFETY: comment
+    raw.parse().unwrap()             // RS-001: panics on bad input
+}
+
+#[derive(Deserialize)]              // RS-004: missing deny_unknown_fields
+struct Config {
+    port: u16,
+}
+```
+
+### What actually happened
+
+`parse_port` aborts the process on any non-numeric input instead of returning a
+typed error, the `unsafe` deref ships with no reviewable justification, and
+`Config` silently swallows misspelled keys (`prot = 8080`) from the operator's
+file. Each is a compile-time guarantee traded for a run-time surprise.
+
+### The fix
+
+Return `Result<u16, ParseError>` and use `?`; add `// SAFETY: raw is a
+non-empty, NUL-terminated borrow` above the block (or remove the `unsafe`); add
+`#[serde(deny_unknown_fields)]` to `Config`.

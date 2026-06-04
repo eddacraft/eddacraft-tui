@@ -1,0 +1,35 @@
+[package]
+name = "eddacraft-anvil-checks-ast"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil AST-aware anti-pattern detection (gate-time only) — tree-sitter Rust catalogue. ADR-071: a terminal command-path crate the resident intercept daemon does NOT link, keeping tree-sitter off the save-time hot path (ADR-064)."
+
+[lib]
+name = "anvil_checks_ast"
+
+[dependencies]
+# Rule/registry types, the shared `Warning` shape, the ADR-029 suppression
+# parser, and the CompiledPattern→Warning metadata mapping. anvil-checks itself
+# is parser-free (regex only); this crate is the one that adds tree-sitter, and
+# it is gate-time only.
+anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
+# ADR-071 §1: depend on the tree-sitter-rust workspace pin directly, NOT on
+# anvil-kernel (whose watcher stack — notify/walkdir/ignore — this stateless
+# gate-time scanner does not need). The workspace Cargo.lock pin is the single
+# grammar-version source of truth shared with the kernel.
+tree-sitter = { workspace = true }
+tree-sitter-rust = { workspace = true }
+# Per-rule allowlist glob matching (same `glob` crate anvil-architecture uses).
+glob = "0.3"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+workspace-hack.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

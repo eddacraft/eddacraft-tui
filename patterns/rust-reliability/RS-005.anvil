@@ -1,0 +1,31 @@
+---
+id: RS-005
+type: rule
+family: rust-reliability
+title: todo!() or unimplemented!() shipped
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 1
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: regex
+  pattern: '\b(?:todo|unimplemented)!\s*\('
+
+related: []
+enabled: true
+opt_in: false
+---
+
+A `todo!()` / `unimplemented!()` macro panics the moment a caller reaches it —
+shipping one is a runtime abort waiting to happen. Finish the implementation, or
+return a real error and open a ticket for the gap.
+
+This is a regex rule (the macro is unambiguous on its own line), so unlike the
+rest of the family it is not `#[cfg(test)]`-aware; suppress deliberate
+test-scaffolding stubs with `// @anvil-ignore RS-005 -- test stub`.

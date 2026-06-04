@@ -1,0 +1,32 @@
+---
+id: RS-002
+type: rule
+family: rust-reliability
+title: panic!() reached from non-test code
+version: 1
+
+severity: info
+confidence: high
+spectrum_position: 4
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(macro_invocation macro: (identifier) @name) @target'
+
+related: [RS-001]
+enabled: true
+opt_in: false
+---
+
+Prefer returning a typed error to calling `panic!()` from non-test code — a
+panic removes the caller's ability to recover and aborts the process. Return a
+`Result` and let the boundary (a `main()`, a request handler) decide whether to
+abort.
+
+When a panic is the correct response to a broken invariant, suppress with the
+invariant: `// @anvil-ignore RS-002 -- unreachable: validated by the type`.
+Test code is excluded automatically.

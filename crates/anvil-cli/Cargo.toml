@@ -24,6 +24,11 @@ anvil-policy = { path = "../anvil-policy", package = "eddacraft-anvil-policy" }
 anvil-policy-engine = { path = "../anvil-policy-engine", package = "eddacraft-anvil-policy-engine" }
 anvil-architecture = { path = "../anvil-architecture", package = "eddacraft-anvil-architecture" }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
+# ADR-071 / RSTLAN-003: gate-time AST anti-pattern tier. A terminal command-path
+# crate (tree-sitter + tree-sitter-rust) the resident daemon must NOT link; only
+# `anvil-cli` and test crates may depend on it. The `daemon_dep_boundary` guard
+# verifies the daemon's tree carries neither it nor tree-sitter.
+anvil-checks-ast = { path = "../anvil-checks-ast", package = "eddacraft-anvil-checks-ast" }
 anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }

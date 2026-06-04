@@ -1141,6 +1141,7 @@ dependencies = [
  "eddacraft-anvil-architecture",
  "eddacraft-anvil-baseline",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-checks-ast",
  "eddacraft-anvil-config",
  "eddacraft-anvil-hook",
  "eddacraft-anvil-intercept",
@@ -1241,6 +1242,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-checks-ast"
+version = "0.7.4-beta"
+dependencies = [
+ "eddacraft-anvil-checks",
+ "glob",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tree-sitter",
+ "tree-sitter-rust",
  "workspace-hack",
 ]
 

@@ -676,6 +676,7 @@ jobs:
             --exclude=eddacraft-anvil-architecture
             --exclude=eddacraft-anvil-kernel-types
             --exclude=eddacraft-anvil-checks
+            --exclude=eddacraft-anvil-checks-ast
             --exclude=eddacraft-anvil-checks-napi
             --exclude=eddacraft-anvil-kernel
             --exclude=eddacraft-anvil-policy

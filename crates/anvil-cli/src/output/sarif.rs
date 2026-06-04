@@ -120,6 +120,12 @@ pub struct ReportingDescriptor {
     short_description: Option<MultiformatMessageString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     help_uri: Option<String>,
+    /// SARIF property bag. ADR-071 §9: AST-tier (gate-time) rules carry
+    /// `properties.tier = "ast"` so consumers can tell a gate-tier AST rule from
+    /// a save-time regex rule (addressing the priority-inversion legibility
+    /// risk).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<RuleProperties>,
 }
 
 impl ReportingDescriptor {
@@ -130,6 +136,7 @@ impl ReportingDescriptor {
             id: id.into(),
             short_description: None,
             help_uri: None,
+            properties: None,
         }
     }
 
@@ -146,6 +153,18 @@ impl ReportingDescriptor {
         self.help_uri = Some(uri.into());
         self
     }
+
+    /// Tag the rule's analysis tier in the SARIF property bag (ADR-071 §9).
+    #[must_use]
+    pub fn tier(mut self, tier: impl Into<String>) -> Self {
+        self.properties = Some(RuleProperties { tier: tier.into() });
+        self
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct RuleProperties {
+    tier: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -771,7 +771,17 @@ fn run_check_antipattern(
         Some(&root_str),
     );
 
-    if result.files_scanned == 0 {
+    // ADR-071 §7: `anvil gate` runs the AST tier alongside the regex scanner.
+    // AST rules in the Rust catalogue are advisory (`info`) today, so they are
+    // surfaced but do not fail the gate; a future `warning`/`error` AST rule
+    // joins the blocking set here without further plumbing.
+    let ast = anvil_checks_ast::scan_paths(
+        &file_refs,
+        Some(&root_str),
+        &anvil_checks_ast::AstScanOptions::default(),
+    );
+
+    if result.files_scanned == 0 && ast.files_scanned == 0 {
         return CheckResult {
             name: name.to_string(),
             passed: true,
@@ -781,7 +791,20 @@ fn run_check_antipattern(
         };
     }
 
-    if result.passed {
+    let ast_blocking: Vec<&anvil_checks::antipattern::Warning> = ast
+        .warnings
+        .iter()
+        .filter(|w| {
+            w.suppressed.is_none()
+                && matches!(
+                    w.severity,
+                    anvil_checks::antipattern::WarningSeverity::Error
+                        | anvil_checks::antipattern::WarningSeverity::Warning
+                )
+        })
+        .collect();
+
+    if result.passed && ast_blocking.is_empty() {
         CheckResult {
             name: name.to_string(),
             passed: true,
@@ -790,13 +813,18 @@ fn run_check_antipattern(
             requires_config: false,
         }
     } else {
-        let locations: Vec<String> = result
+        let mut locations: Vec<String> = result
             .warnings
             .warnings
             .iter()
             .filter(|w| w.suppressed.is_none())
             .map(|w| format!("{}:{} [{}]", w.location.file, w.location.line, w.id))
             .collect();
+        locations.extend(
+            ast_blocking
+                .iter()
+                .map(|w| format!("{}:{} [{}]", w.location.file, w.location.line, w.id)),
+        );
         let details = if locations.is_empty() {
             result.message
         } else {

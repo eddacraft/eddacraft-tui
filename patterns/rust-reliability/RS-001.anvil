@@ -1,0 +1,32 @@
+---
+id: RS-001
+type: rule
+family: rust-reliability
+title: unwrap() or expect() in non-test code
+version: 1
+
+severity: info
+confidence: high
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(call_expression function: (field_expression field: (field_identifier) @method)) @target'
+
+related: [RS-002]
+enabled: true
+opt_in: false
+---
+
+Avoid `unwrap()` / `expect()` here — they turn a recoverable `Result`/`Option`
+into a panic. Propagate the error with `?`, or convert it deliberately with
+`ok_or(...)` / `map_err(...)` so the caller can decide how to handle it.
+
+If the value is genuinely infallible at this point, suppress with the reason
+that makes it infallible: `// @anvil-ignore RS-001 -- bounds checked above`.
+Test code (`#[cfg(test)]` modules and `tests/` / `benches/` / `examples/`
+targets) is excluded automatically.

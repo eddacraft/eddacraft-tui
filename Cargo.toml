@@ -8,6 +8,7 @@ members = [
   "crates/anvil-rayon-init",
   "crates/anvil-tui",
   "crates/anvil-checks",
+  "crates/anvil-checks-ast",
   "crates/anvil-checks-napi",
   "crates/anvil-bench",
   "crates/anvil-cli",

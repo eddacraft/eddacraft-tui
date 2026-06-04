@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-05-30T00:37:00.013Z",
+  "compiled_at": "2026-06-04T19:48:46.784Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -11,15 +11,32 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "/\\*\\s*eslint-disable\\s*\\*/|//\\s*eslint-disable(?!-next-line|-line)\\s*$"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Don't disable all linting rules. Identify which specific rule is\nfailing and either fix the underlying issue or disable only that rule\nwith `/* eslint-disable specific-rule */`.\n\nBlanket disables hide every lint error in scope — including ones you\ndon't know about yet. Read the error message first. Most lint failures\nhave a straightforward fix.",
-      "related": ["AP-002", "AP-004"],
+      "related": [
+        "AP-002",
+        "AP-004"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Guardrail Suppression",
@@ -27,8 +44,12 @@
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "tensions": ["error-visibility"],
-      "related_families": ["type-system-evasion"]
+      "tensions": [
+        "error-visibility"
+      ],
+      "related_families": [
+        "type-system-evasion"
+      ]
     },
     {
       "id": "AP-002",
@@ -38,15 +59,31 @@
       "severity": "info",
       "confidence": "high",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "eslint-disable(?:-next-line|-line)?\\s+[\\w@/-]+"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Before disabling this rule, try to fix the code so it passes. If the\ndisable is genuinely necessary, add a comment explaining why this\nspecific case can't follow the rule.\n\nA targeted disable is better than a blanket one, but the right\nquestion is still: \"why is this rule failing here, and can I fix the\ncode instead?\"",
-      "related": ["AP-001"],
+      "related": [
+        "AP-001"
+      ],
       "enabled": true,
       "opt_in": true,
       "family_name": "Guardrail Suppression",
@@ -54,8 +91,12 @@
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "tensions": ["error-visibility"],
-      "related_families": ["type-system-evasion"]
+      "tensions": [
+        "error-visibility"
+      ],
+      "related_families": [
+        "type-system-evasion"
+      ]
     },
     {
       "id": "AP-003",
@@ -65,12 +106,21 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": ":\\s*any\\b|as\\s+any\\b|<any>"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
       "allowlist": [
         "*.d.ts",
         "**/__mocks__/**",
@@ -90,7 +140,9 @@
       "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown` over `any` in\n   the type annotation (this is what AP-003 nudges toward). `unknown`\n   forces you to narrow before use, which is exactly the right behaviour\n   for a value whose shape you don't know.\n\n   At the *schema boundary*, `z.unknown()` carries the same trade-off:\n   it is the safest Zod escape hatch (consumers must still narrow), but\n   it accepts any value at runtime and gives the schema no contract to\n   validate. AP-015 leaves `z.unknown()` alone by default for exactly\n   that reason; the opt-in rule AP-016 flags it for codebases that want\n   every schema field to carry a contract. Treat `z.unknown()` as\n   debt-with-a-narrowing-discipline, not a destination.",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
       "tensions": [],
-      "related_families": ["guardrail-suppression"]
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-004",
@@ -100,15 +152,28 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "@ts-ignore"
       },
-      "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Don't suppress this TypeScript error — fix it. Read the actual error\nmessage and address the type mismatch directly.\n\nIf you must suppress, use `@ts-expect-error` instead. It fails when the\nunderlying issue is resolved, so it's self-cleaning. `@ts-ignore` is\npermanent and silences all errors on the next line, including future\nones you don't know about yet.",
-      "related": ["AP-005", "AP-001"],
+      "related": [
+        "AP-005",
+        "AP-001"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Guardrail Suppression",
@@ -116,8 +181,12 @@
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "tensions": ["error-visibility"],
-      "related_families": ["type-system-evasion"]
+      "tensions": [
+        "error-visibility"
+      ],
+      "related_families": [
+        "type-system-evasion"
+      ]
     },
     {
       "id": "AP-005",
@@ -127,15 +196,27 @@
       "severity": "info",
       "confidence": "high",
       "spectrum_position": 3,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "@ts-expect-error"
       },
-      "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "This type error is being suppressed rather than fixed. Read the error\nmessage and resolve the type mismatch if possible.\n\nIf suppression is genuinely necessary, `@ts-expect-error` is the right\nchoice — it will fail when the underlying issue is resolved. Ensure the\ncomment explains exactly why this case can't satisfy the type system.",
-      "related": ["AP-004"],
+      "related": [
+        "AP-004"
+      ],
       "enabled": true,
       "opt_in": true,
       "family_name": "Guardrail Suppression",
@@ -143,8 +224,12 @@
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "tensions": ["error-visibility"],
-      "related_families": ["type-system-evasion"]
+      "tensions": [
+        "error-visibility"
+      ],
+      "related_families": [
+        "type-system-evasion"
+      ]
     },
     {
       "id": "AP-006",
@@ -154,15 +239,31 @@
       "severity": "warning",
       "confidence": "medium",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "catch\\s*\\([^)]*\\)\\s*\\{\\s*(?://[^\\n]*\\s*)?\\}"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Don't swallow this error silently. Decide whether it's recoverable\n(handle it with a Result type or fallback) or not (re-throw it and\nlet the caller decide).\n\nUse a structured logger — not `console.log` — if you need to record\nthe failure. Silent catch blocks make debugging impossible because the\nerror disappears and downstream symptoms have no traceable cause.",
-      "related": ["AP-007"],
+      "related": [
+        "AP-007"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Error Visibility",
@@ -170,8 +271,12 @@
       "explanation": "- **Silent failures cascade.** A swallowed error in a data-loading\n  function returns `undefined`. The caller treats `undefined` as\n  \"no data\" and shows an empty screen. The user sees a blank page\n  with no error message. The developer has no logs, no stack trace,\n  no way to know what went wrong or where.\n- **Console output is not observability.** `console.log(error)` in a\n  server context goes to stdout. If nobody is tailing stdout — and\n  in production, nobody is — the error is invisible in practice even\n  though it was technically \"logged.\" Structured loggers send to\n  aggregation services where errors are searchable, alertable, and\n  correlated.\n- **Sensitive data leakage.** `console.log(userData)` in client-side\n  code is visible to anyone who opens devtools. In server code,\n  unstructured logging may include request bodies, tokens, or PII\n  in plain text.\n- **Inconsistent error handling erodes trust.** When some errors\n  are thrown, some are swallowed, and some are console-logged, the\n  codebase has no consistent error contract. Developers can't predict\n  what happens when something goes wrong.\n- **AI agents take shortcuts.** An agent fixing a test failure may\n  wrap the failing code in a try/catch with an empty body. The test\n  passes (no error thrown), but the underlying issue remains. The\n  agent reports success.",
       "suggestion": "Every error needs a destination. \"Nowhere\" is not a destination.\n\n1. **Default: re-throw or propagate.** If you don't know what to do\n   with an error, let it bubble up. The caller is in a better\n   position to decide. Use Result types (`{ ok, error }`) for\n   expected failures.\n\n2. **If you must catch:** Use a structured logger, not `console`.\n   Include context — what operation failed, what inputs were\n   involved, what the downstream impact is.\n\n3. **If you genuinely want to swallow:** Add a comment explaining\n   why. \"This analytics call is best-effort and failure is\n   acceptable\" is a valid reason. An empty catch block is not.\n\n4. **Never return falsy values as error substitutes.** `return null`\n   from a catch block hides the error _and_ gives the caller\n   plausible-looking data. Return a Result type or throw.\n\n**Important:** This family has a tension with guardrail-suppression.\nAdding `console.log(error)` to an empty catch block fixes AP-006\nbut may trigger AP-007. The right fix is a structured logger, not\n`console.log`. If you're writing a nudge response for AP-006, don't\nrecommend `console.log` as the fix.",
       "definition_ref": "patterns/error-visibility/definition.anvil",
-      "tensions": ["guardrail-suppression"],
-      "related_families": ["guardrail-suppression"]
+      "tensions": [
+        "guardrail-suppression"
+      ],
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-007",
@@ -181,15 +286,32 @@
       "severity": "info",
       "confidence": "medium",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "console\\.(log|warn|info|debug)\\s*\\("
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/scripts/**", "**/cli/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/scripts/**",
+        "**/cli/**",
+        "**/explain/**"
+      ],
       "nudge": "Replace this console statement with a structured logger that supports\nlog levels, context fields, and output routing.\n\nConsole output in production is the wrong observability channel — it\ngoes to stdout where nobody is watching, can leak sensitive data to\nbrowser devtools, and can't be filtered, searched, or alerted on. If\nthis is intentional debugging, wrap it in a development-only check.",
-      "related": ["AP-006"],
+      "related": [
+        "AP-006"
+      ],
       "enabled": true,
       "opt_in": true,
       "family_name": "Error Visibility",
@@ -197,8 +319,12 @@
       "explanation": "- **Silent failures cascade.** A swallowed error in a data-loading\n  function returns `undefined`. The caller treats `undefined` as\n  \"no data\" and shows an empty screen. The user sees a blank page\n  with no error message. The developer has no logs, no stack trace,\n  no way to know what went wrong or where.\n- **Console output is not observability.** `console.log(error)` in a\n  server context goes to stdout. If nobody is tailing stdout — and\n  in production, nobody is — the error is invisible in practice even\n  though it was technically \"logged.\" Structured loggers send to\n  aggregation services where errors are searchable, alertable, and\n  correlated.\n- **Sensitive data leakage.** `console.log(userData)` in client-side\n  code is visible to anyone who opens devtools. In server code,\n  unstructured logging may include request bodies, tokens, or PII\n  in plain text.\n- **Inconsistent error handling erodes trust.** When some errors\n  are thrown, some are swallowed, and some are console-logged, the\n  codebase has no consistent error contract. Developers can't predict\n  what happens when something goes wrong.\n- **AI agents take shortcuts.** An agent fixing a test failure may\n  wrap the failing code in a try/catch with an empty body. The test\n  passes (no error thrown), but the underlying issue remains. The\n  agent reports success.",
       "suggestion": "Every error needs a destination. \"Nowhere\" is not a destination.\n\n1. **Default: re-throw or propagate.** If you don't know what to do\n   with an error, let it bubble up. The caller is in a better\n   position to decide. Use Result types (`{ ok, error }`) for\n   expected failures.\n\n2. **If you must catch:** Use a structured logger, not `console`.\n   Include context — what operation failed, what inputs were\n   involved, what the downstream impact is.\n\n3. **If you genuinely want to swallow:** Add a comment explaining\n   why. \"This analytics call is best-effort and failure is\n   acceptable\" is a valid reason. An empty catch block is not.\n\n4. **Never return falsy values as error substitutes.** `return null`\n   from a catch block hides the error _and_ gives the caller\n   plausible-looking data. Return a Result type or throw.\n\n**Important:** This family has a tension with guardrail-suppression.\nAdding `console.log(error)` to an empty catch block fixes AP-006\nbut may trigger AP-007. The right fix is a structured logger, not\n`console.log`. If you're writing a nudge response for AP-006, don't\nrecommend `console.log` as the fix.",
       "definition_ref": "patterns/error-visibility/definition.anvil",
-      "tensions": ["guardrail-suppression"],
-      "related_families": ["guardrail-suppression"]
+      "tensions": [
+        "guardrail-suppression"
+      ],
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-008",
@@ -208,15 +334,31 @@
       "severity": "error",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\beval\\s*\\(\\s*[A-Za-z_$`]"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Don't call `eval()` with a dynamic argument. The first character\ninside the parens is an identifier (a variable, function call, or\nproperty access), which means the string being executed is not\nvisible to static analysis and may be attacker-controlled at\nruntime.\n\nReplace with a structured dispatch — a `Record<string, () =>\nResult>` map keyed on the input, a Zod / ArkType schema for data\nvalidation, or a sandboxed isolate (`vm.runInContext` with a fresh\ncontext + timeout, QuickJS-emscripten, a Worker) if you genuinely\nneed to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g.\n`eval(\"1 + 1\")` in a one-off benchmark), the rule skips you when\nthe literal uses single or double quotes — the leading character\ninside the parens is a quote, not an identifier. Template-literal\narguments (`` eval(`...`) ``) **are** caught: the most ergonomic\nway to build a dynamic string in modern TS is a tagged-or-untagged\ntemplate, and the static-template case (`` eval(`1 + 1`) ``) is\nrare enough that catching it alongside the dynamic-template case\nis an acceptable tradeoff.",
-      "related": ["AP-009"],
+      "related": [
+        "AP-009"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Dynamic Execution",
@@ -225,7 +367,9 @@
       "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
       "definition_ref": "patterns/dynamic-execution/definition.anvil",
       "tensions": [],
-      "related_families": ["guardrail-suppression"]
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-009",
@@ -235,15 +379,31 @@
       "severity": "error",
       "confidence": "high",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\bnew\\s+Function\\s*\\("
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "`new Function(body)` is functionally equivalent to `eval(body)` —\nit compiles the body string and returns a callable that runs the\ncompiled code in the global scope. Anything that can flow into the\nconstructor as a string becomes arbitrary code execution at the\nmoment the returned function is invoked.\n\nThe rule is unconditional: even a literal-string\n`new Function('return 1')` should be replaced with a normal\nfunction declaration. The dynamic-string ergonomics are never\nworth the audit-cost of explaining \"this one is safe\" to future\nreaders.\n\nReplace with: a static function declaration, a `Record<string, () =>\nResult>` dispatcher for the \"N known operations\" case, or a\nsandboxed isolate (Node `vm`, QuickJS, Worker) when running\noperator-supplied scripting is genuinely part of the product.",
-      "related": ["AP-008"],
+      "related": [
+        "AP-008"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Dynamic Execution",
@@ -252,7 +412,9 @@
       "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
       "definition_ref": "patterns/dynamic-execution/definition.anvil",
       "tensions": [],
-      "related_families": ["guardrail-suppression"]
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-015",
@@ -262,12 +424,21 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\bz\\.any\\s*\\(|\\bz\\.[^;]*\\.passthrough\\s*\\("
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
       "allowlist": [
         "*.d.ts",
         "**/__mocks__/**",
@@ -278,7 +449,10 @@
         "**/explain/**"
       ],
       "nudge": "Don't reach for a Zod escape hatch here. `z.any()` accepts any value\nwithout validating it, and `.passthrough()` lets unvalidated keys flow\nthrough untouched — each one punches a hole in the very schema you\nreached for to close. A Zod schema that bottoms out in `z.any()` gives\nthe caller the same false confidence as `: any` (AP-003): the type says\n\"validated\", the runtime validates nothing.\n\nIf the field has a known shape, model it — `z.object({ ... })`,\n`z.string()`, `z.enum([...])`, a discriminated union. If only part of\nthe value is load-bearing, validate that part and narrow the rest behind\na type guard rather than passing the whole value through unchecked.\n\nFor unknown keys, `.strict()` (reject them) or an explicit\n`.catchall(schema)` (validate them) is almost always the contract you\nwant instead of `.passthrough()`.\n\nThe `.passthrough()` arm is anchored to a Zod receiver on the same line\n(`z.…().passthrough(`) and the span cannot cross a `;`, so a\n`.passthrough()` method on a non-Zod object (streams, mocks) does not\nfalse-fire — at the cost of missing a `.passthrough()` chained onto its\nown line. Comments and string literals are masked (the rule is\ncode-scoped), so a `z.any(` mentioned in prose is not flagged. The\ndetector is still line-based and not AST-aware: aliased imports\n(`import { z as zod }`), bracket notation (`z[\"any\"]()`), and\ndestructured calls (`const { any } = z; any()`) are not distinguished.\nUse the standard suppression directive or the per-file allowlist for the\nrare residual false positive.\n\n`z.unknown()` is handled separately by the opt-in rule AP-016 — it is\nthe least-bad of the escape hatches (consumers must still narrow) and is\nidiomatic as a leaf in a typed record (`z.record(z.string(),\nz.unknown())`), so it is off by default.",
-      "related": ["AP-003", "AP-016"],
+      "related": [
+        "AP-003",
+        "AP-016"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Type System Evasion",
@@ -287,7 +461,9 @@
       "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown` over `any` in\n   the type annotation (this is what AP-003 nudges toward). `unknown`\n   forces you to narrow before use, which is exactly the right behaviour\n   for a value whose shape you don't know.\n\n   At the *schema boundary*, `z.unknown()` carries the same trade-off:\n   it is the safest Zod escape hatch (consumers must still narrow), but\n   it accepts any value at runtime and gives the schema no contract to\n   validate. AP-015 leaves `z.unknown()` alone by default for exactly\n   that reason; the opt-in rule AP-016 flags it for codebases that want\n   every schema field to carry a contract. Treat `z.unknown()` as\n   debt-with-a-narrowing-discipline, not a destination.",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
       "tensions": [],
-      "related_families": ["guardrail-suppression"]
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "AP-016",
@@ -297,12 +473,21 @@
       "severity": "warning",
       "confidence": "medium",
       "spectrum_position": 3,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\bz\\.unknown\\s*\\("
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
       "allowlist": [
         "*.d.ts",
         "**/__mocks__/**",
@@ -313,7 +498,10 @@
         "**/explain/**"
       ],
       "nudge": "`z.unknown()` in a Zod schema accepts any value and validates nothing,\njust like `z.any()` (AP-015) — but it is the least-bad escape hatch\nbecause the resulting type is `unknown`, which forces consumers to\nnarrow before use rather than silently spreading like `any`. It is also\ngenuinely idiomatic as a leaf in a typed container — `z.record(z.string(),\nz.unknown())` for a metadata bag, `value: z.unknown()` in a generic\ncache schema — and this family's own guidance recommends parsing\nexternal data into `unknown` and narrowing it.\n\nFor those reasons this rule is **opt-in** (`opt_in: true`): it is off by\ndefault and only fires under `--include-opt-in` / a profile that\nrequests it. Enable it on a codebase that wants every schema field to\ncarry a real contract, where a `z.unknown()` signals an unfinished\nschema rather than a deliberate one.\n\nWhen it does fire: give the field the shape you actually depend on, or\nkeep `z.unknown()` and leave a `// TODO(types): ...` with a tracking\nreference so the gap is visible rather than permanent. Comments and\nstring literals are masked (the rule is code-scoped). Like AP-015 the\ndetector is still line-based: aliased Zod imports and bracket-notation\ncalls are not distinguished.",
-      "related": ["AP-003", "AP-015"],
+      "related": [
+        "AP-003",
+        "AP-015"
+      ],
       "enabled": true,
       "opt_in": true,
       "family_name": "Type System Evasion",
@@ -322,7 +510,9 @@
       "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown` over `any` in\n   the type annotation (this is what AP-003 nudges toward). `unknown`\n   forces you to narrow before use, which is exactly the right behaviour\n   for a value whose shape you don't know.\n\n   At the *schema boundary*, `z.unknown()` carries the same trade-off:\n   it is the safest Zod escape hatch (consumers must still narrow), but\n   it accepts any value at runtime and gives the schema no contract to\n   validate. AP-015 leaves `z.unknown()` alone by default for exactly\n   that reason; the opt-in rule AP-016 flags it for codebases that want\n   every schema field to carry a contract. Treat `z.unknown()` as\n   debt-with-a-narrowing-discipline, not a destination.",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
       "tensions": [],
-      "related_families": ["guardrail-suppression"]
+      "related_families": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "DD-001",
@@ -332,15 +522,32 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "//\\s*(TODO|FIXME)\\b(?!.*([A-Z]+-\\d+|#\\d+|issue|ticket))"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": ["**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".py",
+        ".go",
+        ".rs"
+      ],
+      "allowlist": [
+        "**/explain/**"
+      ],
       "nudge": "This TODO has no tracking reference. Without a ticket number, issue\nlink, or project reference, nobody will be reminded to do this work.\n\nAdd a reference: `// TODO(PROJ-123): description` or\n`// TODO(#456): description`. If the work doesn't warrant a ticket,\nconsider whether it warrants a TODO — either do it now or decide it's\nnot important enough to track.",
-      "related": ["DD-002", "RL-005"],
+      "related": [
+        "DD-002",
+        "RL-005"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Deferred Debt",
@@ -349,7 +556,9 @@
       "suggestion": "Every deferred item needs a destination outside the source code.\n\n1. **For TODOs and FIXMEs:** Create a tracking artifact — a GitHub\n   issue, a Jira ticket, an APS item — and reference it in the\n   comment: `// TODO(PROJ-123): handle pagination`. The comment\n   becomes a pointer, not the sole record.\n\n2. **For HACKs:** Create a tracking artifact with the context of why\n   the hack exists, what the proper solution looks like, and what\n   blocks it. The hack comment should reference the ticket:\n   `// HACK(PROJ-456): workaround for upstream bug, fix when v3 ships`.\n\n3. **For temporary code:** Add an expiry mechanism. A date-based\n   comment (`// TEMPORARY: remove after 2025-03-01`), a version\n   gate (`// COMPAT: remove when we drop Node 18`), or a feature\n   flag with a scheduled review. Something that will surface the\n   work when the condition changes.\n\n4. **For completion claims:** Don't report a task as done if the code\n   contains TODOs from that task. Either finish the work, explicitly\n   descope it with user agreement, or report it as partial with a\n   list of what remains.\n\n5. **When in doubt:** Ask the user. \"I've added error handling for\n   the main flow but haven't covered the edge case where X. Should I\n   handle that now or create an issue for it?\" is always better than\n   silently adding a TODO.",
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "tensions": [],
-      "related_families": ["responsibility-laundering"]
+      "related_families": [
+        "responsibility-laundering"
+      ]
     },
     {
       "id": "DD-002",
@@ -359,15 +568,31 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "//\\s*(HACK|XXX)\\b(?!.*([A-Z]+-\\d+|#\\d+|issue|ticket))"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": ["**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".py",
+        ".go",
+        ".rs"
+      ],
+      "allowlist": [
+        "**/explain/**"
+      ],
       "nudge": "This code is explicitly marked as a hack with no plan for remediation.\nLabeling code as a hack without a tracking artifact turns the label\ninto permission to leave it indefinitely.\n\nCreate a ticket documenting why the hack exists, what the proper\nsolution looks like, and what blocks it. Reference it in the comment:\n`// HACK(PROJ-789): workaround for upstream bug, fix when v3 ships`.",
-      "related": ["DD-001"],
+      "related": [
+        "DD-001"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Deferred Debt",
@@ -376,7 +601,9 @@
       "suggestion": "Every deferred item needs a destination outside the source code.\n\n1. **For TODOs and FIXMEs:** Create a tracking artifact — a GitHub\n   issue, a Jira ticket, an APS item — and reference it in the\n   comment: `// TODO(PROJ-123): handle pagination`. The comment\n   becomes a pointer, not the sole record.\n\n2. **For HACKs:** Create a tracking artifact with the context of why\n   the hack exists, what the proper solution looks like, and what\n   blocks it. The hack comment should reference the ticket:\n   `// HACK(PROJ-456): workaround for upstream bug, fix when v3 ships`.\n\n3. **For temporary code:** Add an expiry mechanism. A date-based\n   comment (`// TEMPORARY: remove after 2025-03-01`), a version\n   gate (`// COMPAT: remove when we drop Node 18`), or a feature\n   flag with a scheduled review. Something that will surface the\n   work when the condition changes.\n\n4. **For completion claims:** Don't report a task as done if the code\n   contains TODOs from that task. Either finish the work, explicitly\n   descope it with user agreement, or report it as partial with a\n   list of what remains.\n\n5. **When in doubt:** Ask the user. \"I've added error handling for\n   the main flow but haven't covered the edge case where X. Should I\n   handle that now or create an issue for it?\" is always better than\n   silently adding a TODO.",
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "tensions": [],
-      "related_families": ["responsibility-laundering"]
+      "related_families": [
+        "responsibility-laundering"
+      ]
     },
     {
       "id": "DD-003",
@@ -386,15 +613,31 @@
       "severity": "info",
       "confidence": "medium",
       "spectrum_position": 3,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "//\\s*(temporary|workaround|compat|shim|stopgap|interim)\\b(?!.*(until|before|after|when|remove|drop|deadline|\\d{4}-\\d{2}))"
       },
-      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs"],
-      "allowlist": ["**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".py",
+        ".go",
+        ".rs"
+      ],
+      "allowlist": [
+        "**/explain/**"
+      ],
       "nudge": "This code is marked as temporary but has no expiry condition. Without\na date, version gate, or removal trigger, \"temporary\" becomes\npermanent because nothing surfaces the follow-up.\n\nAdd an expiry: `// TEMPORARY: remove after 2025-06-01`,\n`// COMPAT: remove when we drop Node 18`, or a feature flag with a\nscheduled review. Something concrete that will trigger action when\nthe condition changes.",
-      "related": ["DD-001"],
+      "related": [
+        "DD-001"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Deferred Debt",
@@ -403,7 +646,9 @@
       "suggestion": "Every deferred item needs a destination outside the source code.\n\n1. **For TODOs and FIXMEs:** Create a tracking artifact — a GitHub\n   issue, a Jira ticket, an APS item — and reference it in the\n   comment: `// TODO(PROJ-123): handle pagination`. The comment\n   becomes a pointer, not the sole record.\n\n2. **For HACKs:** Create a tracking artifact with the context of why\n   the hack exists, what the proper solution looks like, and what\n   blocks it. The hack comment should reference the ticket:\n   `// HACK(PROJ-456): workaround for upstream bug, fix when v3 ships`.\n\n3. **For temporary code:** Add an expiry mechanism. A date-based\n   comment (`// TEMPORARY: remove after 2025-03-01`), a version\n   gate (`// COMPAT: remove when we drop Node 18`), or a feature\n   flag with a scheduled review. Something that will surface the\n   work when the condition changes.\n\n4. **For completion claims:** Don't report a task as done if the code\n   contains TODOs from that task. Either finish the work, explicitly\n   descope it with user agreement, or report it as partial with a\n   list of what remains.\n\n5. **When in doubt:** Ask the user. \"I've added error handling for\n   the main flow but haven't covered the edge case where X. Should I\n   handle that now or create an issue for it?\" is always better than\n   silently adding a TODO.",
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "tensions": [],
-      "related_families": ["responsibility-laundering"]
+      "related_families": [
+        "responsibility-laundering"
+      ]
     },
     {
       "id": "DD-004",
@@ -413,7 +658,10 @@
       "severity": "warning",
       "confidence": "medium",
       "spectrum_position": 4,
-      "targets": ["agent-output", "pr-description"],
+      "targets": [
+        "agent-output",
+        "pr-description"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\b(complete[d]?|done|finished|implemented|all\\s+requirements?\\s+(met|addressed|satisfied))\\b",
@@ -421,7 +669,10 @@
       },
       "allowlist": [],
       "nudge": "This completion claim should be verified against the source code.\nIf files changed in this session contain new TODOs, the work is\npartial — not complete.\n\nDon't report a task as done while the code contains TODOs from that\ntask. Either finish the deferred work, explicitly descope it with user\nagreement, or report it as partial: \"Implemented X. Error handling for\nY deferred to issue #123.\"",
-      "related": ["DD-001", "RL-002"],
+      "related": [
+        "DD-001",
+        "RL-002"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Deferred Debt",
@@ -430,7 +681,9 @@
       "suggestion": "Every deferred item needs a destination outside the source code.\n\n1. **For TODOs and FIXMEs:** Create a tracking artifact — a GitHub\n   issue, a Jira ticket, an APS item — and reference it in the\n   comment: `// TODO(PROJ-123): handle pagination`. The comment\n   becomes a pointer, not the sole record.\n\n2. **For HACKs:** Create a tracking artifact with the context of why\n   the hack exists, what the proper solution looks like, and what\n   blocks it. The hack comment should reference the ticket:\n   `// HACK(PROJ-456): workaround for upstream bug, fix when v3 ships`.\n\n3. **For temporary code:** Add an expiry mechanism. A date-based\n   comment (`// TEMPORARY: remove after 2025-03-01`), a version\n   gate (`// COMPAT: remove when we drop Node 18`), or a feature\n   flag with a scheduled review. Something that will surface the\n   work when the condition changes.\n\n4. **For completion claims:** Don't report a task as done if the code\n   contains TODOs from that task. Either finish the work, explicitly\n   descope it with user agreement, or report it as partial with a\n   list of what remains.\n\n5. **When in doubt:** Ask the user. \"I've added error handling for\n   the main flow but haven't covered the edge case where X. Should I\n   handle that now or create an issue for it?\" is always better than\n   silently adding a TODO.",
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "tensions": [],
-      "related_families": ["responsibility-laundering"]
+      "related_families": [
+        "responsibility-laundering"
+      ]
     },
     {
       "id": "GS-001",
@@ -440,15 +693,27 @@
       "severity": "warning",
       "confidence": "medium",
       "spectrum_position": 2,
-      "targets": ["source"],
+      "targets": [
+        "source"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "[\\w.)\\]]+!(?=[.\\[(\\s;,)]|$)"
       },
-      "file_extensions": [".ts", ".tsx"],
-      "allowlist": ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**", "**/explain/**"],
+      "file_extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**",
+        "**/explain/**"
+      ],
       "nudge": "Don't use the non-null assertion operator (`!`) to silence a\nnullability warning. If the value can be null, handle it. If you have\na runtime guarantee it's non-null, add a guard or assertion that\nmakes the guarantee explicit.\n\n`value!.property` tells the compiler \"trust me\" — but if you're\nwrong, the result is a runtime crash with no helpful error message.\nUse optional chaining (`value?.property`), a null check, or an\nexplicit assertion (`if (!value) throw ...`) instead.",
-      "related": ["AP-004"],
+      "related": [
+        "AP-004"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Guardrail Suppression",
@@ -456,8 +721,12 @@
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "tensions": ["error-visibility"],
-      "related_families": ["type-system-evasion"]
+      "tensions": [
+        "error-visibility"
+      ],
+      "related_families": [
+        "type-system-evasion"
+      ]
     },
     {
       "id": "RL-001",
@@ -467,7 +736,10 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 2,
-      "targets": ["agent-output", "pr-description"],
+      "targets": [
+        "agent-output",
+        "pr-description"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\bpre-existing\\b(?!.*\\b(run #|run id|also fails on|verified))",
@@ -475,7 +747,10 @@
       },
       "allowlist": [],
       "nudge": "Don't label a failure as \"pre-existing\" without evidence. Check the base\nbranch CI — run the failing test on main and cite the run ID. If it also\nfails on main, say so with a link. If it doesn't, the failure is yours.\n\n`pre-existing` without a run ID or comparison link is an assertion, not\na finding.",
-      "related": ["RL-003", "RL-004"],
+      "related": [
+        "RL-003",
+        "RL-004"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Responsibility Laundering",
@@ -484,7 +759,9 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
     },
     {
       "id": "RL-002",
@@ -494,7 +771,11 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 5,
-      "targets": ["agent-output", "pr-description", "commit-message"],
+      "targets": [
+        "agent-output",
+        "pr-description",
+        "commit-message"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\btracked\\s+(as\\s+)?(a\\s+)?follow[\\s-]?up\\b",
@@ -502,7 +783,9 @@
       },
       "allowlist": [],
       "nudge": "\"Tracked as follow-up\" implies something was recorded — an issue filed,\na ticket created, a TODO added. If none of those exist, this is inaction\ndisguised as project management.\n\nCreate the tracking artifact: file a GitHub issue, add an APS item, or\nwrite a TODO with a ticket reference. If tracking isn't appropriate, ask\nthe user what to do instead of asserting it's handled.",
-      "related": ["RL-005"],
+      "related": [
+        "RL-005"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Responsibility Laundering",
@@ -511,7 +794,9 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
     },
     {
       "id": "RL-003",
@@ -521,7 +806,10 @@
       "severity": "error",
       "confidence": "high",
       "spectrum_position": 1,
-      "targets": ["agent-output", "pr-description"],
+      "targets": [
+        "agent-output",
+        "pr-description"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\b(all|every)\\s+(ci\\s+)?(failures?|checks?)\\s+(are|is)\\s+(pre-existing|unrelated|not\\s+related)",
@@ -529,7 +817,10 @@
       },
       "allowlist": [],
       "nudge": "Dismissing all failures at once means no per-failure analysis was done.\nEach failure must be verified individually against the base branch.\n\nDon't say \"all CI failures are pre-existing.\" Instead, list each failure,\ncheck whether it reproduces on main, and report findings per failure.\nBlanket claims hide real issues behind confident language.",
-      "related": ["RL-001", "RL-004"],
+      "related": [
+        "RL-001",
+        "RL-004"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Responsibility Laundering",
@@ -538,7 +829,9 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
     },
     {
       "id": "RL-004",
@@ -548,7 +841,10 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 3,
-      "targets": ["agent-output", "pr-description"],
+      "targets": [
+        "agent-output",
+        "pr-description"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "none\\s+of\\s+which\\s+were\\s+touched\\b",
@@ -556,7 +852,10 @@
       },
       "allowlist": [],
       "nudge": "Whether files were \"touched\" is irrelevant in monorepo CI. In Nx and\nTurborepo setups, CI scoping means your PR determines which packages\nrun — untouched code can still surface new failures because your changes\nbrought it into scope.\n\nInvestigate the failure regardless of whether you edited those files\ndirectly. The CI ran because of your PR.",
-      "related": ["RL-001", "RL-003"],
+      "related": [
+        "RL-001",
+        "RL-003"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Responsibility Laundering",
@@ -565,7 +864,9 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
     },
     {
       "id": "RL-005",
@@ -575,7 +876,11 @@
       "severity": "warning",
       "confidence": "high",
       "spectrum_position": 4,
-      "targets": ["agent-output", "pr-description", "commit-message"],
+      "targets": [
+        "agent-output",
+        "pr-description",
+        "commit-message"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "\\b(defer(red)?|follow[\\s-]?up|backlog(ged)?)\\b(?!.*(issue\\s*#|gh\\s+issue|TODO|created\\s+(issue|ticket)))",
@@ -583,7 +888,9 @@
       },
       "allowlist": [],
       "nudge": "Deferral language without a tracking artifact means the work will be\nforgotten. \"Follow-up\" and \"backlogged\" sound like decisions but are\njust labels unless something concrete is created.\n\nCreate the artifact: `gh issue create`, add a TODO with a ticket\nreference, or create an APS item. If the work genuinely shouldn't be\ntracked, ask the user to confirm rather than deciding unilaterally.",
-      "related": ["RL-002"],
+      "related": [
+        "RL-002"
+      ],
       "enabled": true,
       "opt_in": false,
       "family_name": "Responsibility Laundering",
@@ -592,7 +899,9 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
     },
     {
       "id": "RL-006",
@@ -602,7 +911,10 @@
       "severity": "info",
       "confidence": "medium",
       "spectrum_position": 6,
-      "targets": ["agent-output", "pr-description"],
+      "targets": [
+        "agent-output",
+        "pr-description"
+      ],
       "detection": {
         "type": "regex",
         "pattern": "(reply\\s+only|acknowledged|noted)\\s*[|│].*\\b(addressed|fixed|resolved)\\b",
@@ -619,13 +931,185 @@
       "suggestion": "Every claim requires evidence. Every deferral requires an artifact.\n\n- **Pre-existing claims:** Compare against the base branch CI. Run the\n  failing tests on main. If they also fail on main, say so with a run ID\n  or link. If they don't, the failure is yours — investigate it.\n- **Tracking claims:** Create the artifact. File a GitHub issue, add an\n  APS item, write a TODO with a ticket reference. If none of these are\n  appropriate, ask the user where to track it.\n- **Summary tables:** Separate actual fixes from acknowledgments. Don't\n  count \"noted\" or \"replied\" as \"addressed.\" Don't duplicate entries to\n  inflate the count.\n- **\"Not touched\" claims:** Irrelevant in monorepo CI. If CI scoping\n  means only changed projects run, then your changes determined what ran.\n  Investigate the failures regardless of whether you edited those files\n  directly.\n\nWhen uncertain, the correct response is to ask the user rather than to\nassert a conclusion. \"I'm not sure if this CI failure is pre-existing —\nshould I investigate or is it known?\" is always better than \"This is\npre-existing and unrelated.\"",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
       "tensions": [],
-      "related_families": ["deferred-debt"]
+      "related_families": [
+        "deferred-debt"
+      ]
+    },
+    {
+      "id": "RS-001",
+      "family": "rust-reliability",
+      "title": "unwrap() or expect() in non-test code",
+      "version": 1,
+      "severity": "info",
+      "confidence": "high",
+      "spectrum_position": 3,
+      "targets": [
+        "source"
+      ],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(call_expression function: (field_expression field: (field_identifier) @method)) @target"
+      },
+      "file_extensions": [
+        ".rs"
+      ],
+      "allowlist": [],
+      "nudge": "Avoid `unwrap()` / `expect()` here — they turn a recoverable `Result`/`Option`\ninto a panic. Propagate the error with `?`, or convert it deliberately with\n`ok_or(...)` / `map_err(...)` so the caller can decide how to handle it.\n\nIf the value is genuinely infallible at this point, suppress with the reason\nthat makes it infallible: `// @anvil-ignore RS-001 -- bounds checked above`.\nTest code (`#[cfg(test)]` modules and `tests/` / `benches/` / `examples/`\ntargets) is excluded automatically.",
+      "related": [
+        "RS-002"
+      ],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Rust Reliability",
+      "category": "error-handling",
+      "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",
+      "suggestion": "Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a\n`// SAFETY:` comment that names the upheld invariant directly above each\n`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;\nfinish or ticket the `todo!()`. When a panic is genuinely correct (an\ninfallible invariant, a `main()` startup failure), suppress the finding with a\nreason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": [
+        "deferred-debt"
+      ]
+    },
+    {
+      "id": "RS-002",
+      "family": "rust-reliability",
+      "title": "panic!() reached from non-test code",
+      "version": 1,
+      "severity": "info",
+      "confidence": "high",
+      "spectrum_position": 4,
+      "targets": [
+        "source"
+      ],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(macro_invocation macro: (identifier) @name) @target"
+      },
+      "file_extensions": [
+        ".rs"
+      ],
+      "allowlist": [],
+      "nudge": "Prefer returning a typed error to calling `panic!()` from non-test code — a\npanic removes the caller's ability to recover and aborts the process. Return a\n`Result` and let the boundary (a `main()`, a request handler) decide whether to\nabort.\n\nWhen a panic is the correct response to a broken invariant, suppress with the\ninvariant: `// @anvil-ignore RS-002 -- unreachable: validated by the type`.\nTest code is excluded automatically.",
+      "related": [
+        "RS-001"
+      ],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Rust Reliability",
+      "category": "error-handling",
+      "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",
+      "suggestion": "Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a\n`// SAFETY:` comment that names the upheld invariant directly above each\n`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;\nfinish or ticket the `todo!()`. When a panic is genuinely correct (an\ninfallible invariant, a `main()` startup failure), suppress the finding with a\nreason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": [
+        "deferred-debt"
+      ]
+    },
+    {
+      "id": "RS-003",
+      "family": "rust-reliability",
+      "title": "unsafe block without a // SAFETY comment",
+      "version": 1,
+      "severity": "info",
+      "confidence": "high",
+      "spectrum_position": 2,
+      "targets": [
+        "source"
+      ],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(unsafe_block) @target"
+      },
+      "file_extensions": [
+        ".rs"
+      ],
+      "allowlist": [],
+      "nudge": "Add a `// SAFETY:` comment directly above this `unsafe` block naming the\ninvariant you are upholding (why the pointer is valid, why the bounds hold, why\nthe lifetime is sound). The comment is what makes the block reviewable — without\nit the next edit cannot tell what must stay true.\n\nThe detector only fires when the immediately-preceding line is not already a\n`// SAFETY:` comment, so a justified block is silent.",
+      "related": [],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Rust Reliability",
+      "category": "error-handling",
+      "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",
+      "suggestion": "Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a\n`// SAFETY:` comment that names the upheld invariant directly above each\n`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;\nfinish or ticket the `todo!()`. When a panic is genuinely correct (an\ninfallible invariant, a `main()` startup failure), suppress the finding with a\nreason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": [
+        "deferred-debt"
+      ]
+    },
+    {
+      "id": "RS-004",
+      "family": "rust-reliability",
+      "title": "Deserialize struct without deny_unknown_fields",
+      "version": 1,
+      "severity": "info",
+      "confidence": "medium",
+      "spectrum_position": 5,
+      "targets": [
+        "source"
+      ],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(struct_item) @target"
+      },
+      "file_extensions": [
+        ".rs"
+      ],
+      "allowlist": [],
+      "nudge": "This struct derives `Deserialize` but is missing\n`#[serde(deny_unknown_fields)]`, so it silently accepts and discards unexpected\ninput fields — hiding typos and protocol drift in external data. Add\n`#[serde(deny_unknown_fields)]` so unknown keys become an error.\n\nIf the struct must tolerate forward-compatible extra fields (a deliberately\nlenient external contract), suppress with that reason:\n`// @anvil-ignore RS-004 -- forward-compatible wire format`.",
+      "related": [],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Rust Reliability",
+      "category": "error-handling",
+      "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",
+      "suggestion": "Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a\n`// SAFETY:` comment that names the upheld invariant directly above each\n`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;\nfinish or ticket the `todo!()`. When a panic is genuinely correct (an\ninfallible invariant, a `main()` startup failure), suppress the finding with a\nreason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": [
+        "deferred-debt"
+      ]
+    },
+    {
+      "id": "RS-005",
+      "family": "rust-reliability",
+      "title": "todo!() or unimplemented!() shipped",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 1,
+      "targets": [
+        "source"
+      ],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\b(?:todo|unimplemented)!\\s*\\("
+      },
+      "file_extensions": [
+        ".rs"
+      ],
+      "allowlist": [],
+      "nudge": "A `todo!()` / `unimplemented!()` macro panics the moment a caller reaches it —\nshipping one is a runtime abort waiting to happen. Finish the implementation, or\nreturn a real error and open a ticket for the gap.\n\nThis is a regex rule (the macro is unambiguous on its own line), so unlike the\nrest of the family it is not `#[cfg(test)]`-aware; suppress deliberate\ntest-scaffolding stubs with `// @anvil-ignore RS-005 -- test stub`.",
+      "related": [],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Rust Reliability",
+      "category": "error-handling",
+      "explanation": "- A stray `unwrap()` converts an anticipated error path into a process abort,\n  often far from where the real fault was introduced.\n- `panic!()` in library code removes the caller's ability to recover; it should\n  be an explicit, justified choice, not a reflex.\n- An `unsafe` block with no `// SAFETY:` comment defeats review: the reader\n  cannot tell which invariant the author was relying on, so the next edit can\n  silently break it.\n- A `Deserialize` struct without `#[serde(deny_unknown_fields)]` silently\n  accepts (and discards) unexpected input, masking typos and protocol drift in\n  external data — the exact surface where strictness pays off.\n- A shipped `todo!()` / `unimplemented!()` is a runtime panic waiting for the\n  first caller to reach it.",
+      "suggestion": "Return a typed error instead of panicking (`?`, `ok_or`, `map_err`); add a\n`// SAFETY:` comment that names the upheld invariant directly above each\n`unsafe` block; add `#[serde(deny_unknown_fields)]` to externally-fed structs;\nfinish or ticket the `todo!()`. When a panic is genuinely correct (an\ninfallible invariant, a `main()` startup failure), suppress the finding with a\nreason: `// @anvil-ignore RS-001 -- index is bounds-checked above`.",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": [
+        "deferred-debt"
+      ]
     }
   ],
   "prefixes": {
     "DD": "deferred-debt",
     "GS": "guardrail-suppression",
-    "RL": "responsibility-laundering"
+    "RL": "responsibility-laundering",
+    "RS": "rust-reliability"
   },
   "families": [
     {
@@ -633,8 +1117,15 @@
       "name": "Deferred Debt",
       "category": "deferred-debt",
       "definition_ref": "patterns/deferred-debt/definition.anvil",
-      "rules": ["DD-001", "DD-002", "DD-003", "DD-004"],
-      "related": ["responsibility-laundering"],
+      "rules": [
+        "DD-001",
+        "DD-002",
+        "DD-003",
+        "DD-004"
+      ],
+      "related": [
+        "responsibility-laundering"
+      ],
       "tensions": []
     },
     {
@@ -642,8 +1133,13 @@
       "name": "Dynamic Execution",
       "category": "dynamic-execution",
       "definition_ref": "patterns/dynamic-execution/definition.anvil",
-      "rules": ["AP-008", "AP-009"],
-      "related": ["guardrail-suppression"],
+      "rules": [
+        "AP-008",
+        "AP-009"
+      ],
+      "related": [
+        "guardrail-suppression"
+      ],
       "tensions": []
     },
     {
@@ -651,26 +1147,69 @@
       "name": "Error Visibility",
       "category": "error-handling",
       "definition_ref": "patterns/error-visibility/definition.anvil",
-      "rules": ["AP-006", "AP-007"],
-      "related": ["guardrail-suppression"],
-      "tensions": ["guardrail-suppression"]
+      "rules": [
+        "AP-006",
+        "AP-007"
+      ],
+      "related": [
+        "guardrail-suppression"
+      ],
+      "tensions": [
+        "guardrail-suppression"
+      ]
     },
     {
       "id": "guardrail-suppression",
       "name": "Guardrail Suppression",
       "category": "escape-hatch",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "rules": ["AP-001", "AP-002", "AP-004", "AP-005", "GS-001"],
-      "related": ["type-system-evasion"],
-      "tensions": ["error-visibility"]
+      "rules": [
+        "AP-001",
+        "AP-002",
+        "AP-004",
+        "AP-005",
+        "GS-001"
+      ],
+      "related": [
+        "type-system-evasion"
+      ],
+      "tensions": [
+        "error-visibility"
+      ]
     },
     {
       "id": "responsibility-laundering",
       "name": "Responsibility Laundering",
       "category": "accountability",
       "definition_ref": "patterns/responsibility-laundering/definition.anvil",
-      "rules": ["RL-001", "RL-002", "RL-003", "RL-004", "RL-005", "RL-006"],
-      "related": ["deferred-debt"],
+      "rules": [
+        "RL-001",
+        "RL-002",
+        "RL-003",
+        "RL-004",
+        "RL-005",
+        "RL-006"
+      ],
+      "related": [
+        "deferred-debt"
+      ],
+      "tensions": []
+    },
+    {
+      "id": "rust-reliability",
+      "name": "Rust Reliability",
+      "category": "error-handling",
+      "definition_ref": "patterns/rust-reliability/definition.anvil",
+      "rules": [
+        "RS-001",
+        "RS-002",
+        "RS-003",
+        "RS-004",
+        "RS-005"
+      ],
+      "related": [
+        "deferred-debt"
+      ],
       "tensions": []
     },
     {
@@ -678,8 +1217,14 @@
       "name": "Type System Evasion",
       "category": "type-evasion",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
-      "rules": ["AP-003", "AP-015", "AP-016"],
-      "related": ["guardrail-suppression"],
+      "rules": [
+        "AP-003",
+        "AP-015",
+        "AP-016"
+      ],
+      "related": [
+        "guardrail-suppression"
+      ],
       "tensions": []
     }
   ]

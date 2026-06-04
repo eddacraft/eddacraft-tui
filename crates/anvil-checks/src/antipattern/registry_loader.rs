@@ -724,10 +724,17 @@ mod tests {
     }
 
     #[test]
-    fn skips_ast_detection_until_scanner_supports_it() {
+    fn regex_loader_skips_ast_detection_by_design() {
+        // ADR-071 §3: AST-detection rules are owned by the `anvil-checks-ast`
+        // gate-time scanner, not this regex loader. The regex path deliberately
+        // skips them (returns `None`) so the registry stays the single source of
+        // truth with each scanner consuming its own detection kind — not a
+        // "not yet supported" gap. The AST scanner ships its own
+        // registry-completeness guard so an `ast` rule with no predicate fails
+        // loudly there rather than silently producing nothing here.
         let mut cp = sample_compiled();
         cp.detection = Detection::Ast {
-            ast_query: "MemberExpression".to_string(),
+            ast_query: "(unsafe_block) @target".to_string(),
         };
         assert!(compiled_to_antipattern(&cp).is_none());
     }

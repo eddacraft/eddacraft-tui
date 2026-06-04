@@ -48,6 +48,7 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
       'error-visibility',
       'guardrail-suppression',
       'responsibility-laundering',
+      'rust-reliability',
       'type-system-evasion',
     ]);
 
@@ -59,6 +60,8 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(ruleIds).toContain('GS-001');
     expect(ruleIds).toContain('DD-001');
     expect(ruleIds).toContain('RL-001');
+    expect(ruleIds).toContain('RS-001'); // rust-reliability: AST unwrap/expect — RSTLAN-003
+    expect(ruleIds).toContain('RS-005'); // rust-reliability: regex todo!/unimplemented! — RSTLAN-003
 
     // Rules must be alphabetically sorted for stable registry diffs.
     const sorted = [...ruleIds].sort();

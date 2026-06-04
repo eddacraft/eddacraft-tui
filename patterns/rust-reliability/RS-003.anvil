@@ -1,0 +1,31 @@
+---
+id: RS-003
+type: rule
+family: rust-reliability
+title: unsafe block without a // SAFETY comment
+version: 1
+
+severity: info
+confidence: high
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(unsafe_block) @target'
+
+related: []
+enabled: true
+opt_in: false
+---
+
+Add a `// SAFETY:` comment directly above this `unsafe` block naming the
+invariant you are upholding (why the pointer is valid, why the bounds hold, why
+the lifetime is sound). The comment is what makes the block reviewable — without
+it the next edit cannot tell what must stay true.
+
+The detector only fires when the immediately-preceding line is not already a
+`// SAFETY:` comment, so a justified block is silent.
