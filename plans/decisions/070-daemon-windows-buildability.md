@@ -1,4 +1,4 @@
-# ADR-069: Daemon Windows-Buildability Strategy
+# ADR-070: Daemon Windows-Buildability Strategy
 
 ## Status
 
@@ -12,7 +12,7 @@ Accepted
 
 DSV-010 (Windows save-time daemon) surfaced that `crates/anvil-intercept` — the
 resident save-time daemon — **does not build on `x86_64-pc-windows-msvc` at all
-today** (a pre-existing state; memory + PR #2182 record the Windows workspace as
+today** (a pre-existing state; PR #2182 records the Windows workspace as
 long-red). The ADR-068 read-safety guard
 (`crates/anvil-intercept-win32/src/read_safety.rs`) is built and cross-compile-
 verified, but it cannot be runtime-tested on the Windows CI matrix
