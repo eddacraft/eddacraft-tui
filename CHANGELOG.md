@@ -6,6 +6,56 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [0.8.0-beta] — TBD — The Save-Time Daemon
+
+> **Draft / unreleased.** This section accumulates customer-relevant changes
+> landed on `main` since `v0.7.4-beta`; the date and final scope are pending the
+> tag cut. The first minor since `v0.7.0-beta`, earned on architecture: it
+> begins moving save-time governance off per-save cold-spawned `check` and onto
+> a persistent intercept daemon that validates deltas
+> ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)). Most
+> of the sub-phase A daemon work is foundational plumbing; the user-visible
+> surface so far is the new `anvil status` assurance fields, opt-in workspace
+> confinement, and the gate-summary dashboard.
+
+### Added
+
+- **`anvil status` surfaces save-time assurance and workspace confinement.**
+  Status now reports whether save-time validation is being served by the
+  persistent daemon and the workspace's confinement state, so the active
+  protection posture is observable (DSV-007).
+- **Opt-in workspace confinement mode.** A new opt-in mode confines the daemon's
+  save-time validation to an admitted workspace root
+  ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md) §7,
+  DSV-008).
+- **Live gate-summary dashboard.** `anvil gate` now persists run results to
+  `.anvil/gates.json`
+  ([#2242](https://github.com/eddacraft/anvil-001/issues/2242)), and a new live
+  gate-summary dashboard surface renders them
+  ([#2237](https://github.com/eddacraft/anvil-001/issues/2237), TUIDASH-013).
+- **First-run adoption hint.** Anvil surfaces a first-week adoption signal hint
+  to help new projects find their footing (INSIGHTS-004).
+
+### Changed
+
+- **`anvil watch` routes save-time checks through the persistent intercept
+  daemon.** The foundational shift from cold-spawning `check` on every save to
+  daemon-served delta validation lands behind the existing watch surface
+  ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)) — the
+  durable fix for the watch-CPU report
+  ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)) that
+  `v0.7.4-beta` addressed only with the RLB-007 stopgap.
+
+### Fixed
+
+- **Windows home resolution honours `USERPROFILE` / `HOME`.** Home-directory
+  resolution on Windows now respects `USERPROFILE`/`HOME` consistently.
+- **`anvil suppress` rejects drive-relative paths.** Suppression now rejects
+  drive-relative file paths (e.g. `C:foo`), not just rooted ones.
+- **Deep-tree TUI rendering no longer overflows the stack.** `eddacraft-tui`
+  drops large render trees iteratively, preventing a stack overflow on deep
+  component trees (eddacraft-tui 0.2.4).
+
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 
 A distribution and stability patch on the `v0.7.3-beta` slate. The headline is

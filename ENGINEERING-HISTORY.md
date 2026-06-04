@@ -7,11 +7,186 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [0.7.3-beta] — TBD — Surfacing the Signal
+## [0.8.0-beta] — TBD — The Save-Time Daemon
 
-Technical work landed on `main` since `v0.7.2-beta`; release date pending the
-tag. SARIF output (SARIFOUT) is recorded in the [Changelog](./CHANGELOG.md) and
-its engineering notes are tracked separately with that workstream.
+Draft / unreleased. Technical work landed on `main` since `v0.7.4-beta`; release
+date pending the tag. The headline is architectural: save-time governance starts
+moving off per-save cold-spawned `check` and onto a persistent intercept daemon
+that validates deltas
+([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md), Accepted
+2026-06-01). Sub-phase A delivered 9 of 11 items; A′/B remain blocked on Graph
+V2 foundations.
+
+### Daemon save-time validation (DSV / ADR-061, ADR-063, ADR-064, ADR-067)
+
+- **Verdict-shaped `validate_paths` wire frozen (DSV-002).** The intercept
+  protocol owns a frozen, verdict-shaped `validate_paths` request/response wire
+  with a `check_families: ["antipattern"]` scoping and `coverage: certified`,
+  keeping the policy engine off the hot path (ADR-061 §6).
+- **Daemon ingest spine (DSV-003).** Read-safety, classification, taxonomy, and
+  admission components for the daemon ingest path, with session-bound
+  `scan_buffer` lineage (CLAWP-065).
+- **Interactive + background work pools (DSV / ADR-061 §4).** An admission token
+  separates interactive from background work; the background scan loop yields in
+  bounded chunks (chunked-yield, final-chunk cancel yields `Completed` not
+  `Yielded`).
+- **Kernel-backed symbol feed (DSV-005, ADR-067).** A parse hook feeds the
+  kernel symbol graph; a per-worktree `SymbolGraph` cache (`kernel_cache`) backs
+  it, with bounded reverse-impact closure certifiability.
+- **`validate_paths` verdict assembly (DSV-005 Task 8).** Boundary mappings wire
+  into `anvil-checks`; verdict-assembly orchestration and assurance-transition
+  notification envelopes complete the hot-path response.
+- **Save-time verbs over the IPC socket (DSV-005/-007).** Save-time verbs are
+  wired into IPC dispatch; `anvil watch` routes its save-time check through the
+  daemon, MCP `validate_write` re-points to the daemon, and `anvil status`
+  surfaces save-time assurance + confinement. Mid-edit decisions also mirror
+  onto the telemetry lane (drivers→daemon path).
+- **Workspace assurance state machine + confinement (DSV-005 Task 9, DSV-008).**
+  A workspace assurance state machine drives transitions; an opt-in workspace
+  confinement mode (ADR-061 §7) anchors admitted roots by dirfd, path-keyed.
+- **DoS caps + SLO gate (DSV-006).** Per-workspace parse-size and walk-depth
+  caps bound daemon work; a `validate_paths` concurrency SLO bench gates in CI
+  via the (non-required) `resource-budgets` job.
+- **Cross-path antipattern parity gate (DSV-009).** A parity gate plus a shared
+  diagnostic sort keep the daemon's cross-path antipattern verdicts aligned with
+  the cold-path `check`.
+- **Graph boundary ADRs.**
+  [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the Graph V2
+  hot-/non-hot-path read boundary (reverse-impact depth is a hard-capped lever)
+  and [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md)
+  extracted the `anvil-graph-cache` crate for the daemon graph boundary.
+
+### Flags catalogue (FLAGCAT-002…006)
+
+- **Single-source flag catalogue.** `anvil-flags-catalogue` (TS) bootstraps the
+  gating inventories and renames the `EnvironmentName` enum (`prod` →
+  `production`, etc.). TS surfaces migrate onto it (FLAGCAT-003); Rust constants
+  are generated from `flags/manifest.json` via `build.rs` (FLAGCAT-004); the CLI
+  flips onto the generated catalogue definition (FLAGCAT-005).
+- **Drift gate + adoption guide (FLAGCAT-006).** A manifest↔TS↔Rust consistency
+  check is CI-gated, with an adoption guide for new flags.
+
+### Resource budgets (RLB-002…008)
+
+- A process-tree CPU/RSS sampler underpins a suite of resource benches: the real
+  default watch path under churn (RLB-002), intercept daemon (RLB-003) and MCP
+  server (RLB-004) CPU/RSS budgets, and a concurrent multi-process bench
+  (RLB-005). SLO docs + CI wiring land the `resource-budgets` job (RLB-008).
+
+### TUI dashboard renderer (TUIDASH-003…013)
+
+- A `json-render` tree renderer + spec parser drive spec-defined dashboards:
+  layout (Stack/Grid/Card/Separator), data-display, and chart component maps;
+  responsive breakpoints; a generic `$data` binding pre-pass; Anvil domain
+  components over `.anvil/` data context; a dashboard list with live previews;
+  and a catalogue parity check against `@eddacraft/render`. The engine is
+  hardened against malformed/hostile specs. The live gate-summary dashboard
+  (TUIDASH-013) renders gate results persisted to `.anvil/gates.json`.
+
+### Adoption insights
+
+- **First-week adoption signal (INSIGHTS-004).** A first-run adoption hint,
+  workspace-root resolved with atomic writes and insights-precedence in plain
+  `status`.
+
+### Build, CI & delivery
+
+- Agent-tooling dirs (`.codex`/`.claude`/`.opencode`) classify as `agent-config`
+  (no unit-test matrix); the flags-catalogue package is force-built before unit
+  tests so the nx cache can't restore a build marker without `dist`.
+- Cross-compile tests run with `--no-fail-fast`; the Windows cross-compile suite
+  is green. `release.yml` allowlists CLI `v*` tags in the plan job. Copilot
+  autofix is hardened against the untrusted-checkout alert (code-scanning #826).
+- `RELEASE-PLAN.md` is enforced forward-looking (a `docs:check` surface);
+  `eddacraft-tui 0.2.4` lands with an ACKNOWLEDGEMENTS refresh; Regal is
+  pinned/bumped across workflows.
+- The six-week minor-beta cadence hold is retired — minors cut when ready and
+  gates are green, not on a calendar.
+
+### Repository hygiene
+
+- The clawpatch pre-tag tracker is dispositioned, closed, and archived
+  (CIB-039); the CLAWP #1740 test-hardening batch hardens vacuous findings;
+  inline TODO/FIXME comments are removed or converted to explanatory notes.
+  Continuous-improvement items CIB-016/-027/-032/-035/-046/-047 land alongside.
+
+## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
+
+A distribution and stability patch on the `v0.7.3-beta` slate. The headline is
+the `ANVIL_HOME` install-root override (DISTRIB-006); it also lands the RLB-007
+watch-CPU stopgap, Windows named-pipe hardening, and a set of CLI exit-code and
+output-selector correctness fixes. The save-time daemon arc
+([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)) was
+scoped in this window but lands in `v0.8.0-beta`.
+
+### Install-root override (DISTRIB-006 / ADR-060)
+
+- **Single install root resolved from `--anvil-home` / `ANVIL_HOME`.** A new
+  resolver re-roots the daemon socket, PID file, stored credentials, and all
+  durable project-state writes under one install root
+  ([ADR-060](./plans/decisions/060-anvil-home-install-root-override.md),
+  Accepted), so a development or candidate Anvil can run beside a production
+  install without sharing or clobbering state
+  ([#1726](https://github.com/eddacraft/anvil-001/issues/1726)).
+- **Project-state writes are gated under the install root.** The state-mutating
+  commands (`config`, `gate-config`, `hooks`, and the remaining project-mutating
+  commands) gate their durable writes under the resolved root; Council review
+  surfaced and closed several write-guard gaps. `anvil status --json` reports
+  `install_root` and `project_writes_gated` so the active root and its gating
+  are observable. A blank `ANVIL_HOME`/`--anvil-home` is treated as unset
+  consistently rather than resolving to an empty root.
+
+### Watch CPU stopgap (RLB-007 / RLB-001)
+
+- **Per-save checks scope to the changed paths.** The watch save-time check no
+  longer re-runs code-quality checks across the whole project on every save —
+  under multiple concurrent agents the whole-project scan saturated CPU
+  ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)). This is the
+  stopgap ahead of the daemon delta-validation fix in `v0.8.0-beta`.
+- **Multi-agent watch load-ramp harness (RLB-001).** A bench harness ramps
+  concurrent watch agents to measure the per-save CPU envelope that RLB-007
+  collapses.
+
+### Windows daemon hardening
+
+- **Named-pipe client SQOS cap + server-liveness check.** The Windows named-pipe
+  client caps its security quality-of-service impersonation level and verifies
+  the server process is alive before connecting, closing two Windows-only daemon
+  issues found in the clawpatch sweep. A regression test covers the
+  exited-process liveness path.
+
+### CLI correctness & exit-code fidelity
+
+- **Credential load faults return `EXIT_CONFIG_ERROR`.** A failure loading
+  stored credentials now surfaces as a configuration-error exit code instead of
+  a generic failure.
+- **The auth gate honours per-command `--format json`.** The auth gate could
+  previously ignore a command's `--format json` selection; an e2e test now
+  covers the structured auth envelope.
+- **Event-shape invariants made unrepresentable.** `kernel-types` validates that
+  an `EngineEvent`'s `event_type` matches its payload, and `intercept-rules`
+  makes the 1-based `InterruptReason` line invariant unrepresentable rather than
+  checked.
+
+### Native build freshness (checks-napi)
+
+- The `.node` freshness guard widened to cover all native build inputs, and only
+  `ENOENT` is treated as an optional missing build input (other I/O read
+  failures surface rather than silently degrading to a missing-registry
+  contract).
+
+### Build & delivery
+
+- `aarch64-linux` NAPI artifacts build with the system cross toolchain;
+  `edda-stack` derives `PACKAGE_VERSION`/`PACKAGE_NAME` from `package.json`; the
+  `anvil-api` runtime guard is repointed off `svix`; and the production
+  dependency group took an 11-update bump.
+
+## [0.7.3-beta] — 2026-05-31 — Surfacing the Signal
+
+Technical work landed on `main` since `v0.7.2-beta`. SARIF output (SARIFOUT) is
+recorded in the [Changelog](./CHANGELOG.md) and its engineering notes are
+tracked separately with that workstream.
 
 ### Language extraction (LANGTS)
 
@@ -72,6 +247,151 @@ its engineering notes are tracked separately with that workstream.
 - Added a cargo workspace version-match preflight gate, routed the release gate
   through `test:js` (off the cross-language critical path), and trimmed dev/test
   debug info to line-tables-only (DEVENV-001) to cut build size.
+
+## [0.7.2-beta] — 2026-05-25 — Save-Time Scanning & Tooling Honesty
+
+The second Boring-Week patch on the `v0.7.0-beta` daemon-working slate. The
+customer-facing fixes (watch actually runs the code-quality scanners; the
+antipattern scanner stops flagging `any`/`!` in comments and strings;
+PATH-shadow and 90-day-refresh honesty) are in the [Changelog](./CHANGELOG.md);
+the engineering weight is the experimental policy engine, the multi-ecosystem
+attribution kit, and the `eddacraft-tui` reintegration.
+
+### Save-time scanning correctness
+
+- **`anvil watch` runs `anvil check --all` per save (#1913).** The default watch
+  action now invokes the code-quality scanners, closing the gap where a bare
+  `anvil watch` watched only architecture/dependency edges while the dashboard
+  read "100% pass". `--action none` restores the edges-only watch.
+- **Antipattern scanner masks comments, strings, and regex (#1914).** AP-003 /
+  GS-001 mask comments, string literals, and regex literals before applying
+  code-construct rules, so prose or string content mentioning `any` or
+  containing `!` is no longer a finding. Match positions for genuine findings
+  are unchanged.
+
+### Policy engine (POLENG)
+
+- **`anvil policy` command group + Rego eval preview.** A new policy surface
+  lands across POLENG-002..007: a `PolicyInput` v1 schema, a determinism
+  contract + `Builtin` trait, a first-party builtins surface (v1), ADR-002/003
+  result post-processing, and `coverage`/`trace` result fields, exposed through
+  the experimental `anvil policy eval` CLI.
+- **Go OPA parity gate (POLENG-008).** A CI parity gate cross-checks the regorus
+  evaluation path against Go OPA and is registered in the workflows README;
+  POLENG-009 + CIB-017..019 were filed from the full council as follow-up
+  hardening.
+
+### Attribution kit (ATTRIB)
+
+- **Multi-ecosystem licence attribution drivers.** A dispatcher + per-ecosystem
+  drivers cover Rust (ATTRIB-008), Node (ATTRIB-012), Go (ATTRIB-013), and
+  Python (ATTRIB-014), plus a bundled-binaries driver (ATTRIB-004) and a
+  deterministic, GNU-compatible comment-wrapping expander (ATTRIB-015/-016).
+  Node driver tests are wired into CI.
+
+### eddacraft-tui reintegration (TUIR / ADR-047, ADR-050)
+
+- **Canonical source mirror.** `eddacraft-tui` is imported at v0.2.2 as the
+  canonical in-tree source (TUIR-002), consumers switch to the workspace path
+  crate (TUIR-003), and CI gates split between Anvil and the mirror (TUIR-006)
+  with a mirror + crates.io publish workflow migrated onto a GitHub App
+  (TUIR-004/-005).
+  [ADR-050](./plans/decisions/050-eddacraft-tui-runner-and-cli-policy.md) scopes
+  the runner-helper + CLI/parser policy.
+
+### Activation & daemon hardening
+
+- **`anvil start/status --verify --why` (MLP2-051g)** explains a stalled
+  activation diagnostic, and the MCP `protection_claim` query is capped at 500
+  ms (MLP2-051i), tightening the activation IPC budget.
+- **Daemon-side `session.report_process` handler (MLP2-074).** The IPC handler
+  unimplemented at `v0.7.0-beta`/`v0.7.1-beta` is now implemented, closing that
+  known gap.
+
+### Tooling, docs & delivery
+
+- **APS plan dashboard (apscan).** `anvil plan dashboard` ships as an in-tree
+  APS status surface; APS active-lint scope and a canonical-alignment module
+  land alongside.
+- **DOCGOV documentation indexes.** Generated documentation indexes (DOCGOV),
+  dead-doc archival + runbook relocation (DOCGOV-008), and live-doc metadata
+  backfill harden the docs-governance gates.
+- **Release-announcement backend (EMAIL).** `anvil-api` gains a
+  `/admin/broadcast` endpoint over a generalised broadcasts table, an email
+  template registry, broadcast audience resolvers, and a
+  `sendReleaseAnnouncement` helper.
+- **Supply-chain hygiene.** `qs` is pinned to a patched release;
+  ACKNOWLEDGEMENTS and workspace-hack are regenerated for the new
+  policy/attribution trees.
+
+## [0.7.1-beta] — 2026-05-22 — Activation Diagnostic Honesty
+
+The first Boring-Week patch on the `v0.7.0-beta` daemon-working slate. It closes
+GH [#1831](https://github.com/eddacraft/anvil-001/issues/1831): the activation
+diagnostic could cap at `ready_restart_required` forever, with no path to
+`protecting` even when the intercept daemon was running and enforcing the
+worktree. The customer-facing wire-up is in the [Changelog](./CHANGELOG.md); the
+engineering weight is the activation/daemon hardening and the freshness-gate
+threat-model work.
+
+### Activation diagnostic wire-up (MLP2-051f)
+
+- **Activation consumes the daemon `ProtectionClaim` snapshot.** The activation
+  surface consumes `anvil_intercept::status::build_protection_claim_from_wire`
+  and promotes handshake-verified MCP clients to `LiveValidation` when the
+  worktree is in `PreWriteDaemon` (or `DegradedProtection` with at least one
+  `Participating` surface), with concrete repair hints when promotion is
+  blocked. Post-ship hardening resolved four council MAJORs.
+- **`DaemonStatusV1::generated_at_unix` wire-add (MLP2-051h).** A daemon-level
+  wall-clock anchor, distinct from per-session heartbeats, used as a second
+  freshness consistency check. Wire-additive via `#[serde(default)]` — a
+  pre-`v0.7.1-beta` daemon deserialises the field at `0`, which consumers treat
+  as "no anchor; fall back to per-session freshness".
+- **Windows MCP `validate_write` carries `protection_claim` (MLP2-075).** A
+  named-pipe IPC client brings Windows to parity with the Unix socket path, so
+  Windows + Scoop + PowerShell users get the same typed claim that was always
+  `None` before.
+
+### Reliability & threat model
+
+- **Single wall-clock deadline on `query_daemon_status_at` (Unix).** The read
+  loop now refreshes `set_read_timeout(deadline − now)` against one
+  `Instant`-based deadline, so a daemon dribbling one byte per (timeout − 1 ms)
+  can no longer keep the loop alive ~524 s; the 500 ms activation IPC budget is
+  enforced end-to-end, at parity with the Windows path.
+- **Freshness gate bounds future-timestamp tolerance.** A
+  `MAX_FUTURE_CLOCK_SKEW = 90 s` upper bound rejects a daemon stamping a
+  far-future time (broken RTC, snapshot replay, malicious output), bounding the
+  downgrade path to 90 s of clock skew while tolerating NTP steps and VM drift.
+- **L4 engine distinguishes IO outages from missing engines.** A new
+  `EngineUnavailableReason::IoError` variant separates a transient filesystem
+  hiccup from a permanently absent engine, so the `engine-missing` operator hint
+  no longer fires for retryable IO.
+
+### Security
+
+- **Windows IPC trust rests on the named-pipe DACL set at pipe creation.**
+  Client-side SID validation (defence-in-depth parity with the Unix
+  `SO_PEERCRED` check) is deferred to MLP2-051j; same-SID processes are inside
+  the v1 trust boundary the same way same-UID processes are on Unix.
+
+### Diagnostics, docs & delivery
+
+- **Activation tracing surfaces operator-actionable failures at `warn`.** The
+  missing piece (daemon unreachable, worktree unenforced, stale snapshot,
+  all-surfaces quarantined) shows at the default `ANVIL_LOG=warn` filter;
+  transient states stay at `info`, the genuine pre-restart case at `debug`.
+- **`docgov` validates as-built source paths.** DOCGOV closeouts naming a
+  non-existent source file now fail the governance check at PR time instead of
+  shipping a broken cross-reference.
+- **`anvil uninstall` detects Scoop and WinGet install paths**, with a tightened
+  boundary check so removal cannot stray outside the install root.
+- **`anvil-run` manpage documents the SIGTERM transient-fence behaviour** — a
+  launcher killed by SIGTERM may briefly fence the worktree; the next invocation
+  clears it during session registration.
+- **ADR-047 Accepted**
+  ([eddacraft-tui canonical source mirror](./plans/decisions/047-eddacraft-tui-canonical-source-mirror.md)),
+  seeding the TUIR reintegration that lands in `v0.7.2-beta`.
 
 ## [0.7.0-beta] — 2026-05-21 — Daemon Working End-to-End
 
