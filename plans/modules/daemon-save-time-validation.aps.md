@@ -4,7 +4,7 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-06-03
+**Last reviewed:** 2026-06-05 (DSV-011 hardening complete)
 
 ## Purpose
 
@@ -606,9 +606,16 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   verified locally; the Windows path is verified green on the `rust.yml`
   `windows-msvc` matrix (the full suite passes — including the ADR-068 guard's
   reparse/junction-rejection, C2, and B2 tests, which runtime-caught a wrong
-  `STATUS_REPARSE_POINT_ENCOUNTERED` constant cross-check could not). **Known
-  gap:** the synchronous pipe client has no read timeout (the Unix transport
-  bounds via `set_read_timeout`) — deferred to DSV-010b hardening.
+  `STATUS_REPARSE_POINT_ENCOUNTERED` constant cross-check could not).
+- **Progress (DSV-011 Hardening):** added `REQUEST_TIMEOUT` + worker-thread +
+  `recv_timeout` wrapper to `WindowsPipeSaveTimeTransport::round_trip` (and the
+  fire-and-forget full-scan path) so a wedged pipe cannot stall `watch`/`status`
+  (matches the established pattern from `query_daemon_status_windows_at_with_timeout`).
+  Added `with_pipe_name` test seam (parity with MCP). Extended the round-trip
+  tests with `windows_pipe_transport_maps_unserved_daemon_to_unavailable` (per-PID
+  pipe fixture, NoopDispatcher → Unavailable, mirroring the socket test and
+  MLP2-075). Removed the "known gap" note; the client is now hardened. (Work in
+  `feat/dsv-011-hardening`.)
 - **Intent:** Make the Windows user-facing surfaces thin save-time-daemon clients,
   matching the Unix `watch` / `status` wiring shipped in DSV-007.
 - **Expected Outcome:** a `WindowsPipeSaveTimeTransport` (parallel to the MCP
@@ -876,8 +883,8 @@ Merged item; each is an additive improvement under the frozen wire.
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
-| A-W — Windows + cross-platform parity | 2 | 0/2 done | Proposed |
+| A-W — Windows + cross-platform parity | 2 | 1/2 done (DSV-011 hardening + fixture test complete; DSV-010b verbs pending) | In Progress |
 | A — deferred follow-ups | 5 | 4/5 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **18** | **13/18 done** | **In Progress** |
+| **Total** | **18** | **14/18 done** | **In Progress** |

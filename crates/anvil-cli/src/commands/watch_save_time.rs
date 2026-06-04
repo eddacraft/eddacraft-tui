@@ -540,6 +540,9 @@ mod socket {
 #[cfg(windows)]
 mod pipe {
     use std::path::Path;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
 
     use anvil_intercept_proto::protocol::{
         ANVIL_REQUEST_FULL_SCAN, ANVIL_VALIDATE_PATHS, ANVIL_WORKSPACE_STATUS, ChangeDescriptor,
@@ -551,19 +554,27 @@ mod pipe {
     use super::framing;
     use super::{SaveTimeClientError, SaveTimeTransport};
 
+    /// Per-request wall-clock budget for the Windows pipe transport.
+    /// Matches the Unix `SocketSaveTimeTransport` and the MCP client budget.
+    /// A wedged daemon (accepts but never replies) is treated as
+    /// Unavailable for this batch (triggers scoped fallback).
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+
     /// DSV-011: production [`SaveTimeTransport`] on Windows — JSON-RPC over the
     /// per-user named pipe. The owner-only pipe DACL (`anvil-intercept-win32`) is
     /// the same-user boundary, the SO_PEERCRED analogue; the JSON-RPC framing is
     /// shared with the Unix socket transport via [`framing`].
     ///
     /// Until DSV-010b serves the save-time verbs on Windows the daemon replies
-    /// `Method not found`, which folds to `Unavailable` → the watch/status
-    /// surfaces fall back exactly as they do against an absent daemon.
+    /// `Method not found` (or "save-time not enabled"), which folds to
+    /// `Unavailable` → the watch/status surfaces fall back exactly as they do
+    /// against an absent daemon.
     ///
-    /// NOTE: the synchronous named-pipe client has no read timeout, so a wedged
-    /// daemon could stall a call (the Unix transport bounds this via
-    /// `set_read_timeout`). The daemon is a local same-user process, so this is an
-    /// edge case; a pipe read-timeout is deferred to DSV-010b hardening.
+    /// Hardened: the synchronous pipe client now bounds the entire connect+IO
+    /// with a 2 s wall-clock cap (worker thread + recv_timeout) so a wedged
+    /// daemon cannot stall `watch` or `status`. Mirrors the established
+    /// `query_daemon_status_windows_at_with_timeout` pattern; Unix uses
+    /// `set_read_timeout` on the stream.
     pub(crate) struct WindowsPipeSaveTimeTransport {
         pipe_name: String,
     }
@@ -577,17 +588,55 @@ mod pipe {
                 .map(|pipe_name| Self { pipe_name })
         }
 
-        /// Connect and run one JSON-RPC round-trip over the pipe, via the shared
-        /// `framing` helper. Any connect/IO failure folds to `Unavailable`.
+        /// MLP2-075 / DSV-011: Windows equivalent of `SocketSaveTimeTransport::with_socket_path`.
+        /// Allows tests to bind the save-time client to a per-PID pipe name so the
+        /// fixture `IpcListener` never races the real per-user daemon (or other
+        /// concurrent test crates) on the same Windows runner.
+        #[cfg(test)]
+        #[allow(dead_code)]
+        pub(crate) fn with_pipe_name(pipe_name: impl Into<String>) -> Self {
+            Self {
+                pipe_name: pipe_name.into(),
+            }
+        }
+
+        /// Connect and run one JSON-RPC round-trip over the pipe (bounded).
+        /// Uses a worker thread because synchronous named-pipe ReadFile/WriteFile
+        /// have no direct timeout setter; the framing (write + capped read) is
+        /// executed under the REQUEST_TIMEOUT cap. Timeouts and any IO error
+        /// fold to `Unavailable` (triggers the scoped fallback).
         fn round_trip(
             &self,
             method: &str,
             id: &str,
             params: &Value,
         ) -> Result<Value, SaveTimeClientError> {
-            let client = anvil_intercept_win32::connect_owner_only_pipe_client(&self.pipe_name)
-                .map_err(|_| SaveTimeClientError::Unavailable)?;
-            framing::round_trip_over(client, method, id, params)
+            let pipe_name = self.pipe_name.clone();
+            let method = method.to_owned();
+            let id = id.to_owned();
+            let params = params.clone();
+            let (tx, rx) = mpsc::sync_channel(1);
+            let worker = thread::spawn(move || {
+                let outcome: Result<Value, SaveTimeClientError> = (|| {
+                    let client = anvil_intercept_win32::connect_owner_only_pipe_client(&pipe_name)
+                        .map_err(|_| SaveTimeClientError::Unavailable)?;
+                    framing::round_trip_over(client, &method, &id, &params)
+                })();
+                let _ = tx.send(outcome);
+            });
+            match rx.recv_timeout(REQUEST_TIMEOUT) {
+                Ok(outcome) => {
+                    // Reap on success path for consistency with the status-query
+                    // Windows timeout helper (avoids leaking a JoinHandle when the
+                    // worker has already exited). On timeout arms we intentionally
+                    // drop without join (the worker is blocked in ReadFile; leak is
+                    // bounded by process lifetime, matching the established pattern).
+                    let _ = worker.join();
+                    outcome
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => Err(SaveTimeClientError::Unavailable),
+                Err(mpsc::RecvTimeoutError::Disconnected) => Err(SaveTimeClientError::Unavailable),
+            }
         }
     }
 
@@ -949,6 +998,52 @@ mod tests {
         assert!(
             matches!(third, SaveTimeDecision::FellBack { warned: true, .. }),
             "a fresh disconnect after a reconnect must warn again",
+        );
+    }
+
+    /// DSV-011: end-to-end proof that the Windows named-pipe transport
+    /// round-trips a `validate_paths` against a local in-process listener
+    /// (NoopDispatcher → method-not-found → Unavailable fallback). Mirrors
+    /// the Unix socket test immediately above and the MLP2-075 Windows
+    /// pattern (per-PID pipe name so the fixture never collides with a
+    /// real per-user daemon on the same runner).
+    ///
+    /// This is the Windows leg of "the watch socket round-trip + status
+    /// render tests extended to a Windows named-pipe fixture".
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_pipe_transport_maps_unserved_daemon_to_unavailable() {
+        use anvil_intercept::Shutdown;
+        use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
+        use tokio::runtime::Runtime;
+
+        use super::WindowsPipeSaveTimeTransport;
+
+        let runtime = Runtime::new().expect("tokio runtime starts");
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-intercept-save-time-test-{}",
+            std::process::id()
+        );
+        let _guard = runtime.enter();
+        let listener = IpcListener::bind(&pipe_name, NoopDispatcher).expect("daemon pipe binds");
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        let transport = WindowsPipeSaveTimeTransport::with_pipe_name(&pipe_name);
+        let outcome = transport.validate_paths(std::path::Path::new(r"C:\ws"), &[]);
+
+        shutdown.trigger();
+        runtime.block_on(async {
+            server
+                .await
+                .expect("daemon task joins")
+                .expect("daemon exits cleanly");
+        });
+
+        assert_eq!(
+            outcome,
+            Err(SaveTimeClientError::Unavailable),
+            "a daemon that does not serve save-time must degrade to the scoped fallback",
         );
     }
 }
