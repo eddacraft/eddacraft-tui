@@ -15,6 +15,8 @@ vi.mock('../../src/keyvault.js', () => ({
       'token-pepper': 'mock-token-pepper',
       'github-oauth-client-id': 'mock-github-client-id',
       'github-oauth-client-secret': 'mock-github-client-secret',
+      'github-cli-client-id': 'mock-github-cli-client-id',
+      'github-cli-client-secret': 'mock-github-cli-client-secret',
       'license-public-key': 'mock-license-public-key',
       'license-signing-key': 'mock-license-signing-key',
       'docs-state-secret': 'mock-docs-state-secret',
@@ -119,6 +121,16 @@ describe('Vercel resources', () => {
     expect(resend).toBeDefined();
   });
 
+  it('wires the dedicated Anvil CLI GitHub OAuth credentials into anvil-api (GHCLIAUTH-002)', () => {
+    const envVars = resources.filter(
+      (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
+    );
+    const cliId = envVars.find((e) => e.inputs.key === 'GITHUB_CLI_CLIENT_ID');
+    expect(cliId).toBeDefined();
+    const cliSecret = envVars.find((e) => e.inputs.key === 'GITHUB_CLI_CLIENT_SECRET');
+    expect(cliSecret).toBeDefined();
+  });
+
   it('wires ADMIN_KEY_PEPPER + ADMIN_PER_OPERATOR_KEYS into anvil-api', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
@@ -154,6 +166,7 @@ describe('Vercel resources', () => {
       'TOKEN_PEPPER',
       'LICENSE_SIGNING_KEY',
       'GITHUB_CLIENT_SECRET',
+      'GITHUB_CLI_CLIENT_SECRET',
     ]) {
       const v = envVars.find((e) => e.inputs.key === key);
       expect(v, `expected ${key} to be configured`).toBeDefined();

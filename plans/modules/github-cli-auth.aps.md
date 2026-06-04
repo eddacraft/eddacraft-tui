@@ -159,7 +159,13 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-002: Provision the "Anvil CLI" GitHub OAuth app + Key Vault + boot probe
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Operator gate:** The code half (infra wiring + boot probe + `/health` field)
+  is implemented and merge-gated: `infra.yml` runs `pulumi up` on push to `main`
+  and `getSecret` throws on a missing secret, so the wiring must not merge until
+  the operator has (a) registered the "Anvil CLI" GitHub OAuth app with Device
+  Flow enabled and (b) created the `github-cli-client-id`/`-secret` Key Vault
+  secrets. See the GHCLIAUTH-009 runbook for the exact steps.
 - **Intent:** Stand up the dedicated CLI OAuth app and its credentials so the
   device flow has an isolated, Device-Flow-enabled identity provider.
 - **Expected Outcome:** A new "Anvil CLI" GitHub OAuth app exists with **Device

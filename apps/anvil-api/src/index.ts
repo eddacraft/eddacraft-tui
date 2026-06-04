@@ -13,6 +13,7 @@ import { rateLimiter } from './middleware/rate-limit.js';
 import { traceContext } from './middleware/trace-context.js';
 import { getClient } from './db/client.js';
 import { verifySigningKey, verifyVerifyingKey } from './lib/licence.js';
+import { verifyGitHubCliCredentials } from './lib/github-cli-credentials.js';
 
 // Cold-start probe: validate both the signing-key PEM (for /device/poll and
 // the OTP / GitHub / session paths) and the verifying-key PEM (for the
@@ -31,6 +32,15 @@ verifyVerifyingKey().then((result) => {
     console.error('[boot] licence verifying key unavailable:', result.error);
   }
 });
+// GHCLIAUTH-002: surface the Anvil CLI OAuth credentials at boot. Informational
+// only — the CLI device-flow login (GHCLIAUTH-005/-006) is not live yet, so
+// absent creds must not fail boot or degrade /health before provisioning.
+{
+  const result = verifyGitHubCliCredentials();
+  if (!result.ok) {
+    console.error('[boot] github cli credentials unavailable:', result.error);
+  }
+}
 
 const app = new Hono().basePath('/api/v1');
 
@@ -91,12 +101,18 @@ app.get('/health', async (c) => {
     verifyVerifyingKey(),
   ]);
 
+  // GHCLIAUTH-002: report CLI OAuth credential presence for monitors, but do
+  // NOT gate overall health on it — the device-flow login is not live yet, so a
+  // missing credential is expected before provisioning and must not 503.
+  const githubCliCreds = verifyGitHubCliCredentials().ok ? 'ok' : 'unavailable';
+
   if (dbResult.ok && signingKeyResult.ok && verifyingKeyResult.ok) {
     return c.json({
       status: 'ok',
       db: 'ok',
       signingKey: 'ok',
       verifyingKey: 'ok',
+      githubCliCreds,
     });
   }
 
@@ -106,6 +122,7 @@ app.get('/health', async (c) => {
       db: dbResult.ok ? 'ok' : 'unreachable',
       signingKey: signingKeyResult.ok ? 'ok' : 'unavailable',
       verifyingKey: verifyingKeyResult.ok ? 'ok' : 'unavailable',
+      githubCliCreds,
     },
     503
   );

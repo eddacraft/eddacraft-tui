@@ -11,6 +11,12 @@ const resendApiKey = getSecret('resend-api-key');
 // DOCSAUTH: GitHub OAuth secrets
 const githubClientId = getSecret('github-oauth-client-id');
 const githubClientSecret = getSecret('github-oauth-client-secret');
+// GHCLIAUTH-002 (ADR-066): dedicated "Anvil CLI" GitHub OAuth app for the CLI
+// device-authorization-grant login. Separate from the `eddacraft Docs` app
+// above so CLI login and docs auth do not share rate limits, consent branding,
+// or audit trails. Wired into anvil-api ONLY (never docs-shell).
+const githubCliClientId = getSecret('github-cli-client-id');
+const githubCliClientSecret = getSecret('github-cli-client-secret');
 const licensePublicKey = getSecret('license-public-key');
 const licenseSigningKey = getSecret('license-signing-key');
 const docsStateSecret = getSecret('docs-state-secret');
@@ -85,6 +91,10 @@ export const api = new VercelApp('anvil-api', {
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,
+    // GHCLIAUTH-002 (ADR-066): dedicated "Anvil CLI" OAuth app for CLI device
+    // flow. anvil-api only; requires Device Flow enabled on the GitHub app.
+    GITHUB_CLI_CLIENT_ID: githubCliClientId,
+    GITHUB_CLI_CLIENT_SECRET: githubCliClientSecret,
     // DBCON-003: WAITLIST_PAUSED is intentionally NOT declared here. It is a
     // kill switch for POST /waitlist (see waitlist.ts) toggled directly in the
     // Vercel project UI during the Neon cutover — if Pulumi managed it, the
