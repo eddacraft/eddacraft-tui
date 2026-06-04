@@ -497,9 +497,20 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   remaining DSV-010 work, not just "lift `save_time.rs`". Only once the
   workspace builds on Windows can the guard's fixture tests run on the `rust.yml`
   windows matrix (`cargo test --workspace`).
-- **Remaining:** make the daemon crate Windows-buildable (above); lift
-  `save_time.rs` off `#![cfg(unix)]` to dispatch this guard; wire the IPC
-  dispatch on Windows; the peer-SID auth check; then DSV-011 clients.
+- **Progress — DSV-010a (compile-clean, ADR-069 Stage 1, 2026-06-04):** the only
+  actual daemon build-breaker was `change_class` being Unix-gated while its
+  **neutral** `CanonicalChange` enum is imported by `assurance`/`validate_paths`
+  (the other survey "blockers" — `workspace_admission`, `confinement`,
+  `workspace_pool`/`registry` doc-links — are already gated or doc-only). Fix:
+  un-gate `change_class`, keep `CanonicalChange` neutral, `#[cfg(unix)]`-gate the
+  inode `PathIdentity`/`classify`/`IdentityTable`/probe. Verbs still reply
+  `not enabled` on Windows (ipc.rs). Unix build + tests unchanged (verified);
+  Windows verified via the `rust.yml` matrix (local cross-check of the full crate
+  is blocked by `aws-lc-sys`' C build needing an msvc/mingw toolchain).
+- **Remaining — DSV-010b (functional, ADR-069 Stage 2):** introduce the
+  `WorkspaceAnchor` (Unix dirfd / the built guard) + Windows `PathIdentity`
+  (`FILE_ID_INFO`) + peer-SID auth, lift `save_time` to dispatch them, enable the
+  verbs on Windows, extend the DSV-009 parity gate; then DSV-011 clients.
 - **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
   the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
   support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP

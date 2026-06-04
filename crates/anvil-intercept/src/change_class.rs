@@ -19,15 +19,28 @@
 //! the orchestrator (DSV-005); at this layer a rename decomposes into its two
 //! endpoints, each classified independently.
 
-use std::collections::HashMap;
-use std::io;
-use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+// `CanonicalChange` is platform-neutral (DSV-010a / ADR-069): it is the
+// wire-derived change shape the verdict spine (`assurance`, `validate_paths`)
+// codes against, so it must compile on Windows. The inode-based identity table
+// and classification below are Unix-only (the Windows `FILE_ID_INFO` identity is
+// DSV-010b); they are `#[cfg(unix)]`-gated so the neutral enum stays portable.
+use std::path::PathBuf;
 
+#[cfg(unix)]
+use std::collections::HashMap;
+#[cfg(unix)]
+use std::io;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use std::path::Path;
+
+#[cfg(unix)]
 use anvil_intercept_rules::ChangeKind;
 
 /// The identity of a path at a point in time, as seen via `lstat`
 /// (symlinks are not followed — the link's own identity is recorded).
+#[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PathIdentity {
     /// Inode number. An inode flip on the same path is the atomic-save tell.
@@ -38,6 +51,7 @@ pub struct PathIdentity {
     pub size: u64,
 }
 
+#[cfg(unix)]
 impl PathIdentity {
     fn from_metadata(meta: &std::fs::Metadata) -> Self {
         Self {
@@ -98,6 +112,7 @@ pub enum CanonicalChange {
 /// *identical* — `classify` would report `ContentModify` for an unchanged file.
 /// [`IdentityTable::stat_on_validate`] is the canonical pattern (it skips
 /// `prev == now` before classifying).
+#[cfg(unix)]
 #[must_use]
 pub fn classify(
     prev: Option<&PathIdentity>,
@@ -120,12 +135,14 @@ pub fn classify(
 /// case-insensitive filesystem the keys are lower-cased so a case-only rename
 /// (`Foo.rs` → `foo.rs`) collapses to one entry and reads as a content modify,
 /// not a spurious delete+create.
+#[cfg(unix)]
 #[derive(Debug, Default)]
 pub struct IdentityTable {
     case_insensitive: bool,
     entries: HashMap<String, PathIdentity>,
 }
 
+#[cfg(unix)]
 impl IdentityTable {
     /// Build an empty table. `case_insensitive` is the once-probed filesystem
     /// property for this workspace (see [`probe_case_insensitive`]).
@@ -201,6 +218,7 @@ impl IdentityTable {
 /// The probe name is pid-unique and opened with `create_new(true)`, so it never
 /// truncates a pre-existing file — if the name somehow already exists, the
 /// probe bails to the safe answer rather than clobbering data.
+#[cfg(unix)]
 #[must_use]
 pub fn probe_case_insensitive(root: &Path) -> bool {
     let pid = std::process::id();
@@ -222,7 +240,7 @@ pub fn probe_case_insensitive(root: &Path) -> bool {
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 

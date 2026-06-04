@@ -37,7 +37,9 @@
 pub mod antipattern_config;
 pub mod assurance;
 pub mod auth;
-#[cfg(unix)]
+// DSV-010a / ADR-069: `change_class` is no longer Unix-gated as a whole — its
+// `CanonicalChange` enum is platform-neutral (the verdict spine needs it on
+// Windows); the inode-based identity/classification inside it stays `cfg(unix)`.
 pub mod change_class;
 pub mod config;
 pub mod confinement;
