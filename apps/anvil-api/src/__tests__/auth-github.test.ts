@@ -462,9 +462,7 @@ describe('POST /auth/github/callback', () => {
 
     it('returns 401 and audits github_oauth_link_conflict when the linker rejects a takeover', async () => {
       mockHappyGitHub({ email: 'shared@example.com', id: 222 });
-      vi.mocked(linkOrCreateGitHubUser).mockRejectedValue(
-        new GitHubAccountLinkConflictError()
-      );
+      vi.mocked(linkOrCreateGitHubUser).mockRejectedValue(new GitHubAccountLinkConflictError());
 
       const res = await callback({ code: 'gh-code' });
 
