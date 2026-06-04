@@ -372,6 +372,63 @@ fn unscannable_extensions_are_skipped() {
 }
 
 // ---------------------------------------------------------------------------
+// RSTLAN-006: Rust files in the default scan set
+// ---------------------------------------------------------------------------
+
+#[test]
+fn default_scan_set_includes_rust() {
+    assert!(
+        AntipatternCheckConfig::default()
+            .extensions
+            .iter()
+            .any(|e| e == ".rs"),
+        "RSTLAN-006: `.rs` must be in the default antipattern scan set"
+    );
+}
+
+#[test]
+fn deferred_debt_rule_fires_on_rust_source() {
+    // DD-001 declares `.rs` in its file_extensions; an un-ticketed TODO in a
+    // Rust file must be flagged the same as in TS.
+    let result = scan_file(
+        "src/lib.rs",
+        "// TODO: wire this up before release\npub fn run() {}\n",
+        None,
+    );
+    assert!(
+        result.warnings.iter().any(|w| w.id == "DD-001"),
+        "DD-001 should fire on an un-ticketed TODO in .rs, got {:?}",
+        result.warnings.iter().map(|w| &w.id).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn run_antipattern_check_scans_rust_files_by_default() {
+    // The orchestrator reads `.rs` files by default (the scan-set change), so a
+    // Rust file with un-ticketed debt is surfaced — before RSTLAN-006 it was
+    // skipped entirely.
+    let dir = temp_dir("rust-default-scan");
+    let f = dir.join("service.rs");
+    std::fs::write(&f, "// FIXME: temporary hack\npub fn go() {}\n").unwrap();
+
+    let config = AntipatternCheckConfig {
+        severity_threshold: WarningSeverity::Warning,
+        ..AntipatternCheckConfig::default()
+    };
+    let fs = f.to_string_lossy().to_string();
+    let files = [fs.as_str()];
+    let result = run_antipattern_check(&files, &config, None);
+
+    assert_eq!(result.files_scanned, 1, ".rs must now be scanned");
+    assert!(
+        !result.passed,
+        "an un-ticketed FIXME in .rs should raise a warning at the warning threshold"
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+// ---------------------------------------------------------------------------
 // Warning result consistency
 // ---------------------------------------------------------------------------
 

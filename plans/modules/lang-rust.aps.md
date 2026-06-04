@@ -5,7 +5,7 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | In Progress | 3/8  |
+| RSTLAN | @aneki | In Progress | 4/8  |
 
 **Last reviewed:** 2026-06-03 — NBI "RSTLAN re-eval — Rust anchor scoping" completed. ADR-065 (Rust T3 architecture enforcement location — Rust-native) Accepted; anchor re-scoring snapshot 2026-06-03 recorded (sequence unchanged, Rust elevated to #2 for dogfood); LANGTS 6/6 + kernel prereqs complete; module promoted Proposed → Ready with executable work items. Owner named. All Ready Checklist items now checked.
 
@@ -176,9 +176,9 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** medium — entry detection currently lives in TS analyser; Rust path needs the hand-off point clarified in implementation.
 - **Files:** crates/anvil-architecture/, crates/anvil-cli/src/commands/gate.rs (or shared), packages/anvil/core/src/architecture/entry-detector.ts (legacy updates only)
 
-### RSTLAN-005: Layer/boundary enforcement reaches Rust crates and modules (per ADR-065) — In Progress
+### RSTLAN-005: Layer/boundary enforcement reaches Rust crates and modules (per ADR-065) — Merged
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2321
 - **Intent:** Make `anvil architecture validate`, `anvil gate`, baseline diff, and new-edge classification work for cross-crate Rust imports and Rust↔TS boundaries inside a mixed workspace, using the Rust-native path.
 - **Expected Outcome:** `collect_source_files` already includes .rs; `extract_import_edges` (gate) and architecture validator consume kernel-supplied Rust edges (from RSTLAN-002); Rust `use` / `mod` resolved to actual files for layer matching; violations emitted for new cross-layer Rust edges; baseline round-trips include .rs files; "new edges only" contract holds for Rust changes.
 - **Scope:** Updates to `crates/anvil-cli/src/commands/gate.rs` (remove JS/TS hard filter, use kernel for .rs or all when available), `crates/anvil-architecture` resolver extensions if ImportEdge shape insufficient for Rust, any TS analyser parity notes (legacy), integration tests, Anvil monorepo architecture.yaml if needed for dogfood.
@@ -188,9 +188,10 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** medium-high — the validator already accepts edges; the work is primarily in the extractor + call-site plumbing.
 - **Files:** crates/anvil-cli/src/commands/gate.rs, crates/anvil-architecture/src/validator.rs (resolver), crates/anvil-kernel/src/parser/extract/rust.rs
 
-### RSTLAN-006: Drift baseline default-on for `.rs` files — Ready
+### RSTLAN-006: Drift baseline default-on for `.rs` files — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Delivery note:** Two halves. **Architecture/edge drift** for `.rs` was already enabled by RSTLAN-005 (`collect_source_files` + gate `extract_import_edges` include `.rs`; `find_new_violations` diffs Rust edges). **Antipattern/debt drift**: `.rs` added to `AntipatternCheckConfig::default().extensions`, activating the already-`.rs`-scoped deferred-debt rules (DD-001/-002/-003 — un-ticketed TODO/FIXME/HACK/temporary) on Rust across `anvil check`/`gate`/drift **and** the DSV save-time daemon (operator-confirmed, warnings-only). JS/TS-specific rules stay extension-restricted; DSV-009 parity unaffected (corpus is `.ts`-only). Rust antipattern *catalogue* (unwrap/unsafe/serde) remains RSTLAN-003 (ADR-069).
 - **Intent:** Ensure that once a workspace has a baseline, `.rs` files participate in drift detection by default (no opt-in per-language flag).
 - **Expected Outcome:** `anvil drift` and baseline machinery include .rs files in the scanned set and edge set when the grammar+extractor are present; a pure-Rust or mixed workspace gets drift coverage for Rust without extra config.
 - **Scope:** Verify / extend the include logic in drift and baseline paths (likely already generic via architecture collect or kernel scan); update any docs or defaults; tests.

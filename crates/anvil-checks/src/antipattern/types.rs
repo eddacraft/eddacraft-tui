@@ -206,6 +206,12 @@ impl Default for AntipatternCheckConfig {
                 ".jsx".to_string(),
                 ".mjs".to_string(),
                 ".cjs".to_string(),
+                // RSTLAN-006: `.rs` joins the default scan set so the
+                // already-`.rs`-scoped deferred-debt rules (DD-001/-002/-003 —
+                // un-ticketed TODO/FIXME/HACK/temporary) fire on Rust across
+                // `anvil check`/`gate`/drift and the save-time daemon, the same
+                // as TS. JS/TS-specific rules stay extension-restricted.
+                ".rs".to_string(),
                 ".html".to_string(),
                 ".htm".to_string(),
                 ".css".to_string(),
