@@ -266,10 +266,13 @@ mod tests {
     fn absolutise_makes_relative_paths_absolute() {
         let abs = absolutise(std::path::Path::new("relative/dir")).expect("absolutise");
         assert!(abs.is_absolute(), "a relative path is absolutised: {abs:?}");
-        // An already-absolute path is returned unchanged.
-        assert_eq!(
-            absolutise(std::path::Path::new("/srv/proj")).expect("absolutise"),
-            std::path::PathBuf::from("/srv/proj")
-        );
+        // An already-absolute path is returned unchanged. "Absolute" is
+        // platform-specific: a leading-slash path is absolute on Unix but
+        // drive-relative (not absolute) on Windows, which needs a drive prefix.
+        #[cfg(unix)]
+        let already = std::path::PathBuf::from("/srv/proj");
+        #[cfg(windows)]
+        let already = std::path::PathBuf::from(r"C:\srv\proj");
+        assert_eq!(absolutise(&already).expect("absolutise"), already);
     }
 }
