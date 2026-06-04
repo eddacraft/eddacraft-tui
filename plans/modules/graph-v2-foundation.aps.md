@@ -120,9 +120,10 @@ Change status to **Ready** when:
       2026-06-01, Josh as sole owner of the INTD, DRVR, and GV2 surfaces)
 - [ ] Stable identity model reviewed against git rename and symbol rename cases
 - [x] Persistence strategy ADR drafted or explicitly assigned to GV2-021 —
-      assigned to GV2-021, with its content concretely specified in
-      `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 (ADR
-      itself not yet drafted)
+      [ADR-069](../decisions/069-graph-v2-persistence.md) **Accepted 2026-06-04**,
+      formalising the
+      `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9
+      requirements (full council + design council, SOUND-WITH-FIXES, folded in)
 - [ ] Privacy review completed for persisted provenance/session fields
 - [x] GCTX module updated to depend on GV2 rather than owning foundation work —
       [graph-context-delivery](graph-context-delivery.aps.md) declares GV2 as a
@@ -324,7 +325,7 @@ Change status to **Ready** when:
 
 #### GV2-021: ADR — graph persistence and snapshot strategy
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Record the persistence decision for Graph v2, reconciling the
   current GCTX rkyv/SQLite assumptions with daemon, hot-read, privacy, and
   schema-version requirements.
@@ -333,7 +334,13 @@ Change status to **Ready** when:
   and migration/versioning rules.
 - **Validation:** ADR reviewed by council-reviewer, kernel-maintainer, and
   security reviewer
-- **Files:** `plans/decisions/NNN-graph-v2-persistence.md`
+- **Files:** `plans/decisions/069-graph-v2-persistence.md`
+- **Progress:** [ADR-069](../decisions/069-graph-v2-persistence.md) **Accepted
+  2026-06-04** (Josh) — sealed canonical-DTO load-once snapshot (`postcard`, not
+  rkyv/SQLite/CBOR), default-off, restore-indexes-never-verdict, discard-and-rebuild
+  versioning, structural-identity-only privacy line; reviewed by full council +
+  design council (SOUND-WITH-FIXES, all folded in). Item completes (→ Merged) on
+  PR [#2301](https://github.com/eddacraft/anvil-001/pull/2301) merge.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-001, GV2-003
