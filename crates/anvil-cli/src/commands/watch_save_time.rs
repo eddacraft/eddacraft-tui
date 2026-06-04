@@ -41,6 +41,13 @@ use anvil_kernel_types::Severity;
 /// `unavailable{daemon-absent}` — so the type is intentionally coarse: the
 /// distinction the surfaces care about is "did the daemon give us a verdict or
 /// not", not the specific transport failure.
+// DSV-010a: the save-time client machinery is only *constructed* on Unix today
+// (the `SocketSaveTimeTransport` + `build_save_time_client` are `cfg(unix)`); the
+// Windows pipe transport that exercises it is DSV-011. Keep the types compiling
+// on Windows (the `DispatcherInner.save_time` field is platform-neutral) but
+// allow the not-yet-used surface there rather than cascading `cfg(unix)` through
+// the dispatcher.
+#[cfg_attr(not(unix), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SaveTimeClientError {
     /// No verdict: the daemon was absent, refused, errored, or the connection
@@ -53,6 +60,9 @@ pub(crate) enum SaveTimeClientError {
 /// reconnect → re-scan) is unit-testable with an in-process fake, while the
 /// production impl ([`SocketSaveTimeTransport`]) speaks JSON-RPC over the Unix
 /// socket.
+// `cfg_attr(not(unix), allow(dead_code))`: see `SaveTimeClientError` (DSV-010a) —
+// `workspace_status` and the other verbs have no Windows caller until DSV-011.
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) trait SaveTimeTransport: Send {
     /// Certify `paths` under `workspace_root`. `Err(Unavailable)` means no
     /// verdict (absent / dead / timed-out daemon) and triggers the fallback.
@@ -144,6 +154,9 @@ pub(crate) struct WatchSaveTimeClient {
 }
 
 impl WatchSaveTimeClient {
+    // DSV-010a: `new` is only called by the `cfg(unix)` `build_save_time_client`;
+    // dead on Windows until DSV-011 wires the pipe client.
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub(crate) fn new(transport: Box<dyn SaveTimeTransport>, workspace_root: PathBuf) -> Self {
         Self {
             transport,
