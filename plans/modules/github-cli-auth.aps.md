@@ -5,7 +5,7 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 1/11     |
+| GHCLIAUTH | @aneki | In Progress | 2/11     |
 
 **Last reviewed:** 2026-06-04 (ADR-066 Accepted; GHCLIAUTH-001 — the dependency-free
 `mintSession` helper extraction — started since it needs neither the OAuth app nor
@@ -184,7 +184,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-003: `beta_users.github_id` migration + first-login linking
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-04 via PR #2322
 - **Intent:** Link GitHub identities on the stable numeric id so returning users
   match deterministically and the email-change/takeover vector is closed, while
   binding an email-keyed invite to the authenticating GitHub account on first
