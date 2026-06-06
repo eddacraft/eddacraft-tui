@@ -112,6 +112,7 @@ docs/analysis/claude-code-safety-net-review.md
 !.claude/skills/dependabot/
 !.claude/skills/dependabot/**
 !.claude/skills/planning-council/
+!.claude/skills/anvil-opportunity-assessment/
 .claude/VERSION
 # SKOBS — skill discovery & observability snapshots (local, not committed)
 .claude/.skill-snapshots/
