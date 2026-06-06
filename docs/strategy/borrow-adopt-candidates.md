@@ -442,16 +442,36 @@ Entry format:
   - **what to borrow/adopt:** OpenTelemetry as the standard trace transport for
     AI audit events — emit OTLP-compatible spans so Anvil audit trails plug into
     existing observability stacks (Datadog, Grafana, Honeycomb) without
-    requiring a custom dashboard or vendor lock-in.
-  - **adopt type:** integrate-dependency
-  - **integration effort:** M
+    requiring a custom dashboard or vendor lock-in. **Validated borrow (deep-dive
+    2026-06-06): a *refs-only governance-decision correlation span* — the
+    `traceparent` join key + pointers to durable Kindling/witness evidence, with
+    low-sensitivity routing attributes only — NOT a `GovernanceTraceExport` that
+    carries the evidence itself.**
+  - **adopt type:** borrow-pattern (clean-room against the open OTel GenAI
+    semantic conventions; **not** a Langfuse dependency)
+  - **integration effort:** S (contract refinement of EXPORT, not greenfield —
+    TRACE already ships the `traceparent` plumbing and redaction layer)
   - **expected impact:** High
-  - **status:** candidate
+  - **status:** validating
+  - **deep-dive:** [`plans/brainstorms/2026-06-06-langfuse-borrow-assessment.md`](../../plans/brainstorms/2026-06-06-langfuse-borrow-assessment.md)
+    — promoted 2026-06-05 from the 2026-05-02 radar; assessed 2026-06-06.
+    Disposition **Track → fold into EXPORT**. Decline the Langfuse platform +
+    dependency (product breadth, scope exclusion #5).
+  - **aps link (optional):** EXPORT (observability-export) · TRACE
+    (tracing-foundation) · ADR-035 (three-pipe rule) · ADR-059 (production sink);
+    suggested CIB filings in the deep-dive §7.3.
   - **architecture notes / anti-frankenstein guardrails:** OTLP emission must be
-    additive — does not replace Anvil's native audit log, complements it. Define
-    span schema once in a shared OTel semantic conventions doc; do not let
-    individual modules invent their own span attributes. Keep OTLP export as a
-    configurable exporter, off by default.
+    additive and **refs-only** — the span carries pointers to durable evidence
+    (Kindling / witness chain), **never the evidence itself** (ADR-035: the
+    tracing pipe is ephemeral, never source-of-truth). Define the span schema
+    once, aligned to OTel GenAI semconv with `anvil.governance.*` for
+    governance-specific fields, via the namespace registry; do not let modules
+    invent their own attributes (TRACE R2). Keep export off by default and bound
+    to the **single ratified sink** (Azure Monitor + App Insights, ADR-059);
+    CLI/daemon stay local-first and never auto-export. A multi-backend
+    "publish anywhere" exporter (`exporter_ref`/`destination_ref` as a pluggable
+    matrix) is **out** without its own ADR. Redaction-before-export is a tested
+    invariant (EXPORT-001 V2).
 
 - **source repo + link:** `jagmarques/asqav-sdk` —
   https://github.com/jagmarques/asqav-sdk
