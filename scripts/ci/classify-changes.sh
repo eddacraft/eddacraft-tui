@@ -174,6 +174,18 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # Repository metadata shapes local tooling behaviour but is not compiled
+  # source. Keep it out of the conservative `unknown` bucket so allowlist-only
+  # edits (for example pairing `.gitignore` with a tracked agent skill) do not
+  # force the full Node build/test matrix.
+  case "${path}" in
+    .gitignore | .gitattributes | .editorconfig | .prettierignore | .prettierrc | .prettierrc.*)
+      add_unique path_classes 'repo-metadata'
+      add_unique risk_classes 'tooling'
+      matched=true
+      ;;
+  esac
+
   case "${path}" in
     scripts/*.sh | scripts/**/*.sh)
       add_unique path_classes 'shell'
@@ -284,6 +296,10 @@ for path_class in "${path_classes[@]}"; do
       # No build/test/format gate (oxfmt-excluded, no compiled source); the
       # agent-execution config surface still warrants a human ops review.
       add_unique required_reviews 'operations'
+      ;;
+    repo-metadata)
+      # Metadata-only changes are reviewed through the surrounding class.
+      # They do not require build, test, or format gates by themselves.
       ;;
     shell)
       add_unique required_checks 'shell-syntax'

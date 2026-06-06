@@ -155,6 +155,19 @@ claude_config=$(run_case claude-config .claude/settings.json .opencode/agents/ex
 assert_json_contains "${claude_config}" '.pathClasses | index("agent-config")' 'claude/opencode tooling routes to agent-config class'
 assert_json_contains "${claude_config}" '.requiredChecks | index("unit-tests") == null' 'claude/opencode tooling does NOT require unit tests'
 
+# Main push shape from f322522d3: a tracked agent skill plus the .gitignore
+# allowlist line needed to keep that skill in the repo. The skill markdown still
+# gets markdownlint through the docs class, but .gitignore must not fall through
+# to unknown and trigger the full Node build/test matrix.
+agent_skill_allowlist=$(run_case agent-skill-allowlist .claude/skills/anvil-opportunity-assessment/SKILL.md .gitignore)
+assert_json_contains "${agent_skill_allowlist}" '.pathClasses | index("docs")' 'agent skill allowlist includes docs class'
+assert_json_contains "${agent_skill_allowlist}" '.pathClasses | index("agent-config")' 'agent skill allowlist includes agent-config class'
+assert_json_contains "${agent_skill_allowlist}" '.pathClasses | index("repo-metadata")' 'agent skill allowlist includes repo-metadata class'
+assert_json_contains "${agent_skill_allowlist}" '.pathClasses | index("unknown") == null' 'agent skill allowlist does NOT include unknown class'
+assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("markdownlint")' 'agent skill allowlist still runs markdownlint'
+assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("unit-tests") == null' 'agent skill allowlist does NOT require unit tests'
+assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("typecheck") == null' 'agent skill allowlist does NOT require typecheck'
+
 empty=$(run_case empty)
 assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
 assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'
