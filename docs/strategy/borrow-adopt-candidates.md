@@ -501,11 +501,12 @@ Entry format:
     what the proof does **and does not** establish — e.g. "a green verification
     proves the lineage is authentic and intact; it does NOT prove the agent
     behaved well, that information-flow policy held, or that any computation was
-    correct." Anvil should carry an equivalent machine-readable `assurance_scope`
-    / `proof_limits` block on provenance and attestation exports so verdicts
-    state their own boundaries instead of implying total assurance. Secondary
-    borrow: the verifier-readable IFC verdict field model (source label, sink
-    class, flow verdict, proof artifact ref) as a vocabulary, not an engine.
+    correct." Anvil should carry an equivalent machine-readable
+    `assurance_scope` / `proof_limits` block on provenance and attestation
+    exports so verdicts state their own boundaries instead of implying total
+    assurance. Secondary borrow: the verifier-readable IFC verdict field model
+    (source label, sink class, flow verdict, proof artifact ref) as a
+    vocabulary, not an engine.
   - **adopt type:** borrow-pattern
   - **integration effort:** S
   - **expected impact:** Med
@@ -517,9 +518,8 @@ Entry format:
       narrows to the one non-duplicative borrow:
       - keyless OIDC→SPIFFE identity → already covered by `Symbiont`
         (2026-05-13)
-      - signed provenance / tamper-evidence → already covered by
-        `asqav-sdk` and `AiAgentKarl/agent-audit-trail-mcp` hash-chaining
-        (2026-05-13)
+      - signed provenance / tamper-evidence → already covered by `asqav-sdk` and
+        `AiAgentKarl/agent-audit-trail-mcp` hash-chaining (2026-05-13)
       - taint / tool-boundary information-flow tracking → already covered by
         `HeadyZhang/agent-audit` (2026-05-13)
       - machine-readable verdict contract → already covered by `Steward`
@@ -528,7 +528,7 @@ Entry format:
       discipline**, which strengthens Anvil's provenance/audit honesty posture
       and is a procurement trust signal (auditors distrust over-claiming).
   - **architecture notes / anti-frankenstein guardrails:**
-    - Borrow the evidence *shape and language*, clean-room. Do NOT take the
+    - Borrow the evidence _shape and language_, clean-room. Do NOT take the
       runtime as a dependency: at 2026-06-06 the repo is ~16 stars and largely
       alpha/unwired — constitutional kernel "not yet wired into the runtime,"
       verifier service "not hosted," npm/WASM verifier "publish-gated,"
