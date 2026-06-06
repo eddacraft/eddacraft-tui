@@ -68,3 +68,19 @@ Entry format:
   - **integration effort:** S
   - **expected impact:** Med
   - **status:** watch
+
+---
+
+## 2026-06-06
+
+- **repo + link:** `coproduct-opensource/nucleus` —
+  https://github.com/coproduct-opensource/nucleus
+  - **why it matters:** Rust secure runtime for AI agents framing
+    prompt-injection/exfiltration as information-flow control (tainted source
+    cannot reach privileged sink) backed by Lean 4 / Kani proofs. Notable not
+    for traction (~16 stars, mostly alpha/unwired) but for its honest
+    proof-limit disclosure — a borrow-pattern, not a competitive threat. Borrow
+    entry filed 2026-06-06 in borrow-adopt-candidates.md.
+  - **integration effort:** S
+  - **expected impact:** Med
+  - **status:** watch
