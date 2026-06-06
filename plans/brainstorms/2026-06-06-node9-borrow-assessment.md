@@ -18,8 +18,7 @@ routes enforcement tiers — keep that; do NOT add a user-facing aggregate
 no APS module filed in this pass; suggested CIB filings (next-available from
 CIB-048) in §7.3.**
 **Source:** https://github.com/node9-ai/node9-proxy (Apache-2.0, TypeScript
-97.8%, v1.28.0 released 2026-05-27, 448 commits, **200★** — vendor: node9-ai.
-Facts read from the public repo landing on 2026-06-06 via WebFetch.)
+97.8%, v1.28.0 released 2026-05-27, 448 commits, **200★**, vendor: node9-ai)
 
 ---
 
