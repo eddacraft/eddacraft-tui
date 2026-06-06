@@ -32,7 +32,15 @@ pub enum ExceptionError {
     Serialise(String),
 }
 
-const EXCEPTIONS_FILE: &str = ".anvil/exceptions.json";
+/// Tracked store path (ADR-073). Exceptions are durable governance state that
+/// must travel with the repository and be visible in PR review, so they live
+/// under `anvil/`, not the gitignored `.anvil/` runtime tree.
+const EXCEPTIONS_FILE: &str = "anvil/exceptions/store.json";
+
+/// Legacy local store path. Read-only fallback for repositories written before
+/// the ADR-073 migration; [`ExceptionStore::save`] never writes here, and
+/// [`ExceptionStore::migrate`] performs the one-time, non-destructive move.
+const LEGACY_EXCEPTIONS_FILE: &str = ".anvil/exceptions.json";
 
 /// Persistent store for policy exceptions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,22 +56,35 @@ impl ExceptionStore {
         }
     }
 
-    /// Loads exceptions from `{workspace_root}/.anvil/exceptions.json`.
+    /// Loads exceptions, preferring the tracked store
+    /// (`{workspace_root}/anvil/exceptions/store.json`) and falling back to the
+    /// legacy local store (`{workspace_root}/.anvil/exceptions.json`) for
+    /// repositories not yet migrated (ADR-073).
     ///
-    /// Returns an empty store if the file does not exist.
+    /// Read-only: this never writes or migrates. Use [`Self::migrate`] for the
+    /// one-time move. Returns an empty store if neither file exists.
     pub fn load(workspace_root: &Path) -> Result<Self, ExceptionError> {
-        let path = workspace_root.join(EXCEPTIONS_FILE);
-        if !path.exists() {
-            return Ok(Self::empty());
+        let tracked = workspace_root.join(EXCEPTIONS_FILE);
+        if tracked.exists() {
+            return Self::load_from(&tracked);
         }
+        let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
+        if legacy.exists() {
+            return Self::load_from(&legacy);
+        }
+        Ok(Self::empty())
+    }
 
-        let content = std::fs::read_to_string(&path)?;
+    /// Reads and parses a store from an explicit path.
+    fn load_from(path: &Path) -> Result<Self, ExceptionError> {
+        let content = std::fs::read_to_string(path)?;
         let store: Self =
             serde_json::from_str(&content).map_err(|e| ExceptionError::Parse(e.to_string()))?;
         Ok(store)
     }
 
-    /// Saves exceptions to `{workspace_root}/.anvil/exceptions.json`.
+    /// Saves exceptions to the tracked store
+    /// (`{workspace_root}/anvil/exceptions/store.json`).
     ///
     /// Uses write-temp-then-rename to avoid corruption on interrupted writes.
     pub fn save(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
@@ -75,6 +96,25 @@ impl ExceptionStore {
             .map_err(|e| ExceptionError::Serialise(e.to_string()))?;
         atomic_write(&path, content.as_bytes())?;
         Ok(())
+    }
+
+    /// One-time, non-destructive migration of the legacy local store
+    /// (`.anvil/exceptions.json`) to the tracked store
+    /// (`anvil/exceptions/store.json`), per ADR-073.
+    ///
+    /// Copies the legacy store to the tracked path when the legacy file exists
+    /// and the tracked store does not yet. Idempotent — returns `Ok(false)`
+    /// when there is nothing to do. The legacy file is **left in place**;
+    /// callers decide when to remove it.
+    pub fn migrate(workspace_root: &Path) -> Result<bool, ExceptionError> {
+        let tracked = workspace_root.join(EXCEPTIONS_FILE);
+        let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
+        if tracked.exists() || !legacy.exists() {
+            return Ok(false);
+        }
+        let store = Self::load_from(&legacy)?;
+        store.save(workspace_root)?;
+        Ok(true)
     }
 
     /// Returns only the exceptions that are currently active (not expired).
@@ -374,5 +414,90 @@ mod tests {
         let active = store.active_exceptions();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].policy_id, "AP-001");
+    }
+
+    // --- ADR-073 storage-path migration (EXCEPT-001/002) ---
+
+    fn write_store_at(root: &Path, rel: &str, store: &ExceptionStore) {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let content = serde_json::to_string_pretty(store).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn save_writes_tracked_path_not_legacy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = ExceptionStore::empty();
+        store.add(make_exception("AP-001", "src/**"));
+        store.save(tmp.path()).unwrap();
+
+        assert!(tmp.path().join("anvil/exceptions/store.json").exists());
+        assert!(!tmp.path().join(".anvil/exceptions.json").exists());
+    }
+
+    #[test]
+    fn load_prefers_tracked_over_legacy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut tracked = ExceptionStore::empty();
+        tracked.add(make_exception("AP-TRACKED", ""));
+        write_store_at(tmp.path(), "anvil/exceptions/store.json", &tracked);
+
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-LEGACY", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.exceptions.len(), 1);
+        assert_eq!(loaded.exceptions[0].policy_id, "AP-TRACKED");
+    }
+
+    #[test]
+    fn load_falls_back_to_legacy_when_tracked_absent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-LEGACY", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.exceptions.len(), 1);
+        assert_eq!(loaded.exceptions[0].policy_id, "AP-LEGACY");
+    }
+
+    #[test]
+    fn migrate_copies_legacy_to_tracked_non_destructive() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", "src/**"));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let migrated = ExceptionStore::migrate(tmp.path()).unwrap();
+        assert!(migrated);
+
+        // Tracked store now exists and carries the data.
+        assert!(tmp.path().join("anvil/exceptions/store.json").exists());
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.exceptions.len(), 1);
+        assert_eq!(loaded.exceptions[0].policy_id, "AP-001");
+
+        // Legacy file is left in place (non-destructive).
+        assert!(tmp.path().join(".anvil/exceptions.json").exists());
+    }
+
+    #[test]
+    fn migrate_is_idempotent_and_noop_without_legacy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+
+        // Nothing to migrate when no legacy store exists.
+        assert!(!ExceptionStore::migrate(tmp.path()).unwrap());
+
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        // First migration moves the data.
+        assert!(ExceptionStore::migrate(tmp.path()).unwrap());
+        // Second call is a no-op because the tracked store now exists.
+        assert!(!ExceptionStore::migrate(tmp.path()).unwrap());
     }
 }

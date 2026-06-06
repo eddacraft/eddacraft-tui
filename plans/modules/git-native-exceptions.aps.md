@@ -49,15 +49,15 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 ### EXCEPT-001: Tracked storage path
 - **Intent:** Persist exceptions under tracked `anvil/exceptions/` instead of gitignored `.anvil/exceptions.json`, so they travel with the repo (ADR-073).
 - **Expected Outcome:** `ExceptionStore::save` writes `anvil/exceptions/store.json`; `load` prefers the tracked path.
-- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions`
-- **Status:** In Progress
+- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` (19 passed, incl. `save_writes_tracked_path_not_legacy`)
+- **Status:** Done
 
 ### EXCEPT-002: Legacy read-fallback + migration
 - **Intent:** Read the legacy `.anvil/exceptions.json` when the tracked store is absent; provide an idempotent, non-destructive `migrate` that copies legacy → tracked and leaves the legacy file in place.
 - **Expected Outcome:** Existing local exceptions keep working; `migrate` moves them into the tracked tree without data loss.
-- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions`
+- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` (incl. `load_falls_back_to_legacy_when_tracked_absent`, `migrate_copies_legacy_to_tracked_non_destructive`, `migrate_is_idempotent_and_noop_without_legacy`)
 - **Dependencies:** EXCEPT-001
-- **Status:** In Progress
+- **Status:** Done
 
 ### EXCEPT-003: Enriched `anvil.exception.v1` schema
 - **Intent:** Add owner/`created_by` attribution, stable exception id, finding hash, and a revoked (soft-delete) audit trail; keep backward-compatible deserialisation of the v0 shape.
