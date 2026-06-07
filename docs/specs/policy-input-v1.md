@@ -1,7 +1,7 @@
 # Policy Input Contract — `PolicyInput` v1
 
-| Type | Authority     | Owner                                                                                     | Status | Freshness                                                                    |
-| ---- | ------------- | ----------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| Type | Authority     | Owner                                                                                                     | Status | Freshness                                                                    |
+| ---- | ------------- | --------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
 | Spec | Authoritative | POLENG ([`plans/archive/modules/policy-engine.aps.md`](../../plans/archive/modules/policy-engine.aps.md)) | Draft  | Last reviewed 2026-05-25 against `main`; implementation landed by POLENG-002 |
 
 | Upstream                                                                                              | Downstream                                                                                                               |
