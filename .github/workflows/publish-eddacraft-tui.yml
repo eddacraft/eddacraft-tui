@@ -262,8 +262,18 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GIT_REF#refs/tags/}"
+          # Mark as `--prerelease` so the crate sub-product release does
+          # not pin as the anvil-001 repo's `latest` — anvil-001 tracks
+          # Anvil product releases (v0.x.y-beta), not crate releases.
+          # The canonical user-facing release is backfilled on the public
+          # mirror (see "Mirror Release backfill" in
+          # `docs/runbooks/eddacraft-tui-release.md`); this anvil-001
+          # release is for traceability + runbook verify only.
+          # Ratified as D-TUIR-021 by TUIR-009 (2026-06-07) after
+          # backfilling eddacraft-tui-v0.2.4.
           gh release create "${TAG}" \
             --title "${TAG}" \
+            --prerelease \
             --notes "Published from canonical source at \`crates/eddacraft-tui/\`. See [\`crates/eddacraft-tui/CHANGELOG.md\`](https://github.com/${GITHUB_REPOSITORY}/blob/main/crates/eddacraft-tui/CHANGELOG.md) for release notes."
 
       - name: Summary

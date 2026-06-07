@@ -338,7 +338,12 @@ The workflow runs (in order):
    baseline.
 6. `cargo publish -p eddacraft-tui --all-features` to crates.io.
 7. Tag propagation to mirror (`refs/tags/<tag>:refs/tags/<tag>`, no `--force`).
-8. `gh release create` on `eddacraft/anvil-001`.
+8. `gh release create --prerelease` on `eddacraft/anvil-001`. The `--prerelease`
+   flag is load-bearing: anvil-001 tracks Anvil product releases
+   (`v0.x.y-beta`), not crate sub-product releases. Without it, every crate cut
+   would pin as the anvil-001 `latest` and shadow the Anvil product release list
+   — see D-TUIR-021 (ratified by TUIR-009, 2026-06-07) and the "Mirror Release
+   backfill" subsection below.
 
 If any gate fails before step 6, no state has been mutated outside anvil-001. If
 step 6 succeeds but a later step fails, see Rollback below.
@@ -352,8 +357,45 @@ cargo search eddacraft-tui
 # Mirror — the new tag exists on the public repo.
 gh api repos/eddacraft/eddacraft-tui/git/refs/tags --jq '.[] | .ref' | grep "refs/tags/eddacraft-tui-vX.Y.Z"
 
-# anvil-001 — the GitHub Release exists.
+# anvil-001 — the GitHub Release exists, marked as pre-release so it
+# doesn't pin as the anvil-001 `latest` (anvil-001 tracks Anvil product
+# releases, not crate sub-product releases; the canonical user-facing
+# release is on the public mirror, see "Mirror Release backfill" below).
 gh release view "eddacraft-tui-vX.Y.Z"
+gh api repos/eddacraft/anvil-001/releases/tags/eddacraft-tui-vX.Y.Z --jq .prerelease \
+  | grep -Fxq true \
+  && echo "anvil-001 release is correctly marked as pre-release" \
+  || echo "::error::anvil-001 release is NOT marked as pre-release — re-pin with: gh api -X PATCH repos/eddacraft/anvil-001/releases/<id> -f prerelease=true"
+
+# Mirror — the GitHub Release exists and is the latest (publish workflow
+# only creates the anvil-001 release; the mirror release is a backfill
+# — see "Mirror Release backfill" under Rollback). If this command
+# returns the prior legacy `vX.Y.Z` instead of the new prefixed tag,
+# run the backfill before declaring the cut done.
+gh api repos/eddacraft/eddacraft-tui/releases/latest --jq .tag_name
+gh release view "eddacraft-tui-vX.Y.Z" -R eddacraft/eddacraft-tui
+
+# Mirror — the new release's `target_commitish` equals the tag's commit,
+# NOT the mirror's `main` HEAD. The default `gh release create` target
+# is `main`; if you don't pin it, the release gets re-anchored to
+# whatever `main` HEAD is at the next mirror force-push.
+TAG_COMMIT=$(gh api "repos/eddacraft/eddacraft-tui/git/refs/tags/eddacraft-tui-vX.Y.Z" --jq .object.sha \
+  | xargs -I{} gh api "repos/eddacraft/eddacraft-tui/git/tags/{}" --jq .object.sha)
+gh api repos/eddacraft/eddacraft-tui/releases/tags/eddacraft-tui-vX.Y.Z --jq .target_commitish \
+  | grep -Fxq "${TAG_COMMIT}" \
+  && echo "mirror release target OK: ${TAG_COMMIT}" \
+  || echo "::error::mirror release target_commitish does not match the vX.Y.Z tag's commit — re-pin with: gh api -X PATCH repos/eddacraft/eddacraft-tui/releases/<id> -f target_commitish=${TAG_COMMIT}"
+
+# Mirror — CHANGELOG and README body are in sync with canonical source
+# (mirror is a subtree split; this confirms no drift was introduced by
+# the mirror workflow between the cut and the backfill).
+diff -u crates/eddacraft-tui/CHANGELOG.md \
+  <(gh api -H 'Accept: application/vnd.github.raw' \
+      repos/eddacraft/eddacraft-tui/contents/CHANGELOG.md)
+diff -u crates/eddacraft-tui/README.md \
+  <(gh api -H 'Accept: application/vnd.github.raw' \
+      repos/eddacraft/eddacraft-tui/contents/README.md \
+    | tail -n +45)   # mirror README = MIRROR-README.md banner + local README.md body
 
 # Downstream Anvil consumers still build green (sanity).
 cargo check -p eddacraft-anvil-tui
@@ -430,6 +472,79 @@ The crate is on crates.io and cannot be un-published, only yanked. Decide:
     --title "eddacraft-tui-vX.Y.Z" \
     --notes "Published from canonical source at crates/eddacraft-tui/. See CHANGELOG."
   ```
+
+### Mirror Release backfill (publish workflow does NOT create this)
+
+The publish workflow's `gh release create` step targets `anvil-001` only. The
+public mirror `eddacraft/eddacraft-tui` never gets a GitHub Release object
+created automatically — its `…/releases/latest` would otherwise stay pinned at
+the most recent legacy `v0.x.y` release indefinitely, and external consumers
+landing on the mirror would see an outdated "Latest" badge even though the
+prefixed `eddacraft-tui-vX.Y.Z` tag is present. This is a structural,
+intentional choice (D-TUIR-021): scoping the Release to `anvil-001` keeps the
+publish workflow free of any second GitHub App or PAT and preserves D-TUIR-009 /
+D-TUIR-011 tag-protection guarantees. The mirror Release is therefore an
+**operator backfill**, not an automation step, and must be run as part of every
+cut.
+
+If the verify block above reports the mirror `…/releases/latest` is the prior
+legacy tag, run:
+
+```bash
+# 1. Build the release body from the canonical CHANGELOG entry.
+notes=$(mktemp --suffix=.md)
+{
+  echo '# eddacraft-tui X.Y.Z — YYYY-MM-DD'
+  echo
+  echo '> **Note:** This repository is a read-only mirror. The canonical source for'
+  echo '> `eddacraft-tui` lives in the Anvil monorepo; releases are published from'
+  echo '> `crates/eddacraft-tui/` and mirrored here. To depend on this crate, use the'
+  echo '> crates.io release (`eddacraft-tui = "0.2"`), not git `main`.'
+  echo
+  echo '## Changes'
+  echo
+  awk '/^## \[X\.Y\.Z\]/{flag=1; next} /^## \[<prev>\]/{flag=0} flag' \
+    crates/eddacraft-tui/CHANGELOG.md
+  echo
+  echo '## Links'
+  echo
+  echo '- **Source:** [crates/eddacraft-tui/](https://github.com/eddacraft/anvil-001/tree/main/crates/eddacraft-tui) in the Anvil monorepo'
+  echo '- **Changelog:** [crates/eddacraft-tui/CHANGELOG.md](https://github.com/eddacraft/anvil-001/blob/main/crates/eddacraft-tui/CHANGELOG.md)'
+  echo '- **crates.io:** [eddacraft-tui](https://crates.io/crates/eddacraft-tui)'
+  echo '- **API docs:** [docs.rs/eddacraft-tui/X.Y.Z](https://docs.rs/eddacraft-tui/X.Y.Z)'
+  echo '- **Runbook:** [docs/runbooks/eddacraft-tui-release.md](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/eddacraft-tui-release.md)'
+} > "${notes}"
+
+# 2. Resolve the tag's commit (annotated tag → peel to commit).
+TAG_COMMIT=$(gh api "repos/eddacraft/eddacraft-tui/git/refs/tags/eddacraft-tui-vX.Y.Z" --jq .object.sha \
+  | xargs -I{} gh api "repos/eddacraft/eddacraft-tui/git/tags/{}" --jq .object.sha)
+
+# 3. Create the mirror release pinned to the tag's commit (NOT main HEAD).
+gh release create eddacraft-tui-vX.Y.Z \
+  -R eddacraft/eddacraft-tui \
+  --title "eddacraft-tui X.Y.Z" \
+  --notes-file "${notes}" \
+  --target "${TAG_COMMIT}"
+
+# 4. If the release was created against the wrong target (default = main),
+# patch the existing release in place — do NOT delete and re-create, that
+# loses the release URL.
+REL_ID=$(gh api repos/eddacraft/eddacraft-tui/releases/tags/eddacraft-tui-vX.Y.Z --jq .id)
+gh api -X PATCH "repos/eddacraft/eddacraft-tui/releases/${REL_ID}" \
+  -f target_commitish="${TAG_COMMIT}"
+
+# 5. Re-run the Verify block's mirror Release checks to confirm.
+unset notes TAG_COMMIT REL_ID
+```
+
+Why `--target` matters: `gh release create` defaults to `main`, so without
+`--target` the release's `target_commitish` resolves to whatever `main` HEAD is
+at backfill time — not the commit the `eddacraft-tui-vX.Y.Z` tag actually points
+to. The next mirror force-push advances `main` and silently re-anchors the
+release. The `--target "${TAG_COMMIT}"` form pins the release to the immutable
+tag commit. `target_commitish` is patchable after the fact (step 4) for the same
+reason — fixing the wrong target must NOT delete the release (and its URL), it
+must rewrite the field.
 
 ### Bad version got onto crates.io
 
