@@ -43,7 +43,7 @@ jobs:
     name: Criterion benchmarks
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: bench-check
-    # Kernel benchmarks have taken ~73 minutes on GitHub-hosted runners.
+    # Criterion job typically takes ~81 minutes on GitHub-hosted runners (kernel bench step ~73 min).
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
