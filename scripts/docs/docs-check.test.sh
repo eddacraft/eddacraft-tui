@@ -82,23 +82,28 @@ else
   fail "live repo expected 8/8 passed; got tail: $(echo "${out}" | tail -3)"
 fi
 
-# Case 4: --no-baseline reveals the baselined corpus errors.
+# Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface
+# is fully backfilled (DOCGOV-011), so assert that *some* baselineable surface
+# with retained corpus debt — links (docs-site absolute links), tags, or
+# asbuilt-paths — fails without the baseline.
 echo "case 4: --no-baseline surfaces underlying errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
-if echo "${out}" | grep -qE "FAIL metadata"; then
-  pass "without baseline, metadata surface fails as expected"
+if echo "${out}" | grep -qE "FAIL (metadata|tags|links|asbuilt-paths)"; then
+  pass "without baseline, a baselineable surface with corpus debt fails as expected"
 else
-  fail "expected FAIL metadata without baseline; tail: $(echo "${out}" | tail -5)"
+  fail "expected a baselineable surface to FAIL without baseline; tail: $(echo "${out}" | tail -5)"
 fi
 
-# Case 5: each surface emits findings in [<surface>] <severity>: <file>:<line> — <message> format.
+# Case 5: the labelled-output contract [<surface>] <severity>: <file>:<line> — <message>.
+# The metadata surface is now fully backfilled (DOCGOV-011 emptied its bucket),
+# so it must emit no findings even without a baseline; the labelled-format
+# contract is exercised against the links surface, which retains corpus debt.
 echo "case 5: surface findings honour the labelled-output contract"
 out="$(cd "${repo_root}" && node "${metadata_script}" --no-baseline 2>&1 || true)"
-out="$(printf '%s\n' "${out}" | head -5)"
-if echo "${out}" | grep -qE "^\[metadata\] (ERROR|WARN): [^:]+:[0-9]+ — "; then
-  pass "metadata findings match labelled contract"
+if echo "${out}" | grep -qE "^\[metadata\] (ERROR|WARN): "; then
+  fail "metadata surface should be clean post-DOCGOV-011; got: $(printf '%s\n' "${out}" | head -3)"
 else
-  fail "metadata findings broke contract; got: ${out}"
+  pass "metadata surface is fully backfilled (no findings without baseline)"
 fi
 out="$(cd "${repo_root}" && node "${links_script}" --no-baseline 2>&1 || true)"
 out="$(printf '%s\n' "${out}" | head -5)"
