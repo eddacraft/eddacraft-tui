@@ -33,4 +33,24 @@ pub enum CapsuleError {
         /// The verdict derived from the document's own checks.
         derived: String,
     },
+    /// An evidence source exists on disk but could not be read or
+    /// parsed during collection. This fails loudly — a capsule must
+    /// not misrepresent present-but-broken governance state as
+    /// absence. (A source that simply does not exist is **not** this
+    /// error: it collects as an absent field, and absence is the
+    /// verifier's `degraded` signal.)
+    #[error("cannot collect `{path}`: {detail}")]
+    Collect {
+        /// Repo-relative path of the source that failed.
+        path: String,
+        /// What went wrong reading or parsing it. The wrapped error
+        /// text may embed **absolute** filesystem paths — fine for
+        /// local CLI output, but never embed this in a capsule
+        /// artefact or transmit it.
+        detail: String,
+    },
+    /// The rule identity inputs could not be combined into a
+    /// `rules_sha` (invalid rule id or config digest).
+    #[error("rules identity error: {0}")]
+    RulesIdentity(String),
 }

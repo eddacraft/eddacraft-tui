@@ -1235,6 +1235,9 @@ dependencies = [
 name = "eddacraft-anvil-capsule"
 version = "0.7.4-beta"
 dependencies = [
+ "eddacraft-anvil-baseline",
+ "eddacraft-anvil-config",
+ "eddacraft-anvil-rules",
  "hex",
  "serde",
  "serde_json",

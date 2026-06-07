@@ -13,12 +13,18 @@
 
 pub mod canonical;
 pub mod collect;
+pub mod collect_digests;
 pub mod errors;
 pub mod manifest;
 pub mod verification;
 
 pub use canonical::{canonical_json_bytes, sha256_hex};
 pub use collect::{COMMITS_SCHEMA, CommitEntry, CommitsDocument, collect_commits};
+pub use collect_digests::{
+    BASELINE_DIGEST_SCHEMA, BaselineDigest, CollectedDigests, FileDigest, POLICY_DIGEST_SCHEMA,
+    POLICY_FILE_CANDIDATES, PolicyDigest, RULES_DIGEST_SCHEMA, RulesDigest, ToolIdentity,
+    collect_digests,
+};
 pub use errors::CapsuleError;
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};

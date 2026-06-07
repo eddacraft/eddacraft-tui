@@ -10,6 +10,9 @@ description = "Anvil Review Capsule v0 — anvil.capsule.v1 manifest + verificat
 name = "anvil_capsule"
 
 [dependencies]
+anvil-baseline = { path = "../anvil-baseline", package = "eddacraft-anvil-baseline" }
+anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
