@@ -1,7 +1,7 @@
 //! Data-context binding — resolve `{ "$data": "path" }` prop references against
 //! live data before rendering.
 //!
-//! json-render specs are static, but a dashboard's values are not: a spec
+//! json-render specs are static, but the values they display are not. A spec
 //! expresses *where* a value comes from with a data reference —
 //! `{ "value": { "$data": "gates.passRate" } }` — and the host resolves it
 //! against the current [`DataContext`] at render time.

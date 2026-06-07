@@ -51,7 +51,7 @@ use crate::json_render::Props;
 /// Unlike [`Surface::render`](crate::surface::Surface::render), this trait does
 /// **not** take a `theme` parameter. The trait must stay object-safe so the
 /// registry can hold `Box<dyn TuiComponent>`, which rules out a `theme: &T`
-/// generic. The shared dashboard palette also lives in `anvil-tui` rather than
+/// generic. The shared default palette also lives in `anvil-tui` rather than
 /// here (per the module constraints), so it is not available at this layer. The
 /// tree walker (TUIDASH-003) will thread theme/data context to components via a
 /// `&dyn`-object render context or a borrowed context struct passed alongside

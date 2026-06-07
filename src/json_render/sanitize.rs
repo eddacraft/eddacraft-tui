@@ -1,12 +1,12 @@
 //! Sanitise untrusted spec/data strings before they reach the terminal.
 //!
-//! Dashboard specs and `.anvil/` data may come from an untrusted source (a
-//! cloned repo). Ratatui does **not** strip control bytes: a grapheme that is a
+//! Specs (and bound data) may come from an untrusted source (LLM output, cloned
+//! repo, etc.). Ratatui does **not** strip control bytes: a grapheme that is a
 //! lone `ESC`, `BEL`, `CR`, or an OSC introducer is written to the terminal
 //! verbatim on flush, so a hostile string prop could emit raw ANSI/OSC escape
-//! sequences to the operator's terminal (display corruption, OSC-52 clipboard
-//! writes, title rewrites). Every spec/data-derived string that becomes
-//! displayed text is passed through [`sanitize`] first.
+//! sequences (display corruption, OSC-52 clipboard writes, title rewrites).
+//! Every spec/data-derived string that becomes displayed text is passed through
+//! [`sanitize`] first.
 
 /// Strip display-hostile characters from `s`, returning a display-safe owned
 /// string.

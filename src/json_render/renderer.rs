@@ -39,8 +39,8 @@ use crate::json_render::{RenderSpec, TuiRegistry};
 /// Maximum element-tree depth the renderer descends before drawing a guard
 /// placeholder and stopping.
 ///
-/// Authored dashboard specs nest only a handful of levels deep; this bound is an
-/// order of magnitude beyond that. Its real job is a belt-and-braces stop for a
+/// Authored specs nest only a handful of levels deep; this bound is an order
+/// of magnitude beyond that. Its real job is a belt-and-braces stop for a
 /// `children` cycle that reached the renderer without going through
 /// [`validate`](crate::json_render::validate) (callers are not obliged to
 /// validate first), so the recursive walk cannot run away.
