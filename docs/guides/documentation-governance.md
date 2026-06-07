@@ -59,18 +59,18 @@ indexes under `docs/indexes/` (`pnpm docs:index`). A new document lands in the
 directory that matches its Type; `pnpm docs:check` validates the metadata and
 the generated indexes keep discovery current without a manual index step.
 
-| Directory                                                                 | Holds (Type)                                                               |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `docs/architecture/`                                                      | As-built implementation maps (`*-as-built.md`) and architecture references |
-| `docs/runbooks/`                                                          | Runbooks — operational procedure                                           |
-| `docs/guides/`, `docs/policies/`                                          | Guides — developer practice and operational policy                         |
-| `docs/specs/`                                                             | Specs — design intent retained in-repo                                     |
-| `docs/public/`                                                            | Public docs — published to docs.eddacraft.ai; own discovery layer          |
-| `docs/indexes/`                                                           | Generated discovery indexes (do not hand-edit)                             |
-| `docs/governance/`                                                        | Generated governance surfaces (tags catalogue, docs-check baseline)        |
-| `docs/vision/`, `docs/strategy/`                                          | Aspirational / scope guidance (Advisory unless declared otherwise)         |
-| `docs/observability/`, `docs/testing/`, `docs/internal/`, `docs/reviews/` | Role-specific operational records                                          |
-| `docs/archive/`                                                           | Historical reference (not a live path)                                     |
+| Directory                                                                 | Holds (Type)                                                                                                                             |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/architecture/`                                                      | As-built implementation maps (`*-as-built.md`) and architecture references                                                               |
+| `docs/runbooks/`                                                          | Runbooks — operational procedure                                                                                                         |
+| `docs/guides/`, `docs/policies/`                                          | Guides — developer practice and operational policy                                                                                       |
+| `docs/specs/`                                                             | Specs — design intent retained in-repo                                                                                                   |
+| `docs/public/`                                                            | Public docs — published to docs.eddacraft.ai; own discovery layer                                                                        |
+| `docs/indexes/`                                                           | Generated discovery indexes (do not hand-edit)                                                                                           |
+| `docs/governance/`                                                        | Governance surfaces: the authoritative hand-maintained tags catalogue (`tags-catalogue.md`) and the generated `docs-check.baseline.json` |
+| `docs/vision/`, `docs/strategy/`                                          | Aspirational / scope guidance (Advisory unless declared otherwise)                                                                       |
+| `docs/observability/`, `docs/testing/`, `docs/internal/`, `docs/reviews/` | Role-specific operational records                                                                                                        |
+| `docs/archive/`                                                           | Historical reference (not a live path)                                                                                                   |
 
 `docs/README.md` is the only Markdown file at the `docs/` root — it is the human
 entrypoint into the tree. The one deliberate exception to type-by-directory
