@@ -7,15 +7,16 @@
 **Last reviewed:** 2026-06-08
 
 > **Operator-authorised (2026-06-06).** The storage-path migration slice
-> (EXCEPT-001/002) is authorised for immediate execution: it is the ADR-073
-> reconciliation and fixes a live governance gap. `ExceptionStore`
-> (`crates/anvil-policy/src/exceptions.rs`) currently persists to
-> `.anvil/exceptions.json` (gitignored, local-only) and has **no callers** —
-> so exceptions neither travel with the repo nor are wired into evaluation yet.
-> EXCEPT-001/002 fix the storage-path violation only: exceptions remain
-> **unenforced** (a hand-written `anvil/exceptions/store.json` does nothing)
-> until EXCEPT-006 wires evaluation, and the first write surface is gated on
-> the EXCEPT-007 hardening contract.
+> (EXCEPT-001/002, now Done) was authorised for immediate execution as the
+> ADR-073 reconciliation. `ExceptionStore`
+> (`crates/anvil-policy/src/exceptions.rs`) previously persisted to
+> `.anvil/exceptions.json` (gitignored, local-only); it now writes the tracked
+> `anvil/exceptions/store.json` with a legacy read-fallback and a one-time,
+> non-destructive migration, so exceptions travel with the repo. The store
+> still has **no callers**: exceptions remain **unenforced** (a hand-written
+> `anvil/exceptions/store.json` does nothing) until EXCEPT-006 wires
+> evaluation, and the first write surface is gated on the EXCEPT-007
+> hardening contract.
 > Remaining items (schema enrichment, CLI, L3/L4 + capsule integration) stay
 > Proposed pending review. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
