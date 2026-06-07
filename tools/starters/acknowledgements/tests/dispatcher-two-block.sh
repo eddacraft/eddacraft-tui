@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-008 dispatcher round-trip test. A `[[blocks]]` config with
+# Dispatcher round-trip test. A `[[blocks]]` config with
 # two stub-ecosystem blocks must:
 #
 #   1. Splice each block's content between its per-block markers
@@ -299,4 +299,4 @@ rm -f "$target_snapshot"
 echo "ok scenario 3: driver failure left on-disk target byte-identical (exit $exit_code)"
 
 echo ""
-echo "ATTRIB-008 dispatcher two-block tests passed: 3/3 scenarios green."
+echo "dispatcher two-block tests passed: 3/3 scenarios green."

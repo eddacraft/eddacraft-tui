@@ -26,16 +26,16 @@ acknowledgements-diff:
           echo "::error::ACKNOWLEDGEMENTS.md is stale. Re-run the generator locally and commit."
           exit 1
         fi
-    # ATTRIB-007 regression guard: standalone fixture test that pins
+    # Regression guard: standalone fixture test that pins
     # cargo-about's strict mode (`--fail`). Runs alongside the freshness
     # check; cheap (sub-second) and self-contained.
     - name: Strict license-field regression test
       run: tools/starters/acknowledgements/tests/strict-license-field.sh
-    # ATTRIB-006: drift between licences.toml and the two consumer
+    # Drift between licences.toml and the two consumer
     # files (about.toml.accepted, deny.toml.[licenses].allow) fails CI.
     - name: Licences single-source drift check
       run: tools/starters/acknowledgements/expand-licences.sh --check
-    # ATTRIB-006 regression guard: prove the drift detector itself
+    # Regression guard: prove the drift detector itself
     # still detects drift in three scenarios.
     - name: Licences drift detector self-test
       run: tools/starters/acknowledgements/tests/licences-drift.sh

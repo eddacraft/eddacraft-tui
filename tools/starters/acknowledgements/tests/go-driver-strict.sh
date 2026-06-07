@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-013 Go-driver strict-licence enforcement test.
+# Go-driver strict-licence enforcement test.
 #
 # Same network-free fixture shape as go-driver-render.sh (one local
 # third-party module under an MIT LICENSE, pulled via `replace`), except
@@ -147,4 +147,4 @@ fi
 echo "ok scenario 2: on-disk target left byte-identical after strict-gate failure"
 
 echo
-echo "ATTRIB-013 Go-driver strict tests passed: 2/2 scenarios green."
+echo "Go-driver strict tests passed: 2/2 scenarios green."

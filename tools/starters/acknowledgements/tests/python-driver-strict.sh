@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-014 Python-driver strict-licence enforcement test.
+# Python-driver strict-licence enforcement test.
 #
 # Same venv shape as python-driver-render.sh (pip-licenses + a local
 # fixture package licensed MIT), except the allow-list omits MIT. The
@@ -122,4 +122,4 @@ fi
 echo "ok scenario 2: on-disk target left byte-identical after strict-gate failure"
 
 echo
-echo "ATTRIB-014 Python-driver strict tests passed: 2/2 scenarios green."
+echo "Python-driver strict tests passed: 2/2 scenarios green."

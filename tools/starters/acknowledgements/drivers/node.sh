@@ -17,7 +17,7 @@
 # four rules as drivers/rust.sh):
 #   1. Preflight  — verify required tool + state; actionable error on stderr; non-zero exit
 #   2. Render     — deterministic markdown sorted by package name@version
-#   3. Strict     — reject disallowed licences before render (ATTRIB-012)
+#   3. Strict     — reject disallowed licences before render
 #   4. No side effects on the splice target — write only to the
 #      <output-temp-path> argument
 
@@ -44,8 +44,8 @@ node_allow_path="$(printf '%s' "$config_json" | jq -er '.node_allow_path // empt
 # ── Optional block keys ──────────────────────────────────────────────
 # `prod_only` defaults to true (devDependencies stay out of consumer
 # ACKNOWLEDGEMENTS by default; consumers wanting devtools opt in by
-# setting `prod_only = false` explicitly — that's the ATTRIB-015
-# Anvil-devtools path).
+# setting `prod_only = false` explicitly — that's the Anvil-devtools
+# path).
 prod_only="$(printf '%s' "$config_json" | jq -r '.prod_only // true')"
 # `exclude` is forwarded raw to license-checker --excludePackages,
 # which expects semicolon-separated `package@version` entries

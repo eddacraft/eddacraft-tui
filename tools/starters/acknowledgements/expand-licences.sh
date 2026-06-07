@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ATTRIB-006: expand `licences.toml` into `about.toml.accepted` and
+# Expand `licences.toml` into `about.toml.accepted` and
 # `deny.toml.[licenses].allow` array fragments.
 #
-# ATTRIB-012: also expand into `licences.node-allow.txt` as a single
+# Also expand into `licences.node-allow.txt` as a single
 # semicolon-joined SPDX list — consumed by `drivers/node.sh` via
 # `license-checker --onlyAllow`. The Node fragment is emitted only
 # when `licences.node-allow.txt` exists alongside the other consumer
@@ -101,7 +101,7 @@ fi
 # `licences.node-allow.txt` is optional. Consumers that ship a Node
 # attribution block create the file (copy
 # `licences.node-allow.txt.template` from the kit); consumers without
-# a Node block do not. ATTRIB-012 chose this back-compat shape to
+# a Node block do not. This back-compat shape was chosen to
 # match the dispatcher's flat-`[rust]` shim — existing Rust-only
 # consumers don't migrate.
 emit_node_fragment=false
@@ -109,14 +109,14 @@ if [ -f "$node_allow_txt" ]; then
   emit_node_fragment=true
 fi
 # `licences.go-allow.txt` is optional on the same back-compat terms as
-# the Node fragment (ATTRIB-013): present only for consumers that ship
+# the Node fragment: present only for consumers that ship
 # a Go attribution block.
 emit_go_fragment=false
 if [ -f "$go_allow_txt" ]; then
   emit_go_fragment=true
 fi
 # `licences.python-allow.txt` is optional on the same back-compat terms
-# (ATTRIB-014): present only for consumers that ship a Python block.
+#: present only for consumers that ship a Python block.
 emit_python_fragment=false
 if [ -f "$python_allow_txt" ]; then
   emit_python_fragment=true
@@ -206,7 +206,7 @@ END { flush() }
 # style each consumer already uses. Inline comments before an entry
 # carry the licences.toml `note`.
 
-# ATTRIB-016: deterministic note wrapping. Replaces `fold -s -w 75`,
+# Deterministic note wrapping. Replaces `fold -s -w 75`,
 # which wraps on **byte** count: a note containing multi-byte UTF-8 (an
 # em dash is 3 bytes) breaks at a different word boundary across coreutils
 # implementations — GNU vs uutils vs BusyBox vs uutils versions — so the
@@ -283,14 +283,14 @@ render_fragment() {
     if [ -n "$note" ]; then
       # Wrap long notes at <=75 code points on whitespace so the
       # consumer file stays readable. Deterministic across coreutils
-      # implementations — see wrap_note / ATTRIB-016.
+      # implementations — see wrap_note.
       wrap_note "$note"
     fi
     echo "  \"$spdx\","
   done <"$parsed_entries"
 }
 
-# ATTRIB-012: render a single semicolon-joined SPDX list for the Node
+# Render a single semicolon-joined SPDX list for the Node
 # driver's `license-checker --onlyAllow` argument. The Node fragment
 # is one line — `license-checker` doesn't take a multi-line file,
 # so the consumer file has the list on one line between the markers
@@ -311,7 +311,7 @@ render_node_fragment() {
   echo "$spdx_list"
 }
 
-# ATTRIB-013: render a single comma-joined SPDX list for the Go driver's
+# Render a single comma-joined SPDX list for the Go driver's
 # `go-licenses check --allowed_licenses` argument. Same one-line,
 # about = true contract as the Node fragment; only the separator differs
 # (go-licenses takes a comma-separated list, while license-checker and
@@ -331,7 +331,7 @@ render_go_fragment() {
   echo "$spdx_list"
 }
 
-# ATTRIB-014: render a single semicolon-joined SPDX list for the Python
+# Render a single semicolon-joined SPDX list for the Python
 # driver's `pip-licenses --allow-only` argument (semicolon-separated,
 # same shape as the Node fragment; only the consumer file differs).
 render_python_fragment() {

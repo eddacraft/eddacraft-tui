@@ -10,7 +10,7 @@
 #
 #   1. [[blocks]] array (canonical) — shown below. Each entry declares
 #      one block, dispatched to drivers/<ecosystem>.sh.
-#   2. Flat [rust] table (back-compat) — the kit's pre-ATTRIB-008 shape.
+#   2. Flat [rust] table (back-compat) — the kit's original shape.
 #      Existing consumers don't need to migrate; new consumers should
 #      adopt [[blocks]] so multi-block / multi-ecosystem additions stay
 #      cheap.
@@ -45,7 +45,7 @@ template_path = "about.hbs" # cargo-about handlebars template
 config_path = "about.toml" # cargo-about config
 
 # Add additional blocks below as you adopt non-Rust drivers
-# (ATTRIB-012 Node, ATTRIB-013 Go, ATTRIB-014 Python).
+# (Node, Go, Python).
 #
 # [[blocks]]
 # name      = "node-devtools"

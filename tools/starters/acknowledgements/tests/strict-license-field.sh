@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-007 regression test: the acknowledgements generator must fail
+# Regression test: the acknowledgements generator must fail
 # hard when a workspace crate is missing the `license` (or
 # `license-file`) field. Without this, cargo-about emits a warning and
 # the crate silently slips out of the generated ACKNOWLEDGEMENTS.md.
@@ -138,7 +138,7 @@ fi
 # trips this case (cargo-about exits 0 silently and produces empty
 # output). That path is a fragile coincidence — it depends on the
 # template producing no output rather than on cargo-about enforcing
-# anything. ATTRIB-007 wants the actual cargo-about strict-mode
+# anything. This test wants the actual cargo-about strict-mode
 # diagnostic, which makes cargo-about itself exit non-zero. When
 # cargo-about exits early, the script's empty-file check never fires.
 # Pin "the empty-file sentinel did NOT fire" so a regression that
@@ -146,7 +146,7 @@ fi
 # the WARN line that names the offending crate.
 if grep -q "produced an empty file" "$stderr_file"; then
   echo "FAIL: generator failed via the empty-output fallback rather than" >&2
-  echo "      cargo-about's strict-mode diagnostic. ATTRIB-007 requires" >&2
+  echo "      cargo-about's strict-mode diagnostic. The contract requires" >&2
   echo "      passing --fail to cargo-about so missing license fields are" >&2
   echo "      caught at the canonical layer (cargo-about's own error)," >&2
   echo "      not the script's empty-file sentinel — that sentinel is" >&2

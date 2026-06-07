@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-013 Go-driver round-trip test.
+# Go-driver round-trip test.
 #
 # Stands up a self-contained Go module fixture whose only third-party
 # dependency is a local module pulled in via a `replace` directive (no
@@ -184,4 +184,4 @@ echo "ok scenario 2: second invocation is byte-identical"
 echo "ok scenario 3: --check exits 0 on up-to-date target"
 
 echo
-echo "ATTRIB-013 Go-driver render tests passed: 3/3 scenarios green."
+echo "Go-driver render tests passed: 3/3 scenarios green."

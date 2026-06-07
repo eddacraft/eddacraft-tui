@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-004 bundled-binaries driver preflight + validation test.
+# Bundled-binaries driver preflight + validation test.
 #
 # Invokes `drivers/bundled-binaries.sh` directly (no dispatcher). Each
 # scenario asserts a non-zero exit AND an actionable stderr substring.
@@ -99,4 +99,4 @@ fi
 echo "ok scenario 4: empty inventory rejected (exit $exit4)"
 
 echo
-echo "ATTRIB-004 bundled-binaries preflight tests passed: 4/4 scenarios green."
+echo "bundled-binaries preflight tests passed: 4/4 scenarios green."

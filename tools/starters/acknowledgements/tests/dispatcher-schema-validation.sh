@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-008 dispatcher schema-validation tests. The new generator
+# Dispatcher schema-validation tests. The new generator
 # accepts either a back-compat flat `[rust]` table OR a `[[blocks]]`
 # array, but never both, and validates each entry's shape before
 # invoking any driver. This test pins the rejection paths so silent
@@ -244,4 +244,4 @@ fi
 echo "ok scenario 5: duplicate block name rejected (exit $exit5)"
 
 echo ""
-echo "ATTRIB-008 dispatcher schema-validation tests passed: 5/5 scenarios green."
+echo "dispatcher schema-validation tests passed: 5/5 scenarios green."

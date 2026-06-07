@@ -1,4 +1,4 @@
-# ATTRIB-013: SPDX allow-list consumed by `drivers/go.sh` via
+# SPDX allow-list consumed by `drivers/go.sh` via
 # `go-licenses check --allowed_licenses`. One line, comma-joined.
 #
 # Generated from `licences.toml` — do not edit between the BEGIN/END

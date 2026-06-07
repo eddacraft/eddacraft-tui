@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-014 Python-driver preflight test.
+# Python-driver preflight test.
 #
 # Exercises the driver-author contract rule 1 (actionable errors for
 # missing tools or missing state). Invokes `drivers/python.sh` directly
@@ -123,4 +123,4 @@ fi
 echo "ok scenario 5: empty allow-list rejected (exit $exit5)"
 
 echo
-echo "ATTRIB-014 Python-driver preflight tests passed: 5/5 scenarios green."
+echo "Python-driver preflight tests passed: 5/5 scenarios green."

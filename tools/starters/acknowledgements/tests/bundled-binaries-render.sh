@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-004 bundled-binaries driver round-trip test.
+# Bundled-binaries driver round-trip test.
 #
 # The bundled-binaries driver attributes third-party binaries that are
 # NOT package-manager dependencies (OpenSSH, Mosh, FFmpeg, …) from a
@@ -174,4 +174,4 @@ echo "ok scenario 2: second invocation is byte-identical"
 echo "ok scenario 3: --check exits 0 on up-to-date target"
 
 echo
-echo "ATTRIB-004 bundled-binaries render tests passed: 3/3 scenarios green."
+echo "bundled-binaries render tests passed: 3/3 scenarios green."

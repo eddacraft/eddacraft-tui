@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-012 Node-driver preflight test.
+# Node-driver preflight test.
 #
 # Exercises the driver-author contract rule 1 (actionable errors for
 # missing tools or missing state). Invokes `drivers/node.sh` directly
@@ -163,4 +163,4 @@ fi
 echo "ok scenario 4: missing license-checker rejected (exit $exit4)"
 
 echo
-echo "ATTRIB-012 Node-driver preflight tests passed: 4/4 scenarios green."
+echo "Node-driver preflight tests passed: 4/4 scenarios green."

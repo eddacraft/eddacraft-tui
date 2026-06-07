@@ -8,12 +8,12 @@ markdown file (typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above,
 between, and below the markers is preserved verbatim.
 
 Shipped drivers: Rust
-([`cargo-about`](https://github.com/EmbarkStudios/cargo-about), ATTRIB-008),
-Node ([`license-checker`](https://github.com/davglass/license-checker),
-ATTRIB-012), Go ([`go-licenses`](https://github.com/google/go-licenses),
-ATTRIB-013), Python ([`pip-licenses`](https://github.com/raimon49/pip-licenses),
-ATTRIB-014), and bundled binaries (a hand-maintained inventory, no external
-tool, ATTRIB-004). Existing consumers with a legacy flat `[rust]` config keep
+([`cargo-about`](https://github.com/EmbarkStudios/cargo-about)),
+Node ([`license-checker`](https://github.com/davglass/license-checker)),
+Go ([`go-licenses`](https://github.com/google/go-licenses)),
+Python ([`pip-licenses`](https://github.com/raimon49/pip-licenses)),
+and bundled binaries (a hand-maintained inventory, no external
+tool). Existing consumers with a legacy flat `[rust]` config keep
 working unchanged via a back-compat shim (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
@@ -27,7 +27,7 @@ edits required.
 | `generate-acknowledgements.sh`       | Dispatcher: parses config, loops blocks, invokes drivers, splices output                     |
 | `drivers/`                           | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`, `python.sh`, `bundled-binaries.sh`) |
 | `bundled-binaries.toml.example`      | Inventory template for the bundled-binaries driver (non-package-manager binaries)            |
-| `expand-licences.sh`                 | ATTRIB-006 single-source allow-list expander                                                 |
+| `expand-licences.sh`                 | Single-source allow-list expander                                                           |
 | `attribution.toml.example`           | Annotated template for the consumer-side config                                              |
 | `about.toml.template`                | cargo-about config template (licence allow-list etc)                                         |
 | `about.hbs.template`                 | cargo-about handlebars render template                                                       |
@@ -183,7 +183,7 @@ one** END marker, on lines of their own:
 The default markers are HTML comments so the file remains valid markdown and the
 markers don't render in viewers. Marker text is overridable per project via
 `[project].marker_begin` / `[project].marker_end` in `attribution.toml` (e.g.
-for projects that grow multi-block markers under ATTRIB-008).
+for projects that grow multi-block markers).
 
 The generator matches markers via literal substring containment, not regex, so
 the marker text need not be regex-safe.
@@ -214,13 +214,13 @@ A failure mid-run leaves the target untouched. Combined with the empty- output
 guard (next), this prevents a partial generation from silently clobbering
 content.
 
-### Strict license-field enforcement (ATTRIB-007)
+### Strict license-field enforcement
 
 The generator invokes `cargo about generate --fail`, so a workspace crate
 missing both `license` and `license-file` in its `Cargo.toml` causes a hard
 error rather than a silent warning. Without `--fail`, cargo-about emits a `WARN`
 and exits zero, and the crate quietly drops out of the generated attribution — a
-regression risk that ATTRIB-007 closes.
+regression risk that `--fail` closes.
 
 Consumers who deliberately ship crates without a licence (typically internal
 private crates filtered out via `about.toml`'s `private.ignore`) should silence
@@ -231,7 +231,7 @@ strict check doesn't fire against them.
 The fixture test under `tests/strict-license-field.sh` pins this contract. CI
 runs it alongside the freshness check.
 
-### Single-source licence allow-list (ATTRIB-006)
+### Single-source licence allow-list
 
 The `accepted` array in `about.toml` and the `[licenses].allow` array in
 `deny.toml` are generated from a single canonical `licences.toml` at the repo
@@ -331,7 +331,7 @@ target file.
 
 ### Back-compat: flat `[rust]` table
 
-The kit's pre-ATTRIB-008 schema. A config with `[rust]` and no `[[blocks]]`
+The kit's original single-block schema. A config with `[rust]` and no `[[blocks]]`
 entries is treated as if it declared a single unnamed block with
 `ecosystem = "rust"`. Markers for the unnamed block omit the name suffix
 (`<!-- BEGIN AUTO-GENERATED -->`), keeping today's `ACKNOWLEDGEMENTS.md` files
@@ -362,7 +362,7 @@ Each driver under `drivers/<ecosystem>.sh` declares its own block-config keys.
 The dispatcher passes the resolved block JSON to the driver verbatim; the driver
 is the authority on which keys it requires.
 
-### `ecosystem = "rust"` (ATTRIB-008)
+### `ecosystem = "rust"`
 
 | Key             | Required | Description                                                                                                                        |
 | --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -374,13 +374,13 @@ Strict-licence gate: `cargo about generate --fail` rejects workspace crates
 missing a `license` field. Always-on; no opt-out (consumer fixes the missing
 field instead).
 
-### `ecosystem = "node"` (ATTRIB-012)
+### `ecosystem = "node"`
 
 | Key               | Required            | Description                                                                                                                                                     |
 | ----------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manifest_path`   | yes                 | `package.json` to walk. For monorepos: one block per shipping `package.json` is the recommended pattern (see Monorepo guidance below).                          |
 | `node_allow_path` | yes                 | `licences.node-allow.txt` — single semicolon-joined SPDX list between the kit's BEGIN/END markers. Auto-populated by `expand-licences.sh` from `licences.toml`. |
-| `prod_only`       | no (default `true`) | If `true`, `license-checker --production` excludes `devDependencies`. Set `false` to include dev tooling (the ATTRIB-015 Anvil-devtools path).                  |
+| `prod_only`       | no (default `true`) | If `true`, `license-checker --production` excludes `devDependencies`. Set `false` to include dev tooling (the Anvil-devtools path).                  |
 | `exclude`         | no                  | Semicolon-joined `package@version` list, forwarded raw to `license-checker --excludePackages`. Use to drop hoisted internal packages a workspace shim surfaces. |
 
 Worked example:
@@ -409,7 +409,7 @@ npm install --save-dev license-checker
 # or globally: npm install -g license-checker
 ```
 
-### `ecosystem = "go"` (ATTRIB-013)
+### `ecosystem = "go"`
 
 | Key             | Required | Description                                                                                                                                                         |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -448,7 +448,7 @@ go install github.com/google/go-licenses@latest
 go mod download
 ```
 
-### `ecosystem = "python"` (ATTRIB-014)
+### `ecosystem = "python"`
 
 | Key                 | Required | Description                                                                                                                                                                                                                            |
 | ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -503,7 +503,7 @@ python -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt pip-licenses
 ```
 
-### `ecosystem = "bundled-binaries"` (ATTRIB-004)
+### `ecosystem = "bundled-binaries"`
 
 For third-party **binaries** shipped alongside your project that are **not** a
 package manager's dependencies — OpenSSH, Mosh, FFmpeg, busybox, … The language
@@ -592,7 +592,7 @@ Simple, broad, blunt. License-checker walks the root and resolves through the
 workspace's hoisted `node_modules`. Use this when per-package separation is not
 worth the bookkeeping.
 
-**Devtools-only block (ATTRIB-015 Anvil pattern).** When the prod surface is
+**Devtools-only block (Anvil pattern).** When the prod surface is
 non-JS but you still want to attribute the JS tooling the repo builds with
 (linters, formatters, Nx, kindling integration), set `prod_only = false` on a
 root-manifest block:
@@ -649,15 +649,11 @@ kit-local `drivers/` directory.
 
 ## Future evolution
 
-ATTRIB-008 landed the dispatcher + driver-per-ecosystem architecture and the
-Rust driver. ATTRIB-012 added the Node driver (`license-checker`) — see the
-per-driver block reference above. The roadmap, tracked in the upstream Anvil
-project's `attribution-pipeline-v3` APS module, queues:
+The dispatcher + driver-per-ecosystem architecture landed with the Rust
+driver; Node, Go, Python, and bundled-binaries drivers followed — see the
+per-driver block reference above. The roadmap is tracked in the upstream
+Anvil project:
 
-- **ATTRIB-013** — Go driver (`go-licenses`)
-- **ATTRIB-014** — Python driver (`pip-licenses` against a pre-built venv)
-- **ATTRIB-015** — Anvil adopts a `node-devtools` block in its own
-  `ACKNOWLEDGEMENTS.md` (consumes the Node driver from ATTRIB-012)
 - Java/Kotlin / Ruby / Swift drivers deferred until a real consumer needs them
 
 Each new driver is a self-contained `drivers/<eco>.sh` against the driver

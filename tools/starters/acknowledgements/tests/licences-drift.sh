@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-006 regression test: `expand-licences.sh --check` must detect
+# Regression test: `expand-licences.sh --check` must detect
 # drift between licences.toml and either consumer file (about.toml or
 # deny.toml).
 #
@@ -15,14 +15,14 @@
 #      non-zero and the diff names the hand-edit.
 #   4. Hand-edit licences.node-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
-#      (ATTRIB-012 Node-fragment drift detection.)
-#   5. Deterministic note wrapping, fold-independent. (ATTRIB-016.)
+#      (Node-fragment drift detection.)
+#   5. Deterministic note wrapping, fold-independent.
 #   6. Hand-edit licences.go-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
-#      (ATTRIB-013 Go-fragment drift detection.)
+#      (Go-fragment drift detection.)
 #   7. Hand-edit licences.python-allow.txt inside the markers →
 #      --check exits non-zero and the diff names the hand-edit.
-#      (ATTRIB-014 Python-fragment drift detection.)
+#      (Python-fragment drift detection.)
 #
 # Local invocation:
 #   tools/starters/acknowledgements/tests/licences-drift.sh
@@ -72,7 +72,7 @@ allow = [
 ]
 EOF
 
-# ATTRIB-012: stub licences.node-allow.txt. Its presence flips the
+# Stub licences.node-allow.txt. Its presence flips the
 # expander into emitting the Node fragment (back-compat shape: absent
 # file means "no Node block here", expander stays silent). Same
 # marker-driven splice contract as about.toml / deny.toml.
@@ -81,7 +81,7 @@ cat >"$fixture_dir/licences.node-allow.txt" <<'EOF'
 # END AUTO-GENERATED FROM licences.toml — node-allow
 EOF
 
-# ATTRIB-013: stub licences.go-allow.txt — same optional-presence
+# Stub licences.go-allow.txt — same optional-presence
 # contract as the Node fragment. The Go fragment is one comma-joined
 # SPDX line consumed by drivers/go.sh via go-licenses --allowed_licenses.
 cat >"$fixture_dir/licences.go-allow.txt" <<'EOF'
@@ -89,7 +89,7 @@ cat >"$fixture_dir/licences.go-allow.txt" <<'EOF'
 # END AUTO-GENERATED FROM licences.toml — go-allow
 EOF
 
-# ATTRIB-014: stub licences.python-allow.txt — same optional-presence
+# Stub licences.python-allow.txt — same optional-presence
 # contract. The Python fragment is one semicolon-joined SPDX line
 # consumed by drivers/python.sh via pip-licenses --allow-only.
 cat >"$fixture_dir/licences.python-allow.txt" <<'EOF'
@@ -198,7 +198,7 @@ set -e
 if [ "$exit_s4" -eq 0 ]; then
   echo "FAIL scenario 4: hand-edited Bogus-9.9 into licences.node-allow.txt" >&2
   echo "    but --check exited 0. Hand-edits inside the Node markers must be" >&2
-  echo "    detected as drift (ATTRIB-012 single-source guarantee)." >&2
+  echo "    detected as drift (single-source guarantee)." >&2
   exit 1
 fi
 if ! grep -q "Bogus-9.9" <<<"$output_s4"; then
@@ -211,7 +211,7 @@ if ! grep -q "Bogus-9.9" <<<"$output_s4"; then
 fi
 echo "ok scenario 4: hand-edit inside Node markers → --check detects drift"
 
-# --- Scenario 5: deterministic note wrapping (ATTRIB-016) -------------------
+# --- Scenario 5: deterministic note wrapping -------------------
 #
 # The expander wraps long `note` fields into `#`-prefixed comment lines.
 # It must wrap on **code points**, not bytes, and must not depend on any
@@ -360,14 +360,14 @@ s5_poisoned="$(cat "$s5_dir/about.toml")"
 if [ "$s5_clean" != "$s5_poisoned" ]; then
   echo "FAIL scenario 5d: about.toml changed when a poisoned 'fold' was on PATH." >&2
   echo "    The note wrap still depends on the external 'fold' binary —" >&2
-  echo "    that is exactly the byte-vs-column drift ATTRIB-016 removes." >&2
+  echo "    that is exactly the byte-vs-column drift wrap_note removes." >&2
   diff <(printf '%s' "$s5_clean") <(printf '%s' "$s5_poisoned") >&2 || true
   exit 1
 fi
 echo "ok scenario 5d: note wrap is independent of the 'fold' binary on PATH"
 
 # --- Scenario 6: hand-edit licences.go-allow.txt inside markers -----------
-# ATTRIB-013 Go-fragment drift detection. The Go fragment is a single
+# Go-fragment drift detection. The Go fragment is a single
 # comma-joined SPDX line, so inject a bogus SPDX above the END marker.
 # Re-expand fixture_dir first: scenario 4 left licences.node-allow.txt
 # hand-edited, so restore the clean baseline before testing go-allow.
@@ -389,7 +389,7 @@ set -e
 if [ "$exit_s6" -eq 0 ]; then
   echo "FAIL scenario 6: hand-edited Bogus-7.7 into licences.go-allow.txt" >&2
   echo "    but --check exited 0. Hand-edits inside the Go markers must be" >&2
-  echo "    detected as drift (ATTRIB-013 single-source guarantee)." >&2
+  echo "    detected as drift (single-source guarantee)." >&2
   exit 1
 fi
 if ! grep -q "Bogus-7.7" <<<"$output_s6"; then
@@ -403,7 +403,7 @@ fi
 echo "ok scenario 6: hand-edit inside Go markers → --check detects drift"
 
 # --- Scenario 7: hand-edit licences.python-allow.txt inside markers --------
-# ATTRIB-014 Python-fragment drift detection. The Python fragment is a
+# Python-fragment drift detection. The Python fragment is a
 # single semicolon-joined SPDX line; inject a bogus SPDX above END.
 (cd "$fixture_dir" && "$EXPANDER") >/dev/null
 python3 - "$fixture_dir/licences.python-allow.txt" <<'PY'
@@ -423,7 +423,7 @@ set -e
 if [ "$exit_s7" -eq 0 ]; then
   echo "FAIL scenario 7: hand-edited Bogus-8.8 into licences.python-allow.txt" >&2
   echo "    but --check exited 0. Hand-edits inside the Python markers must be" >&2
-  echo "    detected as drift (ATTRIB-014 single-source guarantee)." >&2
+  echo "    detected as drift (single-source guarantee)." >&2
   exit 1
 fi
 if ! grep -q "Bogus-8.8" <<<"$output_s7"; then
@@ -437,4 +437,4 @@ fi
 echo "ok scenario 7: hand-edit inside Python markers → --check detects drift"
 
 echo ""
-echo "ATTRIB-006/-012/-013/-014/-016 drift test passed: all seven scenarios green."
+echo "Drift test passed: all seven scenarios green."

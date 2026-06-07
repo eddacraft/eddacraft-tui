@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-012 Node-driver round-trip test.
+# Node-driver round-trip test.
 #
 # Stands up a self-contained project fixture with two local-file
 # packages (no network), runs `npm install` to populate node_modules
@@ -185,4 +185,4 @@ echo "ok scenario 2: second invocation is byte-identical"
 echo "ok scenario 3: --check exits 0 on up-to-date target"
 
 echo
-echo "ATTRIB-012 Node-driver render tests passed: 3/3 scenarios green."
+echo "Node-driver render tests passed: 3/3 scenarios green."

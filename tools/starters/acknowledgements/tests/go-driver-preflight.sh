@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-013 Go-driver preflight test.
+# Go-driver preflight test.
 #
 # Exercises the driver-author contract rule 1 (actionable errors for
 # missing tools or missing state). Invokes `drivers/go.sh` directly —
@@ -154,4 +154,4 @@ fi
 echo "ok scenario 5: missing go-licenses rejected (exit $exit5)"
 
 echo
-echo "ATTRIB-013 Go-driver preflight tests passed: 5/5 scenarios green."
+echo "Go-driver preflight tests passed: 5/5 scenarios green."

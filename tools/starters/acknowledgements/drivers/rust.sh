@@ -15,7 +15,7 @@
 # Driver-author contract (kept here for reviewer convenience):
 #   1. Preflight  — verify required tool + state; actionable error on stderr; non-zero exit
 #   2. Render     — deterministic markdown sorted/structured by the tool's own template
-#   3. Strict     — reject disallowed / missing licences before render (ATTRIB-007)
+#   3. Strict     — reject disallowed / missing licences before render
 #   4. No side effects on the splice target — write only to the
 #      <output-temp-path> argument
 
@@ -72,7 +72,7 @@ done
 # up the config without an explicit flag (cargo-about looks beside the
 # cwd by default for `about.toml`).
 #
-# ATTRIB-007 strict-licence enforcement: `--fail` makes cargo-about
+# Strict-licence enforcement: `--fail` makes cargo-about
 # exit non-zero when a workspace crate is missing the `license` (or
 # `license-file`) field. Without it cargo-about emits a WARN and
 # exits 0, and the crate silently drops out of the generated

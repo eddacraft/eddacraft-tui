@@ -1,4 +1,4 @@
-# ATTRIB-004: hand-maintained inventory of third-party BINARIES bundled
+# Hand-maintained inventory of third-party BINARIES bundled
 # alongside this project that are NOT a package manager's dependencies
 # (OpenSSH, Mosh, FFmpeg, busybox, …). Package-manager deps are handled
 # by the language drivers (rust/node/go/python); this file covers the

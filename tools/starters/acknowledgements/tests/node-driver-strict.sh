@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-012 Node-driver strict-licence enforcement test.
+# Node-driver strict-licence enforcement test.
 #
 # Same fixture shape as node-driver-render.sh, except a third local
 # package declares `"license": "GPL-3.0"` and the allow-list omits
@@ -135,4 +135,4 @@ fi
 echo "ok scenario 2: on-disk target left byte-identical after strict-gate failure"
 
 echo
-echo "ATTRIB-012 Node-driver strict tests passed: 2/2 scenarios green."
+echo "Node-driver strict tests passed: 2/2 scenarios green."

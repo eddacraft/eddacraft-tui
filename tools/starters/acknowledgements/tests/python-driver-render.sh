@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ATTRIB-014 Python-driver round-trip test.
+# Python-driver round-trip test.
 #
 # Builds a consumer-style virtualenv containing pip-licenses plus a
 # local fixture package (no network for the package itself), then drives
@@ -160,4 +160,4 @@ echo "ok scenario 2: second invocation is byte-identical"
 echo "ok scenario 3: --check exits 0 on up-to-date target"
 
 echo
-echo "ATTRIB-014 Python-driver render tests passed: 3/3 scenarios green."
+echo "Python-driver render tests passed: 3/3 scenarios green."

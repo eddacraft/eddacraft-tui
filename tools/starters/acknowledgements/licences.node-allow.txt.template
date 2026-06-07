@@ -1,4 +1,4 @@
-# ATTRIB-012: SPDX allow-list consumed by `drivers/node.sh` via
+# SPDX allow-list consumed by `drivers/node.sh` via
 # `license-checker --onlyAllow`. One line, semicolon-joined.
 #
 # Generated from `licences.toml` — do not edit between the BEGIN/END
