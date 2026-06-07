@@ -9,6 +9,26 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### Added
+
+- **JSON render component catalogue and renderer.** The `json-render` feature now
+  includes terminal renderers for dashboard-style components including alerts,
+  badges, cards, grids, headings, metrics, progress, separators, stacks, status
+  badges, tables, text, and line/bar/sparkline charts.
+- **Binding and catalogue sync support.** JSON render specs can bind component
+  props to external data and validate canonical component names against the
+  shared catalogue fixtures.
+- **Responsive layout and sanitisation helpers.** The renderer now normalises
+  unsafe text and adapts dashboard output to terminal constraints.
+
+### Changed
+
+- Expanded the `json-render` README and fixture coverage so downstream dashboard
+  consumers can validate rendered terminal output against the current component
+  catalogue.
+
 ## [0.2.4] - 2026-06-01
 
 ### Added
