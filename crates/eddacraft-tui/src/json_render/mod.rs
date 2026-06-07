@@ -1,11 +1,30 @@
 //! json-render spec engine (feature `json-render`).
 //!
-//! This is the generic, Anvil-agnostic engine for the `@json-render/core` flat
-//! element spec format, per [ADR-054]: parse a JSON dashboard spec into typed
-//! Rust structures and validate it against a component [`Catalog`]. The
-//! [`TuiComponent`] trait and [`TuiRegistry`] map component type names to
-//! renderers on top of these types; the tree walker and Ratatui widget mappings
-//! build on them in later TUIDASH work items.
+//! Generic engine for the `@json-render/core` flat element spec format.
+//!
+//! The engine was developed by the eddacraft team (as part of the Anvil project
+//! and TUIDASH work items). The spec format and overall approach were inspired
+//! by Vercel’s json-render product.
+//!
+//! A spec is a flat, id-referenced tree of named components with arbitrary
+//! props and children. This module provides:
+//!
+//! - Parsing into [`RenderSpec`] / [`Element`] / [`PropValue`].
+//! - Structural validation against a [`Catalog`] (unknown component types,
+//!   dangling or cyclic `children` references, missing root).
+//! - Data binding via `$data` references against a [`DataContext`].
+//! - Sanitisation for display strings coming from untrusted sources.
+//! - Responsive breakpoint helpers (`Breakpoint`, `max_table_columns`).
+//! - The [`TuiComponent`] trait + [`TuiRegistry`] + [`render_spec`] for
+//!   pluggable rendering into Ratatui.
+//!
+//! The engine itself is not tied to dashboards. While the driving use case
+//! (TUIDASH) and initial catalogues are dashboard/monitoring surfaces, the
+//! base components (`Stack`, `Grid`, `Card`, `Heading`, `Text`, `Table`,
+//! `Alert`, `Progress`, …) are general UI primitives. Consumers can extend
+//! the catalogue and registry for any declarative UI that benefits from a
+//! portable JSON description (detail views, status pages, settings,
+//! LLM-generated interfaces, etc.).
 //!
 //! ```
 //! use eddacraft_tui::json_render::{self, Catalog};
@@ -22,6 +41,11 @@
 //! json_render::validate(&spec, &Catalog::base()).expect("known components");
 //! assert_eq!(spec.root_element().unwrap().component_type, "Stack");
 //! ```
+//!
+//! The wire format contract is owned by `@json-render/core` / `@eddacraft/render`
+//! (web side); this crate mirrors the types so the same specs can render in a
+//! terminal. Per [ADR-054] the generic engine lives here; domain-specific
+//! catalogues and surfaces live in the consumer.
 //!
 //! [ADR-054]: the json-render TUI engine home decision — generic engine in
 //! `eddacraft-tui` behind this feature, Anvil catalogue + surface in `anvil-tui`.

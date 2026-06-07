@@ -72,7 +72,7 @@ pub use text::Text;
 /// Build a [`TuiRegistry`] with every generic base-catalogue component
 /// registered under its catalogue type name.
 ///
-/// This is the registry the dashboard surface renders specs against. Catalogue
+/// This is the registry a surface renders specs against. Catalogue
 /// component names that are not yet mapped fall through to the renderer's
 /// placeholder (D-TUIDASH-001), so a partially-populated registry is safe.
 ///

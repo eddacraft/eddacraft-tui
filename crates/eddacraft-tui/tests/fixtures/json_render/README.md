@@ -1,7 +1,7 @@
 # json-render fixture specs
 
 These three files are **verbatim copies** of the `@eddacraft/render` template
-dashboard specs at `packages/libs/render/specs/`:
+specs (primarily dashboard/monitoring surfaces) at `packages/libs/render/specs/`:
 
 - `gate-summary.dashboard.json`
 - `watch-session.dashboard.json`
@@ -14,6 +14,9 @@ They exercise the json-render parser (`tests/json_render_specs.rs`) for
 round-trip fidelity and base-catalogue validation, and the engine renderer.
 Refresh by re-copying from `packages/libs/render/specs/` when the templates
 change.
+
+(Note: while the current fixtures are dashboard-oriented, the json-render
+engine and format are general-purpose and not limited to dashboards.)
 
 ## `catalog-names.json`
 
