@@ -206,7 +206,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   design across nine decisions before any code landed; the outcome is
   recorded in [ADR-042](../../decisions/042-closeout-enforcement-exit-codes.md)
   (closeout-enforcement carve-out from ADR-002) and the 24-step action plan
-  at [`../execution/DOCGOV-005.steps.md`](../../execution/DOCGOV-005.steps.md).
+  at [`plans/execution/DOCGOV-005.steps.md`](../../execution/DOCGOV-005.steps.md).
   Ships `pnpm docs:check` as a thin Node ESM orchestrator over seven
   surfaces (`metadata`, `tags`, `links`, `aps`, `adr`, `index-freshness`,
   `asbuilt-paths`) — five real validators plus two no-op stubs reserved for
