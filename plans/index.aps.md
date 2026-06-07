@@ -105,17 +105,17 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | GITGOV-003 — capsule manifest schema | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | ADR-072/-073/-074 Accepted 2026-06-08 (full council) — the governance-substrate design gate just cleared, and GITGOV-003 is the first implementation item of the capsule arc (manifest schema precedes create/collectors/verification). | Promote Proposed → Ready and start; schema decisions feed every downstream GITGOV item. |
-| 2 | EXCEPT-003 — enriched `anvil.exception.v1` schema | Schedule | [`git-native-exceptions`](./modules/git-native-exceptions.aps.md) | EXCEPT-001/-002 (tracked store + legacy fallback) shipped; ADR-073 Accepted 2026-06-08. The enriched schema unblocks the grant/revoke CLI (-004) and scope/expiry verification (-005), and coordinates with GITGOV-009 capsule inclusion (-009). | Promote Proposed → Ready; pin the schema alongside GITGOV-003 so capsule + exception shapes land coherently. |
-| 3 | DSV-011 — Windows `watch`/`status` save-time clients | Done (2026-06-07) | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) | NBI completed: implementation was already Merged (PRs #2317 + #2327, verbs served by #2328); closure evidence delivered — full cross matrix green on dispatch run 27102943706 after PR #2365 fixed the bench-test flake that had the Windows leg red on `main`. Sub-phase A-W closed 2/2; DSV advances 14/18 → 15/18. | NBI item closed; row retained for the record until the next refresh. |
+| 1 | `v0.8.0-beta` cut readiness | Ready | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) + [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) | The window's content is fully Merged: headline Sub-phase A 9/9, A-W closed 2/2 on cross-matrix evidence (dispatch run 27102943706), and the Ready-freight slate (RLB-002/003/004/005/008 #2228, TUIDASH-003..-013 #2229/#2246, RTAI-007/-009 #2227, INSIGHTS-004 #2226) all landed. Cadence policy: cut when ready + gates green, no calendar gate. | Operator-run the release flow (assess → preflight) against the cut criteria — ADR-061 §8 correctness bar, `release-readiness.yml` on the source SHA, fresh `ACKNOWLEDGEMENTS` — then prune + re-scope the window on closeout (which also flips POLENG/DISTRIB/RSTLAN release-gated statuses). |
+| 2 | GITGOV-004 — capsule create command | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003 (capsule manifest schema) Merged 2026-06-08 via PR #2353 with council fixes applied, so the arc's first executable consumer of the schema is next; `create` precedes the collectors (-005..-008) and the verification engine (-009). | Promote Proposed → Ready and start. |
+| 3 | EXCEPT-003 — enriched `anvil.exception.v1` schema | Schedule | [`git-native-exceptions`](./modules/git-native-exceptions.aps.md) | Carried from the prior refresh, now stronger: EXCEPT-007 write-path hardening Merged 2026-06-08 via PR #2366 and the capsule manifest schema is landed, so the enriched schema can pin against real shapes. Unblocks the grant/revoke CLI (-004) and scope/expiry verification (-005); coordinates with capsule inclusion (-009). | Promote Proposed → Ready; pin the schema alongside the landed GITGOV-003 shapes. |
 
-NBI review note (2026-06-08): list refreshed after the v0.7.3/v0.7.4-beta
-release-tag reconciliation closed DISTRIB / POLENG / LANGTS and the prior
-RSTLAN re-eval NBI (Done 2026-06-03 — re-scoring snapshot
-`anchor-rescore-2026-06-03.md`; RSTLAN since fully Merged awaiting
-`v0.8.0-beta`). The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL,
-IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available but none of it
-outranks the save-time arc or the just-unblocked governance-substrate work.
+NBI review note (2026-06-08, second pass): GITGOV-003 closed Merged (PR #2353)
+and the DSV-011 Done row cleared (Sub-phase A-W closed 2/2 on matrix
+evidence; see the DSV module for the record). With every Merged-awaiting-release
+item now riding the window, the cut itself takes rank 1. The broad Ready pool
+(USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV,
+LAC) remains available but none of it outranks cutting the window or the
+governance-substrate arc.
 
 ## Release Plan
 
