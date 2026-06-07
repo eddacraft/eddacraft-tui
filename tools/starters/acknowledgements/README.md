@@ -611,10 +611,6 @@ keeps surfacing.
 
 ## Dispatcher and driver contracts
 
-Full design at
-[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../../../plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
-(the v3.2 spec).
-
 The dispatcher (`generate-acknowledgements.sh`) is responsible for: TOML
 parsing, schema validation (mixed-schema detection, name uniqueness, ecosystem →
 driver lookup), per-block marker-count gating, splicing each driver's output

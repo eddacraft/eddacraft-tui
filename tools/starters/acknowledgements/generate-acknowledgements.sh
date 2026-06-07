@@ -39,9 +39,6 @@
 # `${ATTRIB_DRIVERS_DIR:-<script-dir>/drivers}/<ecosystem>.sh`; the
 # env var override is intended for tests, not production consumers.
 #
-# Full design contract:
-#   plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md
-#
 # Exit codes:
 #   0  success / no drift
 #   1  drift detected, missing markers, empty output, missing tool, bad config, driver failure
@@ -84,7 +81,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h|--help)
-      sed -n '2,57p' "$0"
+      sed -n '2,45p' "$0"
       exit 0
       ;;
     *)

@@ -42,9 +42,8 @@ Or just `cp -r` the directory in if you don't want subtree tracking.
 
 The starter kit grew out of the Rust-CLI attribution pipeline shipped with the
 `eddacraft/anvil` project. The multi-ecosystem roadmap (CycloneDX intermediate,
-bundled-binaries support, multi-block markers) lives in the
-`attribution-pipeline-v3` APS module in that repository. This mirror is purely
-the kit; consult anvil for the "why".
+bundled-binaries support, multi-block markers) is tracked in that repository.
+This mirror is purely the kit; consult anvil for the "why".
 
 ---
 

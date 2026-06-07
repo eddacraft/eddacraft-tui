@@ -14,8 +14,6 @@
 #      Existing consumers don't need to migrate; new consumers should
 #      adopt [[blocks]] so multi-block / multi-ecosystem additions stay
 #      cheap.
-#
-# Full design: plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md
 
 [project]
 # The markdown file the BEGIN/END marker blocks live inside.
