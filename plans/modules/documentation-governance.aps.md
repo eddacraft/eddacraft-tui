@@ -501,7 +501,8 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   references (renamed source files plus basename doc/workflow mentions in prose);
   these were absorbed into the `asbuilt-paths` baseline per ADR-003
   new-edges-only and warrant a follow-up burn-down (not part of metadata
-  coverage).
+  coverage), tracked in
+  [#2371](https://github.com/eddacraft/anvil-001/issues/2371).
 - **Confidence:** high
 
 ### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
